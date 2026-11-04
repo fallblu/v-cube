@@ -49,16 +49,34 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
   front colours, or let each case pick a random front, or a random top and
   front.
 - **Library**: create and edit alg sets.
-  - Organise each set into groups of cases. Each case can have several
-    algs, with the first one as the main alg; you can swap, reorder and
-    edit them.
+  - The main view shows the set list, the selected set's case tree and the
+    selected case with its diagram and algs. The **Set** menu (also on
+    right-click) creates, duplicates, deletes, imports, exports and checks
+    sets; **Edit** (also on right-click) adds and renames groups and cases.
+  - **Set properties…** (or double-click a set) edits the name,
+    description, random U turns around drilled cases, target time, and the
+    step settings for the whole set or as a group's own override: what the
+    algs may leave unsolved (e.g. "last-layer permutation" for OLL-like
+    sets) and how diagrams look (full colour, top colour only or grey, from
+    above or in 3D).
+  - Each case can have several algs. Drag them to reorder, double-click to
+    edit, and right-click to make one the main alg or remove it.
+  - Every alg is checked against its case under the step settings in force,
+    with a visible result: e.g. `(U') … (U2), 14 moves` for a pass, or
+    `leaves 3 corners unsolved (U layer)` or `can't read at character 7`
+    for a fail. OLL algs pass whatever last-layer permutation they leave,
+    and algs may need a U turn before or after when the set allows it.
+    Failing algs are kept with a warning; the case tree marks cases with
+    failing or no passing algs, the set list counts failing algs, and
+    **Check algs…** lists them all.
+  - The main alg is the first passing alg. Each case is drawn, and set up
+    in Learn and Drill, from the angle its main alg starts from: a leading
+    `y`, `y'`, `y2` or U turn is done to the case, so the rest of the alg
+    solves it directly. The stored case and algs don't change.
   - Paste any list of algs: each one is matched to the case it solves (any
     AUF, any cube rotations), so the order doesn't matter. Lines may look
     like `Name: alg1 / alg2`, as in Alg-Trainer.
-  - Create a case from an alg, and set what a step may leave unsolved (e.g.
-    "last-layer permutation" for OLL-like sets). Diagrams can show full
-    colour, the top colour only, or grey, from above or in 3D.
-  - Import and export sets as JSON.
+  - Create a case from an alg, and import and export sets as JSON.
 - **Built-in sets**: PLL (21), OLL (57), 2-look OLL (10) and 2-look PLL (6).
   These ship as case definitions only, with no algs, so you add your own.
 - **Timer**: hold Space to start (the hold time is configurable) and press
@@ -194,13 +212,15 @@ Default turning keys (cstimer / Ryan Heise layout):
 ### Getting algs into a set
 
 1. In **Library** mode, pick a set (e.g. PLL) and click **Paste algs…**.
-2. Paste your list. Each alg is matched to its case automatically. An alg
-   that doesn't solve the case is shown in red with a warning.
-3. In a case's alg list, **Make main** picks which alg Learn and Drill
-   show first.
+2. Paste your list. Each alg is matched to its case automatically, and its
+   check result is shown next to it.
+3. In a case's alg list, drag an alg to the top or right-click it and
+   choose **Make main** to pick which alg Learn and Drill show first.
 
-For your own sets, **New…** asks what the algs solve, then **New case from
-alg…** or **Paste algs…** (with "Create new cases" ticked) builds the cases.
+For your own sets, **Set > New set…** asks what the algs solve, then
+**Edit > New case from alg…** or **Paste algs…** (with "Create new cases"
+ticked) builds the cases. If you change a set's step settings later,
+**Set > Check algs…** lists the algs that no longer pass.
 
 ### Data
 
@@ -222,8 +242,8 @@ file manager can be started, it shows the data folder and config file paths
 with buttons to copy them.
 
 Built-in sets are copied into the alg-set folder on first run, and are
-then yours to edit. **Restore built-in cases** reloads the shipped cases
-and keeps your algs.
+then yours to edit. **Set > Restore built-in cases** reloads the shipped
+cases and keeps your algs.
 
 Alg-set files look like this (states are 54-character facelet strings in
 URFDLB order; `free` lists what the step may leave unsolved, e.g. `LL:p` =
@@ -246,7 +266,7 @@ last-layer permutation):
 | Directory | Contents |
 | --- | --- |
 | `src/cube` | Pure C++ engine. Notation parser (groups, commutators, conjugates; invert, mirror, simplify); a facelet model built from 3D geometry that handles slices, wide moves and rotations; a cubie model; Kociemba's two-phase solver (tables built in under a second); random-state and subset scramblers. |
-| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching, drill states, paste import, timer state machine, WCA statistics, SRS scheduler, Learn and Drill case picking. |
+| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics, SRS scheduler, Learn and Drill case picking. |
 | `src/io` | Qt Core persistence. JSON alg sets, the user library, progress, sessions and cstimer conversion. |
 | `src/app` | Qt Widgets UI. Cube renderer, the six mode pages, the shared scramble source and settings. |
 | `tests` | Catch2 tests for the engine, training logic and storage. They also check that every built-in case is distinct and that standard algs are matched to the right cases. |
