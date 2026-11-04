@@ -60,7 +60,9 @@ with the built-in virtual cube turned from the keyboard.
 ## Building
 
 The app is developed on Ubuntu 26.04 under WSL2/WSLg with g++ 15 and Qt
-6.10, but has no Linux-only code.
+6.10, and also builds natively on Windows with MSVC.
+
+### Linux
 
 ```bash
 sudo apt install build-essential cmake ninja-build qt6-base-dev catch2
@@ -73,6 +75,34 @@ Catch2 is fetched automatically if it isn't installed. Other presets:
 `debug`, and `asan` (AddressSanitizer + UBSan). Run the tests with
 `ctest --preset debug`. Pass `-DVCUBE_BUILD_APP=OFF` to build only the
 libraries and tests, which need Qt Core but no GUI.
+
+### Windows
+
+Prerequisites:
+
+- Visual Studio 2022 or its Build Tools, with the **Desktop development
+  with C++** workload (MSVC, the Windows SDK, CMake and Ninja).
+  A standalone CMake 3.25+ and Ninja also work.
+- Qt 6.5 or later for MSVC (`msvc2022_64`) from the
+  [Qt online installer](https://www.qt.io/download-qt-installer).
+- Git, used to fetch Catch2 for the tests.
+
+Open an **x64 Native Tools Command Prompt for VS 2022**, point `QTDIR` at
+the Qt install, then configure, build, test and deploy:
+
+```bat
+set QTDIR=C:\Qt\6.10.0\msvc2022_64
+cmake --preset windows-release
+cmake --build --preset windows-release
+ctest --preset windows-release
+cmake --install build\windows-release
+install\windows-release\bin\v-cube.exe
+```
+
+`cmake --install` runs `windeployqt` and copies the MSVC runtime, so
+`install\windows-release\bin` is a self-contained folder that you can copy
+to a PC without Qt. A `windows-debug` preset is also available. The
+executable in `build\` needs Qt's `bin` folder on `PATH` to run.
 
 ### WSL
 
@@ -135,12 +165,17 @@ alg…** or **Paste algs…** (with "Create new cases" ticked) builds the cases.
 
 ### Data
 
-| What | Where |
-| --- | --- |
-| Alg sets (one JSON file each) | `~/.local/share/v-cube/algsets/` |
-| Drill progress per set | `~/.local/share/v-cube/algsets/progress/` |
-| Timer sessions | `~/.local/share/v-cube/sessions.json` |
-| Settings (theme, colours, keys, trainer choices) | `~/.config/v-cube/v-cube.conf` |
+| What | Linux | Windows |
+| --- | --- | --- |
+| Alg sets (one JSON file each) | `~/.local/share/v-cube/algsets/` | `%LOCALAPPDATA%\v-cube\algsets\` |
+| Drill progress per set | `~/.local/share/v-cube/algsets/progress/` | `%LOCALAPPDATA%\v-cube\algsets\progress\` |
+| Timer sessions | `~/.local/share/v-cube/sessions.json` | `%LOCALAPPDATA%\v-cube\sessions.json` |
+| Settings (theme, colours, keys, trainer choices) | `~/.config/v-cube/v-cube.ini` | `%APPDATA%\v-cube\v-cube.ini` |
+
+Settings are an INI file on every platform; Windows doesn't use the
+registry. Earlier versions kept them in `~/.config/v-cube/v-cube.conf`.
+Those settings are copied to `v-cube.ini` the first time a newer version
+runs, and the old file is left in place.
 
 **File > Open data folder** opens the data folder in your file manager
 (Windows Explorer under WSL, through `wslpath` and `explorer.exe`). If no
