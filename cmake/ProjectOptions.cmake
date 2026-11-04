@@ -7,8 +7,22 @@
 add_library(vcube_warnings INTERFACE)
 target_compile_features(vcube_warnings INTERFACE cxx_std_23)
 if(MSVC)
-  target_compile_options(vcube_warnings INTERFACE /W4 /permissive-
+  # Sources are UTF-8 ("…", "→"); MSVC otherwise reads them as the ANSI code
+  # page.
+  target_compile_options(vcube_warnings INTERFACE /W4 /permissive- /utf-8
     $<$<BOOL:${VCUBE_WARNINGS_AS_ERRORS}>:/WX>)
+  # MSVC rejects /O2 together with the debug /RTC1, so the debug
+  # optimization flags move from the global flags to the targets, and a
+  # target with the VCUBE_OPTIMIZE property gets /O2 instead (see src/cube).
+  string(REGEX REPLACE "/RTC1|/Od|/Ob0" "" CMAKE_CXX_FLAGS_DEBUG
+    "${CMAKE_CXX_FLAGS_DEBUG}")
+  set(vcube_debug "$<CONFIG:Debug>")
+  set(vcube_optimize "$<BOOL:$<TARGET_PROPERTY:VCUBE_OPTIMIZE>>")
+  target_compile_options(vcube_warnings INTERFACE
+    "$<$<AND:${vcube_debug},${vcube_optimize}>:/O2>"
+    "$<$<AND:${vcube_debug},$<NOT:${vcube_optimize}>>:/Od>"
+    "$<$<AND:${vcube_debug},$<NOT:${vcube_optimize}>>:/Ob0>"
+    "$<$<AND:${vcube_debug},$<NOT:${vcube_optimize}>>:/RTC1>")
 else()
   target_compile_options(vcube_warnings INTERFACE
     -Wall -Wextra -Wpedantic -Wshadow
