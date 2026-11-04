@@ -33,3 +33,15 @@ target_compile_definitions(vcube PRIVATE VCUBE_VERSION="${PROJECT_VERSION}")
 target_link_libraries(vcube PRIVATE vcube_gui vcube_warnings)
 set_target_properties(vcube PROPERTIES OUTPUT_NAME v-cube WIN32_EXECUTABLE ON)
 install(TARGETS vcube RUNTIME DESTINATION bin)
+
+# Windows: `cmake --install` produces a self-contained folder with the Qt
+# DLLs and plugins (windeployqt) and the MSVC runtime.
+if(WIN32)
+  qt_generate_deploy_app_script(
+    TARGET vcube
+    OUTPUT_SCRIPT vcube_deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR)
+  install(SCRIPT ${vcube_deploy_script})
+  set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION bin)
+  include(InstallRequiredSystemLibraries)
+endif()
