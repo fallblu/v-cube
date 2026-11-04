@@ -106,7 +106,7 @@ void drawSticker(QPainter &p, const QPolygonF &poly, const QColor &colour,
   for (const auto &pt : poly) {
     centre += pt;
   }
-  centre /= poly.size();
+  centre /= static_cast<qreal>(poly.size());
   QPolygonF inner;
   for (const auto &pt : poly) {
     inner << centre + (pt - centre) * 0.82;
@@ -164,8 +164,9 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
   std::array<int, 3> slabOrder{0, 1, 2};
   if (turnAxis >= 0) {
     float dz = view.mapVector(axisVector(turnAxis)).z();
-    std::sort(slabOrder.begin(), slabOrder.end(),
-              [dz](int a, int b) { return (a - 1) * dz < (b - 1) * dz; });
+    std::sort(slabOrder.begin(), slabOrder.end(), [dz](int a, int b) {
+      return static_cast<float>(a - 1) * dz < static_cast<float>(b - 1) * dz;
+    });
   }
 
   for (int s : slabOrder) {
