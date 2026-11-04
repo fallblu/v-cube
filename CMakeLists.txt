@@ -31,3 +31,10 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.29)
 endif()
 
 include(cmake/ProjectOptions.cmake)
+
+add_subdirectory(src)
+
+if(VCUBE_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
