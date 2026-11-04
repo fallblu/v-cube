@@ -163,3 +163,7 @@ scrambles and keyboard layout) and
 [Alg-Trainer](https://github.com/tao-yu/Alg-Trainer) (case drilling with
 real scrambles). No code from either is included. The scrambles use Herbert
 Kociemba's two-phase algorithm.
+
+## License
+
+MIT; see [LICENSE](LICENSE).
