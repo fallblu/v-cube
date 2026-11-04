@@ -12,3 +12,6 @@ compile_commands.json
 
 # Test output
 Testing/
+
+# Install output
+install/
