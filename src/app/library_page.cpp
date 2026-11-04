@@ -1,13 +1,12 @@
 #include "app/library_page.hpp"
 
 #include "app/cube_painter.hpp"
-#include "train/case_logic.hpp"
+#include "app/set_properties_dialog.hpp"
 
 #include <QCheckBox>
-#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QDoubleSpinBox>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -17,12 +16,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSettings>
 #include <QSplitter>
-#include <QTreeWidget>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace vcube {
@@ -32,28 +32,9 @@ namespace {
 constexpr int kCaseRole = Qt::UserRole;
 constexpr int kGroupRole = Qt::UserRole + 1;
 
-struct Preset {
-  const char *label;
-  const char *free;
-};
-
-const std::array<Preset, 5> kPresets = {{
-    {"Everything solved (PLL-like)", ""},
-    {"Last-layer permutation free (OLL-like)", "LL:p"},
-    {"LL permutation and corner orientation free (edge orientation)",
-     "LL:p LLC:o"},
-    {"LL edge permutation free (corner permutation)", "LLE:p"},
-    {"Whole last layer free (F2L, last slot)", "LL:po"},
-}};
-
-QComboBox *maskCombo(QWidget *parent) {
-  auto *c = new QComboBox(parent);
-  c->addItem(QObject::tr("Full colour"), static_cast<int>(StickerMode::Full));
-  c->addItem(QObject::tr("Top colour only"),
-             static_cast<int>(StickerMode::Orientation));
-  c->addItem(QObject::tr("Grey"), static_cast<int>(StickerMode::Hidden));
-  return c;
-}
+const QColor kPass(0x3d, 0xd6, 0x6b);
+const QColor kWarn(0xff, 0xb0, 0x30);
+const QColor kFail(0xe6, 0x66, 0x66);
 
 QString reportText(const ImportReport &r) {
   QString text = QObject::tr("Added %1 algs to cases").arg(r.added);
@@ -84,7 +65,43 @@ QString reportText(const ImportReport &r) {
   return text;
 }
 
+QToolButton *menuButton(const QString &text, QMenu *menu, QWidget *parent) {
+  auto *b = new QToolButton(parent);
+  b->setText(text);
+  b->setMenu(menu);
+  b->setPopupMode(QToolButton::InstantPopup);
+  b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+  return b;
+}
+
 } // namespace
+
+// --- AlgListWidget
+// -------------------------------------------------------------
+
+AlgListWidget::AlgListWidget(QWidget *parent) : QTreeWidget(parent) {
+  setColumnCount(2);
+  setHeaderLabels({tr("Alg"), tr("Check")});
+  setRootIsDecorated(false);
+  setUniformRowHeights(true);
+  setSelectionMode(QAbstractItemView::SingleSelection);
+  setDragDropMode(QAbstractItemView::InternalMove);
+  setDefaultDropAction(Qt::MoveAction);
+  setDragDropOverwriteMode(false);
+  setEditTriggers(QAbstractItemView::EditKeyPressed);
+  setContextMenuPolicy(Qt::CustomContextMenu);
+  header()->setSectionResizeMode(0, QHeaderView::Stretch);
+  header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+  header()->setStretchLastSection(false);
+}
+
+void AlgListWidget::dropEvent(QDropEvent *event) {
+  QTreeWidget::dropEvent(event);
+  emit reordered();
+}
+
+// --- LibraryPage
+// -----------------------------------------------------------------
 
 LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
                          QWidget *parent)
@@ -93,128 +110,45 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   auto *left = new QWidget(this);
   auto *leftLayout = new QVBoxLayout(left);
   leftLayout->setContentsMargins(0, 0, 0, 0);
-  leftLayout->addWidget(new QLabel(tr("<b>Alg sets</b>"), left));
+  setMenu_ = new QMenu(this);
+  auto *setHeader = new QHBoxLayout;
+  setHeader->addWidget(new QLabel(tr("<b>Alg sets</b>"), left));
+  setHeader->addStretch();
+  setHeader->addWidget(menuButton(tr("Set"), setMenu_, left));
+  leftLayout->addLayout(setHeader);
   setList_ = new QListWidget(left);
+  setList_->setContextMenuPolicy(Qt::CustomContextMenu);
+  setList_->setToolTip(tr("Double-click a set to edit its properties"));
   leftLayout->addWidget(setList_, 1);
-  auto *row1 = new QHBoxLayout;
-  auto *newButton = new QPushButton(tr("New…"), left);
-  auto *dupButton = new QPushButton(tr("Duplicate"), left);
-  auto *delButton = new QPushButton(tr("Delete"), left);
-  row1->addWidget(newButton);
-  row1->addWidget(dupButton);
-  row1->addWidget(delButton);
-  auto *row2 = new QHBoxLayout;
-  auto *importButton = new QPushButton(tr("Import…"), left);
-  auto *exportButton = new QPushButton(tr("Export…"), left);
-  row2->addWidget(importButton);
-  row2->addWidget(exportButton);
-  restoreButton_ = new QPushButton(tr("Restore built-in cases"), left);
-  restoreButton_->setToolTip(
-      tr("Reload this built-in set's cases and settings as shipped, "
-         "keeping your algs"));
-  leftLayout->addLayout(row1);
-  leftLayout->addLayout(row2);
-  leftLayout->addWidget(restoreButton_);
-
-  // --- set settings ---
-  auto *right = new QWidget(this);
-  auto *rightLayout = new QVBoxLayout(right);
-  rightLayout->setContentsMargins(0, 0, 0, 0);
-  auto *setBox = new QGroupBox(tr("Set"), right);
-  auto *setForm = new QFormLayout(setBox);
-  nameEdit_ = new QLineEdit(setBox);
-  descriptionEdit_ = new QLineEdit(setBox);
-  setForm->addRow(tr("Name:"), nameEdit_);
-  setForm->addRow(tr("Description:"), descriptionEdit_);
-  auto *drillRow = new QHBoxLayout;
-  aufBeforeBox_ = new QCheckBox(tr("Random U turn before the case"), setBox);
-  aufAfterBox_ = new QCheckBox(tr("and after it"), setBox);
-  targetSpin_ = new QDoubleSpinBox(setBox);
-  targetSpin_->setRange(0.3, 60.0);
-  targetSpin_->setSingleStep(0.1);
-  targetSpin_->setSuffix(" s");
-  targetSpin_->setToolTip(
-      tr("Time to beat for a \"Good\" grade (60% of it is \"Easy\")"));
-  drillRow->addWidget(aufBeforeBox_);
-  drillRow->addWidget(aufAfterBox_);
-  drillRow->addStretch();
-  drillRow->addWidget(new QLabel(tr("Target time:"), setBox));
-  drillRow->addWidget(targetSpin_);
-  setForm->addRow(tr("Drills:"), drillRow);
-
-  auto *scopeRow = new QHBoxLayout;
-  scopeBox_ = new QComboBox(setBox);
-  overrideBox_ = new QCheckBox(tr("Group has its own settings"), setBox);
-  scopeRow->addWidget(scopeBox_, 1);
-  scopeRow->addWidget(overrideBox_);
-  setForm->addRow(tr("Step settings for:"), scopeRow);
-  specWidgets_ = new QWidget(setBox);
-  auto *specForm = new QFormLayout(specWidgets_);
-  specForm->setContentsMargins(0, 0, 0, 0);
-  presetBox_ = new QComboBox(specWidgets_);
-  for (const auto &p : kPresets) {
-    presetBox_->addItem(tr(p.label), QString(p.free));
-  }
-  presetBox_->addItem(tr("Custom"), QString("?"));
-  freeEdit_ = new QLineEdit(specWidgets_);
-  freeEdit_->setPlaceholderText(tr("nothing free: everything must be solved"));
-  freeEdit_->setToolTip(
-      tr("Pieces the algs may leave unsolved, e.g. \"LL:p\" or "
-         "\"LL:po DFR:po FR:po\".\nGroups: LL, LLC, LLE, F2L, ALL or a piece "
-         "(URF, FR, …); flags: p = permutation, o = orientation."));
-  auto *freeRow = new QHBoxLayout;
-  freeRow->addWidget(presetBox_, 1);
-  freeRow->addWidget(freeEdit_, 1);
-  specForm->addRow(tr("Left unsolved:"), freeRow);
-  cornerMaskBox_ = maskCombo(specWidgets_);
-  edgeMaskBox_ = maskCombo(specWidgets_);
-  restMaskBox_ = maskCombo(specWidgets_);
-  restMaskBox_->removeItem(1);
-  viewBox_ = new QComboBox(specWidgets_);
-  viewBox_->addItem(tr("Last layer from above"),
-                    static_cast<int>(DiagramView::TopLayer));
-  viewBox_->addItem(tr("3D"), static_cast<int>(DiagramView::Iso3D));
-  auto *maskRow = new QHBoxLayout;
-  maskRow->addWidget(new QLabel(tr("LL corners"), specWidgets_));
-  maskRow->addWidget(cornerMaskBox_);
-  maskRow->addWidget(new QLabel(tr("LL edges"), specWidgets_));
-  maskRow->addWidget(edgeMaskBox_);
-  maskRow->addWidget(new QLabel(tr("Rest"), specWidgets_));
-  maskRow->addWidget(restMaskBox_);
-  maskRow->addWidget(viewBox_);
-  specForm->addRow(tr("Diagrams:"), maskRow);
-  setForm->addRow(specWidgets_);
-  rightLayout->addWidget(setBox);
 
   // --- cases ---
-  auto *caseSplit = new QSplitter(right);
-  auto *treeWidget = new QWidget(caseSplit);
-  auto *treeLayout = new QVBoxLayout(treeWidget);
-  treeLayout->setContentsMargins(0, 0, 0, 0);
-  caseTree_ = new QTreeWidget(treeWidget);
-  caseTree_->setColumnCount(3);
-  caseTree_->setHeaderLabels({tr("Case"), tr("Algs"), tr("Main alg")});
+  auto *middle = new QWidget(this);
+  auto *middleLayout = new QVBoxLayout(middle);
+  middleLayout->setContentsMargins(0, 0, 0, 0);
+  caseTree_ = new QTreeWidget(middle);
+  caseTree_->setColumnCount(4);
+  caseTree_->setHeaderLabels(
+      {tr("Case"), tr("Algs"), tr("Check"), tr("Main alg")});
   caseTree_->setIconSize(QSize(40, 40));
   caseTree_->setIndentation(14);
-  caseTree_->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-  caseTree_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+  caseTree_->setContextMenuPolicy(Qt::CustomContextMenu);
+  for (int c = 0; c < 3; ++c) {
+    caseTree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
+  }
   caseTree_->header()->setStretchLastSection(true);
-  treeLayout->addWidget(caseTree_, 1);
+  middleLayout->addWidget(caseTree_, 1);
+  editMenu_ = new QMenu(this);
   auto *caseButtons = new QHBoxLayout;
-  auto *newGroupButton = new QPushButton(tr("New group"), treeWidget);
-  auto *renameGroupButton = new QPushButton(tr("Rename"), treeWidget);
-  auto *deleteButton = new QPushButton(tr("Delete"), treeWidget);
-  auto *newCaseButton = new QPushButton(tr("New case from alg…"), treeWidget);
-  auto *pasteButton = new QPushButton(tr("Paste algs…"), treeWidget);
+  auto *pasteButton = new QPushButton(tr("Paste algs…"), middle);
   pasteButton->setToolTip(
       tr("Paste a list of algs; each is matched to the case it solves"));
-  for (auto *b : {newGroupButton, renameGroupButton, deleteButton,
-                  newCaseButton, pasteButton}) {
-    caseButtons->addWidget(b);
-  }
-  treeLayout->addLayout(caseButtons);
+  caseButtons->addWidget(menuButton(tr("Edit"), editMenu_, middle));
+  caseButtons->addStretch();
+  caseButtons->addWidget(pasteButton);
+  middleLayout->addLayout(caseButtons);
 
-  caseBox_ = new QGroupBox(tr("Case"), caseSplit);
+  // --- the case ---
+  caseBox_ = new QGroupBox(tr("Case"), this);
   auto *caseLayout = new QVBoxLayout(caseBox_);
   auto *caseTop = new QHBoxLayout;
   caseDiagram_ = new QLabel(caseBox_);
@@ -222,14 +156,19 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   auto *caseForm = new QFormLayout;
   caseNameEdit_ = new QLineEdit(caseBox_);
   caseForm->addRow(tr("Name:"), caseNameEdit_);
+  caseSummary_ = new QLabel(caseBox_);
+  caseSummary_->setWordWrap(true);
+  caseForm->addRow(caseSummary_);
   caseTop->addWidget(caseDiagram_);
   caseTop->addLayout(caseForm, 1);
   caseLayout->addLayout(caseTop);
-  caseLayout->addWidget(new QLabel(
-      tr("Algs (the first is the main alg; double-click to edit):"), caseBox_));
-  algList_ = new QListWidget(caseBox_);
-  algList_->setEditTriggers(QAbstractItemView::DoubleClicked |
-                            QAbstractItemView::EditKeyPressed);
+  auto *algHelp =
+      new QLabel(tr("The first passing alg is the main alg. Drag to reorder, "
+                    "double-click to edit, right-click for more."),
+                 caseBox_);
+  algHelp->setWordWrap(true);
+  caseLayout->addWidget(algHelp);
+  algList_ = new AlgListWidget(caseBox_);
   caseLayout->addWidget(algList_, 1);
   auto *addRow = new QHBoxLayout;
   newAlgEdit_ = new QLineEdit(caseBox_);
@@ -238,29 +177,22 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   addRow->addWidget(newAlgEdit_, 1);
   addRow->addWidget(addButton);
   caseLayout->addLayout(addRow);
-  auto *algButtons = new QHBoxLayout;
-  auto *mainButton = new QPushButton(tr("Make main"), caseBox_);
-  auto *upButton = new QPushButton(tr("Up"), caseBox_);
-  auto *downButton = new QPushButton(tr("Down"), caseBox_);
-  auto *removeButton = new QPushButton(tr("Remove"), caseBox_);
-  for (auto *b : {mainButton, upButton, downButton, removeButton}) {
-    algButtons->addWidget(b);
-  }
-  caseLayout->addLayout(algButtons);
-  caseSplit->addWidget(treeWidget);
-  caseSplit->addWidget(caseBox_);
-  caseSplit->setSizes({520, 420});
-  rightLayout->addWidget(caseSplit, 1);
 
   auto *split = new QSplitter(this);
   split->addWidget(left);
-  split->addWidget(right);
+  split->addWidget(middle);
+  split->addWidget(caseBox_);
   split->setStretchFactor(1, 1);
-  split->setSizes({230, 970});
+  split->setStretchFactor(2, 1);
+  split->setSizes({220, 520, 460});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split);
 
   // --- wiring ---
+  connect(setMenu_, &QMenu::aboutToShow, this,
+          [this] { fillSetMenu(setMenu_); });
+  connect(editMenu_, &QMenu::aboutToShow, this,
+          [this] { fillEditMenu(editMenu_); });
   connect(setList_, &QListWidget::currentRowChanged, this, [this](int row) {
     if (row >= 0 && row < static_cast<int>(library_.sets().size())) {
       setId_ = library_.sets()[static_cast<std::size_t>(row)].id;
@@ -268,114 +200,56 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
       loadSet();
     }
   });
-  connect(newButton, &QPushButton::clicked, this, &LibraryPage::newSet);
-  connect(dupButton, &QPushButton::clicked, this, &LibraryPage::duplicateSet);
-  connect(delButton, &QPushButton::clicked, this, &LibraryPage::deleteSet);
-  connect(importButton, &QPushButton::clicked, this,
-          &LibraryPage::importSetFile);
-  connect(exportButton, &QPushButton::clicked, this,
-          &LibraryPage::exportSetFile);
-  connect(restoreButton_, &QPushButton::clicked, this,
-          &LibraryPage::restoreSet);
-  connect(nameEdit_, &QLineEdit::editingFinished, this, [this] {
-    if (AlgSet *s = set(); s && !loading_ && ss(nameEdit_->text()) != s->name) {
-      s->name = ss(nameEdit_->text().trimmed());
-      changed();
-      refreshSetList();
-    }
-  });
-  connect(descriptionEdit_, &QLineEdit::editingFinished, this, [this] {
-    if (AlgSet *s = set();
-        s && !loading_ && ss(descriptionEdit_->text()) != s->description) {
-      s->description = ss(descriptionEdit_->text());
-      changed();
-    }
-  });
-  connect(aufBeforeBox_, &QCheckBox::toggled, this, [this](bool on) {
-    if (AlgSet *s = set(); s && !loading_) {
-      s->aufBefore = on;
-      changed();
-    }
-  });
-  connect(aufAfterBox_, &QCheckBox::toggled, this, [this](bool on) {
-    if (AlgSet *s = set(); s && !loading_) {
-      s->aufAfter = on;
-      changed();
-    }
-  });
-  connect(targetSpin_, &QDoubleSpinBox::valueChanged, this, [this](double v) {
-    if (AlgSet *s = set(); s && !loading_) {
-      s->targetSeconds = v;
-      changed();
-    }
-  });
-  connect(scopeBox_, &QComboBox::currentIndexChanged, this,
-          [this] { loadSpec(); });
-  connect(overrideBox_, &QCheckBox::toggled, this, [this](bool on) {
-    if (loading_) {
-      return;
-    }
-    if (CaseGroup *g = scopeGroup()) {
-      g->spec = on ? std::optional<StepSpec>(set()->spec) : std::nullopt;
-      loadSpec();
-      changed(true);
-    }
-  });
-  connect(presetBox_, &QComboBox::activated, this, [this] {
-    QString free = presetBox_->currentData().toString();
-    if (free != "?") {
-      freeEdit_->setText(free);
-      storeSpec();
-    }
-  });
-  connect(freeEdit_, &QLineEdit::editingFinished, this,
-          &LibraryPage::storeSpec);
-  for (QComboBox *c : {cornerMaskBox_, edgeMaskBox_, restMaskBox_, viewBox_}) {
-    connect(c, &QComboBox::activated, this, &LibraryPage::storeSpec);
-  }
+  connect(setList_, &QListWidget::itemDoubleClicked, this,
+          &LibraryPage::editProperties);
+  connect(setList_, &QListWidget::customContextMenuRequested, this,
+          [this](const QPoint &pos) {
+            if (QListWidgetItem *item = setList_->itemAt(pos)) {
+              setList_->setCurrentItem(item);
+            }
+            QMenu menu(this);
+            fillSetMenu(&menu);
+            menu.exec(setList_->viewport()->mapToGlobal(pos));
+          });
+  connect(caseTree_, &QTreeWidget::customContextMenuRequested, this,
+          [this](const QPoint &pos) {
+            if (QTreeWidgetItem *item = caseTree_->itemAt(pos)) {
+              caseTree_->setCurrentItem(item);
+            }
+            QMenu menu(this);
+            fillEditMenu(&menu);
+            menu.exec(caseTree_->viewport()->mapToGlobal(pos));
+          });
   connect(caseTree_, &QTreeWidget::currentItemChanged, this,
           [this](QTreeWidgetItem *item) {
             caseId_ =
                 item ? ss(item->data(0, kCaseRole).toString()) : std::string();
-            // Show the step settings that apply to the selection: its group's
-            // own settings if it has them, else the whole set's.
-            QTreeWidgetItem *groupItem =
-                item && item->parent() ? item->parent() : item;
-            if (AlgSet *s = set(); s && groupItem) {
-              int gi = groupItem->data(0, kGroupRole).toInt();
-              bool own =
-                  gi >= 0 && gi < static_cast<int>(s->groups.size()) &&
-                  s->groups[static_cast<std::size_t>(gi)].spec.has_value();
-              scopeBox_->setCurrentIndex(item == groupItem || own ? gi + 1 : 0);
-            }
             loadCase();
           });
-  connect(newGroupButton, &QPushButton::clicked, this, &LibraryPage::newGroup);
-  connect(renameGroupButton, &QPushButton::clicked, this,
-          &LibraryPage::renameGroup);
-  connect(deleteButton, &QPushButton::clicked, this,
-          &LibraryPage::deleteSelected);
-  connect(newCaseButton, &QPushButton::clicked, this,
-          &LibraryPage::newCaseFromAlg);
   connect(pasteButton, &QPushButton::clicked, this, &LibraryPage::pasteAlgs);
   connect(caseNameEdit_, &QLineEdit::editingFinished, this, [this] {
     if (AlgCase *c = currentCase();
-        c && !loading_ && ss(caseNameEdit_->text()) != c->name) {
+        c && !loading_ && ss(caseNameEdit_->text().trimmed()) != c->name &&
+        !caseNameEdit_->text().trimmed().isEmpty()) {
       c->name = ss(caseNameEdit_->text().trimmed());
       changed(true);
     }
   });
   connect(addButton, &QPushButton::clicked, this, &LibraryPage::addAlg);
   connect(newAlgEdit_, &QLineEdit::returnPressed, this, &LibraryPage::addAlg);
-  connect(algList_, &QListWidget::itemChanged, this, [this] {
-    if (!loading_) {
-      storeAlgs();
-    }
-  });
-  connect(mainButton, &QPushButton::clicked, this, &LibraryPage::makeMain);
-  connect(upButton, &QPushButton::clicked, this, [this] { moveAlg(-1); });
-  connect(downButton, &QPushButton::clicked, this, [this] { moveAlg(1); });
-  connect(removeButton, &QPushButton::clicked, this, &LibraryPage::removeAlg);
+  connect(algList_, &QTreeWidget::itemChanged, this,
+          [this](QTreeWidgetItem *item, int column) {
+            if (!loading_ && column == 0) {
+              std::string text = ss(item->text(0).trimmed());
+              storeAlgs();
+              warnIfFailing(text);
+            }
+          });
+  connect(algList_, &QTreeWidget::itemDoubleClicked, this,
+          [this](QTreeWidgetItem *item) { algList_->editItem(item, 0); });
+  connect(algList_, &AlgListWidget::reordered, this, &LibraryPage::storeAlgs);
+  connect(algList_, &QTreeWidget::customContextMenuRequested, this,
+          &LibraryPage::showAlgMenu);
 
   refreshSetList();
   if (!library_.sets().empty()) {
@@ -392,13 +266,9 @@ AlgCase *LibraryPage::currentCase() {
   return s && !caseId_.empty() ? s->findCase(caseId_) : nullptr;
 }
 
-CaseGroup *LibraryPage::scopeGroup() {
-  AlgSet *s = set();
-  int i = scopeBox_->currentIndex() - 1;
-  if (!s || i < 0 || i >= static_cast<int>(s->groups.size())) {
-    return nullptr;
-  }
-  return &s->groups[static_cast<std::size_t>(i)];
+const CaseAnalysis *LibraryPage::analysisOf(const std::string &caseId) const {
+  auto it = analysis_.find(caseId);
+  return it == analysis_.end() ? nullptr : &it->second;
 }
 
 CubeLook LibraryPage::look() const {
@@ -421,6 +291,17 @@ void LibraryPage::activated() {
   applySettings();
 }
 
+void LibraryPage::analyze() {
+  analysis_.clear();
+  if (AlgSet *s = set()) {
+    for (const auto &g : s->groups) {
+      for (const auto &c : g.cases) {
+        analysis_[c.id] = analyzeCase(*s, g, c);
+      }
+    }
+  }
+}
+
 void LibraryPage::changed(bool rebuildTree) {
   if (AlgSet *s = set()) {
     QString error;
@@ -428,11 +309,61 @@ void LibraryPage::changed(bool rebuildTree) {
       emit message(tr("Could not save %1: %2").arg(qs(s->name), error));
     }
   }
+  analyze();
+  refreshSetList(); // failure counts
   if (rebuildTree) {
     buildCaseTree();
   }
   emit setsChanged();
 }
+
+// --- menus -------------------------------------------------------------------
+
+void LibraryPage::fillSetMenu(QMenu *menu) {
+  menu->clear();
+  const AlgSet *s = set();
+  menu->addAction(tr("New set…"), this, &LibraryPage::newSet);
+  menu->addAction(tr("Duplicate"), this, &LibraryPage::duplicateSet)
+      ->setEnabled(s);
+  menu->addAction(tr("Delete…"), this, &LibraryPage::deleteSet)->setEnabled(s);
+  menu->addSeparator();
+  menu->addAction(tr("Set properties…"), this, &LibraryPage::editProperties)
+      ->setEnabled(s);
+  menu->addAction(tr("Check algs…"), this, &LibraryPage::checkAlgs)
+      ->setEnabled(s);
+  menu->addSeparator();
+  menu->addAction(tr("Import…"), this, &LibraryPage::importSetFile);
+  menu->addAction(tr("Export…"), this, &LibraryPage::exportSetFile)
+      ->setEnabled(s);
+  QAction *restore = menu->addAction(tr("Restore built-in cases"), this,
+                                     &LibraryPage::restoreSet);
+  restore->setEnabled(s && s->builtin);
+  restore->setToolTip(tr("Reload this built-in set's cases and settings as "
+                         "shipped, keeping your algs"));
+  menu->setToolTipsVisible(true);
+}
+
+void LibraryPage::fillEditMenu(QMenu *menu) {
+  menu->clear();
+  const AlgSet *s = set();
+  QTreeWidgetItem *item = caseTree_->currentItem();
+  menu->addAction(tr("New group…"), this, &LibraryPage::newGroup)
+      ->setEnabled(s);
+  menu->addAction(tr("Rename group…"), this, &LibraryPage::renameGroup)
+      ->setEnabled(s && item);
+  menu->addAction(item && item->parent() ? tr("Delete case…")
+                                         : tr("Delete group…"),
+                  this, &LibraryPage::deleteSelected)
+      ->setEnabled(s && item);
+  menu->addSeparator();
+  menu->addAction(tr("New case from alg…"), this, &LibraryPage::newCaseFromAlg)
+      ->setEnabled(s);
+  menu->addAction(tr("Paste algs…"), this, &LibraryPage::pasteAlgs)
+      ->setEnabled(s);
+}
+
+// --- sets and cases
+// --------------------------------------------------------------
 
 void LibraryPage::refreshSetList() {
   QSignalBlocker block(setList_);
@@ -440,11 +371,34 @@ void LibraryPage::refreshSetList() {
   int current = -1;
   for (std::size_t i = 0; i < library_.sets().size(); ++i) {
     const AlgSet &s = library_.sets()[i];
-    auto *item = new QListWidgetItem(
-        QString("%1  (%2)").arg(qs(s.name)).arg(s.caseCount()), setList_);
-    if (s.builtin) {
-      item->setToolTip(tr("Built-in cases; the algs are yours"));
+    int failing = 0;
+    if (s.id == setId_) {
+      for (const auto &[id, a] : analysis_) {
+        failing += a.failing();
+      }
+    } else {
+      for (const auto &g : s.groups) {
+        for (const auto &c : g.cases) {
+          failing += analyzeCase(s, g, c).failing();
+        }
+      }
     }
+    QString text = QString("%1  (%2)").arg(qs(s.name)).arg(s.caseCount());
+    QStringList tips;
+    if (s.builtin) {
+      tips << tr("Built-in cases; the algs are yours.");
+    }
+    auto *item = new QListWidgetItem(setList_);
+    if (failing > 0) {
+      text += "  " + tr("⚠ %1 failing").arg(failing);
+      item->setForeground(kWarn);
+      tips << (failing == 1
+                   ? tr("1 alg doesn't solve its case.")
+                   : tr("%1 algs don't solve their cases.").arg(failing))
+           << tr("Set > Check algs lists them.");
+    }
+    item->setText(text);
+    item->setToolTip(tips.join(" "));
     if (s.id == setId_) {
       current = static_cast<int>(i);
     }
@@ -453,80 +407,9 @@ void LibraryPage::refreshSetList() {
 }
 
 void LibraryPage::loadSet() {
-  AlgSet *s = set();
-  loading_ = true;
-  nameEdit_->setText(s ? qs(s->name) : QString());
-  descriptionEdit_->setText(s ? qs(s->description) : QString());
-  aufBeforeBox_->setChecked(s && s->aufBefore);
-  aufAfterBox_->setChecked(s && s->aufAfter);
-  targetSpin_->setValue(s ? s->targetSeconds : 3.0);
-  restoreButton_->setEnabled(s && s->builtin);
-  scopeBox_->clear();
-  scopeBox_->addItem(tr("Whole set"));
-  if (s) {
-    for (const auto &g : s->groups) {
-      scopeBox_->addItem(tr("Group: %1").arg(qs(g.name)));
-    }
-  }
-  loading_ = false;
-  loadSpec();
+  analyze();
+  refreshSetList();
   buildCaseTree();
-  loadCase();
-}
-
-void LibraryPage::loadSpec() {
-  AlgSet *s = set();
-  if (!s) {
-    return;
-  }
-  loading_ = true;
-  CaseGroup *g = scopeGroup();
-  overrideBox_->setVisible(g != nullptr);
-  overrideBox_->setChecked(g && g->spec);
-  const StepSpec &spec = g ? s->specFor(*g) : s->spec;
-  specWidgets_->setEnabled(!g || g->spec.has_value());
-  QString free = qs(freeToString(spec.free));
-  freeEdit_->setText(free);
-  int preset = presetBox_->findData(free);
-  presetBox_->setCurrentIndex(preset >= 0 ? preset : presetBox_->count() - 1);
-  cornerMaskBox_->setCurrentIndex(
-      cornerMaskBox_->findData(static_cast<int>(spec.mask.llCorners)));
-  edgeMaskBox_->setCurrentIndex(
-      edgeMaskBox_->findData(static_cast<int>(spec.mask.llEdges)));
-  restMaskBox_->setCurrentIndex(
-      std::max(0, restMaskBox_->findData(static_cast<int>(spec.mask.rest))));
-  viewBox_->setCurrentIndex(viewBox_->findData(static_cast<int>(spec.view)));
-  loading_ = false;
-}
-
-void LibraryPage::storeSpec() {
-  AlgSet *s = set();
-  if (!s || loading_) {
-    return;
-  }
-  CaseGroup *g = scopeGroup();
-  if (g && !g->spec) {
-    return;
-  }
-  StepSpec &spec = g ? *g->spec : s->spec;
-  auto free = parseFree(ss(freeEdit_->text()));
-  if (!free) {
-    freeEdit_->setStyleSheet("color: #e66");
-    emit message(tr("Could not read \"%1\"; use tokens like LL:p or FR:po")
-                     .arg(freeEdit_->text()));
-    return;
-  }
-  freeEdit_->setStyleSheet(QString());
-  spec.free = *free;
-  spec.mask.llCorners =
-      static_cast<StickerMode>(cornerMaskBox_->currentData().toInt());
-  spec.mask.llEdges =
-      static_cast<StickerMode>(edgeMaskBox_->currentData().toInt());
-  spec.mask.rest =
-      static_cast<StickerMode>(restMaskBox_->currentData().toInt());
-  spec.view = static_cast<DiagramView>(viewBox_->currentData().toInt());
-  loadSpec();
-  changed(true);
   loadCase();
 }
 
@@ -539,24 +422,55 @@ void LibraryPage::buildCaseTree() {
   }
   CubeLook l = look();
   qreal dpr = devicePixelRatioF();
+  QColor muted = palette().color(QPalette::PlaceholderText);
   QTreeWidgetItem *current = nullptr;
   for (std::size_t gi = 0; gi < s->groups.size(); ++gi) {
     const CaseGroup &g = s->groups[gi];
     auto *groupItem = new QTreeWidgetItem(caseTree_, {qs(g.name)});
     groupItem->setData(0, kGroupRole, static_cast<int>(gi));
     groupItem->setText(1, QString::number(g.cases.size()));
+    if (g.spec) {
+      groupItem->setToolTip(0, tr("This group has its own step settings"));
+    }
     const StepSpec &spec = s->specFor(g);
+    int groupFailing = 0;
     for (const auto &c : g.cases) {
+      const CaseAnalysis *a = analysisOf(c.id);
       auto *item = new QTreeWidgetItem(groupItem, {qs(c.name)});
       item->setData(0, kCaseRole, qs(c.id));
-      item->setIcon(
-          0, QIcon(cube_painter::diagram(maskedFacelets(c.state, spec.mask),
-                                         spec.view, 40, l, dpr)));
+      item->setIcon(0, QIcon(cube_painter::diagram(
+                           maskedFacelets(a ? a->display : c.state, spec.mask),
+                           spec.view, 40, l, dpr)));
       item->setText(1, QString::number(c.algs.size()));
-      item->setText(2, c.algs.empty() ? tr("(none yet)") : qs(c.algs.front()));
+      int failing = a ? a->failing() : 0;
+      groupFailing += failing;
+      if (c.algs.empty()) {
+        item->setText(2, tr("no algs"));
+        item->setForeground(2, muted);
+        item->setText(3, tr("(none yet)"));
+        item->setForeground(3, muted);
+      } else if (!a || !a->main) {
+        item->setText(2, tr("✗ no passing alg"));
+        item->setForeground(2, kFail);
+        item->setText(3, tr("(no alg solves this case)"));
+        item->setForeground(3, kFail);
+      } else {
+        if (failing > 0) {
+          item->setText(2, tr("⚠ %1 failing").arg(failing));
+          item->setForeground(2, kWarn);
+        } else {
+          item->setText(2, "✓");
+          item->setForeground(2, kPass);
+        }
+        item->setText(3, qs(c.algs[*a->main]));
+      }
       if (c.id == caseId_) {
         current = item;
       }
+    }
+    if (groupFailing > 0) {
+      groupItem->setText(2, tr("⚠ %1 failing").arg(groupFailing));
+      groupItem->setForeground(2, kWarn);
     }
     groupItem->setExpanded(true);
   }
@@ -573,6 +487,8 @@ void LibraryPage::loadCase() {
   loading_ = false;
   if (!c) {
     caseDiagram_->clear();
+    caseSummary_->clear();
+    QSignalBlocker block(algList_);
     algList_->clear();
     caseBox_->setTitle(tr("Case"));
     return;
@@ -580,9 +496,17 @@ void LibraryPage::loadCase() {
   caseBox_->setTitle(tr("Case %1").arg(qs(c->id)));
   AlgSet *s = set();
   const StepSpec &spec = s->specFor(*s->groupOf(c->id));
-  caseDiagram_->setPixmap(
-      cube_painter::diagram(maskedFacelets(c->state, spec.mask), spec.view, 120,
-                            look(), devicePixelRatioF()));
+  const CaseAnalysis *a = analysisOf(c->id);
+  caseDiagram_->setPixmap(cube_painter::diagram(
+      maskedFacelets(a ? a->display : c->state, spec.mask), spec.view, 120,
+      look(), devicePixelRatioF()));
+  if (a && a->main) {
+    caseSummary_->setText(
+        tr("Shown as the main alg starts: %1").arg(qs(a->mainAlg)));
+  } else {
+    caseSummary_->setText(c->algs.empty() ? tr("No algs yet.")
+                                          : tr("No alg solves this case yet."));
+  }
   refreshAlgList();
 }
 
@@ -590,36 +514,44 @@ void LibraryPage::refreshAlgList() {
   AlgCase *c = currentCase();
   QSignalBlocker block(algList_);
   loading_ = true;
-  int row = algList_->currentRow();
+  int row = algList_->currentItem()
+                ? algList_->indexOfTopLevelItem(algList_->currentItem())
+                : -1;
   algList_->clear();
   if (c) {
-    AlgSet *s = set();
-    const PieceMask &free = s->specFor(*s->groupOf(c->id)).free;
+    const CaseAnalysis *a = analysisOf(c->id);
     for (std::size_t i = 0; i < c->algs.size(); ++i) {
-      auto *item = new QListWidgetItem(qs(c->algs[i]), algList_);
-      item->setFlags(item->flags() | Qt::ItemIsEditable);
-      ParseResult parsed = parseAlg(c->algs[i]);
-      if (!parsed) {
-        item->setForeground(QColor(0xe6, 0x66, 0x66));
-        item->setToolTip(tr("Can't read this alg: %1 (at character %2)")
-                             .arg(qs(parsed.error->message))
-                             .arg(parsed.error->position + 1));
-      } else if (auto fit = fitAlg(c->state, parsed.alg, free)) {
-        item->setToolTip(tr("Solves the case as %1 (%2 moves)")
-                             .arg(qs(withAufs(c->algs[i], *fit)))
-                             .arg(moveCount(parsed.alg)));
-        if (i == 0) {
-          QFont f = item->font();
+      auto *item = new QTreeWidgetItem(algList_, {qs(c->algs[i])});
+      // Items can be dragged and edited but not dropped onto (no nesting).
+      item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled |
+                     Qt::ItemIsEditable | Qt::ItemIsDragEnabled);
+      if (!a || i >= a->checks.size()) {
+        continue;
+      }
+      const AlgCheck &check = a->checks[i];
+      QString result = qs(describeCheck(check));
+      if (check.passes()) {
+        bool isMain = a->main == i;
+        item->setText(1, (isMain ? tr("✓ main · %1") : tr("✓ %1")).arg(result));
+        item->setForeground(1, kPass);
+        if (isMain) {
+          QFont f = item->font(0);
           f.setBold(true);
-          item->setFont(f);
+          item->setFont(0, f);
         }
       } else {
-        item->setForeground(QColor(0xe6, 0x66, 0x66));
-        item->setToolTip(tr("Doesn't solve this case"));
+        item->setText(1, tr("✗ %1").arg(result));
+        item->setForeground(1, kFail);
+        item->setForeground(0, kFail);
+      }
+      if (check.parseError) {
+        item->setToolTip(1, qs(check.parseError->message));
       }
     }
   }
-  algList_->setCurrentRow(std::min(row, algList_->count() - 1));
+  if (row >= 0 && row < algList_->topLevelItemCount()) {
+    algList_->setCurrentItem(algList_->topLevelItem(row));
+  }
   loading_ = false;
 }
 
@@ -629,14 +561,46 @@ void LibraryPage::storeAlgs() {
     return;
   }
   c->algs.clear();
-  for (int i = 0; i < algList_->count(); ++i) {
-    QString text = algList_->item(i)->text().trimmed();
+  for (int i = 0; i < algList_->topLevelItemCount(); ++i) {
+    QString text = algList_->topLevelItem(i)->text(0).trimmed();
     if (!text.isEmpty()) {
       c->algs.push_back(ss(text));
     }
   }
-  refreshAlgList();
   changed(true);
+  loadCase();
+}
+
+void LibraryPage::warnIfFailing(const std::string &alg) {
+  const AlgCase *c = currentCase();
+  const CaseAnalysis *a = c ? analysisOf(c->id) : nullptr;
+  if (!a) {
+    return;
+  }
+  for (std::size_t i = 0; i < c->algs.size() && i < a->checks.size(); ++i) {
+    if (c->algs[i] == alg && !a->checks[i].passes()) {
+      emit message(tr("Kept \"%1\", but it doesn't pass: %2")
+                       .arg(qs(alg), qs(describeCheck(a->checks[i]))));
+      return;
+    }
+  }
+}
+
+void LibraryPage::showAlgMenu(const QPoint &pos) {
+  QTreeWidgetItem *item = algList_->itemAt(pos);
+  if (!item) {
+    return;
+  }
+  int row = algList_->indexOfTopLevelItem(item);
+  algList_->setCurrentItem(item);
+  QMenu menu(this);
+  menu.addAction(tr("Make main"), this, [this, row] { makeMain(row); })
+      ->setEnabled(row > 0);
+  menu.addAction(tr("Edit"), this,
+                 [this, item] { algList_->editItem(item, 0); });
+  menu.addSeparator();
+  menu.addAction(tr("Remove"), this, [this, row] { removeAlg(row); });
+  menu.exec(algList_->viewport()->mapToGlobal(pos));
 }
 
 void LibraryPage::selectCase(const QString &setId, const QString &caseId) {
@@ -696,8 +660,8 @@ void LibraryPage::newSet() {
   refreshSetList();
   loadSet();
   emit setsChanged();
-  emit message(tr("Created \"%1\". Add cases with \"New case from alg\" or "
-                  "\"Paste algs\".")
+  emit message(tr("Created \"%1\". Add cases with Edit > New case from alg, "
+                  "or Paste algs.")
                    .arg(name));
 }
 
@@ -757,6 +721,107 @@ void LibraryPage::restoreSet() {
                    .arg(qs(set()->name)));
 }
 
+void LibraryPage::editProperties() {
+  AlgSet *s = set();
+  if (!s) {
+    return;
+  }
+  // Start on the selected group if it has its own settings.
+  int group = -1;
+  if (QTreeWidgetItem *item = caseTree_->currentItem()) {
+    QTreeWidgetItem *groupItem = item->parent() ? item->parent() : item;
+    int gi = groupItem->data(0, kGroupRole).toInt();
+    if (gi >= 0 && gi < static_cast<int>(s->groups.size()) &&
+        (item == groupItem ||
+         s->groups[static_cast<std::size_t>(gi)].spec.has_value())) {
+      group = gi;
+    }
+  }
+  SetPropertiesDialog dialog(*s, group, this);
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+  const AlgSet &r = dialog.result();
+  s->name = r.name;
+  s->description = r.description;
+  s->aufBefore = r.aufBefore;
+  s->aufAfter = r.aufAfter;
+  s->targetSeconds = r.targetSeconds;
+  s->spec = r.spec;
+  for (std::size_t i = 0; i < s->groups.size() && i < r.groups.size(); ++i) {
+    s->groups[i].spec = r.groups[i].spec;
+  }
+  changed(true);
+  loadCase();
+}
+
+void LibraryPage::checkAlgs() {
+  AlgSet *s = set();
+  if (!s) {
+    return;
+  }
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("Check algs: %1").arg(qs(s->name)));
+  auto *layout = new QVBoxLayout(&dialog);
+  auto *tree = new QTreeWidget(&dialog);
+  tree->setColumnCount(3);
+  tree->setHeaderLabels({tr("Case"), tr("Alg"), tr("Problem")});
+  tree->setRootIsDecorated(false);
+  int total = 0, failing = 0, noPassing = 0;
+  for (const auto &g : s->groups) {
+    for (const auto &c : g.cases) {
+      const CaseAnalysis *a = analysisOf(c.id);
+      if (!a) {
+        continue;
+      }
+      total += static_cast<int>(c.algs.size());
+      noPassing += !c.algs.empty() && !a->main ? 1 : 0;
+      for (std::size_t i = 0; i < c.algs.size(); ++i) {
+        if (a->checks[i].passes()) {
+          continue;
+        }
+        ++failing;
+        auto *item = new QTreeWidgetItem(
+            tree, {qs(c.name), qs(c.algs[i]), qs(describeCheck(a->checks[i]))});
+        item->setData(0, kCaseRole, qs(c.id));
+        item->setForeground(2, kFail);
+      }
+    }
+  }
+  for (int c = 0; c < 3; ++c) {
+    tree->resizeColumnToContents(c);
+  }
+  QString summary =
+      failing == 0
+          ? tr("All %1 algs solve their cases under the current step "
+               "settings.")
+                .arg(total)
+          : tr("%1 of %2 algs don't solve their cases under the current step "
+               "settings%3. Double-click one to open its case.")
+                .arg(failing)
+                .arg(total)
+                .arg(noPassing
+                         ? tr("; %1 cases have no passing alg").arg(noPassing)
+                         : QString());
+  auto *label = new QLabel(summary, &dialog);
+  label->setWordWrap(true);
+  layout->addWidget(label);
+  layout->addWidget(tree, 1);
+  tree->setVisible(failing > 0);
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  connect(tree, &QTreeWidget::itemDoubleClicked, &dialog,
+          [this, &dialog](QTreeWidgetItem *item) {
+            caseId_ = ss(item->data(0, kCaseRole).toString());
+            buildCaseTree();
+            loadCase();
+            dialog.accept();
+          });
+  dialog.resize(failing > 0 ? 760 : 420, failing > 0 ? 420 : 120);
+  dialog.exec();
+}
+
 void LibraryPage::importSetFile() {
   QString path = QFileDialog::getOpenFileName(
       this, tr("Import alg set"), QString(), tr("v-cube alg set (*.json)"));
@@ -800,8 +865,7 @@ void LibraryPage::exportSetFile() {
   emit message(tr("Exported %1 to %2").arg(qs(s->name), path));
 }
 
-// --- group and case actions
-// ----------------------------------------------------
+// --- group, case and alg actions ---------------------------------------------
 
 void LibraryPage::newGroup() {
   AlgSet *s = set();
@@ -995,63 +1059,48 @@ void LibraryPage::addAlg() {
   if (!c || text.isEmpty()) {
     return;
   }
-  ParseResult parsed = parseAlg(ss(text));
-  if (!parsed) {
-    emit message(tr("Can't read that alg: %1").arg(qs(parsed.error->message)));
-    return;
-  }
-  AlgSet *s = set();
-  if (!fitAlg(c->state, parsed.alg, s->specFor(*s->groupOf(c->id)).free)) {
-    auto answer = QMessageBox::question(
-        this, tr("Add alg"),
-        tr("That alg doesn't solve this case. Add it anyway?"));
-    if (answer != QMessageBox::Yes) {
-      return;
-    }
-  }
+  // Failing algs are kept, with a warning: the check shows what's wrong.
   c->algs.push_back(ss(text));
   newAlgEdit_->clear();
-  refreshAlgList();
   changed(true);
+  loadCase();
+  warnIfFailing(ss(text));
 }
 
-void LibraryPage::moveAlg(int delta) {
+void LibraryPage::removeAlg(int row) {
   AlgCase *c = currentCase();
-  int row = algList_->currentRow();
-  int to = row + delta;
-  if (!c || row < 0 || to < 0 || to >= static_cast<int>(c->algs.size())) {
-    return;
-  }
-  std::swap(c->algs[static_cast<std::size_t>(row)],
-            c->algs[static_cast<std::size_t>(to)]);
-  refreshAlgList();
-  algList_->setCurrentRow(to);
-  changed(true);
-}
-
-void LibraryPage::removeAlg() {
-  AlgCase *c = currentCase();
-  int row = algList_->currentRow();
   if (!c || row < 0 || row >= static_cast<int>(c->algs.size())) {
     return;
   }
   c->algs.erase(c->algs.begin() + row);
-  refreshAlgList();
   changed(true);
+  loadCase();
 }
 
-void LibraryPage::makeMain() {
+void LibraryPage::makeMain(int row) {
   AlgCase *c = currentCase();
-  int row = algList_->currentRow();
   if (!c || row <= 0 || row >= static_cast<int>(c->algs.size())) {
     return;
+  }
+  const CaseAnalysis *a = analysisOf(c->id);
+  if (a && static_cast<std::size_t>(row) < a->checks.size() &&
+      !a->checks[static_cast<std::size_t>(row)].passes()) {
+    auto answer = QMessageBox::question(
+        this, tr("Make main"),
+        tr("This alg doesn't pass the check (%1). It moves to the top of the "
+           "list but only becomes the main alg once it passes. Move it "
+           "anyway?")
+            .arg(qs(describeCheck(a->checks[static_cast<std::size_t>(row)]))));
+    if (answer != QMessageBox::Yes) {
+      return;
+    }
   }
   std::string alg = c->algs[static_cast<std::size_t>(row)];
   c->algs.erase(c->algs.begin() + row);
   c->algs.insert(c->algs.begin(), alg);
-  refreshAlgList();
-  algList_->setCurrentRow(0);
   changed(true);
+  loadCase();
+  algList_->setCurrentItem(algList_->topLevelItem(0));
 }
 
 } // namespace vcube

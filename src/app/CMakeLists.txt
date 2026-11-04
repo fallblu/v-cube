@@ -14,6 +14,7 @@ add_library(vcube_gui STATIC
   platform.cpp
   scramble_page.cpp
   scramble_source.cpp
+  set_properties_dialog.cpp
   settings_dialog.cpp
   timer_page.cpp
   virtual_page.cpp

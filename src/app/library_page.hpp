@@ -4,22 +4,38 @@
 #include "app/cube_painter.hpp"
 #include "app/mode_page.hpp"
 #include "io/library.hpp"
+#include "train/case_logic.hpp"
 
-class QCheckBox;
-class QComboBox;
-class QDoubleSpinBox;
+#include <QTreeWidget>
+
+#include <map>
+
 class QGroupBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
-class QPushButton;
-class QTreeWidget;
+class QMenu;
 class QTreeWidgetItem;
 
 namespace vcube {
 
-// Browse and edit alg sets: set settings, groups, cases and each case's
-// algs, plus file import/export and pasting alg lists.
+// The alg list of a case: algs in order (the first passing one is the main
+// alg) with each one's check result; reordered by drag and drop.
+class AlgListWidget : public QTreeWidget {
+  Q_OBJECT
+public:
+  explicit AlgListWidget(QWidget *parent = nullptr);
+
+signals:
+  void reordered();
+
+protected:
+  void dropEvent(QDropEvent *event) override;
+};
+
+// Browse and edit alg sets: the set list, each set's case tree, and the
+// selected case with its algs. Set properties and step settings live in a
+// dialog; set and case actions in menus and context menus.
 class LibraryPage : public ModePage {
   Q_OBJECT
 public:
@@ -41,57 +57,51 @@ private:
   std::string setId_;
   std::string caseId_;
   bool loading_ = false;
+  // Every case of the current set, checked under its step settings.
+  std::map<std::string, CaseAnalysis> analysis_;
 
   QListWidget *setList_;
-  QPushButton *restoreButton_;
-  QLineEdit *nameEdit_;
-  QLineEdit *descriptionEdit_;
-  QComboBox *scopeBox_;
-  QCheckBox *overrideBox_;
-  QComboBox *presetBox_;
-  QLineEdit *freeEdit_;
-  QComboBox *cornerMaskBox_;
-  QComboBox *edgeMaskBox_;
-  QComboBox *restMaskBox_;
-  QComboBox *viewBox_;
-  QCheckBox *aufBeforeBox_;
-  QCheckBox *aufAfterBox_;
-  QDoubleSpinBox *targetSpin_;
-  QWidget *specWidgets_;
+  QMenu *setMenu_;
+  QMenu *editMenu_;
   QTreeWidget *caseTree_;
   QGroupBox *caseBox_;
   QLineEdit *caseNameEdit_;
   QLabel *caseDiagram_;
-  QListWidget *algList_;
+  QLabel *caseSummary_;
+  AlgListWidget *algList_;
   QLineEdit *newAlgEdit_;
 
   AlgSet *set();
   AlgCase *currentCase();
-  CaseGroup *scopeGroup(); // group whose settings are being edited
+  const CaseAnalysis *analysisOf(const std::string &caseId) const;
   void changed(bool rebuildTree = false);
+  void analyze();
 
+  void fillSetMenu(QMenu *menu);
+  void fillEditMenu(QMenu *menu);
   void refreshSetList();
   void loadSet();
-  void loadSpec();
-  void storeSpec();
   void buildCaseTree();
   void loadCase();
   void refreshAlgList();
   void storeAlgs();
+  void showAlgMenu(const QPoint &pos);
 
   void newSet();
   void duplicateSet();
   void deleteSet();
   void restoreSet();
+  void editProperties();
+  void checkAlgs();
   void newGroup();
   void renameGroup();
   void deleteSelected();
   void newCaseFromAlg();
   void pasteAlgs();
   void addAlg();
-  void moveAlg(int delta);
-  void removeAlg();
-  void makeMain();
+  void removeAlg(int row);
+  void makeMain(int row);
+  void warnIfFailing(const std::string &alg);
 
   CubeLook look() const;
 };
