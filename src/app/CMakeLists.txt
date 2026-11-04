@@ -1,8 +1,10 @@
 # Everything but main(), so tools and tests can link the widgets.
 add_library(vcube_gui STATIC
+  app_settings.cpp
   colours.cpp
   cube_painter.cpp
   cube_view.cpp
+  keymap.cpp
 )
 target_include_directories(vcube_gui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(vcube_gui
