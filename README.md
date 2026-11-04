@@ -80,15 +80,19 @@ libraries and tests, which need Qt Core but no GUI.
 
 Prerequisites:
 
-- Visual Studio 2022 or its Build Tools, with the **Desktop development
-  with C++** workload (MSVC, the Windows SDK, CMake and Ninja).
-  A standalone CMake 3.25+ and Ninja also work.
+- Visual Studio 2022 or later, or its Build Tools, with the **Desktop
+  development with C++** workload. Check that its **Windows 11 SDK** (or
+  Windows 10 SDK) component is ticked: the build needs the SDK's `rc.exe`
+  and `mt.exe`, and CMake fails with "is not able to compile a simple test
+  program" without them. The workload also provides CMake and Ninja; a
+  standalone CMake 3.25+ and Ninja work too.
 - Qt 6.5 or later for MSVC (`msvc2022_64`) from the
   [Qt online installer](https://www.qt.io/download-qt-installer).
 - Git, used to fetch Catch2 for the tests.
 
-Open an **x64 Native Tools Command Prompt for VS 2022**, point `QTDIR` at
-the Qt install, then configure, build, test and deploy:
+Open an **x64 Native Tools Command Prompt** for your Visual Studio version
+(`where rc mt` should find both), point `QTDIR` at the Qt install, then
+configure, build, test and deploy:
 
 ```bat
 set QTDIR=C:\Qt\6.10.0\msvc2022_64
