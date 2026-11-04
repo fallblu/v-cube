@@ -139,7 +139,19 @@ CubieCube drillState(const AlgSet &set, const CaseGroup &group,
   return s;
 }
 
-CubieCube stateSolvedBy(const Alg &alg) { return cubieOf(invert(alg)); }
+CubieCube stateSolvedBy(const Alg &alg) {
+  // Done from the case, the alg leaves the cube solved but turned by its
+  // net rotation (e.g. "x R U R' ..." ends with x applied), so its inverse
+  // has to start from a solved cube held that way.
+  FaceletCube end;
+  end.apply(alg);
+  Alg back = end.normalizeOrientation();
+  FaceletCube f;
+  f.apply(invert(back));
+  f.apply(invert(alg));
+  f.normalizeOrientation(); // a no-op unless the alg is malformed
+  return CubieCube::fromFacelets(f).value_or(CubieCube{});
+}
 
 ImportReport importAlgs(AlgSet &set, const std::string &text,
                         bool createCases) {

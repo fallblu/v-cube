@@ -67,6 +67,22 @@ TEST_CASE("algs are fitted with the AUFs they need") {
   CHECK(withAufs("R U R'", {3, 2}) == "(U') R U R' (U2)");
 }
 
+TEST_CASE("the case an alg solves allows for the alg's cube rotations") {
+  PieceMask none;
+  for (const char *text : {"R U R' U' R' F R2 U' R' U' R U R' F'",
+                           "x R U R' U' R' F R2 U' R' U' R U R' F'",
+                           "z' y R U R' U' R' F R2 U' R' U' R U R' F'",
+                           "R U R' U' x' R' F R2 U' R' U' R U R' F' x",
+                           "x R2 D2 R U R' D2 R U' R x'"}) {
+    INFO(text);
+    Alg alg = parseAlgOrEmpty(text);
+    auto fit = fitAlg(stateSolvedBy(alg), alg, none);
+    REQUIRE(fit);
+    CHECK(fit->before == 0);
+    CHECK(fit->after == 0);
+  }
+}
+
 TEST_CASE("drill states keep the case and can be solved with an AUF") {
   AlgSet set = ollLikeSet();
   Rng rng(5);
