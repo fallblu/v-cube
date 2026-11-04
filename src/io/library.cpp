@@ -37,7 +37,8 @@ QString AlgLibrary::progressPathFor(const std::string &id) const {
 
 QStringList AlgLibrary::builtinIds() const {
   QStringList ids;
-  for (const QString &file : QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
+  for (const QString &file :
+       QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
     QString error;
     if (auto set = readAlgSetFile(QDir(builtinDir_).filePath(file), &error)) {
       ids << qs(set->id);
@@ -57,7 +58,8 @@ void AlgLibrary::installBuiltins() {
     marker.close();
   }
   bool changed = false;
-  for (const QString &file : QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
+  for (const QString &file :
+       QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
     QString error;
     auto set = readAlgSetFile(QDir(builtinDir_).filePath(file), &error);
     if (!set) {
@@ -81,7 +83,8 @@ void AlgLibrary::installBuiltins() {
       arr.append(id);
     }
     QString error;
-    writeFileAtomically(dir.filePath(kInstalledFile), QJsonDocument(arr).toJson(), &error);
+    writeFileAtomically(dir.filePath(kInstalledFile),
+                        QJsonDocument(arr).toJson(), &error);
   }
 }
 
@@ -93,7 +96,8 @@ void AlgLibrary::load() {
   QDir().mkpath(QDir(dir_).filePath("progress"));
   installBuiltins();
   QDir dir(dir_);
-  for (const QString &file : dir.entryList({"*.json"}, QDir::Files, QDir::Name)) {
+  for (const QString &file :
+       dir.entryList({"*.json"}, QDir::Files, QDir::Name)) {
     if (file == kInstalledFile) {
       continue;
     }
@@ -107,16 +111,17 @@ void AlgLibrary::load() {
   }
   // Built-ins first in a fixed order, then the user's sets by name.
   QStringList order = {"pll", "oll", "2look-oll", "2look-pll"};
-  std::stable_sort(sets_.begin(), sets_.end(), [&order](const AlgSet &a, const AlgSet &b) {
-    auto rank = [&order](const AlgSet &s) {
-      auto i = order.indexOf(qs(s.id));
-      return i < 0 ? 1000 : static_cast<int>(i);
-    };
-    if (rank(a) != rank(b)) {
-      return rank(a) < rank(b);
-    }
-    return qs(a.name).localeAwareCompare(qs(b.name)) < 0;
-  });
+  std::stable_sort(sets_.begin(), sets_.end(),
+                   [&order](const AlgSet &a, const AlgSet &b) {
+                     auto rank = [&order](const AlgSet &s) {
+                       auto i = order.indexOf(qs(s.id));
+                       return i < 0 ? 1000 : static_cast<int>(i);
+                     };
+                     if (rank(a) != rank(b)) {
+                       return rank(a) < rank(b);
+                     }
+                     return qs(a.name).localeAwareCompare(qs(b.name)) < 0;
+                   });
 }
 
 AlgSet *AlgLibrary::find(const std::string &id) {
@@ -136,7 +141,8 @@ bool AlgLibrary::save(const AlgSet &set, QString *error) {
 std::string AlgLibrary::uniqueId(const std::string &base) const {
   std::string b = ss(sanitizeId(base));
   auto taken = [this](const std::string &id) {
-    return std::any_of(sets_.begin(), sets_.end(), [&](const AlgSet &s) { return s.id == id; }) ||
+    return std::any_of(sets_.begin(), sets_.end(),
+                       [&](const AlgSet &s) { return s.id == id; }) ||
            QFile::exists(pathFor(id));
   };
   if (!taken(b)) {
@@ -160,7 +166,8 @@ AlgSet &AlgLibrary::add(AlgSet set) {
 }
 
 bool AlgLibrary::remove(const std::string &id) {
-  auto it = std::find_if(sets_.begin(), sets_.end(), [&](const AlgSet &s) { return s.id == id; });
+  auto it = std::find_if(sets_.begin(), sets_.end(),
+                         [&](const AlgSet &s) { return s.id == id; });
   if (it == sets_.end()) {
     return false;
   }
@@ -172,7 +179,8 @@ bool AlgLibrary::remove(const std::string &id) {
 }
 
 bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
-  for (const QString &file : QDir(builtinDir_).entryList({"*.json"}, QDir::Files)) {
+  for (const QString &file :
+       QDir(builtinDir_).entryList({"*.json"}, QDir::Files)) {
     auto shipped = readAlgSetFile(QDir(builtinDir_).filePath(file), error);
     if (!shipped || shipped->id != id) {
       continue;
@@ -214,7 +222,8 @@ bool AlgLibrary::saveProgress(const std::string &setId) {
   QDir().mkpath(QDir(dir_).filePath("progress"));
   QString error;
   return writeFileAtomically(progressPathFor(setId),
-                             QJsonDocument(progressToJson(progress(setId))).toJson(QJsonDocument::Compact),
+                             QJsonDocument(progressToJson(progress(setId)))
+                                 .toJson(QJsonDocument::Compact),
                              &error);
 }
 

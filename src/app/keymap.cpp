@@ -6,18 +6,18 @@ namespace vcube {
 
 Keymap Keymap::cstimerDefault() {
   const std::vector<std::pair<int, const char *>> table = {
-      {Qt::Key_I, "R"},      {Qt::Key_K, "R'"},    {Qt::Key_W, "B"},
-      {Qt::Key_O, "B'"},     {Qt::Key_S, "D"},     {Qt::Key_L, "D'"},
-      {Qt::Key_D, "L"},      {Qt::Key_E, "L'"},    {Qt::Key_J, "U"},
-      {Qt::Key_F, "U'"},     {Qt::Key_H, "F"},     {Qt::Key_G, "F'"},
-      {Qt::Key_Semicolon, "y"}, {Qt::Key_A, "y'"}, {Qt::Key_U, "r"},
-      {Qt::Key_R, "l'"},     {Qt::Key_M, "r'"},    {Qt::Key_V, "l"},
-      {Qt::Key_T, "x"},      {Qt::Key_Y, "x"},     {Qt::Key_N, "x'"},
-      {Qt::Key_B, "x'"},     {Qt::Key_Period, "M'"}, {Qt::Key_X, "M'"},
-      {Qt::Key_5, "M"},      {Qt::Key_6, "M"},     {Qt::Key_1, "S'"},
-      {Qt::Key_2, "E"},      {Qt::Key_9, "E'"},    {Qt::Key_0, "S"},
-      {Qt::Key_P, "z"},      {Qt::Key_Q, "z'"},    {Qt::Key_Z, "d"},
-      {Qt::Key_C, "u'"},     {Qt::Key_Comma, "u"}, {Qt::Key_Slash, "d'"},
+      {Qt::Key_I, "R"},         {Qt::Key_K, "R'"},      {Qt::Key_W, "B"},
+      {Qt::Key_O, "B'"},        {Qt::Key_S, "D"},       {Qt::Key_L, "D'"},
+      {Qt::Key_D, "L"},         {Qt::Key_E, "L'"},      {Qt::Key_J, "U"},
+      {Qt::Key_F, "U'"},        {Qt::Key_H, "F"},       {Qt::Key_G, "F'"},
+      {Qt::Key_Semicolon, "y"}, {Qt::Key_A, "y'"},      {Qt::Key_U, "r"},
+      {Qt::Key_R, "l'"},        {Qt::Key_M, "r'"},      {Qt::Key_V, "l"},
+      {Qt::Key_T, "x"},         {Qt::Key_Y, "x"},       {Qt::Key_N, "x'"},
+      {Qt::Key_B, "x'"},        {Qt::Key_Period, "M'"}, {Qt::Key_X, "M'"},
+      {Qt::Key_5, "M"},         {Qt::Key_6, "M"},       {Qt::Key_1, "S'"},
+      {Qt::Key_2, "E"},         {Qt::Key_9, "E'"},      {Qt::Key_0, "S"},
+      {Qt::Key_P, "z"},         {Qt::Key_Q, "z'"},      {Qt::Key_Z, "d"},
+      {Qt::Key_C, "u'"},        {Qt::Key_Comma, "u"},   {Qt::Key_Slash, "d'"},
   };
   Keymap k;
   for (const auto &[key, move] : table) {
@@ -44,7 +44,8 @@ std::optional<Move> Keymap::lookup(int key, bool shift) const {
 }
 
 std::optional<Move> Keymap::lookup(const QKeyEvent *e) const {
-  Qt::KeyboardModifiers mods = e->modifiers() & ~(Qt::KeypadModifier | Qt::ShiftModifier);
+  Qt::KeyboardModifiers mods =
+      e->modifiers() & ~(Qt::KeypadModifier | Qt::ShiftModifier);
   if (mods != Qt::NoModifier) {
     return std::nullopt; // leave Ctrl/Alt shortcuts alone
   }
@@ -52,7 +53,8 @@ std::optional<Move> Keymap::lookup(const QKeyEvent *e) const {
 }
 
 QString Keymap::keyText(int key, bool shift) {
-  QKeyCombination combo(shift ? Qt::ShiftModifier : Qt::NoModifier, static_cast<Qt::Key>(key));
+  QKeyCombination combo(shift ? Qt::ShiftModifier : Qt::NoModifier,
+                        static_cast<Qt::Key>(key));
   return QKeySequence(combo).toString(QKeySequence::PortableText);
 }
 
@@ -62,13 +64,15 @@ std::optional<std::pair<int, bool>> Keymap::parseKeyText(const QString &text) {
     return std::nullopt;
   }
   QKeyCombination c = seq[0];
-  return std::pair<int, bool>{c.key(), c.keyboardModifiers().testFlag(Qt::ShiftModifier)};
+  return std::pair<int, bool>{
+      c.key(), c.keyboardModifiers().testFlag(Qt::ShiftModifier)};
 }
 
 QStringList Keymap::toStrings() const {
   QStringList out;
   for (const auto &b : bindings) {
-    out << keyText(b.key, b.shift) + "=" + QString::fromStdString(toString(b.move));
+    out << keyText(b.key, b.shift) + "=" +
+               QString::fromStdString(toString(b.move));
   }
   return out;
 }

@@ -30,9 +30,9 @@ struct Cubie {
   std::array<int, 6> facelet; // per direction (+x,-x,+y,-y,+z,-z), or -1
 };
 
-constexpr std::array<Vec3i, 6> kDirections = {
-    Vec3i{1, 0, 0}, Vec3i{-1, 0, 0}, Vec3i{0, 1, 0},
-    Vec3i{0, -1, 0}, Vec3i{0, 0, 1}, Vec3i{0, 0, -1}};
+constexpr std::array<Vec3i, 6> kDirections = {Vec3i{1, 0, 0}, Vec3i{-1, 0, 0},
+                                              Vec3i{0, 1, 0}, Vec3i{0, -1, 0},
+                                              Vec3i{0, 0, 1}, Vec3i{0, 0, -1}};
 
 const std::vector<Cubie> &cubies() {
   static const std::vector<Cubie> list = [] {
@@ -68,7 +68,9 @@ QVector3D vec(Vec3i v) {
 }
 
 QVector3D axisVector(int axis) {
-  return axis == 0 ? QVector3D(1, 0, 0) : axis == 1 ? QVector3D(0, 1, 0) : QVector3D(0, 0, 1);
+  return axis == 0   ? QVector3D(1, 0, 0)
+         : axis == 1 ? QVector3D(0, 1, 0)
+                     : QVector3D(0, 0, 1);
 }
 
 int coord(Vec3i v, int axis) { return axis == 0 ? v.x : axis == 1 ? v.y : v.z; }
@@ -146,7 +148,8 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
 
   auto project = [&](const QVector3D &v) {
     double k = kEyeDistance / (kEyeDistance - v.z());
-    return QPointF(centre.x() + v.x() * k * scale, centre.y() - v.y() * k * scale);
+    return QPointF(centre.x() + v.x() * k * scale,
+                   centre.y() - v.y() * k * scale);
   };
 
   // Group cubies into slabs along the turning axis so that painting slabs
@@ -180,8 +183,9 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
       }
       placed.push_back({c, m, (m.map(vec(c->pos))).z()});
     }
-    std::sort(placed.begin(), placed.end(),
-              [](const Placed &a, const Placed &b) { return a.depth < b.depth; });
+    std::sort(
+        placed.begin(), placed.end(),
+        [](const Placed &a, const Placed &b) { return a.depth < b.depth; });
     for (const auto &pl : placed) {
       for (std::size_t d = 0; d < 6; ++d) {
         auto corners = faceCorners(pl.cubie->pos, d);
@@ -205,7 +209,9 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
         p.drawPolygon(poly);
         int f = pl.cubie->facelet[d];
         if (f >= 0) {
-          float lit = 0.70f + 0.30f * std::max(0.0f, QVector3D::dotProduct(normal, light));
+          float lit =
+              0.70f +
+              0.30f * std::max(0.0f, QVector3D::dotProduct(normal, light));
           drawSticker(p, poly, shade(look.stickerColour(cube[f]), lit), scale);
         }
       }
@@ -219,7 +225,8 @@ void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
   p.save();
   p.setRenderHint(QPainter::Antialiasing, true);
   double cell = std::min(area.width() / 12.0, area.height() / 9.0);
-  QPointF origin(area.center().x() - cell * 6.0, area.center().y() - cell * 4.5);
+  QPointF origin(area.center().x() - cell * 6.0,
+                 area.center().y() - cell * 4.5);
   // Face placement in the net, in 3x3 blocks: U R F D L B.
   constexpr std::array<std::array<int, 2>, 6> kBlock = {
       {{1, 0}, {2, 1}, {1, 1}, {1, 2}, {0, 1}, {3, 1}}};
@@ -227,9 +234,12 @@ void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
   for (int f = 0; f < 6; ++f) {
     for (int i = 0; i < 9; ++i) {
       int r = i / 3, c = i % 3;
-      QRectF rect(origin.x() + (kBlock[static_cast<std::size_t>(f)][0] * 3 + c) * cell + gap / 2,
-                  origin.y() + (kBlock[static_cast<std::size_t>(f)][1] * 3 + r) * cell + gap / 2,
-                  cell - gap, cell - gap);
+      QRectF rect(
+          origin.x() + (kBlock[static_cast<std::size_t>(f)][0] * 3 + c) * cell +
+              gap / 2,
+          origin.y() + (kBlock[static_cast<std::size_t>(f)][1] * 3 + r) * cell +
+              gap / 2,
+          cell - gap, cell - gap);
       p.setPen(Qt::NoPen);
       p.setBrush(look.stickerColour(cube[f * 9 + i]));
       p.drawRoundedRect(rect, cell * 0.12, cell * 0.12);
@@ -248,27 +258,36 @@ void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,
   double units = 3.0 + 2.0 * (kStrip + kSpacing);
   double cell = std::min(area.width(), area.height()) / units;
   double gap = std::max(1.0, cell * 0.07);
-  QPointF topLeft(area.center().x() - 1.5 * cell, area.center().y() - 1.5 * cell);
+  QPointF topLeft(area.center().x() - 1.5 * cell,
+                  area.center().y() - 1.5 * cell);
   auto fill = [&](const QRectF &r, std::uint8_t v) {
     p.setPen(Qt::NoPen);
     p.setBrush(look.stickerColour(v));
-    p.drawRoundedRect(r.adjusted(gap / 2, gap / 2, -gap / 2, -gap / 2), cell * 0.1, cell * 0.1);
+    p.drawRoundedRect(r.adjusted(gap / 2, gap / 2, -gap / 2, -gap / 2),
+                      cell * 0.1, cell * 0.1);
   };
   for (int i = 0; i < 9; ++i) {
-    fill(QRectF(topLeft.x() + (i % 3) * cell, topLeft.y() + (i / 3) * cell, cell, cell),
+    fill(QRectF(topLeft.x() + (i % 3) * cell, topLeft.y() + (i / 3) * cell,
+                cell, cell),
          cube[i]);
   }
   double strip = kStrip * cell;
   double off = kSpacing * cell;
   for (int k = 0; k < 3; ++k) {
     // Back (above): B's top row runs right to left as seen from above.
-    fill(QRectF(topLeft.x() + k * cell, topLeft.y() - off - strip, cell, strip), cube[47 - k]);
+    fill(QRectF(topLeft.x() + k * cell, topLeft.y() - off - strip, cell, strip),
+         cube[47 - k]);
     // Front (below): F's top row, left to right.
-    fill(QRectF(topLeft.x() + k * cell, topLeft.y() + 3 * cell + off, cell, strip), cube[18 + k]);
+    fill(QRectF(topLeft.x() + k * cell, topLeft.y() + 3 * cell + off, cell,
+                strip),
+         cube[18 + k]);
     // Left: L's top row runs back to front.
-    fill(QRectF(topLeft.x() - off - strip, topLeft.y() + k * cell, strip, cell), cube[36 + k]);
+    fill(QRectF(topLeft.x() - off - strip, topLeft.y() + k * cell, strip, cell),
+         cube[36 + k]);
     // Right: R's top row runs front to back.
-    fill(QRectF(topLeft.x() + 3 * cell + off, topLeft.y() + k * cell, strip, cell), cube[11 - k]);
+    fill(QRectF(topLeft.x() + 3 * cell + off, topLeft.y() + k * cell, strip,
+                cell),
+         cube[11 - k]);
   }
   p.restore();
 }

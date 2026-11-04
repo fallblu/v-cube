@@ -14,7 +14,7 @@ namespace vcube {
 // Keyboard controls for the virtual cube: each binding maps a key (plus
 // optional Shift) to one move.
 struct KeyBinding {
-  int key = 0;        // Qt::Key
+  int key = 0; // Qt::Key
   bool shift = false;
   Move move;
 };

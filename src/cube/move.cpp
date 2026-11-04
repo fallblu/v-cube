@@ -8,8 +8,8 @@ namespace vcube {
 namespace {
 
 constexpr std::array<std::string_view, kMoveTypeCount> kNames = {
-    "U", "R", "F", "D", "L", "B", "u", "r", "f", "d",
-    "l", "b", "M", "E", "S", "x", "y", "z"};
+    "U", "R", "F", "D", "L", "B", "u", "r", "f",
+    "d", "l", "b", "M", "E", "S", "x", "y", "z"};
 
 constexpr std::array<int, kMoveTypeCount> kAxis = {1, 0, 2, 1, 0, 2, 1, 0, 2,
                                                    1, 0, 2, 0, 1, 2, 0, 1, 2};
@@ -48,8 +48,7 @@ private:
   void skipSpace() {
     while (!atEnd()) {
       char c = text_[pos_];
-      if (std::isspace(static_cast<unsigned char>(c)) || c == '.' ||
-          c == '*') {
+      if (std::isspace(static_cast<unsigned char>(c)) || c == '.' || c == '*') {
         ++pos_;
       } else if (c == '/' && pos_ + 1 < text_.size() &&
                  text_[pos_ + 1] == '/') {
@@ -69,8 +68,8 @@ private:
       return true;
     }
     // U+2019 RIGHT SINGLE QUOTATION MARK and U+2032 PRIME in UTF-8.
-    static constexpr std::array<std::string_view, 2> kPrimes = {
-        "\xE2\x80\x99", "\xE2\x80\xB2"};
+    static constexpr std::array<std::string_view, 2> kPrimes = {"\xE2\x80\x99",
+                                                                "\xE2\x80\xB2"};
     for (auto p : kPrimes) {
       if (text_.substr(pos_, p.size()) == p) {
         pos_ += p.size();
@@ -120,24 +119,69 @@ private:
     std::optional<MoveType> type;
     bool wideByCase = false;
     switch (c) {
-    case 'U': type = MoveType::U; break;
-    case 'R': type = MoveType::R; break;
-    case 'F': type = MoveType::F; break;
-    case 'D': type = MoveType::D; break;
-    case 'L': type = MoveType::L; break;
-    case 'B': type = MoveType::B; break;
-    case 'u': type = MoveType::Uw; wideByCase = true; break;
-    case 'r': type = MoveType::Rw; wideByCase = true; break;
-    case 'f': type = MoveType::Fw; wideByCase = true; break;
-    case 'd': type = MoveType::Dw; wideByCase = true; break;
-    case 'l': type = MoveType::Lw; wideByCase = true; break;
-    case 'b': type = MoveType::Bw; wideByCase = true; break;
-    case 'M': type = MoveType::M; break;
-    case 'E': type = MoveType::E; break;
-    case 'S': type = MoveType::S; break;
-    case 'x': case 'X': type = MoveType::X; break;
-    case 'y': case 'Y': type = MoveType::Y; break;
-    case 'z': case 'Z': type = MoveType::Z; break;
+    case 'U':
+      type = MoveType::U;
+      break;
+    case 'R':
+      type = MoveType::R;
+      break;
+    case 'F':
+      type = MoveType::F;
+      break;
+    case 'D':
+      type = MoveType::D;
+      break;
+    case 'L':
+      type = MoveType::L;
+      break;
+    case 'B':
+      type = MoveType::B;
+      break;
+    case 'u':
+      type = MoveType::Uw;
+      wideByCase = true;
+      break;
+    case 'r':
+      type = MoveType::Rw;
+      wideByCase = true;
+      break;
+    case 'f':
+      type = MoveType::Fw;
+      wideByCase = true;
+      break;
+    case 'd':
+      type = MoveType::Dw;
+      wideByCase = true;
+      break;
+    case 'l':
+      type = MoveType::Lw;
+      wideByCase = true;
+      break;
+    case 'b':
+      type = MoveType::Bw;
+      wideByCase = true;
+      break;
+    case 'M':
+      type = MoveType::M;
+      break;
+    case 'E':
+      type = MoveType::E;
+      break;
+    case 'S':
+      type = MoveType::S;
+      break;
+    case 'x':
+    case 'X':
+      type = MoveType::X;
+      break;
+    case 'y':
+    case 'Y':
+      type = MoveType::Y;
+      break;
+    case 'z':
+    case 'Z':
+      type = MoveType::Z;
+      break;
     default:
       return fail(std::string("unexpected character '") + c + "'");
     }
@@ -272,19 +316,32 @@ Alg mirror(const Alg &alg, int axis) {
   using T = MoveType;
   auto swapSide = [](T t) -> T {
     switch (t) {
-    case T::R: return T::L;
-    case T::L: return T::R;
-    case T::Rw: return T::Lw;
-    case T::Lw: return T::Rw;
-    case T::F: return T::B;
-    case T::B: return T::F;
-    case T::Fw: return T::Bw;
-    case T::Bw: return T::Fw;
-    case T::U: return T::D;
-    case T::D: return T::U;
-    case T::Uw: return T::Dw;
-    case T::Dw: return T::Uw;
-    default: return t;
+    case T::R:
+      return T::L;
+    case T::L:
+      return T::R;
+    case T::Rw:
+      return T::Lw;
+    case T::Lw:
+      return T::Rw;
+    case T::F:
+      return T::B;
+    case T::B:
+      return T::F;
+    case T::Fw:
+      return T::Bw;
+    case T::Bw:
+      return T::Fw;
+    case T::U:
+      return T::D;
+    case T::D:
+      return T::U;
+    case T::Uw:
+      return T::Dw;
+    case T::Dw:
+      return T::Uw;
+    default:
+      return t;
     }
   };
   Alg out;

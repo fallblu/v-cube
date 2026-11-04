@@ -102,10 +102,12 @@ std::string freeToString(const PieceMask &m) {
   std::array<std::uint8_t, kCorners> cornerLeft{};
   std::array<std::uint8_t, kEdges> edgeLeft{};
   for (std::size_t i = 0; i < kCorners; ++i) {
-    cornerLeft[i] = static_cast<std::uint8_t>((m.cp[i] ? 1 : 0) | (m.co[i] ? 2 : 0));
+    cornerLeft[i] =
+        static_cast<std::uint8_t>((m.cp[i] ? 1 : 0) | (m.co[i] ? 2 : 0));
   }
   for (std::size_t i = 0; i < kEdges; ++i) {
-    edgeLeft[i] = static_cast<std::uint8_t>((m.ep[i] ? 1 : 0) | (m.eo[i] ? 2 : 0));
+    edgeLeft[i] =
+        static_cast<std::uint8_t>((m.ep[i] ? 1 : 0) | (m.eo[i] ? 2 : 0));
   }
   std::vector<std::string> tokens;
   auto flagsText = [](std::uint8_t f) {
@@ -119,7 +121,8 @@ std::string freeToString(const PieceMask &m) {
     return s;
   };
   for (const auto &g : namedGroups()) {
-    for (std::uint8_t flags : {std::uint8_t{3}, std::uint8_t{1}, std::uint8_t{2}}) {
+    for (std::uint8_t flags :
+         {std::uint8_t{3}, std::uint8_t{1}, std::uint8_t{2}}) {
       bool covers = !(g.corners.empty() && g.edges.empty());
       for (auto c : g.corners) {
         covers = covers && (cornerLeft[c] & flags) == flags;
@@ -140,12 +143,14 @@ std::string freeToString(const PieceMask &m) {
   }
   for (std::size_t i = 0; i < kCorners; ++i) {
     if (cornerLeft[i]) {
-      tokens.push_back(std::string(kCornerNames[i]) + ":" + flagsText(cornerLeft[i]));
+      tokens.push_back(std::string(kCornerNames[i]) + ":" +
+                       flagsText(cornerLeft[i]));
     }
   }
   for (std::size_t i = 0; i < kEdges; ++i) {
     if (edgeLeft[i]) {
-      tokens.push_back(std::string(kEdgeNames[i]) + ":" + flagsText(edgeLeft[i]));
+      tokens.push_back(std::string(kEdgeNames[i]) + ":" +
+                       flagsText(edgeLeft[i]));
     }
   }
   std::string out;
@@ -195,9 +200,12 @@ std::optional<PieceMask> parseFree(std::string_view text) {
 
 std::string_view stickerModeName(StickerMode m) {
   switch (m) {
-  case StickerMode::Full: return "full";
-  case StickerMode::Orientation: return "orientation";
-  case StickerMode::Hidden: return "hidden";
+  case StickerMode::Full:
+    return "full";
+  case StickerMode::Orientation:
+    return "orientation";
+  case StickerMode::Hidden:
+    return "hidden";
   }
   return "full";
 }

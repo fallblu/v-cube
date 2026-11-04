@@ -24,7 +24,8 @@ namespace vcube {
 class LibraryPage : public QWidget {
   Q_OBJECT
 public:
-  LibraryPage(AppSettings &settings, AlgLibrary &library, QWidget *parent = nullptr);
+  LibraryPage(AppSettings &settings, AlgLibrary &library,
+              QWidget *parent = nullptr);
 
   void selectCase(const QString &setId, const QString &caseId);
   void applySettings();

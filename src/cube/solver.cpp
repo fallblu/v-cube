@@ -10,13 +10,13 @@ namespace vcube {
 
 namespace {
 
-constexpr int kTwist = 2187;     // 3^7
-constexpr int kFlip = 2048;      // 2^11
-constexpr int kSlice = 495;      // C(12, 4)
+constexpr int kTwist = 2187;      // 3^7
+constexpr int kFlip = 2048;       // 2^11
+constexpr int kSlice = 495;       // C(12, 4)
 constexpr int kSolvedSlice = 494; // slice edges in positions FR..BR
-constexpr int kPerm8 = 40320;    // 8!
-constexpr int kPerm4 = 24;       // 4!
-constexpr int kMoves = 18;       // face * 3 + (amount - 1)
+constexpr int kPerm8 = 40320;     // 8!
+constexpr int kPerm4 = 24;        // 4!
+constexpr int kMoves = 18;        // face * 3 + (amount - 1)
 
 // The ten moves of phase 2: U, U2, U', R2, F2, D, D2, D', L2, B2.
 constexpr std::array<int, 10> kPhase2Moves = {0, 1, 2, 4, 7, 9, 10, 11, 13, 16};
@@ -219,10 +219,10 @@ struct Tables {
                                  0 * kSlice + kSolvedSlice, allMoves());
     flipSlicePrune = buildPrune(kFlip, kSlice, flipMove, sliceMove,
                                 0 * kSlice + kSolvedSlice, allMoves());
-    cornerSlicePrune = buildPrune(kPerm8, kPerm4, cornerPermMove,
-                                  slicePermMove, 0, phase2());
-    edgeSlicePrune = buildPrune(kPerm8, kPerm4, udEdgePermMove, slicePermMove,
-                                0, phase2());
+    cornerSlicePrune =
+        buildPrune(kPerm8, kPerm4, cornerPermMove, slicePermMove, 0, phase2());
+    edgeSlicePrune =
+        buildPrune(kPerm8, kPerm4, udEdgePermMove, slicePermMove, 0, phase2());
   }
 
   static std::vector<int> allMoves() {
@@ -296,8 +296,7 @@ class Search {
 public:
   Search(const CubieCube &cube, int maxLength,
          TwoPhaseSolver::Clock::time_point deadline)
-      : t_(tables()), cube_(cube), maxLength_(maxLength),
-        deadline_(deadline) {}
+      : t_(tables()), cube_(cube), maxLength_(maxLength), deadline_(deadline) {}
 
   std::optional<Alg> run() {
     int twist = twistOf(cube_), flip = flipOf(cube_), slice = sliceOf(cube_);
@@ -347,8 +346,7 @@ private:
     return std::max(
         t_.cornerSlicePrune[static_cast<std::size_t>(corner * kPerm4 +
                                                      slicePerm)],
-        t_.edgeSlicePrune[static_cast<std::size_t>(edge * kPerm4 +
-                                                   slicePerm)]);
+        t_.edgeSlicePrune[static_cast<std::size_t>(edge * kPerm4 + slicePerm)]);
   }
 
   bool phase1(int twist, int flip, int slice, int depth, int togo,
@@ -359,7 +357,8 @@ private:
       }
       // If the last move kept us in the subgroup we were already there one
       // move earlier, and that shorter phase 1 has been tried.
-      if (depth > 0 && isPhase2Move(moves_[static_cast<std::size_t>(depth - 1)])) {
+      if (depth > 0 &&
+          isPhase2Move(moves_[static_cast<std::size_t>(depth - 1)])) {
         return false;
       }
       return startPhase2(depth);
@@ -395,12 +394,14 @@ private:
   bool startPhase2(int depth1) {
     CubieCube c = cube_;
     for (int i = 0; i < depth1; ++i) {
-      c = c * t_.moveCubes[static_cast<std::size_t>(moves_[static_cast<std::size_t>(i)])];
+      c = c * t_.moveCubes[static_cast<std::size_t>(
+                  moves_[static_cast<std::size_t>(i)])];
     }
     int corner = cornerPermOf(c), edge = udEdgePermOf(c),
         slicePerm = slicePermOf(c);
     int maxDepth2 = std::min(maxLength_ - depth1, 18);
-    int prevFace = depth1 > 0 ? moves_[static_cast<std::size_t>(depth1 - 1)] / 3 : -1;
+    int prevFace =
+        depth1 > 0 ? moves_[static_cast<std::size_t>(depth1 - 1)] / 3 : -1;
     for (int d2 = prune2(corner, edge, slicePerm); d2 <= maxDepth2; ++d2) {
       if (phase2(corner, edge, slicePerm, depth1, d2, prevFace)) {
         result_.clear();
@@ -432,9 +433,11 @@ private:
         continue;
       }
       auto mi = static_cast<std::size_t>(m);
-      int nc = t_.cornerPermMove[static_cast<std::size_t>(corner * kMoves) + mi];
+      int nc =
+          t_.cornerPermMove[static_cast<std::size_t>(corner * kMoves) + mi];
       int ne = t_.udEdgePermMove[static_cast<std::size_t>(edge * kMoves) + mi];
-      int ns = t_.slicePermMove[static_cast<std::size_t>(slicePerm * kMoves) + mi];
+      int ns =
+          t_.slicePermMove[static_cast<std::size_t>(slicePerm * kMoves) + mi];
       if (prune2(nc, ne, ns) > togo - 1) {
         continue;
       }
@@ -480,7 +483,8 @@ Alg TwoPhaseSolver::solve(const CubieCube &cube,
   // pays off for states near solved (subset and case scrambles).
   auto improveUntil = Clock::now() + budget / 5;
   while (!best->empty() && Clock::now() < improveUntil) {
-    auto shorter = solve(cube, static_cast<int>(best->size()) - 1, improveUntil);
+    auto shorter =
+        solve(cube, static_cast<int>(best->size()) - 1, improveUntil);
     if (!shorter) {
       break;
     }

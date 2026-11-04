@@ -11,12 +11,14 @@ namespace vcube {
 // Every layer or rotation that a 3x3 move can turn. Face turns come first
 // in Kociemba's U R F D L B order so that `static_cast<int>(type) < 6` means
 // "outer face turn".
+// clang-format off
 enum class MoveType : std::uint8_t {
   U, R, F, D, L, B,       // outer faces
   Uw, Rw, Fw, Dw, Lw, Bw, // wide (two layers)
   M, E, S,                // slices
   X, Y, Z,                // whole-cube rotations
 };
+// clang-format on
 
 inline constexpr int kMoveTypeCount = 18;
 

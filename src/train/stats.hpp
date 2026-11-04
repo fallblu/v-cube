@@ -21,7 +21,8 @@ struct Solve {
 };
 
 // Time used for statistics: DNF sorts after everything.
-inline constexpr std::int64_t kDnfTime = std::numeric_limits<std::int64_t>::max();
+inline constexpr std::int64_t kDnfTime =
+    std::numeric_limits<std::int64_t>::max();
 std::int64_t effectiveTime(const Solve &s);
 
 // A statistic: nullopt when there are not enough solves; kDnfTime for DNF.

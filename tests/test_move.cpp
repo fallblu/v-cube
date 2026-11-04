@@ -5,7 +5,9 @@
 using namespace vcube;
 
 namespace {
-std::string roundTrip(std::string_view s) { return toString(parseAlgOrEmpty(s)); }
+std::string roundTrip(std::string_view s) {
+  return toString(parseAlgOrEmpty(s));
+}
 } // namespace
 
 TEST_CASE("parses face, wide, slice and rotation moves") {

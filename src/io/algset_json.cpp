@@ -42,7 +42,8 @@ bool readSpec(const QJsonObject &o, StepSpec &spec, QString *error) {
     auto m = parseFree(ss(o.value("free").toString()));
     if (!m) {
       if (error) {
-        *error = QString("invalid \"free\" spec: %1").arg(o.value("free").toString());
+        *error = QString("invalid \"free\" spec: %1")
+                     .arg(o.value("free").toString());
       }
       return false;
     }
@@ -222,7 +223,8 @@ QJsonObject progressToJson(const SetProgress &p) {
     QJsonArray attempts;
     for (const auto &a : cp.attempts) {
       attempts.append(QJsonArray{static_cast<double>(a.timestamp),
-                                 static_cast<double>(a.timeMs), a.failed ? 1 : 0});
+                                 static_cast<double>(a.timeMs),
+                                 a.failed ? 1 : 0});
     }
     cases[qs(id)] = QJsonObject{{"card", card}, {"attempts", attempts}};
   }
@@ -236,7 +238,8 @@ SetProgress progressFromJson(const QJsonObject &o) {
     QJsonObject co = it.value().toObject();
     QJsonObject card = co.value("card").toObject();
     CaseProgress cp;
-    cp.card.state = static_cast<CardState>(std::clamp(card.value("state").toInt(), 0, 3));
+    cp.card.state =
+        static_cast<CardState>(std::clamp(card.value("state").toInt(), 0, 3));
     cp.card.step = card.value("step").toInt();
     cp.card.ease = card.value("ease").toDouble(2.5);
     cp.card.intervalDays = card.value("interval").toDouble();

@@ -1,5 +1,5 @@
-#include <set>
 #include "train/srs.hpp"
+#include <set>
 
 #include <catch2/catch_test_macros.hpp>
 

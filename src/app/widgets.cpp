@@ -44,8 +44,10 @@ TimeDisplay::TimeDisplay(QWidget *parent) : QLabel(parent) {
 void TimeDisplay::setColour(const QColor &c) {
   QPalette p = palette();
   p.setColor(QPalette::WindowText,
-             c.isValid() ? c : parentWidget() ? parentWidget()->palette().color(QPalette::WindowText)
-                                               : QColor(Qt::white));
+             c.isValid() ? c
+             : parentWidget()
+                 ? parentWidget()->palette().color(QPalette::WindowText)
+                 : QColor(Qt::white));
   setPalette(p);
 }
 
@@ -80,16 +82,20 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
     break; // leave the last result up
   case S::Inspecting: {
     std::int64_t t = *inspection;
-    QColor c = t >= 12000 ? QColor(0xff, 0x55, 0x55) : t >= 8000 ? QColor(0xff, 0xb0, 0x30) : QColor();
+    QColor c = t >= 12000  ? QColor(0xff, 0x55, 0x55)
+               : t >= 8000 ? QColor(0xff, 0xb0, 0x30)
+                           : QColor();
     showText(inspectText, c);
     break;
   }
   case S::Holding:
-    showText(inspection ? inspectText : QString::fromStdString(formatTime(0, decimals_)),
+    showText(inspection ? inspectText
+                        : QString::fromStdString(formatTime(0, decimals_)),
              QColor(0xff, 0x55, 0x55));
     break;
   case S::Ready:
-    showText(inspection ? inspectText : QString::fromStdString(formatTime(0, decimals_)),
+    showText(inspection ? inspectText
+                        : QString::fromStdString(formatTime(0, decimals_)),
              QColor(0x3d, 0xd6, 0x6b));
     break;
   case S::Running: {
@@ -160,7 +166,8 @@ void TrendChart::paintEvent(QPaintEvent *) {
   }
   std::size_t n = times.size();
   auto px = [&](std::size_t i) {
-    return area.left() + area.width() * static_cast<double>(i) / static_cast<double>(n - 1);
+    return area.left() +
+           area.width() * static_cast<double>(i) / static_cast<double>(n - 1);
   };
   auto py = [&](double v) {
     return area.bottom() - area.height() * (std::min(v, hi) - lo) / (hi - lo);
@@ -174,7 +181,8 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.drawText(QRectF(0, y - 8, 40, 16), Qt::AlignRight | Qt::AlignVCenter,
                QString::number(v, 'f', 1));
   }
-  auto drawSeries = [&](const std::vector<StatValue> &vals, const QColor &c, double width) {
+  auto drawSeries = [&](const std::vector<StatValue> &vals, const QColor &c,
+                        double width) {
     QPainterPath path;
     bool started = false;
     for (std::size_t i = 0; i < n; ++i) {

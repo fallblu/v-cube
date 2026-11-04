@@ -45,7 +45,8 @@ TEST_CASE("sexy move has order six; T-perm and superflip behave") {
     c.apply(parseAlgOrEmpty("R U R' U'"));
   }
   CHECK(c.isSolved());
-  CubieCube t = cubieOf(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"));
+  CubieCube t =
+      cubieOf(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"));
   CHECK(t.isValid());
   CHECK(t.cornerParity() == 1);
   CHECK(t.co == std::array<std::uint8_t, 8>{});

@@ -36,10 +36,11 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   library_.load();
   QString error;
   if (!sessions_.load(&error)) {
-    QMessageBox::warning(this, "v-cube",
-                         tr("Could not read your sessions (%1). Starting with an empty "
-                            "session; the old file is left untouched until you save.")
-                             .arg(error));
+    QMessageBox::warning(
+        this, "v-cube",
+        tr("Could not read your sessions (%1). Starting with an empty "
+           "session; the old file is left untouched until you save.")
+            .arg(error));
   }
 
   tabs_ = new QTabWidget(this);
@@ -87,7 +88,8 @@ void MainWindow::closeEvent(QCloseEvent *e) {
 }
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
-  if (event->type() != QEvent::KeyPress && event->type() != QEvent::KeyRelease) {
+  if (event->type() != QEvent::KeyPress &&
+      event->type() != QEvent::KeyRelease) {
     return QMainWindow::eventFilter(obj, event);
   }
   // Only keys aimed at this window, not at dialogs, menus or text fields.
@@ -100,7 +102,8 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
   }
   QWidget *focus = QApplication::focusWidget();
   if (qobject_cast<QLineEdit *>(focus) || qobject_cast<QTextEdit *>(focus) ||
-      qobject_cast<QPlainTextEdit *>(focus) || qobject_cast<QAbstractSpinBox *>(focus) ||
+      qobject_cast<QPlainTextEdit *>(focus) ||
+      qobject_cast<QAbstractSpinBox *>(focus) ||
       qobject_cast<QKeySequenceEdit *>(focus)) {
     return false;
   }
@@ -127,8 +130,10 @@ void MainWindow::buildMenus() {
   file->addAction(tr("Import alg set…"), this, &MainWindow::importAlgSet);
   file->addAction(tr("Export alg set…"), this, &MainWindow::exportAlgSet);
   file->addSeparator();
-  file->addAction(tr("Import cstimer sessions…"), this, &MainWindow::importCstimer);
-  file->addAction(tr("Export sessions for cstimer…"), this, &MainWindow::exportCstimer);
+  file->addAction(tr("Import cstimer sessions…"), this,
+                  &MainWindow::importCstimer);
+  file->addAction(tr("Export sessions for cstimer…"), this,
+                  &MainWindow::exportCstimer);
   file->addSeparator();
   file->addAction(tr("Open data folder"), this, [this] {
     QDesktopServices::openUrl(QUrl::fromLocalFile(dataDir_));
@@ -137,8 +142,8 @@ void MainWindow::buildMenus() {
   file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
 
   QMenu *edit = menuBar()->addMenu(tr("&Edit"));
-  edit->addAction(tr("&Settings…"), QKeySequence(Qt::CTRL | Qt::Key_Comma), this,
-                  &MainWindow::openSettings);
+  edit->addAction(tr("&Settings…"), QKeySequence(Qt::CTRL | Qt::Key_Comma),
+                  this, &MainWindow::openSettings);
 
   QMenu *help = menuBar()->addMenu(tr("&Help"));
   help->addAction(tr("Keyboard controls"), this, &MainWindow::showControls);
@@ -179,8 +184,9 @@ void MainWindow::exportAlgSet() {
 }
 
 void MainWindow::importCstimer() {
-  QString path = QFileDialog::getOpenFileName(this, tr("Import cstimer export"), QString(),
-                                              tr("cstimer export (*.txt *.json);;All files (*)"));
+  QString path = QFileDialog::getOpenFileName(
+      this, tr("Import cstimer export"), QString(),
+      tr("cstimer export (*.txt *.json);;All files (*)"));
   if (path.isEmpty()) {
     return;
   }
@@ -190,9 +196,11 @@ void MainWindow::importCstimer() {
     return;
   }
   QString error;
-  auto imported = sessionsFromCstimer(QJsonDocument::fromJson(f.readAll()).object(), &error);
+  auto imported = sessionsFromCstimer(
+      QJsonDocument::fromJson(f.readAll()).object(), &error);
   if (!imported) {
-    QMessageBox::warning(this, tr("Import"), tr("Not a cstimer export: %1").arg(error));
+    QMessageBox::warning(this, tr("Import"),
+                         tr("Not a cstimer export: %1").arg(error));
     return;
   }
   std::size_t solves = 0;
@@ -204,39 +212,49 @@ void MainWindow::importCstimer() {
   sessions_.setCurrentIndex(sessions_.sessions().size() - 1);
   sessions_.save(&error);
   timerPage_->reloadSessions();
-  showMessage(tr("Imported %1 sessions with %2 solves").arg(imported->size()).arg(solves));
+  showMessage(tr("Imported %1 sessions with %2 solves")
+                  .arg(imported->size())
+                  .arg(solves));
 }
 
 void MainWindow::exportCstimer() {
-  QString path = QFileDialog::getSaveFileName(this, tr("Export for cstimer"),
-                                              "v-cube-sessions.txt",
-                                              tr("cstimer import file (*.txt)"));
+  QString path = QFileDialog::getSaveFileName(
+      this, tr("Export for cstimer"), "v-cube-sessions.txt",
+      tr("cstimer import file (*.txt)"));
   if (path.isEmpty()) {
     return;
   }
   QString error;
-  QByteArray bytes = QJsonDocument(sessionsToCstimer(sessions_.sessions())).toJson(QJsonDocument::Compact);
+  QByteArray bytes = QJsonDocument(sessionsToCstimer(sessions_.sessions()))
+                         .toJson(QJsonDocument::Compact);
   if (!writeFileAtomically(path, bytes, &error)) {
     QMessageBox::warning(this, tr("Export"), error);
     return;
   }
-  showMessage(tr("Exported %1 sessions to %2").arg(sessions_.sessions().size()).arg(path));
+  showMessage(tr("Exported %1 sessions to %2")
+                  .arg(sessions_.sessions().size())
+                  .arg(path));
 }
 
 void MainWindow::showControls() {
   QString text = tr(
       "<h3>Timer (physical cube)</h3>"
-      "<p>Hold <b>Space</b> until the time turns green, release to start, press any key "
-      "to stop. With inspection on, tap Space to start inspecting first. <b>Esc</b> "
+      "<p>Hold <b>Space</b> until the time turns green, release to start, "
+      "press any key "
+      "to stop. With inspection on, tap Space to start inspecting first. "
+      "<b>Esc</b> "
       "cancels.</p>"
       "<h3>Virtual cube</h3>"
-      "<p><b>Space</b> scrambles (timer) or gives up (trainer); the first turn starts "
-      "the timer and solving stops it. <b>Esc</b> aborts. Click the cube to switch "
+      "<p><b>Space</b> scrambles (timer) or gives up (trainer); the first turn "
+      "starts "
+      "the timer and solving stops it. <b>Esc</b> aborts. Click the cube to "
+      "switch "
       "between 3D, flat and hidden.</p>"
       "<h3>Trainer</h3>"
       "<p>After a case: <b>Space/Enter</b> next case, <b>Backspace</b> toggles "
       "\"wrong alg\", <b>1–4</b> override the grade (Again/Hard/Good/Easy), "
-      "<b>Esc</b> resets the case to try again. <b>Tab</b> reveals the algs.</p>"
+      "<b>Esc</b> resets the case to try again. <b>Tab</b> reveals the "
+      "algs.</p>"
       "<h3>Turning keys</h3><p>");
   QStringList rows;
   for (const auto &b : settings_.keymap.bindings) {
@@ -255,9 +273,11 @@ void MainWindow::showControls() {
 void MainWindow::showAbout() {
   QMessageBox::about(
       this, tr("About v-cube"),
-      tr("<h3>v-cube %1</h3><p>Create, learn and drill 3x3 alg sets; scramble and "
+      tr("<h3>v-cube %1</h3><p>Create, learn and drill 3x3 alg sets; scramble "
+         "and "
          "time solves with a real or a virtual cube.</p>"
-         "<p>Random-state scrambles use Kociemba's two-phase algorithm. Inspired by "
+         "<p>Random-state scrambles use Kociemba's two-phase algorithm. "
+         "Inspired by "
          "cstimer and Alg-Trainer.</p>"
          "<p>Data folder: <code>%2</code></p>")
           .arg(QApplication::applicationVersion(), dataDir_.toHtmlEscaped()));

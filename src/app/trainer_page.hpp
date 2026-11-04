@@ -25,7 +25,8 @@ namespace vcube {
 class TrainerPage : public QWidget {
   Q_OBJECT
 public:
-  TrainerPage(AppSettings &settings, AlgLibrary &library, QWidget *parent = nullptr);
+  TrainerPage(AppSettings &settings, AlgLibrary &library,
+              QWidget *parent = nullptr);
 
   bool handleKey(QKeyEvent *e, bool press);
   void applySettings();

@@ -91,7 +91,8 @@ TEST_CASE("library installs built-ins once and saves changes") {
     CHECK(lib.errors().isEmpty());
     REQUIRE(lib.sets().size() == 4);
     CHECK(lib.sets()[0].id == "pll");
-    lib.find("pll")->findCase("T")->algs.push_back("R U R' U' R' F R2 U' R' U' R U R' F'");
+    lib.find("pll")->findCase("T")->algs.push_back(
+        "R U R' U' R' F R2 U' R' U' R U R' F'");
     lib.save(*lib.find("pll"));
     lib.remove("2look-pll");
     lib.progress("pll")["T"].record({100, 1500, false});

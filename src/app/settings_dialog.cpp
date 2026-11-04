@@ -20,8 +20,8 @@
 namespace vcube {
 
 namespace {
-const std::array<const char *, 6> kFaceNames = {"U (top)", "R (right)", "F (front)",
-                                                "D (bottom)", "L (left)", "B (back)"};
+const std::array<const char *, 6> kFaceNames = {
+    "U (top)", "R (right)", "F (front)", "D (bottom)", "L (left)", "B (back)"};
 }
 
 SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
@@ -45,12 +45,14 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   auto *colourRow = new QHBoxLayout;
   for (std::size_t i = 0; i < 6; ++i) {
     auto *b = new QPushButton(general);
-    b->setToolTip(tr("Colour of the %1 face in the WCA orientation").arg(tr(kFaceNames[i])));
+    b->setToolTip(tr("Colour of the %1 face in the WCA orientation")
+                      .arg(tr(kFaceNames[i])));
     b->setFixedSize(40, 28);
     colourButtons_[i] = b;
     colourRow->addWidget(b);
     connect(b, &QPushButton::clicked, this, [this, i] {
-      QColor c = QColorDialog::getColor(settings_.scheme.faces[i], this, tr("Sticker colour"));
+      QColor c = QColorDialog::getColor(settings_.scheme.faces[i], this,
+                                        tr("Sticker colour"));
       if (c.isValid()) {
         settings_.scheme.faces[i] = c;
         refreshColours();
@@ -77,7 +79,8 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   }
   holdBox_->setCurrentIndex(std::max(0, holdBox_->findData(settings_.holdMs)));
   tForm->addRow(tr("Hold Space before starting:"), holdBox_);
-  inspectionBox_ = new QCheckBox(tr("15 s WCA inspection (+2 after 15 s, DNF after 17 s)"), timer);
+  inspectionBox_ = new QCheckBox(
+      tr("15 s WCA inspection (+2 after 15 s, DNF after 17 s)"), timer);
   inspectionBox_->setChecked(settings_.inspection);
   tForm->addRow(tr("Inspection:"), inspectionBox_);
   decimalsSpin_ = new QSpinBox(timer);
@@ -89,9 +92,10 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   // Keyboard
   auto *keys = new QWidget(tabs);
   auto *kLayout = new QVBoxLayout(keys);
-  kLayout->addWidget(new QLabel(tr("Virtual cube turning keys. Select a row to change it, or "
-                                   "enter a key and a move to add one."),
-                                keys));
+  kLayout->addWidget(
+      new QLabel(tr("Virtual cube turning keys. Select a row to change it, or "
+                    "enter a key and a move to add one."),
+                 keys));
   keyTable_ = new QTableWidget(0, 2, keys);
   keyTable_->setHorizontalHeaderLabels({tr("Key"), tr("Move")});
   keyTable_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
@@ -119,12 +123,14 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   connect(keyTable_, &QTableWidget::currentCellChanged, this, [this](int row) {
     if (row >= 0 && row < static_cast<int>(settings_.keymap.bindings.size())) {
       const auto &b = settings_.keymap.bindings[static_cast<std::size_t>(row)];
-      keyEdit_->setKeySequence(QKeySequence(Keymap::keyText(b.key, b.shift), QKeySequence::PortableText));
+      keyEdit_->setKeySequence(QKeySequence(Keymap::keyText(b.key, b.shift),
+                                            QKeySequence::PortableText));
       moveEdit_->setText(QString::fromStdString(toString(b.move)));
     }
   });
   connect(setButton, &QPushButton::clicked, this, &SettingsDialog::setBinding);
-  connect(moveEdit_, &QLineEdit::returnPressed, this, &SettingsDialog::setBinding);
+  connect(moveEdit_, &QLineEdit::returnPressed, this,
+          &SettingsDialog::setBinding);
   connect(removeButton, &QPushButton::clicked, this, [this] {
     int row = keyTable_->currentRow();
     if (row >= 0 && row < static_cast<int>(settings_.keymap.bindings.size())) {
@@ -146,19 +152,24 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   newPerDaySpin_->setRange(0, 100);
   newPerDaySpin_->setValue(settings_.srs.newPerDay);
   lForm->addRow(tr("New cases per day (spaced repetition):"), newPerDaySpin_);
-  learningEdit_ = new QLineEdit(stepsToText(settings_.srs.learningSteps), learning);
-  learningEdit_->setToolTip(tr("Delays before a new case's next reviews, e.g. \"1m 10m\""));
+  learningEdit_ =
+      new QLineEdit(stepsToText(settings_.srs.learningSteps), learning);
+  learningEdit_->setToolTip(
+      tr("Delays before a new case's next reviews, e.g. \"1m 10m\""));
   lForm->addRow(tr("Learning steps:"), learningEdit_);
-  relearningEdit_ = new QLineEdit(stepsToText(settings_.srs.relearningSteps), learning);
+  relearningEdit_ =
+      new QLineEdit(stepsToText(settings_.srs.relearningSteps), learning);
   lForm->addRow(tr("Relearning steps (after a miss):"), relearningEdit_);
-  lForm->addRow(new QLabel(tr("Each drill is graded from its time against the set's target "
-                              "time: a fail or give-up is Again, within 60% of the target Easy, "
-                              "within the target Good, slower Hard. Graduated cases come back "
-                              "after days, spaced out further each time they go well."),
-                           learning));
+  lForm->addRow(new QLabel(
+      tr("Each drill is graded from its time against the set's target "
+         "time: a fail or give-up is Again, within 60% of the target Easy, "
+         "within the target Good, slower Hard. Graduated cases come back "
+         "after days, spaced out further each time they go well."),
+      learning));
   tabs->addTab(learning, tr("Learning"));
 
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+  auto *buttons = new QDialogButtonBox(
+      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
   connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, this, &SettingsDialog::reject);
   auto *layout = new QVBoxLayout(this);
@@ -170,7 +181,8 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
 void SettingsDialog::refreshColours() {
   for (std::size_t i = 0; i < 6; ++i) {
     colourButtons_[i]->setStyleSheet(
-        QString("background-color: %1; border: 1px solid #222; border-radius: 3px;")
+        QString(
+            "background-color: %1; border: 1px solid #222; border-radius: 3px;")
             .arg(settings_.scheme.faces[i].name()));
   }
 }
@@ -179,9 +191,11 @@ void SettingsDialog::refreshKeys() {
   keyTable_->setRowCount(static_cast<int>(settings_.keymap.bindings.size()));
   for (std::size_t i = 0; i < settings_.keymap.bindings.size(); ++i) {
     const auto &b = settings_.keymap.bindings[i];
-    keyTable_->setItem(static_cast<int>(i), 0, new QTableWidgetItem(Keymap::keyText(b.key, b.shift)));
-    keyTable_->setItem(static_cast<int>(i), 1,
-                       new QTableWidgetItem(QString::fromStdString(toString(b.move))));
+    keyTable_->setItem(static_cast<int>(i), 0,
+                       new QTableWidgetItem(Keymap::keyText(b.key, b.shift)));
+    keyTable_->setItem(
+        static_cast<int>(i), 1,
+        new QTableWidgetItem(QString::fromStdString(toString(b.move))));
   }
 }
 
@@ -189,23 +203,28 @@ void SettingsDialog::setBinding() {
   QKeySequence seq = keyEdit_->keySequence();
   Alg move = parseAlgOrEmpty(moveEdit_->text().toStdString());
   if (seq.isEmpty() || move.size() != 1) {
-    QMessageBox::information(this, tr("Keyboard"), tr("Enter one key and a single move."));
+    QMessageBox::information(this, tr("Keyboard"),
+                             tr("Enter one key and a single move."));
     return;
   }
   QKeyCombination combo = seq[0];
   if (combo.key() == Qt::Key_Space || combo.key() == Qt::Key_Escape ||
       combo.key() == Qt::Key_Backspace || combo.key() == Qt::Key_Tab ||
       combo.key() == Qt::Key_Return) {
-    QMessageBox::information(this, tr("Keyboard"),
-                             tr("Space, Esc, Backspace, Tab and Enter are reserved for the timer "
-                                "and trainer."));
+    QMessageBox::information(
+        this, tr("Keyboard"),
+        tr("Space, Esc, Backspace, Tab and Enter are reserved for the timer "
+           "and trainer."));
     return;
   }
-  KeyBinding b{combo.key(), combo.keyboardModifiers().testFlag(Qt::ShiftModifier), move.front()};
+  KeyBinding b{combo.key(),
+               combo.keyboardModifiers().testFlag(Qt::ShiftModifier),
+               move.front()};
   auto &list = settings_.keymap.bindings;
   // Replace any binding for the same key.
-  auto it = std::find_if(list.begin(), list.end(),
-                         [&b](const KeyBinding &x) { return x.key == b.key && x.shift == b.shift; });
+  auto it = std::find_if(list.begin(), list.end(), [&b](const KeyBinding &x) {
+    return x.key == b.key && x.shift == b.shift;
+  });
   int row;
   if (it != list.end()) {
     *it = b;
@@ -223,7 +242,8 @@ void SettingsDialog::accept() {
   auto relearn = stepsFromText(relearningEdit_->text());
   if (learn.empty() || relearn.empty()) {
     QMessageBox::warning(this, tr("Settings"),
-                         tr("Learning steps must be durations like \"1m 10m\" or \"30s 5m 1h\"."));
+                         tr("Learning steps must be durations like \"1m 10m\" "
+                            "or \"30s 5m 1h\"."));
     return;
   }
   settings_.darkTheme = themeBox_->currentIndex() == 0;

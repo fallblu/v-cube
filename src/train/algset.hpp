@@ -42,7 +42,7 @@ struct StepSpec {
 struct AlgCase {
   std::string id; // unique within its set
   std::string name;
-  CubieCube state; // the case as seen before its alg
+  CubieCube state;               // the case as seen before its alg
   std::vector<std::string> algs; // algs[0] is the main alg
 };
 
@@ -58,8 +58,8 @@ struct AlgSet {
   std::string description;
   bool builtin = false; // case definitions shipped with the app
   StepSpec spec;
-  bool aufBefore = true; // drills turn U randomly before the case...
-  bool aufAfter = true;  // ...and after it
+  bool aufBefore = true;      // drills turn U randomly before the case...
+  bool aufAfter = true;       // ...and after it
   double targetSeconds = 3.0; // SRS grading reference time per case
   std::vector<CaseGroup> groups;
 

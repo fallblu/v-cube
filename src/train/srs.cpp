@@ -21,7 +21,8 @@ std::int64_t stepDelay(const std::vector<std::int64_t> &steps, int step) {
   if (steps.empty()) {
     return 60;
   }
-  auto i = static_cast<std::size_t>(std::clamp(step, 0, static_cast<int>(steps.size()) - 1));
+  auto i = static_cast<std::size_t>(
+      std::clamp(step, 0, static_cast<int>(steps.size()) - 1));
   return steps[i];
 }
 
@@ -82,14 +83,15 @@ void review(SrsCard &card, Grade grade, std::int64_t now,
       scheduleReview(card, now, config);
       break;
     case Grade::Good:
-      card.intervalDays = std::max(card.intervalDays + 1.0,
-                                   card.intervalDays * card.ease);
+      card.intervalDays =
+          std::max(card.intervalDays + 1.0, card.intervalDays * card.ease);
       scheduleReview(card, now, config);
       break;
     case Grade::Easy:
       card.ease += 0.15;
-      card.intervalDays = std::max(card.intervalDays + 1.0,
-                                   card.intervalDays * card.ease * config.easyBonus);
+      card.intervalDays =
+          std::max(card.intervalDays + 1.0,
+                   card.intervalDays * card.ease * config.easyBonus);
       scheduleReview(card, now, config);
       break;
     }
@@ -128,8 +130,8 @@ bool isDue(const SrsCard &card, std::int64_t now, const SrsConfig &config) {
   if (card.state == CardState::New) {
     return false;
   }
-  bool learning = card.state == CardState::Learning ||
-                  card.state == CardState::Relearning;
+  bool learning =
+      card.state == CardState::Learning || card.state == CardState::Relearning;
   return card.due <= now + (learning ? config.learnAheadSeconds : 0);
 }
 
@@ -175,7 +177,8 @@ void CaseProgress::record(const Attempt &a) {
   attempts.push_back(a);
   if (attempts.size() > kMaxAttempts) {
     attempts.erase(attempts.begin(),
-                   attempts.begin() + static_cast<std::ptrdiff_t>(attempts.size() - kMaxAttempts));
+                   attempts.begin() + static_cast<std::ptrdiff_t>(
+                                          attempts.size() - kMaxAttempts));
   }
 }
 
@@ -212,7 +215,8 @@ double CaseProgress::failRate(std::size_t n) const {
       ++fails;
     }
   }
-  return count == 0 ? 0.0 : static_cast<double>(fails) / static_cast<double>(count);
+  return count == 0 ? 0.0
+                    : static_cast<double>(fails) / static_cast<double>(count);
 }
 
 CaseStatus statusOf(const CaseProgress *p) {
@@ -220,15 +224,19 @@ CaseStatus statusOf(const CaseProgress *p) {
     return CaseStatus::Unstarted;
   }
   switch (p->card.state) {
-  case CardState::New: return CaseStatus::Unstarted;
+  case CardState::New:
+    return CaseStatus::Unstarted;
   case CardState::Learning:
-  case CardState::Relearning: return CaseStatus::Learning;
-  case CardState::Review: return CaseStatus::Learned;
+  case CardState::Relearning:
+    return CaseStatus::Learning;
+  case CardState::Review:
+    return CaseStatus::Learned;
   }
   return CaseStatus::Unstarted;
 }
 
-int newCasesIntroducedSince(const SetProgress &progress, std::int64_t dayStart) {
+int newCasesIntroducedSince(const SetProgress &progress,
+                            std::int64_t dayStart) {
   int n = 0;
   for (const auto &[id, p] : progress) {
     if (!p.attempts.empty() && p.attempts.front().timestamp >= dayStart) {
@@ -273,7 +281,8 @@ PickResult CasePicker::next(const SetProgress &progress, std::int64_t now,
   case PickMode::Random: {
     std::uniform_int_distribution<std::size_t> dist(0, pool_.size() - 1);
     std::string pick = pool_[dist(rng)];
-    for (int tries = 0; tries < 8 && pool_.size() > 1 && pick == last_; ++tries) {
+    for (int tries = 0; tries < 8 && pool_.size() > 1 && pick == last_;
+         ++tries) {
       pick = pool_[dist(rng)];
     }
     r.caseId = pick;
@@ -306,7 +315,8 @@ PickResult CasePicker::next(const SetProgress &progress, std::int64_t now,
       }
       weights.push_back(std::max(w, 0.05));
     }
-    std::discrete_distribution<std::size_t> dist(weights.begin(), weights.end());
+    std::discrete_distribution<std::size_t> dist(weights.begin(),
+                                                 weights.end());
     r.caseId = pool_[dist(rng)];
     break;
   }

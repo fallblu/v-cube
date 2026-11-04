@@ -93,7 +93,8 @@ void applyTheme(QApplication &app, bool dark) {
   p.setColor(QPalette::Mid, QColor(0x3a, 0x3b, 0x40));
   p.setColor(QPalette::Dark, QColor(0x18, 0x18, 0x1b));
   p.setColor(QPalette::Light, QColor(0x45, 0x46, 0x4c));
-  for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
+  for (auto role :
+       {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
     p.setColor(QPalette::Disabled, role, QColor(0x7a, 0x7b, 0x80));
   }
   app.setPalette(p);
@@ -125,7 +126,10 @@ std::vector<std::int64_t> stepsFromText(const QString &text) {
     }
     std::int64_t n = m.captured(1).toLongLong();
     QString unit = m.captured(2);
-    std::int64_t mult = unit == "s" ? 1 : unit == "h" ? 3600 : unit == "d" ? 86400 : 60;
+    std::int64_t mult = unit == "s"   ? 1
+                        : unit == "h" ? 3600
+                        : unit == "d" ? 86400
+                                      : 60;
     out.push_back(n * mult);
   }
   return out;

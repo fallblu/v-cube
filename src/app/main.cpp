@@ -19,7 +19,8 @@ int main(int argc, char **argv) {
   vcube::AppSettings settings = vcube::AppSettings::load();
   vcube::applyTheme(app, settings.darkTheme);
 
-  QString dataDir = QDir(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation))
+  QString dataDir = QDir(QStandardPaths::writableLocation(
+                             QStandardPaths::GenericDataLocation))
                         .filePath("v-cube");
   QDir().mkpath(dataDir);
 

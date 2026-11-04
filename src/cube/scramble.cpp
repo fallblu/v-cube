@@ -187,7 +187,9 @@ const std::vector<ScrambleType> &scrambleTypes() {
     add("eoline", "EOLine solved", eoline, false, false);
     add("eocross", "EOCross solved", eocross, false, false);
     add("lsll", "Last slot + last layer",
-        PieceMask{}.lastLayer(true, true, true).corners({DFR}, true, true)
+        PieceMask{}
+            .lastLayer(true, true, true)
+            .corners({DFR}, true, true)
             .edges({FR}, true, true),
         false, true);
     add("ll", "Last layer", ll, false, true);
@@ -195,8 +197,8 @@ const std::vector<ScrambleType> &scrambleTypes() {
         PieceMask{}.lastLayer(true, true, false), false, true);
     add("cll", "LL corners only",
         PieceMask{}.corners({URF, UFL, ULB, UBR}, true, true), false, false);
-    add("ell", "LL edges only",
-        PieceMask{}.edges({UR, UF, UL, UB}, true, true), false, false);
+    add("ell", "LL edges only", PieceMask{}.edges({UR, UF, UL, UB}, true, true),
+        false, false);
     add("pll", "PLL", PieceMask{}.lastLayer(true, false, false), false, true);
     add("epll", "EPLL (LL edges permuted)",
         PieceMask{}.edges({UR, UF, UL, UB}, true, false), false, false);

@@ -50,9 +50,9 @@ CubieCube stateSolvedBy(const Alg &alg);
 
 // Result of importing pasted text into a set.
 struct ImportReport {
-  int added = 0;      // algs added to existing cases
-  int duplicates = 0; // algs the case already had
-  int created = 0;    // new cases created (when allowed)
+  int added = 0;                      // algs added to existing cases
+  int duplicates = 0;                 // algs the case already had
+  int created = 0;                    // new cases created (when allowed)
   std::vector<std::string> unmatched; // lines that matched no case
   std::vector<std::string> invalid;   // lines that failed to parse
 };

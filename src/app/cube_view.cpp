@@ -105,9 +105,15 @@ void CubeView::mousePressEvent(QMouseEvent *e) {
     return;
   }
   switch (mode_) {
-  case Mode::ThreeD: setMode(Mode::Net); break;
-  case Mode::Net: setMode(Mode::Hidden); break;
-  case Mode::Hidden: setMode(Mode::ThreeD); break;
+  case Mode::ThreeD:
+    setMode(Mode::Net);
+    break;
+  case Mode::Net:
+    setMode(Mode::Hidden);
+    break;
+  case Mode::Hidden:
+    setMode(Mode::ThreeD);
+    break;
   }
 }
 
@@ -129,7 +135,8 @@ void CubeView::paintEvent(QPaintEvent *) {
   case Mode::Hidden:
     p.setPen(palette().color(QPalette::PlaceholderText));
     p.drawText(area, Qt::AlignCenter,
-               hiddenText_.isEmpty() ? tr("Cube hidden (click to show)") : hiddenText_);
+               hiddenText_.isEmpty() ? tr("Cube hidden (click to show)")
+                                     : hiddenText_);
     break;
   }
 }

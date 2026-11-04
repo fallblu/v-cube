@@ -27,8 +27,8 @@ namespace {
 constexpr int kCaseIdRole = Qt::UserRole;
 constexpr int kThumb = 38;
 
-const std::array<const char *, 6> kColourNames = {"White", "Red", "Green",
-                                                   "Yellow", "Orange", "Blue"};
+const std::array<const char *, 6> kColourNames = {"White",  "Red",    "Green",
+                                                  "Yellow", "Orange", "Blue"};
 
 QPushButton *button(const QString &text, QWidget *parent) {
   auto *b = new QPushButton(text, parent);
@@ -65,17 +65,22 @@ QString seconds(std::optional<double> ms) {
 
 const char *gradeName(Grade g) {
   switch (g) {
-  case Grade::Again: return "Again";
-  case Grade::Hard: return "Hard";
-  case Grade::Good: return "Good";
-  case Grade::Easy: return "Easy";
+  case Grade::Again:
+    return "Again";
+  case Grade::Hard:
+    return "Hard";
+  case Grade::Good:
+    return "Good";
+  case Grade::Easy:
+    return "Easy";
   }
   return "";
 }
 
 } // namespace
 
-TrainerPage::TrainerPage(AppSettings &settings, AlgLibrary &library, QWidget *parent)
+TrainerPage::TrainerPage(AppSettings &settings, AlgLibrary &library,
+                         QWidget *parent)
     : QWidget(parent), settings_(settings), library_(library), rng_(makeRng()) {
   // --- left: set, picking, cases ---
   auto *left = new QWidget(this);
@@ -85,8 +90,10 @@ TrainerPage::TrainerPage(AppSettings &settings, AlgLibrary &library, QWidget *pa
   setBox_ = combo(left);
   modeBox_ = combo(left);
   modeBox_->addItem(tr("Random"), static_cast<int>(PickMode::Random));
-  modeBox_->addItem(tr("Weighted (slow and failed cases more often)"), static_cast<int>(PickMode::Weighted));
-  modeBox_->addItem(tr("Recap (each case once)"), static_cast<int>(PickMode::Recap));
+  modeBox_->addItem(tr("Weighted (slow and failed cases more often)"),
+                    static_cast<int>(PickMode::Weighted));
+  modeBox_->addItem(tr("Recap (each case once)"),
+                    static_cast<int>(PickMode::Recap));
   modeBox_->addItem(tr("In order"), static_cast<int>(PickMode::InOrder));
   modeBox_->addItem(tr("Spaced repetition"), static_cast<int>(PickMode::Srs));
   focusBox_ = combo(left);
@@ -120,7 +127,8 @@ TrainerPage::TrainerPage(AppSettings &settings, AlgLibrary &library, QWidget *pa
   learnCount_->setValue(3);
   learnCount_->setFocusPolicy(Qt::ClickFocus);
   auto *learnButton = button(tr("Start learning"), left);
-  learnButton->setToolTip(tr("Put the next N ticked cases you haven't started into your learn queue"));
+  learnButton->setToolTip(tr(
+      "Put the next N ticked cases you haven't started into your learn queue"));
   selectRow->addWidget(allButton);
   selectRow->addWidget(noneButton);
   selectRow->addStretch();
@@ -194,12 +202,14 @@ TrainerPage::TrainerPage(AppSettings &settings, AlgLibrary &library, QWidget *pa
   resultLayout->addWidget(wrongButton_);
   for (int g = 0; g < 4; ++g) {
     auto grade = static_cast<Grade>(g + 1);
-    auto *b = button(QString("%1 %2").arg(g + 1).arg(tr(gradeName(grade))), resultRow_);
+    auto *b = button(QString("%1 %2").arg(g + 1).arg(tr(gradeName(grade))),
+                     resultRow_);
     b->setCheckable(true);
     b->setToolTip(tr("Override the grade (key %1)").arg(g + 1));
     gradeButtons_[static_cast<std::size_t>(g)] = b;
     resultLayout->addWidget(b);
-    connect(b, &QPushButton::clicked, this, [this, grade] { regrade(grade, std::nullopt); });
+    connect(b, &QPushButton::clicked, this,
+            [this, grade] { regrade(grade, std::nullopt); });
   }
   resultLayout->addStretch();
   timeColumn->addWidget(resultRow_);
@@ -240,7 +250,8 @@ TrainerPage::TrainerPage(AppSettings &settings, AlgLibrary &library, QWidget *pa
   // --- wiring ---
   tick_.start(16);
   connect(&tick_, &QTimer::timeout, this, &TrainerPage::onTick);
-  connect(&watcher_, &QFutureWatcher<GeneratedScramble>::finished, this, &TrainerPage::scrambleReady);
+  connect(&watcher_, &QFutureWatcher<GeneratedScramble>::finished, this,
+          &TrainerPage::scrambleReady);
   connect(setBox_, &QComboBox::activated, this,
           [this](int i) { selectSet(ss(setBox_->itemData(i).toString())); });
   connect(modeBox_, &QComboBox::activated, this, [this] {
@@ -254,13 +265,15 @@ TrainerPage::TrainerPage(AppSettings &settings, AlgLibrary &library, QWidget *pa
     updateSummary();
     nextCase();
   });
-  connect(tree_, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *, int column) {
-    if (column == 0) {
-      saveSelection();
-      updateSummary();
-    }
-  });
-  connect(tree_, &QTreeWidget::customContextMenuRequested, this, &TrainerPage::showCaseMenu);
+  connect(tree_, &QTreeWidget::itemChanged, this,
+          [this](QTreeWidgetItem *, int column) {
+            if (column == 0) {
+              saveSelection();
+              updateSummary();
+            }
+          });
+  connect(tree_, &QTreeWidget::customContextMenuRequested, this,
+          &TrainerPage::showCaseMenu);
   connect(allButton, &QPushButton::clicked, this, [this] {
     for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
       tree_->topLevelItem(i)->setCheckState(0, Qt::Checked);
@@ -299,8 +312,9 @@ TrainerPage::TrainerPage(AppSettings &settings, AlgLibrary &library, QWidget *pa
   applySettings();
   populateSets();
   QString lastSet = q.value("trainer/set").toString();
-  selectSet(lastSet.isEmpty() && !library_.sets().empty() ? library_.sets().front().id
-                                                          : ss(lastSet));
+  selectSet(lastSet.isEmpty() && !library_.sets().empty()
+                ? library_.sets().front().id
+                : ss(lastSet));
 }
 
 // --- set and case list ---------------------------------------------------
@@ -340,7 +354,8 @@ void TrainerPage::populateSets() {
   QSignalBlocker block(setBox_);
   setBox_->clear();
   for (const auto &s : library_.sets()) {
-    setBox_->addItem(QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount()), qs(s.id));
+    setBox_->addItem(QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount()),
+                     qs(s.id));
   }
 }
 
@@ -375,7 +390,8 @@ void TrainerPage::selectSet(const std::string &id) {
   QSettings q;
   q.setValue("trainer/set", qs(setId_));
   setBox_->setCurrentIndex(setBox_->findData(qs(setId_)));
-  int mode = q.value(setKey("mode"), static_cast<int>(PickMode::Random)).toInt();
+  int mode =
+      q.value(setKey("mode"), static_cast<int>(PickMode::Random)).toInt();
   modeBox_->setCurrentIndex(std::max(0, modeBox_->findData(mode)));
   picker_.setMode(static_cast<PickMode>(modeBox_->currentData().toInt()));
   focusBox_->setCurrentIndex(q.value(setKey("focus"), 0).toInt());
@@ -402,7 +418,8 @@ void TrainerPage::buildTree() {
   qreal dpr = devicePixelRatioF();
   for (const auto &g : s->groups) {
     auto *groupItem = new QTreeWidgetItem(tree_, {qs(g.name)});
-    groupItem->setFlags(groupItem->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
+    groupItem->setFlags(groupItem->flags() | Qt::ItemIsUserCheckable |
+                        Qt::ItemIsAutoTristate);
     const StepSpec &spec = s->specFor(g);
     for (const auto &c : g.cases) {
       auto *item = new QTreeWidgetItem(groupItem, {qs(c.name)});
@@ -411,7 +428,8 @@ void TrainerPage::buildTree() {
       bool on = !hasSelection || selected.contains(qs(c.id));
       item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
       FaceletCube masked = maskedFacelets(c.state, spec.mask);
-      item->setIcon(0, QIcon(cube_painter::diagram(masked, spec.view, kThumb, look, dpr)));
+      item->setIcon(0, QIcon(cube_painter::diagram(masked, spec.view, kThumb,
+                                                   look, dpr)));
       QString tip = c.algs.empty() ? tr("No algs yet") : qs(c.algs.front());
       item->setToolTip(0, tip);
       updateCaseRow(item);
@@ -447,9 +465,10 @@ void TrainerPage::updateCaseRow(QTreeWidgetItem *item) {
   if (cp && cp->best()) {
     best = static_cast<double>(*cp->best());
   }
-  item->setToolTip(2, tr("Mean of the last 5 good attempts; best %1 s; %2 attempts")
-                          .arg(seconds(best))
-                          .arg(cp ? cp->attempts.size() : 0));
+  item->setToolTip(
+      2, tr("Mean of the last 5 good attempts; best %1 s; %2 attempts")
+             .arg(seconds(best))
+             .arg(cp ? cp->attempts.size() : 0));
   item->setText(3, dueText(cp, unixNow()));
 }
 
@@ -536,15 +555,16 @@ void TrainerPage::updateSummary() {
       due += cp && isDue(cp->card, now, settings_.srs);
     }
   }
-  summary_->setText(tr("%1 of %2 ticked, %3 to drill. Learning %4, learned %5, due %6. "
-                       "%7 cases have algs.")
-                        .arg(selected.size())
-                        .arg(s->caseCount())
-                        .arg(drillPool.size())
-                        .arg(learning)
-                        .arg(learned)
-                        .arg(due)
-                        .arg(withAlgs));
+  summary_->setText(
+      tr("%1 of %2 ticked, %3 to drill. Learning %4, learned %5, due %6. "
+         "%7 cases have algs.")
+          .arg(selected.size())
+          .arg(s->caseCount())
+          .arg(drillPool.size())
+          .arg(learning)
+          .arg(learned)
+          .arg(due)
+          .arg(withAlgs));
 }
 
 void TrainerPage::showCaseMenu(const QPoint &pos) {
@@ -607,7 +627,8 @@ void TrainerPage::learnNext() {
     }
     auto &p = progress();
     auto it = p.find(id);
-    if (statusOf(it == p.end() ? nullptr : &it->second) == CaseStatus::Unstarted) {
+    if (statusOf(it == p.end() ? nullptr : &it->second) ==
+        CaseStatus::Unstarted) {
       startLearning(p[id].card, now, settings_.srs);
       ++started;
     }
@@ -688,21 +709,26 @@ void TrainerPage::nextCase() {
     return;
   }
   picker_.setPool(pool());
-  PickResult r = picker_.next(progress(), unixNow(), localDayStart(), settings_.srs, rng_);
+  PickResult r =
+      picker_.next(progress(), unixNow(), localDayStart(), settings_.srs, rng_);
   if (!r.caseId) {
     drill_.reset();
     setPhase(Phase::NoCase);
     if (picker_.mode() == PickMode::Srs && !picker_.pool().empty()) {
-      QString next = r.nextDue ? QDateTime::fromSecsSinceEpoch(*r.nextDue).toString("ddd hh:mm")
-                               : tr("when you start learning more cases");
-      statusLabel_->setText(tr("All caught up! Next review: %1. Raise the daily new-case "
-                               "limit in Settings, or switch the order to keep practising.")
-                                .arg(next));
+      QString next =
+          r.nextDue
+              ? QDateTime::fromSecsSinceEpoch(*r.nextDue).toString("ddd hh:mm")
+              : tr("when you start learning more cases");
+      statusLabel_->setText(
+          tr("All caught up! Next review: %1. Raise the daily new-case "
+             "limit in Settings, or switch the order to keep practising.")
+              .arg(next));
     }
     return;
   }
   if (r.roundComplete) {
-    emit message(tr("Recap round complete: every case drilled once. Starting another round."));
+    emit message(tr("Recap round complete: every case drilled once. Starting "
+                    "another round."));
   }
   drill_ = Drill{*r.caseId, {}, drillColours(), {}, r.isNew};
   retryCase();
@@ -734,7 +760,8 @@ void TrainerPage::retryCase() {
   if (drill_->isNew) {
     // A case being introduced: show its algs before the first try.
     showReveal();
-    reveal_->setText(tr("<p><b>New case</b>: learn it, then solve it.</p>") + reveal_->text());
+    reveal_->setText(tr("<p><b>New case</b>: learn it, then solve it.</p>") +
+                     reveal_->text());
   }
   if (auto *item = itemFor(drill_->caseId)) {
     tree_->setCurrentItem(item);
@@ -783,8 +810,9 @@ void TrainerPage::updateStatus() {
   if (!drill_) {
     scrambleLabel_->clear();
     if (phase_ == Phase::NoCase && statusLabel_->text().isEmpty()) {
-      statusLabel_->setText(set() ? tr("Tick some cases to drill (and check the Drill filter).")
-                                  : tr("No alg set selected."));
+      statusLabel_->setText(
+          set() ? tr("Tick some cases to drill (and check the Drill filter).")
+                : tr("No alg set selected."));
     }
     return;
   }
@@ -798,18 +826,21 @@ void TrainerPage::updateStatus() {
   }
   QString status;
   switch (phase_) {
-  case Phase::NoCase: break;
+  case Phase::NoCase:
+    break;
   case Phase::Waiting:
     status = virt ? tr("Solve the case. The first turn starts the timer. "
                        "Space gives up, Tab shows the algs, Esc resets.")
-                  : tr("Scramble, then hold Space and release to start. Tab shows the algs.");
+                  : tr("Scramble, then hold Space and release to start. Tab "
+                       "shows the algs.");
     break;
   case Phase::Running:
     status = virt ? tr("Space gives up") : tr("Any key stops the timer");
     break;
   case Phase::Revealed:
-    status = tr("Space/Enter: next case. Backspace: wrong alg. 1-4: change grade. "
-                "Esc: try the case again.");
+    status =
+        tr("Space/Enter: next case. Backspace: wrong alg. 1-4: change grade. "
+           "Esc: try the case again.");
     break;
   }
   statusLabel_->setText(status);
@@ -834,7 +865,8 @@ bool TrainerPage::handleKey(QKeyEvent *e, bool press) {
   using S = SolveTimer::State;
 
   if (phase_ == Phase::NoCase) {
-    if (press && (key == Qt::Key_Space || key == Qt::Key_Return || key == Qt::Key_Enter)) {
+    if (press && (key == Qt::Key_Space || key == Qt::Key_Return ||
+                  key == Qt::Key_Enter)) {
       nextCase();
       return true;
     }
@@ -974,7 +1006,8 @@ void TrainerPage::finish(std::int64_t timeMs, bool failed) {
   CaseProgress &cp = progress()[drill_->caseId];
   cardBefore_ = cp.card;
   cp.record({unixNow(), timeMs, failed});
-  grade_ = gradeFromTime(static_cast<double>(timeMs) / 1000.0, s->targetSeconds, failed);
+  grade_ = gradeFromTime(static_cast<double>(timeMs) / 1000.0, s->targetSeconds,
+                         failed);
   review(cp.card, grade_, unixNow(), settings_.srs);
   saveProgress();
   setPhase(Phase::Revealed);
@@ -987,7 +1020,8 @@ void TrainerPage::finish(std::int64_t timeMs, bool failed) {
   updateSummary();
 }
 
-void TrainerPage::regrade(std::optional<Grade> grade, std::optional<bool> failed) {
+void TrainerPage::regrade(std::optional<Grade> grade,
+                          std::optional<bool> failed) {
   AlgSet *s = set();
   if (phase_ != Phase::Revealed || !drill_ || !s) {
     showResult();
@@ -999,7 +1033,8 @@ void TrainerPage::regrade(std::optional<Grade> grade, std::optional<bool> failed
     if (!cp.attempts.empty()) {
       cp.attempts.back().failed = failed_;
     }
-    grade_ = gradeFromTime(static_cast<double>(attemptMs_) / 1000.0, s->targetSeconds, failed_);
+    grade_ = gradeFromTime(static_cast<double>(attemptMs_) / 1000.0,
+                           s->targetSeconds, failed_);
   }
   if (grade) {
     grade_ = *grade;
@@ -1026,7 +1061,8 @@ void TrainerPage::showResult() {
   resultLabel_->setText(tr("%1 → next %2").arg(tr(gradeName(grade_)), next));
   wrongButton_->setChecked(failed_);
   for (int g = 0; g < 4; ++g) {
-    gradeButtons_[static_cast<std::size_t>(g)]->setChecked(static_cast<int>(grade_) == g + 1);
+    gradeButtons_[static_cast<std::size_t>(g)]->setChecked(
+        static_cast<int>(grade_) == g + 1);
   }
   if (failed_ && attemptMs_ == 0) {
     display_->showText("DNF");
@@ -1046,11 +1082,14 @@ void TrainerPage::showReveal() {
     return;
   }
   const StepSpec &spec = s->specFor(*g);
-  QString html = QString("<p style='font-size:large'><b>%1</b> <span style='color:gray'>· %2</span></p>")
-                     .arg(qs(c->name).toHtmlEscaped(), qs(g->name).toHtmlEscaped());
+  QString html =
+      QString("<p style='font-size:large'><b>%1</b> <span style='color:gray'>· "
+              "%2</span></p>")
+          .arg(qs(c->name).toHtmlEscaped(), qs(g->name).toHtmlEscaped());
   if (c->algs.empty()) {
-    html += tr("<p>No algs for this case yet. Add some in the Library tab (or paste a "
-               "list there and they are matched to their cases automatically).</p>");
+    html += tr(
+        "<p>No algs for this case yet. Add some in the Library tab (or paste a "
+        "list there and they are matched to their cases automatically).</p>");
   }
   for (std::size_t i = 0; i < c->algs.size(); ++i) {
     const std::string &text = c->algs[i];
@@ -1059,7 +1098,8 @@ void TrainerPage::showReveal() {
     if (parsed) {
       fit = fitAlg(drill_->state, parsed.alg, spec.free);
     }
-    QString line = fit ? qs(withAufs(text, *fit)).toHtmlEscaped() : qs(text).toHtmlEscaped();
+    QString line = fit ? qs(withAufs(text, *fit)).toHtmlEscaped()
+                       : qs(text).toHtmlEscaped();
     if (!fit) {
       line = QString("<span style='color:#e66'>%1 &nbsp;⚠ %2</span>")
                  .arg(line, tr("does not solve this case"));

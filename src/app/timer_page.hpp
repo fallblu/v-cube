@@ -28,10 +28,10 @@ public:
   // Key events forwarded by the main window; true if used.
   bool handleKey(QKeyEvent *e, bool press);
 
-  void applySettings();      // after the settings dialog
-  void reloadSessions();     // after an import
+  void applySettings();        // after the settings dialog
+  void reloadSessions();       // after an import
   void refreshScrambleTypes(); // alg sets changed
-  bool isBusy() const;       // a solve or inspection is in progress
+  bool isBusy() const;         // a solve or inspection is in progress
 
 signals:
   void message(const QString &text);

@@ -78,9 +78,10 @@ bool SessionStore::load(QString *error) {
 
 bool SessionStore::save(QString *error) const {
   QDir().mkpath(QFileInfo(path_).absolutePath());
-  return writeFileAtomically(
-      path_, QJsonDocument(sessionsToJson(sessions_, current_)).toJson(QJsonDocument::Compact),
-      error);
+  return writeFileAtomically(path_,
+                             QJsonDocument(sessionsToJson(sessions_, current_))
+                                 .toJson(QJsonDocument::Compact),
+                             error);
 }
 
 void SessionStore::setCurrentIndex(std::size_t i) {
@@ -139,7 +140,8 @@ std::vector<Session> sessionsFromJson(const QJsonObject &o,
     out.push_back(std::move(s));
   }
   if (current) {
-    *current = static_cast<std::size_t>(std::max(0, o.value("current").toInt()));
+    *current =
+        static_cast<std::size_t>(std::max(0, o.value("current").toInt()));
   }
   return out;
 }
@@ -172,9 +174,10 @@ std::optional<std::vector<Session>> sessionsFromCstimer(const QJsonObject &o,
     }
     QJsonValue value = it.value();
     // Some exports store each session as a JSON string.
-    QJsonArray solves = value.isString()
-                            ? QJsonDocument::fromJson(value.toString().toUtf8()).array()
-                            : value.toArray();
+    QJsonArray solves =
+        value.isString()
+            ? QJsonDocument::fromJson(value.toString().toUtf8()).array()
+            : value.toArray();
     QJsonObject meta = sessionData.value(QString::number(number)).toObject();
     Entry e{number, meta.value("rank").toInt(number), {}};
     e.session.name = ss(meta.value("name").toVariant().toString());
@@ -195,7 +198,9 @@ std::optional<std::vector<Session>> sessionsFromCstimer(const QJsonObject &o,
       Solve s;
       int pen = time.at(0).toInt();
       s.timeMs = static_cast<std::int64_t>(time.at(1).toDouble());
-      s.penalty = pen == -1 ? Penalty::Dnf : pen > 0 ? Penalty::Plus2 : Penalty::None;
+      s.penalty = pen == -1 ? Penalty::Dnf
+                  : pen > 0 ? Penalty::Plus2
+                            : Penalty::None;
       s.scramble = ss(a.at(1).toString());
       s.comment = ss(a.at(2).toString());
       s.timestamp = static_cast<std::int64_t>(a.at(3).toDouble());
@@ -227,20 +232,26 @@ QJsonObject sessionsToCstimer(const std::vector<Session> &sessions) {
     int number = static_cast<int>(i) + 1;
     QJsonArray solves;
     for (const auto &solve : s.solves) {
-      int pen = solve.penalty == Penalty::Dnf ? -1 : solve.penalty == Penalty::Plus2 ? 2000 : 0;
-      solves.append(QJsonArray{QJsonArray{pen, static_cast<double>(solve.timeMs)},
-                               qs(solve.scramble), qs(solve.comment),
-                               static_cast<double>(solve.timestamp)});
+      int pen = solve.penalty == Penalty::Dnf     ? -1
+                : solve.penalty == Penalty::Plus2 ? 2000
+                                                  : 0;
+      solves.append(
+          QJsonArray{QJsonArray{pen, static_cast<double>(solve.timeMs)},
+                     qs(solve.scramble), qs(solve.comment),
+                     static_cast<double>(solve.timestamp)});
     }
     o[QString("session%1").arg(number)] = solves;
     sessionData[QString::number(number)] =
         QJsonObject{{"name", qs(s.name)},
-                    {"opt", s.scrambleType == "333" ? QJsonObject{}
-                                                    : QJsonObject{{"scrType", qs(s.scrambleType)}}},
+                    {"opt", s.scrambleType == "333"
+                                ? QJsonObject{}
+                                : QJsonObject{{"scrType", qs(s.scrambleType)}}},
                     {"rank", number}};
   }
   o["properties"] = QJsonObject{
-      {"sessionData", QString::fromUtf8(QJsonDocument(sessionData).toJson(QJsonDocument::Compact))}};
+      {"sessionData",
+       QString::fromUtf8(
+           QJsonDocument(sessionData).toJson(QJsonDocument::Compact))}};
   return o;
 }
 

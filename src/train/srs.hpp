@@ -91,9 +91,9 @@ enum class PickMode : std::uint8_t {
 
 struct PickResult {
   std::optional<std::string> caseId;
-  bool isNew = false;              // SRS: introducing a new case
+  bool isNew = false;                  // SRS: introducing a new case
   std::optional<std::int64_t> nextDue; // SRS: when the next card is due
-  bool roundComplete = false;      // Recap: everything has been seen
+  bool roundComplete = false;          // Recap: everything has been seen
 };
 
 class CasePicker {

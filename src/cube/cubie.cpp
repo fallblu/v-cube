@@ -35,7 +35,8 @@ std::uint8_t faceOf(std::uint8_t facelet) {
   return static_cast<std::uint8_t>(facelet / 9);
 }
 
-template <std::size_t N> int permutationParity(const std::array<std::uint8_t, N> &p) {
+template <std::size_t N>
+int permutationParity(const std::array<std::uint8_t, N> &p) {
   int inversions = 0;
   for (std::size_t i = 0; i < N; ++i) {
     for (std::size_t j = i + 1; j < N; ++j) {

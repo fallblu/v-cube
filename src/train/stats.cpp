@@ -7,9 +7,12 @@ namespace vcube {
 
 std::int64_t effectiveTime(const Solve &s) {
   switch (s.penalty) {
-  case Penalty::Dnf: return kDnfTime;
-  case Penalty::Plus2: return s.timeMs + 2000;
-  case Penalty::None: break;
+  case Penalty::Dnf:
+    return kDnfTime;
+  case Penalty::Plus2:
+    return s.timeMs + 2000;
+  case Penalty::None:
+    break;
   }
   return s.timeMs;
 }
@@ -139,7 +142,10 @@ std::string formatTime(StatValue ms, int decimals) {
   }
   std::int64_t v = *ms;
   // Truncate (as WCA displays) to the requested precision.
-  std::int64_t unit = decimals >= 3 ? 1 : decimals == 2 ? 10 : decimals == 1 ? 100 : 1000;
+  std::int64_t unit = decimals >= 3   ? 1
+                      : decimals == 2 ? 10
+                      : decimals == 1 ? 100
+                                      : 1000;
   v = v / unit;
   std::int64_t perSecond = 1000 / unit;
   std::int64_t frac = v % perSecond;
@@ -152,11 +158,17 @@ std::string formatTime(StatValue ms, int decimals) {
   std::string fracText;
   if (d > 0) {
     std::string digits = std::to_string(frac);
-    fracText = "." + std::string(static_cast<std::size_t>(d) - std::min(digits.size(), static_cast<std::size_t>(d)), '0') + digits;
+    fracText =
+        "." +
+        std::string(static_cast<std::size_t>(d) -
+                        std::min(digits.size(), static_cast<std::size_t>(d)),
+                    '0') +
+        digits;
   }
   if (hours > 0) {
     std::snprintf(buf, sizeof buf, "%lld:%02lld:%02lld%s",
-                  static_cast<long long>(hours), static_cast<long long>(minutes),
+                  static_cast<long long>(hours),
+                  static_cast<long long>(minutes),
                   static_cast<long long>(seconds), fracText.c_str());
   } else if (minutes > 0) {
     std::snprintf(buf, sizeof buf, "%lld:%02lld%s",
@@ -171,9 +183,12 @@ std::string formatTime(StatValue ms, int decimals) {
 
 std::string formatSolve(const Solve &s, int decimals) {
   switch (s.penalty) {
-  case Penalty::Dnf: return "DNF(" + formatTime(s.timeMs, decimals) + ")";
-  case Penalty::Plus2: return formatTime(s.timeMs + 2000, decimals) + "+";
-  case Penalty::None: break;
+  case Penalty::Dnf:
+    return "DNF(" + formatTime(s.timeMs, decimals) + ")";
+  case Penalty::Plus2:
+    return formatTime(s.timeMs + 2000, decimals) + "+";
+  case Penalty::None:
+    break;
   }
   return formatTime(s.timeMs, decimals);
 }

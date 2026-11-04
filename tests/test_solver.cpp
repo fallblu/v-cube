@@ -34,4 +34,3 @@ TEST_CASE("solver handles solved trivial and superflip cubes") {
   c.apply(sol);
   CHECK(c.isSolved());
 }
-

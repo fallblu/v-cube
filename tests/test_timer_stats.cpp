@@ -34,7 +34,8 @@ TEST_CASE("trimmed averages follow WCA rules") {
   CHECK_FALSE(currentAverage(a, 12));
   auto twelve = solves({10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 1000});
   CHECK(averageOf(twelve) == 65); // drops 10 and 1000
-  CHECK(bestAverage(solves({5000, 1000, 1000, 1000, 1000, 1000, 9000}), 5) == 1000);
+  CHECK(bestAverage(solves({5000, 1000, 1000, 1000, 1000, 1000, 9000}), 5) ==
+        1000);
 }
 
 TEST_CASE("times format like cstimer") {

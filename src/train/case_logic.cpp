@@ -76,10 +76,14 @@ bool stepSolved(const CubieCube &cube, const PieceMask &free) {
 
 std::string aufText(int quarters) {
   switch (((quarters % 4) + 4) % 4) {
-  case 1: return "U";
-  case 2: return "U2";
-  case 3: return "U'";
-  default: return "";
+  case 1:
+    return "U";
+  case 2:
+    return "U2";
+  case 3:
+    return "U'";
+  default:
+    return "";
   }
 }
 
@@ -190,7 +194,8 @@ ImportReport importAlgs(AlgSet &set, const std::string &text,
       }
       AlgCase c;
       c.name = name.empty() ? "Case " + std::to_string(newCaseNumber) : name;
-      c.id = set.uniqueCaseId(name.empty() ? std::to_string(newCaseNumber) : name);
+      c.id =
+          set.uniqueCaseId(name.empty() ? std::to_string(newCaseNumber) : name);
       ++newCaseNumber;
       c.state = stateSolvedBy(parsed.alg);
       c.algs.push_back(algText);

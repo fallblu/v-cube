@@ -9,15 +9,18 @@ namespace {
 
 constexpr std::string_view kFaceLetters = "URFDLB";
 
-constexpr Vec3i kNormals[6] = {
-    {0, 1, 0}, {1, 0, 0}, {0, 0, 1}, {0, -1, 0}, {-1, 0, 0}, {0, 0, -1}};
+constexpr Vec3i kNormals[6] = {{0, 1, 0},  {1, 0, 0},  {0, 0, 1},
+                               {0, -1, 0}, {-1, 0, 0}, {0, 0, -1}};
 
 Vec3i rotate(Vec3i v, int axis, int sign) {
   // Right-handed rotation by sign * 90 degrees about +axis.
   switch (axis) {
-  case 0: return sign > 0 ? Vec3i{v.x, -v.z, v.y} : Vec3i{v.x, v.z, -v.y};
-  case 1: return sign > 0 ? Vec3i{v.z, v.y, -v.x} : Vec3i{-v.z, v.y, v.x};
-  default: return sign > 0 ? Vec3i{-v.y, v.x, v.z} : Vec3i{v.y, -v.x, v.z};
+  case 0:
+    return sign > 0 ? Vec3i{v.x, -v.z, v.y} : Vec3i{v.x, v.z, -v.y};
+  case 1:
+    return sign > 0 ? Vec3i{v.z, v.y, -v.x} : Vec3i{-v.z, v.y, v.x};
+  default:
+    return sign > 0 ? Vec3i{-v.y, v.x, v.z} : Vec3i{v.y, -v.x, v.z};
   }
 }
 
@@ -65,12 +68,18 @@ Vec3i faceletPosition(int index) {
   int r = (index % 9) / 3;
   int c = index % 3;
   switch (face) {
-  case 0: return {c - 1, 1, r - 1};      // U
-  case 1: return {1, 1 - r, 1 - c};      // R
-  case 2: return {c - 1, 1 - r, 1};      // F
-  case 3: return {c - 1, -1, 1 - r};     // D
-  case 4: return {-1, 1 - r, c - 1};     // L
-  default: return {1 - c, 1 - r, -1};    // B
+  case 0:
+    return {c - 1, 1, r - 1}; // U
+  case 1:
+    return {1, 1 - r, 1 - c}; // R
+  case 2:
+    return {c - 1, 1 - r, 1}; // F
+  case 3:
+    return {c - 1, -1, 1 - r}; // D
+  case 4:
+    return {-1, 1 - r, c - 1}; // L
+  default:
+    return {1 - c, 1 - r, -1}; // B
   }
 }
 
@@ -80,12 +89,30 @@ bool moveTurnsCubie(MoveType t, Vec3i pos) {
   using T = MoveType;
   int v = coord(pos, moveAxis(t));
   switch (t) {
-  case T::U: case T::R: case T::F: return v == 1;
-  case T::D: case T::L: case T::B: return v == -1;
-  case T::Uw: case T::Rw: case T::Fw: return v >= 0;
-  case T::Dw: case T::Lw: case T::Bw: return v <= 0;
-  case T::M: case T::E: case T::S: return v == 0;
-  case T::X: case T::Y: case T::Z: return true;
+  case T::U:
+  case T::R:
+  case T::F:
+    return v == 1;
+  case T::D:
+  case T::L:
+  case T::B:
+    return v == -1;
+  case T::Uw:
+  case T::Rw:
+  case T::Fw:
+    return v >= 0;
+  case T::Dw:
+  case T::Lw:
+  case T::Bw:
+    return v <= 0;
+  case T::M:
+  case T::E:
+  case T::S:
+    return v == 0;
+  case T::X:
+  case T::Y:
+  case T::Z:
+    return true;
   }
   return false;
 }
@@ -94,8 +121,16 @@ int moveRotationSign(MoveType t) {
   using T = MoveType;
   switch (t) {
   // Clockwise seen from the positive side is a negative rotation.
-  case T::U: case T::R: case T::F: case T::Uw: case T::Rw: case T::Fw:
-  case T::S: case T::X: case T::Y: case T::Z:
+  case T::U:
+  case T::R:
+  case T::F:
+  case T::Uw:
+  case T::Rw:
+  case T::Fw:
+  case T::S:
+  case T::X:
+  case T::Y:
+  case T::Z:
     return -1;
   // L, D, B (and the slices that follow them) turn as seen from the
   // negative side.

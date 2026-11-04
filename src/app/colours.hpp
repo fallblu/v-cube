@@ -20,7 +20,8 @@ struct ColourScheme {
 
   static ColourScheme standard();
   QColor colourOfSlot(int slot) const {
-    return slot >= 0 && slot < 6 ? faces[static_cast<std::size_t>(slot)] : masked;
+    return slot >= 0 && slot < 6 ? faces[static_cast<std::size_t>(slot)]
+                                 : masked;
   }
 };
 
