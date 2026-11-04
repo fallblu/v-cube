@@ -7,6 +7,7 @@ add_library(vcube_gui STATIC
   keymap.cpp
   main_window.cpp
   timer_page.cpp
+  trainer_page.cpp
   widgets.cpp
 )
 target_include_directories(vcube_gui PUBLIC ${PROJECT_SOURCE_DIR}/src)

@@ -1,6 +1,7 @@
 #include "app/main_window.hpp"
 
 #include "app/timer_page.hpp"
+#include "app/trainer_page.hpp"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
@@ -45,6 +46,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   timerPage_ = new TimerPage(settings_, sessions_, library_, tabs_);
   tabs_->addTab(timerPage_, tr("Timer"));
   connect(timerPage_, &TimerPage::message, this, &MainWindow::showMessage);
+  trainerPage_ = new TrainerPage(settings_, library_, tabs_);
+  tabs_->addTab(trainerPage_, tr("Trainer"));
+  connect(trainerPage_, &TrainerPage::message, this, &MainWindow::showMessage);
   setCentralWidget(tabs_);
 
   buildMenus();
@@ -97,6 +101,9 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
   QWidget *page = tabs_->currentWidget();
   if (page == timerPage_) {
     return timerPage_->handleKey(key, press);
+  }
+  if (page == trainerPage_) {
+    return trainerPage_->handleKey(key, press);
   }
   return false;
 }
