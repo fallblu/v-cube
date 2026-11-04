@@ -2,6 +2,7 @@
 
 #include "app/app_settings.hpp"
 #include "app/cube_painter.hpp"
+#include "train/case_logic.hpp"
 
 #include <QPainter>
 
@@ -28,7 +29,9 @@ std::function<CubieCube(Rng &)> scrambleStateMaker(const AlgLibrary &library,
       for (const auto &g : set->groups) {
         for (const auto &c : g.cases) {
           if (!ticked || ticked->contains(qs(c.id))) {
-            pool.push_back({c.state, set->specFor(g).free});
+            // The case as Drill sets it up: oriented for its main alg.
+            pool.push_back(
+                {analyzeCase(*set, g, c).display, set->specFor(g).free});
           }
         }
       }

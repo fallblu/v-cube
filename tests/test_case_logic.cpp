@@ -137,3 +137,165 @@ TEST_CASE("masked facelets hide what the step ignores") {
   CHECK(top == 9);
   CHECK(grey == 12); // the 12 LL side stickers that are not U-coloured
 }
+
+TEST_CASE("what an alg leaves unsolved is counted and described by layer") {
+  PieceMask none;
+  PieceMask oll = *parseFree("LL:p");
+  // The Sune case under OLL: three twisted corners, all in the U layer.
+  CubieCube sune = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
+  Unsolved u = unsolvedPieces(sune, oll);
+  CHECK(u.cornersTwisted[0] == 3);
+  CHECK(u.corners() == 3);
+  CHECK(u.edges() == 0);
+  CHECK(describeUnsolved(u) == "leaves 3 corners twisted (U layer)");
+  // The T perm with everything to solve: two corners and two edges swapped.
+  CubieCube tperm =
+      stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"));
+  u = unsolvedPieces(tperm, none);
+  CHECK(u.cornersMisplaced[0] == 2);
+  CHECK(u.edgesMisplaced[0] == 2);
+  CHECK(describeUnsolved(u) ==
+        "leaves 2 corners and 2 edges unsolved (U layer)");
+  // ... but nothing under a step that leaves the LL permutation free.
+  CHECK(unsolvedPieces(tperm, oll).none());
+  CHECK(describeUnsolved(unsolvedPieces(tperm, oll)) == "solves the step");
+  // Pieces in other layers.
+  CubieCube sexy = stateSolvedBy(parseAlgOrEmpty("R U R' U'"));
+  u = unsolvedPieces(sexy, none);
+  CHECK(u.cornersMisplaced[2] + u.cornersTwisted[2] > 0);
+  CHECK(u.edgesMisplaced[1] + u.edgesFlipped[1] > 0);
+  Unsolved made;
+  made.cornersMisplaced[0] = 1;
+  made.edgesMisplaced[2] = 2;
+  CHECK(describeUnsolved(made) ==
+        "leaves 1 corner and 2 edges unsolved (U and D layers)");
+  made.edgesFlipped[1] = 1;
+  CHECK(describeUnsolved(made) ==
+        "leaves 1 corner and 3 edges unsolved (U, middle and D layers)");
+  Unsolved flips;
+  flips.edgesFlipped[0] = 2;
+  CHECK(describeUnsolved(flips) == "leaves 2 edges flipped (U layer)");
+}
+
+TEST_CASE("alg checks respect the step and the set's AUF settings") {
+  PieceMask none;
+  PieceMask oll = *parseFree("LL:p");
+  const std::string t = "R U R' U' R' F R2 U' R' U' R U R' F'";
+  CubieCube tperm = stateSolvedBy(parseAlgOrEmpty(t));
+  AlgCheck c = checkAlg(tperm, t, none, true, true);
+  CHECK(c.passes());
+  CHECK(describeCheck(c) == "14 moves");
+  // PLL algs needing a U turn before and after still pass.
+  CubieCube turned = uTurn(1) * tperm * uTurn(3);
+  c = checkAlg(turned, t, none, true, true);
+  REQUIRE(c.passes());
+  CHECK(describeCheck(c) == "(U) … (U'), 14 moves");
+  // ... unless the set doesn't turn U around the case.
+  c = checkAlg(turned, t, none, false, true);
+  CHECK_FALSE(c.passes());
+  CHECK(describeCheck(c).starts_with("leaves "));
+  c = checkAlg(turned, t, none, true, false);
+  CHECK_FALSE(c.passes());
+  // OLL algs pass whatever permutation they leave in the last layer.
+  CubieCube sune = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
+  CubieCube sunePermuted = sune * tperm;
+  REQUIRE(unsolvedPieces(sunePermuted * sune.inverse(), oll).none());
+  CHECK(checkAlg(sunePermuted, "R U R' U R U2 R'", oll, true, true).passes());
+  CHECK(
+      checkAlg(sunePermuted, "y' R' U2 R U R' U R", oll, true, true).passes());
+  // Failing algs say what is left.
+  c = checkAlg(sune, "R U R' U' R' F R F'", oll, true, true);
+  CHECK_FALSE(c.passes());
+  CHECK(describeCheck(c) == describeUnsolved(c.unsolved));
+  CHECK(c.unsolved.corners() + c.unsolved.edges() > 0);
+  c = checkAlg(sune, "R U Q", oll, true, true);
+  CHECK(describeCheck(c) == "can't read at character 5");
+  CHECK(describeCheck(checkAlg(sune, "  ", oll, true, true)) == "empty");
+}
+
+namespace {
+
+// The main alg written as `prefix + base` for a case that `prefix + base`
+// solves exactly; checks the display orientation strips the prefix.
+void checkDisplay(const std::string &prefix, const std::string &base,
+                  const PieceMask &free) {
+  INFO(prefix << " | " << base);
+  std::string main = prefix.empty() ? base : prefix + " " + base;
+  CubieCube canonical = stateSolvedBy(parseAlgOrEmpty(main));
+  auto d = displayOrientation(canonical, main, free, true, true);
+  REQUIRE(d);
+  CHECK(d->alg == base);
+  // The alg without its prefix solves the case as shown, with no U turn
+  // before (or after) it.
+  auto fit = fitAlg(d->state, parseAlgOrEmpty(base), free, false, false);
+  CHECK(fit);
+  if (free.isEmpty()) {
+    CHECK(d->state == stateSolvedBy(parseAlgOrEmpty(base)));
+  }
+}
+
+} // namespace
+
+TEST_CASE("cases are shown from the angle their main alg starts from") {
+  PieceMask none;
+  PieceMask oll = *parseFree("LL:p");
+  const std::string t = "R U R' U' R' F R2 U' R' U' R U R' F'";
+  const std::string jb = "R U R' F' R U R' U' R' F R2 U' R'";
+  const std::string sune = "R U R' U R U2 R'";
+  const std::string t45 = "F R U R' U' F'";
+  for (const char *prefix :
+       {"", "y", "y'", "y2", "U", "U'", "U2", "y U", "(U2) y'", "U y2"}) {
+    checkDisplay(prefix, t, none);
+    checkDisplay(prefix, jb, none);
+    checkDisplay(prefix, sune, oll);
+    checkDisplay(prefix, t45, oll);
+  }
+  // Without a prefix the stored case is kept as it is.
+  CubieCube tperm = stateSolvedBy(parseAlgOrEmpty(t));
+  auto d = displayOrientation(tperm, t, none, true, true);
+  REQUIRE(d);
+  CHECK(d->state == tperm);
+  CHECK(d->alg == t);
+  // A case stored at another angle is turned so the alg needs no U first.
+  CubieCube turned = tperm * uTurn(2);
+  d = displayOrientation(turned, t, none, true, true);
+  REQUIRE(d);
+  CHECK(d->alg == t);
+  CHECK(fitAlg(d->state, parseAlgOrEmpty(t), none, false, true));
+  // Leading U turns are part of the alg when the set doesn't turn U first.
+  CubieCube uSetup = stateSolvedBy(parseAlgOrEmpty("U " + t));
+  d = displayOrientation(uSetup, "U " + t, none, false, true);
+  REQUIRE(d);
+  CHECK(d->alg == "U " + t);
+  CHECK(d->state == uSetup);
+  // Algs that don't solve the case give no orientation.
+  CHECK_FALSE(displayOrientation(tperm, sune, none, true, true));
+  // Notation is kept as written.
+  d = displayOrientation(stateSolvedBy(parseAlgOrEmpty("y (R U R' U')3")),
+                         "y (R U R' U')3", none, true, true);
+  REQUIRE(d);
+  CHECK(d->alg == "(R U R' U')3");
+}
+
+TEST_CASE("case analysis picks the first passing alg as the main alg") {
+  AlgSet set = ollLikeSet();
+  AlgCase &sune = set.groups[0].cases[0];
+  sune.algs = {"R U R' U' R' F R F'", "R U Q", "y R U R' U R U2 R'",
+               "R U R' U R U2 R'"};
+  CaseAnalysis a = analyzeCase(set, set.groups[0], sune);
+  REQUIRE(a.checks.size() == 4);
+  CHECK_FALSE(a.checks[0].passes());
+  CHECK(a.checks[1].parseError);
+  CHECK(a.passing == std::vector<std::size_t>{2, 3});
+  CHECK(a.main == 2u);
+  CHECK(a.failing() == 2);
+  CHECK(a.mainAlg == "R U R' U R U2 R'");
+  CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), set.spec.free, false,
+               true));
+  // No passing alg: the stored case, no main alg.
+  sune.algs = {"R U Q"};
+  a = analyzeCase(set, set.groups[0], sune);
+  CHECK_FALSE(a.main);
+  CHECK(a.display == sune.state);
+  CHECK(a.mainAlg.empty());
+}

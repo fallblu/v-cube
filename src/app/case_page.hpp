@@ -45,7 +45,9 @@ protected:
   // What the page knows about a case.
   struct CaseInfo {
     std::vector<std::size_t> passing; // indices of passing algs; [0] = main
-    CubieCube state;                  // the case as it is set up and drawn
+    CubieCube state;     // the case as it is set up and drawn (oriented for
+                         // the main alg)
+    std::string mainAlg; // the main alg as done from `state`
   };
 
   AppSettings &settings_;
@@ -88,7 +90,8 @@ protected:
   // The colours for the next case, following the neutrality option.
   ColourMap caseColours();
 
-  // The passing algs with the AUFs they need from `state`, main alg first,
+  // The passing algs with the AUFs they need from `state`, main alg first
+  // (without the rotations and U turns the display orientation took over),
   // as rich text under the case's name.
   QString algsHtml(const std::string &caseId, const CubieCube &state);
   QPixmap caseDiagram(const std::string &caseId, const CubieCube &state,

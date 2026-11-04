@@ -282,7 +282,8 @@ void CasePage::computeInfo() {
   }
   for (const auto &g : s->groups) {
     for (const auto &c : g.cases) {
-      info_[c.id] = CaseInfo{passingAlgs(*s, g, c), c.state};
+      CaseAnalysis a = analyzeCase(*s, g, c);
+      info_[c.id] = CaseInfo{a.passing, a.display, a.mainAlg};
     }
   }
 }
@@ -322,7 +323,7 @@ void CasePage::buildTree() {
       item->setIcon(0, QIcon(cube_painter::diagram(masked, spec.view, kThumb,
                                                    look, dpr)));
       if (eligible(c.id)) {
-        item->setToolTip(0, qs(c.algs[info->passing.front()]));
+        item->setToolTip(0, qs(info->mainAlg));
       } else {
         item->setForeground(0, muted);
         item->setToolTip(0, tr("No alg solves this case yet, so it is "
@@ -414,8 +415,7 @@ void CasePage::showCaseMenu(const QPoint &pos) {
     const AlgSet *s = set();
     const AlgCase *ac = s ? s->findCase(id) : nullptr;
     if (ac && eligible(id)) {
-      QApplication::clipboard()->setText(
-          qs(ac->algs[infoOf(id)->passing.front()]));
+      QApplication::clipboard()->setText(qs(infoOf(id)->mainAlg));
     }
   });
   copy->setEnabled(eligible(id));
@@ -490,8 +490,9 @@ QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state) {
           .arg(qs(c->name).toHtmlEscaped(), qs(g->name).toHtmlEscaped());
   bool first = true;
   for (std::size_t i : info->passing) {
-    const std::string &text = c->algs[i];
-    std::optional<AufFit> fit = fitAlg(state, parseAlgOrEmpty(text), free);
+    const std::string &text = first ? info->mainAlg : c->algs[i];
+    std::optional<AufFit> fit =
+        fitAlg(state, parseAlgOrEmpty(text), free, s->aufBefore, s->aufAfter);
     QString line = qs(fit ? withAufs(text, *fit) : text).toHtmlEscaped();
     line = first ? "<b>" + line + "</b>"
                  : "<span style='color:gray'>" + line + "</span>";

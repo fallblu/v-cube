@@ -37,12 +37,16 @@ std::vector<std::string> split(const std::string &s, char sep) {
 } // namespace
 
 std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
-                             const PieceMask &free) {
+                             const PieceMask &free, bool aufBefore,
+                             bool aufAfter) {
   if (alg.empty()) {
     return std::nullopt;
   }
   FaceletCube start = state.toFacelets();
   for (int u : kAufOrder) {
+    if (u != 0 && !aufBefore) {
+      continue;
+    }
     FaceletCube f = start;
     if (u != 0) {
       f.apply(Move{MoveType::U, static_cast<std::uint8_t>(u)});
@@ -54,6 +58,9 @@ std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
       continue;
     }
     for (int v : kAufOrder) {
+      if (v != 0 && !aufAfter) {
+        continue;
+      }
       if (withinMask(*after * uTurn(v), free)) {
         return AufFit{u, v};
       }
@@ -99,17 +106,309 @@ std::string withAufs(const std::string &alg, AufFit fit) {
   return out;
 }
 
-std::vector<std::size_t> passingAlgs(const AlgSet &set, const CaseGroup &group,
-                                     const AlgCase &c) {
-  std::vector<std::size_t> out;
-  const PieceMask &free = set.specFor(group).free;
-  for (std::size_t i = 0; i < c.algs.size(); ++i) {
-    ParseResult parsed = parseAlg(c.algs[i]);
-    if (parsed && fitAlg(c.state, parsed.alg, free)) {
-      out.push_back(i);
+int Unsolved::corners() const {
+  int n = 0;
+  for (std::size_t i = 0; i < 3; ++i) {
+    n += cornersMisplaced[i] + cornersTwisted[i];
+  }
+  return n;
+}
+
+int Unsolved::edges() const {
+  int n = 0;
+  for (std::size_t i = 0; i < 3; ++i) {
+    n += edgesMisplaced[i] + edgesFlipped[i];
+  }
+  return n;
+}
+
+Unsolved unsolvedPieces(const CubieCube &cube, const PieceMask &free) {
+  Unsolved u;
+  for (std::size_t i = 0; i < kCorners; ++i) {
+    std::size_t layer = i < 4 ? 0 : 2;
+    if (cube.cp[i] != i && !free.cp[i]) {
+      ++u.cornersMisplaced[layer];
+    } else if (cube.co[i] != 0 && !free.co[i]) {
+      ++u.cornersTwisted[layer];
     }
   }
-  return out;
+  for (std::size_t i = 0; i < kEdges; ++i) {
+    std::size_t layer = i < 4 ? 0 : i < 8 ? 2 : 1;
+    if (cube.ep[i] != i && !free.ep[i]) {
+      ++u.edgesMisplaced[layer];
+    } else if (cube.eo[i] != 0 && !free.eo[i]) {
+      ++u.edgesFlipped[layer];
+    }
+  }
+  return u;
+}
+
+std::string describeUnsolved(const Unsolved &u) {
+  if (u.none()) {
+    return "solves the step";
+  }
+  auto count = [](int n, const char *what) {
+    return std::to_string(n) + " " + what + (n == 1 ? "" : "s");
+  };
+  int c = u.corners(), e = u.edges();
+  bool onlyOrientation = true;
+  for (std::size_t i = 0; i < 3; ++i) {
+    onlyOrientation = onlyOrientation && u.cornersMisplaced[i] == 0 &&
+                      u.edgesMisplaced[i] == 0;
+  }
+  std::string text = "leaves ";
+  if (onlyOrientation) {
+    if (c) {
+      text += count(c, "corner") + " twisted";
+    }
+    if (c && e) {
+      text += " and ";
+    }
+    if (e) {
+      text += count(e, "edge") + " flipped";
+    }
+  } else {
+    if (c) {
+      text += count(c, "corner");
+    }
+    if (c && e) {
+      text += " and ";
+    }
+    if (e) {
+      text += count(e, "edge");
+    }
+    text += " unsolved";
+  }
+  static const char *names[] = {"U", "middle", "D"};
+  std::vector<std::string> layers;
+  for (std::size_t i = 0; i < 3; ++i) {
+    if (u.cornersMisplaced[i] + u.cornersTwisted[i] + u.edgesMisplaced[i] +
+            u.edgesFlipped[i] >
+        0) {
+      layers.push_back(names[i]);
+    }
+  }
+  text += " (";
+  for (std::size_t i = 0; i < layers.size(); ++i) {
+    text += i == 0 ? "" : i + 1 == layers.size() ? " and " : ", ";
+    text += layers[i];
+  }
+  text += layers.size() == 1 ? " layer)" : " layers)";
+  return text;
+}
+
+AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
+                  const PieceMask &free, bool aufBefore, bool aufAfter) {
+  AlgCheck r;
+  ParseResult parsed = parseAlg(alg);
+  if (!parsed) {
+    r.parseError = parsed.error;
+    return r;
+  }
+  if (parsed.alg.empty()) {
+    r.empty = true;
+    return r;
+  }
+  r.moves = moveCount(parsed.alg);
+  r.fit = fitAlg(state, parsed.alg, free, aufBefore, aufAfter);
+  if (r.fit) {
+    return r;
+  }
+  // Describe the closest result over the AUFs the set allows.
+  FaceletCube start = state.toFacelets();
+  std::optional<Unsolved> best;
+  for (int u = 0; u < (aufBefore ? 4 : 1); ++u) {
+    FaceletCube f = start;
+    if (u != 0) {
+      f.apply(Move{MoveType::U, static_cast<std::uint8_t>(u)});
+    }
+    f.apply(parsed.alg);
+    f.normalizeOrientation();
+    auto after = CubieCube::fromFacelets(f);
+    if (!after) {
+      continue;
+    }
+    for (int v = 0; v < (aufAfter ? 4 : 1); ++v) {
+      Unsolved left = unsolvedPieces(*after * uTurn(v), free);
+      if (!best ||
+          left.corners() + left.edges() < best->corners() + best->edges()) {
+        best = left;
+      }
+    }
+  }
+  r.unsolved = best.value_or(Unsolved{});
+  return r;
+}
+
+std::string describeCheck(const AlgCheck &check) {
+  if (check.parseError) {
+    return "can't read at character " +
+           std::to_string(check.parseError->position + 1);
+  }
+  if (check.empty) {
+    return "empty";
+  }
+  std::string moves =
+      std::to_string(check.moves) + (check.moves == 1 ? " move" : " moves");
+  if (!check.fit) {
+    return describeUnsolved(check.unsolved);
+  }
+  if (check.fit->before == 0 && check.fit->after == 0) {
+    return moves;
+  }
+  std::string shape;
+  if (check.fit->before != 0) {
+    shape += "(" + aufText(check.fit->before) + ") ";
+  }
+  shape += "…";
+  if (check.fit->after != 0) {
+    shape += " (" + aufText(check.fit->after) + ")";
+  }
+  return shape + ", " + moves;
+}
+
+namespace {
+
+// The cube with its stickers recoloured so that its centres are in the
+// standard places: the same pattern, seen as if it were held in the
+// standard orientation.
+std::optional<CubieCube> recolouredToCentres(const FaceletCube &f) {
+  std::array<std::uint8_t, 6> colourToFace{};
+  for (int face = 0; face < 6; ++face) {
+    std::uint8_t centre = f[face * 9 + 4];
+    if (centre >= 6) {
+      return std::nullopt;
+    }
+    colourToFace[centre] = static_cast<std::uint8_t>(face);
+  }
+  FaceletCube out = f;
+  for (int i = 0; i < kFaceletCount; ++i) {
+    if (out[i] < 6) {
+      out[i] = colourToFace[out[i]];
+    }
+  }
+  return CubieCube::fromFacelets(out);
+}
+
+// `text` without its first `count` moves, keeping the rest as written, or
+// nullopt if the moves can't be told apart in the text (e.g. inside a
+// commutator).
+std::optional<std::string> withoutLeadingMoves(std::string_view text,
+                                               std::size_t count) {
+  std::size_t pos = 0;
+  while (count > 0) {
+    while (pos < text.size() &&
+           (std::isspace(static_cast<unsigned char>(text[pos])) ||
+            text[pos] == '.' || text[pos] == '*')) {
+      ++pos;
+    }
+    if (pos >= text.size()) {
+      return std::nullopt;
+    }
+    std::size_t end = pos;
+    if (text[pos] == '(') {
+      int depth = 0;
+      for (; end < text.size(); ++end) {
+        depth += text[end] == '(' ? 1 : text[end] == ')' ? -1 : 0;
+        if (depth == 0) {
+          ++end;
+          break;
+        }
+      }
+    }
+    // The token (or group's repetition suffix) runs to the next space or
+    // bracket.
+    while (end < text.size() &&
+           !std::isspace(static_cast<unsigned char>(text[end])) &&
+           text[end] != '(' && text[end] != '[') {
+      ++end;
+    }
+    ParseResult token = parseAlg(text.substr(pos, end - pos));
+    if (!token || token.alg.empty() || token.alg.size() > count) {
+      return std::nullopt;
+    }
+    count -= token.alg.size();
+    pos = end;
+  }
+  return trim(text.substr(pos));
+}
+
+} // namespace
+
+std::optional<DisplayOrientation>
+displayOrientation(const CubieCube &state, const std::string &mainAlg,
+                   const PieceMask &free, bool aufBefore, bool aufAfter) {
+  ParseResult parsed = parseAlg(mainAlg);
+  if (!parsed) {
+    return std::nullopt;
+  }
+  auto fit = fitAlg(state, parsed.alg, free, aufBefore, aufAfter);
+  if (!fit) {
+    return std::nullopt;
+  }
+  std::size_t prefix = 0;
+  while (prefix < parsed.alg.size() &&
+         (isRotation(parsed.alg[prefix].type) ||
+          (aufBefore && parsed.alg[prefix].type == MoveType::U))) {
+    ++prefix;
+  }
+  DisplayOrientation canonical{state, trim(mainAlg)};
+  if (prefix == 0 && fit->before == 0) {
+    return canonical;
+  }
+  Alg rest(parsed.alg.begin() + static_cast<std::ptrdiff_t>(prefix),
+           parsed.alg.end());
+  if (rest.empty()) {
+    return canonical; // nothing but a setup: keep the case as it is
+  }
+  FaceletCube f = state.toFacelets();
+  if (fit->before != 0) {
+    f.apply(Move{MoveType::U, static_cast<std::uint8_t>(fit->before)});
+  }
+  f.apply(Alg(parsed.alg.begin(),
+              parsed.alg.begin() + static_cast<std::ptrdiff_t>(prefix)));
+  auto shown = recolouredToCentres(f);
+  if (!shown) {
+    return canonical;
+  }
+  std::string restText;
+  if (auto text = withoutLeadingMoves(mainAlg, prefix);
+      text && parseAlgOrEmpty(*text) == rest) {
+    restText = *text;
+  } else {
+    restText = toString(rest);
+  }
+  // By construction the rest solves the case as shown without a U turn
+  // first; fall back to the stored case if it somehow doesn't.
+  auto check = fitAlg(*shown, rest, free, false, aufAfter);
+  if (!check) {
+    return canonical;
+  }
+  return DisplayOrientation{*shown, restText};
+}
+
+CaseAnalysis analyzeCase(const AlgSet &set, const CaseGroup &group,
+                         const AlgCase &c) {
+  CaseAnalysis a;
+  const PieceMask &free = set.specFor(group).free;
+  for (std::size_t i = 0; i < c.algs.size(); ++i) {
+    a.checks.push_back(
+        checkAlg(c.state, c.algs[i], free, set.aufBefore, set.aufAfter));
+    if (a.checks.back().passes()) {
+      a.passing.push_back(i);
+    }
+  }
+  a.display = c.state;
+  if (!a.passing.empty()) {
+    a.main = a.passing.front();
+    a.mainAlg = trim(c.algs[*a.main]);
+    if (auto d = displayOrientation(c.state, c.algs[*a.main], free,
+                                    set.aufBefore, set.aufAfter)) {
+      a.display = d->state;
+      a.mainAlg = d->alg;
+    }
+  }
+  return a;
 }
 
 std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg) {
