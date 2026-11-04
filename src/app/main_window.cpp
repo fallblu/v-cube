@@ -279,8 +279,10 @@ void MainWindow::showAbout() {
          "<p>Random-state scrambles use Kociemba's two-phase algorithm. "
          "Inspired by "
          "cstimer and Alg-Trainer.</p>"
-         "<p>Data folder: <code>%2</code></p>")
-          .arg(QApplication::applicationVersion(), dataDir_.toHtmlEscaped()));
+         "<p>Data folder: <code>%2</code><br>Qt %3, platform "
+         "<code>%4</code></p>")
+          .arg(QApplication::applicationVersion(), dataDir_.toHtmlEscaped(),
+               qVersion(), QGuiApplication::platformName()));
 }
 
 } // namespace vcube

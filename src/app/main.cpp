@@ -1,5 +1,6 @@
 #include "app/app_settings.hpp"
 #include "app/main_window.hpp"
+#include "app/platform.hpp"
 #include "cube/solver.hpp"
 
 #include <QApplication>
@@ -8,6 +9,7 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 int main(int argc, char **argv) {
+  vcube::selectQtPlatform();
   QApplication app(argc, argv);
   QApplication::setOrganizationName("v-cube");
   QApplication::setApplicationName("v-cube");

@@ -74,6 +74,22 @@ Catch2 is fetched automatically if it isn't installed. Other presets:
 `ctest --preset debug`. Pass `-DVCUBE_BUILD_APP=OFF` to build only the
 libraries and tests, which need Qt Core but no GUI.
 
+### WSL
+
+Under WSL (detected from `WSL_DISTRO_NAME` or a kernel release that names
+Microsoft) the app uses Qt's X11 (`xcb`) platform plugin by default rather
+than Wayland. WSLg forwards every Wayland surface to Windows as a separate
+window, which leaves closed drop-downs and menus on screen and stops the
+window position from being restored. To pick another plugin, set
+`QT_QPA_PLATFORM` yourself; it always takes precedence:
+
+```bash
+QT_QPA_PLATFORM=wayland ./build/release/src/app/v-cube
+```
+
+**Help > About v-cube** shows the platform plugin in use. Outside WSL, Qt
+picks the plugin as usual.
+
 ## Using it
 
 ### Keys

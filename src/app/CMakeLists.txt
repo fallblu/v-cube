@@ -7,6 +7,7 @@ add_library(vcube_gui STATIC
   keymap.cpp
   library_page.cpp
   main_window.cpp
+  platform.cpp
   settings_dialog.cpp
   timer_page.cpp
   trainer_page.cpp
