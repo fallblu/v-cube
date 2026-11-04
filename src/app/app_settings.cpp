@@ -119,6 +119,23 @@ void applyTheme(QApplication &app, bool dark) {
   app.setPalette(p);
 }
 
+QString setSettingsKey(const std::string &setId, const QString &name) {
+  return QString("trainer/sets/%1/%2").arg(QString::fromStdString(setId), name);
+}
+
+std::optional<QStringList> tickedCases(const std::string &setId) {
+  QSettings q;
+  QString key = setSettingsKey(setId, "selection");
+  if (!q.contains(key)) {
+    return std::nullopt;
+  }
+  return q.value(key).toStringList();
+}
+
+void setTickedCases(const std::string &setId, const QStringList &caseIds) {
+  QSettings().setValue(setSettingsKey(setId, "selection"), caseIds);
+}
+
 QString stepsToText(const std::vector<std::int64_t> &steps) {
   QStringList parts;
   for (auto s : steps) {

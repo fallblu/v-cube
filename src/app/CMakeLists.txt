@@ -8,6 +8,7 @@ add_library(vcube_gui STATIC
   library_page.cpp
   main_window.cpp
   platform.cpp
+  scramble_source.cpp
   settings_dialog.cpp
   timer_page.cpp
   trainer_page.cpp

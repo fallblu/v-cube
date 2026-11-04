@@ -35,6 +35,14 @@ struct AppSettings {
 
 void applyTheme(QApplication &app, bool dark);
 
+// Settings key for a per-alg-set choice shared by Learn, Drill and the
+// Library, e.g. "trainer/sets/pll/selection".
+QString setSettingsKey(const std::string &setId, const QString &name);
+// The cases ticked for an alg set in Learn and Drill; nullopt when the
+// ticks were never changed (every case counts as ticked).
+std::optional<QStringList> tickedCases(const std::string &setId);
+void setTickedCases(const std::string &setId, const QStringList &caseIds);
+
 // "1m 10m" <-> seconds.
 QString stepsToText(const std::vector<std::int64_t> &steps);
 std::vector<std::int64_t> stepsFromText(const QString &text);
