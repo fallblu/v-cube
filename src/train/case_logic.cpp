@@ -346,11 +346,23 @@ displayOrientation(const CubieCube &state, const std::string &mainAlg,
   if (!fit) {
     return std::nullopt;
   }
+  // The prefix is the longest run of leading moves that only turns the case
+  // about the U-D axis: rotations that end with U back on top (so y turns,
+  // but not an x or z that tilts the last layer off the top) and, when the
+  // set allows one, U turns done while the cube is held that way up.
   std::size_t prefix = 0;
-  while (prefix < parsed.alg.size() &&
-         (isRotation(parsed.alg[prefix].type) ||
-          (aufBefore && parsed.alg[prefix].type == MoveType::U))) {
-    ++prefix;
+  FaceletCube held;
+  auto upright = [&held] { return held[4] == 0; }; // U centre on top
+  for (std::size_t i = 0; i < parsed.alg.size(); ++i) {
+    const Move &m = parsed.alg[i];
+    if (isRotation(m.type)) {
+      held.apply(m);
+    } else if (!(aufBefore && m.type == MoveType::U && upright())) {
+      break;
+    }
+    if (upright()) {
+      prefix = i + 1;
+    }
   }
   DisplayOrientation canonical{state, trim(mainAlg)};
   if (prefix == 0 && fit->before == 0) {

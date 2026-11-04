@@ -72,9 +72,10 @@ AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
 std::string describeCheck(const AlgCheck &check);
 
 // The case as it is best shown and set up for its main alg: the alg's
-// leading cube rotations (and leading U turns when the set allows a U turn
+// leading y rotations (and leading U turns when the set allows a U turn
 // before the case) are done to the case, so that the rest of the alg solves
-// it straight away.
+// it straight away. Leading x and z rotations stay in the alg: they tilt
+// the cube to do the alg, not to look at the case.
 struct DisplayOrientation {
   CubieCube state; // the case in that orientation
   std::string alg; // the main alg without its leading prefix

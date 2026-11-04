@@ -270,6 +270,17 @@ TEST_CASE("cases are shown from the angle their main alg starts from") {
   CHECK(d->state == uSetup);
   // Algs that don't solve the case give no orientation.
   CHECK_FALSE(displayOrientation(tperm, sune, none, true, true));
+  // Tilting rotations stay in the alg: the case is still shown with its
+  // last layer on top, turned only by the leading y.
+  for (const char *prefix : {"", "y", "y2 U"}) {
+    std::string alg =
+        std::string(prefix) + (*prefix ? " " : "") + "x R' U R' D2 R U' x'";
+    INFO(alg);
+    CubieCube s = stateSolvedBy(parseAlgOrEmpty(alg));
+    d = displayOrientation(s, alg, oll, true, true);
+    REQUIRE(d);
+    CHECK(d->alg == "x R' U R' D2 R U' x'");
+  }
   // Notation is kept as written.
   d = displayOrientation(stateSolvedBy(parseAlgOrEmpty("y (R U R' U')3")),
                          "y (R U R' U')3", none, true, true);

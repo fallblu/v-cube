@@ -1,3 +1,4 @@
+#include "cube/solver.hpp"
 #include "io/library.hpp"
 #include "io/sessions.hpp"
 #include "train/case_logic.hpp"
@@ -7,6 +8,9 @@
 #include <QDir>
 #include <QJsonDocument>
 #include <QTemporaryDir>
+
+#include <string>
+#include <vector>
 
 using namespace vcube;
 
@@ -81,6 +85,118 @@ TEST_CASE("built-in cases are distinct and accept standard algs") {
   CHECK(report.added == 2);
   CHECK(o.findCase("oll27")->algs.size() == 1);
   CHECK(o.findCase("oll45")->algs.size() == 1);
+}
+
+namespace {
+
+// `alg` (outer face turns) as written after the cube is turned by
+// `rotation`, so that "rotation + result" turns the same layers as `alg`.
+Alg afterRotation(const Alg &alg, MoveType rotation, int quarters) {
+  // Where each face (U R F D L B) ends up after one quarter of the rotation.
+  static const MoveType x[] = {MoveType::B, MoveType::R, MoveType::U,
+                               MoveType::F, MoveType::L, MoveType::D};
+  static const MoveType y[] = {MoveType::U, MoveType::F, MoveType::L,
+                               MoveType::D, MoveType::B, MoveType::R};
+  static const MoveType z[] = {MoveType::R, MoveType::D, MoveType::F,
+                               MoveType::L, MoveType::U, MoveType::B};
+  const MoveType *to = rotation == MoveType::X   ? x
+                       : rotation == MoveType::Y ? y
+                                                 : z;
+  Alg out = alg;
+  for (int q = 0; q < quarters; ++q) {
+    for (Move &m : out) {
+      m.type = to[static_cast<int>(m.type)];
+    }
+  }
+  return out;
+}
+
+// `alg` written to start with the cube rotations of `prefix`.
+std::string withPrefix(const std::string &prefix, const Alg &alg) {
+  Alg body = alg;
+  for (const Move &r : parseAlgOrEmpty(prefix)) {
+    if (isRotation(r.type)) {
+      body = afterRotation(body, r.type, r.amount);
+    }
+  }
+  return prefix.empty() ? toString(body) : prefix + " " + toString(body);
+}
+
+} // namespace
+
+TEST_CASE("built-in cases keep their last layer on top whatever the main "
+          "alg starts with") {
+  // Algs that start by tilting the cube (x, z) still solve a last-layer
+  // case held the usual way up: only y turns and U turns reorient it.
+  const char *prefixes[] = {"",     "y",        "y2",  "y'",     "x",
+                            "x'",   "x2",       "z",   "z'",     "y x'",
+                            "x y",  "z' y'",    "U x", "U2 y z", "x2 z2",
+                            "x x'", "x2 z2 U'", "y U"};
+  for (const QString &file : QDir(kBuiltins).entryList({"*.json"})) {
+    auto set = readAlgSetFile(kBuiltins + "/" + file, nullptr);
+    REQUIRE(set);
+    for (const auto &g : set->groups) {
+      const PieceMask &free = set->specFor(g).free;
+      for (const auto &c : g.cases) {
+        Alg base = TwoPhaseSolver::solve(c.state);
+        AlgCase withAlgs = c;
+        std::optional<CubieCube> firstDisplay;
+        for (const char *prefix : prefixes) {
+          std::string alg = withPrefix(prefix, base);
+          INFO(set->id << " " << c.id << ": " << alg);
+          REQUIRE(checkAlg(c.state, alg, free, set->aufBefore, set->aufAfter)
+                      .passes());
+          AlgCase one = c;
+          one.algs = {alg};
+          CaseAnalysis a = analyzeCase(*set, g, one);
+          REQUIRE(a.main);
+          // Only the U layer is unsolved, as in the stored case.
+          Unsolved left = unsolvedPieces(a.display, PieceMask{});
+          CHECK(left.cornersMisplaced[2] + left.cornersTwisted[2] == 0);
+          CHECK(left.edgesMisplaced[1] + left.edgesFlipped[1] == 0);
+          CHECK(left.edgesMisplaced[2] + left.edgesFlipped[2] == 0);
+          // The alg as shown solves the case as shown with no U first.
+          CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), free, false,
+                       set->aufAfter));
+          // Adding more algs leaves the case shown as its first alg has it.
+          withAlgs.algs.push_back(alg);
+          CaseAnalysis all = analyzeCase(*set, g, withAlgs);
+          CHECK(all.main == 0u);
+          if (!firstDisplay) {
+            firstDisplay = a.display;
+          }
+          CHECK(all.display == *firstDisplay);
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE("a tilted Aa perm alg shows the case the usual way up") {
+  auto pll = readAlgSetFile(kBuiltins + "/pll.json", nullptr);
+  REQUIRE(pll);
+  AlgSet set = *pll;
+  auto report = importAlgs(set, "x R' U R' D2 R U' R' D2 R2 x'\n", false);
+  REQUIRE(report.added == 1);
+  const CaseGroup *group = nullptr;
+  const AlgCase *aa = nullptr;
+  for (const auto &g : set.groups) {
+    for (const auto &c : g.cases) {
+      if (c.id == "Aa") {
+        group = &g;
+        aa = &c;
+      }
+    }
+  }
+  REQUIRE(aa);
+  CaseAnalysis a = analyzeCase(set, *group, *aa);
+  REQUIRE(a.main);
+  CHECK(a.mainAlg == "x R' U R' D2 R U' R' D2 R2 x'");
+  // Three U-layer corners cycle; nothing else moves.
+  Unsolved left = unsolvedPieces(a.display, PieceMask{});
+  CHECK(left.cornersMisplaced[0] == 3);
+  CHECK(left.corners() == 3);
+  CHECK(left.edges() == 0);
 }
 
 TEST_CASE("library installs built-ins once and saves changes") {
