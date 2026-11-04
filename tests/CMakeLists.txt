@@ -18,7 +18,10 @@ add_executable(vcube_tests
   test_case_logic.cpp
   test_timer_stats.cpp
   test_srs.cpp
+  test_io.cpp
 )
-target_link_libraries(vcube_tests PRIVATE vcube_train vcube_warnings
+target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)
+target_compile_definitions(vcube_tests PRIVATE
+  VCUBE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 catch_discover_tests(vcube_tests)

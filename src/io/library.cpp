@@ -1,0 +1,221 @@
+#include "io/library.hpp"
+
+#include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+
+#include <algorithm>
+
+namespace vcube {
+
+namespace {
+
+constexpr auto kInstalledFile = "installed-builtins.json";
+
+QString sanitizeId(const std::string &id) {
+  QString s = qs(id).toLower();
+  QString out;
+  for (QChar c : s) {
+    out += (c.isLetterOrNumber() || c == '-' || c == '_') ? c : QChar('-');
+  }
+  return out.isEmpty() ? QString("set") : out;
+}
+
+} // namespace
+
+AlgLibrary::AlgLibrary(QString dir, QString builtinDir)
+    : dir_(std::move(dir)), builtinDir_(std::move(builtinDir)) {}
+
+QString AlgLibrary::pathFor(const std::string &id) const {
+  return QDir(dir_).filePath(sanitizeId(id) + ".json");
+}
+
+QString AlgLibrary::progressPathFor(const std::string &id) const {
+  return QDir(dir_).filePath("progress/" + sanitizeId(id) + ".json");
+}
+
+QStringList AlgLibrary::builtinIds() const {
+  QStringList ids;
+  for (const QString &file : QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
+    QString error;
+    if (auto set = readAlgSetFile(QDir(builtinDir_).filePath(file), &error)) {
+      ids << qs(set->id);
+    }
+  }
+  return ids;
+}
+
+void AlgLibrary::installBuiltins() {
+  QDir dir(dir_);
+  QStringList installed;
+  QFile marker(dir.filePath(kInstalledFile));
+  if (marker.open(QIODevice::ReadOnly)) {
+    for (const auto &v : QJsonDocument::fromJson(marker.readAll()).array()) {
+      installed << v.toString();
+    }
+    marker.close();
+  }
+  bool changed = false;
+  for (const QString &file : QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
+    QString error;
+    auto set = readAlgSetFile(QDir(builtinDir_).filePath(file), &error);
+    if (!set) {
+      errors_ << QString("built-in %1: %2").arg(file, error);
+      continue;
+    }
+    QString id = qs(set->id);
+    if (installed.contains(id)) {
+      continue;
+    }
+    if (!QFile::exists(pathFor(set->id)) && !save(*set, &error)) {
+      errors_ << QString("installing %1: %2").arg(file, error);
+      continue;
+    }
+    installed << id;
+    changed = true;
+  }
+  if (changed) {
+    QJsonArray arr;
+    for (const auto &id : installed) {
+      arr.append(id);
+    }
+    QString error;
+    writeFileAtomically(dir.filePath(kInstalledFile), QJsonDocument(arr).toJson(), &error);
+  }
+}
+
+void AlgLibrary::load() {
+  errors_.clear();
+  sets_.clear();
+  progress_.clear();
+  QDir().mkpath(dir_);
+  QDir().mkpath(QDir(dir_).filePath("progress"));
+  installBuiltins();
+  QDir dir(dir_);
+  for (const QString &file : dir.entryList({"*.json"}, QDir::Files, QDir::Name)) {
+    if (file == kInstalledFile) {
+      continue;
+    }
+    QString error;
+    auto set = readAlgSetFile(dir.filePath(file), &error);
+    if (!set) {
+      errors_ << QString("%1: %2").arg(file, error);
+      continue;
+    }
+    sets_.push_back(std::move(*set));
+  }
+  // Built-ins first in a fixed order, then the user's sets by name.
+  QStringList order = {"pll", "oll", "2look-oll", "2look-pll"};
+  std::stable_sort(sets_.begin(), sets_.end(), [&order](const AlgSet &a, const AlgSet &b) {
+    auto rank = [&order](const AlgSet &s) {
+      auto i = order.indexOf(qs(s.id));
+      return i < 0 ? 1000 : static_cast<int>(i);
+    };
+    if (rank(a) != rank(b)) {
+      return rank(a) < rank(b);
+    }
+    return qs(a.name).localeAwareCompare(qs(b.name)) < 0;
+  });
+}
+
+AlgSet *AlgLibrary::find(const std::string &id) {
+  for (auto &s : sets_) {
+    if (s.id == id) {
+      return &s;
+    }
+  }
+  return nullptr;
+}
+
+bool AlgLibrary::save(const AlgSet &set, QString *error) {
+  QDir().mkpath(dir_);
+  return writeAlgSetFile(set, pathFor(set.id), error);
+}
+
+std::string AlgLibrary::uniqueId(const std::string &base) const {
+  std::string b = ss(sanitizeId(base));
+  auto taken = [this](const std::string &id) {
+    return std::any_of(sets_.begin(), sets_.end(), [&](const AlgSet &s) { return s.id == id; }) ||
+           QFile::exists(pathFor(id));
+  };
+  if (!taken(b)) {
+    return b;
+  }
+  for (int i = 2;; ++i) {
+    std::string id = b + "-" + std::to_string(i);
+    if (!taken(id)) {
+      return id;
+    }
+  }
+}
+
+AlgSet &AlgLibrary::add(AlgSet set) {
+  if (set.id.empty() || find(set.id)) {
+    set.id = uniqueId(set.id.empty() ? set.name : set.id);
+  }
+  sets_.push_back(std::move(set));
+  save(sets_.back());
+  return sets_.back();
+}
+
+bool AlgLibrary::remove(const std::string &id) {
+  auto it = std::find_if(sets_.begin(), sets_.end(), [&](const AlgSet &s) { return s.id == id; });
+  if (it == sets_.end()) {
+    return false;
+  }
+  QFile::remove(pathFor(id));
+  QFile::remove(progressPathFor(id));
+  progress_.erase(id);
+  sets_.erase(it);
+  return true;
+}
+
+bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
+  for (const QString &file : QDir(builtinDir_).entryList({"*.json"}, QDir::Files)) {
+    auto shipped = readAlgSetFile(QDir(builtinDir_).filePath(file), error);
+    if (!shipped || shipped->id != id) {
+      continue;
+    }
+    if (AlgSet *current = find(id)) {
+      for (auto &g : shipped->groups) {
+        for (auto &c : g.cases) {
+          if (const AlgCase *old = current->findCase(c.id)) {
+            c.algs = old->algs;
+          }
+        }
+      }
+      *current = *shipped;
+    } else {
+      sets_.push_back(*shipped);
+    }
+    return save(*shipped, error);
+  }
+  if (error) {
+    *error = "no built-in set with that id";
+  }
+  return false;
+}
+
+SetProgress &AlgLibrary::progress(const std::string &setId) {
+  auto it = progress_.find(setId);
+  if (it != progress_.end()) {
+    return it->second;
+  }
+  SetProgress p;
+  QFile f(progressPathFor(setId));
+  if (f.open(QIODevice::ReadOnly)) {
+    p = progressFromJson(QJsonDocument::fromJson(f.readAll()).object());
+  }
+  return progress_[setId] = std::move(p);
+}
+
+bool AlgLibrary::saveProgress(const std::string &setId) {
+  QDir().mkpath(QDir(dir_).filePath("progress"));
+  QString error;
+  return writeFileAtomically(progressPathFor(setId),
+                             QJsonDocument(progressToJson(progress(setId))).toJson(QJsonDocument::Compact),
+                             &error);
+}
+
+} // namespace vcube
