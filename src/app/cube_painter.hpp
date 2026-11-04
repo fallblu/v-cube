@@ -39,6 +39,11 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
 void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
               const CubeLook &look);
 
+// Alg-Trainer's flat view (see flatLayout()): U above F with the adjacent
+// L and R stickers, 5 stickers wide and 6 tall.
+void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
+               const CubeLook &look);
+
 // Last-layer diagram: the U face from above with the side stickers of the
 // top layer around it.
 void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,

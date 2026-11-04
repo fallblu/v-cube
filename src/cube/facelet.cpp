@@ -257,4 +257,19 @@ Alg FaceletCube::normalizeOrientation() {
   return {};
 }
 
+const FlatLayout &flatLayout() {
+  constexpr int U = 0, R = 9, F = 18, L = 36;
+  // Sticker n (1-based) of a face.
+  constexpr auto at = [](int face, int n) { return face + n - 1; };
+  static const FlatLayout layout = {{
+      {at(L, 1), at(U, 1), at(U, 2), at(U, 3), at(R, 3)},
+      {at(L, 2), at(U, 4), at(U, 5), at(U, 6), at(R, 2)},
+      {at(L, 3), at(U, 7), at(U, 8), at(U, 9), at(R, 1)},
+      {at(L, 3), at(F, 1), at(F, 2), at(F, 3), at(R, 1)},
+      {at(L, 6), at(F, 4), at(F, 5), at(F, 6), at(R, 4)},
+      {at(L, 9), at(F, 7), at(F, 8), at(F, 9), at(R, 7)},
+  }};
+  return layout;
+}
+
 } // namespace vcube

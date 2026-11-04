@@ -8,16 +8,20 @@
 
 #include <deque>
 
+class QComboBox;
+
 namespace vcube {
 
-// Shows a facelet cube in 3D (with animated turns), as a flat net, or not
-// at all; clicking cycles through the three. The owner keeps the real cube
+// Shows a facelet cube in 3D (with animated turns), in Alg-Trainer's flat
+// view, as an unfolded net, or not at all. The owner keeps the real cube
 // state and feeds moves through animateMove(); the view's own copy catches
 // up as the animations play.
 class CubeView : public QWidget {
   Q_OBJECT
 public:
-  enum class Mode { ThreeD, Net, Hidden };
+  enum class Mode { ThreeD, Flat, Net, Hidden };
+  static QString modeName(Mode m); // "3d", "flat", "net", "hidden"
+  static std::optional<Mode> modeFromName(const QString &name);
 
   explicit CubeView(QWidget *parent = nullptr);
 
@@ -34,7 +38,8 @@ public:
 
   void setMode(Mode m);
   Mode mode() const { return mode_; }
-  void setClickCyclesMode(bool on) { clickCycles_ = on; }
+  // Finishes any animations at once.
+  void finishAnimations();
 
   // Placeholder text drawn when the cube is hidden.
   void setHiddenText(const QString &text);
@@ -47,7 +52,6 @@ signals:
 
 protected:
   void paintEvent(QPaintEvent *) override;
-  void mousePressEvent(QMouseEvent *e) override;
 
 private:
   CubeLook look_;
@@ -56,7 +60,6 @@ private:
   double progress_ = 0.0;
   int animationMs_ = 110;
   Mode mode_ = Mode::ThreeD;
-  bool clickCycles_ = true;
   QString hiddenText_;
   QTimer frame_;
   QElapsedTimer clock_;
@@ -64,5 +67,10 @@ private:
 
   void advance();
 };
+
+// A drop-down (3D, Flat, Net, Hidden) that switches `view` and remembers
+// the choice for `mode` under "ui/view/<mode>".
+QComboBox *createViewSelector(CubeView *view, const QString &mode,
+                              QWidget *parent);
 
 } // namespace vcube

@@ -69,6 +69,21 @@ private:
   Stickers s_{};
 };
 
+// Alg-Trainer's flat view: a grid 5 stickers wide and 6 tall showing the U
+// face above the F face, with the adjacent L and R stickers at the sides
+// (rows from top to bottom):
+//   L1 U1 U2 U3 R3
+//   L2 U4 U5 U6 R2
+//   L3 U7 U8 U9 R1
+//   L3 F1 F2 F3 R1
+//   L6 F4 F5 F6 R4
+//   L9 F7 F8 F9 R7
+// L3 and R1 appear twice, as in Alg-Trainer. Entries are facelet indices.
+inline constexpr int kFlatRows = 6;
+inline constexpr int kFlatColumns = 5;
+using FlatLayout = std::array<std::array<int, kFlatColumns>, kFlatRows>;
+const FlatLayout &flatLayout();
+
 // Whether a sticker at `pos` (a cubie centre) belongs to the layer(s) that
 // the move type turns.
 bool moveTurnsCubie(MoveType t, Vec3i pos);

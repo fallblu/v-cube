@@ -1,7 +1,8 @@
 #include "app/cube_view.hpp"
 
-#include <QMouseEvent>
+#include <QComboBox>
 #include <QPainter>
+#include <QSettings>
 
 namespace vcube {
 
@@ -11,7 +12,29 @@ CubeView::CubeView(QWidget *parent) : QWidget(parent) {
   frame_.setInterval(8);
   connect(&frame_, &QTimer::timeout, this, &CubeView::advance);
   clock_.start();
-  setToolTip(tr("Click to switch between 3D, flat and hidden"));
+}
+
+QString CubeView::modeName(Mode m) {
+  switch (m) {
+  case Mode::ThreeD:
+    return "3d";
+  case Mode::Flat:
+    return "flat";
+  case Mode::Net:
+    return "net";
+  case Mode::Hidden:
+    return "hidden";
+  }
+  return "3d";
+}
+
+std::optional<CubeView::Mode> CubeView::modeFromName(const QString &name) {
+  for (Mode m : {Mode::ThreeD, Mode::Flat, Mode::Net, Mode::Hidden}) {
+    if (modeName(m) == name) {
+      return m;
+    }
+  }
+  return std::nullopt;
 }
 
 void CubeView::setLook(const CubeLook &look) {
@@ -77,17 +100,22 @@ void CubeView::advance() {
   update();
 }
 
+void CubeView::finishAnimations() {
+  for (Move q : queue_) {
+    shown_.apply(q);
+  }
+  queue_.clear();
+  progress_ = 0.0;
+  frame_.stop();
+  update();
+}
+
 void CubeView::setMode(Mode m) {
   if (m == mode_) {
     return;
   }
   if (m != Mode::ThreeD) {
-    for (Move q : queue_) {
-      shown_.apply(q);
-    }
-    queue_.clear();
-    progress_ = 0.0;
-    frame_.stop();
+    finishAnimations();
   }
   mode_ = m;
   update();
@@ -97,24 +125,6 @@ void CubeView::setMode(Mode m) {
 void CubeView::setHiddenText(const QString &text) {
   hiddenText_ = text;
   update();
-}
-
-void CubeView::mousePressEvent(QMouseEvent *e) {
-  if (!clickCycles_ || e->button() != Qt::LeftButton) {
-    QWidget::mousePressEvent(e);
-    return;
-  }
-  switch (mode_) {
-  case Mode::ThreeD:
-    setMode(Mode::Net);
-    break;
-  case Mode::Net:
-    setMode(Mode::Hidden);
-    break;
-  case Mode::Hidden:
-    setMode(Mode::ThreeD);
-    break;
-  }
 }
 
 void CubeView::paintEvent(QPaintEvent *) {
@@ -129,16 +139,46 @@ void CubeView::paintEvent(QPaintEvent *) {
     cube_painter::paint3D(p, area, shown_, look_, turn);
     break;
   }
+  case Mode::Flat:
+    cube_painter::paintFlat(p, area, shown_, look_);
+    break;
   case Mode::Net:
     cube_painter::paintNet(p, area, shown_, look_);
     break;
   case Mode::Hidden:
     p.setPen(palette().color(QPalette::PlaceholderText));
     p.drawText(area, Qt::AlignCenter,
-               hiddenText_.isEmpty() ? tr("Cube hidden (click to show)")
-                                     : hiddenText_);
+               hiddenText_.isEmpty() ? tr("Cube hidden") : hiddenText_);
     break;
   }
+}
+
+QComboBox *createViewSelector(CubeView *view, const QString &mode,
+                              QWidget *parent) {
+  auto *box = new QComboBox(parent);
+  box->setFocusPolicy(Qt::NoFocus);
+  box->setToolTip(QObject::tr("How the virtual cube is shown"));
+  using Mode = CubeView::Mode;
+  const std::pair<Mode, QString> items[] = {
+      {Mode::ThreeD, QObject::tr("3D")},
+      {Mode::Flat, QObject::tr("Flat")},
+      {Mode::Net, QObject::tr("Net")},
+      {Mode::Hidden, QObject::tr("Hidden")},
+  };
+  for (const auto &[m, label] : items) {
+    box->addItem(label, CubeView::modeName(m));
+  }
+  QString key = "ui/view/" + mode;
+  Mode saved = CubeView::modeFromName(QSettings().value(key).toString())
+                   .value_or(Mode::ThreeD);
+  box->setCurrentIndex(box->findData(CubeView::modeName(saved)));
+  view->setMode(saved);
+  QObject::connect(box, &QComboBox::activated, view, [view, box, key] {
+    QString name = box->currentData().toString();
+    view->setMode(CubeView::modeFromName(name).value_or(Mode::ThreeD));
+    QSettings().setValue(key, name);
+  });
+  return box;
 }
 
 } // namespace vcube

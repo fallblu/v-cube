@@ -4,6 +4,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <random>
+#include <string>
+#include <vector>
 
 using namespace vcube;
 
@@ -103,4 +105,52 @@ TEST_CASE("there are 24 distinct rotations") {
       CHECK(a != b);
     }
   }
+}
+
+namespace {
+// The flat view's colours as face letters, one string per row.
+std::vector<std::string> flatColours(const FaceletCube &f) {
+  std::vector<std::string> rows;
+  for (const auto &row : flatLayout()) {
+    std::string text;
+    for (int i : row) {
+      text += "URFDLB"[f[i]];
+    }
+    rows.push_back(text);
+  }
+  return rows;
+}
+
+std::vector<std::string> flatAfter(const char *alg) {
+  FaceletCube f;
+  f.apply(parseAlgOrEmpty(alg));
+  return flatColours(f);
+}
+} // namespace
+
+TEST_CASE("the flat view shows U and F with the adjacent L and R stickers") {
+  using Rows = std::vector<std::string>;
+  // Sticker positions, as in Alg-Trainer's numbering.
+  const auto &layout = flatLayout();
+  CHECK(layout[0] == std::array<int, 5>{36, 0, 1, 2, 11});
+  CHECK(layout[2] == std::array<int, 5>{38, 6, 7, 8, 9});
+  CHECK(layout[3] == std::array<int, 5>{38, 18, 19, 20, 9});
+  CHECK(layout[5] == std::array<int, 5>{44, 24, 25, 26, 15});
+
+  CHECK(flatAfter("") ==
+        Rows{"LUUUR", "LUUUR", "LUUUR", "LFFFR", "LFFFR", "LFFFR"});
+  CHECK(flatAfter("U") ==
+        Rows{"FUUUB", "FUUUB", "FUUUB", "FRRRB", "LFFFR", "LFFFR"});
+  CHECK(flatAfter("R") ==
+        Rows{"LUUFR", "LUUFR", "LUUFR", "LFFDR", "LFFDR", "LFFDR"});
+  CHECK(flatAfter("F") ==
+        Rows{"LUUUR", "LUUUR", "DLLLU", "DFFFU", "DFFFU", "DFFFU"});
+  CHECK(flatAfter("L") ==
+        Rows{"LBUUR", "LBUUR", "LBUUR", "LUFFR", "LUFFR", "LUFFR"});
+  CHECK(flatAfter("y") ==
+        Rows{"FUUUB", "FUUUB", "FUUUB", "FRRRB", "FRRRB", "FRRRB"});
+  // Two turns: R brings F stickers to U's right column, which U then turns
+  // to the front row; the side rows come from the old F, R and B rows.
+  CHECK(flatAfter("R U") ==
+        Rows{"FUUUB", "FUUUB", "DFFFU", "DRRRU", "LFFDR", "LFFDR"});
 }

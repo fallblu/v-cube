@@ -249,6 +249,46 @@ void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
   p.restore();
 }
 
+void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
+               const CubeLook &look) {
+  p.save();
+  p.setRenderHint(QPainter::Antialiasing, true);
+  // The side columns are narrower, and a small gap separates the U and F
+  // halves, as in Alg-Trainer.
+  constexpr double kSide = 0.55;
+  constexpr double kSpacing = 0.12;
+  double units = 3.0 + 2.0 * (kSide + kSpacing);
+  double cell =
+      std::min(area.width() / units, area.height() / (6.0 + kSpacing));
+  double gap = std::max(1.0, cell * 0.07);
+  double width = units * cell;
+  double height = (6.0 + kSpacing) * cell;
+  QPointF origin(area.center().x() - width / 2, area.center().y() - height / 2);
+  const auto &layout = flatLayout();
+  for (int r = 0; r < kFlatRows; ++r) {
+    double y = origin.y() + r * cell + (r >= 3 ? kSpacing * cell : 0.0);
+    for (int c = 0; c < kFlatColumns; ++c) {
+      double x, w;
+      if (c == 0) {
+        x = origin.x();
+        w = kSide * cell;
+      } else if (c == kFlatColumns - 1) {
+        x = origin.x() + width - kSide * cell;
+        w = kSide * cell;
+      } else {
+        x = origin.x() + (kSide + kSpacing + (c - 1)) * cell;
+        w = cell;
+      }
+      QRectF rect(x + gap / 2, y + gap / 2, w - gap, cell - gap);
+      p.setPen(Qt::NoPen);
+      p.setBrush(look.stickerColour(cube[layout[static_cast<std::size_t>(r)]
+                                               [static_cast<std::size_t>(c)]]));
+      p.drawRoundedRect(rect, cell * 0.1, cell * 0.1);
+    }
+  }
+  p.restore();
+}
+
 void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,
                    const CubeLook &look) {
   p.save();
