@@ -16,6 +16,7 @@ add_executable(vcube_tests
   test_solver.cpp
   test_scramble.cpp
   test_case_logic.cpp
+  test_timer_stats.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_train vcube_warnings
   Catch2::Catch2WithMain)
