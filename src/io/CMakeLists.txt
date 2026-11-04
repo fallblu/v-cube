@@ -1,5 +1,3 @@
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
-
 add_library(vcube_io
   algset_json.cpp
   library.cpp

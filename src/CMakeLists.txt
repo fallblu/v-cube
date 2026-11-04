@@ -1,3 +1,6 @@
 add_subdirectory(cube)
 add_subdirectory(train)
 add_subdirectory(io)
+if(VCUBE_BUILD_APP)
+  add_subdirectory(app)
+endif()
