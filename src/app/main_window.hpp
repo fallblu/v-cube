@@ -42,6 +42,7 @@ private:
   KeySeen lastKey_;
 
   void buildMenus();
+  void openDataFolder();
   void openSettings();
   void importCstimer();
   void exportCstimer();

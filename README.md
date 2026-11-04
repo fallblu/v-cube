@@ -142,6 +142,11 @@ alg…** or **Paste algs…** (with "Create new cases" ticked) builds the cases.
 | Timer sessions | `~/.local/share/v-cube/sessions.json` |
 | Settings (theme, colours, keys, trainer choices) | `~/.config/v-cube/v-cube.conf` |
 
+**File > Open data folder** opens the data folder in your file manager
+(Windows Explorer under WSL, through `wslpath` and `explorer.exe`). If no
+file manager can be started, it shows the data folder and config file paths
+with buttons to copy them.
+
 Built-in sets are copied into the alg-set folder on first run, and are
 then yours to edit. **Restore built-in cases** reloads the shipped cases
 and keeps your algs.

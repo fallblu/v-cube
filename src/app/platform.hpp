@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QString>
+
 namespace vcube {
 
 // True when running under the Windows Subsystem for Linux: WSL_DISTRO_NAME
@@ -11,5 +13,9 @@ bool runningUnderWsl();
 // Wayland surface, popups included, as a separate Windows window, which
 // leaves stale popups behind and loses the window position.
 void selectQtPlatform();
+
+// Opens a folder in the desktop's file manager (Windows Explorer under WSL).
+// Returns false if no file manager could be started.
+bool openFolder(const QString &path);
 
 } // namespace vcube

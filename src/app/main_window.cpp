@@ -1,30 +1,37 @@
 #include "app/main_window.hpp"
 
 #include "app/library_page.hpp"
+#include "app/platform.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/timer_page.hpp"
 #include "app/trainer_page.hpp"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
+#include <QClipboard>
 #include <QCloseEvent>
-#include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
+#include <QGridLayout>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <QKeyEvent>
 #include <QKeySequenceEdit>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextEdit>
-#include <QUrl>
+#include <QVBoxLayout>
 
 namespace vcube {
 
@@ -135,9 +142,7 @@ void MainWindow::buildMenus() {
   file->addAction(tr("Export sessions for cstimer…"), this,
                   &MainWindow::exportCstimer);
   file->addSeparator();
-  file->addAction(tr("Open data folder"), this, [this] {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(dataDir_));
-  });
+  file->addAction(tr("Open data folder"), this, &MainWindow::openDataFolder);
   file->addSeparator();
   file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
 
@@ -148,6 +153,46 @@ void MainWindow::buildMenus() {
   QMenu *help = menuBar()->addMenu(tr("&Help"));
   help->addAction(tr("Keyboard controls"), this, &MainWindow::showControls);
   help->addAction(tr("About v-cube"), this, &MainWindow::showAbout);
+}
+
+void MainWindow::openDataFolder() {
+  if (openFolder(dataDir_)) {
+    return;
+  }
+  // No file manager could be started: show the paths so they can be opened
+  // by hand.
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("Open data folder"));
+  auto *layout = new QVBoxLayout(&dialog);
+  auto *intro = new QLabel(
+      tr("Could not open a file manager. Your files are here:"), &dialog);
+  layout->addWidget(intro);
+  auto *grid = new QGridLayout;
+  const std::pair<QString, QString> rows[] = {
+      {tr("Data folder"), QDir::toNativeSeparators(dataDir_)},
+      {tr("Config file"), QDir::toNativeSeparators(QSettings().fileName())},
+  };
+  int row = 0;
+  for (const auto &[label, path] : rows) {
+    auto *edit = new QLineEdit(path, &dialog);
+    edit->setReadOnly(true);
+    edit->setMinimumWidth(edit->fontMetrics().horizontalAdvance(path) + 24);
+    auto *copy = new QPushButton(tr("Copy"), &dialog);
+    copy->setAutoDefault(false);
+    connect(copy, &QPushButton::clicked, &dialog, [this, path, label] {
+      QGuiApplication::clipboard()->setText(path);
+      showMessage(tr("%1 path copied").arg(label));
+    });
+    grid->addWidget(new QLabel(label, &dialog), row, 0);
+    grid->addWidget(edit, row, 1);
+    grid->addWidget(copy, row, 2);
+    ++row;
+  }
+  layout->addLayout(grid);
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  dialog.exec();
 }
 
 void MainWindow::showMessage(const QString &text) {

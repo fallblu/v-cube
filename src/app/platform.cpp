@@ -1,6 +1,9 @@
 #include "app/platform.hpp"
 
+#include <QDesktopServices>
 #include <QFile>
+#include <QProcess>
+#include <QUrl>
 
 namespace vcube {
 
@@ -24,6 +27,45 @@ void selectQtPlatform() {
   if (runningUnderWsl() && qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
     qputenv("QT_QPA_PLATFORM", "xcb");
   }
+}
+
+namespace {
+
+// Linux path -> Windows path (e.g. \\wsl.localhost\Ubuntu\home\...).
+QString windowsPath(const QString &path) {
+  QProcess p;
+  p.start("wslpath", {"-w", path});
+  if (!p.waitForFinished(5000) || p.exitStatus() != QProcess::NormalExit ||
+      p.exitCode() != 0) {
+    return {};
+  }
+  return QString::fromUtf8(p.readAllStandardOutput()).trimmed();
+}
+
+bool openFolderInExplorer(const QString &path) {
+  QString winPath = windowsPath(path);
+  if (winPath.isEmpty()) {
+    return false;
+  }
+  // explorer.exe exits non-zero even when it succeeds, so a successful start
+  // is all we can check. It is not on PATH when appendWindowsPath=false.
+  for (const QString &explorer :
+       {QStringLiteral("explorer.exe"),
+        QStringLiteral("/mnt/c/Windows/explorer.exe")}) {
+    if (QProcess::startDetached(explorer, {winPath})) {
+      return true;
+    }
+  }
+  return false;
+}
+
+} // namespace
+
+bool openFolder(const QString &path) {
+  if (runningUnderWsl()) {
+    return openFolderInExplorer(path);
+  }
+  return QDesktopServices::openUrl(QUrl::fromLocalFile(path));
 }
 
 } // namespace vcube
