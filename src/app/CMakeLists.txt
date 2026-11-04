@@ -5,7 +5,9 @@ add_library(vcube_gui STATIC
   cube_painter.cpp
   cube_view.cpp
   keymap.cpp
+  library_page.cpp
   main_window.cpp
+  settings_dialog.cpp
   timer_page.cpp
   trainer_page.cpp
   widgets.cpp

@@ -1,5 +1,7 @@
 #include "app/main_window.hpp"
 
+#include "app/library_page.hpp"
+#include "app/settings_dialog.hpp"
 #include "app/timer_page.hpp"
 #include "app/trainer_page.hpp"
 
@@ -49,6 +51,18 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   trainerPage_ = new TrainerPage(settings_, library_, tabs_);
   tabs_->addTab(trainerPage_, tr("Trainer"));
   connect(trainerPage_, &TrainerPage::message, this, &MainWindow::showMessage);
+  libraryPage_ = new LibraryPage(settings_, library_, tabs_);
+  tabs_->addTab(libraryPage_, tr("Library"));
+  connect(libraryPage_, &LibraryPage::message, this, &MainWindow::showMessage);
+  connect(libraryPage_, &LibraryPage::setsChanged, this, [this] {
+    trainerPage_->reloadSets();
+    timerPage_->refreshScrambleTypes();
+  });
+  connect(trainerPage_, &TrainerPage::editCaseRequested, this,
+          [this](const QString &setId, const QString &caseId) {
+            tabs_->setCurrentWidget(libraryPage_);
+            libraryPage_->selectCase(setId, caseId);
+          });
   setCentralWidget(tabs_);
 
   buildMenus();
@@ -110,6 +124,9 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
 
 void MainWindow::buildMenus() {
   QMenu *file = menuBar()->addMenu(tr("&File"));
+  file->addAction(tr("Import alg set…"), this, &MainWindow::importAlgSet);
+  file->addAction(tr("Export alg set…"), this, &MainWindow::exportAlgSet);
+  file->addSeparator();
   file->addAction(tr("Import cstimer sessions…"), this, &MainWindow::importCstimer);
   file->addAction(tr("Export sessions for cstimer…"), this, &MainWindow::exportCstimer);
   file->addSeparator();
@@ -132,11 +149,34 @@ void MainWindow::showMessage(const QString &text) {
   statusBar()->showMessage(text, 8000);
 }
 
-void MainWindow::openSettings() {}
+void MainWindow::openSettings() {
+  if (timerPage_->isBusy()) {
+    return;
+  }
+  SettingsDialog dialog(settings_, this);
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+  bool themeChanged = dialog.result().darkTheme != settings_.darkTheme;
+  settings_ = dialog.result();
+  settings_.save();
+  if (themeChanged) {
+    applyTheme(*qApp, settings_.darkTheme);
+  }
+  timerPage_->applySettings();
+  trainerPage_->applySettings();
+  libraryPage_->applySettings();
+}
 
-void MainWindow::importAlgSet() {}
+void MainWindow::importAlgSet() {
+  tabs_->setCurrentWidget(libraryPage_);
+  libraryPage_->importSetFile();
+}
 
-void MainWindow::exportAlgSet() {}
+void MainWindow::exportAlgSet() {
+  tabs_->setCurrentWidget(libraryPage_);
+  libraryPage_->exportSetFile();
+}
 
 void MainWindow::importCstimer() {
   QString path = QFileDialog::getOpenFileName(this, tr("Import cstimer export"), QString(),
