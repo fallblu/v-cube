@@ -1,0 +1,38 @@
+{
+  "format": "v-cube.algset",
+  "version": 1,
+  "id": "2look-oll",
+  "name": "2-look OLL",
+  "description": "Beginner OLL in two steps: orient the edges (3 cases), then the corners (7 cases).",
+  "builtin": true,
+  "free": "LL:p",
+  "mask": {"llCorners": "orientation", "llEdges": "orientation", "rest": "full"},
+  "view": "top",
+  "aufBefore": true,
+  "aufAfter": true,
+  "targetSeconds": 2.5,
+  "groups": [
+    {
+      "name": "Edge orientation",
+      "free": "LL:p LLC:o",
+      "mask": {"llCorners": "hidden", "llEdges": "orientation", "rest": "full"},
+      "cases": [
+        {"id": "eo-dot", "name": "Dot", "state": "UBULURUFURURRRRRRRFUFFFFFFFDDDDDDDDDLULLLLLLLBUBBBBBBB", "algs": []},
+        {"id": "eo-line", "name": "Line", "state": "UBUUUUUFURRRRRRRRRFUFFFFFFFDDDDDDDDDLLLLLLLLLBUBBBBBBB", "algs": []},
+        {"id": "eo-l", "name": "L shape", "state": "UBULUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLULLLLLLLBUBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Corner orientation (OCLL)",
+      "cases": [
+        {"id": "ocll-27", "name": "Sune (OLL 27)", "state": "LUBUUUUURFRURRRRRRFFUFFFFFFDDDDDDDDDBLLLLLLLLRBUBBBBBB", "algs": []},
+        {"id": "ocll-26", "name": "Antisune (OLL 26)", "state": "BUUUUULUFURRRRRRRRUFRFFFFFFDDDDDDDDDULFLLLLLLBBLBBBBBB", "algs": []},
+        {"id": "ocll-21", "name": "H (OLL 21)", "state": "LURUUULURFRBRRRRRRUFUFFFFFFDDDDDDDDDBLFLLLLLLUBUBBBBBB", "algs": []},
+        {"id": "ocll-22", "name": "Pi (OLL 22)", "state": "BURUUUFURFRBRRRRRRLFUFFFFFFDDDDDDDDDULULLLLLLUBLBBBBBB", "algs": []},
+        {"id": "ocll-23", "name": "Headlights (OLL 23)", "state": "LURUUUUUURRBRRRRRRFFFFFFFFFDDDDDDDDDBLLLLLLLLUBUBBBBBB", "algs": []},
+        {"id": "ocll-24", "name": "Chameleon (OLL 24)", "state": "LUUUUULUURRRRRRRRRUFFFFFFFFDDDDDDDDDBLFLLLLLLBBUBBBBBB", "algs": []},
+        {"id": "ocll-25", "name": "Bowtie (OLL 25)", "state": "BUUUUUUURFRRRRRRRRFFUFFFFFFDDDDDDDDDULLLLLLLLBBLBBBBBB", "algs": []}
+      ]
+    }
+  ]
+}

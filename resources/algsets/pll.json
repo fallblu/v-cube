@@ -1,0 +1,62 @@
+{
+  "format": "v-cube.algset",
+  "version": 1,
+  "id": "pll",
+  "name": "PLL",
+  "description": "Permutation of the last layer: 21 cases.",
+  "builtin": true,
+  "free": "",
+  "mask": {"llCorners": "full", "llEdges": "full", "rest": "full"},
+  "view": "top",
+  "aufBefore": true,
+  "aufAfter": true,
+  "targetSeconds": 3,
+  "groups": [
+    {
+      "name": "Edges only",
+      "cases": [
+        {"id": "Ua", "name": "Ua perm", "state": "UUUUUUUUURLRRRRRRRFRFFFFFFFDDDDDDDDDLFLLLLLLLBBBBBBBBB", "algs": []},
+        {"id": "Ub", "name": "Ub perm", "state": "UUUUUUUUURFRRRRRRRFLFFFFFFFDDDDDDDDDLRLLLLLLLBBBBBBBBB", "algs": []},
+        {"id": "H", "name": "H perm", "state": "UUUUUUUUURLRRRRRRRFBFFFFFFFDDDDDDDDDLRLLLLLLLBFBBBBBBB", "algs": []},
+        {"id": "Z", "name": "Z perm", "state": "UUUUUUUUUFRFRRRRRRLBLFFFFFFDDDDDDDDDBLBLLLLLLRFRBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Corners only",
+      "cases": [
+        {"id": "Aa", "name": "Aa perm", "state": "UUUUUUUUULRFRRRRRRFFBFFFFFFDDDDDDDDDBLLLLLLLLRBRBBBBBB", "algs": []},
+        {"id": "Ab", "name": "Ab perm", "state": "UUUUUUUUUBRBRRRRRRFFRFFFFFFDDDDDDDDDRLLLLLLLLLBFBBBBBB", "algs": []},
+        {"id": "E", "name": "E perm", "state": "UUUUUUUUUBRFRRRRRRLFRFFFFFFDDDDDDDDDFLBLLLLLLRBLBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Adjacent swap",
+      "cases": [
+        {"id": "T", "name": "T perm", "state": "UUUUUUUUUBLFRRRRRRFFRFFFFFFDDDDDDDDDLRLLLLLLLRBBBBBBBB", "algs": []},
+        {"id": "F", "name": "F perm", "state": "UUUUUUUUUBRFRRRRRRFBRFFFFFFDDDDDDDDDLLLLLLLLLRFBBBBBBB", "algs": []},
+        {"id": "Ja", "name": "Ja perm", "state": "UUUUUUUUUFFRRRRRRRLLLFFFFFFDDDDDDDDDRRBLLLLLLBBFBBBBBB", "algs": []},
+        {"id": "Jb", "name": "Jb perm", "state": "UUUUUUUUURLLRRRRRRLFFFFFFFFDDDDDDDDDBBBLLLLLLFRRBBBBBB", "algs": []},
+        {"id": "Ra", "name": "Ra perm", "state": "UUUUUUUUURFLRRRRRRLLFFFFFFFDDDDDDDDDBRBLLLLLLFBRBBBBBB", "algs": []},
+        {"id": "Rb", "name": "Rb perm", "state": "UUUUUUUUULBRRRRRRRRFBFFFFFFDDDDDDDDDFRFLLLLLLBLLBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "G perms",
+      "cases": [
+        {"id": "Ga", "name": "Ga perm", "state": "UUUUUUUUUBLFRRRRRRFRRFFFFFFDDDDDDDDDLBLLLLLLLRFBBBBBBB", "algs": []},
+        {"id": "Gb", "name": "Gb perm", "state": "UUUUUUUUUBFFRRRRRRFBRFFFFFFDDDDDDDDDLRLLLLLLLRLBBBBBBB", "algs": []},
+        {"id": "Gc", "name": "Gc perm", "state": "UUUUUUUUUBLFRRRRRRFBRFFFFFFDDDDDDDDDLFLLLLLLLRRBBBBBBB", "algs": []},
+        {"id": "Gd", "name": "Gd perm", "state": "UUUUUUUUUBBFRRRRRRFLRFFFFFFDDDDDDDDDLRLLLLLLLRFBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Diagonal swap",
+      "cases": [
+        {"id": "Na", "name": "Na perm", "state": "UUUUUUUUURLLRRRRRRBFFFFFFFFDDDDDDDDDLRRLLLLLLFBBBBBBBB", "algs": []},
+        {"id": "Nb", "name": "Nb perm", "state": "UUUUUUUUULLRRRRRRRFFBFFFFFFDDDDDDDDDRRLLLLLLLBBFBBBBBB", "algs": []},
+        {"id": "V", "name": "V perm", "state": "UUUUUUUUURFLRRRRRRBRFFFFFFFDDDDDDDDDLLRLLLLLLFBBBBBBBB", "algs": []},
+        {"id": "Y", "name": "Y perm", "state": "UUUUUUUUULRRRRRRRRFFBFFFFFFDDDDDDDDDRBLLLLLLLBLFBBBBBB", "algs": []}
+      ]
+    }
+  ]
+}

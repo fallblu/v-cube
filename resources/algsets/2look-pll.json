@@ -1,0 +1,34 @@
+{
+  "format": "v-cube.algset",
+  "version": 1,
+  "id": "2look-pll",
+  "name": "2-look PLL",
+  "description": "Beginner PLL in two steps: permute the corners (2 cases), then the edges (4 cases).",
+  "builtin": true,
+  "free": "",
+  "mask": {"llCorners": "full", "llEdges": "full", "rest": "full"},
+  "view": "top",
+  "aufBefore": true,
+  "aufAfter": true,
+  "targetSeconds": 3,
+  "groups": [
+    {
+      "name": "Corner permutation",
+      "free": "LLE:p",
+      "mask": {"llCorners": "full", "llEdges": "orientation", "rest": "full"},
+      "cases": [
+        {"id": "cp-adjacent", "name": "Headlights (adjacent swap)", "state": "UUUUUUUUUBLFRRRRRRFFRFFFFFFDDDDDDDDDLRLLLLLLLRBBBBBBBB", "algs": []},
+        {"id": "cp-diagonal", "name": "Diagonal swap", "state": "UUUUUUUUULRRRRRRRRFFBFFFFFFDDDDDDDDDRBLLLLLLLBLFBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Edge permutation (EPLL)",
+      "cases": [
+        {"id": "ep-Ua", "name": "Ua perm", "state": "UUUUUUUUURLRRRRRRRFRFFFFFFFDDDDDDDDDLFLLLLLLLBBBBBBBBB", "algs": []},
+        {"id": "ep-Ub", "name": "Ub perm", "state": "UUUUUUUUURFRRRRRRRFLFFFFFFFDDDDDDDDDLRLLLLLLLBBBBBBBBB", "algs": []},
+        {"id": "ep-H", "name": "H perm", "state": "UUUUUUUUURLRRRRRRRFBFFFFFFFDDDDDDDDDLRLLLLLLLBFBBBBBBB", "algs": []},
+        {"id": "ep-Z", "name": "Z perm", "state": "UUUUUUUUUFRFRRRRRRLBLFFFFFFDDDDDDDDDBLBLLLLLLRFRBBBBBB", "algs": []}
+      ]
+    }
+  ]
+}

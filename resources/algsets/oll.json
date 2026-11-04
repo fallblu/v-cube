@@ -1,0 +1,143 @@
+{
+  "format": "v-cube.algset",
+  "version": 1,
+  "id": "oll",
+  "name": "OLL",
+  "description": "Orientation of the last layer: 57 cases.",
+  "builtin": true,
+  "free": "LL:p",
+  "mask": {"llCorners": "orientation", "llEdges": "orientation", "rest": "full"},
+  "view": "top",
+  "aufBefore": true,
+  "aufAfter": true,
+  "targetSeconds": 3,
+  "groups": [
+    {
+      "name": "Dot",
+      "cases": [
+        {"id": "oll1", "name": "OLL 1", "state": "BBBLURFFFUUURRRRRRLURFFFFFFDDDDDDDDDUUULLLLLLRULBBBBBB", "algs": []},
+        {"id": "oll2", "name": "OLL 2", "state": "LBRLURFFFUUBRRRRRRLURFFFFFFDDDDDDDDDBUULLLLLLUUUBBBBBB", "algs": []},
+        {"id": "oll3", "name": "OLL 3", "state": "LBBLURUFRFUURRRRRRFUUFFFFFFDDDDDDDDDBULLLLLLLRUUBBBBBB", "algs": []},
+        {"id": "oll4", "name": "OLL 4", "state": "BBRLURLFURUBRRRRRRUUFFFFFFFDDDDDDDDDUUFLLLLLLUULBBBBBB", "algs": []},
+        {"id": "oll17", "name": "OLL 17", "state": "UBBLURLFURUURRRRRRUUFFFFFFFDDDDDDDDDLUFLLLLLLRUBBBBBBB", "algs": []},
+        {"id": "oll18", "name": "OLL 18", "state": "UBULURLFRFURRRRRRRUUUFFFFFFDDDDDDDDDLUFLLLLLLBUBBBBBBB", "algs": []},
+        {"id": "oll19", "name": "OLL 19", "state": "UBULURFFFUURRRRRRRLURFFFFFFDDDDDDDDDLUULLLLLLBUBBBBBBB", "algs": []},
+        {"id": "oll20", "name": "OLL 20", "state": "UBULURUFURURRRRRRRFUFFFFFFFDDDDDDDDDLULLLLLLLBUBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "OCLL (cross)",
+      "cases": [
+        {"id": "oll21", "name": "OLL 21 (H)", "state": "LURUUULURFRBRRRRRRUFUFFFFFFDDDDDDDDDBLFLLLLLLUBUBBBBBB", "algs": []},
+        {"id": "oll22", "name": "OLL 22 (Pi)", "state": "BURUUUFURFRBRRRRRRLFUFFFFFFDDDDDDDDDULULLLLLLUBLBBBBBB", "algs": []},
+        {"id": "oll23", "name": "OLL 23 (Headlights)", "state": "LURUUUUUURRBRRRRRRFFFFFFFFFDDDDDDDDDBLLLLLLLLUBUBBBBBB", "algs": []},
+        {"id": "oll24", "name": "OLL 24 (Chameleon)", "state": "LUUUUULUURRRRRRRRRUFFFFFFFFDDDDDDDDDBLFLLLLLLBBUBBBBBB", "algs": []},
+        {"id": "oll25", "name": "OLL 25 (Bowtie)", "state": "BUUUUUUURFRRRRRRRRFFUFFFFFFDDDDDDDDDULLLLLLLLBBLBBBBBB", "algs": []},
+        {"id": "oll26", "name": "OLL 26 (Antisune)", "state": "BUUUUULUFURRRRRRRRUFRFFFFFFDDDDDDDDDULFLLLLLLBBLBBBBBB", "algs": []},
+        {"id": "oll27", "name": "OLL 27 (Sune)", "state": "LUBUUUUURFRURRRRRRFFUFFFFFFDDDDDDDDDBLLLLLLLLRBUBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Corners oriented",
+      "cases": [
+        {"id": "oll28", "name": "OLL 28", "state": "UUUUURUFURURRRRRRRFUFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB", "algs": []},
+        {"id": "oll57", "name": "OLL 57", "state": "UBUUUUUFURRRRRRRRRFUFFFFFFFDDDDDDDDDLLLLLLLLLBUBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "T shapes",
+      "cases": [
+        {"id": "oll33", "name": "OLL 33", "state": "LBUUUULFURRRRRRRRRUUFFFFFFFDDDDDDDDDBLFLLLLLLBUUBBBBBB", "algs": []},
+        {"id": "oll45", "name": "OLL 45", "state": "BBUUUUFFURRRRRRRRRLUFFFFFFFDDDDDDDDDULULLLLLLBULBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Squares",
+      "cases": [
+        {"id": "oll5", "name": "OLL 5", "state": "UUBUURFFRFUURRRRRRLUUFFFFFFDDDDDDDDDLLULLLLLLRBBBBBBBB", "algs": []},
+        {"id": "oll6", "name": "OLL 6", "state": "BUULUULFFURRRRRRRRUURFFFFFFDDDDDDDDDUUFLLLLLLBBLBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "C shapes",
+      "cases": [
+        {"id": "oll34", "name": "OLL 34", "state": "BBBUUUUFURRURRRRRRFUFFFFFFFDDDDDDDDDULLLLLLLLRULBBBBBB", "algs": []},
+        {"id": "oll46", "name": "OLL 46", "state": "UUBLURUUFUUURRRRRRFFRFFFFFFDDDDDDDDDLULLLLLLLRBBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "W shapes",
+      "cases": [
+        {"id": "oll36", "name": "OLL 36", "state": "UURLUUFFURRBRRRRRRLUFFFFFFFDDDDDDDDDLUULLLLLLUBBBBBBBB", "algs": []},
+        {"id": "oll38", "name": "OLL 38", "state": "LUUUURUFFUURRRRRRRFURFFFFFFDDDDDDDDDBLLLLLLLLBBUBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "P shapes",
+      "cases": [
+        {"id": "oll31", "name": "OLL 31", "state": "LUULUULFURRRRRRRRRUUFFFFFFFDDDDDDDDDBUFLLLLLLBBUBBBBBB", "algs": []},
+        {"id": "oll32", "name": "OLL 32", "state": "UURUURUFRFUBRRRRRRFUUFFFFFFDDDDDDDDDLLLLLLLLLUBBBBBBBB", "algs": []},
+        {"id": "oll43", "name": "OLL 43", "state": "BUULUUFFURRRRRRRRRLUFFFFFFFDDDDDDDDDUUULLLLLLBBLBBBBBB", "algs": []},
+        {"id": "oll44", "name": "OLL 44", "state": "UUBUURUFFUUURRRRRRFURFFFFFFDDDDDDDDDLLLLLLLLLRBBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "I shapes",
+      "cases": [
+        {"id": "oll51", "name": "OLL 51", "state": "LBBUUULFFURURRRRRRUURFFFFFFDDDDDDDDDBLFLLLLLLRUUBBBBBB", "algs": []},
+        {"id": "oll52", "name": "OLL 52", "state": "LUBLURLUFUUURRRRRRUFRFFFFFFDDDDDDDDDBUFLLLLLLRBUBBBBBB", "algs": []},
+        {"id": "oll55", "name": "OLL 55", "state": "LBRUUULFRFRBRRRRRRUUUFFFFFFDDDDDDDDDBLFLLLLLLUUUBBBBBB", "algs": []},
+        {"id": "oll56", "name": "OLL 56", "state": "BBBUUUFFFURURRRRRRLURFFFFFFDDDDDDDDDULULLLLLLRULBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Fish",
+      "cases": [
+        {"id": "oll9", "name": "OLL 9", "state": "BURUURLFURUBRRRRRRUUFFFFFFFDDDDDDDDDULFLLLLLLUBLBBBBBB", "algs": []},
+        {"id": "oll10", "name": "OLL 10", "state": "LBUUURFURFURRRRRRRLFUFFFFFFDDDDDDDDDBLULLLLLLBUUBBBBBB", "algs": []},
+        {"id": "oll35", "name": "OLL 35", "state": "UBBLUULUURRURRRRRRUFFFFFFFFDDDDDDDDDLUFLLLLLLRUBBBBBBB", "algs": []},
+        {"id": "oll37", "name": "OLL 37", "state": "UUBUURLFURUURRRRRRUUFFFFFFFDDDDDDDDDLLFLLLLLLRBBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Knight move",
+      "cases": [
+        {"id": "oll13", "name": "OLL 13", "state": "LBBUUUUFRFRURRRRRRFUUFFFFFFDDDDDDDDDBLLLLLLLLRUUBBBBBB", "algs": []},
+        {"id": "oll14", "name": "OLL 14", "state": "BBRUUULFURRBRRRRRRUUFFFFFFFDDDDDDDDDULFLLLLLLUULBBBBBB", "algs": []},
+        {"id": "oll15", "name": "OLL 15", "state": "UBBUUUFFRFRURRRRRRLUUFFFFFFDDDDDDDDDLLULLLLLLRUBBBBBBB", "algs": []},
+        {"id": "oll16", "name": "OLL 16", "state": "BBUUUULFFURRRRRRRRUURFFFFFFDDDDDDDDDULFLLLLLLBULBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Awkward",
+      "cases": [
+        {"id": "oll29", "name": "OLL 29", "state": "LUUUURLFURURRRRRRRUUFFFFFFFDDDDDDDDDBLFLLLLLLBBUBBBBBB", "algs": []},
+        {"id": "oll30", "name": "OLL 30", "state": "BUBUURUFURUURRRRRRFUFFFFFFFDDDDDDDDDULLLLLLLLRBLBBBBBB", "algs": []},
+        {"id": "oll41", "name": "OLL 41", "state": "LURUURUFURUBRRRRRRFUFFFFFFFDDDDDDDDDBLLLLLLLLUBUBBBBBB", "algs": []},
+        {"id": "oll42", "name": "OLL 42", "state": "UBUUURLURFURRRRRRRUFUFFFFFFDDDDDDDDDLLFLLLLLLBUBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Lightning bolts",
+      "cases": [
+        {"id": "oll7", "name": "OLL 7", "state": "LUBUURUFRFUURRRRRRFUUFFFFFFDDDDDDDDDBLLLLLLLLRBUBBBBBB", "algs": []},
+        {"id": "oll8", "name": "OLL 8", "state": "BURLUULFURRBRRRRRRUUFFFFFFFDDDDDDDDDUUFLLLLLLUBLBBBBBB", "algs": []},
+        {"id": "oll11", "name": "OLL 11", "state": "LUUUURFFRFURRRRRRRLUUFFFFFFDDDDDDDDDBLULLLLLLBBUBBBBBB", "algs": []},
+        {"id": "oll12", "name": "OLL 12", "state": "UURLUULFFURBRRRRRRUURFFFFFFDDDDDDDDDLUFLLLLLLUBBBBBBBB", "algs": []},
+        {"id": "oll39", "name": "OLL 39", "state": "LBUUUUUFFURRRRRRRRFURFFFFFFDDDDDDDDDBLLLLLLLLBUUBBBBBB", "algs": []},
+        {"id": "oll40", "name": "OLL 40", "state": "UBRUUUFFURRBRRRRRRLUFFFFFFFDDDDDDDDDLLULLLLLLUUBBBBBBB", "algs": []}
+      ]
+    },
+    {
+      "name": "Small L shapes",
+      "cases": [
+        {"id": "oll47", "name": "OLL 47", "state": "LUBLUULFFURURRRRRRUURFFFFFFDDDDDDDDDBUFLLLLLLRBUBBBBBB", "algs": []},
+        {"id": "oll48", "name": "OLL 48", "state": "BURUURFFRFUBRRRRRRLUUFFFFFFDDDDDDDDDULULLLLLLUBLBBBBBB", "algs": []},
+        {"id": "oll49", "name": "OLL 49", "state": "BURLUUFFRFRBRRRRRRLUUFFFFFFDDDDDDDDDUUULLLLLLUBLBBBBBB", "algs": []},
+        {"id": "oll50", "name": "OLL 50", "state": "BBRLUUFURFRBRRRRRRLFUFFFFFFDDDDDDDDDUUULLLLLLUULBBBBBB", "algs": []},
+        {"id": "oll53", "name": "OLL 53", "state": "LURLUULFRFRBRRRRRRUUUFFFFFFDDDDDDDDDBUFLLLLLLUBUBBBBBB", "algs": []},
+        {"id": "oll54", "name": "OLL 54", "state": "LURUURLFRFUBRRRRRRUUUFFFFFFDDDDDDDDDBLFLLLLLLUBUBBBBBB", "algs": []}
+      ]
+    }
+  ]
+}
