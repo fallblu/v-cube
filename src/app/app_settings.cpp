@@ -1,5 +1,7 @@
 #include "app/app_settings.hpp"
 
+#include <QCoreApplication>
+#include <QFile>
 #include <QPalette>
 #include <QRegularExpression>
 #include <QSettings>
@@ -7,6 +9,23 @@
 #include <QStyleFactory>
 
 namespace vcube {
+
+void initSettingsStorage() {
+  QSettings::setDefaultFormat(QSettings::IniFormat);
+  QSettings ini;
+  if (QFile::exists(ini.fileName())) {
+    return;
+  }
+  // Earlier versions used the native format: v-cube.conf on Linux, the
+  // registry on Windows.
+  QSettings native(QSettings::NativeFormat, QSettings::UserScope,
+                   QCoreApplication::organizationName(),
+                   QCoreApplication::applicationName());
+  const QStringList keys = native.allKeys();
+  for (const QString &key : keys) {
+    ini.setValue(key, native.value(key));
+  }
+}
 
 AppSettings AppSettings::load() {
   AppSettings s;

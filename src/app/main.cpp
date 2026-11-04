@@ -14,6 +14,7 @@ int main(int argc, char **argv) {
   QApplication::setOrganizationName("v-cube");
   QApplication::setApplicationName("v-cube");
   QApplication::setApplicationVersion(VCUBE_VERSION);
+  vcube::initSettingsStorage();
 
   // Build the solver's tables while the window comes up.
   (void)QtConcurrent::run([] { vcube::TwoPhaseSolver::warmUp(); });
