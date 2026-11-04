@@ -107,6 +107,33 @@ TEST_CASE("library installs built-ins once and saves changes") {
   CHECK(lib.find("pll")->findCase("T")->algs.size() == 1);
 }
 
+TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
+  SetProgress p;
+  p["T"].card.state = CardState::Review;
+  p["T"].record({100, 1500, false, AttemptMode::Drill});
+  p["T"].record({200, 0, true, AttemptMode::Learn});
+  SetProgress back = progressFromJson(progressToJson(p));
+  REQUIRE(back["T"].attempts.size() == 2);
+  CHECK(back["T"].attempts[0].mode == AttemptMode::Drill);
+  CHECK(back["T"].attempts[0].timeMs == 1500);
+  CHECK(back["T"].attempts[1].mode == AttemptMode::Learn);
+  CHECK(back["T"].attempts[1].failed);
+  CHECK(back["T"].card.state == CardState::Review);
+
+  // A file written before attempts had a mode.
+  auto old = QJsonDocument::fromJson(R"({"version": 1, "cases": {"Ua": {
+    "card": {"state": 2, "step": 0, "ease": 2.5, "interval": 4, "due": 5000,
+             "reps": 3, "lapses": 0},
+    "attempts": [[100, 2100, 0], [200, 1900, 1]]}}})");
+  SetProgress loaded = progressFromJson(old.object());
+  REQUIRE(loaded["Ua"].attempts.size() == 2);
+  CHECK(loaded["Ua"].attempts[0].mode == AttemptMode::Drill);
+  CHECK(loaded["Ua"].attempts[1].mode == AttemptMode::Drill);
+  CHECK(loaded["Ua"].attempts[1].failed);
+  CHECK(loaded["Ua"].card.state == CardState::Review);
+  CHECK(loaded["Ua"].best() == 2100);
+}
+
 TEST_CASE("sessions round-trip and convert to and from cstimer") {
   Session s;
   s.name = "Main";

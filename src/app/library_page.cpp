@@ -88,7 +88,7 @@ QString reportText(const ImportReport &r) {
 
 LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
                          QWidget *parent)
-    : QWidget(parent), settings_(settings), library_(library) {
+    : ModePage(parent), settings_(settings), library_(library) {
   // --- sets ---
   auto *left = new QWidget(this);
   auto *leftLayout = new QVBoxLayout(left);
@@ -405,9 +405,8 @@ CubeLook LibraryPage::look() const {
   CubeLook l;
   l.scheme = settings_.scheme;
   QSettings q;
-  QString key = QString("trainer/sets/%1/").arg(qs(setId_));
-  l.map = colourMapFor(q.value(key + "top", 0).toInt(),
-                       q.value(key + "front", 2).toInt())
+  l.map = colourMapFor(q.value(setSettingsKey(setId_, "top"), 0).toInt(),
+                       q.value(setSettingsKey(setId_, "front"), 2).toInt())
               .value_or(kIdentityColourMap);
   return l;
 }
@@ -415,6 +414,11 @@ CubeLook LibraryPage::look() const {
 void LibraryPage::applySettings() {
   buildCaseTree();
   loadCase();
+}
+
+void LibraryPage::activated() {
+  // Learn and Drill may have changed the diagram colours.
+  applySettings();
 }
 
 void LibraryPage::changed(bool rebuildTree) {

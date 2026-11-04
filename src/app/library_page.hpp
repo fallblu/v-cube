@@ -2,9 +2,8 @@
 
 #include "app/app_settings.hpp"
 #include "app/cube_painter.hpp"
+#include "app/mode_page.hpp"
 #include "io/library.hpp"
-
-#include <QWidget>
 
 class QCheckBox;
 class QComboBox;
@@ -21,20 +20,20 @@ namespace vcube {
 
 // Browse and edit alg sets: set settings, groups, cases and each case's
 // algs, plus file import/export and pasting alg lists.
-class LibraryPage : public QWidget {
+class LibraryPage : public ModePage {
   Q_OBJECT
 public:
   LibraryPage(AppSettings &settings, AlgLibrary &library,
               QWidget *parent = nullptr);
 
   void selectCase(const QString &setId, const QString &caseId);
-  void applySettings();
+  void applySettings() override;
+  void activated() override;
   void importSetFile();
   void exportSetFile();
 
 signals:
   void setsChanged();
-  void message(const QString &text);
 
 private:
   AppSettings &settings_;

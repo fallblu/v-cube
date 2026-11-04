@@ -1,40 +1,38 @@
 #pragma once
 
 #include "app/app_settings.hpp"
-#include "app/cube_view.hpp"
+#include "app/mode_page.hpp"
+#include "app/scramble_source.hpp"
 #include "app/widgets.hpp"
 #include "io/library.hpp"
 #include "io/sessions.hpp"
 
-#include <QFutureWatcher>
-#include <QWidget>
+#include <QTimer>
 
-class QCheckBox;
-class QComboBox;
 class QLabel;
+class QMenu;
 class QPushButton;
 class QTableWidget;
+class QToolButton;
 
 namespace vcube {
 
-// cstimer-like timer: scrambles, a space-bar or virtual-cube timer,
-// sessions, statistics and a trend chart.
-class TimerPage : public QWidget {
+// cstimer-like timer for a physical cube: scrambles with a preview net, a
+// space-bar timer with optional inspection, sessions, statistics and a
+// trend chart.
+class TimerPage : public ModePage {
   Q_OBJECT
 public:
   TimerPage(AppSettings &settings, SessionStore &store, AlgLibrary &library,
             QWidget *parent = nullptr);
 
-  // Key events forwarded by the main window; true if used.
-  bool handleKey(QKeyEvent *e, bool press);
+  bool handleKey(QKeyEvent *e, bool press) override;
+  void applySettings() override;
+  bool isBusy() const override; // a solve or inspection is in progress
+  void activated() override;
+  void deactivated() override;
 
-  void applySettings();        // after the settings dialog
-  void reloadSessions();       // after an import
   void refreshScrambleTypes(); // alg sets changed
-  bool isBusy() const;         // a solve or inspection is in progress
-
-signals:
-  void message(const QString &text);
 
 private:
   AppSettings &settings_;
@@ -43,24 +41,15 @@ private:
 
   SolveTimer timer_;
   QTimer tick_;
-  QFutureWatcher<GeneratedScramble> watcher_;
-  std::optional<GeneratedScramble> current_;
-  std::optional<GeneratedScramble> prefetched_;
-  QString prefetchedType_;
-  bool wantNext_ = false;
+  ScrambleFeed feed_;
 
-  // Virtual cube
-  FaceletCube cube_;
-  QStringList solveMoves_;
-  bool virtualScrambled_ = false;
-
-  QComboBox *sessionBox_;
-  QComboBox *typeBox_;
-  QCheckBox *virtualBox_;
+  QToolButton *sessionButton_;
+  QMenu *sessionMenu_;
+  ScrambleTypeBox *typeBox_;
   QLabel *scrambleLabel_;
+  NetPreview *net_;
   TimeDisplay *display_;
   QLabel *statusLabel_;
-  CubeView *cubeView_;
   QTableWidget *table_;
   QLabel *stats_;
   TrendChart *chart_;
@@ -69,14 +58,11 @@ private:
   QPushButton *deleteButton_;
 
   Session &session() { return store_.current(); }
-  QString currentType() const;
-  std::function<CubieCube(Rng &)> stateMaker(const QString &type) const;
-  void requestScramble();
-  void scrambleReady();
   void showScramble();
   void onTick();
   void recordSolve(std::int64_t timeMs, Penalty penalty);
-  void refreshSessionBox();
+  void refreshSessionMenu();
+  void selectSession(std::size_t index);
   void refreshSolves();
   void setLastPenalty(Penalty p);
   void deleteSolve(int index);
@@ -84,8 +70,8 @@ private:
   void addSession();
   void renameSession();
   void deleteSession();
-  void setVirtual(bool on);
-  void virtualMove(Move m);
+  void importCstimer();
+  void exportCstimer();
   void save();
 };
 

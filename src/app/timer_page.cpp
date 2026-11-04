@@ -1,23 +1,22 @@
 #include "app/timer_page.hpp"
 
-#include "train/case_logic.hpp"
-
+#include <QActionGroup>
 #include <QApplication>
-#include <QCheckBox>
 #include <QClipboard>
-#include <QComboBox>
-#include <QGridLayout>
+#include <QFile>
+#include <QFileDialog>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QInputDialog>
+#include <QJsonDocument>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSplitter>
 #include <QTableWidget>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace vcube {
@@ -38,27 +37,23 @@ QString statText(StatValue v, int decimals) {
 
 TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
                      AlgLibrary &library, QWidget *parent)
-    : QWidget(parent), settings_(settings), store_(store), library_(library) {
+    : ModePage(parent), settings_(settings), store_(store), library_(library),
+      feed_(library) {
   // --- left column: sessions, stats, times ---
   auto *left = new QWidget(this);
   auto *leftLayout = new QVBoxLayout(left);
   leftLayout->setContentsMargins(0, 0, 0, 0);
-  auto *sessionRow = new QHBoxLayout;
-  sessionBox_ = new QComboBox(left);
-  sessionBox_->setFocusPolicy(Qt::NoFocus);
-  sessionBox_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  auto *addButton = flatButton("+", left);
-  addButton->setToolTip(tr("New session"));
-  auto *renameButton = flatButton(tr("Rename"), left);
-  auto *removeButton = flatButton(tr("Delete"), left);
-  for (auto *b : {addButton}) {
-    b->setMaximumWidth(32);
-  }
-  sessionRow->addWidget(sessionBox_);
-  sessionRow->addWidget(addButton);
-  sessionRow->addWidget(renameButton);
-  sessionRow->addWidget(removeButton);
-  leftLayout->addLayout(sessionRow);
+  sessionButton_ = new QToolButton(left);
+  sessionButton_->setFocusPolicy(Qt::NoFocus);
+  sessionButton_->setPopupMode(QToolButton::InstantPopup);
+  sessionButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+  sessionButton_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  sessionButton_->setToolTip(
+      tr("Switch, add, rename or delete sessions, or import and export "
+         "cstimer sessions"));
+  sessionMenu_ = new QMenu(sessionButton_);
+  sessionButton_->setMenu(sessionMenu_);
+  leftLayout->addWidget(sessionButton_);
 
   stats_ = new QLabel(left);
   stats_->setTextFormat(Qt::RichText);
@@ -77,25 +72,19 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
       0, QHeaderView::ResizeToContents);
   leftLayout->addWidget(table_, 1);
 
-  // --- right column: scramble, timer, cube, chart ---
+  // --- right column: scramble, timer, chart ---
   auto *right = new QWidget(this);
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
   auto *typeRow = new QHBoxLayout;
-  typeBox_ = new QComboBox(right);
-  typeBox_->setFocusPolicy(Qt::NoFocus);
-  virtualBox_ = new QCheckBox(tr("Virtual cube"), right);
-  virtualBox_->setFocusPolicy(Qt::NoFocus);
-  virtualBox_->setToolTip(
-      tr("Solve on the keyboard-controlled cube: Space scrambles, "
-         "the first turn starts the timer, solving stops it, Esc aborts"));
+  typeBox_ = new ScrambleTypeBox(library_, right);
   auto *nextButton = flatButton(tr("Next scramble"), right);
   typeRow->addWidget(new QLabel(tr("Scramble:"), right));
   typeRow->addWidget(typeBox_, 1);
-  typeRow->addWidget(virtualBox_);
   typeRow->addWidget(nextButton);
   rightLayout->addLayout(typeRow);
 
+  auto *scrambleRow = new QHBoxLayout;
   scrambleLabel_ = new QLabel(right);
   scrambleLabel_->setWordWrap(true);
   scrambleLabel_->setAlignment(Qt::AlignCenter);
@@ -104,9 +93,11 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
   scrambleLabel_->setMinimumHeight(60);
-  rightLayout->addWidget(scrambleLabel_);
+  net_ = new NetPreview(right);
+  scrambleRow->addWidget(scrambleLabel_, 1);
+  scrambleRow->addWidget(net_);
+  rightLayout->addLayout(scrambleRow);
 
-  auto *middle = new QHBoxLayout;
   auto *timeColumn = new QVBoxLayout;
   display_ = new TimeDisplay(right);
   statusLabel_ = new QLabel(right);
@@ -128,11 +119,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   timeColumn->addWidget(statusLabel_);
   timeColumn->addLayout(penaltyRow);
   timeColumn->addStretch();
-  middle->addLayout(timeColumn, 3);
-  cubeView_ = new CubeView(right);
-  cubeView_->setMinimumWidth(260);
-  middle->addWidget(cubeView_, 2);
-  rightLayout->addLayout(middle, 3);
+  rightLayout->addLayout(timeColumn, 3);
 
   chart_ = new TrendChart(right);
   rightLayout->addWidget(chart_, 1);
@@ -148,37 +135,23 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
 
   // --- wiring ---
   connect(&tick_, &QTimer::timeout, this, &TimerPage::onTick);
-  tick_.start(16);
-  connect(&watcher_, &QFutureWatcher<GeneratedScramble>::finished, this,
-          &TimerPage::scrambleReady);
+  connect(&feed_, &ScrambleFeed::currentChanged, this,
+          &TimerPage::showScramble);
   connect(nextButton, &QPushButton::clicked, this, [this] {
     if (!isBusy()) {
-      current_.reset();
-      showScramble();
-      requestScramble();
+      feed_.advance();
     }
   });
-  connect(sessionBox_, &QComboBox::activated, this, [this](int i) {
-    store_.setCurrentIndex(static_cast<std::size_t>(i));
-    int t = typeBox_->findData(qs(session().scrambleType));
-    if (t >= 0 && t != typeBox_->currentIndex()) {
-      typeBox_->setCurrentIndex(t);
-    }
-    refreshSolves();
-    save();
-  });
-  connect(typeBox_, &QComboBox::currentIndexChanged, this, [this] {
-    session().scrambleType = ss(currentType());
-    save();
-    current_.reset();
-    prefetched_.reset();
-    showScramble();
-    requestScramble();
-  });
-  connect(addButton, &QPushButton::clicked, this, &TimerPage::addSession);
-  connect(renameButton, &QPushButton::clicked, this, &TimerPage::renameSession);
-  connect(removeButton, &QPushButton::clicked, this, &TimerPage::deleteSession);
-  connect(virtualBox_, &QCheckBox::toggled, this, &TimerPage::setVirtual);
+  connect(typeBox_, &ScrambleTypeBox::typeChanged, this,
+          [this](const QString &type) {
+            if (session().scrambleType != ss(type)) {
+              session().scrambleType = ss(type);
+              save();
+            }
+            feed_.setType(type);
+          });
+  connect(sessionMenu_, &QMenu::aboutToShow, this,
+          &TimerPage::refreshSessionMenu);
   connect(plus2Button_, &QPushButton::clicked, this,
           [this] { setLastPenalty(Penalty::Plus2); });
   connect(dnfButton_, &QPushButton::clicked, this,
@@ -191,18 +164,9 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   connect(table_, &QTableWidget::customContextMenuRequested, this,
           &TimerPage::showSolveMenu);
 
-  QSettings q;
-  virtualBox_->setChecked(q.value("timer/virtual", false).toBool());
-  cubeView_->setMode(
-      static_cast<CubeView::Mode>(q.value("timer/cubeMode", 0).toInt()));
-  connect(cubeView_, &CubeView::modeChanged, this, [](CubeView::Mode m) {
-    QSettings().setValue("timer/cubeMode", static_cast<int>(m));
-  });
-  setVirtual(virtualBox_->isChecked());
   applySettings();
-  refreshScrambleTypes();
-  refreshSessionBox();
-  refreshSolves();
+  selectSession(store_.currentIndex());
+  feed_.setType(typeBox_->currentType()); // if the type didn't change
 }
 
 bool TimerPage::isBusy() const {
@@ -212,137 +176,37 @@ bool TimerPage::isBusy() const {
          s == SolveTimer::State::Holding || s == SolveTimer::State::Ready;
 }
 
+void TimerPage::activated() { tick_.start(16); }
+
+void TimerPage::deactivated() {
+  tick_.stop();
+  timer_.cancel();
+}
+
 void TimerPage::applySettings() {
   timer_.setConfig({settings_.holdMs, settings_.inspection, 15000});
   display_->setDecimals(settings_.decimals);
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  net_->setScheme(settings_.scheme);
   refreshSolves();
 }
 
-QString TimerPage::currentType() const {
-  QString t = typeBox_->currentData().toString();
-  return t.isEmpty() ? QString("333") : t;
-}
-
 void TimerPage::refreshScrambleTypes() {
-  QString previous =
-      typeBox_->count() ? currentType() : qs(session().scrambleType);
-  QSignalBlocker block(typeBox_);
-  typeBox_->clear();
-  for (const auto &t : scrambleTypes()) {
-    typeBox_->addItem(qs(t.name), qs(t.id));
-  }
-  if (!library_.sets().empty()) {
-    typeBox_->insertSeparator(typeBox_->count());
-    for (const auto &set : library_.sets()) {
-      if (set.caseCount() > 0) {
-        typeBox_->addItem(tr("Alg set: %1").arg(qs(set.name)),
-                          "set:" + qs(set.id));
-      }
-    }
-  }
-  int i = typeBox_->findData(previous);
-  typeBox_->setCurrentIndex(i >= 0 ? i : 0);
-  if (!current_ || previous != currentType()) {
-    current_.reset();
-    prefetched_.reset();
-    showScramble();
-    requestScramble();
-  }
-}
-
-std::function<CubieCube(Rng &)>
-TimerPage::stateMaker(const QString &type) const {
-  if (type.startsWith("set:")) {
-    std::string id = ss(type.mid(4));
-    const AlgSet *set = const_cast<AlgLibrary &>(library_).find(id);
-    if (set && set->caseCount() > 0) {
-      // Practise the trainer's current selection for the set (or all).
-      QStringList selected =
-          QSettings()
-              .value(QString("trainer/sets/%1/selection").arg(qs(id)))
-              .toStringList();
-      struct Entry {
-        CubieCube state;
-        PieceMask free;
-      };
-      std::vector<Entry> pool;
-      for (const auto &g : set->groups) {
-        for (const auto &c : g.cases) {
-          if (selected.isEmpty() || selected.contains(qs(c.id))) {
-            pool.push_back({c.state, set->specFor(g).free});
-          }
-        }
-      }
-      if (pool.empty()) {
-        for (const auto &g : set->groups) {
-          for (const auto &c : g.cases) {
-            pool.push_back({c.state, set->specFor(g).free});
-          }
-        }
-      }
-      bool before = set->aufBefore, after = set->aufAfter;
-      return [pool, before, after](Rng &rng) {
-        std::uniform_int_distribution<std::size_t> pick(0, pool.size() - 1);
-        std::uniform_int_distribution<int> quarter(0, 3);
-        const Entry &e = pool[pick(rng)];
-        CubieCube s = randomState(e.free, rng) * e.state;
-        if (before) {
-          s = s * uTurn(quarter(rng));
-        }
-        if (after) {
-          s = uTurn(quarter(rng)) * s;
-        }
-        return s.isSolved() ? randomState(PieceMask::all(), rng) : s;
-      };
-    }
-  }
-  const ScrambleType *t = findScrambleType(ss(type));
-  ScrambleType st = t ? *t : scrambleTypes().front();
-  return [st](Rng &rng) { return randomStateOf(st, rng); };
-}
-
-void TimerPage::requestScramble() {
-  if (watcher_.isRunning()) {
-    wantNext_ = true;
-    return;
-  }
-  wantNext_ = false;
-  prefetchedType_ = currentType();
-  watcher_.setFuture(generateScramble(stateMaker(prefetchedType_)));
-}
-
-void TimerPage::scrambleReady() {
-  GeneratedScramble result = watcher_.result();
-  bool sameType = prefetchedType_ == currentType();
-  if (sameType) {
-    if (!current_) {
-      current_ = result;
-      showScramble();
-      requestScramble(); // prefetch the one after
-      return;
-    }
-    if (!prefetched_) {
-      prefetched_ = result;
-    }
-  }
-  if (wantNext_ || !current_ || !prefetched_) {
-    requestScramble();
+  QString before = typeBox_->currentType();
+  typeBox_->refresh(); // emits typeChanged if the type went away
+  if (typeBox_->currentType() == before && before.startsWith("set:")) {
+    feed_.regenerate(); // the set's cases or ticks may have changed
   }
 }
 
 void TimerPage::showScramble() {
-  if (!current_) {
+  const auto &current = feed_.current();
+  if (!current) {
     scrambleLabel_->setText(tr("Generating scramble…"));
+    net_->setCube(std::nullopt);
     return;
   }
-  scrambleLabel_->setText(current_->text);
-  if (virtualBox_->isChecked() && !isBusy()) {
-    statusLabel_->setText(tr("Press Space to scramble the virtual cube"));
-  }
+  scrambleLabel_->setText(current->text);
+  net_->setScramble(current->text);
 }
 
 void TimerPage::onTick() {
@@ -360,51 +224,6 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
   std::int64_t now = monotonicMs();
   using S = SolveTimer::State;
 
-  if (virtualBox_->isChecked()) {
-    if (!press) {
-      return false;
-    }
-    if (e->key() == Qt::Key_Escape) {
-      if (timer_.state() == S::Running) {
-        timer_.stopNow(now);
-        timer_.takeResult();
-        recordSolve(timer_.elapsed(now), Penalty::Dnf);
-      } else {
-        timer_.cancel();
-        display_->showTime(0);
-      }
-      virtualScrambled_ = false;
-      cube_ = FaceletCube();
-      cubeView_->setState(cube_);
-      statusLabel_->setText(tr("Press Space to scramble the virtual cube"));
-      return true;
-    }
-    if (e->key() == Qt::Key_Space) {
-      if (timer_.state() == S::Running || !current_) {
-        return true;
-      }
-      // Scramble the virtual cube with the current scramble.
-      cube_ = FaceletCube();
-      cube_.apply(parseAlgOrEmpty(ss(current_->text)));
-      cubeView_->setState(cube_);
-      virtualScrambled_ = true;
-      solveMoves_.clear();
-      timer_.arm(now);
-      display_->showTimer(timer_, now);
-      statusLabel_->setText(
-          timer_.isInspecting()
-              ? tr("Inspecting: the first turn starts the timer")
-              : tr("The first turn starts the timer"));
-      return true;
-    }
-    if (auto m = settings_.keymap.lookup(e)) {
-      virtualMove(*m);
-      return true;
-    }
-    return false;
-  }
-
-  // Physical cube with the space bar.
   if (timer_.state() == S::Running) {
     if (press) {
       timer_.pressStop(now);
@@ -425,7 +244,7 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     return false;
   }
   if (press) {
-    if (!current_ && timer_.state() != S::Inspecting) {
+    if (!feed_.current() && timer_.state() != S::Inspecting) {
       return true; // wait for a scramble
     }
     timer_.pressStart(now);
@@ -439,68 +258,56 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
   return true;
 }
 
-void TimerPage::virtualMove(Move m) {
-  std::int64_t now = monotonicMs();
-  using S = SolveTimer::State;
-  cube_.apply(m);
-  cubeView_->animateMove(m);
-  if (!virtualScrambled_) {
-    return; // free play
-  }
-  if ((timer_.state() == S::Ready || timer_.state() == S::Inspecting) &&
-      !isRotation(m.type)) {
-    timer_.startNow(now);
-    statusLabel_->clear();
-  }
-  if (timer_.state() == S::Running) {
-    solveMoves_ << qs(toString(m));
-    if (cube_.isSolved()) {
-      timer_.stopNow(now);
-      if (auto r = timer_.takeResult()) {
-        recordSolve(r->timeMs, r->penalty);
-      }
-      virtualScrambled_ = false;
-    }
-  }
-}
-
 void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty) {
   Solve s;
   s.timeMs = timeMs;
   s.penalty = penalty;
-  s.scramble = current_ ? ss(current_->text) : std::string();
+  s.scramble = feed_.current() ? ss(feed_.current()->text) : std::string();
   s.timestamp = unixNow();
-  if (virtualBox_->isChecked()) {
-    s.moves = ss(solveMoves_.join(' '));
-    solveMoves_.clear();
-  }
   session().solves.push_back(s);
   display_->showTime(timeMs, penalty);
-  statusLabel_->setText(virtualBox_->isChecked()
-                            ? tr("Press Space to scramble the virtual cube")
-                            : QString());
+  statusLabel_->clear();
   save();
   refreshSolves();
-  // Move on to the next scramble.
-  if (prefetched_ && prefetchedType_ == currentType()) {
-    current_ = prefetched_;
-    prefetched_.reset();
-    showScramble();
-    requestScramble();
-  } else {
-    current_.reset();
-    showScramble();
-    requestScramble();
+  feed_.advance(); // on to the next scramble
+}
+
+void TimerPage::refreshSessionMenu() {
+  sessionMenu_->clear();
+  auto *group = new QActionGroup(sessionMenu_);
+  for (std::size_t i = 0; i < store_.sessions().size(); ++i) {
+    const Session &s = store_.sessions()[i];
+    QAction *a = sessionMenu_->addAction(
+        tr("%1 (%2)").arg(qs(s.name)).arg(s.solves.size()), this,
+        [this, i] { selectSession(i); });
+    a->setCheckable(true);
+    a->setChecked(i == store_.currentIndex());
+    group->addAction(a);
+  }
+  sessionMenu_->addSeparator();
+  sessionMenu_->addAction(tr("New session…"), this, &TimerPage::addSession);
+  sessionMenu_->addAction(tr("Rename…"), this, &TimerPage::renameSession);
+  sessionMenu_->addAction(tr("Delete…"), this, &TimerPage::deleteSession);
+  sessionMenu_->addSeparator();
+  sessionMenu_->addAction(tr("Import from cstimer…"), this,
+                          &TimerPage::importCstimer);
+  sessionMenu_->addAction(tr("Export to cstimer…"), this,
+                          &TimerPage::exportCstimer);
+  // No session changes in the middle of a solve.
+  for (QAction *a : sessionMenu_->actions()) {
+    a->setEnabled(!isBusy());
   }
 }
 
-void TimerPage::refreshSessionBox() {
-  QSignalBlocker block(sessionBox_);
-  sessionBox_->clear();
-  for (const auto &s : store_.sessions()) {
-    sessionBox_->addItem(qs(s.name));
+void TimerPage::selectSession(std::size_t index) {
+  if (isBusy()) {
+    return;
   }
-  sessionBox_->setCurrentIndex(static_cast<int>(store_.currentIndex()));
+  store_.setCurrentIndex(index);
+  sessionButton_->setText(tr("Session: %1").arg(qs(session().name)));
+  typeBox_->setCurrentType(qs(session().scrambleType));
+  refreshSolves();
+  save();
 }
 
 void TimerPage::refreshSolves() {
@@ -647,10 +454,9 @@ void TimerPage::addSession() {
   if (!ok || name.trimmed().isEmpty()) {
     return;
   }
-  store_.addSession(ss(name.trimmed())).scrambleType = ss(currentType());
-  save();
-  refreshSessionBox();
-  refreshSolves();
+  store_.addSession(ss(name.trimmed())).scrambleType =
+      ss(typeBox_->currentType());
+  selectSession(store_.currentIndex());
 }
 
 void TimerPage::renameSession() {
@@ -662,8 +468,7 @@ void TimerPage::renameSession() {
     return;
   }
   session().name = ss(name.trimmed());
-  save();
-  refreshSessionBox();
+  selectSession(store_.currentIndex());
 }
 
 void TimerPage::deleteSession() {
@@ -676,29 +481,57 @@ void TimerPage::deleteSession() {
     return;
   }
   store_.removeSession(store_.currentIndex());
-  save();
-  refreshSessionBox();
-  refreshSolves();
+  selectSession(store_.currentIndex());
 }
 
-void TimerPage::reloadSessions() {
-  refreshSessionBox();
-  int t = typeBox_->findData(qs(session().scrambleType));
-  if (t >= 0) {
-    typeBox_->setCurrentIndex(t);
+void TimerPage::importCstimer() {
+  QString path = QFileDialog::getOpenFileName(
+      this, tr("Import cstimer export"), QString(),
+      tr("cstimer export (*.txt *.json);;All files (*)"));
+  if (path.isEmpty()) {
+    return;
   }
-  refreshSolves();
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly)) {
+    QMessageBox::warning(this, tr("Import"), f.errorString());
+    return;
+  }
+  QString error;
+  auto imported = sessionsFromCstimer(
+      QJsonDocument::fromJson(f.readAll()).object(), &error);
+  if (!imported) {
+    QMessageBox::warning(this, tr("Import"),
+                         tr("Not a cstimer export: %1").arg(error));
+    return;
+  }
+  std::size_t solves = 0;
+  for (auto &s : *imported) {
+    solves += s.solves.size();
+    s.name += " (cstimer)";
+    store_.sessions().push_back(std::move(s));
+  }
+  selectSession(store_.sessions().size() - 1);
+  emit message(tr("Imported %1 sessions with %2 solves")
+                   .arg(imported->size())
+                   .arg(solves));
 }
 
-void TimerPage::setVirtual(bool on) {
-  QSettings().setValue("timer/virtual", on);
-  timer_.cancel();
-  virtualScrambled_ = false;
-  cube_ = FaceletCube();
-  cubeView_->setState(cube_);
-  cubeView_->setVisible(on);
-  statusLabel_->setText(on ? tr("Press Space to scramble the virtual cube")
-                           : QString());
+void TimerPage::exportCstimer() {
+  QString path = QFileDialog::getSaveFileName(
+      this, tr("Export for cstimer"), "v-cube-sessions.txt",
+      tr("cstimer import file (*.txt)"));
+  if (path.isEmpty()) {
+    return;
+  }
+  QString error;
+  QByteArray bytes = QJsonDocument(sessionsToCstimer(store_.sessions()))
+                         .toJson(QJsonDocument::Compact);
+  if (!writeFileAtomically(path, bytes, &error)) {
+    QMessageBox::warning(this, tr("Export"), error);
+    return;
+  }
+  emit message(
+      tr("Exported %1 sessions to %2").arg(store_.sessions().size()).arg(path));
 }
 
 void TimerPage::save() {

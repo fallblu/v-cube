@@ -51,27 +51,34 @@ void startLearning(SrsCard &card, std::int64_t now, const SrsConfig &config);
 void markLearned(SrsCard &card, std::int64_t now, const SrsConfig &config);
 void resetCard(SrsCard &card);
 
-// Automatic grade: Again on a fail or DNF; otherwise by time against the
-// set's target time (Easy <= 60%, Good <= 100%, else Hard).
-Grade gradeFromTime(double seconds, double targetSeconds, bool failed);
+// Learn-mode grade, from correctness rather than time: Good when the case
+// was solved from memory, Again after a hint or giving up.
+Grade learnGrade(bool hinted, bool gaveUp);
 
-// Per-case drill history plus its SRS card.
+// Which mode an attempt was made in. Learn attempts are untimed and drive
+// the SRS card; drill attempts are timed and feed the time statistics.
+enum class AttemptMode : std::uint8_t { Drill, Learn };
+
+// Per-case history plus its SRS card.
 struct Attempt {
   std::int64_t timestamp = 0; // Unix seconds
-  std::int64_t timeMs = 0;
-  bool failed = false;
+  std::int64_t timeMs = 0;    // 0 for learn attempts
+  bool failed = false;        // wrong alg (drill) or hint/give-up (learn)
+  AttemptMode mode = AttemptMode::Drill;
 };
 
 struct CaseProgress {
   SrsCard card;
-  std::vector<Attempt> attempts; // oldest first, capped
+  std::vector<Attempt> attempts; // oldest first, capped per mode
 
-  static constexpr std::size_t kMaxAttempts = 100;
+  static constexpr std::size_t kMaxAttempts = 100; // per mode
   void record(const Attempt &a);
-  // Mean of the last n successful attempts, in ms.
+  // Drill statistics; learn attempts are ignored.
+  // Mean of the last n successful drill attempts, in ms.
   std::optional<double> recentMean(std::size_t n = 5) const;
   std::optional<std::int64_t> best() const;
   double failRate(std::size_t n = 10) const;
+  std::size_t drillCount() const;
 };
 
 // Learning status shown in the case list.
@@ -80,51 +87,61 @@ CaseStatus statusOf(const CaseProgress *p);
 
 using SetProgress = std::map<std::string, CaseProgress>; // by case id
 
-// How the trainer picks the next case.
+// How Drill mode picks the next case.
 enum class PickMode : std::uint8_t {
   Random,   // uniform, never the same case twice in a row
   Weighted, // slow and often-failed cases come up more
-  Recap,    // every case once, in random order
   InOrder,  // in list order
-  Srs,      // due reviews, then new cases up to the daily limit
-};
-
-struct PickResult {
-  std::optional<std::string> caseId;
-  bool isNew = false;                  // SRS: introducing a new case
-  std::optional<std::int64_t> nextDue; // SRS: when the next card is due
-  bool roundComplete = false;          // Recap: everything has been seen
 };
 
 class CasePicker {
 public:
   void setMode(PickMode m);
   PickMode mode() const { return mode_; }
-  // Cases to choose from, in list order. Resets recap/in-order progress if
-  // the pool changed.
+  // Cases to choose from, in list order. Resets in-order progress if the
+  // pool changed.
   void setPool(std::vector<std::string> caseIds);
   const std::vector<std::string> &pool() const { return pool_; }
+  // Reference time for Weighted: cases slower than this come up more.
+  // 0 compares cases with the pool's overall mean instead.
+  void setTargetMs(double ms) { targetMs_ = ms; }
 
-  // `dayStart`: Unix time of the start of the local day, for the SRS
-  // new-cases-per-day limit.
-  PickResult next(const SetProgress &progress, std::int64_t now,
-                  std::int64_t dayStart, const SrsConfig &config,
-                  std::mt19937_64 &rng);
-
-  // Recap progress, e.g. "4 / 21".
-  std::size_t recapDone() const { return recapPos_; }
-  std::size_t recapTotal() const { return recapOrder_.size(); }
+  std::optional<std::string> next(const SetProgress &progress,
+                                  std::mt19937_64 &rng);
 
 private:
   PickMode mode_ = PickMode::Random;
   std::vector<std::string> pool_;
-  std::vector<std::string> recapOrder_;
-  std::size_t recapPos_ = 0;
   std::size_t orderPos_ = 0;
+  double targetMs_ = 0;
   std::string last_;
 };
 
-// Number of cases whose first attempt was at or after `dayStart`.
+// Whether a card is in the learn queue: started with "Start learning" but
+// not reviewed yet.
+bool isQueued(const SrsCard &card);
+
+// Learn mode's next case.
+struct LearnPick {
+  std::optional<std::string> caseId;
+  bool isNew = false;                  // introducing a case from the queue
+  std::optional<std::int64_t> nextDue; // nothing due: when the next card is
+  bool newLimitReached = false;        // queued cases wait for tomorrow
+  int queued = 0;                      // cases waiting in the learn queue
+};
+
+// Due reviews first (earliest first), then due cards in their learning
+// steps, then new cases from the learn queue (in pool order) while fewer
+// than `config.newPerDay` cases were introduced since `dayStart` (the start
+// of the local day). Only when none of those is left do learning cards due
+// within `config.learnAheadSeconds` come up early. `last` is avoided when
+// another case is due.
+LearnPick pickLearnCase(const std::vector<std::string> &pool,
+                        const SetProgress &progress, std::int64_t now,
+                        std::int64_t dayStart, const SrsConfig &config,
+                        const std::string &last = {});
+
+// Number of cases whose first learn attempt was at or after `dayStart`.
 int newCasesIntroducedSince(const SetProgress &progress, std::int64_t dayStart);
 
 } // namespace vcube

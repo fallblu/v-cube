@@ -99,6 +99,19 @@ std::string withAufs(const std::string &alg, AufFit fit) {
   return out;
 }
 
+std::vector<std::size_t> passingAlgs(const AlgSet &set, const CaseGroup &group,
+                                     const AlgCase &c) {
+  std::vector<std::size_t> out;
+  const PieceMask &free = set.specFor(group).free;
+  for (std::size_t i = 0; i < c.algs.size(); ++i) {
+    ParseResult parsed = parseAlg(c.algs[i]);
+    if (parsed && fitAlg(c.state, parsed.alg, free)) {
+      out.push_back(i);
+    }
+  }
+  return out;
+}
+
 std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg) {
   for (std::size_t g = 0; g < set.groups.size(); ++g) {
     const auto &group = set.groups[g];

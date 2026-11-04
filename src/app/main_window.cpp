@@ -1,23 +1,25 @@
 #include "app/main_window.hpp"
 
+#include "app/drill_page.hpp"
+#include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/platform.hpp"
+#include "app/scramble_page.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/timer_page.hpp"
-#include "app/trainer_page.hpp"
+#include "app/virtual_page.hpp"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
+#include <QButtonGroup>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
-#include <QFile>
-#include <QFileDialog>
 #include <QGridLayout>
 #include <QGuiApplication>
-#include <QJsonDocument>
+#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QKeySequenceEdit>
 #include <QLabel>
@@ -27,13 +29,49 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSettings>
+#include <QStackedWidget>
 #include <QStatusBar>
-#include <QTabBar>
-#include <QTabWidget>
 #include <QTextEdit>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace vcube {
+
+namespace {
+
+struct ModeInfo {
+  const char *id; // settings value, e.g. "learn"
+  const char *label;
+};
+
+constexpr std::array<ModeInfo, MainWindow::ModeCount> kModes = {{
+    {"learn", QT_TRANSLATE_NOOP("MainWindow", "Learn")},
+    {"drill", QT_TRANSLATE_NOOP("MainWindow", "Drill")},
+    {"library", QT_TRANSLATE_NOOP("MainWindow", "Library")},
+    {"timer", QT_TRANSLATE_NOOP("MainWindow", "Timer")},
+    {"scramble", QT_TRANSLATE_NOOP("MainWindow", "Scramble")},
+    {"virtual", QT_TRANSLATE_NOOP("MainWindow", "Virtual")},
+}};
+
+int modeFromId(const QString &id) {
+  for (std::size_t i = 0; i < kModes.size(); ++i) {
+    if (id == kModes[i].id) {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
+}
+
+// Settings that earlier versions used and nothing reads any more.
+void removeObsoleteSettings(QSettings &q) {
+  for (const char *key :
+       {"window/tab", "trainer/virtual", "trainer/showScramble",
+        "timer/virtual", "timer/cubeMode"}) {
+    q.remove(key);
+  }
+}
+
+} // namespace
 
 MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     : QMainWindow(parent), settings_(settings), dataDir_(std::move(dataDir)),
@@ -50,28 +88,43 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
             .arg(error));
   }
 
-  tabs_ = new QTabWidget(this);
-  tabs_->setFocusPolicy(Qt::NoFocus);
-  tabs_->tabBar()->setFocusPolicy(Qt::NoFocus);
-  timerPage_ = new TimerPage(settings_, sessions_, library_, tabs_);
-  tabs_->addTab(timerPage_, tr("Timer"));
-  connect(timerPage_, &TimerPage::message, this, &MainWindow::showMessage);
-  trainerPage_ = new TrainerPage(settings_, library_, tabs_);
-  tabs_->addTab(trainerPage_, tr("Trainer"));
-  connect(trainerPage_, &TrainerPage::message, this, &MainWindow::showMessage);
-  libraryPage_ = new LibraryPage(settings_, library_, tabs_);
-  tabs_->addTab(libraryPage_, tr("Library"));
-  connect(libraryPage_, &LibraryPage::message, this, &MainWindow::showMessage);
+  stack_ = new QStackedWidget(this);
+  learnPage_ = new LearnPage(settings_, library_, stack_);
+  drillPage_ = new DrillPage(settings_, library_, stack_);
+  libraryPage_ = new LibraryPage(settings_, library_, stack_);
+  timerPage_ = new TimerPage(settings_, sessions_, library_, stack_);
+  scramblePage_ = new ScramblePage(settings_, library_, stack_);
+  virtualPage_ = new VirtualPage(settings_, library_, stack_);
+  pages_ = {learnPage_, drillPage_,    libraryPage_,
+            timerPage_, scramblePage_, virtualPage_};
+  for (ModePage *page : pages_) {
+    stack_->addWidget(page);
+    connect(page, &ModePage::message, this, &MainWindow::showMessage);
+  }
   connect(libraryPage_, &LibraryPage::setsChanged, this, [this] {
-    trainerPage_->reloadSets();
+    learnPage_->reloadSets();
+    drillPage_->reloadSets();
     timerPage_->refreshScrambleTypes();
+    scramblePage_->refreshScrambleTypes();
+    virtualPage_->refreshScrambleTypes();
   });
-  connect(trainerPage_, &TrainerPage::editCaseRequested, this,
-          [this](const QString &setId, const QString &caseId) {
-            tabs_->setCurrentWidget(libraryPage_);
-            libraryPage_->selectCase(setId, caseId);
-          });
-  setCentralWidget(tabs_);
+  for (CasePage *page : {static_cast<CasePage *>(learnPage_),
+                         static_cast<CasePage *>(drillPage_)}) {
+    connect(page, &CasePage::editCaseRequested, this,
+            [this](const QString &setId, const QString &caseId) {
+              if (setMode(Library)) {
+                libraryPage_->selectCase(setId, caseId);
+              }
+            });
+  }
+
+  auto *central = new QWidget(this);
+  auto *layout = new QHBoxLayout(central);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+  layout->addWidget(buildSidebar());
+  layout->addWidget(stack_, 1);
+  setCentralWidget(central);
 
   buildMenus();
   qApp->installEventFilter(this);
@@ -81,16 +134,107 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   }
   QSettings q;
   restoreGeometry(q.value("window/geometry").toByteArray());
-  tabs_->setCurrentIndex(q.value("window/tab", 0).toInt());
   if (q.value("window/geometry").isNull()) {
-    resize(1200, 780);
+    resize(1280, 800);
   }
+  int mode = modeFromId(q.value("window/mode").toString());
+  if (mode < 0) {
+    // Earlier versions saved a tab: Timer, Trainer or Library.
+    constexpr std::array<int, 3> fromTab = {Timer, Drill, Library};
+    int tab = q.value("window/tab", -1).toInt();
+    mode = tab >= 0 && tab < 3 ? fromTab[static_cast<std::size_t>(tab)] : Learn;
+  }
+  removeObsoleteSettings(q);
+  setMode(mode);
+}
+
+QWidget *MainWindow::buildSidebar() {
+  auto *bar = new QWidget(this);
+  bar->setObjectName("modeSidebar");
+  bar->setAutoFillBackground(true);
+  QPalette pal = bar->palette();
+  pal.setColor(QPalette::Window, palette().color(QPalette::Base));
+  bar->setPalette(pal);
+  bar->setFocusPolicy(Qt::NoFocus);
+  bar->setStyleSheet(
+      "QToolButton { text-align: left; padding: 6px 18px 6px 14px; border: "
+      "none; border-radius: 4px; }"
+      "QToolButton:hover { background: palette(button); }"
+      "QToolButton:checked { background: palette(highlight); color: "
+      "palette(highlighted-text); }");
+  auto *layout = new QVBoxLayout(bar);
+  layout->setContentsMargins(8, 10, 8, 10);
+  layout->setSpacing(2);
+  modeButtons_ = new QButtonGroup(this);
+  modeButtons_->setExclusive(true);
+  auto header = [&](const QString &text) {
+    auto *label = new QLabel(text, bar);
+    QFont f = label->font();
+    f.setBold(true);
+    f.setPointSizeF(f.pointSizeF() * 0.85);
+    label->setFont(f);
+    label->setForegroundRole(QPalette::PlaceholderText);
+    label->setContentsMargins(6, 10, 0, 4);
+    layout->addWidget(label);
+  };
+  for (int m = 0; m < ModeCount; ++m) {
+    if (m == Learn) {
+      header(tr("ALGS"));
+    } else if (m == Timer) {
+      header(tr("SOLVES"));
+    }
+    auto *b = new QToolButton(bar);
+    b->setText(tr(kModes[static_cast<std::size_t>(m)].label));
+    b->setToolTip(tr("%1 (Ctrl+%2)").arg(b->text()).arg(m + 1));
+    b->setCheckable(true);
+    b->setFocusPolicy(Qt::NoFocus);
+    b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    b->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    modeButtons_->addButton(b, m);
+    layout->addWidget(b);
+  }
+  layout->addStretch();
+  connect(modeButtons_, &QButtonGroup::idClicked, this,
+          [this](int m) { setMode(m); });
+  return bar;
+}
+
+ModePage *MainWindow::currentPage() const {
+  return mode_ >= 0 ? pages_[static_cast<std::size_t>(mode_)] : nullptr;
+}
+
+bool MainWindow::setMode(int mode) {
+  mode = std::clamp(mode, 0, ModeCount - 1);
+  ModePage *old = currentPage();
+  if (mode == mode_) {
+    return true;
+  }
+  if (old && old->isBusy()) {
+    // Keep the sidebar on the running mode.
+    modeButtons_->button(mode_)->setChecked(true);
+    showMessage(tr("Finish or cancel the solve (Esc) before switching modes"));
+    return false;
+  }
+  if (old) {
+    // A text field on the old page must not keep the keyboard.
+    if (QWidget *focus = QApplication::focusWidget();
+        focus && old->isAncestorOf(focus)) {
+      focus->clearFocus();
+    }
+    old->deactivated();
+  }
+  mode_ = mode;
+  modeButtons_->button(mode)->setChecked(true);
+  stack_->setCurrentWidget(currentPage());
+  currentPage()->activated();
+  QSettings().setValue("window/mode",
+                       kModes[static_cast<std::size_t>(mode)].id);
+  return true;
 }
 
 void MainWindow::closeEvent(QCloseEvent *e) {
   QSettings q;
   q.setValue("window/geometry", saveGeometry());
-  q.setValue("window/tab", tabs_->currentIndex());
   QMainWindow::closeEvent(e);
 }
 
@@ -121,26 +265,14 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
     return false;
   }
   lastKey_ = seen;
-  bool press = event->type() == QEvent::KeyPress;
-  QWidget *page = tabs_->currentWidget();
-  if (page == timerPage_) {
-    return timerPage_->handleKey(key, press);
-  }
-  if (page == trainerPage_) {
-    return trainerPage_->handleKey(key, press);
-  }
-  return false;
+  ModePage *page = currentPage();
+  return page && page->handleKey(key, event->type() == QEvent::KeyPress);
 }
 
 void MainWindow::buildMenus() {
   QMenu *file = menuBar()->addMenu(tr("&File"));
   file->addAction(tr("Import alg set…"), this, &MainWindow::importAlgSet);
   file->addAction(tr("Export alg set…"), this, &MainWindow::exportAlgSet);
-  file->addSeparator();
-  file->addAction(tr("Import cstimer sessions…"), this,
-                  &MainWindow::importCstimer);
-  file->addAction(tr("Export sessions for cstimer…"), this,
-                  &MainWindow::exportCstimer);
   file->addSeparator();
   file->addAction(tr("Open data folder"), this, &MainWindow::openDataFolder);
   file->addSeparator();
@@ -149,6 +281,17 @@ void MainWindow::buildMenus() {
   QMenu *edit = menuBar()->addMenu(tr("&Edit"));
   edit->addAction(tr("&Settings…"), QKeySequence(Qt::CTRL | Qt::Key_Comma),
                   this, &MainWindow::openSettings);
+
+  QMenu *modes = menuBar()->addMenu(tr("&Mode"));
+  for (int m = 0; m < ModeCount; ++m) {
+    modes->addAction(
+        tr(kModes[static_cast<std::size_t>(m)].label),
+        QKeySequence(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_1 + m)), this,
+        [this, m] { setMode(m); });
+    if (m == Library) {
+      modes->addSeparator();
+    }
+  }
 
   QMenu *help = menuBar()->addMenu(tr("&Help"));
   help->addAction(tr("Keyboard controls"), this, &MainWindow::showControls);
@@ -200,7 +343,7 @@ void MainWindow::showMessage(const QString &text) {
 }
 
 void MainWindow::openSettings() {
-  if (timerPage_->isBusy()) {
+  if (currentPage() && currentPage()->isBusy()) {
     return;
   }
   SettingsDialog dialog(settings_, this);
@@ -213,94 +356,52 @@ void MainWindow::openSettings() {
   if (themeChanged) {
     applyTheme(*qApp, settings_.darkTheme);
   }
-  timerPage_->applySettings();
-  trainerPage_->applySettings();
-  libraryPage_->applySettings();
+  for (ModePage *page : pages_) {
+    page->applySettings();
+  }
 }
 
 void MainWindow::importAlgSet() {
-  tabs_->setCurrentWidget(libraryPage_);
-  libraryPage_->importSetFile();
+  if (setMode(Library)) {
+    libraryPage_->importSetFile();
+  }
 }
 
 void MainWindow::exportAlgSet() {
-  tabs_->setCurrentWidget(libraryPage_);
-  libraryPage_->exportSetFile();
-}
-
-void MainWindow::importCstimer() {
-  QString path = QFileDialog::getOpenFileName(
-      this, tr("Import cstimer export"), QString(),
-      tr("cstimer export (*.txt *.json);;All files (*)"));
-  if (path.isEmpty()) {
-    return;
+  if (setMode(Library)) {
+    libraryPage_->exportSetFile();
   }
-  QFile f(path);
-  if (!f.open(QIODevice::ReadOnly)) {
-    QMessageBox::warning(this, tr("Import"), f.errorString());
-    return;
-  }
-  QString error;
-  auto imported = sessionsFromCstimer(
-      QJsonDocument::fromJson(f.readAll()).object(), &error);
-  if (!imported) {
-    QMessageBox::warning(this, tr("Import"),
-                         tr("Not a cstimer export: %1").arg(error));
-    return;
-  }
-  std::size_t solves = 0;
-  for (auto &s : *imported) {
-    solves += s.solves.size();
-    s.name += " (cstimer)";
-    sessions_.sessions().push_back(std::move(s));
-  }
-  sessions_.setCurrentIndex(sessions_.sessions().size() - 1);
-  sessions_.save(&error);
-  timerPage_->reloadSessions();
-  showMessage(tr("Imported %1 sessions with %2 solves")
-                  .arg(imported->size())
-                  .arg(solves));
-}
-
-void MainWindow::exportCstimer() {
-  QString path = QFileDialog::getSaveFileName(
-      this, tr("Export for cstimer"), "v-cube-sessions.txt",
-      tr("cstimer import file (*.txt)"));
-  if (path.isEmpty()) {
-    return;
-  }
-  QString error;
-  QByteArray bytes = QJsonDocument(sessionsToCstimer(sessions_.sessions()))
-                         .toJson(QJsonDocument::Compact);
-  if (!writeFileAtomically(path, bytes, &error)) {
-    QMessageBox::warning(this, tr("Export"), error);
-    return;
-  }
-  showMessage(tr("Exported %1 sessions to %2")
-                  .arg(sessions_.sessions().size())
-                  .arg(path));
 }
 
 void MainWindow::showControls() {
   QString text = tr(
+      "<h3>Modes</h3>"
+      "<p><b>Ctrl+1</b> to <b>Ctrl+6</b> switch between Learn, Drill, "
+      "Library, Timer, Scramble and Virtual. Switching is blocked while a "
+      "solve or inspection is running.</p>"
+      "<h3>Learn (virtual cube, untimed)</h3>"
+      "<p>Solve the case on the virtual cube from memory. <b>Tab</b> shows "
+      "the algs (grades the case Again), <b>Space</b> gives up, <b>Esc</b> "
+      "resets the case. After the case: <b>Space/Enter</b> next case, "
+      "<b>1–4</b> change the grade (Again/Hard/Good/Easy), <b>Esc</b> resets "
+      "the cube to practise.</p>"
+      "<h3>Drill (physical cube, timed)</h3>"
+      "<p>Hold <b>Space</b> until the time turns green, release to start, "
+      "press any key to stop. After the case: <b>Space</b> next case, "
+      "<b>Backspace</b> toggles \"wrong alg\", <b>Esc</b> tries the case "
+      "again.</p>"
       "<h3>Timer (physical cube)</h3>"
       "<p>Hold <b>Space</b> until the time turns green, release to start, "
-      "press any key "
-      "to stop. With inspection on, tap Space to start inspecting first. "
-      "<b>Esc</b> "
-      "cancels.</p>"
-      "<h3>Virtual cube</h3>"
-      "<p><b>Space</b> scrambles (timer) or gives up (trainer); the first turn "
-      "starts "
-      "the timer and solving stops it. <b>Esc</b> aborts. Click the cube to "
-      "switch "
-      "between 3D, flat and hidden.</p>"
-      "<h3>Trainer</h3>"
-      "<p>After a case: <b>Space/Enter</b> next case, <b>Backspace</b> toggles "
-      "\"wrong alg\", <b>1–4</b> override the grade (Again/Hard/Good/Easy), "
-      "<b>Esc</b> resets the case to try again. <b>Tab</b> reveals the "
-      "algs.</p>"
-      "<h3>Turning keys</h3><p>");
+      "press any key to stop. With inspection on, tap Space to start "
+      "inspecting first. <b>Esc</b> cancels.</p>"
+      "<h3>Scramble</h3>"
+      "<p><b>Space</b> or <b>→</b> shows the next scramble, "
+      "<b>Backspace</b> or <b>←</b> goes back.</p>"
+      "<h3>Virtual</h3>"
+      "<p><b>Space</b> scrambles, <b>Esc</b> resets to solved. In the alg "
+      "field, <b>Enter</b> applies the alg and <b>Esc</b> returns the "
+      "keyboard to the cube.</p>"
+      "<h3>Turning keys (Learn and Virtual)</h3><p>");
   QStringList rows;
   for (const auto &b : settings_.keymap.bindings) {
     rows << QString("<code>%1</code>&nbsp;%2")

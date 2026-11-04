@@ -222,9 +222,9 @@ QJsonObject progressToJson(const SetProgress &p) {
                      {"lapses", c.lapses}};
     QJsonArray attempts;
     for (const auto &a : cp.attempts) {
-      attempts.append(QJsonArray{static_cast<double>(a.timestamp),
-                                 static_cast<double>(a.timeMs),
-                                 a.failed ? 1 : 0});
+      attempts.append(QJsonArray{
+          static_cast<double>(a.timestamp), static_cast<double>(a.timeMs),
+          a.failed ? 1 : 0, a.mode == AttemptMode::Learn ? "learn" : "drill"});
     }
     cases[qs(id)] = QJsonObject{{"card", card}, {"attempts", attempts}};
   }
@@ -248,9 +248,13 @@ SetProgress progressFromJson(const QJsonObject &o) {
     cp.card.lapses = card.value("lapses").toInt();
     for (const auto &av : co.value("attempts").toArray()) {
       QJsonArray a = av.toArray();
-      cp.attempts.push_back({static_cast<std::int64_t>(a.at(0).toDouble()),
-                             static_cast<std::int64_t>(a.at(1).toDouble()),
-                             a.at(2).toInt() != 0});
+      // Files written before Learn mode existed have no mode: their
+      // attempts were all timed, so they count as drill attempts.
+      cp.attempts.push_back(
+          {static_cast<std::int64_t>(a.at(0).toDouble()),
+           static_cast<std::int64_t>(a.at(1).toDouble()), a.at(2).toInt() != 0,
+           a.at(3).toString() == "learn" ? AttemptMode::Learn
+                                         : AttemptMode::Drill});
     }
     p[ss(it.key())] = std::move(cp);
   }

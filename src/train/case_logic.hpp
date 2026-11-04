@@ -31,6 +31,12 @@ std::string withAufs(const std::string &alg, AufFit fit);
 // Text of a U turn by `quarters` ("", "U", "U2", "U'").
 std::string aufText(int quarters);
 
+// Indices of the case's algs that can be read and solve it, in list order.
+// The first is the case's main alg; a case without any is not offered in
+// Learn or Drill.
+std::vector<std::size_t> passingAlgs(const AlgSet &set, const CaseGroup &group,
+                                     const AlgCase &c);
+
 struct CaseRef {
   std::size_t group = 0;
   std::size_t index = 0;

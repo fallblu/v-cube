@@ -151,7 +151,8 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   newPerDaySpin_ = new QSpinBox(learning);
   newPerDaySpin_->setRange(0, 100);
   newPerDaySpin_->setValue(settings_.srs.newPerDay);
-  lForm->addRow(tr("New cases per day (spaced repetition):"), newPerDaySpin_);
+  lForm->addRow(tr("New cases per day (from the learn queue):"),
+                newPerDaySpin_);
   learningEdit_ =
       new QLineEdit(stepsToText(settings_.srs.learningSteps), learning);
   learningEdit_->setToolTip(
@@ -161,10 +162,11 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
       new QLineEdit(stepsToText(settings_.srs.relearningSteps), learning);
   lForm->addRow(tr("Relearning steps (after a miss):"), relearningEdit_);
   lForm->addRow(new QLabel(
-      tr("Each drill is graded from its time against the set's target "
-         "time: a fail or give-up is Again, within 60% of the target Easy, "
-         "within the target Good, slower Hard. Graduated cases come back "
-         "after days, spaced out further each time they go well."),
+      tr("Learn mode grades each case by correctness: solved from memory "
+         "is Good, using Tab to see the algs or giving up is Again, and "
+         "keys 1-4 change the grade afterwards. Graduated cases come back "
+         "after days, spaced out further each time they go well. Drill mode "
+         "never changes the schedule."),
       learning));
   tabs->addTab(learning, tr("Learning"));
 
@@ -213,8 +215,8 @@ void SettingsDialog::setBinding() {
       combo.key() == Qt::Key_Return) {
     QMessageBox::information(
         this, tr("Keyboard"),
-        tr("Space, Esc, Backspace, Tab and Enter are reserved for the timer "
-           "and trainer."));
+        tr("Space, Esc, Backspace, Tab and Enter are reserved for the "
+           "modes' own controls."));
     return;
   }
   KeyBinding b{combo.key(),
