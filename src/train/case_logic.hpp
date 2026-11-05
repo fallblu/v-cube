@@ -113,6 +113,10 @@ struct CaseRef {
 // after it that the set allows.
 std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg);
 
+// The case with the random U turns before and after it that the set asks
+// for, so that it is seen from any side, as Learn and Drill set it up.
+CubieCube withRandomAufs(const AlgSet &set, const CubieCube &state, Rng &rng);
+
 // A drill state for a case: random U turns around it (as the set asks) and
 // the step's free pieces scrambled, so that the case can't be told from
 // the scramble.

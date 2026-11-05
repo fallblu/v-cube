@@ -66,8 +66,8 @@ struct AlgSet {
   std::string description;
   bool builtin = false; // case definitions shipped with the app
   StepSpec spec;
-  bool aufBefore = true;      // drills turn U randomly before the case...
-  bool aufAfter = true;       // ...and after it
+  bool aufBefore = true;      // Learn and Drill turn U randomly before the
+  bool aufAfter = true;       // case, and after it
   double targetSeconds = 3.0; // SRS grading reference time per case
   std::vector<CaseGroup> groups;
 

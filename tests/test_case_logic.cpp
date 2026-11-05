@@ -3,6 +3,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <set>
+
 using namespace vcube;
 
 namespace {
@@ -118,6 +120,22 @@ TEST_CASE("the case an alg solves allows for the alg's cube rotations") {
     CHECK(fit->before == 0);
     CHECK(fit->after == 0);
   }
+}
+
+TEST_CASE("learn cases come from any side when the set allows AUFs") {
+  AlgSet set = ollLikeSet();
+  const AlgCase &sune = *set.findCase("sune");
+  Rng rng(3);
+  std::set<std::string> seen;
+  for (int i = 0; i < 200; ++i) {
+    CubieCube s = withRandomAufs(set, sune.state, rng);
+    CHECK(fitAlg(s, parseAlgOrEmpty("R U R' U R U2 R'"), set.spec.free));
+    seen.insert(s.toFacelets().toString());
+  }
+  CHECK(seen.size() == 16); // 4 U turns before, 4 after
+  set.aufBefore = false;
+  set.aufAfter = false;
+  CHECK(withRandomAufs(set, sune.state, rng) == sune.state);
 }
 
 TEST_CASE("drill states keep the case and can be solved with an AUF") {

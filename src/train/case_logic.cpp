@@ -527,11 +527,9 @@ std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg) {
   return std::nullopt;
 }
 
-CubieCube drillState(const AlgSet &set, const CaseGroup &group,
-                     const AlgCase &c, Rng &rng) {
+CubieCube withRandomAufs(const AlgSet &set, const CubieCube &state, Rng &rng) {
   std::uniform_int_distribution<int> quarter(0, 3);
-  CubieCube rest = randomState(set.specFor(group).free, rng);
-  CubieCube s = rest * c.state;
+  CubieCube s = state;
   if (set.aufBefore) {
     s = s * uTurn(quarter(rng));
   }
@@ -539,6 +537,12 @@ CubieCube drillState(const AlgSet &set, const CaseGroup &group,
     s = uTurn(quarter(rng)) * s;
   }
   return s;
+}
+
+CubieCube drillState(const AlgSet &set, const CaseGroup &group,
+                     const AlgCase &c, Rng &rng) {
+  CubieCube rest = randomState(set.specFor(group).free, rng);
+  return withRandomAufs(set, rest * c.state, rng);
 }
 
 CubieCube stateSolvedBy(const Alg &alg) {

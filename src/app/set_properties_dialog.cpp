@@ -59,12 +59,12 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   aufBeforeBox_->setChecked(set_.aufBefore);
   aufAfterBox_->setChecked(set_.aufAfter);
   aufBeforeBox_->setToolTip(
-      tr("Drills turn U randomly before the case, and algs may need a U "
-         "turn first"));
+      tr("Learn and Drill turn U randomly before the case, and algs may need "
+         "a U turn first"));
   aufAfterBox_->setToolTip(
-      tr("Drills turn U randomly after the case, and algs may need a U "
-         "turn at the end"));
-  form->addRow(tr("Drills:"), aufBeforeBox_);
+      tr("Learn and Drill turn U randomly after the case, and algs may need "
+         "a U turn at the end"));
+  form->addRow(tr("Learn and Drill:"), aufBeforeBox_);
   form->addRow(QString(), aufAfterBox_);
   targetSpin_ = new QDoubleSpinBox(general);
   targetSpin_->setRange(0.3, 60.0);

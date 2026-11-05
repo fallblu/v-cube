@@ -22,7 +22,9 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
 
 - **Learn**: learn the cases of an alg set on the virtual cube.
   - Each case is set up on the cube and you solve it from memory, with no
-    timer. The algs stay hidden until you press Tab.
+    timer. The algs stay hidden until you press Tab. When the set has
+    random U turns before and after its cases (as Drill uses), the case
+    comes from a random side, so you learn to recognise it from any angle.
   - Solving the case with one of its algs and without a hint grades it
     Good; a hint, giving up or leaving the algs grades it Again. Keys 1-4
     change the grade afterwards.
@@ -67,8 +69,8 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     selected case with its diagram and algs. The **Set** menu (also on
     right-click) creates, duplicates, deletes, imports, exports and checks
     sets; **Edit** (also on right-click) adds and renames groups and cases.
-  - **Set properties…** (or double-click a set) edits the name,
-    description, random U turns around drilled cases, target time, and the
+  - **Set properties…** (or double-click a set) edits the name, description,
+    random U turns around cases in Learn and Drill, target time, and the
     step settings for the whole set or as a group's own override: what the
     algs may leave unsolved (e.g. "last-layer permutation" for OLL-like
     sets) and how diagrams look (full colour, top colour only or grey; from

@@ -402,13 +402,16 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
     return;
   }
   Hold hold = pickHold();
-  current_ = Current{caseId, info->state, hold, isNew, practice};
+  // From a random side, as in Drill, when the set asks for random U turns.
+  CubieCube start =
+      set() ? withRandomAufs(*set(), info->state, rng_) : info->state;
+  current_ = Current{caseId, start, hold, isNew, practice};
   last_ = caseId;
   hinted_ = false;
   gaveUp_ = false;
   leftAlgs_ = false;
   gradeReplaced_ = false;
-  follower_ = AlgFollower(info->state.toFacelets(), shownAlgs(caseId));
+  follower_ = AlgFollower(start.toFacelets(), shownAlgs(caseId));
   reveal_->clear();
   gradeRow_->setVisible(false);
   cubeView_->setColourMap(colourMapOf(hold));
