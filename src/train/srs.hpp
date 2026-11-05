@@ -131,12 +131,13 @@ struct LearnPick {
   int queued = 0;                      // cases waiting in the learn queue
 };
 
-// Due reviews first (earliest first), then due cards in their learning
-// steps, then new cases from the learn queue (in pool order) while fewer
-// than `config.newPerDay` cases were introduced since `dayStart` (the start
-// of the local day). Only when none of those is left do learning cards due
-// within `config.learnAheadSeconds` come up early. `last` is avoided when
-// another case is due.
+// Due cards in their learning steps first, so that their short steps keep
+// to time, then due reviews (both earliest first), then new cases
+// from the learn queue (in pool order) while fewer than `config.newPerDay`
+// cases were introduced since `dayStart` (the start of the local day). Only
+// when none of those is left do learning cards due within
+// `config.learnAheadSeconds` come up early. `last` is avoided when another
+// case is due.
 LearnPick pickLearnCase(const std::vector<std::string> &pool,
                         const SetProgress &progress, std::int64_t now,
                         std::int64_t dayStart, const SrsConfig &config,

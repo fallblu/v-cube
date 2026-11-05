@@ -307,9 +307,9 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
   bool canIntroduce =
       newCasesIntroducedSince(progress, dayStart) < config.newPerDay;
 
-  if (const auto *id = earliest(inReview, now)) {
+  if (const auto *id = earliest(inSteps, now)) {
     r.caseId = *id;
-  } else if (const auto *id2 = earliest(inSteps, now)) {
+  } else if (const auto *id2 = earliest(inReview, now)) {
     r.caseId = *id2;
   } else if (!queued.empty() && canIntroduce) {
     r.caseId = queued.front();

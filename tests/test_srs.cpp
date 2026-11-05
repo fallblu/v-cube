@@ -62,7 +62,7 @@ TEST_CASE("attempts are capped per mode") {
   CHECK(p.attempts.back().timestamp == 150);
 }
 
-TEST_CASE("learn picks due reviews, then learning cards, then the queue") {
+TEST_CASE("learn picks learning cards, then due reviews, then the queue") {
   SrsConfig cfg;
   cfg.newPerDay = 1;
   cfg.learnAheadSeconds = 0;
@@ -77,19 +77,19 @@ TEST_CASE("learn picks due reviews, then learning cards, then the queue") {
   prog["learning"].card.due = now - 10;
   prog["review"].card.state = CardState::Review;
   prog["review"].card.reps = 3;
-  prog["review"].card.due = now - 5; // due later than "learning", still first
+  prog["review"].card.due = now - 50; // due earlier, still after "learning"
 
   auto r = pickLearnCase(pool, prog, now, 0, cfg);
   REQUIRE(r.caseId);
-  CHECK(*r.caseId == "review");
+  CHECK(*r.caseId == "learning");
   CHECK_FALSE(r.isNew);
   CHECK(r.queued == 2);
 
-  prog["review"].card.due = now + 3 * kSecondsPerDay;
-  r = pickLearnCase(pool, prog, now, 0, cfg);
-  CHECK(*r.caseId == "learning");
-
   prog["learning"].card.due = now + 600;
+  r = pickLearnCase(pool, prog, now, 0, cfg);
+  CHECK(*r.caseId == "review");
+
+  prog["review"].card.due = now + 3 * kSecondsPerDay;
   r = pickLearnCase(pool, prog, now, 0, cfg);
   REQUIRE(r.caseId);
   CHECK(*r.caseId == "queued1"); // from the queue, in pool order
