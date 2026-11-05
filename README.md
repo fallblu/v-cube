@@ -39,10 +39,14 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     with Esc once the alg is begun leaves the algs. The status line says
     so straight away, and your moves are shown under the algs after the
     case.
-  - Cases are scheduled Anki-style: due reviews first, then cases in their
-    learning steps (minutes apart), then new cases from your learn queue,
-    up to a daily limit. "Start learning" adds the next N ticked cases to
-    the queue.
+  - Cases are scheduled Anki-style: cases in their learning steps (minutes
+    apart) first, then reviews due today (a review is due all day on the
+    day it falls due), then new cases from your learn queue, up to a daily
+    limit. "Start learning" adds the next N ticked cases to the queue (type
+    N and press Enter to do the same).
+  - "Learn this case now" (right-click a case) on a learned case that isn't
+    due yet is a practice run: you see how you did, but the schedule
+    doesn't change.
   - When the case is solved you see your algs with the AUFs it needed, e.g.
     `(U') R U R' U' ... (U2)`. A U turn written at the start or end of an
     alg joins the AUF on that side, so `(U2) R U R'` that needs a U first
@@ -305,6 +309,10 @@ ticked) builds the cases. If you change a set's step settings later,
 | Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
 | Settings (theme, colours, keys, mode choices) | `~/.config/v-cube/v-cube.ini` | `%APPDATA%\v-cube\v-cube.ini` |
 
+A file that can't be read (e.g. cut short by a crash) is never saved
+over: it is renamed to `<name>.unreadable-<date>-<time>` next to where it
+was, the app says so when it starts, and that data starts afresh.
+
 Settings are an INI file on every platform; Windows doesn't use the
 registry. Earlier versions kept them in `~/.config/v-cube/v-cube.conf`.
 Those settings are copied to `v-cube.ini` the first time a newer version
@@ -316,8 +324,9 @@ file manager can be started, it shows the data folder and config file paths
 with buttons to copy them.
 
 Built-in sets are copied into the alg-set folder on first run, and are
-then yours to edit. **Set > Restore built-in cases** reloads the shipped
-cases and keeps your algs.
+then yours to edit. **Set > Restore built-in cases** brings back the
+shipped cases (their names and states, and any you deleted) and keeps your
+algs, the cases and groups you added and the set's settings.
 
 Alg-set files look like this (states are 54-character facelet strings in
 URFDLB order; `free` lists what the step may leave unsolved, e.g. `LL:p` =
