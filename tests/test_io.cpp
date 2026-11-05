@@ -336,6 +336,36 @@ TEST_CASE("set ids that share a file name are kept apart") {
   CHECK(again.find(id));
 }
 
+TEST_CASE("restoring built-in cases keeps the user's cases and settings") {
+  QTemporaryDir tmp;
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  AlgSet &pll = *lib.find("pll");
+  pll.targetSeconds = 1.5;
+  pll.aufAfter = false;
+  pll.findCase("T")->algs.push_back("R U R' U' R' F R2 U' R' U' R U R' F'");
+  pll.findCase("T")->name = "Renamed";
+  std::erase_if(pll.groups.front().cases,
+                [](const AlgCase &c) { return c.id == "Ua"; });
+  AlgCase mine;
+  mine.id = "mine";
+  mine.name = "Mine";
+  mine.algs = {"R U R'"};
+  pll.groups.back().cases.push_back(mine);
+  pll.groups.push_back({"My group", std::nullopt, {}});
+  int cases = pll.caseCount();
+  REQUIRE(lib.restoreBuiltin("pll"));
+  const AlgSet &after = *lib.find("pll");
+  CHECK(after.caseCount() == cases + 1); // Ua is back
+  CHECK(after.findCase("Ua"));
+  CHECK(after.findCase("mine"));
+  CHECK(after.groups.back().name == "My group");
+  CHECK(after.findCase("T")->name != "Renamed");
+  CHECK(after.findCase("T")->algs.size() == 1);
+  CHECK(after.targetSeconds == 1.5);
+  CHECK_FALSE(after.aufAfter);
+}
+
 TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   SetProgress p;
   p["T"].card.state = CardState::Review;

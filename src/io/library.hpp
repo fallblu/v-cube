@@ -38,8 +38,9 @@ public:
   bool idTaken(const std::string &id) const;
   std::string uniqueId(const std::string &base) const;
 
-  // Replaces a built-in set's cases and settings with the shipped ones,
-  // keeping the user's algs for cases that still exist.
+  // Brings back a built-in set's shipped cases: their names and states
+  // replace the user's and deleted ones return, while the user's algs, the
+  // cases and groups they added and the set's settings are kept.
   bool restoreBuiltin(const std::string &id, QString *error = nullptr);
   QStringList builtinIds() const;
 

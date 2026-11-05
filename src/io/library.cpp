@@ -194,19 +194,32 @@ bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
     if (!shipped || shipped->id != id) {
       continue;
     }
-    if (AlgSet *current = find(id)) {
-      for (auto &g : shipped->groups) {
-        for (auto &c : g.cases) {
-          if (const AlgCase *old = current->findCase(c.id)) {
-            c.algs = old->algs;
-          }
+    AlgSet *current = find(id);
+    if (!current) {
+      sets_.push_back(*shipped);
+      return save(*shipped, error);
+    }
+    // Shipped cases go back into the group of that name (made again if the
+    // user deleted it); everything else of the user's stays.
+    for (const CaseGroup &sg : shipped->groups) {
+      auto group =
+          std::find_if(current->groups.begin(), current->groups.end(),
+                       [&sg](const CaseGroup &g) { return g.name == sg.name; });
+      if (group == current->groups.end()) {
+        current->groups.push_back({sg.name, sg.spec, {}});
+        group = current->groups.end() - 1;
+      }
+      for (const AlgCase &sc : sg.cases) {
+        if (AlgCase *c = current->findCase(sc.id)) {
+          c->name = sc.name;
+          c->state = sc.state;
+        } else {
+          group->cases.push_back(sc);
         }
       }
-      *current = *shipped;
-    } else {
-      sets_.push_back(*shipped);
     }
-    return save(*shipped, error);
+    current->builtin = true;
+    return save(*current, error);
   }
   if (error) {
     *error = "no built-in set with that id";

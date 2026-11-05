@@ -703,6 +703,15 @@ void LibraryPage::restoreSet() {
   if (!s || !s->builtin) {
     return;
   }
+  auto answer = QMessageBox::question(
+      this, tr("Restore built-in cases"),
+      tr("Restore the built-in cases of %1? Cases you deleted come back, and "
+         "the shipped names and states replace yours. Your algs, the cases "
+         "and groups you added and the set's settings are kept.")
+          .arg(qs(s->name)));
+  if (answer != QMessageBox::Yes) {
+    return;
+  }
   QString error;
   if (!library_.restoreBuiltin(setId_, &error)) {
     QMessageBox::warning(this, tr("Restore"), error);
@@ -711,7 +720,8 @@ void LibraryPage::restoreSet() {
   loadSet();
   refreshSetList();
   emit setsChanged();
-  emit message(tr("Restored the built-in cases of %1; your algs were kept.")
+  emit message(tr("Restored the built-in cases of %1; your algs, cases and "
+                  "settings were kept.")
                    .arg(qs(set()->name)));
 }
 
