@@ -491,7 +491,7 @@ void LearnPage::setPhase(Phase p) {
 
 void LearnPage::showSolvingStatus() {
   static const QString warning = "color: #ffb030";
-  QString keys = tr("Tab shows the algs, Space gives up, Esc resets.");
+  QString keys = tr("Tab shows the algs, Shift+Space gives up, Esc resets.");
   if (follower_.deviated()) {
     statusLabel_->setText(
         (follower_.startedOver()
@@ -535,9 +535,13 @@ bool LearnPage::handleKey(QKeyEvent *e, bool press) {
       return true;
     }
     if (key == Qt::Key_Space) {
-      gaveUp_ = true;
-      finish();
-      resetCube(); // so the alg can be tried
+      // Space alone goes on to the next case once this one is done, so a
+      // double tap mustn't give up the next one too.
+      if (e->modifiers().testFlag(Qt::ShiftModifier)) {
+        gaveUp_ = true;
+        finish();
+        resetCube(); // so the alg can be tried
+      }
       return true;
     }
     if (key == Qt::Key_Escape) {

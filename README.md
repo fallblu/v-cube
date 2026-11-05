@@ -254,7 +254,7 @@ picks the plugin as usual.
 | Anywhere | Ctrl+Shift+N | colour neutrality settings |
 | Learn | turning keys | turn the virtual cube; solving the case finishes it |
 | Learn | Tab | show the algs (grades the case Again) |
-| Learn | Space | give up (grades the case Again) |
+| Learn | Shift+Space | give up (grades the case Again) |
 | Learn | Esc | reset the case (grades it Again once the alg is begun) |
 | Learn, after a case | Space / Enter | next case |
 | Learn, after a case | 1-4 | grade Again / Hard / Good / Easy |
