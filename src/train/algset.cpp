@@ -223,7 +223,8 @@ std::optional<StickerMode> parseStickerMode(std::string_view s) {
   return std::nullopt;
 }
 
-FaceletCube maskedFacelets(const CubieCube &state, const DiagramMask &mask) {
+FaceletCube maskedFacelets(const CubieCube &state, const DiagramMask &mask,
+                           const PieceMask &free) {
   FaceletCube f = state.toFacelets();
   auto applyMode = [&f](StickerMode mode, auto facelets) {
     for (auto idx : facelets) {
@@ -235,11 +236,17 @@ FaceletCube maskedFacelets(const CubieCube &state, const DiagramMask &mask) {
       }
     }
   };
+  // By position, a slot is a last-layer one; by piece, the piece in it
+  // is a last-layer piece or one the step leaves free.
   for (std::size_t i = 0; i < kCorners; ++i) {
-    applyMode(i < 4 ? mask.llCorners : mask.rest, kCornerFacelets[i]);
+    std::size_t piece = state.cp[i];
+    bool ll = mask.byPiece ? piece < 4 || free.cp[piece] : i < 4;
+    applyMode(ll ? mask.llCorners : mask.rest, kCornerFacelets[i]);
   }
   for (std::size_t i = 0; i < kEdges; ++i) {
-    applyMode(i < 4 ? mask.llEdges : mask.rest, kEdgeFacelets[i]);
+    std::size_t piece = state.ep[i];
+    bool ll = mask.byPiece ? piece < 4 || free.ep[piece] : i < 4;
+    applyMode(ll ? mask.llEdges : mask.rest, kEdgeFacelets[i]);
   }
   return f;
 }

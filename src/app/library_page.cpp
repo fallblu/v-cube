@@ -438,9 +438,10 @@ void LibraryPage::buildCaseTree() {
       const CaseAnalysis *a = analysisOf(c.id);
       auto *item = new QTreeWidgetItem(groupItem, {qs(c.name)});
       item->setData(0, kCaseRole, qs(c.id));
-      item->setIcon(0, QIcon(cube_painter::diagram(
-                           maskedFacelets(a ? a->display : c.state, spec.mask),
-                           spec.view, 40, l, dpr)));
+      item->setIcon(
+          0, QIcon(cube_painter::diagram(
+                 maskedFacelets(a ? a->display : c.state, spec.mask, spec.free),
+                 spec.view, 40, l, dpr)));
       item->setText(1, QString::number(c.algs.size()));
       int failing = a ? a->failing() : 0;
       groupFailing += failing;
@@ -498,8 +499,8 @@ void LibraryPage::loadCase() {
   const StepSpec &spec = s->specFor(*s->groupOf(c->id));
   const CaseAnalysis *a = analysisOf(c->id);
   caseDiagram_->setPixmap(cube_painter::diagram(
-      maskedFacelets(a ? a->display : c->state, spec.mask), spec.view, 120,
-      look(), devicePixelRatioF()));
+      maskedFacelets(a ? a->display : c->state, spec.mask, spec.free),
+      spec.view, 120, look(), devicePixelRatioF()));
   if (a && a->main) {
     caseSummary_->setText(
         tr("Shown as the main alg starts: %1").arg(qs(a->mainAlg)));
@@ -646,7 +647,8 @@ void LibraryPage::newSet() {
                    StickerMode::Full};
   } else if (k == 2) {
     s.spec.free = *parseFree("LL:po");
-    s.spec.mask = {StickerMode::Hidden, StickerMode::Hidden, StickerMode::Full};
+    s.spec.mask = {StickerMode::Hidden, StickerMode::Hidden, StickerMode::Full,
+                   true};
     s.spec.view = DiagramView::Iso3D;
     s.aufBefore = true;
     s.aufAfter = false;

@@ -138,6 +138,52 @@ TEST_CASE("masked facelets hide what the step ignores") {
   CHECK(grey == 12); // the 12 LL side stickers that are not U-coloured
 }
 
+TEST_CASE("masks by piece keep F2L pieces in the top layer coloured") {
+  // The case R U' R' solves has the FR pair in the top layer, and an LL
+  // corner and edge in the FR slot.
+  CubieCube s = stateSolvedBy(parseAlgOrEmpty("R U' R'"));
+  DiagramMask byPosition{StickerMode::Hidden, StickerMode::Hidden,
+                         StickerMode::Full};
+  DiagramMask byPiece = byPosition;
+  byPiece.byPiece = true;
+  auto colouredAt = [](const FaceletCube &f, std::size_t pos, bool corner) {
+    int n = 0;
+    if (corner) {
+      for (auto i : kCornerFacelets[pos]) {
+        n += f[i] != kMaskedColour;
+      }
+    } else {
+      for (auto i : kEdgeFacelets[pos]) {
+        n += f[i] != kMaskedColour;
+      }
+    }
+    return n;
+  };
+  std::size_t cornerAt = 0, edgeAt = 0;
+  for (std::size_t i = 0; i < kCorners; ++i) {
+    cornerAt = s.cp[i] == DFR ? i : cornerAt;
+  }
+  for (std::size_t i = 0; i < kEdges; ++i) {
+    edgeAt = s.ep[i] == FR ? i : edgeAt;
+  }
+  REQUIRE(cornerAt < 4);
+  REQUIRE(edgeAt < 4);
+  FaceletCube pos = maskedFacelets(s, byPosition);
+  CHECK(colouredAt(pos, cornerAt, true) == 0);
+  CHECK(colouredAt(pos, DFR, true) == 3); // an LL corner, by position
+  FaceletCube piece = maskedFacelets(s, byPiece);
+  CHECK(colouredAt(piece, cornerAt, true) == 3);
+  CHECK(colouredAt(piece, edgeAt, false) == 2);
+  CHECK(colouredAt(piece, DFR, true) == 0);
+  CHECK(colouredAt(piece, FR, false) == 0);
+  // F2L pieces the step leaves free are drawn like LL pieces.
+  PieceMask free = *parseFree("LL:p LLC:o DRB:po BR:p");
+  FaceletCube freeBr = maskedFacelets(CubieCube{}, byPiece, free);
+  CHECK(colouredAt(freeBr, DRB, true) == 0);
+  CHECK(colouredAt(freeBr, BR, false) == 0);
+  CHECK(colouredAt(freeBr, DFR, true) == 3);
+}
+
 TEST_CASE("what an alg leaves unsolved is counted and described by layer") {
   PieceMask none;
   PieceMask oll = *parseFree("LL:p");

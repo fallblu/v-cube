@@ -341,10 +341,27 @@ QPixmap diagram(const FaceletCube &cube, DiagramView view, int size,
   pm.fill(Qt::transparent);
   QPainter p(&pm);
   QRectF area(0, 0, size, size);
-  if (view == DiagramView::Iso3D) {
-    paint3D(p, area, cube, look);
-  } else {
+  // The other corners' views mirror the default front-right yaw.
+  CubeLook turned = look;
+  switch (view) {
+  case DiagramView::TopLayer:
     paintTopLayer(p, area, cube, look);
+    break;
+  case DiagramView::Iso3D:
+    paint3D(p, area, cube, look);
+    break;
+  case DiagramView::Iso3DFrontLeft:
+    turned.yaw = -look.yaw;
+    paint3D(p, area, cube, turned);
+    break;
+  case DiagramView::Iso3DBackLeft:
+    turned.yaw = 180.0 + look.yaw;
+    paint3D(p, area, cube, turned);
+    break;
+  case DiagramView::Iso3DBackRight:
+    turned.yaw = -180.0 - look.yaw;
+    paint3D(p, area, cube, turned);
+    break;
   }
   return pm;
 }

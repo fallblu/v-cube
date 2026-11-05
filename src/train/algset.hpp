@@ -22,12 +22,20 @@ struct DiagramMask {
   StickerMode llCorners = StickerMode::Full;
   StickerMode llEdges = StickerMode::Full;
   StickerMode rest = StickerMode::Full; // F2L pieces
+  // false: the modes apply to the positions (whatever sits in the last
+  // layer). true: they apply to the pieces wherever they are, so that an
+  // F2L piece in the top layer keeps its colours; F2L pieces the step
+  // leaves free are drawn like last-layer pieces.
+  bool byPiece = false;
   friend bool operator==(const DiagramMask &, const DiagramMask &) = default;
 };
 
 enum class DiagramView : std::uint8_t {
-  TopLayer, // top-down last-layer view with side stickers
-  Iso3D,    // the cube seen from the top-front-right corner
+  TopLayer,       // top-down last-layer view with side stickers
+  Iso3D,          // the cube seen from the top-front-right corner
+  Iso3DFrontLeft, // ...from the top-front-left corner
+  Iso3DBackLeft,  // ...from the top-back-left corner
+  Iso3DBackRight, // ...from the top-back-right corner
 };
 
 // What a case's algs achieve: the pieces in `free` may be left unsolved
@@ -85,7 +93,8 @@ std::string_view stickerModeName(StickerMode m);
 std::optional<StickerMode> parseStickerMode(std::string_view s);
 
 // Facelets of `state` with the stickers hidden by `mask` set to
-// kMaskedColour.
-FaceletCube maskedFacelets(const CubieCube &state, const DiagramMask &mask);
+// kMaskedColour. `free` (the step's free pieces) matters for masks by piece.
+FaceletCube maskedFacelets(const CubieCube &state, const DiagramMask &mask,
+                           const PieceMask &free = {});
 
 } // namespace vcube

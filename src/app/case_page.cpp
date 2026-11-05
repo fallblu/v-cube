@@ -319,7 +319,7 @@ void CasePage::buildTree() {
       item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
       const CaseInfo *info = infoOf(c.id);
       FaceletCube masked =
-          maskedFacelets(info ? info->state : c.state, spec.mask);
+          maskedFacelets(info ? info->state : c.state, spec.mask, spec.free);
       item->setIcon(0, QIcon(cube_painter::diagram(masked, spec.view, kThumb,
                                                    look, dpr)));
       if (eligible(c.id)) {
@@ -513,8 +513,8 @@ QPixmap CasePage::caseDiagram(const std::string &caseId, const CubieCube &state,
   CubeLook look;
   look.scheme = settings_.scheme;
   look.map = colours;
-  return cube_painter::diagram(maskedFacelets(state, spec.mask), spec.view,
-                               size, look, devicePixelRatioF());
+  return cube_painter::diagram(maskedFacelets(state, spec.mask, spec.free),
+                               spec.view, size, look, devicePixelRatioF());
 }
 
 void CasePage::saveProgress() {

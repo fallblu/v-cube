@@ -46,6 +46,7 @@ private:
   QComboBox *cornerMaskBox_;
   QComboBox *edgeMaskBox_;
   QComboBox *restMaskBox_;
+  QCheckBox *byPieceBox_;
   QComboBox *viewBox_;
 
   StepSpec *scopeSpec(); // nullptr for a group without its own settings

@@ -117,10 +117,24 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   viewBox_ = new QComboBox(specWidgets_);
   viewBox_->addItem(tr("Last layer from above"),
                     static_cast<int>(DiagramView::TopLayer));
-  viewBox_->addItem(tr("3D"), static_cast<int>(DiagramView::Iso3D));
+  viewBox_->addItem(tr("3D from the front right"),
+                    static_cast<int>(DiagramView::Iso3D));
+  viewBox_->addItem(tr("3D from the front left"),
+                    static_cast<int>(DiagramView::Iso3DFrontLeft));
+  viewBox_->addItem(tr("3D from the back left"),
+                    static_cast<int>(DiagramView::Iso3DBackLeft));
+  viewBox_->addItem(tr("3D from the back right"),
+                    static_cast<int>(DiagramView::Iso3DBackRight));
+  byPieceBox_ = new QCheckBox(tr("Follow the pieces"), specWidgets_);
+  byPieceBox_->setToolTip(
+      tr("Apply the LL settings to the last-layer pieces (and to F2L pieces "
+         "left unsolved) wherever they are, rather than to whatever sits in "
+         "the last layer, so that F2L pieces in the top layer keep their "
+         "colours"));
   specForm->addRow(tr("Diagram LL corners:"), cornerMaskBox_);
   specForm->addRow(tr("Diagram LL edges:"), edgeMaskBox_);
   specForm->addRow(tr("Diagram rest:"), restMaskBox_);
+  specForm->addRow(QString(), byPieceBox_);
   specForm->addRow(tr("Diagram view:"), viewBox_);
   stepLayout->addWidget(specWidgets_);
   layout->addWidget(step);
@@ -206,6 +220,7 @@ void SetPropertiesDialog::loadScope() {
       edgeMaskBox_->findData(static_cast<int>(spec.mask.llEdges)));
   restMaskBox_->setCurrentIndex(
       std::max(0, restMaskBox_->findData(static_cast<int>(spec.mask.rest))));
+  byPieceBox_->setChecked(spec.mask.byPiece);
   viewBox_->setCurrentIndex(viewBox_->findData(static_cast<int>(spec.view)));
   loading_ = false;
 }
@@ -230,6 +245,7 @@ bool SetPropertiesDialog::storeScope() {
       static_cast<StickerMode>(edgeMaskBox_->currentData().toInt());
   spec->mask.rest =
       static_cast<StickerMode>(restMaskBox_->currentData().toInt());
+  spec->mask.byPiece = byPieceBox_->isChecked();
   spec->view = static_cast<DiagramView>(viewBox_->currentData().toInt());
   return true;
 }

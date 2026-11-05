@@ -199,6 +199,34 @@ TEST_CASE("a tilted Aa perm alg shows the case the usual way up") {
   CHECK(left.edges() == 0);
 }
 
+TEST_CASE("diagram views and masks by piece round-trip") {
+  AlgSet set;
+  set.id = "views";
+  set.spec.mask.byPiece = true;
+  set.spec.view = DiagramView::Iso3DFrontLeft;
+  for (DiagramView v :
+       {DiagramView::TopLayer, DiagramView::Iso3D, DiagramView::Iso3DFrontLeft,
+        DiagramView::Iso3DBackLeft, DiagramView::Iso3DBackRight}) {
+    StepSpec spec;
+    spec.view = v;
+    set.groups.push_back({"g", spec, {}});
+  }
+  QJsonObject o = algSetToJson(set);
+  CHECK(o.value("mask").toObject().value("by").toString() == "piece");
+  CHECK(o.value("view").toString() == "3d-front-left");
+  auto back = algSetFromJson(o, nullptr);
+  REQUIRE(back);
+  CHECK(back->spec == set.spec);
+  REQUIRE(back->groups.size() == set.groups.size());
+  for (std::size_t i = 0; i < set.groups.size(); ++i) {
+    CHECK(back->groups[i].spec == set.groups[i].spec);
+  }
+  // Masks by position, the default, aren't written out.
+  StepSpec plain;
+  set.spec = plain;
+  CHECK_FALSE(algSetToJson(set).value("mask").toObject().contains("by"));
+}
+
 TEST_CASE("library installs built-ins once and saves changes") {
   QTemporaryDir tmp;
   {

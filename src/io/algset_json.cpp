@@ -5,6 +5,9 @@
 #include <QJsonDocument>
 #include <QSaveFile>
 
+#include <array>
+#include <utility>
+
 namespace vcube {
 
 namespace {
@@ -12,9 +15,13 @@ namespace {
 constexpr auto kFormat = "v-cube.algset";
 
 QJsonObject maskToJson(const DiagramMask &m) {
-  return {{"llCorners", qs(std::string(stickerModeName(m.llCorners)))},
-          {"llEdges", qs(std::string(stickerModeName(m.llEdges)))},
-          {"rest", qs(std::string(stickerModeName(m.rest)))}};
+  QJsonObject o{{"llCorners", qs(std::string(stickerModeName(m.llCorners)))},
+                {"llEdges", qs(std::string(stickerModeName(m.llEdges)))},
+                {"rest", qs(std::string(stickerModeName(m.rest)))}};
+  if (m.byPiece) {
+    o["by"] = "piece";
+  }
+  return o;
 }
 
 DiagramMask maskFromJson(const QJsonObject &o) {
@@ -25,15 +32,34 @@ DiagramMask maskFromJson(const QJsonObject &o) {
   m.llCorners = read("llCorners", StickerMode::Full);
   m.llEdges = read("llEdges", StickerMode::Full);
   m.rest = read("rest", StickerMode::Full);
+  m.byPiece = o.value("by").toString() == "piece";
   return m;
 }
 
+constexpr std::array<std::pair<DiagramView, const char *>, 5> kViewNames = {{
+    {DiagramView::TopLayer, "top"},
+    {DiagramView::Iso3D, "3d"},
+    {DiagramView::Iso3DFrontLeft, "3d-front-left"},
+    {DiagramView::Iso3DBackLeft, "3d-back-left"},
+    {DiagramView::Iso3DBackRight, "3d-back-right"},
+}};
+
 QString viewName(DiagramView v) {
-  return v == DiagramView::Iso3D ? "3d" : "top";
+  for (const auto &[view, name] : kViewNames) {
+    if (view == v) {
+      return name;
+    }
+  }
+  return "top";
 }
 
 DiagramView viewFromName(const QString &s) {
-  return s == "3d" ? DiagramView::Iso3D : DiagramView::TopLayer;
+  for (const auto &[view, name] : kViewNames) {
+    if (s == name) {
+      return view;
+    }
+  }
+  return DiagramView::TopLayer;
 }
 
 // Reads free/mask/view keys present in `o` over `base`.
