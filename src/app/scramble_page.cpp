@@ -23,11 +23,13 @@ ScramblePage::ScramblePage(AppSettings &settings, AlgLibrary &library,
                            QWidget *parent)
     : ModePage(parent), settings_(settings), feed_(library) {
   auto *layout = new QVBoxLayout(this);
-  auto *typeRow = new QHBoxLayout;
-  typeBox_ = new ScrambleTypeBox(library, this);
-  typeRow->addWidget(new QLabel(tr("Scramble:"), this));
+  typeRow_ = new QWidget(this);
+  auto *typeRow = new QHBoxLayout(typeRow_);
+  typeRow->setContentsMargins(0, 0, 0, 0);
+  typeBox_ = new ScrambleTypeBox(library, typeRow_);
+  typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
   typeRow->addWidget(typeBox_, 1);
-  layout->addLayout(typeRow);
+  layout->addWidget(typeRow_);
 
   layout->addStretch(1);
   scrambleLabel_ = new QLabel(this);
@@ -58,7 +60,7 @@ ScramblePage::ScramblePage(AppSettings &settings, AlgLibrary &library,
   navRow->addWidget(copyButton);
   navRow->addStretch();
   layout->addLayout(navRow);
-  auto *help = new QLabel(tr("Space or → shows the next scramble, Backspace "
+  auto *help = help_ = new QLabel(tr("Space or → shows the next scramble, Backspace "
                              "or ← goes back. Nothing is timed or saved."),
                           this);
   help->setAlignment(Qt::AlignCenter);
@@ -92,6 +94,11 @@ ScramblePage::ScramblePage(AppSettings &settings, AlgLibrary &library,
 }
 
 void ScramblePage::applySettings() { net_->setScheme(settings_.scheme); }
+
+void ScramblePage::setFocusMode(bool on) {
+  typeRow_->setVisible(!on);
+  help_->setVisible(!on);
+}
 
 void ScramblePage::refreshScrambleTypes() {
   QString before = typeBox_->currentType();

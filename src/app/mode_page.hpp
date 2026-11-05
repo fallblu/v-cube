@@ -28,6 +28,9 @@ public:
   // stop timers, and finish animations.
   virtual void activated() {}
   virtual void deactivated() {}
+  // Focus mode: hide everything but the page's central display (the
+  // scramble, timer, cube and algs), or show it all again.
+  virtual void setFocusMode(bool on) { (void)on; }
 
 signals:
   void message(const QString &text);

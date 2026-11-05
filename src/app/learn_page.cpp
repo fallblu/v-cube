@@ -55,12 +55,14 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   rightLayout->setContentsMargins(0, 0, 0, 0);
   cubeView_ = new CubeView(right);
   cubeView_->setMinimumSize(260, 220);
-  auto *options = new QHBoxLayout;
-  options->addWidget(new QLabel(tr("View:"), right));
-  options->addWidget(createViewSelector(cubeView_, "learn", right));
+  optionsRow_ = new QWidget(right);
+  auto *options = new QHBoxLayout(optionsRow_);
+  options->setContentsMargins(0, 0, 0, 0);
+  options->addWidget(new QLabel(tr("View:"), optionsRow_));
+  options->addWidget(createViewSelector(cubeView_, "learn", optionsRow_));
   options->addStretch();
   options->addWidget(orientation_);
-  rightLayout->addLayout(options);
+  rightLayout->addWidget(optionsRow_);
 
   hintLabel_ = new QLabel(right);
   hintLabel_->setTextFormat(Qt::RichText);
@@ -134,6 +136,11 @@ void LearnPage::activated() {
   if (!current_) {
     nextCase();
   }
+}
+
+void LearnPage::setFocusMode(bool on) {
+  CasePage::setFocusMode(on);
+  optionsRow_->setVisible(!on);
 }
 
 void LearnPage::deactivated() {

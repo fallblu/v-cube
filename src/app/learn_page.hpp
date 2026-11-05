@@ -25,6 +25,7 @@ public:
   void applySettings() override;
   void activated() override;
   void deactivated() override;
+  void setFocusMode(bool on) override;
 
 protected:
   QStringList columns() const override;
@@ -58,6 +59,7 @@ private:
   Grade grade_ = Grade::Good;
 
   QSpinBox *learnCount_;
+  QWidget *optionsRow_;
   QLabel *hintLabel_;
   CubeView *cubeView_;
   QLabel *statusLabel_;

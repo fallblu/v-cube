@@ -22,6 +22,7 @@ public:
   bool handleKey(QKeyEvent *e, bool press) override;
   void applySettings() override;
   void deactivated() override;
+  void setFocusMode(bool on) override;
   void refreshScrambleTypes(); // alg sets changed
 
 protected:
@@ -34,6 +35,8 @@ private:
   bool wantScramble_ = false; // scramble once the feed has one ready
   bool scrambled_ = false;
 
+  QWidget *topRow_;
+  QWidget *algPanel_;
   CubeView *cubeView_;
   ScrambleTypeBox *typeBox_;
   QLabel *scrambleLabel_;

@@ -40,7 +40,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
     : ModePage(parent), settings_(settings), store_(store), library_(library),
       feed_(library) {
   // --- left column: sessions, stats, times ---
-  auto *left = new QWidget(this);
+  auto *left = leftPanel_ = new QWidget(this);
   auto *leftLayout = new QVBoxLayout(left);
   leftLayout->setContentsMargins(0, 0, 0, 0);
   sessionButton_ = new QToolButton(left);
@@ -76,13 +76,15 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   auto *right = new QWidget(this);
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
-  auto *typeRow = new QHBoxLayout;
-  typeBox_ = new ScrambleTypeBox(library_, right);
-  auto *nextButton = flatButton(tr("Next scramble"), right);
-  typeRow->addWidget(new QLabel(tr("Scramble:"), right));
+  typeRow_ = new QWidget(right);
+  auto *typeRow = new QHBoxLayout(typeRow_);
+  typeRow->setContentsMargins(0, 0, 0, 0);
+  typeBox_ = new ScrambleTypeBox(library_, typeRow_);
+  auto *nextButton = flatButton(tr("Next scramble"), typeRow_);
+  typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
   typeRow->addWidget(typeBox_, 1);
   typeRow->addWidget(nextButton);
-  rightLayout->addLayout(typeRow);
+  rightLayout->addWidget(typeRow_);
 
   auto *scrambleRow = new QHBoxLayout;
   scrambleLabel_ = new QLabel(right);
@@ -181,6 +183,12 @@ void TimerPage::activated() { tick_.start(16); }
 void TimerPage::deactivated() {
   tick_.stop();
   timer_.cancel();
+}
+
+void TimerPage::setFocusMode(bool on) {
+  leftPanel_->setVisible(!on);
+  typeRow_->setVisible(!on);
+  chart_->setVisible(!on);
 }
 
 void TimerPage::applySettings() {

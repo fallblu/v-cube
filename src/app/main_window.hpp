@@ -11,7 +11,9 @@
 class QAbstractButton;
 class QAction;
 class QButtonGroup;
+class QLabel;
 class QStackedWidget;
+class QTimer;
 
 namespace vcube {
 
@@ -35,6 +37,7 @@ protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
   void changeEvent(QEvent *e) override;
   void closeEvent(QCloseEvent *e) override;
+  void contextMenuEvent(QContextMenuEvent *e) override;
 
 private:
   AppSettings &settings_;
@@ -42,8 +45,13 @@ private:
   AlgLibrary library_;
   SessionStore sessions_;
   QStackedWidget *stack_;
+  QWidget *sidebar_;
   QButtonGroup *modeButtons_;
   QAction *fullScreenAction_ = nullptr;
+  QAction *focusAction_ = nullptr;
+  QLabel *focusHint_;
+  QTimer *focusHintTimer_;
+  bool focusMode_ = false;
   std::array<ModePage *, ModeCount> pages_{};
   LearnPage *learnPage_;
   DrillPage *drillPage_;
@@ -67,6 +75,10 @@ private:
   // Switches mode unless a solve or inspection is running; false if blocked.
   bool setMode(int mode);
   void setFullScreen(bool on);
+  // Hides the sidebar, menu bar, status bar and each page's controls,
+  // leaving the central display.
+  void setFocusMode(bool on);
+  void showFocusHint();
   void openDataFolder();
   void openSettings();
   void importAlgSet();

@@ -236,6 +236,11 @@ void CasePage::activated() {
   }
 }
 
+void CasePage::setFocusMode(bool on) {
+  left_->setVisible(!on);
+  orientation_->setVisible(!on);
+}
+
 void CasePage::populateSets() {
   QSignalBlocker block(setBox_);
   setBox_->clear();

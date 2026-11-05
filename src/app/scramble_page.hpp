@@ -21,6 +21,7 @@ public:
 
   bool handleKey(QKeyEvent *e, bool press) override;
   void applySettings() override;
+  void setFocusMode(bool on) override;
   void refreshScrambleTypes(); // alg sets changed
 
   static constexpr std::size_t kHistory = 100;
@@ -32,6 +33,8 @@ private:
   std::size_t index_ = 0; // shown entry of history_
   bool wantNext_ = false; // show the feed's scramble when it is ready
 
+  QWidget *typeRow_;
+  QLabel *help_;
   ScrambleTypeBox *typeBox_;
   QLabel *scrambleLabel_;
   QLabel *positionLabel_;

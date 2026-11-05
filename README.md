@@ -111,6 +111,10 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
     moves), which you can remap in Settings.
 - **Full screen**: F11 (or View > Full screen) toggles full screen, and
   the window reopens the way you left it.
+- **Focus mode**: F10 (or View > Focus mode) hides the sidebar, menus,
+  status bar and each mode's lists and options, leaving the scramble,
+  timer, cube and algs. Right-click anywhere outside them to switch full
+  screen or focus mode with the mouse.
 
 ## Building
 
@@ -187,6 +191,7 @@ picks the plugin as usual.
 | --- | --- | --- |
 | Anywhere | Ctrl+1 … Ctrl+6 | switch to Learn, Drill, Library, Timer, Scramble, Virtual (not during a solve) |
 | Anywhere | F11 | toggle full screen |
+| Anywhere | F10 | toggle focus mode |
 | Learn | turning keys | turn the virtual cube; solving the case finishes it |
 | Learn | Tab | show the algs (grades the case Again) |
 | Learn | Space | give up (grades the case Again) |

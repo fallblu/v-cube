@@ -24,20 +24,22 @@ VirtualPage::VirtualPage(AppSettings &settings, AlgLibrary &library,
     : ModePage(parent), settings_(settings), feed_(library) {
   auto *layout = new QVBoxLayout(this);
   cubeView_ = new CubeView(this);
-  auto *top = new QHBoxLayout;
-  typeBox_ = new ScrambleTypeBox(library, this);
-  auto *scrambleButton = button(tr("Scramble"), this);
+  topRow_ = new QWidget(this);
+  auto *top = new QHBoxLayout(topRow_);
+  top->setContentsMargins(0, 0, 0, 0);
+  typeBox_ = new ScrambleTypeBox(library, topRow_);
+  auto *scrambleButton = button(tr("Scramble"), topRow_);
   scrambleButton->setToolTip(tr("Scramble the cube (Space)"));
-  auto *resetButton = button(tr("Reset"), this);
+  auto *resetButton = button(tr("Reset"), topRow_);
   resetButton->setToolTip(tr("Return the cube to solved (Esc)"));
-  top->addWidget(new QLabel(tr("View:"), this));
-  top->addWidget(createViewSelector(cubeView_, "virtual", this));
+  top->addWidget(new QLabel(tr("View:"), topRow_));
+  top->addWidget(createViewSelector(cubeView_, "virtual", topRow_));
   top->addSpacing(16);
-  top->addWidget(new QLabel(tr("Scramble:"), this));
+  top->addWidget(new QLabel(tr("Scramble:"), topRow_));
   top->addWidget(typeBox_, 1);
   top->addWidget(scrambleButton);
   top->addWidget(resetButton);
-  layout->addLayout(top);
+  layout->addWidget(topRow_);
 
   scrambleLabel_ = new QLabel(this);
   scrambleLabel_->setWordWrap(true);
@@ -54,21 +56,25 @@ VirtualPage::VirtualPage(AppSettings &settings, AlgLibrary &library,
   statusLabel_->setWordWrap(true);
   layout->addWidget(statusLabel_);
 
+  algPanel_ = new QWidget(this);
+  auto *algLayout = new QVBoxLayout(algPanel_);
+  algLayout->setContentsMargins(0, 0, 0, 0);
   auto *algRow = new QHBoxLayout;
-  algEdit_ = new QLineEdit(this);
+  algEdit_ = new QLineEdit(algPanel_);
   algEdit_->setFocusPolicy(Qt::ClickFocus);
   algEdit_->setPlaceholderText(
       tr("Type an alg and press Enter to apply it, e.g. R U R' U'"));
   algEdit_->installEventFilter(this);
-  auto *applyButton = button(tr("Apply"), this);
-  algRow->addWidget(new QLabel(tr("Alg:"), this));
+  auto *applyButton = button(tr("Apply"), algPanel_);
+  algRow->addWidget(new QLabel(tr("Alg:"), algPanel_));
   algRow->addWidget(algEdit_, 1);
   algRow->addWidget(applyButton);
-  layout->addLayout(algRow);
-  algError_ = new QLabel(this);
+  algLayout->addLayout(algRow);
+  algError_ = new QLabel(algPanel_);
   algError_->setStyleSheet("color: #e66");
   algError_->setVisible(false);
-  layout->addWidget(algError_);
+  algLayout->addWidget(algError_);
+  layout->addWidget(algPanel_);
 
   connect(&feed_, &ScrambleFeed::currentChanged, this,
           &VirtualPage::feedChanged);
@@ -101,6 +107,14 @@ void VirtualPage::applySettings() {
 void VirtualPage::deactivated() {
   cubeView_->finishAnimations();
   returnFocus();
+}
+
+void VirtualPage::setFocusMode(bool on) {
+  if (on) {
+    returnFocus();
+  }
+  topRow_->setVisible(!on);
+  algPanel_->setVisible(!on);
 }
 
 void VirtualPage::refreshScrambleTypes() {

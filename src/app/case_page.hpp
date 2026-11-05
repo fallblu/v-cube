@@ -30,6 +30,7 @@ public:
   void reloadSets(); // the library changed
   void applySettings() override;
   void activated() override;
+  void setFocusMode(bool on) override;
 
 signals:
   void editCaseRequested(const QString &setId, const QString &caseId);

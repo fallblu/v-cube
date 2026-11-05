@@ -14,6 +14,7 @@
 #include <QButtonGroup>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -32,6 +33,7 @@
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTextEdit>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -122,9 +124,21 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   auto *layout = new QHBoxLayout(central);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
-  layout->addWidget(buildSidebar());
+  sidebar_ = buildSidebar();
+  layout->addWidget(sidebar_);
   layout->addWidget(stack_, 1);
   setCentralWidget(central);
+
+  focusHint_ = new QLabel(central);
+  focusHint_->setAttribute(Qt::WA_TransparentForMouseEvents);
+  focusHint_->setStyleSheet(
+      "QLabel { background: rgba(0, 0, 0, 170); color: white; "
+      "border-radius: 6px; padding: 6px 14px; }");
+  focusHint_->hide();
+  focusHintTimer_ = new QTimer(this);
+  focusHintTimer_->setSingleShot(true);
+  focusHintTimer_->setInterval(3500);
+  connect(focusHintTimer_, &QTimer::timeout, focusHint_, &QWidget::hide);
 
   buildMenus();
   qApp->installEventFilter(this);
@@ -146,6 +160,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   }
   removeObsoleteSettings(q);
   setMode(mode);
+  if (q.value("window/focus", false).toBool()) {
+    focusAction_->setChecked(true);
+  }
 }
 
 QWidget *MainWindow::buildSidebar() {
@@ -237,6 +254,44 @@ void MainWindow::setFullScreen(bool on) {
                     : windowState() & ~Qt::WindowFullScreen);
 }
 
+void MainWindow::setFocusMode(bool on) {
+  focusMode_ = on;
+  sidebar_->setVisible(!on);
+  menuBar()->setVisible(!on);
+  statusBar()->setVisible(!on);
+  for (ModePage *page : pages_) {
+    page->setFocusMode(on);
+  }
+  QSettings().setValue("window/focus", on);
+  if (on) {
+    showFocusHint();
+  } else {
+    focusHint_->hide();
+  }
+}
+
+void MainWindow::showFocusHint() {
+  focusHint_->setText(
+      tr("Focus mode: F10 or right-click to show everything again"));
+  focusHint_->adjustSize();
+  // Placed once the layout has settled (at start-up, after the window is
+  // shown).
+  QTimer::singleShot(0, focusHint_, [this] {
+    QWidget *area = centralWidget();
+    focusHint_->move((area->width() - focusHint_->width()) / 2, 12);
+    focusHint_->raise();
+    focusHint_->show();
+  });
+  focusHintTimer_->start();
+}
+
+void MainWindow::contextMenuEvent(QContextMenuEvent *e) {
+  QMenu menu(this);
+  menu.addAction(fullScreenAction_);
+  menu.addAction(focusAction_);
+  menu.exec(e->globalPos());
+}
+
 void MainWindow::changeEvent(QEvent *e) {
   if (e->type() == QEvent::WindowStateChange && fullScreenAction_) {
     fullScreenAction_->setChecked(isFullScreen());
@@ -308,6 +363,12 @@ void MainWindow::buildMenus() {
   fullScreenAction_->setShortcuts(fullScreenKeys);
   connect(fullScreenAction_, &QAction::toggled, this,
           &MainWindow::setFullScreen);
+  focusAction_ = view->addAction(tr("F&ocus mode"));
+  focusAction_->setCheckable(true);
+  focusAction_->setShortcut(QKeySequence(Qt::Key_F10));
+  focusAction_->setToolTip(
+      tr("Hide everything but the scramble, timer, cube and algs"));
+  connect(focusAction_, &QAction::toggled, this, &MainWindow::setFocusMode);
 
   QMenu *modes = menuBar()->addMenu(tr("&Mode"));
   for (int m = 0; m < ModeCount; ++m) {
@@ -323,6 +384,11 @@ void MainWindow::buildMenus() {
   QMenu *help = menuBar()->addMenu(tr("&Help"));
   help->addAction(tr("Keyboard controls"), this, &MainWindow::showControls);
   help->addAction(tr("About v-cube"), this, &MainWindow::showAbout);
+
+  // The shortcuts must keep working while focus mode hides the menu bar.
+  for (QAction *menu : menuBar()->actions()) {
+    addActions(menu->menu()->actions());
+  }
 }
 
 void MainWindow::openDataFolder() {
@@ -407,7 +473,9 @@ void MainWindow::showControls() {
       "Library, Timer, Scramble and Virtual. Switching is blocked while a "
       "solve or inspection is running.</p>"
       "<h3>Window</h3>"
-      "<p><b>F11</b> toggles full screen.</p>"
+      "<p><b>F11</b> toggles full screen. <b>F10</b> toggles focus mode, "
+      "which hides everything but the scramble, timer, cube and algs; "
+      "right-click shows both options.</p>"
       "<h3>Learn (virtual cube, untimed)</h3>"
       "<p>Solve the case on the virtual cube from memory. <b>Tab</b> shows "
       "the algs (grades the case Again), <b>Space</b> gives up, <b>Esc</b> "
