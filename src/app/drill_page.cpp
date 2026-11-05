@@ -102,11 +102,17 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   timeColumn->addWidget(statusLabel_);
   timeColumn->addWidget(resultRow_);
   timeColumn->addStretch();
+  // An empty column as wide as the diagram keeps the time centred, as in
+  // Timer mode. Both are hidden until there is a diagram to show.
+  diagramBalance_ = new QWidget(right);
+  diagramBalance_->setMinimumSize(200, 0);
+  middle->addWidget(diagramBalance_, 2);
   middle->addLayout(timeColumn, 3);
   diagram_ = new QLabel(right);
   diagram_->setAlignment(Qt::AlignCenter);
   diagram_->setMinimumSize(200, 200);
   middle->addWidget(diagram_, 2);
+  setDiagram({});
   rightLayout->addLayout(middle, 3);
 
   reveal_ = new QLabel(right);
@@ -326,7 +332,7 @@ void DrillPage::nextCase() {
   timer_.cancel();
   hintLabel_->clear();
   reveal_->clear();
-  diagram_->clear();
+  setDiagram({});
   resultRow_->setVisible(false);
   const AlgSet *s = set();
   std::vector<std::string> cases = s ? pool() : std::vector<std::string>{};
@@ -374,7 +380,7 @@ void DrillPage::retryCase() {
   failed_ = false;
   hintLabel_->setText(orientationHint(current_->colours, settings_.scheme));
   reveal_->clear();
-  diagram_->clear();
+  setDiagram({});
   resultRow_->setVisible(false);
   display_->showTime(0);
   scrambleLabel_->setText(tr("Generating scramble…"));
@@ -541,8 +547,14 @@ void DrillPage::showReveal() {
     return;
   }
   reveal_->setText(algsHtml(current_->caseId, current_->state));
-  diagram_->setPixmap(
+  setDiagram(
       caseDiagram(current_->caseId, current_->state, 200, current_->colours));
+}
+
+void DrillPage::setDiagram(const QPixmap &pixmap) {
+  diagram_->setPixmap(pixmap);
+  diagram_->setVisible(!pixmap.isNull());
+  diagramBalance_->setVisible(!pixmap.isNull());
 }
 
 } // namespace vcube

@@ -68,6 +68,7 @@ private:
   QWidget *resultRow_;
   QLabel *resultLabel_;
   QPushButton *wrongButton_;
+  QWidget *diagramBalance_;
   QLabel *diagram_;
   QLabel *reveal_;
 
@@ -83,6 +84,8 @@ private:
   void setWrong(bool wrong);
   void showResult();
   void showReveal();
+  // Shows the case diagram right of the time, or hides it (null pixmap).
+  void setDiagram(const QPixmap &pixmap);
   void setPhase(Phase p);
 };
 
