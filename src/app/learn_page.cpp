@@ -55,6 +55,9 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   learnCount_->setRange(1, 50);
   learnCount_->setValue(3);
   learnCount_->setFocusPolicy(Qt::ClickFocus);
+  learnCount_->installEventFilter(this);
+  connect(learnCount_, &QSpinBox::editingFinished, learnCount_,
+          [this] { learnCount_->clearFocus(); });
   auto *learnButton = new QPushButton(tr("Start learning"), left_);
   learnButton->setFocusPolicy(Qt::NoFocus);
   learnButton->setToolTip(
@@ -128,6 +131,22 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
 }
 
 QStringList LearnPage::columns() const { return {tr("Status"), tr("Due")}; }
+
+bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
+  if (watched == learnCount_ && event->type() == QEvent::KeyPress) {
+    int key = static_cast<QKeyEvent *>(event)->key();
+    if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+      learnCount_->interpretText();
+      learnNext();
+      return true;
+    }
+    if (key == Qt::Key_Escape) {
+      learnCount_->clearFocus();
+      return true;
+    }
+  }
+  return CasePage::eventFilter(watched, event);
+}
 
 void LearnPage::applySettings() {
   CubeLook look = cubeView_->look();
