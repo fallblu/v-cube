@@ -3,6 +3,7 @@ add_library(vcube_cube
   facelet.cpp
   cubie.cpp
   scramble.cpp
+  hold.cpp
 )
 target_include_directories(vcube_cube PUBLIC ${PROJECT_SOURCE_DIR}/src)
 # Headers use C++23; dependents need it too.
