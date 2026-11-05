@@ -829,7 +829,7 @@ void LibraryPage::importSetFile() {
                          tr("Could not import: %1").arg(error));
     return;
   }
-  if (library_.find(imported->id)) {
+  if (library_.idTaken(imported->id)) {
     imported->id = library_.uniqueId(imported->id);
     imported->name += " (imported)";
   }

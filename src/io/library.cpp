@@ -143,26 +143,30 @@ bool AlgLibrary::save(const AlgSet &set, QString *error) {
   return writeAlgSetFile(set, pathFor(set.id), error);
 }
 
+bool AlgLibrary::idTaken(const std::string &id) const {
+  QString file = sanitizeId(id);
+  return std::any_of(sets_.begin(), sets_.end(),
+                     [&](const AlgSet &s) {
+                       return s.id == id || sanitizeId(s.id) == file;
+                     }) ||
+         QFile::exists(pathFor(id));
+}
+
 std::string AlgLibrary::uniqueId(const std::string &base) const {
   std::string b = ss(sanitizeId(base));
-  auto taken = [this](const std::string &id) {
-    return std::any_of(sets_.begin(), sets_.end(),
-                       [&](const AlgSet &s) { return s.id == id; }) ||
-           QFile::exists(pathFor(id));
-  };
-  if (!taken(b)) {
+  if (!idTaken(b)) {
     return b;
   }
   for (int i = 2;; ++i) {
     std::string id = b + "-" + std::to_string(i);
-    if (!taken(id)) {
+    if (!idTaken(id)) {
       return id;
     }
   }
 }
 
 AlgSet &AlgLibrary::add(AlgSet set) {
-  if (set.id.empty() || find(set.id)) {
+  if (set.id.empty() || idTaken(set.id)) {
     set.id = uniqueId(set.id.empty() ? set.name : set.id);
   }
   sets_.push_back(std::move(set));

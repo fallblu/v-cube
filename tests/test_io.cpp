@@ -317,6 +317,25 @@ TEST_CASE("unreadable progress is set aside and reported") {
         "{\"cases\": {\"T\": ");
 }
 
+TEST_CASE("set ids that share a file name are kept apart") {
+  QTemporaryDir tmp;
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  CHECK(lib.idTaken("pll"));
+  CHECK(lib.idTaken("PLL"));
+  CHECK(lib.idTaken("p.l.l") == false);
+  AlgSet copy = *lib.find("pll");
+  copy.id = "PLL";
+  copy.name = "My PLL";
+  std::string id = lib.add(copy).id;
+  CHECK(id != "PLL");
+  CHECK(lib.find("pll")->name == "PLL");
+  AlgLibrary again(tmp.path(), kBuiltins);
+  again.load();
+  CHECK(again.find("pll"));
+  CHECK(again.find(id));
+}
+
 TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   SetProgress p;
   p["T"].card.state = CardState::Review;

@@ -29,9 +29,13 @@ public:
   AlgSet *find(const std::string &id);
 
   bool save(const AlgSet &set, QString *error = nullptr);
-  // Adds a new set (giving it a unique id if taken) and saves it.
+  // Adds a new set and saves it, giving it a unique id if its id is taken.
   AlgSet &add(AlgSet set);
   bool remove(const std::string &id);
+  // Whether a set uses `id` or its file name (ids are stored by file
+  // name, so "OLL" and "oll" share one), or a file that failed to load
+  // has that name.
+  bool idTaken(const std::string &id) const;
   std::string uniqueId(const std::string &base) const;
 
   // Replaces a built-in set's cases and settings with the shipped ones,
