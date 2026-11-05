@@ -26,6 +26,7 @@ public:
   bool isBusy() const override;
   void activated() override;
   void deactivated() override;
+  void windowDeactivated() override;
 
 protected:
   QStringList columns() const override;

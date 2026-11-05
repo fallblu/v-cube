@@ -180,6 +180,15 @@ void DrillPage::deactivated() {
   updateControls();
 }
 
+void DrillPage::windowDeactivated() {
+  auto s = timer_.state();
+  if (s == SolveTimer::State::Holding || s == SolveTimer::State::Ready) {
+    timer_.cancel(); // Space's release would never arrive
+    display_->showTime(0);
+    updateControls();
+  }
+}
+
 void DrillPage::updateControls() {
   bool busy = isBusy();
   if (busy == controlsLocked_) {

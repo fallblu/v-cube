@@ -316,6 +316,11 @@ void MainWindow::changeEvent(QEvent *e) {
   if (e->type() == QEvent::WindowStateChange && fullScreenAction_) {
     fullScreenAction_->setChecked(isFullScreen());
   }
+  if (e->type() == QEvent::ActivationChange && !isActiveWindow()) {
+    if (ModePage *page = currentPage()) {
+      page->windowDeactivated();
+    }
+  }
   QMainWindow::changeEvent(e);
 }
 

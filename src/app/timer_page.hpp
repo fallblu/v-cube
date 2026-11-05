@@ -31,6 +31,7 @@ public:
   bool isBusy() const override; // a solve or inspection is in progress
   void activated() override;
   void deactivated() override;
+  void windowDeactivated() override;
   void setFocusMode(bool on) override;
 
   void refreshScrambleTypes(); // alg sets changed
