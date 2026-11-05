@@ -126,13 +126,15 @@ void review(SrsCard &card, Grade grade, std::int64_t now,
   }
 }
 
-bool isDue(const SrsCard &card, std::int64_t now, const SrsConfig &config) {
+bool isDue(const SrsCard &card, std::int64_t now, const SrsConfig &config,
+           std::int64_t dayEnd) {
   if (card.state == CardState::New) {
     return false;
   }
-  bool learning =
-      card.state == CardState::Learning || card.state == CardState::Relearning;
-  return card.due <= now + (learning ? config.learnAheadSeconds : 0);
+  if (card.state == CardState::Review) {
+    return card.due <= now || card.due < dayEnd;
+  }
+  return card.due <= now + config.learnAheadSeconds;
 }
 
 void startLearning(SrsCard &card, std::int64_t now, const SrsConfig &config) {
@@ -290,6 +292,7 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
             c.state == CardState::Relearning) &&
            !isQueued(c);
   };
+  const std::int64_t dayEnd = dayStart + kSecondsPerDay;
   std::vector<std::string> queued;
   for (const auto &id : pool) {
     const auto *p = find(id);
@@ -298,7 +301,7 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
     }
     if (isQueued(p->card)) {
       queued.push_back(id);
-    } else if (!isDue(p->card, now, config) &&
+    } else if (!isDue(p->card, now, config, dayEnd) &&
                (!r.nextDue || p->card.due < *r.nextDue)) {
       r.nextDue = p->card.due;
     }
@@ -309,7 +312,7 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
 
   if (const auto *id = earliest(inSteps, now)) {
     r.caseId = *id;
-  } else if (const auto *id2 = earliest(inReview, now)) {
+  } else if (const auto *id2 = earliest(inReview, std::max(now, dayEnd - 1))) {
     r.caseId = *id2;
   } else if (!queued.empty() && canIntroduce) {
     r.caseId = queued.front();

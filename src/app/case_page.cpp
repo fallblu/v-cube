@@ -31,13 +31,16 @@ QComboBox *combo(QWidget *parent) {
 
 } // namespace
 
-QString dueText(const CaseProgress *p, std::int64_t now) {
+QString dueText(const CaseProgress *p, std::int64_t now, std::int64_t dayEnd) {
   if (!p || p->card.state == CardState::New) {
     return "-";
   }
   std::int64_t d = p->card.due - now;
   if (d <= 0) {
     return QObject::tr("now");
+  }
+  if (p->card.state == CardState::Review && p->card.due < dayEnd) {
+    return QObject::tr("today");
   }
   if (d < 3600) {
     return QObject::tr("%1 min").arg((d + 59) / 60);

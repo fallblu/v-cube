@@ -113,6 +113,39 @@ TEST_CASE("learn picks learning cards, then due reviews, then the queue") {
   CHECK(r.queued == 0);
 }
 
+TEST_CASE("reviews are due all day on the day they fall due") {
+  SrsConfig cfg;
+  cfg.learnAheadSeconds = 0;
+  const std::int64_t dayStart = 10 * kSecondsPerDay;
+  const std::int64_t now = dayStart + 9 * 3600; // 09:00
+  SrsCard card;
+  card.state = CardState::Review;
+  card.due = dayStart + 20 * 3600; // 20:00 today
+  CHECK_FALSE(isDue(card, now, cfg));
+  CHECK(isDue(card, now, cfg, dayStart + kSecondsPerDay));
+  card.due = dayStart + kSecondsPerDay + 3600; // 01:00 tomorrow
+  CHECK_FALSE(isDue(card, now, cfg, dayStart + kSecondsPerDay));
+
+  SetProgress prog;
+  prog["today"].card.state = CardState::Review;
+  prog["today"].card.due = dayStart + 20 * 3600;
+  prog["tomorrow"].card.state = CardState::Review;
+  prog["tomorrow"].card.due = dayStart + kSecondsPerDay + 3600;
+  auto r = pickLearnCase({"today", "tomorrow"}, prog, now, dayStart, cfg);
+  REQUIRE(r.caseId);
+  CHECK(*r.caseId == "today");
+  prog["today"].card.due = dayStart + 2 * kSecondsPerDay;
+  r = pickLearnCase({"today", "tomorrow"}, prog, now, dayStart, cfg);
+  CHECK_FALSE(r.caseId);
+  CHECK(r.nextDue == dayStart + kSecondsPerDay + 3600);
+  // Learning steps keep to the clock.
+  prog["step"].card.state = CardState::Learning;
+  prog["step"].card.reps = 1;
+  prog["step"].card.due = now + 600;
+  r = pickLearnCase({"step"}, prog, now, dayStart, cfg);
+  CHECK_FALSE(r.caseId);
+}
+
 TEST_CASE("learning cards come up early only when nothing else is left") {
   SrsConfig cfg; // 20 minutes of learn-ahead
   const std::int64_t now = 50000;

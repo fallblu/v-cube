@@ -29,6 +29,11 @@ std::int64_t localDayStart() {
   return QDateTime(now.date(), QTime(0, 0)).toSecsSinceEpoch();
 }
 
+std::int64_t localDayEnd() {
+  QDateTime now = QDateTime::currentDateTime();
+  return QDateTime(now.date().addDays(1), QTime(0, 0)).toSecsSinceEpoch();
+}
+
 TimeDisplay::TimeDisplay(QWidget *parent) : QLabel(parent) {
   setAlignment(Qt::AlignCenter);
   QFont f = font();

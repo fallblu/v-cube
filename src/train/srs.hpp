@@ -44,7 +44,12 @@ inline constexpr std::int64_t kSecondsPerDay = 86400;
 
 void review(SrsCard &card, Grade grade, std::int64_t now,
             const SrsConfig &config);
-bool isDue(const SrsCard &card, std::int64_t now, const SrsConfig &config);
+// Whether a card is due at `now`. Cards in their learning steps are due at
+// their time (or up to `config.learnAheadSeconds` before it); review cards
+// are due all day on the day they fall due, as in Anki, i.e. before
+// `dayEnd` (the start of the next local day) when that is given.
+bool isDue(const SrsCard &card, std::int64_t now, const SrsConfig &config,
+           std::int64_t dayEnd = 0);
 
 // Manual status changes from the case list.
 void startLearning(SrsCard &card, std::int64_t now, const SrsConfig &config);
@@ -132,7 +137,7 @@ struct LearnPick {
 };
 
 // Due cards in their learning steps first, so that their short steps keep
-// to time, then due reviews (both earliest first), then new cases
+// to time, then reviews due today (both earliest first), then new cases
 // from the learn queue (in pool order) while fewer than `config.newPerDay`
 // cases were introduced since `dayStart` (the start of the local day). Only
 // when none of those is left do learning cards due within

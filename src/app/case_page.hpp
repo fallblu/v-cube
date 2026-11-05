@@ -134,8 +134,10 @@ private:
 QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
                      const CubieCube &state);
 
-// Text of a duration such as "now", "10 min", "3 h" or "4 d".
-QString dueText(const CaseProgress *p, std::int64_t now);
+// When a case is due: "now", "10 min", "3 h" or "4 d", or "today" for a
+// review due before `dayEnd` (reviews are due all day).
+QString dueText(const CaseProgress *p, std::int64_t now,
+                std::int64_t dayEnd = 0);
 // "1 case without a passing alg is skipped." and the plural.
 QString skippedText(int cases);
 // Seconds with two decimals, or "-".

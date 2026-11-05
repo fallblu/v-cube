@@ -76,8 +76,9 @@ private:
 
 // Monotonic milliseconds since the app started.
 std::int64_t monotonicMs();
-// Unix seconds now, and of the start of the local day.
+// Unix seconds now, and of the start of the local day and the next one.
 std::int64_t unixNow();
 std::int64_t localDayStart();
+std::int64_t localDayEnd();
 
 } // namespace vcube

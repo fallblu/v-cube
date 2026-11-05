@@ -180,8 +180,9 @@ void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
       break;
     }
   }
-  item->setText(2, cp && !isQueued(cp->card) ? dueText(cp, unixNow())
-                                             : QString("-"));
+  item->setText(2, cp && !isQueued(cp->card)
+                       ? dueText(cp, unixNow(), localDayEnd())
+                       : QString("-"));
 }
 
 void LearnPage::updateSummary() {
@@ -204,7 +205,9 @@ void LearnPage::updateSummary() {
     CaseStatus st = statusOf(cp);
     learning += st == CaseStatus::Learning;
     learned += st == CaseStatus::Learned;
-    due += cp->card.due <= now;
+    due += st == CaseStatus::Learned
+               ? isDue(cp->card, now, settings_.srs, localDayEnd())
+               : cp->card.due <= now;
   }
   QString text = tr("%1 of %2 ticked. Learning %3, learned %4, due %5, %6 "
                     "in the learn queue.")
@@ -572,7 +575,7 @@ void LearnPage::showGrade() {
   gradeLabel_->setText(
       tr("%1 (%2) → next %3")
           .arg(tr(gradeName(grade_)), why,
-               dueText(progressOf(current_->caseId), unixNow())));
+               dueText(progressOf(current_->caseId), unixNow(), localDayEnd())));
   for (int g = 0; g < 4; ++g) {
     gradeButtons_[static_cast<std::size_t>(g)]->setChecked(
         static_cast<int>(grade_) == g + 1);
