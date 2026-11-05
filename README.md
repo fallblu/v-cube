@@ -29,7 +29,9 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
     up to a daily limit. "Start learning" adds the next N ticked cases to
     the queue.
   - When the case is solved you see your algs with the AUFs it needed, e.g.
-    `(U') R U R' U' ... (U2)`.
+    `(U') R U R' U' ... (U2)`. A U turn written at the start or end of an
+    alg joins the AUF on that side, so `(U2) R U R'` that needs a U first
+    shows as `(U') R U R'`.
 - **Drill**: drill cases on a physical cube.
   - The scrambles are real random-state scrambles. The pieces the step
     doesn't care about (e.g. the permutation when drilling OLL) are
@@ -57,8 +59,11 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
     description, random U turns around drilled cases, target time, and the
     step settings for the whole set or as a group's own override: what the
     algs may leave unsolved (e.g. "last-layer permutation" for OLL-like
-    sets) and how diagrams look (full colour, top colour only or grey, from
-    above or in 3D).
+    sets) and how diagrams look (full colour, top colour only or grey; from
+    above, or in 3D from any top corner). "Follow the pieces" applies the
+    last-layer settings to the last-layer pieces wherever they are, and to
+    F2L pieces the step leaves free, so that F2L pieces in the top layer
+    keep their colours (F2L sets use it).
   - Each case can have several algs. Drag them to reorder, double-click to
     edit, and right-click to make one the main alg or remove it.
   - Every alg is checked against its case under the step settings in force,
@@ -247,7 +252,9 @@ cases and keeps your algs.
 
 Alg-set files look like this (states are 54-character facelet strings in
 URFDLB order; `free` lists what the step may leave unsolved, e.g. `LL:p` =
-last-layer permutation):
+last-layer permutation; `"by": "piece"` in `mask` makes it follow the
+pieces; `view` is `top`, `3d` (from the front right), `3d-front-left`,
+`3d-back-left` or `3d-back-right`):
 
 ```json
 {
