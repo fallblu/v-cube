@@ -190,7 +190,10 @@ std::optional<CubieCube> CubieCube::fromFacelets(const FaceletCube &f) {
       return std::nullopt;
     }
   }
-  if (!c.isValid()) {
+  // Each corner is told apart by its two side colours alone, so the third
+  // sticker could be the wrong one of U and D: the cube has to give back
+  // the same stickers.
+  if (!c.isValid() || c.toFacelets() != f) {
     return std::nullopt;
   }
   return c;

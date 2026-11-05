@@ -52,7 +52,8 @@ struct CubieCube {
 
   FaceletCube toFacelets() const;
   // Converts a cube whose centres are in standard orientation; nullopt if
-  // the stickers do not form a valid cube.
+  // the stickers are not those of a real cube (a piece with stickers no
+  // piece has, a piece twice, a twisted corner or flipped edge alone, ...).
   static std::optional<CubieCube> fromFacelets(const FaceletCube &f);
 };
 

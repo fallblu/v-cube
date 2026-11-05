@@ -95,6 +95,35 @@ TEST_CASE("cubie and facelet models agree on random face-turn algs") {
   }
 }
 
+TEST_CASE("stickers no real cube has are rejected") {
+  auto from = [](std::string text) {
+    auto f = FaceletCube::fromString(text);
+    REQUIRE(f);
+    return CubieCube::fromFacelets(*f);
+  };
+  const std::string solved = FaceletCube().toString();
+  CHECK(from(solved) == CubieCube{});
+  // The U and D stickers of a corner swapped, the side colours left alone.
+  std::string s = solved;
+  s[27 + 2] = 'U'; // D3, on the DFR corner
+  CHECK_FALSE(from(s));
+  // Two stickers of one colour on an edge.
+  s = solved;
+  s[1] = 'B'; // U2, on the UB edge
+  CHECK_FALSE(from(s));
+  // A twisted corner on its own.
+  s = solved;
+  std::string corner = {s[8], s[9], s[20]}; // URF: U9, R1, F3
+  s[8] = corner[1];
+  s[9] = corner[2];
+  s[20] = corner[0];
+  CHECK_FALSE(from(s));
+  // Any real cube is read back exactly.
+  CubieCube t;
+  t.apply(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"));
+  CHECK(CubieCube::fromFacelets(t.toFacelets()) == t);
+}
+
 TEST_CASE("there are 24 distinct rotations") {
   const auto &rots = allRotations();
   for (std::size_t i = 0; i < rots.size(); ++i) {

@@ -140,7 +140,11 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
       }
       if (!state) {
         if (error) {
-          *error = QString("case \"%1\" has an invalid state").arg(qs(c.id));
+          *error = facelets
+                       ? QString("case \"%1\" has stickers no real cube has")
+                             .arg(qs(c.id))
+                       : QString("case \"%1\" has an unreadable state")
+                             .arg(qs(c.id));
         }
         return std::nullopt;
       }
