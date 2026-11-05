@@ -11,6 +11,7 @@ add_library(vcube_gui STATIC
   library_page.cpp
   main_window.cpp
   mode_page.hpp
+  move_count_page.cpp
   platform.cpp
   scramble_page.cpp
   scramble_source.cpp

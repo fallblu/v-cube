@@ -143,8 +143,9 @@ void ScrambleAlgs::update() {
 // --- ScrambleTypeBox
 // ----------------------------------------------------------
 
-ScrambleTypeBox::ScrambleTypeBox(const AlgLibrary &library, QWidget *parent)
-    : QComboBox(parent), library_(library) {
+ScrambleTypeBox::ScrambleTypeBox(const AlgLibrary &library, QWidget *parent,
+                                 QStringList only)
+    : QComboBox(parent), library_(library), only_(std::move(only)) {
   setFocusPolicy(Qt::NoFocus);
   setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
   setMinimumContentsLength(14);
@@ -155,7 +156,10 @@ ScrambleTypeBox::ScrambleTypeBox(const AlgLibrary &library, QWidget *parent)
 
 QString ScrambleTypeBox::currentType() const {
   QString t = currentData().toString();
-  return t.isEmpty() ? QString("333") : t;
+  if (t.isEmpty()) {
+    return only_.isEmpty() ? QString("333") : only_.front();
+  }
+  return t;
 }
 
 void ScrambleTypeBox::setCurrentType(const QString &type) {
@@ -169,10 +173,18 @@ void ScrambleTypeBox::refresh() {
   {
     QSignalBlocker block(this);
     clear();
-    for (const auto &t : scrambleTypes()) {
-      addItem(qs(t.name), qs(t.id));
+    if (only_.isEmpty()) {
+      for (const auto &t : scrambleTypes()) {
+        addItem(qs(t.name), qs(t.id));
+      }
+    } else {
+      for (const QString &id : only_) {
+        if (const ScrambleType *t = findScrambleType(ss(id))) {
+          addItem(qs(t->name), id);
+        }
+      }
     }
-    if (!library_.sets().empty()) {
+    if (only_.isEmpty() && !library_.sets().empty()) {
       insertSeparator(count());
       for (const auto &set : library_.sets()) {
         if (set.caseCount() > 0) {

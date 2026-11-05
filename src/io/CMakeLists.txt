@@ -1,6 +1,7 @@
 add_library(vcube_io
   algset_json.cpp
   library.cpp
+  move_counts.cpp
   sessions.cpp
 )
 target_include_directories(vcube_io PUBLIC ${PROJECT_SOURCE_DIR}/src)

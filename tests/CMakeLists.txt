@@ -23,6 +23,7 @@ add_executable(vcube_tests
   test_timer_stats.cpp
   test_srs.cpp
   test_io.cpp
+  test_move_count.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)

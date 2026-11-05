@@ -7,8 +7,8 @@ on a normal (non-smart) cube with the space-bar timer.
 
 ## Features
 
-The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
-`Ctrl+6` switch between them):
+The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
+`Ctrl+7` switch between them):
 
 | Group | Mode | What it's for |
 | --- | --- | --- |
@@ -16,6 +16,7 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
 | Algs | **Drill** | Timed practice on a physical cube with the space-bar timer |
 | Algs | **Library** | Creating and editing alg sets |
 | Solves | **Timer** | Timed solves on a physical cube, with sessions and statistics |
+| Solves | **Move Count** | Untimed move-efficiency practice for one step (EO, EO Cross, ZZ F2L, ...) on a physical cube |
 | Solves | **Scramble** | Scrambles for casual solving, with no timer |
 | Solves | **Virtual** | A virtual-cube sandbox |
 
@@ -91,6 +92,23 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
   - Sessions, with ao5/ao12/ao100, mo3, best, mean, +2/DNF/comments per
     solve, and a trend chart. The session menu switches, adds, renames and
     deletes sessions, and imports and exports cstimer sessions.
+- **Move Count**: practise move efficiency for one step at a time on a
+  physical cube, with no timer. Solve the step, then type how many moves
+  your solution took and press Enter to record it and get the next
+  scramble.
+  - Sessions work as in Timer, with mo3, ao5/ao12/ao100, best, mean, DNF
+    and comments per scramble, and a trend chart, all over move counts.
+    Each session keeps its own scramble type. New installs start with
+    three sessions: EO and EO Cross (from WCA scrambles) and ZZ F2L (from
+    EO Cross solved).
+  - Only the scramble types that suit these steps are offered: WCA random
+    state (for EO, EOLine, EO Cross or cross), EOLine solved, EOCross
+    solved (ZZ F2L) and F2L (cross solved, for CFOP F2L). Colour
+    neutrality applies, as everywhere.
+  - Type the count with the digit keys (or keypad); Backspace corrects it
+    and Esc clears it. **DNF** records a scramble whose step went wrong,
+    **Skip scramble** moves on without recording, and right-clicking a
+    count edits it, toggles DNF, adds a comment or copies its scramble.
 - **Scramble**: large scramble text with a net preview and a Copy button.
   Space or → shows the next scramble, Backspace or ← goes back through
   the last 100. Nothing is timed or saved.
@@ -207,7 +225,7 @@ picks the plugin as usual.
 
 | Where | Key | Action |
 | --- | --- | --- |
-| Anywhere | Ctrl+1 … Ctrl+6 | switch to Learn, Drill, Library, Timer, Scramble, Virtual (not during a solve) |
+| Anywhere | Ctrl+1 … Ctrl+7 | switch to Learn, Drill, Library, Timer, Move Count, Scramble, Virtual (not during a solve) |
 | Anywhere | F11 | toggle full screen |
 | Anywhere | F10 | toggle focus mode |
 | Anywhere | Ctrl+Shift+N | colour neutrality settings |
@@ -224,6 +242,9 @@ picks the plugin as usual.
 | Drill, after a case | Space | next case |
 | Drill, after a case | Backspace | toggle "wrong alg" |
 | Drill, after a case | Esc | try the case again |
+| Move Count | 0-9 | type the move count |
+| Move Count | Backspace / Esc | correct / clear the move count |
+| Move Count | Enter | record the move count and show the next scramble |
 | Timer, Scramble, Virtual | Tab | show or hide the algs for an alg set scramble's case |
 | Scramble | Space / → | next scramble |
 | Scramble | Backspace / ← | previous scramble |
@@ -262,6 +283,7 @@ ticked) builds the cases. If you change a set's step settings later,
 | Alg sets (one JSON file each) | `~/.local/share/v-cube/algsets/` | `%LOCALAPPDATA%\v-cube\algsets\` |
 | Learn and drill progress per set | `~/.local/share/v-cube/algsets/progress/` | `%LOCALAPPDATA%\v-cube\algsets\progress\` |
 | Timer sessions | `~/.local/share/v-cube/sessions.json` | `%LOCALAPPDATA%\v-cube\sessions.json` |
+| Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
 | Settings (theme, colours, keys, mode choices) | `~/.config/v-cube/v-cube.ini` | `%APPDATA%\v-cube\v-cube.ini` |
 
 Settings are an INI file on every platform; Windows doesn't use the
@@ -301,9 +323,9 @@ pieces; `view` is `top`, `3d` (from the front right), `3d-front-left`,
 | Directory | Contents |
 | --- | --- |
 | `src/cube` | Pure C++ engine. Notation parser (groups, commutators, conjugates; invert, mirror, simplify); a facelet model built from 3D geometry that handles slices, wide moves and rotations; a cubie model; Kociemba's two-phase solver (tables built in under a second); random-state and subset scramblers. |
-| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics, SRS scheduler, Learn and Drill case picking. |
-| `src/io` | Qt Core persistence. JSON alg sets, the user library, progress, sessions and cstimer conversion. |
-| `src/app` | Qt Widgets UI. Cube renderer, the six mode pages, the shared scramble source and settings. |
+| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics (also over move counts), SRS scheduler, Learn and Drill case picking. |
+| `src/io` | Qt Core persistence. JSON alg sets, the user library, progress, timer and move count sessions, and cstimer conversion. |
+| `src/app` | Qt Widgets UI. Cube renderer, the seven mode pages, the shared scramble source and settings. |
 | `tests` | Catch2 tests for the engine, training logic and storage. They also check that every built-in case is distinct and that standard algs are matched to the right cases. |
 
 ## Credits

@@ -22,11 +22,13 @@ std::function<ScrambleSetup(Rng &)>
 scrambleStateMaker(const AlgLibrary &library, const QString &type);
 
 // The scramble types shared by Timer, Scramble and Virtual mode: the
-// built-in random-state types, then one per alg set with cases.
+// built-in random-state types, then one per alg set with cases. With
+// `only`, just those built-in types (by id, in that order) and no alg sets.
 class ScrambleTypeBox : public QComboBox {
   Q_OBJECT
 public:
-  ScrambleTypeBox(const AlgLibrary &library, QWidget *parent = nullptr);
+  ScrambleTypeBox(const AlgLibrary &library, QWidget *parent = nullptr,
+                  QStringList only = {});
 
   QString currentType() const;
   // Selects `type`, or the first type if it isn't offered.
@@ -40,6 +42,7 @@ signals:
 
 private:
   const AlgLibrary &library_;
+  QStringList only_;
   QString last_;
   void emitIfChanged();
 };

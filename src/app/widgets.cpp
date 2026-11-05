@@ -126,8 +126,14 @@ generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
       });
 }
 
-TrendChart::TrendChart(QWidget *parent) : QWidget(parent) {
+TrendChart::TrendChart(QWidget *parent)
+    : QWidget(parent), emptyText_(tr("Times will be charted here")) {
   setMinimumHeight(110);
+}
+
+void TrendChart::setEmptyText(const QString &text) {
+  emptyText_ = text;
+  update();
 }
 
 void TrendChart::setSolves(const std::vector<Solve> &solves) {
@@ -142,7 +148,7 @@ void TrendChart::paintEvent(QPaintEvent *) {
   QColor axis = palette().color(QPalette::PlaceholderText);
   p.setPen(axis);
   if (solves_.size() < 2) {
-    p.drawText(rect(), Qt::AlignCenter, tr("Times will be charted here"));
+    p.drawText(rect(), Qt::AlignCenter, emptyText_);
     return;
   }
   std::vector<double> times;

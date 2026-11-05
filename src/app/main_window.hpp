@@ -2,6 +2,7 @@
 
 #include "app/app_settings.hpp"
 #include "io/library.hpp"
+#include "io/move_counts.hpp"
 #include "io/sessions.hpp"
 
 #include <QMainWindow>
@@ -22,6 +23,7 @@ class LearnPage;
 class DrillPage;
 class LibraryPage;
 class TimerPage;
+class MoveCountPage;
 class ScramblePage;
 class VirtualPage;
 
@@ -30,8 +32,17 @@ class MainWindow : public QMainWindow {
 public:
   MainWindow(AppSettings &settings, QString dataDir, QWidget *parent = nullptr);
 
-  // The modes, in sidebar order (Ctrl+1 to Ctrl+6).
-  enum Mode { Learn, Drill, Library, Timer, Scramble, Virtual, ModeCount };
+  // The modes, in sidebar order (Ctrl+1 to Ctrl+7).
+  enum Mode {
+    Learn,
+    Drill,
+    Library,
+    Timer,
+    MoveCount,
+    Scramble,
+    Virtual,
+    ModeCount
+  };
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
@@ -44,6 +55,7 @@ private:
   QString dataDir_;
   AlgLibrary library_;
   SessionStore sessions_;
+  MoveCountStore moveCounts_;
   QStackedWidget *stack_;
   QWidget *sidebar_;
   QButtonGroup *modeButtons_;
@@ -57,6 +69,7 @@ private:
   DrillPage *drillPage_;
   LibraryPage *libraryPage_;
   TimerPage *timerPage_;
+  MoveCountPage *moveCountPage_;
   ScramblePage *scramblePage_;
   VirtualPage *virtualPage_;
   int mode_ = -1;

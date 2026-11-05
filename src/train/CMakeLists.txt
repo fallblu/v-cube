@@ -1,6 +1,7 @@
 add_library(vcube_train
   algset.cpp
   case_logic.cpp
+  move_count.cpp
   stats.cpp
   timer.cpp
   srs.cpp

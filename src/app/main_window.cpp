@@ -3,6 +3,7 @@
 #include "app/drill_page.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
+#include "app/move_count_page.hpp"
 #include "app/platform.hpp"
 #include "app/scramble_page.hpp"
 #include "app/settings_dialog.hpp"
@@ -51,6 +52,7 @@ constexpr std::array<ModeInfo, MainWindow::ModeCount> kModes = {{
     {"drill", QT_TRANSLATE_NOOP("MainWindow", "Drill")},
     {"library", QT_TRANSLATE_NOOP("MainWindow", "Library")},
     {"timer", QT_TRANSLATE_NOOP("MainWindow", "Timer")},
+    {"movecount", QT_TRANSLATE_NOOP("MainWindow", "Move Count")},
     {"scramble", QT_TRANSLATE_NOOP("MainWindow", "Scramble")},
     {"virtual", QT_TRANSLATE_NOOP("MainWindow", "Virtual")},
 }};
@@ -78,7 +80,8 @@ void removeObsoleteSettings(QSettings &q) {
 MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     : QMainWindow(parent), settings_(settings), dataDir_(std::move(dataDir)),
       library_(QDir(dataDir_).filePath("algsets"), ":/algsets"),
-      sessions_(QDir(dataDir_).filePath("sessions.json")) {
+      sessions_(QDir(dataDir_).filePath("sessions.json")),
+      moveCounts_(QDir(dataDir_).filePath("movecounts.json")) {
   setWindowTitle("v-cube");
   library_.load();
   QString error;
@@ -89,16 +92,24 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
            "session; the old file is left untouched until you save.")
             .arg(error));
   }
+  if (!moveCounts_.load(&error)) {
+    QMessageBox::warning(
+        this, "v-cube",
+        tr("Could not read your move counts (%1). Starting with the default "
+           "sessions; the old file is left untouched until you save.")
+            .arg(error));
+  }
 
   stack_ = new QStackedWidget(this);
   learnPage_ = new LearnPage(settings_, library_, stack_);
   drillPage_ = new DrillPage(settings_, library_, stack_);
   libraryPage_ = new LibraryPage(settings_, library_, stack_);
   timerPage_ = new TimerPage(settings_, sessions_, library_, stack_);
+  moveCountPage_ = new MoveCountPage(settings_, moveCounts_, library_, stack_);
   scramblePage_ = new ScramblePage(settings_, library_, stack_);
   virtualPage_ = new VirtualPage(settings_, library_, stack_);
-  pages_ = {learnPage_, drillPage_,    libraryPage_,
-            timerPage_, scramblePage_, virtualPage_};
+  pages_ = {learnPage_,     drillPage_,    libraryPage_, timerPage_,
+            moveCountPage_, scramblePage_, virtualPage_};
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
@@ -475,9 +486,9 @@ void MainWindow::exportAlgSet() {
 void MainWindow::showControls() {
   QString text = tr(
       "<h3>Modes</h3>"
-      "<p><b>Ctrl+1</b> to <b>Ctrl+6</b> switch between Learn, Drill, "
-      "Library, Timer, Scramble and Virtual. Switching is blocked while a "
-      "solve or inspection is running.</p>"
+      "<p><b>Ctrl+1</b> to <b>Ctrl+7</b> switch between Learn, Drill, "
+      "Library, Timer, Move Count, Scramble and Virtual. Switching is "
+      "blocked while a solve or inspection is running.</p>"
       "<h3>Window</h3>"
       "<p><b>F11</b> toggles full screen. <b>F10</b> toggles focus mode, "
       "which hides everything but the scramble, timer, cube and algs; "
@@ -498,6 +509,11 @@ void MainWindow::showControls() {
       "<p>Hold <b>Space</b> until the time turns green, release to start, "
       "press any key to stop. With inspection on, tap Space to start "
       "inspecting first. <b>Esc</b> cancels.</p>"
+      "<h3>Move Count (physical cube, untimed)</h3>"
+      "<p>Solve the session's step, then type the number of moves your "
+      "solution took: <b>0–9</b> type the count, <b>Backspace</b> corrects "
+      "it, <b>Esc</b> clears it and <b>Enter</b> records it and shows the "
+      "next scramble.</p>"
       "<h3>Alg set scrambles (Timer, Scramble and Virtual)</h3>"
       "<p><b>Tab</b> shows or hides the algs for the case the scramble "
       "sets up. Nothing is graded.</p>"

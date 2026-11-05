@@ -55,12 +55,15 @@ QFuture<GeneratedScramble>
 generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
                  ColourNeutrality neutrality);
 
-// Times and rolling averages of a session, drawn with QPainter.
+// Times and rolling averages of a session, drawn with QPainter. Values
+// are charted in thousandths (seconds for times, moves for move counts).
 class TrendChart : public QWidget {
   Q_OBJECT
 public:
   explicit TrendChart(QWidget *parent = nullptr);
   void setSolves(const std::vector<Solve> &solves);
+  // Shown until there are two values to chart.
+  void setEmptyText(const QString &text);
   QSize sizeHint() const override { return {400, 160}; }
 
 protected:
@@ -68,6 +71,7 @@ protected:
 
 private:
   std::vector<Solve> solves_;
+  QString emptyText_;
 };
 
 // Monotonic milliseconds since the app started.
