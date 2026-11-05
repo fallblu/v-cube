@@ -9,6 +9,7 @@
 #include <array>
 
 class QAbstractButton;
+class QAction;
 class QButtonGroup;
 class QStackedWidget;
 
@@ -32,6 +33,7 @@ public:
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
+  void changeEvent(QEvent *e) override;
   void closeEvent(QCloseEvent *e) override;
 
 private:
@@ -41,6 +43,7 @@ private:
   SessionStore sessions_;
   QStackedWidget *stack_;
   QButtonGroup *modeButtons_;
+  QAction *fullScreenAction_ = nullptr;
   std::array<ModePage *, ModeCount> pages_{};
   LearnPage *learnPage_;
   DrillPage *drillPage_;
@@ -63,6 +66,7 @@ private:
   ModePage *currentPage() const;
   // Switches mode unless a solve or inspection is running; false if blocked.
   bool setMode(int mode);
+  void setFullScreen(bool on);
   void openDataFolder();
   void openSettings();
   void importAlgSet();

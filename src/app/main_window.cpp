@@ -232,6 +232,18 @@ bool MainWindow::setMode(int mode) {
   return true;
 }
 
+void MainWindow::setFullScreen(bool on) {
+  setWindowState(on ? windowState() | Qt::WindowFullScreen
+                    : windowState() & ~Qt::WindowFullScreen);
+}
+
+void MainWindow::changeEvent(QEvent *e) {
+  if (e->type() == QEvent::WindowStateChange && fullScreenAction_) {
+    fullScreenAction_->setChecked(isFullScreen());
+  }
+  QMainWindow::changeEvent(e);
+}
+
 void MainWindow::closeEvent(QCloseEvent *e) {
   QSettings q;
   q.setValue("window/geometry", saveGeometry());
@@ -281,6 +293,21 @@ void MainWindow::buildMenus() {
   QMenu *edit = menuBar()->addMenu(tr("&Edit"));
   edit->addAction(tr("&Settings…"), QKeySequence(Qt::CTRL | Qt::Key_Comma),
                   this, &MainWindow::openSettings);
+
+  QMenu *view = menuBar()->addMenu(tr("&View"));
+  fullScreenAction_ = view->addAction(tr("&Full screen"));
+  fullScreenAction_->setCheckable(true);
+  fullScreenAction_->setChecked(isFullScreen());
+  QList<QKeySequence> fullScreenKeys = {QKeySequence(Qt::Key_F11)};
+  for (const QKeySequence &k :
+       QKeySequence::keyBindings(QKeySequence::FullScreen)) {
+    if (!fullScreenKeys.contains(k)) {
+      fullScreenKeys << k;
+    }
+  }
+  fullScreenAction_->setShortcuts(fullScreenKeys);
+  connect(fullScreenAction_, &QAction::toggled, this,
+          &MainWindow::setFullScreen);
 
   QMenu *modes = menuBar()->addMenu(tr("&Mode"));
   for (int m = 0; m < ModeCount; ++m) {
@@ -379,6 +406,8 @@ void MainWindow::showControls() {
       "<p><b>Ctrl+1</b> to <b>Ctrl+6</b> switch between Learn, Drill, "
       "Library, Timer, Scramble and Virtual. Switching is blocked while a "
       "solve or inspection is running.</p>"
+      "<h3>Window</h3>"
+      "<p><b>F11</b> toggles full screen.</p>"
       "<h3>Learn (virtual cube, untimed)</h3>"
       "<p>Solve the case on the virtual cube from memory. <b>Tab</b> shows "
       "the algs (grades the case Again), <b>Space</b> gives up, <b>Esc</b> "

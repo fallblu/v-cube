@@ -109,6 +109,8 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
     unfolded net, or hidden.
   - Turned from the keyboard with cstimer's face keys (Shift for wide
     moves), which you can remap in Settings.
+- **Full screen**: F11 (or View > Full screen) toggles full screen, and
+  the window reopens the way you left it.
 
 ## Building
 
@@ -184,6 +186,7 @@ picks the plugin as usual.
 | Where | Key | Action |
 | --- | --- | --- |
 | Anywhere | Ctrl+1 … Ctrl+6 | switch to Learn, Drill, Library, Timer, Scramble, Virtual (not during a solve) |
+| Anywhere | F11 | toggle full screen |
 | Learn | turning keys | turn the virtual cube; solving the case finishes it |
 | Learn | Tab | show the algs (grades the case Again) |
 | Learn | Space | give up (grades the case Again) |
