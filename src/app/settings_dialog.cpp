@@ -161,13 +161,15 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   relearningEdit_ =
       new QLineEdit(stepsToText(settings_.srs.relearningSteps), learning);
   lForm->addRow(tr("Relearning steps (after a miss):"), relearningEdit_);
-  lForm->addRow(new QLabel(
+  auto *learningNote = new QLabel(
       tr("Learn mode grades each case by correctness: solved from memory "
          "is Good, using Tab to see the algs or giving up is Again, and "
          "keys 1-4 change the grade afterwards. Graduated cases come back "
          "after days, spaced out further each time they go well. Drill mode "
          "never changes the schedule."),
-      learning));
+      learning);
+  learningNote->setWordWrap(true);
+  lForm->addRow(learningNote);
   tabs->addTab(learning, tr("Learning"));
 
   auto *buttons = new QDialogButtonBox(
