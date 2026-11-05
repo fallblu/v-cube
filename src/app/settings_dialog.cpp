@@ -98,8 +98,8 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   auto *keys = new QWidget(tabs);
   auto *kLayout = new QVBoxLayout(keys);
   kLayout->addWidget(
-      new QLabel(tr("Virtual cube turning keys. Select a row to change it, or "
-                    "enter a key and a move to add one."),
+      new QLabel(tr("Virtual cube turning keys. Select a row to change its "
+                    "key or move, or enter a key and a move to add one."),
                  keys));
   keyTable_ = new QTableWidget(0, 2, keys);
   keyTable_->setHorizontalHeaderLabels({tr("Key"), tr("Move")});
@@ -114,15 +114,20 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   keyEdit_->setMaximumSequenceLength(1);
   moveEdit_ = new QLineEdit(keys);
   moveEdit_->setPlaceholderText(tr("Move, e.g. R' or M2 or y"));
-  auto *setButton = new QPushButton(tr("Set"), keys);
-  auto *removeButton = new QPushButton(tr("Remove"), keys);
+  changeButton_ = new QPushButton(tr("Change"), keys);
+  changeButton_->setToolTip(tr("Give the selected row this key and move"));
+  auto *addButton = new QPushButton(tr("Add"), keys);
+  addButton->setToolTip(
+      tr("Add this key and move, replacing any other move on the key"));
+  removeButton_ = new QPushButton(tr("Remove"), keys);
   auto *defaultsButton = new QPushButton(tr("Defaults"), keys);
   editRow->addWidget(new QLabel(tr("Key:"), keys));
   editRow->addWidget(keyEdit_);
   editRow->addWidget(new QLabel(tr("Move:"), keys));
   editRow->addWidget(moveEdit_);
-  editRow->addWidget(setButton);
-  editRow->addWidget(removeButton);
+  editRow->addWidget(changeButton_);
+  editRow->addWidget(addButton);
+  editRow->addWidget(removeButton_);
   editRow->addWidget(defaultsButton);
   kLayout->addLayout(editRow);
   connect(keyTable_, &QTableWidget::currentCellChanged, this, [this](int row) {
@@ -132,13 +137,18 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
                                             QKeySequence::PortableText));
       moveEdit_->setText(QString::fromStdString(toString(b.move)));
     }
+    updateKeyButtons();
   });
-  connect(setButton, &QPushButton::clicked, this, &SettingsDialog::setBinding);
+  connect(changeButton_, &QPushButton::clicked, this,
+          [this] { setBinding(true); });
+  connect(addButton, &QPushButton::clicked, this,
+          [this] { setBinding(false); });
+  // Enter changes the selected row, or adds a binding when none is.
   connect(moveEdit_, &QLineEdit::returnPressed, this,
-          &SettingsDialog::setBinding);
-  connect(removeButton, &QPushButton::clicked, this, [this] {
-    int row = keyTable_->currentRow();
-    if (row >= 0 && row < static_cast<int>(settings_.keymap.bindings.size())) {
+          [this] { setBinding(selectedBinding() >= 0); });
+  connect(removeButton_, &QPushButton::clicked, this, [this] {
+    int row = selectedBinding();
+    if (row >= 0) {
       settings_.keymap.bindings.erase(settings_.keymap.bindings.begin() + row);
       refreshKeys();
     }
@@ -413,6 +423,20 @@ void SettingsDialog::refreshNeutrality() {
   holdSummary_->setText(summary);
 }
 
+int SettingsDialog::selectedBinding() const {
+  int row = keyTable_->currentRow();
+  bool selected = row >= 0 &&
+                  row < static_cast<int>(settings_.keymap.bindings.size()) &&
+                  keyTable_->selectionModel()->isRowSelected(row);
+  return selected ? row : -1;
+}
+
+void SettingsDialog::updateKeyButtons() {
+  bool selected = selectedBinding() >= 0;
+  changeButton_->setEnabled(selected);
+  removeButton_->setEnabled(selected);
+}
+
 void SettingsDialog::refreshKeys() {
   keyTable_->setRowCount(static_cast<int>(settings_.keymap.bindings.size()));
   for (std::size_t i = 0; i < settings_.keymap.bindings.size(); ++i) {
@@ -423,9 +447,10 @@ void SettingsDialog::refreshKeys() {
         static_cast<int>(i), 1,
         new QTableWidgetItem(QString::fromStdString(toString(b.move))));
   }
+  updateKeyButtons();
 }
 
-void SettingsDialog::setBinding() {
+void SettingsDialog::setBinding(bool changeSelected) {
   QKeySequence seq = keyEdit_->keySequence();
   Alg move = parseAlgOrEmpty(moveEdit_->text().toStdString());
   if (seq.isEmpty() || move.size() != 1) {
@@ -434,27 +459,47 @@ void SettingsDialog::setBinding() {
     return;
   }
   QKeyCombination combo = seq[0];
-  if (combo.key() == Qt::Key_Space || combo.key() == Qt::Key_Escape ||
-      combo.key() == Qt::Key_Backspace || combo.key() == Qt::Key_Tab ||
-      combo.key() == Qt::Key_Return) {
+  Qt::Key key = combo.key();
+  if (key == Qt::Key_Space || key == Qt::Key_Escape ||
+      key == Qt::Key_Backspace || key == Qt::Key_Tab || key == Qt::Key_Return ||
+      key == Qt::Key_Enter) {
     QMessageBox::information(
         this, tr("Keyboard"),
         tr("Space, Esc, Backspace, Tab and Enter are reserved for the "
            "modes' own controls."));
     return;
   }
-  KeyBinding b{combo.key(),
-               combo.keyboardModifiers().testFlag(Qt::ShiftModifier),
+  if (combo.keyboardModifiers() &
+      (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) {
+    QMessageBox::information(
+        this, tr("Keyboard"),
+        tr("Turning keys can be held with Shift, but not with Ctrl, Alt or "
+           "Meta, which are left for shortcuts."));
+    return;
+  }
+  KeyBinding b{key, combo.keyboardModifiers().testFlag(Qt::ShiftModifier),
                move.front()};
   auto &list = settings_.keymap.bindings;
-  // Replace any binding for the same key.
-  auto it = std::find_if(list.begin(), list.end(), [&b](const KeyBinding &x) {
-    return x.key == b.key && x.shift == b.shift;
-  });
-  int row;
-  if (it != list.end()) {
-    *it = b;
-    row = static_cast<int>(it - list.begin());
+  int row = changeSelected ? selectedBinding() : -1;
+  if (changeSelected && row < 0) {
+    return;
+  }
+  // A key turns one move: any other binding for it goes.
+  for (std::size_t i = list.size(); i-- > 0;) {
+    if (static_cast<int>(i) != row && list[i].key == b.key &&
+        list[i].shift == b.shift) {
+      if (row < 0) {
+        row = static_cast<int>(i); // adding: take that binding's place
+        continue;
+      }
+      list.erase(list.begin() + static_cast<std::ptrdiff_t>(i));
+      if (static_cast<int>(i) < row) {
+        --row;
+      }
+    }
+  }
+  if (row >= 0) {
+    list[static_cast<std::size_t>(row)] = b;
   } else {
     list.push_back(b);
     row = static_cast<int>(list.size()) - 1;

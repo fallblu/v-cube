@@ -44,6 +44,8 @@ private:
   QTableWidget *keyTable_;
   QKeySequenceEdit *keyEdit_;
   QLineEdit *moveEdit_;
+  QPushButton *changeButton_;
+  QPushButton *removeButton_;
   QSpinBox *newPerDaySpin_;
   QLineEdit *learningEdit_;
   QLineEdit *relearningEdit_;
@@ -54,7 +56,11 @@ private:
   // Shows settings_.neutrality in the controls.
   void refreshNeutrality();
   void refreshKeys();
-  void setBinding();
+  // Binds the key and move entered, to the selected row or as a new one.
+  void setBinding(bool changeSelected);
+  // The selected binding's row, or -1.
+  int selectedBinding() const;
+  void updateKeyButtons();
 };
 
 } // namespace vcube
