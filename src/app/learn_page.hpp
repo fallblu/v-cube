@@ -71,6 +71,7 @@ private:
 
   QSpinBox *learnCount_;
   QWidget *optionsRow_;
+  QComboBox *viewBox_;
   CubeView *cubeView_;
   QLabel *statusLabel_;
   QLabel *reveal_;
@@ -95,6 +96,9 @@ private:
   // The algs shown for a case, main alg first, as the follower checks them.
   std::vector<Alg> shownAlgs(const std::string &caseId);
   void learnNext();
+  // Shows the cube the way it was last shown for this set; a set seen for
+  // the first time keeps the view in use.
+  void applySetView();
 };
 
 } // namespace vcube

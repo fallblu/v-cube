@@ -49,6 +49,10 @@ void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
 void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,
                    const CubeLook &look);
 
+// The yaw that shows the cube from the corner of a 3D diagram view, given
+// the front-right yaw; TopLayer gives the front-right yaw too.
+double yawFor(DiagramView view, double frontRightYaw);
+
 // A square case diagram in the given view, for lists and reveals.
 QPixmap diagram(const FaceletCube &cube, DiagramView view, int size,
                 const CubeLook &look, qreal devicePixelRatio = 1.0);

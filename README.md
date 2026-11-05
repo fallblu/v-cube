@@ -159,7 +159,9 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
 - **Virtual cube** (Learn and Virtual):
   - Choose the view in each mode: animated 3D, a flat view of the U and F
     faces with the adjacent L and R stickers (as in Alg-Trainer), an
-    unfolded net, or hidden.
+    unfolded net, or hidden. Learn remembers the view for each alg set, and
+    its 3D view looks from the corner the case's diagrams are drawn from
+    (e.g. front left for left-slot F2L cases).
   - Turned from the keyboard with cstimer's face keys (Shift for wide
     moves), which you can remap in Settings.
 - **Full screen**: F11 (or View > Full screen) toggles full screen, and

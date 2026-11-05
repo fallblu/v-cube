@@ -333,6 +333,22 @@ void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,
   p.restore();
 }
 
+double yawFor(DiagramView view, double frontRightYaw) {
+  // The other corners' views mirror the front-right one.
+  switch (view) {
+  case DiagramView::TopLayer:
+  case DiagramView::Iso3D:
+    return frontRightYaw;
+  case DiagramView::Iso3DFrontLeft:
+    return -frontRightYaw;
+  case DiagramView::Iso3DBackLeft:
+    return 180.0 + frontRightYaw;
+  case DiagramView::Iso3DBackRight:
+    return -180.0 - frontRightYaw;
+  }
+  return frontRightYaw;
+}
+
 QPixmap diagram(const FaceletCube &cube, DiagramView view, int size,
                 const CubeLook &look, qreal devicePixelRatio) {
   QPixmap pm(static_cast<int>(size * devicePixelRatio),
@@ -341,27 +357,12 @@ QPixmap diagram(const FaceletCube &cube, DiagramView view, int size,
   pm.fill(Qt::transparent);
   QPainter p(&pm);
   QRectF area(0, 0, size, size);
-  // The other corners' views mirror the default front-right yaw.
-  CubeLook turned = look;
-  switch (view) {
-  case DiagramView::TopLayer:
+  if (view == DiagramView::TopLayer) {
     paintTopLayer(p, area, cube, look);
-    break;
-  case DiagramView::Iso3D:
-    paint3D(p, area, cube, look);
-    break;
-  case DiagramView::Iso3DFrontLeft:
-    turned.yaw = -look.yaw;
+  } else {
+    CubeLook turned = look;
+    turned.yaw = yawFor(view, look.yaw);
     paint3D(p, area, cube, turned);
-    break;
-  case DiagramView::Iso3DBackLeft:
-    turned.yaw = 180.0 + look.yaw;
-    paint3D(p, area, cube, turned);
-    break;
-  case DiagramView::Iso3DBackRight:
-    turned.yaw = -180.0 - look.yaw;
-    paint3D(p, area, cube, turned);
-    break;
   }
   return pm;
 }

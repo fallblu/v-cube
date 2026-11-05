@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
+#include <QSettings>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QTreeWidget>
@@ -78,7 +79,10 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   auto *options = new QHBoxLayout(optionsRow_);
   options->setContentsMargins(0, 0, 0, 0);
   options->addWidget(new QLabel(tr("View:"), optionsRow_));
-  options->addWidget(createViewSelector(cubeView_, "learn", optionsRow_));
+  viewBox_ = createViewSelector(cubeView_, "learn", optionsRow_);
+  viewBox_->setToolTip(
+      tr("How the virtual cube is shown, remembered for each alg set"));
+  options->addWidget(viewBox_);
   options->addStretch();
   rightLayout->addWidget(optionsRow_);
 
@@ -129,6 +133,10 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   layout->addWidget(split);
 
   connect(learnButton, &QPushButton::clicked, this, &LearnPage::learnNext);
+  connect(viewBox_, &QComboBox::activated, this, [this] {
+    QSettings().setValue(setSettingsKey(setId_, "learnView"),
+                         viewBox_->currentData());
+  });
   init();
 }
 
@@ -311,7 +319,20 @@ bool LearnPage::notDue(const std::string &caseId) {
          !isDue(cp->card, unixNow(), settings_.srs, localDayEnd());
 }
 
+void LearnPage::applySetView() {
+  QSettings q;
+  QString key = setSettingsKey(setId_, "learnView");
+  QString name = q.value(key).toString();
+  if (auto mode = CubeView::modeFromName(name)) {
+    viewBox_->setCurrentIndex(viewBox_->findData(name));
+    cubeView_->setMode(*mode);
+  } else if (!setId_.empty()) {
+    q.setValue(key, viewBox_->currentData()); // the set keeps the view in use
+  }
+}
+
 void LearnPage::startSet() {
+  applySetView();
   current_.reset();
   last_.clear();
   nextCase();
@@ -415,6 +436,13 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   reveal_->clear();
   gradeRow_->setVisible(false);
   cubeView_->setColourMap(colourMapOf(hold));
+  // In 3D, look from the corner the group's diagrams are drawn from, so
+  // that e.g. a back-left F2L slot can be seen.
+  if (const CaseGroup *g = set() ? set()->groupOf(caseId) : nullptr) {
+    CubeLook look = cubeView_->look();
+    look.yaw = cube_painter::yawFor(set()->specFor(*g).view, CubeLook{}.yaw);
+    cubeView_->setLook(look);
+  }
   resetCube();
   selectInTree(caseId);
   setPhase(Phase::Solving);
