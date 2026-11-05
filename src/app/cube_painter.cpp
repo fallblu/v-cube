@@ -1,5 +1,7 @@
 #include "app/cube_painter.hpp"
 
+#include <QCache>
+#include <QDataStream>
 #include <QMatrix4x4>
 #include <QPainterPath>
 #include <QPolygonF>
@@ -364,6 +366,26 @@ QPixmap diagram(const FaceletCube &cube, DiagramView view, int size,
     turned.yaw = yawFor(view, look.yaw);
     paint3D(p, area, cube, turned);
   }
+  return pm;
+}
+
+QPixmap cachedDiagram(const FaceletCube &cube, DiagramView view, int size,
+                      const CubeLook &look, qreal devicePixelRatio) {
+  // Enough for several large sets in two sizes and a couple of looks.
+  static QCache<QByteArray, QPixmap> cache(6000);
+  QByteArray key(reinterpret_cast<const char *>(cube.stickers().data()),
+                 kFaceletCount);
+  QDataStream out(&key, QIODeviceBase::Append);
+  out << static_cast<int>(view) << size << devicePixelRatio << look.yaw
+      << look.pitch << look.scheme.masked << look.scheme.body;
+  for (std::size_t i = 0; i < 6; ++i) {
+    out << look.scheme.faces[i] << look.map[i];
+  }
+  if (QPixmap *hit = cache.object(key)) {
+    return *hit;
+  }
+  QPixmap pm = diagram(cube, view, size, look, devicePixelRatio);
+  cache.insert(key, new QPixmap(pm));
   return pm;
 }
 

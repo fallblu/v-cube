@@ -27,7 +27,8 @@ namespace vcube {
 class CasePage : public ModePage {
   Q_OBJECT
 public:
-  void reloadSets(); // the library changed
+  // The library changed. A hidden page catches up when it is shown.
+  void reloadSets();
   void applySettings() override;
   void activated() override;
   void setFocusMode(bool on) override;
@@ -118,11 +119,21 @@ protected:
   virtual void neutralityChanged() {}
 
 private:
+  bool reloadPending_ = false;  // the library changed while hidden
+  bool rebuildPending_ = false; // the look changed while hidden
+  bool ticksPending_ = false;   // a tick change waits to be saved
+
   void populateSets();
   void selectSet(const std::string &id);
   void computeInfo();
+  // Builds the case list, keeping its scroll position and collapsed groups.
   void buildTree();
+  // Brings the ticks and rows up to date without drawing the thumbnails
+  // again, e.g. after the other mode changed them.
+  void syncRows();
   void saveTicks();
+  // Saves the ticks once a batch of changes (e.g. "Tick all") is done.
+  void ticksEdited();
   ColourNeutrality neutrality_; // as last applied
   void showCaseMenu(const QPoint &pos);
 };

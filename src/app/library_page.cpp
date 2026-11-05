@@ -20,6 +20,8 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollBar>
+#include <QSet>
 #include <QSettings>
 #include <QSplitter>
 #include <QToolButton>
@@ -409,6 +411,16 @@ void LibraryPage::loadSet() {
 
 void LibraryPage::buildCaseTree() {
   QSignalBlocker block(caseTree_);
+  // Keep the scroll position and collapsed groups of the same set.
+  bool sameSet = caseTreeSet_ == setId_;
+  caseTreeSet_ = setId_;
+  int scroll = sameSet ? caseTree_->verticalScrollBar()->value() : 0;
+  QSet<QString> collapsed;
+  for (int g = 0; sameSet && g < caseTree_->topLevelItemCount(); ++g) {
+    if (!caseTree_->topLevelItem(g)->isExpanded()) {
+      collapsed.insert(caseTree_->topLevelItem(g)->text(0));
+    }
+  }
   caseTree_->clear();
   AlgSet *s = set();
   if (!s) {
@@ -433,7 +445,7 @@ void LibraryPage::buildCaseTree() {
       auto *item = new QTreeWidgetItem(groupItem, {qs(c.name)});
       item->setData(0, kCaseRole, qs(c.id));
       item->setIcon(
-          0, QIcon(cube_painter::diagram(
+          0, QIcon(cube_painter::cachedDiagram(
                  maskedFacelets(a ? a->display : c.state, spec.mask, spec.free),
                  spec.view, 40, l, dpr)));
       item->setText(1, QString::number(c.algs.size()));
@@ -467,8 +479,9 @@ void LibraryPage::buildCaseTree() {
       groupItem->setText(2, tr("⚠ %1 failing").arg(groupFailing));
       groupItem->setForeground(2, kWarn);
     }
-    groupItem->setExpanded(true);
+    groupItem->setExpanded(!collapsed.contains(qs(g.name)));
   }
+  caseTree_->verticalScrollBar()->setValue(scroll);
   if (current) {
     caseTree_->setCurrentItem(current);
   }

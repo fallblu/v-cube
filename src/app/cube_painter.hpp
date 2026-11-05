@@ -56,6 +56,10 @@ double yawFor(DiagramView view, double frontRightYaw);
 // A square case diagram in the given view, for lists and reveals.
 QPixmap diagram(const FaceletCube &cube, DiagramView view, int size,
                 const CubeLook &look, qreal devicePixelRatio = 1.0);
+// diagram(), drawn once for each cube, view, look and size and then kept,
+// for the case lists, which are rebuilt often.
+QPixmap cachedDiagram(const FaceletCube &cube, DiagramView view, int size,
+                      const CubeLook &look, qreal devicePixelRatio = 1.0);
 
 } // namespace cube_painter
 

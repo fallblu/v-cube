@@ -12,7 +12,10 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
+#include <QScrollBar>
+#include <QSet>
 #include <QSettings>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -98,9 +101,7 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   connect(tree_, &QTreeWidget::itemChanged, this,
           [this](QTreeWidgetItem *, int column) {
             if (column == 0) {
-              saveTicks();
-              updateSummary();
-              ticksChanged();
+              ticksEdited();
             }
           });
   connect(tree_, &QTreeWidget::customContextMenuRequested, this,
@@ -192,7 +193,9 @@ int CasePage::excludedCount() const {
 }
 
 void CasePage::applySettings() {
-  if (set()) {
+  if (!isVisible()) {
+    rebuildPending_ = true;
+  } else if (set()) {
     buildTree();
   }
   if (settings_.neutrality != neutrality_) {
@@ -202,9 +205,15 @@ void CasePage::applySettings() {
 }
 
 void CasePage::activated() {
-  // Ticks and progress are shared with the other mode.
-  if (set()) {
+  if (reloadPending_) {
+    reloadPending_ = false;
+    rebuildPending_ = false;
+    reloadSets();
+  } else if (rebuildPending_) {
+    rebuildPending_ = false;
     buildTree();
+  } else if (set()) {
+    syncRows(); // ticks and progress are shared with the other mode
   }
 }
 
@@ -220,6 +229,10 @@ void CasePage::populateSets() {
 }
 
 void CasePage::reloadSets() {
+  if (!isVisible()) {
+    reloadPending_ = true;
+    return;
+  }
   populateSets();
   std::string id = setId_;
   if (!library_.find(id)) {
@@ -267,6 +280,13 @@ void CasePage::buildTree() {
   if (auto *item = tree_->currentItem()) {
     current = ss(item->data(0, kCaseIdRole).toString());
   }
+  int scroll = tree_->verticalScrollBar()->value();
+  QSet<QString> collapsed;
+  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
+    if (!tree_->topLevelItem(g)->isExpanded()) {
+      collapsed.insert(tree_->topLevelItem(g)->text(0));
+    }
+  }
   tree_->clear();
   AlgSet *s = set();
   if (!s) {
@@ -293,8 +313,8 @@ void CasePage::buildTree() {
       const CaseInfo *info = infoOf(c.id);
       FaceletCube masked =
           maskedFacelets(info ? info->state : c.state, spec.mask, spec.free);
-      item->setIcon(0, QIcon(cube_painter::diagram(masked, spec.view, kThumb,
-                                                   look, dpr)));
+      item->setIcon(0, QIcon(cube_painter::cachedDiagram(masked, spec.view,
+                                                         kThumb, look, dpr)));
       if (eligible(c.id)) {
         item->setToolTip(0, qs(info->mainAlg));
       } else {
@@ -307,9 +327,41 @@ void CasePage::buildTree() {
         tree_->setCurrentItem(item);
       }
     }
-    groupItem->setExpanded(true);
+    groupItem->setExpanded(!collapsed.contains(qs(g.name)));
+  }
+  tree_->verticalScrollBar()->setValue(scroll);
+  updateSummary();
+}
+
+void CasePage::syncRows() {
+  QSignalBlocker block(tree_);
+  std::optional<QStringList> ticked = tickedCases(setId_);
+  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
+    auto *group = tree_->topLevelItem(g);
+    for (int i = 0; i < group->childCount(); ++i) {
+      QTreeWidgetItem *item = group->child(i);
+      QString id = item->data(0, kCaseIdRole).toString();
+      bool on = !ticked || ticked->contains(id);
+      if ((item->checkState(0) == Qt::Checked) != on) {
+        item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
+      }
+      fillRow(item, ss(id));
+    }
   }
   updateSummary();
+}
+
+void CasePage::ticksEdited() {
+  if (ticksPending_) {
+    return;
+  }
+  ticksPending_ = true;
+  QTimer::singleShot(0, this, [this] {
+    ticksPending_ = false;
+    saveTicks();
+    updateSummary();
+    ticksChanged();
+  });
 }
 
 QTreeWidgetItem *CasePage::itemFor(const std::string &caseId) const {

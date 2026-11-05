@@ -56,6 +56,7 @@ private:
   AppSettings &settings_;
   AlgLibrary &library_;
   std::string setId_;
+  std::string caseTreeSet_; // the set the case tree was last built for
   std::string caseId_;
   bool loading_ = false;
   // Every case of the current set, checked under its step settings.
