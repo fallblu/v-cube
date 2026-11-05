@@ -27,7 +27,12 @@ class MoveCountStore {
 public:
   explicit MoveCountStore(QString path);
 
-  bool load(QString *error = nullptr); // missing file = the default sessions
+  // A missing file gives the default sessions. A file that can't be read
+  // is set aside (see setAside()) and also gives the default sessions; if
+  // it can't be moved, nothing is saved over it.
+  bool load(QString *error = nullptr);
+  // Where load() moved an unreadable file, if it did.
+  const QString &setAsidePath() const { return setAside_; }
   bool save(QString *error = nullptr) const;
 
   std::vector<MoveCountSession> &sessions() { return sessions_; }
@@ -46,6 +51,10 @@ private:
   QString path_;
   std::vector<MoveCountSession> sessions_ = defaultMoveCountSessions();
   std::size_t current_ = 0;
+  QString setAside_;
+  bool keepOff_ = false; // the unreadable file is still there
+
+  bool unreadable(QString *error, const QString &why);
 };
 
 // {"format": "v-cube.movecount", "version": 1, "current": 0, "sessions":

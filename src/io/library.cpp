@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 
@@ -92,6 +93,7 @@ void AlgLibrary::load() {
   errors_.clear();
   sets_.clear();
   progress_.clear();
+  progressKeptOff_.clear();
   QDir().mkpath(dir_);
   QDir().mkpath(QDir(dir_).filePath("progress"));
   installBuiltins();
@@ -108,6 +110,9 @@ void AlgLibrary::load() {
       continue;
     }
     sets_.push_back(std::move(*set));
+  }
+  for (const AlgSet &s : sets_) {
+    progress(s.id); // to report unreadable progress files now
   }
   // Built-ins first in a fixed order, then the user's sets by name.
   QStringList order = {"pll", "oll", "2look-oll", "2look-pll"};
@@ -211,14 +216,36 @@ SetProgress &AlgLibrary::progress(const std::string &setId) {
     return it->second;
   }
   SetProgress p;
-  QFile f(progressPathFor(setId));
+  QString path = progressPathFor(setId);
+  QFile f(path);
   if (f.open(QIODevice::ReadOnly)) {
-    p = progressFromJson(QJsonDocument::fromJson(f.readAll()).object());
+    QJsonParseError pe;
+    auto doc = QJsonDocument::fromJson(f.readAll(), &pe);
+    f.close();
+    if (pe.error == QJsonParseError::NoError && doc.isObject()) {
+      p = progressFromJson(doc.object());
+    } else {
+      QString kept = setAside(path);
+      if (kept.isEmpty()) {
+        progressKeptOff_.insert(setId);
+      }
+      errors_ << (kept.isEmpty()
+                      ? QString("progress/%1 couldn't be read or moved aside")
+                            .arg(QFileInfo(path).fileName())
+                      : QString("progress/%1 couldn't be read, so it was "
+                                "kept as %2 and the set's progress starts "
+                                "afresh")
+                            .arg(QFileInfo(path).fileName(),
+                                 QFileInfo(kept).fileName()));
+    }
   }
   return progress_[setId] = std::move(p);
 }
 
 bool AlgLibrary::saveProgress(const std::string &setId) {
+  if (progressKeptOff_.contains(setId)) {
+    return false; // never save over a file that couldn't be read
+  }
   QDir().mkpath(QDir(dir_).filePath("progress"));
   QString error;
   return writeFileAtomically(progressPathFor(setId),

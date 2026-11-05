@@ -1,5 +1,6 @@
 #include "io/algset_json.hpp"
 
+#include <QDateTime>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -227,6 +228,16 @@ bool writeFileAtomically(const QString &path, const QByteArray &data,
     return false;
   }
   return true;
+}
+
+QString setAside(const QString &path) {
+  QString base = path + ".unreadable-" +
+                 QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
+  QString target = base;
+  for (int i = 2; QFile::exists(target); ++i) {
+    target = base + "-" + QString::number(i);
+  }
+  return QFile::rename(path, target) ? target : QString();
 }
 
 bool writeAlgSetFile(const AlgSet &set, const QString &path, QString *error) {

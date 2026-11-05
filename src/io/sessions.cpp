@@ -55,18 +55,15 @@ bool SessionStore::load(QString *error) {
     return true;
   }
   if (!f.open(QIODevice::ReadOnly)) {
-    if (error) {
-      *error = f.errorString();
-    }
-    return false;
+    return unreadable(error, f.errorString());
   }
   QJsonParseError pe;
   auto doc = QJsonDocument::fromJson(f.readAll(), &pe);
-  if (pe.error != QJsonParseError::NoError) {
-    if (error) {
-      *error = pe.errorString();
-    }
-    return false;
+  f.close();
+  if (pe.error != QJsonParseError::NoError || !doc.isObject()) {
+    return unreadable(error, pe.error != QJsonParseError::NoError
+                                 ? pe.errorString()
+                                 : QString("not a sessions file"));
   }
   sessions_ = sessionsFromJson(doc.object(), &current_);
   if (sessions_.empty()) {
@@ -76,7 +73,25 @@ bool SessionStore::load(QString *error) {
   return true;
 }
 
+bool SessionStore::unreadable(QString *error, const QString &why) {
+  if (error) {
+    *error = why;
+  }
+  sessions_ = {Session{}};
+  current_ = 0;
+  setAside_ = setAside(path_);
+  keepOff_ = setAside_.isEmpty();
+  return false;
+}
+
 bool SessionStore::save(QString *error) const {
+  if (keepOff_) {
+    if (error) {
+      *error =
+          QString("%1 couldn't be read, so it isn't saved over").arg(path_);
+    }
+    return false;
+  }
   QDir().mkpath(QFileInfo(path_).absolutePath());
   return writeFileAtomically(path_,
                              QJsonDocument(sessionsToJson(sessions_, current_))

@@ -6,6 +6,7 @@
 #include <QStringList>
 
 #include <map>
+#include <set>
 #include <vector>
 
 namespace vcube {
@@ -38,6 +39,8 @@ public:
   bool restoreBuiltin(const std::string &id, QString *error = nullptr);
   QStringList builtinIds() const;
 
+  // A set's progress, read the first time it is asked for. A progress file
+  // that can't be read is set aside (see setAside()) and noted in errors().
   SetProgress &progress(const std::string &setId);
   bool saveProgress(const std::string &setId);
 
@@ -48,6 +51,7 @@ private:
   QString builtinDir_;
   std::vector<AlgSet> sets_;
   std::map<std::string, SetProgress> progress_;
+  std::set<std::string> progressKeptOff_; // unreadable and not moved aside
   QStringList errors_;
 
   QString pathFor(const std::string &id) const;

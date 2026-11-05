@@ -1,11 +1,13 @@
 #include "cube/solver.hpp"
 #include "io/library.hpp"
+#include "io/move_counts.hpp"
 #include "io/sessions.hpp"
 #include "train/case_logic.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <QDir>
+#include <QFile>
 #include <QJsonDocument>
 #include <QTemporaryDir>
 
@@ -249,6 +251,70 @@ TEST_CASE("library installs built-ins once and saves changes") {
   CHECK(lib.progress("pll")["T"].attempts.size() == 1);
   REQUIRE(lib.restoreBuiltin("pll"));
   CHECK(lib.find("pll")->findCase("T")->algs.size() == 1);
+}
+
+namespace {
+
+void writeText(const QString &path, const QByteArray &text) {
+  QFile f(path);
+  REQUIRE(f.open(QIODevice::WriteOnly));
+  f.write(text);
+}
+
+QByteArray readText(const QString &path) {
+  QFile f(path);
+  return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+// Files in `dir` whose names start with `prefix`.
+QStringList filesStarting(const QString &dir, const QString &prefix) {
+  return QDir(dir).entryList({prefix + "*"}, QDir::Files);
+}
+
+} // namespace
+
+TEST_CASE("unreadable session files are set aside, not saved over") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  writeText(path, "{\"sessions\": [");
+  SessionStore store(path);
+  QString error;
+  CHECK_FALSE(store.load(&error));
+  CHECK_FALSE(error.isEmpty());
+  REQUIRE_FALSE(store.setAsidePath().isEmpty());
+  CHECK(readText(store.setAsidePath()) == "{\"sessions\": [");
+  CHECK(store.sessions().size() == 1);
+  CHECK(store.save());
+  CHECK(filesStarting(tmp.path(), "sessions.json.unreadable-").size() == 1);
+
+  QString counts = tmp.filePath("movecounts.json");
+  writeText(counts, "not json");
+  MoveCountStore moves(counts);
+  CHECK_FALSE(moves.load(&error));
+  CHECK(readText(moves.setAsidePath()) == "not json");
+  CHECK(moves.sessions().size() == defaultMoveCountSessions().size());
+}
+
+TEST_CASE("unreadable progress is set aside and reported") {
+  QTemporaryDir tmp;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+  }
+  QString progress = tmp.filePath("progress/pll.json");
+  writeText(progress, "{\"cases\": {\"T\": ");
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.errors().size() == 1);
+  CHECK(lib.errors().front().contains("pll.json"));
+  CHECK(lib.progress("pll").empty());
+  QStringList kept =
+      filesStarting(tmp.filePath("progress"), "pll.json.unreadable-");
+  REQUIRE(kept.size() == 1);
+  lib.progress("pll")["T"].record({100, 1500, false});
+  CHECK(lib.saveProgress("pll"));
+  CHECK(readText(tmp.filePath("progress/" + kept.front())) ==
+        "{\"cases\": {\"T\": ");
 }
 
 TEST_CASE("progress keeps the attempt mode and reads old files as drill") {

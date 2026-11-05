@@ -85,19 +85,26 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   setWindowTitle("v-cube");
   library_.load();
   QString error;
+  // An unreadable file is kept, under another name if it could be moved.
+  auto kept = [](const QString &path) {
+    return path.isEmpty()
+               ? tr("It couldn't be moved aside either, so nothing will be "
+                    "saved over it.")
+               : tr("It was kept as %1.").arg(QDir::toNativeSeparators(path));
+  };
   if (!sessions_.load(&error)) {
-    QMessageBox::warning(
-        this, "v-cube",
-        tr("Could not read your sessions (%1). Starting with an empty "
-           "session; the old file is left untouched until you save.")
-            .arg(error));
+    QMessageBox::warning(this, "v-cube",
+                         tr("Could not read your timer sessions (%1), so the "
+                            "timer starts with an empty session.")
+                                 .arg(error) +
+                             " " + kept(sessions_.setAsidePath()));
   }
   if (!moveCounts_.load(&error)) {
-    QMessageBox::warning(
-        this, "v-cube",
-        tr("Could not read your move counts (%1). Starting with the default "
-           "sessions; the old file is left untouched until you save.")
-            .arg(error));
+    QMessageBox::warning(this, "v-cube",
+                         tr("Could not read your move counts (%1), so Move "
+                            "Count starts with the default sessions.")
+                                 .arg(error) +
+                             " " + kept(moveCounts_.setAsidePath()));
   }
 
   stack_ = new QStackedWidget(this);
@@ -154,8 +161,10 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   buildMenus();
   qApp->installEventFilter(this);
 
-  for (const QString &e : library_.errors()) {
-    showMessage(e);
+  if (!library_.errors().isEmpty()) {
+    QMessageBox::warning(this, "v-cube",
+                         tr("Some alg set files had problems:") + "\n\n" +
+                             library_.errors().join("\n"));
   }
   QSettings q;
   restoreGeometry(q.value("window/geometry").toByteArray());

@@ -22,8 +22,13 @@ class SessionStore {
 public:
   explicit SessionStore(QString path);
 
-  bool load(QString *error = nullptr); // missing file = one empty session
+  // A missing file gives one empty session. A file that can't be read is
+  // set aside (see setAside()) and also gives one empty session; if it
+  // can't be moved, nothing is saved over it.
+  bool load(QString *error = nullptr);
   bool save(QString *error = nullptr) const;
+  // Where load() moved an unreadable file, if it did.
+  const QString &setAsidePath() const { return setAside_; }
 
   std::vector<Session> &sessions() { return sessions_; }
   const std::vector<Session> &sessions() const { return sessions_; }
@@ -40,6 +45,10 @@ private:
   QString path_;
   std::vector<Session> sessions_{Session{}};
   std::size_t current_ = 0;
+  QString setAside_;
+  bool keepOff_ = false; // the unreadable file is still there
+
+  bool unreadable(QString *error, const QString &why);
 };
 
 QJsonObject sessionsToJson(const std::vector<Session> &sessions,

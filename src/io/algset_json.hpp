@@ -29,4 +29,9 @@ SetProgress progressFromJson(const QJsonObject &o);
 bool writeFileAtomically(const QString &path, const QByteArray &data,
                          QString *error);
 
+// Renames a file that couldn't be read to "<name>.unreadable-<date>-<time>"
+// next to it, so that saving afresh doesn't destroy it. Returns the new
+// path, or an empty string if the file couldn't be renamed.
+QString setAside(const QString &path);
+
 } // namespace vcube
