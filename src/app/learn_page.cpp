@@ -14,6 +14,8 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace vcube {
 
 namespace {
@@ -246,6 +248,10 @@ void LearnPage::extendCaseMenu(QMenu &menu, const std::string &caseId) {
   auto change = [this, caseId](auto &&apply) {
     apply(progress()[caseId]);
     saveProgress();
+    if (current_ && current_->caseId == caseId && phase_ == Phase::Done) {
+      gradeReplaced_ = true; // 1-4 would undo the change
+      showGrade();
+    }
     updateRow(caseId);
     if (phase_ == Phase::NoCase) {
       nextCase();
@@ -332,9 +338,13 @@ void LearnPage::ticksChanged() {
 }
 
 void LearnPage::neutralityChanged() {
-  // Set the case up again in a hold the new choice allows.
-  if (current_ && phase_ == Phase::Solving) {
-    begin(current_->caseId, current_->isNew, current_->practice);
+  // Show the case in a hold the new choice allows. Only the colours
+  // change, so the turns made so far and a hint taken still count.
+  const auto &holds = settings_.neutrality.holds;
+  if (current_ &&
+      std::find(holds.begin(), holds.end(), current_->hold) == holds.end()) {
+    current_->hold = pickHold();
+    cubeView_->setColourMap(colourMapOf(current_->hold));
   }
 }
 
@@ -397,6 +407,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   hinted_ = false;
   gaveUp_ = false;
   leftAlgs_ = false;
+  gradeReplaced_ = false;
   follower_ = AlgFollower(info->state.toFacelets(), shownAlgs(caseId));
   reveal_->clear();
   gradeRow_->setVisible(false);
@@ -553,6 +564,7 @@ void LearnPage::finish() {
   }
   leftAlgs_ = !gaveUp_ && !follower_.onAlg();
   grade_ = learnGrade(hinted_, gaveUp_, leftAlgs_);
+  autoGrade_ = grade_;
   if (current_->practice) {
     setPhase(Phase::Done); // nothing is recorded
     showReveal();
@@ -562,6 +574,7 @@ void LearnPage::finish() {
   std::int64_t now = unixNow();
   CaseProgress &cp = progress()[current_->caseId];
   cardBefore_ = cp.card;
+  attemptTime_ = now;
   cp.record({now, 0, grade_ == Grade::Again, AttemptMode::Learn});
   review(cp.card, grade_, now, settings_.srs);
   saveProgress();
@@ -572,13 +585,20 @@ void LearnPage::finish() {
 }
 
 void LearnPage::regrade(Grade grade) {
-  if (phase_ != Phase::Done || !current_ || current_->practice) {
+  if (phase_ != Phase::Done || !current_ || current_->practice ||
+      gradeReplaced_) {
     showGrade();
     return;
   }
   grade_ = grade;
   CaseProgress &cp = progress()[current_->caseId];
   cp.card = cardBefore_;
+  for (auto a = cp.attempts.rbegin(); a != cp.attempts.rend(); ++a) {
+    if (a->mode == AttemptMode::Learn && a->timestamp == attemptTime_) {
+      a->failed = grade == Grade::Again;
+      break;
+    }
+  }
   review(cp.card, grade_, unixNow(), settings_.srs);
   saveProgress();
   showGrade();
@@ -608,15 +628,20 @@ void LearnPage::showGrade() {
   }
   gradeRow_->setVisible(true);
   for (QPushButton *b : gradeButtons_) {
-    b->setVisible(!current_->practice);
+    b->setVisible(!current_->practice && !gradeReplaced_);
   }
-  QString why = gaveUp_     ? tr("gave up")
-                : hinted_   ? tr("used a hint")
+  QString why = grade_ != autoGrade_ ? tr("graded by hand")
+                : gaveUp_            ? tr("gave up")
+                : hinted_            ? tr("used a hint")
                 : leftAlgs_ ? (follower_.startedOver() ? tr("started over")
                                                        : tr("left the algs"))
                             : tr("solved from memory");
   QString next =
       dueText(progressOf(current_->caseId), unixNow(), localDayEnd());
+  if (gradeReplaced_) {
+    gradeLabel_->setText(tr("Changed from the case list → next %1").arg(next));
+    return;
+  }
   if (current_->practice) {
     gradeLabel_->setText(
         tr("Practice: %1 (%2). Not graded; next review %3.")

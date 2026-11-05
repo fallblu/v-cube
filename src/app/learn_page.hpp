@@ -63,8 +63,11 @@ private:
   bool gaveUp_ = false;
   AlgFollower follower_; // whether the moves keep to the case's algs
   bool leftAlgs_ = false;
-  SrsCard cardBefore_; // to change the grade afterwards
+  SrsCard cardBefore_;           // to change the grade afterwards
+  std::int64_t attemptTime_ = 0; // the attempt the grade was recorded with
+  bool gradeReplaced_ = false;   // the case list changed the card since
   Grade grade_ = Grade::Good;
+  Grade autoGrade_ = Grade::Good; // the grade the attempt earned
 
   QSpinBox *learnCount_;
   QWidget *optionsRow_;
