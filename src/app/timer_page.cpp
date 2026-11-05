@@ -184,7 +184,7 @@ bool TimerPage::isBusy() const {
          s == SolveTimer::State::Holding || s == SolveTimer::State::Ready;
 }
 
-void TimerPage::activated() { tick_.start(16); }
+void TimerPage::activated() { updateControls(); }
 
 void TimerPage::deactivated() {
   tick_.stop();
@@ -203,6 +203,15 @@ void TimerPage::windowDeactivated() {
 
 void TimerPage::updateControls() {
   bool busy = isBusy();
+  // The time only changes during a hold, inspection or solve, so the
+  // display is only redrawn then.
+  if (busy != tick_.isActive()) {
+    if (busy) {
+      tick_.start(16);
+    } else {
+      tick_.stop();
+    }
+  }
   if (busy == controlsLocked_) {
     return;
   }

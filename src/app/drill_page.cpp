@@ -168,7 +168,6 @@ void DrillPage::applySettings() {
 
 void DrillPage::activated() {
   CasePage::activated();
-  tick_.start(16);
   if (!current_) {
     nextCase();
   }
@@ -192,6 +191,15 @@ void DrillPage::windowDeactivated() {
 
 void DrillPage::updateControls() {
   bool busy = isBusy();
+  // The time only changes during a hold, inspection or solve, so the
+  // display is only redrawn then.
+  if (busy != tick_.isActive()) {
+    if (busy) {
+      tick_.start(16);
+    } else {
+      tick_.stop();
+    }
+  }
   if (busy == controlsLocked_) {
     return;
   }
