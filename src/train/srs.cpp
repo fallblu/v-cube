@@ -356,12 +356,16 @@ std::optional<std::string> CasePicker::next(const SetProgress &progress,
   std::string pick;
   switch (mode_) {
   case PickMode::Random: {
-    std::uniform_int_distribution<std::size_t> dist(0, pool_.size() - 1);
-    pick = pool_[dist(rng)];
-    for (int tries = 0; tries < 8 && pool_.size() > 1 && pick == last_;
-         ++tries) {
-      pick = pool_[dist(rng)];
+    // Uniform over the pool without the last case.
+    auto last = std::find(pool_.begin(), pool_.end(), last_);
+    bool skip = pool_.size() > 1 && last != pool_.end();
+    std::uniform_int_distribution<std::size_t> dist(0, pool_.size() -
+                                                           (skip ? 2 : 1));
+    std::size_t i = dist(rng);
+    if (skip && i >= static_cast<std::size_t>(last - pool_.begin())) {
+      ++i;
     }
+    pick = pool_[i];
     break;
   }
   case PickMode::Weighted: {

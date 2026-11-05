@@ -181,6 +181,37 @@ TEST_CASE("learn avoids repeating the last case while another is due") {
   CHECK(*pickLearnCase({"a"}, prog, 100, 0, cfg, "a").caseId == "a");
 }
 
+TEST_CASE("random drill order never repeats a case straight away") {
+  CasePicker p;
+  p.setMode(PickMode::Random);
+  SetProgress prog;
+  std::mt19937_64 rng(5);
+  p.setPool({"a", "b"});
+  std::string last = *p.next(prog, rng);
+  for (int i = 0; i < 2000; ++i) {
+    std::string pick = *p.next(prog, rng);
+    REQUIRE(pick != last);
+    last = pick;
+  }
+  // The others come up evenly.
+  p.setPool({"a", "b", "c", "d"});
+  std::map<std::string, int> seen;
+  for (int i = 0; i < 6000; ++i) {
+    std::string pick = *p.next(prog, rng);
+    REQUIRE(pick != last);
+    last = pick;
+    ++seen[pick];
+  }
+  for (const auto &[id, n] : seen) {
+    CHECK(n > 1300);
+    CHECK(n < 1700);
+  }
+  // A single case still comes up.
+  p.setPool({"a"});
+  CHECK(*p.next(prog, rng) == "a");
+  CHECK(*p.next(prog, rng) == "a");
+}
+
 TEST_CASE("drill picker orders and weights cases") {
   CasePicker p;
   p.setMode(PickMode::InOrder);
