@@ -88,6 +88,9 @@ private:
   void resetCube();
   void turn(Move m);
   void finish();
+  // Turns the cube back to the way the case was held, e.g. after an alg
+  // that tilts it and solves the case before its last rotation.
+  void turnUpright();
   void regrade(Grade grade);
   void showReveal();
   void showGrade();

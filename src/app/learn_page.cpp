@@ -588,8 +588,17 @@ void LearnPage::turn(Move m) {
   const CaseGroup *g = s ? s->groupOf(current_->caseId) : nullptr;
   if (c && g && stepSolved(*c, s->specFor(*g).free)) {
     finish();
+    turnUpright();
   } else if (follower_.deviated() != wasOff) {
     showSolvingStatus();
+  }
+}
+
+void LearnPage::turnUpright() {
+  FaceletCube upright = cube_;
+  for (Move m : upright.normalizeOrientation()) {
+    cube_.apply(m);
+    cubeView_->animateMove(m);
   }
 }
 
