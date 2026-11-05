@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cube/facelet.hpp"
+#include "cube/hold.hpp"
 #include "cube/move.hpp"
 
 #include <QColor>
@@ -32,15 +33,14 @@ using ColourMap = std::array<int, 6>;
 
 inline constexpr ColourMap kIdentityColourMap{0, 1, 2, 3, 4, 5};
 
-// Colour map for holding the cube with `topSlot` on top and `frontSlot` in
-// front, or nullopt if those are the same or opposite colours.
-std::optional<ColourMap> colourMapFor(int topSlot, int frontSlot);
+// The colours shown with the cube held as `h`.
+inline ColourMap colourMapOf(Hold h) { return holdColours(h); }
 
-// The rotation from the WCA orientation to the one with `map`, e.g. "z2".
-Alg rotationFromWca(const ColourMap &map);
+// "White", "Red", ... for a colour slot.
+QString colourName(int slot);
 
-// Rich-text hint such as "Hold ■ top, ■ front (z2 from WCA)" with coloured
-// squares; empty for the WCA orientation.
-QString orientationHint(const ColourMap &map, const ColourScheme &scheme);
+// Rich text such as "■ yellow top, ■ blue front", with the squares in the
+// scheme's colours.
+QString holdHtml(Hold h, const ColourScheme &scheme);
 
 } // namespace vcube

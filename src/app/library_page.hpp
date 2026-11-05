@@ -44,7 +44,6 @@ public:
 
   void selectCase(const QString &setId, const QString &caseId);
   void applySettings() override;
-  void activated() override;
   void importSetFile();
   void exportSetFile();
 

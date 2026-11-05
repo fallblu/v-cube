@@ -28,7 +28,7 @@ VirtualPage::VirtualPage(AppSettings &settings, AlgLibrary &library,
   auto *top = new QHBoxLayout(topRow_);
   top->setContentsMargins(0, 0, 0, 0);
   typeBox_ = new ScrambleTypeBox(library, topRow_);
-  algs_ = new ScrambleAlgs(library, "virtual/showAlgs", this);
+  algs_ = new ScrambleAlgs(library, settings_.scheme, "virtual/showAlgs", this);
   auto *scrambleButton = button(tr("Scramble"), topRow_);
   scrambleButton->setToolTip(tr("Scramble the cube (Space)"));
   auto *resetButton = button(tr("Reset"), topRow_);
@@ -107,6 +107,8 @@ void VirtualPage::applySettings() {
   look.scheme = settings_.scheme;
   cubeView_->setLook(look);
   cubeView_->setAnimationMs(settings_.animationMs);
+  feed_.setNeutrality(settings_.neutrality);
+  algs_->refresh();
 }
 
 void VirtualPage::deactivated() {

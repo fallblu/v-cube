@@ -82,7 +82,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   typeBox_ = new ScrambleTypeBox(library_, typeRow_);
   auto *nextButton = flatButton(tr("Next scramble"), typeRow_);
   typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
-  algs_ = new ScrambleAlgs(library_, "timer/showAlgs", right);
+  algs_ = new ScrambleAlgs(library_, settings_.scheme, "timer/showAlgs", right);
   typeRow->addWidget(typeBox_, 1);
   typeRow->addWidget(algs_->button());
   typeRow->addWidget(nextButton);
@@ -200,6 +200,8 @@ void TimerPage::applySettings() {
   timer_.setConfig({settings_.holdMs, settings_.inspection, 15000});
   display_->setDecimals(settings_.decimals);
   net_->setScheme(settings_.scheme);
+  feed_.setNeutrality(settings_.neutrality);
+  algs_->refresh();
   refreshSolves();
 }
 

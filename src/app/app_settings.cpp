@@ -8,6 +8,8 @@
 #include <QStyle>
 #include <QStyleFactory>
 
+#include <algorithm>
+
 namespace vcube {
 
 void initSettingsStorage() {
@@ -26,6 +28,49 @@ void initSettingsStorage() {
     ini.setValue(key, native.value(key));
   }
 }
+
+namespace {
+
+QString holdText(Hold h) { return QString("%1%2").arg(h.top).arg(h.front); }
+
+std::optional<Hold> holdFromText(const QString &text) {
+  if (text.size() != 2 || !text[0].isDigit() || !text[1].isDigit()) {
+    return std::nullopt;
+  }
+  Hold h{text[0].digitValue(), text[1].digitValue()};
+  return isValidHold(h) ? std::optional<Hold>(h) : std::nullopt;
+}
+
+ColourNeutrality loadNeutrality(const QSettings &q) {
+  ColourNeutrality n;
+  if (q.contains("neutrality/main")) {
+    n.main =
+        holdFromText(q.value("neutrality/main").toString()).value_or(kWcaHold);
+    n.holds.clear();
+    for (const QString &t : q.value("neutrality/holds").toStringList()) {
+      if (auto h = holdFromText(t)) {
+        n.holds.push_back(*h);
+      }
+    }
+    n.normalize();
+    return n;
+  }
+  // Earlier versions kept a top and front colour and a choice of fixed,
+  // random front or random top and front per alg set in Learn and Drill;
+  // start from those of the set last used there.
+  QString set = q.value("learn/set", q.value("drill/set")).toString();
+  if (set.isEmpty()) {
+    return n;
+  }
+  QString key = "trainer/sets/" + set + "/";
+  Hold main{q.value(key + "top", 0).toInt(), q.value(key + "front", 2).toInt()};
+  static constexpr Neutrality kOld[] = {Neutrality::Fixed, Neutrality::Y,
+                                        Neutrality::Full};
+  int old = std::clamp(q.value(key + "neutrality", 0).toInt(), 0, 2);
+  return ColourNeutrality::preset(main, kOld[old]);
+}
+
+} // namespace
 
 AppSettings AppSettings::load() {
   AppSettings s;
@@ -47,6 +92,7 @@ AppSettings AppSettings::load() {
       s.keymap = k;
     }
   }
+  s.neutrality = loadNeutrality(q);
   s.holdMs = q.value("timer/holdMs", s.holdMs).toInt();
   s.inspection = q.value("timer/inspection", s.inspection).toBool();
   s.decimals = std::clamp(q.value("timer/decimals", s.decimals).toInt(), 1, 3);
@@ -76,6 +122,12 @@ void AppSettings::save() const {
   }
   q.setValue("ui/colours", colours);
   q.setValue("input/keymap", keymap.toStrings());
+  q.setValue("neutrality/main", holdText(neutrality.main));
+  QStringList holds;
+  for (Hold h : neutrality.holds) {
+    holds << holdText(h);
+  }
+  q.setValue("neutrality/holds", holds);
   q.setValue("timer/holdMs", holdMs);
   q.setValue("timer/inspection", inspection);
   q.setValue("timer/decimals", decimals);

@@ -61,15 +61,6 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   auto *right = new QWidget(this);
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
-  auto *options = new QHBoxLayout;
-  options->addStretch();
-  options->addWidget(orientation_);
-  rightLayout->addLayout(options);
-
-  hintLabel_ = new QLabel(right);
-  hintLabel_->setTextFormat(Qt::RichText);
-  hintLabel_->setAlignment(Qt::AlignCenter);
-  rightLayout->addWidget(hintLabel_);
   scrambleLabel_ = new QLabel(right);
   scrambleLabel_->setWordWrap(true);
   scrambleLabel_->setAlignment(Qt::AlignCenter);
@@ -169,12 +160,9 @@ void DrillPage::applySettings() {
   timer_.setConfig({settings_.holdMs, false, 15000});
   display_->setDecimals(settings_.decimals);
   CasePage::applySettings();
-  if (current_) {
-    hintLabel_->setText(orientationHint(current_->colours, settings_.scheme));
-    if (phase_ == Phase::Revealed) {
-      showReveal();
-      showResult();
-    }
+  if (current_ && phase_ == Phase::Revealed) {
+    showReveal();
+    showResult();
   }
 }
 
@@ -294,16 +282,17 @@ void DrillPage::ticksChanged() {
   }
 }
 
-void DrillPage::orientationChanged() {
-  if (current_ && phase_ != Phase::Running) {
-    current_->colours = caseColours();
+void DrillPage::neutralityChanged() {
+  // A new scramble for the case, meant for a hold the new choice allows.
+  if (current_ && phase_ == Phase::Waiting) {
+    current_->hold = pickHold();
     retryCase();
   }
 }
 
 void DrillPage::startCase(const std::string &caseId) {
   if (eligible(caseId) && !isBusy()) {
-    current_ = Current{caseId, {}, caseColours(), {}};
+    current_ = Current{caseId, {}, pickHold(), {}};
     retryCase();
   }
 }
@@ -330,7 +319,6 @@ void DrillPage::setPhase(Phase p) {
 
 void DrillPage::nextCase() {
   timer_.cancel();
-  hintLabel_->clear();
   reveal_->clear();
   setDiagram({});
   resultRow_->setVisible(false);
@@ -359,7 +347,7 @@ void DrillPage::nextCase() {
     setPhase(Phase::NoCase);
     return;
   }
-  current_ = Current{*id, {}, caseColours(), {}};
+  current_ = Current{*id, {}, pickHold(), {}};
   retryCase();
 }
 
@@ -378,7 +366,6 @@ void DrillPage::retryCase() {
   current_->state = drillState(*s, *g, shown, rng_);
   current_->scramble.clear();
   failed_ = false;
-  hintLabel_->setText(orientationHint(current_->colours, settings_.scheme));
   reveal_->clear();
   setDiagram({});
   resultRow_->setVisible(false);
@@ -397,8 +384,11 @@ void DrillPage::requestScramble() {
   CubieCube state = current_->state;
   // Results of superseded requests are dropped in scrambleReady().
   watcher_.setProperty("request", request);
+  ColourNeutrality hold;
+  hold.main = current_->hold;
+  hold.holds = {current_->hold};
   watcher_.setFuture(generateScramble(
-      [state](Rng &) { return ScrambleSetup{state, {}, {}}; }));
+      [state](Rng &) { return ScrambleSetup{state, {}, {}}; }, hold));
 }
 
 void DrillPage::scrambleReady() {
@@ -547,9 +537,11 @@ void DrillPage::showReveal() {
   if (!current_) {
     return;
   }
-  reveal_->setText(algsHtml(current_->caseId, current_->state));
-  setDiagram(
-      caseDiagram(current_->caseId, current_->state, 200, current_->colours));
+  reveal_->setText(algsHtml(current_->caseId, current_->state,
+                            isNeutral() ? std::optional<Hold>(current_->hold)
+                                        : std::nullopt));
+  setDiagram(caseDiagram(current_->caseId, current_->state, 200,
+                         colourMapOf(current_->hold)));
 }
 
 void DrillPage::setDiagram(const QPixmap &pixmap) {

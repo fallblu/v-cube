@@ -347,7 +347,10 @@ void MainWindow::buildMenus() {
 
   QMenu *edit = menuBar()->addMenu(tr("&Edit"));
   edit->addAction(tr("&Settings…"), QKeySequence(Qt::CTRL | Qt::Key_Comma),
-                  this, &MainWindow::openSettings);
+                  this, [this] { openSettings(); });
+  edit->addAction(tr("&Colour neutrality…"),
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N), this,
+                  [this] { openSettings(true); });
 
   QMenu *view = menuBar()->addMenu(tr("&View"));
   fullScreenAction_ = view->addAction(tr("&Full screen"));
@@ -435,11 +438,14 @@ void MainWindow::showMessage(const QString &text) {
   statusBar()->showMessage(text, 8000);
 }
 
-void MainWindow::openSettings() {
+void MainWindow::openSettings(bool neutrality) {
   if (currentPage() && currentPage()->isBusy()) {
     return;
   }
   SettingsDialog dialog(settings_, this);
+  if (neutrality) {
+    dialog.showNeutralityTab();
+  }
   if (dialog.exec() != QDialog::Accepted) {
     return;
   }
@@ -475,7 +481,8 @@ void MainWindow::showControls() {
       "<h3>Window</h3>"
       "<p><b>F11</b> toggles full screen. <b>F10</b> toggles focus mode, "
       "which hides everything but the scramble, timer, cube and algs; "
-      "right-click shows both options.</p>"
+      "right-click shows both options. <b>Ctrl+Shift+N</b> opens the colour "
+      "neutrality settings.</p>"
       "<h3>Learn (virtual cube, untimed)</h3>"
       "<p>Solve the case on the virtual cube from memory. <b>Tab</b> shows "
       "the algs (grades the case Again), <b>Space</b> gives up, <b>Esc</b> "

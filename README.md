@@ -47,9 +47,8 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
     change the spaced-repetition schedule.
 - Learn and Drill share each set's ticked cases and learn queue. Only cases
   with at least one alg that solves them are offered, and both modes show
-  how many are skipped. Hold the cube any way you like: choose the top and
-  front colours, or let each case pick a random front, or a random top and
-  front.
+  how many are skipped. Cases are set up for the holds chosen under
+  colour neutrality (below).
 - **Library**: create and edit alg sets.
   - The main view shows the set list, the selected set's case tree and the
     selected case with its diagram and algs. The **Set** menu (also on
@@ -102,6 +101,23 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
   - Any of your alg sets, using its ticked cases. Tab (or the Algs
     button) shows or hides the algs for the case each scramble sets up,
     with the AUFs it needs; nothing is graded or recorded.
+- **Colour neutrality** (Edit > Colour neutrality…, `Ctrl+Shift+N`, or the
+  Settings tab of the same name) applies to every mode. Scrambles are
+  always applied holding white on top and green in front; you choose the
+  holds you solve in, and each scramble is set up for one of them, picked
+  at random.
+  - Presets start from a main hold (e.g. yellow top, green front): fixed,
+    y2 (front colour or its opposite), y (any front), x2 (top colour or
+    its opposite), x2 y2, x2 y (top or its opposite, any front) and full
+    (any of the 24 holds). Or tick any set of holds in the top/front grid.
+  - For example, an EOCross scramble held x2 y neutral from white top,
+    green front gives a yellow or a white cross (on the bottom once you
+    turn the cube to the hold), with any front colour.
+  - Learn shows each case on the virtual cube in the colours of its hold,
+    and Drill's scrambles set the case up for its hold. After a Drill case,
+    and with the algs shown for an alg set scramble, a line names the hold
+    the AUFs are for when there was more than one to pick from.
+  - Case diagrams and thumbnails are drawn in the main hold.
 - **Virtual**: turn the virtual cube freely. Space scrambles with the
   chosen scramble type, Esc resets, and the alg field applies a typed alg
   with animation.
@@ -194,6 +210,7 @@ picks the plugin as usual.
 | Anywhere | Ctrl+1 … Ctrl+6 | switch to Learn, Drill, Library, Timer, Scramble, Virtual (not during a solve) |
 | Anywhere | F11 | toggle full screen |
 | Anywhere | F10 | toggle focus mode |
+| Anywhere | Ctrl+Shift+N | colour neutrality settings |
 | Learn | turning keys | turn the virtual cube; solving the case finishes it |
 | Learn | Tab | show the algs (grades the case Again) |
 | Learn | Space | give up (grades the case Again) |

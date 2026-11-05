@@ -23,9 +23,6 @@ namespace {
 constexpr int kCaseIdRole = Qt::UserRole;
 constexpr int kThumb = 38;
 
-const std::array<const char *, 6> kColourNames = {"White",  "Red",    "Green",
-                                                  "Yellow", "Orange", "Blue"};
-
 QComboBox *combo(QWidget *parent) {
   auto *c = new QComboBox(parent);
   c->setFocusPolicy(Qt::NoFocus);
@@ -93,25 +90,6 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   summary_->setWordWrap(true);
   leftLayout_->addWidget(summary_);
 
-  orientation_ = new QWidget(this);
-  auto *orientationLayout = new QHBoxLayout(orientation_);
-  orientationLayout->setContentsMargins(0, 0, 0, 0);
-  topBox_ = combo(orientation_);
-  frontBox_ = combo(orientation_);
-  for (int i = 0; i < 6; ++i) {
-    topBox_->addItem(tr(kColourNames[static_cast<std::size_t>(i)]), i);
-    frontBox_->addItem(tr(kColourNames[static_cast<std::size_t>(i)]), i);
-  }
-  neutralBox_ = combo(orientation_);
-  neutralBox_->addItem(tr("Fixed"));
-  neutralBox_->addItem(tr("Random front"));
-  neutralBox_->addItem(tr("Random top and front"));
-  orientationLayout->addWidget(new QLabel(tr("Top:"), orientation_));
-  orientationLayout->addWidget(topBox_);
-  orientationLayout->addWidget(new QLabel(tr("Front:"), orientation_));
-  orientationLayout->addWidget(frontBox_);
-  orientationLayout->addWidget(neutralBox_);
-
   connect(setBox_, &QComboBox::activated, this,
           [this](int i) { selectSet(ss(setBox_->itemData(i).toString())); });
   connect(tree_, &QTreeWidget::itemChanged, this,
@@ -134,13 +112,7 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
       tree_->topLevelItem(i)->setCheckState(0, Qt::Unchecked);
     }
   });
-  for (QComboBox *c : {topBox_, frontBox_, neutralBox_}) {
-    connect(c, &QComboBox::activated, this, [this] {
-      saveOrientation();
-      buildTree();
-      orientationChanged();
-    });
-  }
+  neutrality_ = settings_.neutrality;
 }
 
 void CasePage::init() {
@@ -217,29 +189,23 @@ int CasePage::excludedCount() const {
 }
 
 void CasePage::applySettings() {
-  for (int i = 0; i < 6; ++i) {
-    QPixmap swatch(14, 14);
-    swatch.fill(settings_.scheme.colourOfSlot(i));
-    topBox_->setItemIcon(i, swatch);
-    frontBox_->setItemIcon(i, swatch);
-  }
   if (set()) {
     buildTree();
+  }
+  if (settings_.neutrality != neutrality_) {
+    neutrality_ = settings_.neutrality;
+    neutralityChanged();
   }
 }
 
 void CasePage::activated() {
-  // Ticks, colours and progress are shared with the other mode.
+  // Ticks and progress are shared with the other mode.
   if (set()) {
-    loadOrientation();
     buildTree();
   }
 }
 
-void CasePage::setFocusMode(bool on) {
-  left_->setVisible(!on);
-  orientation_->setVisible(!on);
-}
+void CasePage::setFocusMode(bool on) { left_->setVisible(!on); }
 
 void CasePage::populateSets() {
   QSignalBlocker block(setBox_);
@@ -273,7 +239,6 @@ void CasePage::selectSet(const std::string &id) {
   }
   QSettings().setValue(mode_ + "/set", qs(setId_));
   setBox_->setCurrentIndex(setBox_->findData(qs(setId_)));
-  loadOrientation();
   computeInfo();
   buildTree();
   startSet();
@@ -308,7 +273,7 @@ void CasePage::buildTree() {
   std::optional<QStringList> ticked = tickedCases(setId_);
   CubeLook look;
   look.scheme = settings_.scheme;
-  look.map = baseColours();
+  look.map = colourMapOf(settings_.neutrality.main);
   qreal dpr = devicePixelRatioF();
   QColor muted = palette().color(QPalette::PlaceholderText);
   for (const auto &g : s->groups) {
@@ -427,56 +392,7 @@ void CasePage::showCaseMenu(const QPoint &pos) {
   menu.exec(tree_->viewport()->mapToGlobal(pos));
 }
 
-// --- orientation -------------------------------------------------------------
-
-void CasePage::loadOrientation() {
-  QSettings q;
-  topBox_->setCurrentIndex(q.value(setSettingsKey(setId_, "top"), 0).toInt());
-  frontBox_->setCurrentIndex(
-      q.value(setSettingsKey(setId_, "front"), 2).toInt());
-  neutralBox_->setCurrentIndex(
-      q.value(setSettingsKey(setId_, "neutrality"), 0).toInt());
-}
-
-void CasePage::saveOrientation() {
-  if (!colourMapFor(topBox_->currentIndex(), frontBox_->currentIndex())) {
-    // Keep the pair valid: pick the first front that fits the top.
-    for (int f = 0; f < 6; ++f) {
-      if (colourMapFor(topBox_->currentIndex(), f)) {
-        frontBox_->setCurrentIndex(f);
-        break;
-      }
-    }
-  }
-  QSettings q;
-  q.setValue(setSettingsKey(setId_, "top"), topBox_->currentIndex());
-  q.setValue(setSettingsKey(setId_, "front"), frontBox_->currentIndex());
-  q.setValue(setSettingsKey(setId_, "neutrality"), neutralBox_->currentIndex());
-}
-
-ColourMap CasePage::baseColours() const {
-  return colourMapFor(topBox_->currentIndex(), frontBox_->currentIndex())
-      .value_or(kIdentityColourMap);
-}
-
-ColourMap CasePage::caseColours() {
-  ColourMap base = baseColours();
-  int mode = neutralBox_->currentIndex();
-  if (mode == 0) {
-    return base;
-  }
-  std::vector<ColourMap> options;
-  for (int top = 0; top < 6; ++top) {
-    for (int front = 0; front < 6; ++front) {
-      auto m = colourMapFor(top, front);
-      if (m && (mode == 2 || top == base[0])) {
-        options.push_back(*m);
-      }
-    }
-  }
-  std::uniform_int_distribution<std::size_t> pick(0, options.size() - 1);
-  return options[pick(rng_)];
-}
+Hold CasePage::pickHold() { return settings_.neutrality.pick(rng_); }
 
 // --- reveal ----------------------------------------------------------------
 
@@ -526,7 +442,8 @@ QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
   return algsHtmlFor(set, *g, *c, a.passing, a.mainAlg, state);
 }
 
-QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state) {
+QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state,
+                           std::optional<Hold> hold) {
   const AlgSet *s = set();
   const AlgCase *c = s ? s->findCase(caseId) : nullptr;
   const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
@@ -534,7 +451,12 @@ QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state) {
   if (!c || !g || !info) {
     return {};
   }
-  return algsHtmlFor(*s, *g, *c, info->passing, info->mainAlg, state);
+  QString html = algsHtmlFor(*s, *g, *c, info->passing, info->mainAlg, state);
+  if (hold && !info->passing.empty()) {
+    html += "<p style='color:gray'>" +
+            tr("Held with %1").arg(holdHtml(*hold, settings_.scheme)) + "</p>";
+  }
+  return html;
 }
 
 QPixmap CasePage::caseDiagram(const std::string &caseId, const CubieCube &state,

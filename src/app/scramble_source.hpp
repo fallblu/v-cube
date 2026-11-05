@@ -45,7 +45,8 @@ private:
 };
 
 // Generates scrambles of one type on the thread pool, keeping the next one
-// ready so that asking for it is instant.
+// ready so that asking for it is instant. Each is meant for a hold picked
+// from the colour neutrality.
 class ScrambleFeed : public QObject {
   Q_OBJECT
 public:
@@ -58,6 +59,8 @@ public:
   // Drops the current and prefetched scrambles and generates new ones
   // (e.g. after the alg sets changed).
   void regenerate();
+  // Uses `neutrality` from now on, regenerating if it changed.
+  void setNeutrality(const ColourNeutrality &neutrality);
 
   // The scramble to show, or nullopt while it is being generated.
   const std::optional<GeneratedScramble> &current() const { return current_; }
@@ -71,8 +74,10 @@ signals:
 private:
   const AlgLibrary &library_;
   QString type_ = "333";
+  ColourNeutrality neutrality_;
   QFutureWatcher<GeneratedScramble> watcher_;
   QString pendingType_;
+  ColourNeutrality pendingNeutrality_;
   std::optional<GeneratedScramble> current_;
   std::optional<GeneratedScramble> prefetched_;
   bool wantMore_ = false;
@@ -85,12 +90,14 @@ private:
 // The algs of the alg set case a scramble sets up, for Timer, Scramble and
 // Virtual mode: a checkable "Algs (Tab)" button, offered for alg set
 // scramble types, and a label that shows the case's algs (with the AUFs
-// the scramble needs) while the button is on. Showing the algs changes
-// nothing else. The choice is kept under `settingsKey`.
+// the scramble needs, and the hold it was meant for when that was picked
+// at random) while the button is on. Showing the algs changes nothing else.
+// The choice is kept under `settingsKey`.
 class ScrambleAlgs : public QObject {
   Q_OBJECT
 public:
-  ScrambleAlgs(AlgLibrary &library, QString settingsKey, QWidget *parent);
+  ScrambleAlgs(AlgLibrary &library, const ColourScheme &scheme,
+               QString settingsKey, QWidget *parent);
 
   QPushButton *button() const { return button_; }
   QLabel *label() const { return label_; }
@@ -107,6 +114,7 @@ public:
 
 private:
   AlgLibrary &library_;
+  const ColourScheme &scheme_;
   QString settingsKey_;
   QPushButton *button_;
   QLabel *label_;

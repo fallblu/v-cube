@@ -109,14 +109,21 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
 }
 
 QFuture<GeneratedScramble>
-generateScramble(std::function<ScrambleSetup(Rng &)> makeState) {
-  return QtConcurrent::run([makeState = std::move(makeState)] {
-    thread_local Rng rng = makeRng();
-    ScrambleSetup setup = makeState(rng);
-    Alg alg = scrambleToState(setup.state);
-    return GeneratedScramble{setup.state, QString::fromStdString(toString(alg)),
-                             std::move(setup.setId), std::move(setup.caseId)};
-  });
+generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
+                 ColourNeutrality neutrality) {
+  return QtConcurrent::run(
+      [makeState = std::move(makeState), neutrality = std::move(neutrality)] {
+        thread_local Rng rng = makeRng();
+        ScrambleSetup setup = makeState(rng);
+        Hold hold = neutrality.pick(rng);
+        Alg alg = scrambleToState(heldState(setup.state, hold));
+        return GeneratedScramble{setup.state,
+                                 QString::fromStdString(toString(alg)),
+                                 std::move(setup.setId),
+                                 std::move(setup.caseId),
+                                 hold,
+                                 !neutrality.isFixed()};
+      });
 }
 
 TrendChart::TrendChart(QWidget *parent) : QWidget(parent) {

@@ -37,7 +37,7 @@ protected:
   QString startCaseLabel() const override;
   void extendCaseMenu(QMenu &menu, const std::string &caseId) override;
   void ticksChanged() override;
-  void orientationChanged() override;
+  void neutralityChanged() override;
 
 private:
   enum class Phase { NoCase, Solving, Done };
@@ -45,7 +45,7 @@ private:
   struct Current {
     std::string caseId;
     CubieCube start;
-    ColourMap colours = kIdentityColourMap;
+    Hold hold = kWcaHold; // the cube is drawn in this hold's colours
     bool isNew = false;
   };
 
@@ -60,7 +60,6 @@ private:
 
   QSpinBox *learnCount_;
   QWidget *optionsRow_;
-  QLabel *hintLabel_;
   CubeView *cubeView_;
   QLabel *statusLabel_;
   QLabel *reveal_;

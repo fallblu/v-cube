@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cube/cubie.hpp"
+#include "cube/hold.hpp"
 #include "cube/scramble.hpp"
 #include "train/stats.hpp"
 #include "train/timer.hpp"
@@ -29,24 +30,30 @@ private:
   void setColour(const QColor &c);
 };
 
-// A state to scramble to, and the alg set case it sets up (if any).
+// A state to scramble to, in the solver's frame, and the alg set case it
+// sets up (if any).
 struct ScrambleSetup {
   CubieCube state;
   std::string setId;
   std::string caseId;
 };
 
-// A scramble worked out off the GUI thread.
+// A scramble worked out off the GUI thread. The text is applied holding
+// white top and green front; turned to `hold`, the cube shows `state`.
 struct GeneratedScramble {
-  CubieCube state;
+  CubieCube state; // in the solver's frame
   QString text;
   std::string setId;  // for a scramble from an alg set: the set
   std::string caseId; // and the case it sets up
+  Hold hold = kWcaHold;
+  bool neutral = false; // `hold` was picked from several
 };
 
-// Runs `makeState` and a two-phase solve on the thread pool.
+// Runs `makeState`, picks a hold allowed by `neutrality` and solves for
+// the scramble on the thread pool.
 QFuture<GeneratedScramble>
-generateScramble(std::function<ScrambleSetup(Rng &)> makeState);
+generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
+                 ColourNeutrality neutrality);
 
 // Times and rolling averages of a session, drawn with QPainter.
 class TrendChart : public QWidget {

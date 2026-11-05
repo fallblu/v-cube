@@ -27,7 +27,8 @@ ScramblePage::ScramblePage(AppSettings &settings, AlgLibrary &library,
   auto *typeRow = new QHBoxLayout(typeRow_);
   typeRow->setContentsMargins(0, 0, 0, 0);
   typeBox_ = new ScrambleTypeBox(library, typeRow_);
-  algs_ = new ScrambleAlgs(library, "scramble/showAlgs", this);
+  algs_ =
+      new ScrambleAlgs(library, settings_.scheme, "scramble/showAlgs", this);
   typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
   typeRow->addWidget(typeBox_, 1);
   typeRow->addWidget(algs_->button());
@@ -99,7 +100,11 @@ ScramblePage::ScramblePage(AppSettings &settings, AlgLibrary &library,
   feed_.setType(typeBox_->currentType()); // if the type didn't change
 }
 
-void ScramblePage::applySettings() { net_->setScheme(settings_.scheme); }
+void ScramblePage::applySettings() {
+  net_->setScheme(settings_.scheme);
+  feed_.setNeutrality(settings_.neutrality);
+  algs_->refresh();
+}
 
 void ScramblePage::setFocusMode(bool on) {
   typeRow_->setVisible(!on);

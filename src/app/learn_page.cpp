@@ -61,13 +61,8 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   options->addWidget(new QLabel(tr("View:"), optionsRow_));
   options->addWidget(createViewSelector(cubeView_, "learn", optionsRow_));
   options->addStretch();
-  options->addWidget(orientation_);
   rightLayout->addWidget(optionsRow_);
 
-  hintLabel_ = new QLabel(right);
-  hintLabel_->setTextFormat(Qt::RichText);
-  hintLabel_->setAlignment(Qt::AlignCenter);
-  rightLayout->addWidget(hintLabel_);
   rightLayout->addWidget(cubeView_, 3);
   statusLabel_ = new QLabel(right);
   statusLabel_->setAlignment(Qt::AlignCenter);
@@ -126,9 +121,6 @@ void LearnPage::applySettings() {
   cubeView_->setLook(look);
   cubeView_->setAnimationMs(settings_.animationMs);
   CasePage::applySettings();
-  if (current_) {
-    hintLabel_->setText(orientationHint(current_->colours, settings_.scheme));
-  }
 }
 
 void LearnPage::activated() {
@@ -291,8 +283,9 @@ void LearnPage::ticksChanged() {
   }
 }
 
-void LearnPage::orientationChanged() {
-  if (current_) {
+void LearnPage::neutralityChanged() {
+  // Set the case up again in a hold the new choice allows.
+  if (current_ && phase_ == Phase::Solving) {
     begin(current_->caseId, current_->isNew);
   }
 }
@@ -306,7 +299,6 @@ void LearnPage::startCase(const std::string &caseId) {
 void LearnPage::nextCase() {
   reveal_->clear();
   gradeRow_->setVisible(false);
-  hintLabel_->clear();
   if (!set()) {
     current_.reset();
     statusLabel_->setText(tr("No alg set selected."));
@@ -351,15 +343,14 @@ void LearnPage::begin(const std::string &caseId, bool isNew) {
   if (!info) {
     return;
   }
-  ColourMap colours = caseColours();
-  current_ = Current{caseId, info->state, colours, isNew};
+  Hold hold = pickHold();
+  current_ = Current{caseId, info->state, hold, isNew};
   last_ = caseId;
   hinted_ = false;
   gaveUp_ = false;
   reveal_->clear();
   gradeRow_->setVisible(false);
-  hintLabel_->setText(orientationHint(colours, settings_.scheme));
-  cubeView_->setColourMap(colours);
+  cubeView_->setColourMap(colourMapOf(hold));
   resetCube();
   selectInTree(caseId);
   setPhase(Phase::Solving);

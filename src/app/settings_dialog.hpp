@@ -11,6 +11,8 @@ class QLineEdit;
 class QPushButton;
 class QSpinBox;
 class QTableWidget;
+class QTabWidget;
+class QLabel;
 
 namespace vcube {
 
@@ -19,17 +21,26 @@ class SettingsDialog : public QDialog {
 public:
   SettingsDialog(const AppSettings &settings, QWidget *parent = nullptr);
   AppSettings result() const { return settings_; }
+  // Opens on the colour neutrality tab.
+  void showNeutralityTab();
 
   void accept() override;
 
 private:
   AppSettings settings_;
+  QTabWidget *tabs_;
   QComboBox *themeBox_;
   QSpinBox *animationSpin_;
   std::array<QPushButton *, 6> colourButtons_{};
   QComboBox *holdBox_;
   QCheckBox *inspectionBox_;
   QSpinBox *decimalsSpin_;
+  QComboBox *mainTopBox_;
+  QComboBox *mainFrontBox_;
+  QComboBox *presetBox_;
+  std::array<QCheckBox *, 36> holdBoxes_{}; // [top * 6 + front], or null
+  std::array<QLabel *, 12> holdSwatches_{}; // front header, then top rows
+  QLabel *holdSummary_;
   QTableWidget *keyTable_;
   QKeySequenceEdit *keyEdit_;
   QLineEdit *moveEdit_;
@@ -38,6 +49,10 @@ private:
   QLineEdit *relearningEdit_;
 
   void refreshColours();
+  QWidget *buildNeutralityTab(QWidget *parent);
+  void fillMainFronts();
+  // Shows settings_.neutrality in the controls.
+  void refreshNeutrality();
   void refreshKeys();
   void setBinding();
 };

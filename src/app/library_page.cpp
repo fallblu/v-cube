@@ -274,21 +274,13 @@ const CaseAnalysis *LibraryPage::analysisOf(const std::string &caseId) const {
 CubeLook LibraryPage::look() const {
   CubeLook l;
   l.scheme = settings_.scheme;
-  QSettings q;
-  l.map = colourMapFor(q.value(setSettingsKey(setId_, "top"), 0).toInt(),
-                       q.value(setSettingsKey(setId_, "front"), 2).toInt())
-              .value_or(kIdentityColourMap);
+  l.map = colourMapOf(settings_.neutrality.main);
   return l;
 }
 
 void LibraryPage::applySettings() {
   buildCaseTree();
   loadCase();
-}
-
-void LibraryPage::activated() {
-  // Learn and Drill may have changed the diagram colours.
-  applySettings();
 }
 
 void LibraryPage::analyze() {

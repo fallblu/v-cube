@@ -36,7 +36,7 @@ protected:
   void startCase(const std::string &caseId) override;
   QString startCaseLabel() const override;
   void ticksChanged() override;
-  void orientationChanged() override;
+  void neutralityChanged() override;
 
 private:
   enum class Phase { NoCase, Waiting, Running, Revealed };
@@ -44,9 +44,9 @@ private:
 
   struct Current {
     std::string caseId;
-    CubieCube state; // the scrambled cube
-    ColourMap colours = kIdentityColourMap;
-    QString scramble;
+    CubieCube state; // the case as the solver sees it, held as `hold`
+    Hold hold = kWcaHold;
+    QString scramble; // applied holding white top, green front
   };
 
   CasePicker picker_;
@@ -61,7 +61,6 @@ private:
 
   QComboBox *poolBox_;
   QComboBox *orderBox_;
-  QLabel *hintLabel_;
   QLabel *scrambleLabel_;
   TimeDisplay *display_;
   QLabel *statusLabel_;

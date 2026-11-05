@@ -72,9 +72,10 @@ scrambleStateMaker(const AlgLibrary &library, const QString &type) {
 
 // --- ScrambleAlgs -----------------------------------------------------------
 
-ScrambleAlgs::ScrambleAlgs(AlgLibrary &library, QString settingsKey,
-                           QWidget *parent)
-    : QObject(parent), library_(library), settingsKey_(std::move(settingsKey)) {
+ScrambleAlgs::ScrambleAlgs(AlgLibrary &library, const ColourScheme &scheme,
+                           QString settingsKey, QWidget *parent)
+    : QObject(parent), library_(library), scheme_(scheme),
+      settingsKey_(std::move(settingsKey)) {
   button_ = new QPushButton(tr("Algs (Tab)"), parent);
   button_->setFocusPolicy(Qt::NoFocus);
   button_->setCheckable(true);
@@ -127,8 +128,16 @@ void ScrambleAlgs::update() {
       !scramble_->caseId.empty()) {
     set = library_.find(scramble_->setId);
   }
-  label_->setText(set ? caseAlgsHtml(*set, scramble_->caseId, scramble_->state)
-                      : QString());
+  QString html;
+  if (set) {
+    html = caseAlgsHtml(*set, scramble_->caseId, scramble_->state);
+    if (scramble_->neutral) {
+      html += "<p style='color:gray'>" +
+              tr("Held with %1").arg(holdHtml(scramble_->hold, scheme_)) +
+              "</p>";
+    }
+  }
+  label_->setText(html);
 }
 
 // --- ScrambleTypeBox
@@ -209,6 +218,16 @@ void ScrambleFeed::regenerate() {
   request();
 }
 
+void ScrambleFeed::setNeutrality(const ColourNeutrality &neutrality) {
+  if (neutrality == neutrality_) {
+    return;
+  }
+  neutrality_ = neutrality;
+  if (started_) {
+    regenerate();
+  }
+}
+
 void ScrambleFeed::advance() {
   if (prefetched_) {
     current_ = std::move(prefetched_);
@@ -227,14 +246,15 @@ void ScrambleFeed::request() {
   }
   wantMore_ = false;
   pendingType_ = type_;
-  watcher_.setFuture(
-      generateScramble(scrambleStateMaker(library_, pendingType_)));
+  pendingNeutrality_ = neutrality_;
+  watcher_.setFuture(generateScramble(
+      scrambleStateMaker(library_, pendingType_), neutrality_));
 }
 
 void ScrambleFeed::ready() {
   GeneratedScramble result = watcher_.result();
   // A result for a type that is no longer wanted is dropped.
-  if (pendingType_ == type_) {
+  if (pendingType_ == type_ && pendingNeutrality_ == neutrality_) {
     if (!current_) {
       current_ = std::move(result);
       emit currentChanged();

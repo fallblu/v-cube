@@ -80,7 +80,8 @@ private:
   void setFocusMode(bool on);
   void showFocusHint();
   void openDataFolder();
-  void openSettings();
+  // On the colour neutrality tab with `neutrality`.
+  void openSettings(bool neutrality = false);
   void importAlgSet();
   void exportAlgSet();
   void showControls();

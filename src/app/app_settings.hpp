@@ -20,6 +20,9 @@ struct AppSettings {
   ColourScheme scheme = ColourScheme::standard();
   int animationMs = 110;
   Keymap keymap = Keymap::defaultLayout();
+  // Which way the solver holds the cube for scrambles and cases in every
+  // mode (scrambles are always applied white top, green front).
+  ColourNeutrality neutrality;
 
   // Timer
   int holdMs = 300;

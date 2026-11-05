@@ -1,5 +1,7 @@
 #include "app/colours.hpp"
 
+#include <QCoreApplication>
+
 namespace vcube {
 
 ColourScheme ColourScheme::standard() {
@@ -10,51 +12,29 @@ ColourScheme ColourScheme::standard() {
   return s;
 }
 
-namespace {
-
-// The colour slots at each face's centre after `rotation` from WCA.
-ColourMap mapAfter(const Alg &rotation) {
-  FaceletCube c;
-  c.apply(rotation);
-  ColourMap m{};
-  for (int f = 0; f < 6; ++f) {
-    m[static_cast<std::size_t>(f)] = c[f * 9 + 4];
-  }
-  return m;
-}
-
-} // namespace
-
-std::optional<ColourMap> colourMapFor(int topSlot, int frontSlot) {
-  for (const Alg &r : allRotations()) {
-    ColourMap m = mapAfter(r);
-    if (m[0] == topSlot && m[2] == frontSlot) {
-      return m;
-    }
-  }
-  return std::nullopt;
-}
-
-Alg rotationFromWca(const ColourMap &map) {
-  for (const Alg &r : allRotations()) {
-    if (mapAfter(r) == map) {
-      return r;
-    }
-  }
-  return {};
-}
-
-QString orientationHint(const ColourMap &map, const ColourScheme &scheme) {
-  if (map == kIdentityColourMap) {
+QString colourName(int slot) {
+  static const std::array<const char *, 6> names = {
+      QT_TRANSLATE_NOOP("vcube", "White"),
+      QT_TRANSLATE_NOOP("vcube", "Red"),
+      QT_TRANSLATE_NOOP("vcube", "Green"),
+      QT_TRANSLATE_NOOP("vcube", "Yellow"),
+      QT_TRANSLATE_NOOP("vcube", "Orange"),
+      QT_TRANSLATE_NOOP("vcube", "Blue")};
+  if (slot < 0 || slot >= 6) {
     return {};
   }
+  return QCoreApplication::translate("vcube",
+                                     names[static_cast<std::size_t>(slot)]);
+}
+
+QString holdHtml(Hold h, const ColourScheme &scheme) {
   auto square = [&scheme](int slot) {
     return QString("<span style=\"color:%1\">&#9632;</span>")
         .arg(scheme.colourOfSlot(slot).name());
   };
-  QString rotation = QString::fromStdString(toString(rotationFromWca(map)));
-  return QString("Hold %1 top, %2 front (%3 from WCA)")
-      .arg(square(map[0]), square(map[2]), rotation.toHtmlEscaped());
+  return QCoreApplication::translate("vcube", "%1 %2 top, %3 %4 front")
+      .arg(square(h.top), colourName(h.top).toLower().toHtmlEscaped(),
+           square(h.front), colourName(h.front).toLower().toHtmlEscaped());
 }
 
 } // namespace vcube

@@ -5,6 +5,8 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QGridLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeySequenceEdit>
@@ -28,6 +30,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     : QDialog(parent), settings_(settings) {
   setWindowTitle(tr("Settings"));
   auto *tabs = new QTabWidget(this);
+  tabs_ = tabs;
 
   // General
   auto *general = new QWidget(tabs);
@@ -67,8 +70,10 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     refreshColours();
   });
   gForm->addRow(tr("Colour scheme (U R F D L B):"), colourRow);
-  refreshColours();
   tabs->addTab(general, tr("General"));
+
+  tabs->addTab(buildNeutralityTab(tabs), tr("Colour neutrality"));
+  refreshColours();
 
   // Timer
   auto *timer = new QWidget(tabs);
@@ -189,6 +194,222 @@ void SettingsDialog::refreshColours() {
             "background-color: %1; border: 1px solid #222; border-radius: 3px;")
             .arg(settings_.scheme.faces[i].name()));
   }
+  refreshNeutrality();
+}
+
+void SettingsDialog::showNeutralityTab() { tabs_->setCurrentIndex(1); }
+
+// --- colour neutrality
+// --------------------------------------------------------
+
+namespace {
+
+struct PresetLabel {
+  Neutrality n;
+  const char *text;
+};
+
+const PresetLabel kPresets[] = {
+    {Neutrality::Fixed,
+     QT_TRANSLATE_NOOP("vcube::SettingsDialog", "Fixed: the main hold only")},
+    {Neutrality::Y2, QT_TRANSLATE_NOOP("vcube::SettingsDialog",
+                                       "y2: front colour or its opposite")},
+    {Neutrality::Y,
+     QT_TRANSLATE_NOOP("vcube::SettingsDialog", "y: any front colour")},
+    {Neutrality::X2, QT_TRANSLATE_NOOP("vcube::SettingsDialog",
+                                       "x2: top colour or its opposite")},
+    {Neutrality::X2Y2,
+     QT_TRANSLATE_NOOP("vcube::SettingsDialog",
+                       "x2 y2: top or its opposite, front or its opposite")},
+    {Neutrality::X2Y,
+     QT_TRANSLATE_NOOP("vcube::SettingsDialog",
+                       "x2 y: top or its opposite, any front (dual colour)")},
+    {Neutrality::Full, QT_TRANSLATE_NOOP("vcube::SettingsDialog",
+                                         "Full: any top and front colour")},
+};
+
+constexpr int kCustomPreset = -1;
+
+QPixmap swatch(const QColor &c, int size = 14) {
+  QPixmap p(size, size);
+  p.fill(c);
+  return p;
+}
+
+} // namespace
+
+QWidget *SettingsDialog::buildNeutralityTab(QWidget *parent) {
+  auto *page = new QWidget(parent);
+  auto *layout = new QVBoxLayout(page);
+  auto *intro = new QLabel(
+      tr("Scrambles are always applied holding white on top and green in "
+         "front. Choose the holds you solve in: every scramble in Timer, "
+         "Scramble and Virtual, and every case in Learn and Drill, is set up "
+         "for one of the ticked holds, picked at random. For example, an "
+         "EOCross scramble held x2 y neutral gives a white or yellow cross "
+         "with any front colour."),
+      page);
+  intro->setWordWrap(true);
+  layout->addWidget(intro);
+
+  auto *form = new QFormLayout;
+  auto *mainRow = new QHBoxLayout;
+  mainTopBox_ = new QComboBox(page);
+  mainFrontBox_ = new QComboBox(page);
+  for (int c = 0; c < 6; ++c) {
+    mainTopBox_->addItem(colourName(c), c);
+  }
+  mainRow->addWidget(new QLabel(tr("Top:"), page));
+  mainRow->addWidget(mainTopBox_);
+  mainRow->addSpacing(8);
+  mainRow->addWidget(new QLabel(tr("Front:"), page));
+  mainRow->addWidget(mainFrontBox_);
+  mainRow->addStretch();
+  auto *mainLabel = new QLabel(tr("Main hold:"), page);
+  mainLabel->setToolTip(tr("Case diagrams are drawn in this hold, and the "
+                           "neutrality presets start from it"));
+  form->addRow(mainLabel, mainRow);
+  presetBox_ = new QComboBox(page);
+  for (const auto &p : kPresets) {
+    presetBox_->addItem(tr(p.text), static_cast<int>(p.n));
+  }
+  presetBox_->addItem(tr("Custom: the holds ticked below"), kCustomPreset);
+  form->addRow(tr("Neutrality:"), presetBox_);
+  layout->addLayout(form);
+
+  // One tick box per hold: rows by top colour, columns by front colour.
+  auto *grid = new QGridLayout;
+  grid->setHorizontalSpacing(14);
+  grid->addWidget(new QLabel(tr("Top \\ front"), page), 0, 0);
+  for (int c = 0; c < 6; ++c) {
+    auto *front = new QLabel(page);
+    auto *top = new QLabel(page);
+    holdSwatches_[static_cast<std::size_t>(c)] = front;
+    holdSwatches_[static_cast<std::size_t>(6 + c)] = top;
+    auto *frontName = new QLabel(colourName(c), page);
+    auto *frontCell = new QHBoxLayout;
+    frontCell->addWidget(front);
+    frontCell->addWidget(frontName);
+    frontCell->addStretch();
+    grid->addLayout(frontCell, 0, c + 1);
+    auto *topCell = new QHBoxLayout;
+    topCell->addWidget(top);
+    topCell->addWidget(new QLabel(colourName(c), page));
+    topCell->addStretch();
+    grid->addLayout(topCell, c + 1, 0);
+  }
+  for (Hold h : allHolds()) {
+    auto *box = new QCheckBox(page);
+    box->setToolTip(tr("%1 top, %2 front")
+                        .arg(colourName(h.top), colourName(h.front).toLower()));
+    holdBoxes_[static_cast<std::size_t>(h.top * 6 + h.front)] = box;
+    grid->addWidget(box, h.top + 1, h.front + 1, Qt::AlignCenter);
+    connect(box, &QCheckBox::toggled, this, [this, h](bool on) {
+      auto &holds = settings_.neutrality.holds;
+      if (on) {
+        holds.push_back(h);
+      } else {
+        std::erase(holds, h);
+        if (holds.empty()) {
+          holds.push_back(h); // at least one hold
+        }
+      }
+      settings_.neutrality.normalize();
+      refreshNeutrality();
+    });
+  }
+  auto *gridBox = new QGroupBox(tr("Holds"), page);
+  gridBox->setLayout(grid);
+  auto *gridRow = new QHBoxLayout;
+  gridRow->addWidget(gridBox);
+  gridRow->addStretch();
+  layout->addLayout(gridRow);
+  holdSummary_ = new QLabel(page);
+  holdSummary_->setWordWrap(true);
+  holdSummary_->setTextFormat(Qt::RichText);
+  layout->addWidget(holdSummary_);
+  layout->addStretch();
+
+  connect(mainTopBox_, &QComboBox::activated, this, [this] {
+    settings_.neutrality.main.top = mainTopBox_->currentData().toInt();
+    if (!isValidHold(settings_.neutrality.main)) {
+      // Keep the front if it fits, else the first colour that does.
+      for (int f = 0; f < 6; ++f) {
+        if (isValidHold({settings_.neutrality.main.top, f})) {
+          settings_.neutrality.main.front = f;
+          break;
+        }
+      }
+    }
+    fillMainFronts();
+    if (int p = presetBox_->currentData().toInt(); p != kCustomPreset) {
+      settings_.neutrality = ColourNeutrality::preset(
+          settings_.neutrality.main, static_cast<Neutrality>(p));
+    }
+    refreshNeutrality();
+  });
+  connect(mainFrontBox_, &QComboBox::activated, this, [this] {
+    settings_.neutrality.main.front = mainFrontBox_->currentData().toInt();
+    if (int p = presetBox_->currentData().toInt(); p != kCustomPreset) {
+      settings_.neutrality = ColourNeutrality::preset(
+          settings_.neutrality.main, static_cast<Neutrality>(p));
+    }
+    refreshNeutrality();
+  });
+  connect(presetBox_, &QComboBox::activated, this, [this] {
+    if (int p = presetBox_->currentData().toInt(); p != kCustomPreset) {
+      settings_.neutrality = ColourNeutrality::preset(
+          settings_.neutrality.main, static_cast<Neutrality>(p));
+    }
+    refreshNeutrality();
+  });
+  fillMainFronts();
+  return page;
+}
+
+void SettingsDialog::fillMainFronts() {
+  QSignalBlocker block(mainFrontBox_);
+  mainFrontBox_->clear();
+  for (int f = 0; f < 6; ++f) {
+    if (isValidHold({settings_.neutrality.main.top, f})) {
+      mainFrontBox_->addItem(colourName(f), f);
+    }
+  }
+}
+
+void SettingsDialog::refreshNeutrality() {
+  const ColourNeutrality &n = settings_.neutrality;
+  for (int c = 0; c < 6; ++c) {
+    QPixmap p = swatch(settings_.scheme.colourOfSlot(c));
+    mainTopBox_->setItemIcon(c, p);
+    holdSwatches_[static_cast<std::size_t>(c)]->setPixmap(p);
+    holdSwatches_[static_cast<std::size_t>(6 + c)]->setPixmap(p);
+  }
+  for (int i = 0; i < mainFrontBox_->count(); ++i) {
+    mainFrontBox_->setItemIcon(i, swatch(settings_.scheme.colourOfSlot(
+                                      mainFrontBox_->itemData(i).toInt())));
+  }
+  mainTopBox_->setCurrentIndex(mainTopBox_->findData(n.main.top));
+  mainFrontBox_->setCurrentIndex(mainFrontBox_->findData(n.main.front));
+  std::optional<Neutrality> preset = n.matchingPreset();
+  presetBox_->setCurrentIndex(
+      presetBox_->findData(preset ? static_cast<int>(*preset) : kCustomPreset));
+  for (Hold h : allHolds()) {
+    QCheckBox *box = holdBoxes_[static_cast<std::size_t>(h.top * 6 + h.front)];
+    QSignalBlocker block(box);
+    box->setChecked(std::find(n.holds.begin(), n.holds.end(), h) !=
+                    n.holds.end());
+  }
+  QString summary = n.isFixed()
+                        ? tr("Every scramble is set up for %1.")
+                              .arg(holdHtml(n.holds.front(), settings_.scheme))
+                        : tr("Each scramble is set up for one of %1 holds.")
+                              .arg(n.holds.size());
+  if (std::find(n.holds.begin(), n.holds.end(), n.main) == n.holds.end()) {
+    summary += " " + tr("The main hold isn't ticked, so it is used for "
+                        "diagrams only.");
+  }
+  holdSummary_->setText(summary);
 }
 
 void SettingsDialog::refreshKeys() {

@@ -20,10 +20,10 @@ class QVBoxLayout;
 namespace vcube {
 
 // What Learn and Drill share: the alg set selector, the case list with
-// thumbnails and ticks, which cases can be offered (those with a passing
-// alg), and the top/front colour options. The ticks and the colour options
-// are stored once per set, so both modes (and the Library's diagrams) see
-// the same choices.
+// thumbnails and ticks, and which cases can be offered (those with a
+// passing alg). The ticks are stored once per set, so both modes see the
+// same choices. Cases are set up for a hold picked from the app's colour
+// neutrality; thumbnails are drawn in its main hold.
 class CasePage : public ModePage {
   Q_OBJECT
 public:
@@ -65,10 +65,6 @@ protected:
   QTreeWidget *tree_;
   QHBoxLayout *tickRow_; // tick all/none; derived pages add buttons
   QLabel *summary_;
-  QWidget *orientation_; // top/front colour options, placed by the page
-  QComboBox *topBox_;
-  QComboBox *frontBox_;
-  QComboBox *neutralBox_;
 
   AlgSet *set();
   SetProgress &progress();
@@ -87,14 +83,17 @@ protected:
   void updateRow(const std::string &caseId);
   void updateAllRows();
 
-  ColourMap baseColours() const;
-  // The colours for the next case, following the neutrality option.
-  ColourMap caseColours();
+  // The hold for the next case, picked from the colour neutrality.
+  Hold pickHold();
+  // Whether the colour neutrality allows more than one hold.
+  bool isNeutral() const { return !settings_.neutrality.isFixed(); }
 
   // The passing algs with the AUFs they need from `state`, main alg first
   // (without the rotations and U turns the display orientation took over),
   // as rich text under the case's name.
-  QString algsHtml(const std::string &caseId, const CubieCube &state);
+  // With `hold`, a line saying which hold the AUFs are for follows.
+  QString algsHtml(const std::string &caseId, const CubieCube &state,
+                   std::optional<Hold> hold = std::nullopt);
   QPixmap caseDiagram(const std::string &caseId, const CubieCube &state,
                       int size, const ColourMap &colours);
   void saveProgress();
@@ -115,7 +114,8 @@ protected:
     (void)caseId;
   }
   virtual void ticksChanged() {}
-  virtual void orientationChanged() {}
+  // The colour neutrality changed in Settings.
+  virtual void neutralityChanged() {}
 
 private:
   void populateSets();
@@ -123,8 +123,7 @@ private:
   void computeInfo();
   void buildTree();
   void saveTicks();
-  void loadOrientation();
-  void saveOrientation();
+  ColourNeutrality neutrality_; // as last applied
   void showCaseMenu(const QPoint &pos);
 };
 
