@@ -19,7 +19,7 @@ struct AppSettings {
   bool darkTheme = true;
   ColourScheme scheme = ColourScheme::standard();
   int animationMs = 110;
-  Keymap keymap = Keymap::cstimerDefault();
+  Keymap keymap = Keymap::defaultLayout();
 
   // Timer
   int holdMs = 300;

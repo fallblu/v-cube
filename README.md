@@ -102,7 +102,8 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
   - Choose the view in each mode: animated 3D, a flat view of the U and F
     faces with the adjacent L and R stickers (as in Alg-Trainer), an
     unfolded net, or hidden.
-  - Turned with cstimer's keyboard layout, which you can remap in Settings.
+  - Turned from the keyboard with cstimer's face keys (Shift for wide
+    moves), which you can remap in Settings.
 
 ## Building
 
@@ -198,16 +199,15 @@ picks the plugin as usual.
 | Virtual | Esc | reset to solved |
 | Virtual, alg field | Enter / Esc | apply the alg / return the keys to the cube |
 
-Default turning keys (cstimer / Ryan Heise layout):
+Default turning keys (face keys from cstimer's layout; Shift + a face key
+turns the wide layer, e.g. Shift+I is r and Shift+G is f'):
 
 | Move | Key | Move | Key | Move | Key |
 | --- | --- | --- | --- | --- | --- |
 | R R' | I K | U U' | J F | F F' | H G |
 | L L' | D E | D D' | S L | B B' | W O |
-| r r' | U M | l l' | V R | M' | . X |
-| M | 5 6 | E E' | 2 9 | S S' | 0 1 |
-| x | T Y | x' | B N | y y' | ; A |
-| z z' | P Q | u u' | , C | d d' | Z / |
+| M' M | U M | x x' | R V | y y' | ; A |
+| z z' | P Q | | | | |
 
 ### Getting algs into a set
 

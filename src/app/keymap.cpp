@@ -2,27 +2,31 @@
 
 #include <QKeySequence>
 
+#include <string>
+
 namespace vcube {
 
-Keymap Keymap::cstimerDefault() {
-  const std::vector<std::pair<int, const char *>> table = {
-      {Qt::Key_I, "R"},         {Qt::Key_K, "R'"},      {Qt::Key_W, "B"},
-      {Qt::Key_O, "B'"},        {Qt::Key_S, "D"},       {Qt::Key_L, "D'"},
-      {Qt::Key_D, "L"},         {Qt::Key_E, "L'"},      {Qt::Key_J, "U"},
-      {Qt::Key_F, "U'"},        {Qt::Key_H, "F"},       {Qt::Key_G, "F'"},
-      {Qt::Key_Semicolon, "y"}, {Qt::Key_A, "y'"},      {Qt::Key_U, "r"},
-      {Qt::Key_R, "l'"},        {Qt::Key_M, "r'"},      {Qt::Key_V, "l"},
-      {Qt::Key_T, "x"},         {Qt::Key_Y, "x"},       {Qt::Key_N, "x'"},
-      {Qt::Key_B, "x'"},        {Qt::Key_Period, "M'"}, {Qt::Key_X, "M'"},
-      {Qt::Key_5, "M"},         {Qt::Key_6, "M"},       {Qt::Key_1, "S'"},
-      {Qt::Key_2, "E"},         {Qt::Key_9, "E'"},      {Qt::Key_0, "S"},
-      {Qt::Key_P, "z"},         {Qt::Key_Q, "z'"},      {Qt::Key_Z, "d"},
-      {Qt::Key_C, "u'"},        {Qt::Key_Comma, "u"},   {Qt::Key_Slash, "d'"},
+Keymap Keymap::defaultLayout() {
+  // Each face key turns the face; Shift + the same key turns the wide layer.
+  const std::vector<std::pair<int, const char *>> faces = {
+      {Qt::Key_I, "R"}, {Qt::Key_K, "R'"}, {Qt::Key_D, "L"}, {Qt::Key_E, "L'"},
+      {Qt::Key_J, "U"}, {Qt::Key_F, "U'"}, {Qt::Key_S, "D"}, {Qt::Key_L, "D'"},
+      {Qt::Key_H, "F"}, {Qt::Key_G, "F'"}, {Qt::Key_W, "B"}, {Qt::Key_O, "B'"},
+  };
+  const std::vector<std::pair<int, const char *>> others = {
+      {Qt::Key_U, "M'"}, {Qt::Key_M, "M"},         {Qt::Key_R, "x"},
+      {Qt::Key_V, "x'"}, {Qt::Key_Semicolon, "y"}, {Qt::Key_A, "y'"},
+      {Qt::Key_P, "z"},  {Qt::Key_Q, "z'"},
   };
   Keymap k;
-  for (const auto &[key, move] : table) {
-    Alg a = parseAlgOrEmpty(move);
-    k.bindings.push_back({key, false, a.front()});
+  for (const auto &[key, move] : faces) {
+    k.bindings.push_back({key, false, parseAlgOrEmpty(move).front()});
+    std::string wide = move;
+    wide[0] = static_cast<char>(wide[0] - 'A' + 'a');
+    k.bindings.push_back({key, true, parseAlgOrEmpty(wide).front()});
+  }
+  for (const auto &[key, move] : others) {
+    k.bindings.push_back({key, false, parseAlgOrEmpty(move).front()});
   }
   return k;
 }

@@ -21,10 +21,10 @@ struct KeyBinding {
 
 class Keymap {
 public:
-  // cstimer's layout (Ryan Heise's): I/K R R', J/F U U', H/G F F', D/E L L',
-  // S/L D D', W/O B B', U/M r r', V/R l l', T/Y x, B/N x', ;/A y y', P/Q z z',
-  // ./X M', 5/6 M, 2/9 E E', 0/1 S S', ,/C u u', Z// d d'.
-  static Keymap cstimerDefault();
+  // Face keys from cstimer's layout: I/K R R', D/E L L', J/F U U', S/L D D',
+  // H/G F F', W/O B B'; Shift + a face key turns the wide layer (Shift+I r).
+  // U/M M' M, R/V x x', ;/A y y', P/Q z z'.
+  static Keymap defaultLayout();
 
   std::optional<Move> lookup(const QKeyEvent *e) const;
   std::optional<Move> lookup(int key, bool shift) const;

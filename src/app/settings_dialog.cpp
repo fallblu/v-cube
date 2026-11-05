@@ -139,7 +139,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     }
   });
   connect(defaultsButton, &QPushButton::clicked, this, [this] {
-    settings_.keymap = Keymap::cstimerDefault();
+    settings_.keymap = Keymap::defaultLayout();
     refreshKeys();
   });
   refreshKeys();
