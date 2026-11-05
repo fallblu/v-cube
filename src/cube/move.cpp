@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstdlib>
 #include <span>
 
 namespace vcube {
@@ -280,7 +281,12 @@ private:
         return fail("the alg is longer than " + std::to_string(kMaxMoves) +
                     " moves");
       }
-      out.push_back({*type, static_cast<std::uint8_t>(amount)});
+      // R3 keeps its three quarter turns; R' and R2' have the fewest.
+      int quarters = std::abs(*count);
+      int fewest = amount == 2 ? 2 : 1;
+      out.push_back(
+          {*type, static_cast<std::uint8_t>(amount),
+           static_cast<std::uint16_t>(quarters > fewest ? quarters : 0)});
     }
     return true;
   }
@@ -367,6 +373,13 @@ private:
 
 int moveAxis(MoveType t) { return kAxis[static_cast<std::size_t>(t)]; }
 
+int quarterTurns(Move m) {
+  if (m.quarters != 0) {
+    return m.quarters;
+  }
+  return m.amount == 2 ? 2 : 1;
+}
+
 std::string_view moveTypeName(MoveType t) {
   return kNames[static_cast<std::size_t>(t)];
 }
@@ -428,7 +441,7 @@ Alg invert(const Alg &alg) {
   Alg out;
   out.reserve(alg.size());
   for (auto it = alg.rbegin(); it != alg.rend(); ++it) {
-    out.push_back({it->type, negate(it->amount)});
+    out.push_back({it->type, negate(it->amount), it->quarters});
   }
   return out;
 }
@@ -478,9 +491,9 @@ Alg mirror(const Alg &alg, int axis) {
       // seen from the other, so a side swap flips the written direction.
       // Slices and rotations keep their side and their absolute sense.
       std::uint8_t amount = swapped != m.type ? negate(m.amount) : m.amount;
-      out.push_back({swapped, amount});
+      out.push_back({swapped, amount, m.quarters});
     } else {
-      out.push_back({m.type, negate(m.amount)});
+      out.push_back({m.type, negate(m.amount), m.quarters});
     }
   }
   return out;
@@ -504,7 +517,7 @@ Alg simplify(const Alg &alg) {
         if (amount == 0) {
           out.erase(out.begin() + static_cast<std::ptrdiff_t>(i));
         } else {
-          out[i].amount = amount;
+          out[i] = {m.type, amount};
         }
         merged = true;
         break;

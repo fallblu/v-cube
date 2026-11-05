@@ -40,6 +40,8 @@ AlgOpening algOpening(const Alg &alg);
 // same turns done another way still count:
 //   - rotations anywhere, as long as the same layers are turned;
 //   - a half turn as two quarter turns either way;
+//   - a move written with a 3 (R3) as those three quarter turns or as the
+//     one turn the other way (R');
 //   - a wide or slice turn as the turns it is made of (r as R M');
 //   - turns of opposite faces in either order (R L' as L' R);
 //   - leaving out a U turn at the end, which only lines up the last layer.

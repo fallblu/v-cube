@@ -92,7 +92,9 @@ Keymap Keymap::fromStrings(const QStringList &lines) {
     auto key = parseKeyText(line.left(eq));
     Alg a = parseAlgOrEmpty(line.mid(eq + 1).toStdString());
     if (key && a.size() == 1) {
-      k.bindings.push_back({key->first, key->second, a.front()});
+      // A key turns its layer once, so R3 is bound as R'.
+      k.bindings.push_back(
+          {key->first, key->second, {a.front().type, a.front().amount}});
     }
   }
   return k;

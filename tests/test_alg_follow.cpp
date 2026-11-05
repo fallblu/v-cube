@@ -115,6 +115,24 @@ TEST_CASE("the same turns done another way still follow the alg") {
     doMoves(g, "R U R' U R U U R'");
     CHECK(g.onAlg());
   }
+  SECTION("a move written with a 3 as three quarter turns") {
+    const std::string ub = "R' U R' U' R3 U' R' U R U R2";
+    AlgFollower f = follower({ub});
+    doMoves(f, "R' U R' U' R R");
+    CHECK_FALSE(f.deviated());
+    CHECK_FALSE(f.onAlg());
+    doMoves(f, "R U' R' U R U R2");
+    CHECK_FALSE(f.deviated());
+    CHECK(f.onAlg());
+    // Or as the one turn the other way.
+    AlgFollower g = follower({ub});
+    doMoves(g, "R' U R' U' R' U' R' U R U R2");
+    CHECK(g.onAlg());
+    // At the start, in the D turns before the AUF.
+    AlgFollower h = follower({"D3 R U R' D"});
+    doMoves(h, "D D D R U R' D");
+    CHECK(h.onAlg());
+  }
   SECTION("but not halfway through a half turn") {
     AlgFollower f = follower({"R2 U R2"});
     doMoves(f, "R");
@@ -206,6 +224,10 @@ TEST_CASE("a wrong turn leaves the algs") {
     AlgFollower f = follower({kSune});
     doMoves(f, "R U' U' U' R'");
     CHECK(f.deviated());
+    // Three turns the other way, where the alg writes R3, aren't R3.
+    AlgFollower g = follower({"R' U R' U' R3 U' R' U R U R2"});
+    doMoves(g, "R' U R' U' R R R R");
+    CHECK(g.deviated());
   }
   SECTION("so does turning another layer to start") {
     AlgFollower f = follower({kSune});

@@ -477,8 +477,10 @@ void SettingsDialog::setBinding(bool changeSelected) {
            "Meta, which are left for shortcuts."));
     return;
   }
-  KeyBinding b{key, combo.keyboardModifiers().testFlag(Qt::ShiftModifier),
-               move.front()};
+  // A key turns its layer once, so R3 is bound as R'.
+  KeyBinding b{key,
+               combo.keyboardModifiers().testFlag(Qt::ShiftModifier),
+               {move.front().type, move.front().amount}};
   auto &list = settings_.keymap.bindings;
   int row = changeSelected ? selectedBinding() : -1;
   if (changeSelected && row < 0) {

@@ -6,24 +6,20 @@ namespace vcube {
 
 namespace {
 
-// What it costs to do a move. An alg's wide and slice turns cost two, so
-// that they may be done as the two turns they are made of; a rotation
-// costs nothing.
+// What it costs to do a move: its quarter turns as written, so R3 may be
+// done as three. An alg's wide and slice turns cost two for each quarter
+// turn, so that they may be done as the two turns they are made of; a
+// rotation costs nothing.
 int algCost(Move m) {
   if (isRotation(m.type)) {
     return 0;
   }
-  int quarters = m.amount == 2 ? 2 : 1;
+  int quarters = quarterTurns(m);
   return isFaceTurn(m.type) ? quarters : 2 * quarters;
 }
 
 // A move done on the cube costs its quarter turns, whatever the layer.
-int doneCost(Move m) {
-  if (isRotation(m.type)) {
-    return 0;
-  }
-  return m.amount == 2 ? 2 : 1;
-}
+int doneCost(Move m) { return isRotation(m.type) ? 0 : quarterTurns(m); }
 
 // The axis a turn is about, by the centres on it whatever way the cube is
 // held: 0 white-yellow, 1 red-orange, 2 green-blue.

@@ -23,10 +23,13 @@ enum class MoveType : std::uint8_t {
 inline constexpr int kMoveTypeCount = 18;
 
 // One move: a layer type turned 1 (clockwise), 2 (half) or 3 (counter-
-// clockwise) quarter turns.
+// clockwise) quarter turns. A move written with more quarter turns than it
+// needs keeps them in `quarters`: R3 turns the cube as R' does, but is
+// written as three clockwise quarter turns.
 struct Move {
   MoveType type = MoveType::U;
-  std::uint8_t amount = 1; // 1, 2 or 3
+  std::uint8_t amount = 1;    // 1, 2 or 3
+  std::uint16_t quarters = 0; // as written, or 0 when the fewest (1 or 2)
 
   friend constexpr bool operator==(Move, Move) = default;
 };
@@ -41,8 +44,13 @@ constexpr bool isRotation(MoveType t) {
 // 0 = x (R/L), 1 = y (U/D), 2 = z (F/B).
 int moveAxis(MoveType t);
 
+// The quarter turns a move is written with: 1 for R and R', 2 for R2, 3
+// for R3.
+int quarterTurns(Move m);
+
 // "U", "Rw" is written "r", "M", "x" ...
 std::string_view moveTypeName(MoveType t);
+// Writes each move with the fewest quarter turns (R3 as R').
 std::string toString(Move m);
 std::string toString(const Alg &alg);
 
@@ -57,6 +65,8 @@ struct ParseError {
 //   - faces U R F D L B, wide moves as Rw or r, slices M E S, rotations x y z
 //     (X Y Z accepted too), suffixes 2, ', 2' and '2, with the primes and
 //     spaces that copied text uses (’ ‘ ′ ´, no-break and zero-width spaces);
+//   - other counts as that many quarter turns: R3 is three clockwise, and
+//     keeps them in Move::quarters;
 //   - grouping with optional repetition: (R U R' U')3, (R U)2', also
 //     written (R U R' U')x2, *2 or ×2;
 //   - at most 10000 moves once repetitions are expanded, brackets at most
@@ -79,6 +89,7 @@ Alg parseAlgOrEmpty(std::string_view text);
 // that it can be stored and shown as plain text.
 std::string cleanAlgText(std::string_view text);
 
+// The inverse, its moves written with as many quarter turns (R3 -> R3').
 Alg invert(const Alg &alg);
 
 // Mirrors left-right (across the M plane): R <-> L', U -> U', ...
@@ -88,7 +99,8 @@ Alg mirrorS(const Alg &alg);
 
 // Merges consecutive moves of the same type (R R -> R2, R R' -> nothing) and
 // moves of the same type separated only by moves on the parallel axis that
-// commute with them (U D U -> U2 D).
+// commute with them (U D U -> U2 D). A merged move has the fewest quarter
+// turns.
 Alg simplify(const Alg &alg);
 
 // Number of moves in HTM, counting each non-rotation token once.

@@ -17,6 +17,24 @@ TEST_CASE("parses face, wide, slice and rotation moves") {
   CHECK(roundTrip("R\xE2\x80\x99 U`") == "R' U'");
 }
 
+TEST_CASE("keeps the quarter turns a move is written with") {
+  Alg a = parseAlgOrEmpty("R3 U3' F2' L R'");
+  REQUIRE(a.size() == 5);
+  CHECK(a[0] == Move{MoveType::R, 3, 3});
+  CHECK(a[1] == Move{MoveType::U, 1, 3});
+  CHECK(quarterTurns(a[0]) == 3);
+  CHECK(quarterTurns(a[1]) == 3);
+  CHECK(quarterTurns(a[2]) == 2);
+  CHECK(quarterTurns(a[3]) == 1);
+  CHECK(quarterTurns(a[4]) == 1);
+  CHECK(a[4] == Move{MoveType::R, 3});
+  CHECK(toString(a) == "R' U F2 L R'");
+  // Undoing three quarter turns takes three the other way.
+  CHECK(invert(parseAlgOrEmpty("U R3"))[0] == Move{MoveType::R, 1, 3});
+  CHECK(mirrorM(parseAlgOrEmpty("R3"))[0] == Move{MoveType::L, 1, 3});
+  CHECK(simplify(parseAlgOrEmpty("R3 R2"))[0] == Move{MoveType::R, 1});
+}
+
 TEST_CASE("parses groups, repetition, commutators and conjugates") {
   CHECK(roundTrip("(R U R' U')2") == "R U R' U' R U R' U'");
   CHECK(roundTrip("(R U)2'") == "U' R' U' R'");
