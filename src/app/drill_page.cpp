@@ -175,6 +175,7 @@ void DrillPage::activated() {
 }
 
 void DrillPage::deactivated() {
+  CasePage::deactivated();
   tick_.stop();
   timer_.cancel();
   updateControls();
@@ -199,6 +200,28 @@ void DrillPage::updateControls() {
        std::initializer_list<QWidget *>{setBox_, poolBox_, orderBox_}) {
     w->setEnabled(!busy);
   }
+}
+
+std::vector<CasePage::CaseStatusFilter> DrillPage::statusFilters() {
+  return {
+      {tr("Learned"),
+       [this](const std::string &id) {
+         return eligible(id) && statusOf(progressOf(id)) == CaseStatus::Learned;
+       }},
+      {tr("Never drilled"),
+       [this](const std::string &id) {
+         const CaseProgress *cp = progressOf(id);
+         return eligible(id) && (!cp || cp->drillCount() == 0);
+       }},
+      {tr("Slower than the target"),
+       [this](const std::string &id) {
+         const CaseProgress *cp = progressOf(id);
+         std::optional<double> mean = cp ? cp->recentMean() : std::nullopt;
+         const AlgSet *s = set();
+         return mean && s && s->targetSeconds > 0 &&
+                *mean > s->targetSeconds * 1000.0;
+       }},
+  };
 }
 
 void DrillPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {

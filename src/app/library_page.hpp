@@ -36,6 +36,8 @@ protected:
 // Browse and edit alg sets: the set list, each set's case tree, and the
 // selected case with its algs. Set properties and step settings live in a
 // dialog; set and case actions in menus and context menus.
+class CaseFilter;
+
 class LibraryPage : public ModePage {
   Q_OBJECT
 public:
@@ -46,6 +48,7 @@ public:
   void applySettings() override;
   void importSetFile();
   void exportSetFile();
+  void deactivated() override;
 
 signals:
   // The library changed: `setId` names the set whose contents changed, or
@@ -65,6 +68,7 @@ private:
   QListWidget *setList_;
   QMenu *setMenu_;
   QMenu *editMenu_;
+  CaseFilter *caseFilter_;
   QTreeWidget *caseTree_;
   QGroupBox *caseBox_;
   QLineEdit *caseNameEdit_;

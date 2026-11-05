@@ -34,6 +34,7 @@ protected:
   // so that the keys go back to the cube either way.
   bool eventFilter(QObject *watched, QEvent *event) override;
   QStringList columns() const override;
+  std::vector<CaseStatusFilter> statusFilters() override;
   void fillRow(QTreeWidgetItem *item, const std::string &caseId) override;
   void updateSummary() override;
   void startSet() override;

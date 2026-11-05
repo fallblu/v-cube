@@ -1,5 +1,6 @@
 #include "app/library_page.hpp"
 
+#include "app/case_filter.hpp"
 #include "app/cube_painter.hpp"
 #include "app/set_properties_dialog.hpp"
 
@@ -140,6 +141,33 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
     caseTree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
   }
   caseTree_->header()->setStretchLastSection(true);
+  caseFilter_ = new CaseFilter(caseTree_, middle);
+  auto caseOf = [this](const QTreeWidgetItem *item) {
+    const AlgSet *s = set();
+    return s ? s->findCase(ss(item->data(0, kCaseRole).toString())) : nullptr;
+  };
+  auto analysis = [this](const QTreeWidgetItem *item) {
+    return analysisOf(ss(item->data(0, kCaseRole).toString()));
+  };
+  caseFilter_->setStatuses({
+      {tr("No algs"),
+       [caseOf](const QTreeWidgetItem *item) {
+         const AlgCase *c = caseOf(item);
+         return c && c->algs.empty();
+       }},
+      {tr("No passing alg"),
+       [caseOf, analysis](const QTreeWidgetItem *item) {
+         const AlgCase *c = caseOf(item);
+         const CaseAnalysis *a = analysis(item);
+         return c && !c->algs.empty() && (!a || !a->main);
+       }},
+      {tr("Failing algs"),
+       [analysis](const QTreeWidgetItem *item) {
+         const CaseAnalysis *a = analysis(item);
+         return a && a->failing() > 0;
+       }},
+  });
+  middleLayout->addWidget(caseFilter_);
   middleLayout->addWidget(caseTree_, 1);
   editMenu_ = new QMenu(this);
   auto *caseButtons = new QHBoxLayout;
@@ -481,11 +509,14 @@ void LibraryPage::buildCaseTree() {
     }
     groupItem->setExpanded(!collapsed.contains(qs(g.name)));
   }
+  caseFilter_->apply();
   caseTree_->verticalScrollBar()->setValue(scroll);
   if (current) {
     caseTree_->setCurrentItem(current);
   }
 }
+
+void LibraryPage::deactivated() { caseFilter_->release(); }
 
 void LibraryPage::loadCase() {
   AlgCase *c = currentCase();

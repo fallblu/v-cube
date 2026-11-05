@@ -1,11 +1,13 @@
 #pragma once
 
 #include "app/app_settings.hpp"
+#include "app/case_filter.hpp"
 #include "app/colours.hpp"
 #include "app/mode_page.hpp"
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
 
+#include <functional>
 #include <map>
 
 class QComboBox;
@@ -13,6 +15,7 @@ class QFormLayout;
 class QHBoxLayout;
 class QLabel;
 class QMenu;
+class QPushButton;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QVBoxLayout;
@@ -22,8 +25,10 @@ namespace vcube {
 // What Learn and Drill share: the alg set selector, the case list with
 // thumbnails and ticks, and which cases can be offered (those with a
 // passing alg). The ticks are stored once per set, so both modes see the
-// same choices. Cases are set up for a hold picked from the app's colour
-// neutrality; thumbnails are drawn in its main hold.
+// same choices. The list can be searched and filtered by status; "Tick
+// all" and "Tick none" then tick only the cases shown, and double-clicking
+// a case practises it now. Cases are set up for a hold picked from the
+// app's colour neutrality; thumbnails are drawn in its main hold.
 class CasePage : public ModePage {
   Q_OBJECT
 public:
@@ -31,6 +36,7 @@ public:
   void reloadSets();
   void applySettings() override;
   void activated() override;
+  void deactivated() override;
   void setFocusMode(bool on) override;
 
 signals:
@@ -63,6 +69,7 @@ protected:
   QVBoxLayout *leftLayout_;
   QFormLayout *form_; // set selector; derived pages add rows
   QComboBox *setBox_;
+  CaseFilter *filter_;
   QTreeWidget *tree_;
   QHBoxLayout *tickRow_; // tick all/none; derived pages add buttons
   QLabel *summary_;
@@ -99,6 +106,14 @@ protected:
                       int size, const ColourMap &colours);
   void saveProgress();
 
+  // A status the case list can be filtered by.
+  struct CaseStatusFilter {
+    QString name;
+    std::function<bool(const std::string &caseId)> test;
+  };
+  // The page's own statuses, between "Not ticked" and "No alg".
+  virtual std::vector<CaseStatusFilter> statusFilters() { return {}; }
+
   // The page's case list columns after "Case", and how to fill them.
   virtual QStringList columns() const = 0;
   virtual void fillRow(QTreeWidgetItem *item, const std::string &caseId) = 0;
@@ -119,6 +134,8 @@ protected:
   virtual void neutralityChanged() {}
 
 private:
+  QPushButton *tickAllButton_;
+  QPushButton *tickNoneButton_;
   bool reloadPending_ = false;  // the library changed while hidden
   bool rebuildPending_ = false; // the look changed while hidden
   bool ticksPending_ = false;   // a tick change waits to be saved
@@ -134,6 +151,10 @@ private:
   void saveTicks();
   // Saves the ticks once a batch of changes (e.g. "Tick all") is done.
   void ticksEdited();
+  // Ticks or unticks every case shown.
+  void tickShown(bool on);
+  // "Tick all" becomes "Tick shown" while the list is filtered.
+  void filterChanged();
   ColourNeutrality neutrality_; // as last applied
   void showCaseMenu(const QPoint &pos);
 };

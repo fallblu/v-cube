@@ -193,8 +193,39 @@ void LearnPage::setFocusMode(bool on) {
 }
 
 void LearnPage::deactivated() {
+  CasePage::deactivated();
   cubeView_->finishAnimations();
   learnCount_->clearFocus();
+}
+
+std::vector<CasePage::CaseStatusFilter> LearnPage::statusFilters() {
+  // As the Status and Due columns show them.
+  auto queued = [this](const std::string &id) {
+    const CaseProgress *cp = progressOf(id);
+    return cp && isQueued(cp->card);
+  };
+  auto status = [this, queued](CaseStatus st) {
+    return [this, queued, st](const std::string &id) {
+      return eligible(id) && !queued(id) && statusOf(progressOf(id)) == st;
+    };
+  };
+  return {
+      {tr("New"), status(CaseStatus::Unstarted)},
+      {tr("In the learn queue"), queued},
+      {tr("Learning"), status(CaseStatus::Learning)},
+      {tr("Learned"), status(CaseStatus::Learned)},
+      {tr("Due"),
+       [this, queued](const std::string &id) {
+         const CaseProgress *cp = progressOf(id);
+         if (!cp || queued(id) || statusOf(cp) == CaseStatus::Unstarted) {
+           return false;
+         }
+         std::int64_t now = unixNow();
+         return statusOf(cp) == CaseStatus::Learned
+                    ? isDue(cp->card, now, settings_.srs, localDayEnd())
+                    : cp->card.due <= now;
+       }},
+  };
 }
 
 void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {

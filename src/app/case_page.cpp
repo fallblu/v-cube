@@ -81,15 +81,18 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   tree_->setIndentation(14);
   tree_->setFocusPolicy(Qt::NoFocus);
   tree_->setContextMenuPolicy(Qt::CustomContextMenu);
+  filter_ = new CaseFilter(tree_, left_);
+  leftLayout_->addWidget(filter_);
   leftLayout_->addWidget(tree_, 1);
 
   tickRow_ = new QHBoxLayout;
-  auto *allButton = new QPushButton(tr("Tick all"), left_);
-  auto *noneButton = new QPushButton(tr("Tick none"), left_);
-  for (auto *b : {allButton, noneButton}) {
+  tickAllButton_ = new QPushButton(left_);
+  tickNoneButton_ = new QPushButton(left_);
+  for (auto *b : {tickAllButton_, tickNoneButton_}) {
     b->setFocusPolicy(Qt::NoFocus);
     tickRow_->addWidget(b);
   }
+  filterChanged();
   tickRow_->addStretch();
   leftLayout_->addLayout(tickRow_);
   summary_ = new QLabel(left_);
@@ -106,20 +109,68 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
           });
   connect(tree_, &QTreeWidget::customContextMenuRequested, this,
           &CasePage::showCaseMenu);
-  connect(allButton, &QPushButton::clicked, this, [this] {
-    for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
-      tree_->topLevelItem(i)->setCheckState(0, Qt::Checked);
-    }
-  });
-  connect(noneButton, &QPushButton::clicked, this, [this] {
-    for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
-      tree_->topLevelItem(i)->setCheckState(0, Qt::Unchecked);
-    }
-  });
+  connect(tree_, &QTreeWidget::itemDoubleClicked, this,
+          [this](QTreeWidgetItem *item) {
+            QVariant id = item->data(0, kCaseIdRole);
+            if (!id.isNull() && eligible(ss(id.toString()))) {
+              startCase(ss(id.toString()));
+            }
+          });
+  connect(tickAllButton_, &QPushButton::clicked, this,
+          [this] { tickShown(true); });
+  connect(tickNoneButton_, &QPushButton::clicked, this,
+          [this] { tickShown(false); });
+  connect(filter_, &CaseFilter::changed, this, &CasePage::filterChanged);
   neutrality_ = settings_.neutrality;
 }
 
+void CasePage::tickShown(bool on) {
+  Qt::CheckState state = on ? Qt::Checked : Qt::Unchecked;
+  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
+    QTreeWidgetItem *group = tree_->topLevelItem(g);
+    if (!filter_->isActive()) {
+      group->setCheckState(0, state); // its cases follow
+      continue;
+    }
+    for (int i = 0; i < group->childCount(); ++i) {
+      if (!group->child(i)->isHidden()) {
+        group->child(i)->setCheckState(0, state);
+      }
+    }
+  }
+}
+
+void CasePage::filterChanged() {
+  bool filtered = filter_->isActive();
+  tickAllButton_->setText(filtered ? tr("Tick shown") : tr("Tick all"));
+  tickNoneButton_->setText(filtered ? tr("Untick shown") : tr("Tick none"));
+  tickAllButton_->setToolTip(filtered ? tr("Tick the cases shown")
+                                      : tr("Tick every case"));
+  tickNoneButton_->setToolTip(filtered ? tr("Untick the cases shown")
+                                       : tr("Untick every case"));
+}
+
 void CasePage::init() {
+  auto byId = [this](std::function<bool(const std::string &)> test) {
+    return [test = std::move(test)](const QTreeWidgetItem *item) {
+      return test(ss(item->data(0, kCaseIdRole).toString()));
+    };
+  };
+  std::vector<CaseFilter::Status> statuses;
+  statuses.push_back({tr("Ticked"), [](const QTreeWidgetItem *item) {
+                        return item->checkState(0) == Qt::Checked;
+                      }});
+  statuses.push_back({tr("Not ticked"), [](const QTreeWidgetItem *item) {
+                        return item->checkState(0) != Qt::Checked;
+                      }});
+  for (CaseStatusFilter &f : statusFilters()) {
+    statuses.push_back({f.name, byId(std::move(f.test))});
+  }
+  statuses.push_back({tr("No alg"), byId([this](const std::string &id) {
+                        return !eligible(id);
+                      })});
+  filter_->setStatuses(std::move(statuses));
+
   QStringList headers = {tr("Case")};
   headers << columns();
   tree_->setColumnCount(static_cast<int>(headers.size()));
@@ -216,6 +267,8 @@ void CasePage::activated() {
     syncRows(); // ticks and progress are shared with the other mode
   }
 }
+
+void CasePage::deactivated() { filter_->release(); }
 
 void CasePage::setFocusMode(bool on) { left_->setVisible(!on); }
 
@@ -329,6 +382,7 @@ void CasePage::buildTree() {
     }
     groupItem->setExpanded(!collapsed.contains(qs(g.name)));
   }
+  filter_->apply();
   tree_->verticalScrollBar()->setValue(scroll);
   updateSummary();
 }
@@ -348,6 +402,7 @@ void CasePage::syncRows() {
       fillRow(item, ss(id));
     }
   }
+  filter_->apply();
   updateSummary();
 }
 
@@ -359,6 +414,7 @@ void CasePage::ticksEdited() {
   QTimer::singleShot(0, this, [this] {
     ticksPending_ = false;
     saveTicks();
+    filter_->apply();
     updateSummary();
     ticksChanged();
   });
@@ -389,6 +445,7 @@ void CasePage::updateRow(const std::string &caseId) {
     QSignalBlocker block(tree_);
     fillRow(item, caseId);
   }
+  filter_->apply();
   updateSummary();
 }
 
@@ -401,6 +458,7 @@ void CasePage::updateAllRows() {
               ss(group->child(i)->data(0, kCaseIdRole).toString()));
     }
   }
+  filter_->apply();
   updateSummary();
 }
 
