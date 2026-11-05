@@ -61,6 +61,7 @@ private:
 
   QComboBox *poolBox_;
   QComboBox *orderBox_;
+  bool controlsLocked_ = false;
   QLabel *scrambleLabel_;
   TimeDisplay *display_;
   QLabel *statusLabel_;
@@ -79,6 +80,8 @@ private:
   void requestScramble();
   void scrambleReady();
   void onTick();
+  // Locks the set, case and order choices while a solve runs.
+  void updateControls();
   void finish(std::int64_t timeMs);
   void setWrong(bool wrong);
   void showResult();

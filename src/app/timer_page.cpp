@@ -81,6 +81,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   typeRow->setContentsMargins(0, 0, 0, 0);
   typeBox_ = new ScrambleTypeBox(library_, typeRow_);
   auto *nextButton = flatButton(tr("Next scramble"), typeRow_);
+  nextButton_ = nextButton;
   typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
   algs_ = new ScrambleAlgs(library_, settings_.scheme, "timer/showAlgs", right);
   typeRow->addWidget(typeBox_, 1);
@@ -188,6 +189,20 @@ void TimerPage::activated() { tick_.start(16); }
 void TimerPage::deactivated() {
   tick_.stop();
   timer_.cancel();
+  updateControls();
+}
+
+void TimerPage::updateControls() {
+  bool busy = isBusy();
+  if (busy == controlsLocked_) {
+    return;
+  }
+  controlsLocked_ = busy;
+  for (QWidget *w : std::initializer_list<QWidget *>{
+           typeBox_, nextButton_, sessionButton_, plus2Button_, dnfButton_,
+           deleteButton_}) {
+    w->setEnabled(!busy);
+  }
 }
 
 void TimerPage::setFocusMode(bool on) {
@@ -232,9 +247,14 @@ void TimerPage::onTick() {
   if (isBusy()) {
     display_->showTimer(timer_, now);
   }
+  updateControls();
 }
 
 bool TimerPage::handleKey(QKeyEvent *e, bool press) {
+  struct Update {
+    TimerPage *page;
+    ~Update() { page->updateControls(); }
+  } update{this};
   if (e->isAutoRepeat()) {
     return e->key() == Qt::Key_Space;
   }

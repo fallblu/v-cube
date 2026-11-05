@@ -60,10 +60,15 @@ private:
   QPushButton *plus2Button_;
   QPushButton *dnfButton_;
   QPushButton *deleteButton_;
+  QPushButton *nextButton_;
+  bool controlsLocked_ = false;
 
   Session &session() { return store_.current(); }
   void showScramble();
   void onTick();
+  // Locks the controls that would change the scramble or session while a
+  // solve or inspection runs, and unlocks them after.
+  void updateControls();
   void recordSolve(std::int64_t timeMs, Penalty penalty);
   void refreshSessionMenu();
   void selectSession(std::size_t index);

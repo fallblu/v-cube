@@ -177,6 +177,19 @@ void DrillPage::activated() {
 void DrillPage::deactivated() {
   tick_.stop();
   timer_.cancel();
+  updateControls();
+}
+
+void DrillPage::updateControls() {
+  bool busy = isBusy();
+  if (busy == controlsLocked_) {
+    return;
+  }
+  controlsLocked_ = busy;
+  for (QWidget *w :
+       std::initializer_list<QWidget *>{setBox_, poolBox_, orderBox_}) {
+    w->setEnabled(!busy);
+  }
 }
 
 void DrillPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
@@ -411,6 +424,10 @@ void DrillPage::onTick() {
 }
 
 bool DrillPage::handleKey(QKeyEvent *e, bool press) {
+  struct Update {
+    DrillPage *page;
+    ~Update() { page->updateControls(); }
+  } update{this};
   if (e->isAutoRepeat()) {
     return e->key() == Qt::Key_Space;
   }
