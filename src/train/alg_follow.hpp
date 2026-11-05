@@ -65,6 +65,11 @@ public:
   bool onAlg() const;
   // Restarted after the alg was begun.
   bool startedOver() const { return abandoned_; }
+  // Where the moves done since the last restart left every alg, as an
+  // index into moves(): the first move that no alg's turns account for.
+  // A turn the wrong way counts from there, even though it is only clear
+  // a move or two later that it was wrong.
+  std::optional<std::size_t> leftAt() const { return leftAt_; }
   // The moves done since the last restart.
   const Alg &moves() const { return log_; }
 
@@ -80,7 +85,11 @@ private:
     std::size_t at = 0;   // the last state reached
     int transit = 0;      // cost of the moves done since then
     int transitAxis = -1; // and their axis
+    // The first of them (in log_) after which the alg's turns on that axis
+    // could no longer be caught up with.
+    std::optional<std::size_t> lostAt;
     bool alive = true;
+    std::size_t leftAt = 0; // once not alive: the move that left the alg
   };
 
   FaceletCube start_;
@@ -92,10 +101,15 @@ private:
   int openingD_ = 0;       // D layer quarter turns done in the opening
   int openingDCost_ = 0;   // and their cost
   bool abandoned_ = false; // restarted after the alg was begun
+  std::optional<std::size_t> leftAt_;
 
   // Whether the D turns done in the opening may still be an alg's.
   bool openingFits(const AlgOpening &o, bool complete) const;
-  void step(Move m);
+  // Whether turns on the transit's axis could still take the cube to a
+  // state of the path within the alg's cost.
+  bool canCatchUp(const Path &p) const;
+  // Follows log_[i].
+  void step(std::size_t i);
   void layOutPaths();
   void replay();
 };

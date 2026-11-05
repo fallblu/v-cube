@@ -262,3 +262,53 @@ TEST_CASE("changing the algs checks the moves again") {
   CHECK_FALSE(f.deviated());
   CHECK(f.onAlg());
 }
+
+TEST_CASE("the move that left the algs is found") {
+  auto leftAt = [](const std::vector<std::string> &algs,
+                   std::string_view moves) {
+    AlgFollower f = follower(algs);
+    doMoves(f, moves);
+    return f.leftAt();
+  };
+  SECTION("not while the moves keep to an alg") {
+    CHECK_FALSE(leftAt({kSune}, kSune));
+    CHECK_FALSE(leftAt({kSune}, "U y R U R' U R U U R'"));
+  }
+  SECTION("a turn on another axis") {
+    CHECK(leftAt({kSune}, "R F") == 1u);
+    CHECK(leftAt({kSune}, "F F") == 1u);
+    CHECK(leftAt({kSune}, kSune + " U") == 7u);
+  }
+  SECTION("a turn the wrong way, once the next turn shows it") {
+    CHECK(leftAt({kSune}, "R U'") == std::nullopt);
+    CHECK(leftAt({kSune}, "R U' R'") == 1u);
+    CHECK(leftAt({kSune}, "R U R' U' U") == 3u);
+    CHECK(leftAt({kSune}, "R U' U' U' R'") == 1u);
+  }
+  SECTION("another layer turned before a half turn is done") {
+    CHECK(leftAt({kSune}, "R U R' U R U R'") == 6u);
+    CHECK(leftAt({kSune}, "R U R' U R U D D'") == 6u);
+  }
+  SECTION("a turn that is then undone") {
+    // L where the alg turns R2 can't be part of it; M where it turns M2 is
+    // half of it, so the M' that undoes it is where it went wrong.
+    CHECK(leftAt({"F R2 F'"}, "F L L'") == 1u);
+    CHECK(leftAt({"M2 U M2"}, "M M'") == 1u);
+  }
+  SECTION("the D layer turned the wrong way") {
+    CHECK(leftAt({"D R U R' D'"}, "D'") == 0u);
+    CHECK(leftAt({"D R U R' D'"}, "D D'") == 1u);
+    CHECK(leftAt({kSune}, "U D") == 1u);
+  }
+  SECTION("counted again after a restart or a change of algs") {
+    AlgFollower f = follower({kSune});
+    doMoves(f, "R U2 R'");
+    CHECK(f.leftAt() == 1u);
+    f.setAlgs({alg("R U2 R' U' R U' R'")});
+    CHECK_FALSE(f.leftAt());
+    f.setAlgs({alg(kSune)});
+    f.restart();
+    CHECK_FALSE(f.leftAt());
+    CHECK(f.deviated()); // started over
+  }
+}

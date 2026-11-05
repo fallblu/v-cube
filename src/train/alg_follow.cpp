@@ -50,6 +50,43 @@ Move turn(MoveType t, int quarters) {
   return {t, static_cast<std::uint8_t>(quarters)};
 }
 
+// The states, orientation removed, that quarter turns of the layers on
+// `axis` (as the cube is held) take `cube` to within `limit` of them, each
+// with the fewest turns that reach it. There are at most 16.
+std::vector<std::pair<FaceletCube, int>> withinTurns(const FaceletCube &cube,
+                                                     int axis, int limit) {
+  static constexpr MoveType kLayers[] = {MoveType::U, MoveType::R, MoveType::F,
+                                         MoveType::D, MoveType::L, MoveType::B,
+                                         MoveType::M, MoveType::E, MoveType::S};
+  std::vector<MoveType> layers;
+  for (MoveType t : kLayers) {
+    if (heldAxis(cube, t) == axis) {
+      layers.push_back(t);
+    }
+  }
+  std::vector<std::pair<FaceletCube, int>> seen{{oriented(cube), 0}};
+  std::vector<FaceletCube> frontier{cube};
+  for (int turns = 1; turns <= limit && !frontier.empty(); ++turns) {
+    std::vector<FaceletCube> next;
+    for (const FaceletCube &c : frontier) {
+      for (MoveType t : layers) {
+        for (int q : {1, 3}) {
+          FaceletCube n = c;
+          n.apply(turn(t, q));
+          FaceletCube o = oriented(n);
+          if (std::none_of(seen.begin(), seen.end(),
+                           [&o](const auto &s) { return s.first == o; })) {
+            seen.emplace_back(o, turns);
+            next.push_back(n);
+          }
+        }
+      }
+    }
+    frontier = std::move(next);
+  }
+  return seen;
+}
+
 } // namespace
 
 std::optional<UdTurn> udTurn(const FaceletCube &cube, Move m) {
@@ -109,7 +146,7 @@ AlgFollower::AlgFollower(const FaceletCube &start, std::vector<Alg> algs)
 
 void AlgFollower::move(Move m) {
   log_.push_back(m);
-  step(m);
+  step(log_.size() - 1);
 }
 
 void AlgFollower::restart() {
@@ -132,8 +169,9 @@ void AlgFollower::replay() {
   openingD_ = 0;
   openingDCost_ = 0;
   paths_.clear();
-  for (Move m : log_) {
-    step(m);
+  leftAt_.reset();
+  for (std::size_t i = 0; i < log_.size(); ++i) {
+    step(i);
   }
 }
 
@@ -145,19 +183,7 @@ bool AlgFollower::openingFits(const AlgOpening &o, bool complete) const {
   return openingD_ == o.d || (!complete && openingDCost_ < o.dCost);
 }
 
-bool AlgFollower::deviated() const {
-  if (abandoned_) {
-    return true;
-  }
-  if (opening_) {
-    return openingDCost_ > 0 && std::none_of(openings_.begin(), openings_.end(),
-                                             [this](const AlgOpening &o) {
-                                               return openingFits(o, false);
-                                             });
-  }
-  return std::none_of(paths_.begin(), paths_.end(),
-                      [](const Path &p) { return p.alive; });
-}
+bool AlgFollower::deviated() const { return abandoned_ || leftAt_.has_value(); }
 
 bool AlgFollower::onAlg() const {
   if (abandoned_) {
@@ -188,6 +214,23 @@ bool AlgFollower::onAlg() const {
       auto runEnd =
           p.states.begin() + static_cast<std::ptrdiff_t>(p.runEnd[p.at]) + 1;
       if (std::find(ahead, runEnd, f) != runEnd) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool AlgFollower::canCatchUp(const Path &p) const {
+  int limit = p.cost[p.runEnd[p.at]] - p.cost[p.at] - p.transit;
+  if (limit < 0) {
+    return false;
+  }
+  auto reach = withinTurns(cube_, p.transitAxis, limit);
+  for (std::size_t j = p.at + 1; j <= p.runEnd[p.at]; ++j) {
+    int budget = p.cost[j] - p.cost[p.at] - p.transit;
+    for (const auto &[state, turns] : reach) {
+      if (turns <= budget && state == p.states[j]) {
         return true;
       }
     }
@@ -236,13 +279,20 @@ void AlgFollower::layOutPaths() {
   }
 }
 
-void AlgFollower::step(Move m) {
+void AlgFollower::step(std::size_t i) {
+  Move m = log_[i];
   if (opening_) {
     if (std::optional<UdTurn> t = udTurn(cube_, m)) {
       cube_.apply(m);
       if (t->d != 0) {
         openingD_ = (openingD_ + t->d) % 4;
         openingDCost_ += doneCost(m);
+        if (!leftAt_ && std::none_of(openings_.begin(), openings_.end(),
+                                     [this](const AlgOpening &o) {
+                                       return openingFits(o, false);
+                                     })) {
+          leftAt_ = i;
+        }
       }
       return;
     }
@@ -264,12 +314,19 @@ void AlgFollower::step(Move m) {
     // same axis as they do until it catches up with the alg.
     if (p.transit == 0) {
       p.transitAxis = p.axis[p.at];
+      p.lostAt.reset();
     }
-    p.transit += cost;
+    // The move that left the alg is the first after which its turns on
+    // this axis could no longer be caught up with (U' where the alg turns
+    // U, L where it turns R2), or else the one that left (R after U where
+    // the alg turns U2 R, M' after M where it turns M2).
     if (axis != p.transitAxis) {
       p.alive = false;
+      p.leftAt = p.lostAt.value_or(i);
       continue;
     }
+    p.transit += cost;
+    int runCost = p.cost[p.runEnd[p.at]] - p.cost[p.at];
     auto begin = p.states.begin();
     auto at = begin + static_cast<std::ptrdiff_t>(p.at);
     auto runEnd = begin + static_cast<std::ptrdiff_t>(p.runEnd[p.at]) + 1;
@@ -284,8 +341,26 @@ void AlgFollower::step(Move m) {
     } else {
       // Between two states of the alg: left once more has been turned than
       // the alg's turns on this axis need.
-      p.alive = p.transit <= p.cost[p.runEnd[p.at]] - p.cost[p.at];
+      p.alive = p.transit <= runCost;
     }
+    if (!p.alive) {
+      p.leftAt = p.lostAt.value_or(i);
+    } else if (p.transit > 0 && !p.lostAt && !canCatchUp(p)) {
+      p.lostAt = i;
+    }
+  }
+  if (!leftAt_ && std::none_of(paths_.begin(), paths_.end(),
+                               [](const Path &p) { return p.alive; })) {
+    // The moves kept to some alg up to where the one followed furthest
+    // was left.
+    std::size_t left = i;
+    if (!paths_.empty()) {
+      left = 0;
+      for (const Path &p : paths_) {
+        left = std::max(left, p.leftAt);
+      }
+    }
+    leftAt_ = left;
   }
 }
 

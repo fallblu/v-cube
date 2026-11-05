@@ -35,18 +35,32 @@ const char *gradeName(Grade g) {
   return "";
 }
 
-// The moves as done, with two quarter turns of a layer the same way
-// written as a half turn.
-std::string movesText(const Alg &moves) {
-  Alg merged;
-  for (Move m : moves) {
-    if (!merged.empty() && merged.back() == m && m.amount != 2) {
-      merged.back().amount = 2;
+// The moves as done, as rich text, with two quarter turns of a layer the
+// same way written as a half turn. The move at `mark` (an index into
+// `moves`) is highlighted and kept on its own.
+QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
+  struct Done {
+    Move move;
+    bool marked;
+  };
+  std::vector<Done> merged;
+  for (std::size_t i = 0; i < moves.size(); ++i) {
+    Move m = moves[i];
+    bool marked = mark == i;
+    if (!merged.empty() && !marked && !merged.back().marked &&
+        merged.back().move == m && m.amount != 2) {
+      merged.back().move.amount = 2;
     } else {
-      merged.push_back(m);
+      merged.push_back({m, marked});
     }
   }
-  return toString(merged);
+  QStringList parts;
+  for (const Done &d : merged) {
+    QString text = qs(toString(d.move)).toHtmlEscaped();
+    parts << (d.marked ? "<b style='color:#ff5555'><u>" + text + "</u></b>"
+                       : text);
+  }
+  return parts.join(' ');
 }
 
 } // namespace
@@ -655,12 +669,15 @@ void LearnPage::showReveal() {
   }
   QString html = algsHtml(current_->caseId, current_->start);
   if (phase_ == Phase::Done && leftAlgs_) {
-    QString moves = qs(movesText(follower_.moves())).toHtmlEscaped();
+    QString moves = movesHtml(follower_.moves(), follower_.leftAt());
     html += "<p style='color:gray'>" +
             (follower_.startedOver()
                  ? tr("Your moves after starting over: %1").arg(moves)
-                 : tr("Your moves: %1").arg(moves)) +
-            "</p>";
+                 : tr("Your moves: %1").arg(moves));
+    if (follower_.leftAt()) {
+      html += "<br>" + tr("The marked move is where you left the algs.");
+    }
+    html += "</p>";
   }
   reveal_->setText(html);
 }
