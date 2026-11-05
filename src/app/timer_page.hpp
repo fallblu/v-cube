@@ -34,7 +34,9 @@ public:
   void windowDeactivated() override;
   void setFocusMode(bool on) override;
 
-  void refreshScrambleTypes(); // alg sets changed
+  // The alg sets changed; an alg set scramble is made again only when its
+  // own set (`changedSet`) changed.
+  void refreshScrambleTypes(const QString &changedSet = {});
 
 private:
   AppSettings &settings_;

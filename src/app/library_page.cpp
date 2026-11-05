@@ -308,7 +308,7 @@ void LibraryPage::changed(bool rebuildTree) {
   if (rebuildTree) {
     buildCaseTree();
   }
-  emit setsChanged();
+  emit setsChanged(qs(setId_));
 }
 
 // --- menus -------------------------------------------------------------------
@@ -655,7 +655,7 @@ void LibraryPage::newSet() {
   setId_ = library_.add(std::move(s)).id;
   refreshSetList();
   loadSet();
-  emit setsChanged();
+  emit setsChanged({});
   emit message(tr("Created \"%1\". Add cases with Edit > New case from alg, "
                   "or Paste algs.")
                    .arg(name));
@@ -673,7 +673,7 @@ void LibraryPage::duplicateSet() {
   setId_ = library_.add(std::move(copy)).id;
   refreshSetList();
   loadSet();
-  emit setsChanged();
+  emit setsChanged({});
 }
 
 void LibraryPage::deleteSet() {
@@ -697,7 +697,7 @@ void LibraryPage::deleteSet() {
   setId_ = library_.sets().empty() ? std::string() : library_.sets().front().id;
   refreshSetList();
   loadSet();
-  emit setsChanged();
+  emit setsChanged({});
 }
 
 void LibraryPage::restoreSet() {
@@ -721,7 +721,7 @@ void LibraryPage::restoreSet() {
   }
   loadSet();
   refreshSetList();
-  emit setsChanged();
+  emit setsChanged(qs(setId_));
   emit message(tr("Restored the built-in cases of %1; your algs, cases and "
                   "settings were kept.")
                    .arg(qs(set()->name)));
@@ -849,7 +849,7 @@ void LibraryPage::importSetFile() {
   setId_ = library_.add(std::move(*imported)).id;
   refreshSetList();
   loadSet();
-  emit setsChanged();
+  emit setsChanged({});
 }
 
 void LibraryPage::exportSetFile() {

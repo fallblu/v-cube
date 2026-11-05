@@ -111,10 +111,11 @@ void ScramblePage::setFocusMode(bool on) {
   help_->setVisible(!on);
 }
 
-void ScramblePage::refreshScrambleTypes() {
+void ScramblePage::refreshScrambleTypes(const QString &changedSet) {
   QString before = typeBox_->currentType();
   typeBox_->refresh();
-  if (typeBox_->currentType() == before && before.startsWith("set:")) {
+  if (typeBox_->currentType() == before && !changedSet.isEmpty() &&
+      before == "set:" + changedSet) {
     feed_.regenerate();
   }
   algs_->refresh();

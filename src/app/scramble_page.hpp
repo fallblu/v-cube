@@ -22,7 +22,9 @@ public:
   bool handleKey(QKeyEvent *e, bool press) override;
   void applySettings() override;
   void setFocusMode(bool on) override;
-  void refreshScrambleTypes(); // alg sets changed
+  // The alg sets changed; an alg set scramble is made again only when its
+  // own set (`changedSet`) changed.
+  void refreshScrambleTypes(const QString &changedSet = {});
 
   static constexpr std::size_t kHistory = 100;
 

@@ -229,10 +229,11 @@ void TimerPage::applySettings() {
   refreshSolves();
 }
 
-void TimerPage::refreshScrambleTypes() {
+void TimerPage::refreshScrambleTypes(const QString &changedSet) {
   QString before = typeBox_->currentType();
   typeBox_->refresh(); // emits typeChanged if the type went away
-  if (typeBox_->currentType() == before && before.startsWith("set:")) {
+  if (typeBox_->currentType() == before && !changedSet.isEmpty() &&
+      before == "set:" + changedSet) {
     feed_.regenerate(); // the set's cases or ticks may have changed
   }
   algs_->refresh();

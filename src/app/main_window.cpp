@@ -121,13 +121,14 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
   }
-  connect(libraryPage_, &LibraryPage::setsChanged, this, [this] {
-    learnPage_->reloadSets();
-    drillPage_->reloadSets();
-    timerPage_->refreshScrambleTypes();
-    scramblePage_->refreshScrambleTypes();
-    virtualPage_->refreshScrambleTypes();
-  });
+  connect(libraryPage_, &LibraryPage::setsChanged, this,
+          [this](const QString &setId) {
+            learnPage_->reloadSets();
+            drillPage_->reloadSets();
+            timerPage_->refreshScrambleTypes(setId);
+            scramblePage_->refreshScrambleTypes(setId);
+            virtualPage_->refreshScrambleTypes(setId);
+          });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
                          static_cast<CasePage *>(drillPage_)}) {
     connect(page, &CasePage::editCaseRequested, this,

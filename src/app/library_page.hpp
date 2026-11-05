@@ -48,7 +48,9 @@ public:
   void exportSetFile();
 
 signals:
-  void setsChanged();
+  // The library changed: `setId` names the set whose contents changed, or
+  // is empty when sets were added, removed or renamed.
+  void setsChanged(const QString &setId);
 
 private:
   AppSettings &settings_;

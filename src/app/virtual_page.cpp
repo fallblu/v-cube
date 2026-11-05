@@ -124,10 +124,11 @@ void VirtualPage::setFocusMode(bool on) {
   algPanel_->setVisible(!on);
 }
 
-void VirtualPage::refreshScrambleTypes() {
+void VirtualPage::refreshScrambleTypes(const QString &changedSet) {
   QString before = typeBox_->currentType();
   typeBox_->refresh();
-  if (typeBox_->currentType() == before && before.startsWith("set:")) {
+  if (typeBox_->currentType() == before && !changedSet.isEmpty() &&
+      before == "set:" + changedSet) {
     feed_.regenerate();
   }
   algs_->refresh();
