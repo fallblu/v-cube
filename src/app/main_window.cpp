@@ -156,7 +156,6 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   focusHint_->hide();
   focusHintTimer_ = new QTimer(this);
   focusHintTimer_->setSingleShot(true);
-  focusHintTimer_->setInterval(3500);
   connect(focusHintTimer_, &QTimer::timeout, focusHint_, &QWidget::hide);
 
   buildMenus();
@@ -292,8 +291,12 @@ void MainWindow::setFocusMode(bool on) {
 }
 
 void MainWindow::showFocusHint() {
-  focusHint_->setText(
-      tr("Focus mode: F10 or right-click to show everything again"));
+  showOverlay(tr("Focus mode: F10 or right-click to show everything again"),
+              3500);
+}
+
+void MainWindow::showOverlay(const QString &text, int ms) {
+  focusHint_->setText(text);
   focusHint_->adjustSize();
   // Placed once the layout has settled (at start-up, after the window is
   // shown).
@@ -303,7 +306,7 @@ void MainWindow::showFocusHint() {
     focusHint_->raise();
     focusHint_->show();
   });
-  focusHintTimer_->start();
+  focusHintTimer_->start(ms);
 }
 
 void MainWindow::contextMenuEvent(QContextMenuEvent *e) {
@@ -462,6 +465,9 @@ void MainWindow::openDataFolder() {
 
 void MainWindow::showMessage(const QString &text) {
   statusBar()->showMessage(text, 8000);
+  if (focusMode_) {
+    showOverlay(text, 5000); // the status bar is hidden
+  }
 }
 
 void MainWindow::openSettings(bool neutrality) {

@@ -92,6 +92,8 @@ private:
   // leaving the central display.
   void setFocusMode(bool on);
   void showFocusHint();
+  // Shows `text` over the top of the window for `ms`, e.g. in focus mode.
+  void showOverlay(const QString &text, int ms);
   void openDataFolder();
   // On the colour neutrality tab with `neutrality`.
   void openSettings(bool neutrality = false);
