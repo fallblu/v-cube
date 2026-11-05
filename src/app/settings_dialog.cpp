@@ -111,7 +111,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   moveEdit_->setPlaceholderText(tr("Move, e.g. R' or M2 or y"));
   auto *setButton = new QPushButton(tr("Set"), keys);
   auto *removeButton = new QPushButton(tr("Remove"), keys);
-  auto *defaultsButton = new QPushButton(tr("cstimer defaults"), keys);
+  auto *defaultsButton = new QPushButton(tr("Defaults"), keys);
   editRow->addWidget(new QLabel(tr("Key:"), keys));
   editRow->addWidget(keyEdit_);
   editRow->addWidget(new QLabel(tr("Move:"), keys));
