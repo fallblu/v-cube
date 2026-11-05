@@ -36,7 +36,7 @@ protected:
   void startSet() override;
   void setReloaded() override;
   void startCase(const std::string &caseId) override;
-  QString startCaseLabel() const override;
+  QString startCaseLabel(const std::string &caseId) override;
   void extendCaseMenu(QMenu &menu, const std::string &caseId) override;
   void ticksChanged() override;
   void neutralityChanged() override;
@@ -49,6 +49,7 @@ private:
     CubieCube start;
     Hold hold = kWcaHold; // the cube is drawn in this hold's colours
     bool isNew = false;
+    bool practice = false; // a learned case that isn't due: not graded
   };
 
   Phase phase_ = Phase::NoCase;
@@ -73,7 +74,10 @@ private:
 
   std::vector<std::string> pool() const { return tickedEligible(); }
   void nextCase();
-  void begin(const std::string &caseId, bool isNew);
+  void begin(const std::string &caseId, bool isNew, bool practice = false);
+  // A learned case that isn't due yet, which "Learn this case now" only
+  // practises.
+  bool notDue(const std::string &caseId);
   void resetCube();
   void turn(Move m);
   void finish();

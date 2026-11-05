@@ -275,7 +275,16 @@ void LearnPage::learnNext() {
 // --- practising
 // ---------------------------------------------------------------
 
-QString LearnPage::startCaseLabel() const { return tr("Learn this case now"); }
+QString LearnPage::startCaseLabel(const std::string &caseId) {
+  return notDue(caseId) ? tr("Practise this case now (not graded)")
+                        : tr("Learn this case now");
+}
+
+bool LearnPage::notDue(const std::string &caseId) {
+  const CaseProgress *cp = progressOf(caseId);
+  return cp && cp->card.state == CardState::Review &&
+         !isDue(cp->card, unixNow(), settings_.srs, localDayEnd());
+}
 
 void LearnPage::startSet() {
   current_.reset();
@@ -306,13 +315,13 @@ void LearnPage::ticksChanged() {
 void LearnPage::neutralityChanged() {
   // Set the case up again in a hold the new choice allows.
   if (current_ && phase_ == Phase::Solving) {
-    begin(current_->caseId, current_->isNew);
+    begin(current_->caseId, current_->isNew, current_->practice);
   }
 }
 
 void LearnPage::startCase(const std::string &caseId) {
   if (eligible(caseId)) {
-    begin(caseId, false);
+    begin(caseId, false, notDue(caseId));
   }
 }
 
@@ -358,13 +367,13 @@ void LearnPage::nextCase() {
   begin(*pick.caseId, pick.isNew);
 }
 
-void LearnPage::begin(const std::string &caseId, bool isNew) {
+void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   const CaseInfo *info = infoOf(caseId);
   if (!info) {
     return;
   }
   Hold hold = pickHold();
-  current_ = Current{caseId, info->state, hold, isNew};
+  current_ = Current{caseId, info->state, hold, isNew, practice};
   last_ = caseId;
   hinted_ = false;
   gaveUp_ = false;
@@ -409,8 +418,11 @@ void LearnPage::setPhase(Phase p) {
     showSolvingStatus();
     return;
   case Phase::Done:
-    statusLabel_->setText(tr("Space/Enter: next case. 1-4: change the "
-                             "grade. Esc: reset the cube to practise."));
+    statusLabel_->setText(
+        current_ && current_->practice
+            ? tr("Space/Enter: next case. Esc: reset the cube to practise.")
+            : tr("Space/Enter: next case. 1-4: change the grade. Esc: reset "
+                 "the cube to practise."));
     break;
   }
   statusLabel_->setStyleSheet({});
@@ -429,9 +441,12 @@ void LearnPage::showSolvingStatus() {
     statusLabel_->setStyleSheet(warning);
     return;
   }
-  statusLabel_->setText(current_ && current_->isNew
-                            ? tr("New case.") + " " + keys
-                            : tr("Solve the case from memory.") + " " + keys);
+  statusLabel_->setText(
+      (current_ && current_->practice
+           ? tr("Practice: the case isn't due, so it won't be graded.")
+       : current_ && current_->isNew ? tr("New case.")
+                                     : tr("Solve the case from memory.")) +
+      " " + keys);
   statusLabel_->setStyleSheet({});
 }
 
@@ -519,6 +534,12 @@ void LearnPage::finish() {
   }
   leftAlgs_ = !gaveUp_ && !follower_.onAlg();
   grade_ = learnGrade(hinted_, gaveUp_, leftAlgs_);
+  if (current_->practice) {
+    setPhase(Phase::Done); // nothing is recorded
+    showReveal();
+    showGrade();
+    return;
+  }
   std::int64_t now = unixNow();
   CaseProgress &cp = progress()[current_->caseId];
   cardBefore_ = cp.card;
@@ -532,7 +553,7 @@ void LearnPage::finish() {
 }
 
 void LearnPage::regrade(Grade grade) {
-  if (phase_ != Phase::Done || !current_) {
+  if (phase_ != Phase::Done || !current_ || current_->practice) {
     showGrade();
     return;
   }
@@ -567,15 +588,25 @@ void LearnPage::showGrade() {
     return;
   }
   gradeRow_->setVisible(true);
+  for (QPushButton *b : gradeButtons_) {
+    b->setVisible(!current_->practice);
+  }
   QString why = gaveUp_     ? tr("gave up")
                 : hinted_   ? tr("used a hint")
                 : leftAlgs_ ? (follower_.startedOver() ? tr("started over")
                                                        : tr("left the algs"))
                             : tr("solved from memory");
+  QString next =
+      dueText(progressOf(current_->caseId), unixNow(), localDayEnd());
+  if (current_->practice) {
+    gradeLabel_->setText(
+        tr("Practice: %1 (%2). Not graded; next review %3.")
+            .arg(grade_ == Grade::Again ? tr("missed") : tr("well done"), why,
+                 next));
+    return;
+  }
   gradeLabel_->setText(
-      tr("%1 (%2) → next %3")
-          .arg(tr(gradeName(grade_)), why,
-               dueText(progressOf(current_->caseId), unixNow(), localDayEnd())));
+      tr("%1 (%2) → next %3").arg(tr(gradeName(grade_)), why, next));
   for (int g = 0; g < 4; ++g) {
     gradeButtons_[static_cast<std::size_t>(g)]->setChecked(
         static_cast<int>(grade_) == g + 1);

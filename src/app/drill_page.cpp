@@ -277,7 +277,10 @@ void DrillPage::loadChoices() {
 // --- drilling
 // ------------------------------------------------------------------
 
-QString DrillPage::startCaseLabel() const { return tr("Drill this case now"); }
+QString DrillPage::startCaseLabel(const std::string &caseId) {
+  (void)caseId;
+  return tr("Drill this case now");
+}
 
 void DrillPage::startSet() {
   loadChoices();

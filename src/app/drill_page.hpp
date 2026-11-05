@@ -35,7 +35,7 @@ protected:
   void startSet() override;
   void setReloaded() override;
   void startCase(const std::string &caseId) override;
-  QString startCaseLabel() const override;
+  QString startCaseLabel(const std::string &caseId) override;
   void ticksChanged() override;
   void neutralityChanged() override;
 

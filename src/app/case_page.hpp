@@ -108,7 +108,7 @@ protected:
   virtual void setReloaded() = 0;
   // Practise this case now (from the case list's menu).
   virtual void startCase(const std::string &caseId) = 0;
-  virtual QString startCaseLabel() const = 0;
+  virtual QString startCaseLabel(const std::string &caseId) = 0;
   virtual void extendCaseMenu(QMenu &menu, const std::string &caseId) {
     (void)menu;
     (void)caseId;

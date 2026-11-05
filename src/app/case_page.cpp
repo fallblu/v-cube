@@ -377,7 +377,7 @@ void CasePage::showCaseMenu(const QPoint &pos) {
   }
   QMenu menu(this);
   QAction *now =
-      menu.addAction(startCaseLabel(), this, [this, id] { startCase(id); });
+      menu.addAction(startCaseLabel(id), this, [this, id] { startCase(id); });
   now->setEnabled(eligible(id));
   menu.addSeparator();
   extendCaseMenu(menu, id);
