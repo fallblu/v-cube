@@ -47,12 +47,12 @@ TimeDisplay::TimeDisplay(QWidget *parent) : QLabel(parent) {
 }
 
 void TimeDisplay::setColour(const QColor &c) {
-  QPalette p = palette();
-  p.setColor(QPalette::WindowText,
-             c.isValid() ? c
-             : parentWidget()
-                 ? parentWidget()->palette().color(QPalette::WindowText)
-                 : QColor(Qt::white));
+  // Only a colour of its own is set, so that the text otherwise follows
+  // the theme, also when it changes.
+  QPalette p;
+  if (c.isValid()) {
+    p.setColor(QPalette::WindowText, c);
+  }
   setPalette(p);
 }
 
