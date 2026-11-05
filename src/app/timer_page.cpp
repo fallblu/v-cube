@@ -242,6 +242,12 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
   using S = SolveTimer::State;
 
   if (timer_.state() == S::Running) {
+    if (press && e->key() == Qt::Key_Escape) {
+      timer_.cancel();
+      display_->showTime(0);
+      statusLabel_->setText(tr("Solve cancelled; nothing was recorded."));
+      return true;
+    }
     if (press) {
       timer_.pressStop(now);
       if (auto r = timer_.takeResult()) {

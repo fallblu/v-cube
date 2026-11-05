@@ -307,7 +307,7 @@ void DrillPage::setPhase(Phase p) {
     status = tr("Scramble, then hold Space and release to start.");
     break;
   case Phase::Running:
-    status = tr("Any key stops the timer.");
+    status = tr("Any key stops the timer; Esc cancels the solve.");
     break;
   case Phase::Revealed:
     status = tr("Space: next case. Backspace: wrong alg. Esc: try the case "
@@ -443,6 +443,15 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
     }
     return false;
   case Phase::Running:
+    if (press && key == Qt::Key_Escape) {
+      // Nothing is recorded; the same case is set up to try again.
+      timer_.cancel();
+      display_->showTime(0);
+      setPhase(Phase::Waiting);
+      statusLabel_->setText(tr("Solve cancelled; nothing was recorded. Hold "
+                               "Space to try the case again."));
+      return true;
+    }
     if (press) {
       timer_.pressStop(now);
       if (auto r = timer_.takeResult()) {
