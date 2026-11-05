@@ -29,15 +29,24 @@ private:
   void setColour(const QColor &c);
 };
 
+// A state to scramble to, and the alg set case it sets up (if any).
+struct ScrambleSetup {
+  CubieCube state;
+  std::string setId;
+  std::string caseId;
+};
+
 // A scramble worked out off the GUI thread.
 struct GeneratedScramble {
   CubieCube state;
   QString text;
+  std::string setId;  // for a scramble from an alg set: the set
+  std::string caseId; // and the case it sets up
 };
 
 // Runs `makeState` and a two-phase solve on the thread pool.
 QFuture<GeneratedScramble>
-generateScramble(std::function<CubieCube(Rng &)> makeState);
+generateScramble(std::function<ScrambleSetup(Rng &)> makeState);
 
 // Times and rolling averages of a session, drawn with QPainter.
 class TrendChart : public QWidget {

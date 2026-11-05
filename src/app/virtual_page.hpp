@@ -31,6 +31,7 @@ protected:
 private:
   AppSettings &settings_;
   ScrambleFeed feed_;
+  ScrambleAlgs *algs_;
   FaceletCube cube_;
   bool wantScramble_ = false; // scramble once the feed has one ready
   bool scrambled_ = false;

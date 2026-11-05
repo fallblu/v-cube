@@ -109,12 +109,13 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
 }
 
 QFuture<GeneratedScramble>
-generateScramble(std::function<CubieCube(Rng &)> makeState) {
+generateScramble(std::function<ScrambleSetup(Rng &)> makeState) {
   return QtConcurrent::run([makeState = std::move(makeState)] {
     thread_local Rng rng = makeRng();
-    CubieCube state = makeState(rng);
-    Alg alg = scrambleToState(state);
-    return GeneratedScramble{state, QString::fromStdString(toString(alg))};
+    ScrambleSetup setup = makeState(rng);
+    Alg alg = scrambleToState(setup.state);
+    return GeneratedScramble{setup.state, QString::fromStdString(toString(alg)),
+                             std::move(setup.setId), std::move(setup.caseId)};
   });
 }
 

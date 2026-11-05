@@ -29,7 +29,7 @@ public:
 private:
   AppSettings &settings_;
   ScrambleFeed feed_;
-  std::deque<QString> history_;
+  std::deque<GeneratedScramble> history_;
   std::size_t index_ = 0; // shown entry of history_
   bool wantNext_ = false; // show the feed's scramble when it is ready
 
@@ -39,6 +39,7 @@ private:
   QLabel *scrambleLabel_;
   QLabel *positionLabel_;
   NetPreview *net_;
+  ScrambleAlgs *algs_;
 
   void next();
   void previous();

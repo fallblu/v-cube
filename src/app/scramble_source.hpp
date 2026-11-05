@@ -8,6 +8,8 @@
 #include <QFutureWatcher>
 #include <QObject>
 
+class QPushButton;
+
 #include <functional>
 #include <optional>
 
@@ -15,9 +17,9 @@ namespace vcube {
 
 // How to make a random state for a scramble type: a built-in type id
 // ("333", "ll", ...) or "set:<alg set id>", which picks one of the set's
-// ticked cases with its free pieces and AUFs randomised.
-std::function<CubieCube(Rng &)> scrambleStateMaker(const AlgLibrary &library,
-                                                   const QString &type);
+// ticked cases with its free pieces and AUFs randomised (and names it).
+std::function<ScrambleSetup(Rng &)>
+scrambleStateMaker(const AlgLibrary &library, const QString &type);
 
 // The scramble types shared by Timer, Scramble and Virtual mode: the
 // built-in random-state types, then one per alg set with cases.
@@ -78,6 +80,40 @@ private:
 
   void request();
   void ready();
+};
+
+// The algs of the alg set case a scramble sets up, for Timer, Scramble and
+// Virtual mode: a checkable "Algs (Tab)" button, offered for alg set
+// scramble types, and a label that shows the case's algs (with the AUFs
+// the scramble needs) while the button is on. Showing the algs changes
+// nothing else. The choice is kept under `settingsKey`.
+class ScrambleAlgs : public QObject {
+  Q_OBJECT
+public:
+  ScrambleAlgs(AlgLibrary &library, QString settingsKey, QWidget *parent);
+
+  QPushButton *button() const { return button_; }
+  QLabel *label() const { return label_; }
+
+  // The scramble type in use: the button and label are offered for alg
+  // set types only.
+  void setType(const QString &type);
+  // The scramble shown, or nullptr while there is none.
+  void setScramble(const GeneratedScramble *scramble);
+  // The alg sets changed.
+  void refresh() { update(); }
+  // Shows or hides the algs (Tab); false if they aren't offered.
+  bool toggle();
+
+private:
+  AlgLibrary &library_;
+  QString settingsKey_;
+  QPushButton *button_;
+  QLabel *label_;
+  bool offered_ = false;
+  std::optional<GeneratedScramble> scramble_;
+
+  void update();
 };
 
 // A small unfolded net of a cube state, in the WCA orientation (white top,

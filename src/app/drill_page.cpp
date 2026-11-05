@@ -397,7 +397,8 @@ void DrillPage::requestScramble() {
   CubieCube state = current_->state;
   // Results of superseded requests are dropped in scrambleReady().
   watcher_.setProperty("request", request);
-  watcher_.setFuture(generateScramble([state](Rng &) { return state; }));
+  watcher_.setFuture(generateScramble(
+      [state](Rng &) { return ScrambleSetup{state, {}, {}}; }));
 }
 
 void DrillPage::scrambleReady() {

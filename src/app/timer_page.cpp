@@ -82,7 +82,9 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   typeBox_ = new ScrambleTypeBox(library_, typeRow_);
   auto *nextButton = flatButton(tr("Next scramble"), typeRow_);
   typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
+  algs_ = new ScrambleAlgs(library_, "timer/showAlgs", right);
   typeRow->addWidget(typeBox_, 1);
+  typeRow->addWidget(algs_->button());
   typeRow->addWidget(nextButton);
   rightLayout->addWidget(typeRow_);
 
@@ -120,6 +122,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   timeColumn->addWidget(display_);
   timeColumn->addWidget(statusLabel_);
   timeColumn->addLayout(penaltyRow);
+  timeColumn->addWidget(algs_->label());
   timeColumn->addStretch();
   rightLayout->addLayout(timeColumn, 3);
 
@@ -150,6 +153,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
               session().scrambleType = ss(type);
               save();
             }
+            algs_->setType(type);
             feed_.setType(type);
           });
   connect(sessionMenu_, &QMenu::aboutToShow, this,
@@ -168,6 +172,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
 
   applySettings();
   selectSession(store_.currentIndex());
+  algs_->setType(typeBox_->currentType());
   feed_.setType(typeBox_->currentType()); // if the type didn't change
 }
 
@@ -204,10 +209,12 @@ void TimerPage::refreshScrambleTypes() {
   if (typeBox_->currentType() == before && before.startsWith("set:")) {
     feed_.regenerate(); // the set's cases or ticks may have changed
   }
+  algs_->refresh();
 }
 
 void TimerPage::showScramble() {
   const auto &current = feed_.current();
+  algs_->setScramble(current ? &*current : nullptr);
   if (!current) {
     scrambleLabel_->setText(tr("Generating scramble…"));
     net_->setCube(std::nullopt);
@@ -246,6 +253,9 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     timer_.cancel();
     display_->showTime(0);
     statusLabel_->clear();
+    return true;
+  }
+  if (e->key() == Qt::Key_Tab && press && algs_->toggle()) {
     return true;
   }
   if (e->key() != Qt::Key_Space) {

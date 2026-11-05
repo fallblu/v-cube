@@ -99,7 +99,9 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
   - WCA random state.
   - cstimer-style subsets: F2L/cross solved, XCross, EOLine, EOCross,
     LSLL, LL, ZBLL, CLL, ELL, PLL, EPLL, corners only, edges only.
-  - Any of your alg sets, using its ticked cases.
+  - Any of your alg sets, using its ticked cases. Tab (or the Algs
+    button) shows or hides the algs for the case each scramble sets up,
+    with the AUFs it needs; nothing is graded or recorded.
 - **Virtual**: turn the virtual cube freely. Space scrambles with the
   chosen scramble type, Esc resets, and the alg field applies a typed alg
   with animation.
@@ -205,6 +207,7 @@ picks the plugin as usual.
 | Drill, after a case | Space | next case |
 | Drill, after a case | Backspace | toggle "wrong alg" |
 | Drill, after a case | Esc | try the case again |
+| Timer, Scramble, Virtual | Tab | show or hide the algs for an alg set scramble's case |
 | Scramble | Space / → | next scramble |
 | Scramble | Backspace / ← | previous scramble |
 | Virtual | turning keys | turn the cube |

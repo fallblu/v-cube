@@ -480,6 +480,52 @@ ColourMap CasePage::caseColours() {
 
 // --- reveal ----------------------------------------------------------------
 
+namespace {
+
+// The rich text of CasePage::algsHtml() and caseAlgsHtml(): `passing` are
+// the indices of the passing algs and `mainAlg` the main alg as done from
+// the display orientation.
+QString algsHtmlFor(const AlgSet &set, const CaseGroup &group, const AlgCase &c,
+                    const std::vector<std::size_t> &passing,
+                    const std::string &mainAlg, const CubieCube &state) {
+  const PieceMask &free = set.specFor(group).free;
+  QString html =
+      QString("<p style='font-size:large'><b>%1</b> <span style='color:gray'>· "
+              "%2</span></p>")
+          .arg(qs(c.name).toHtmlEscaped(), qs(group.name).toHtmlEscaped());
+  if (passing.empty()) {
+    return html + "<p style='color:gray'>" +
+           QObject::tr("No alg solves this case yet. Add one in the Library.")
+               .toHtmlEscaped() +
+           "</p>";
+  }
+  bool first = true;
+  for (std::size_t i : passing) {
+    const std::string &text = first ? mainAlg : c.algs[i];
+    std::optional<AufFit> fit =
+        fitAlg(state, parseAlgOrEmpty(text), free, set.aufBefore, set.aufAfter);
+    QString line = qs(fit ? withAufs(text, *fit) : text).toHtmlEscaped();
+    line = first ? "<b>" + line + "</b>"
+                 : "<span style='color:gray'>" + line + "</span>";
+    html += "<p>" + line + "</p>";
+    first = false;
+  }
+  return html;
+}
+
+} // namespace
+
+QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
+                     const CubieCube &state) {
+  const AlgCase *c = set.findCase(caseId);
+  const CaseGroup *g = set.groupOf(caseId);
+  if (!c || !g) {
+    return {};
+  }
+  CaseAnalysis a = analyzeCase(set, *g, *c);
+  return algsHtmlFor(set, *g, *c, a.passing, a.mainAlg, state);
+}
+
 QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state) {
   const AlgSet *s = set();
   const AlgCase *c = s ? s->findCase(caseId) : nullptr;
@@ -488,23 +534,7 @@ QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state) {
   if (!c || !g || !info) {
     return {};
   }
-  const PieceMask &free = s->specFor(*g).free;
-  QString html =
-      QString("<p style='font-size:large'><b>%1</b> <span style='color:gray'>· "
-              "%2</span></p>")
-          .arg(qs(c->name).toHtmlEscaped(), qs(g->name).toHtmlEscaped());
-  bool first = true;
-  for (std::size_t i : info->passing) {
-    const std::string &text = first ? info->mainAlg : c->algs[i];
-    std::optional<AufFit> fit =
-        fitAlg(state, parseAlgOrEmpty(text), free, s->aufBefore, s->aufAfter);
-    QString line = qs(fit ? withAufs(text, *fit) : text).toHtmlEscaped();
-    line = first ? "<b>" + line + "</b>"
-                 : "<span style='color:gray'>" + line + "</span>";
-    html += "<p>" + line + "</p>";
-    first = false;
-  }
-  return html;
+  return algsHtmlFor(*s, *g, *c, info->passing, info->mainAlg, state);
 }
 
 QPixmap CasePage::caseDiagram(const std::string &caseId, const CubieCube &state,

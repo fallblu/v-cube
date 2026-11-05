@@ -28,6 +28,7 @@ VirtualPage::VirtualPage(AppSettings &settings, AlgLibrary &library,
   auto *top = new QHBoxLayout(topRow_);
   top->setContentsMargins(0, 0, 0, 0);
   typeBox_ = new ScrambleTypeBox(library, topRow_);
+  algs_ = new ScrambleAlgs(library, "virtual/showAlgs", this);
   auto *scrambleButton = button(tr("Scramble"), topRow_);
   scrambleButton->setToolTip(tr("Scramble the cube (Space)"));
   auto *resetButton = button(tr("Reset"), topRow_);
@@ -37,6 +38,7 @@ VirtualPage::VirtualPage(AppSettings &settings, AlgLibrary &library,
   top->addSpacing(16);
   top->addWidget(new QLabel(tr("Scramble:"), topRow_));
   top->addWidget(typeBox_, 1);
+  top->addWidget(algs_->button());
   top->addWidget(scrambleButton);
   top->addWidget(resetButton);
   layout->addWidget(topRow_);
@@ -55,6 +57,7 @@ VirtualPage::VirtualPage(AppSettings &settings, AlgLibrary &library,
   statusLabel_->setAlignment(Qt::AlignCenter);
   statusLabel_->setWordWrap(true);
   layout->addWidget(statusLabel_);
+  layout->addWidget(algs_->label());
 
   algPanel_ = new QWidget(this);
   auto *algLayout = new QVBoxLayout(algPanel_);
@@ -81,6 +84,7 @@ VirtualPage::VirtualPage(AppSettings &settings, AlgLibrary &library,
   connect(typeBox_, &ScrambleTypeBox::typeChanged, this,
           [this](const QString &type) {
             QSettings().setValue("virtual/scrambleType", type);
+            algs_->setType(type);
             feed_.setType(type);
           });
   connect(scrambleButton, &QPushButton::clicked, this, &VirtualPage::scramble);
@@ -93,6 +97,7 @@ VirtualPage::VirtualPage(AppSettings &settings, AlgLibrary &library,
   applySettings();
   typeBox_->setCurrentType(
       QSettings().value("virtual/scrambleType", "333").toString());
+  algs_->setType(typeBox_->currentType());
   feed_.setType(typeBox_->currentType()); // if the type didn't change
   reset();
 }
@@ -123,6 +128,7 @@ void VirtualPage::refreshScrambleTypes() {
   if (typeBox_->currentType() == before && before.startsWith("set:")) {
     feed_.regenerate();
   }
+  algs_->refresh();
 }
 
 void VirtualPage::returnFocus() {
@@ -146,6 +152,7 @@ void VirtualPage::reset() {
   cube_ = FaceletCube();
   cubeView_->setState(cube_);
   scrambleLabel_->clear();
+  algs_->setScramble(nullptr);
   statusLabel_->setText(
       tr("Turn the cube with the keyboard. Space scrambles, Esc resets. "
          "Click the alg field to type an alg."));
@@ -171,6 +178,7 @@ void VirtualPage::feedChanged() {
   cube_.apply(parseAlgOrEmpty(ss(text)));
   cubeView_->setState(cube_);
   scrambleLabel_->setText(text);
+  algs_->setScramble(&*current);
   scrambled_ = !cube_.isSolved();
   statusLabel_->setText(tr("Scrambled. Esc resets the cube."));
   feed_.advance(); // prepare the next one
@@ -221,6 +229,9 @@ bool VirtualPage::handleKey(QKeyEvent *e, bool press) {
   }
   if (key == Qt::Key_Escape) {
     reset();
+    return true;
+  }
+  if (key == Qt::Key_Tab && !settings_.keymap.lookup(e) && algs_->toggle()) {
     return true;
   }
   if (auto m = settings_.keymap.lookup(e)) {

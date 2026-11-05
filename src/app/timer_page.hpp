@@ -43,6 +43,7 @@ private:
   SolveTimer timer_;
   QTimer tick_;
   ScrambleFeed feed_;
+  ScrambleAlgs *algs_;
 
   QWidget *leftPanel_;
   QWidget *typeRow_;

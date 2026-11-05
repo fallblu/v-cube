@@ -128,6 +128,13 @@ private:
   void showCaseMenu(const QPoint &pos);
 };
 
+// The algs of a case that solve `state` (the case set up in its display
+// orientation, possibly with AUFs and free pieces scrambled), with the
+// AUFs they need, main alg first, as rich text under the case's name. For
+// Timer, Scramble and Virtual, which have no case list.
+QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
+                     const CubieCube &state);
+
 // Text of a duration such as "now", "10 min", "3 h" or "4 d".
 QString dueText(const CaseProgress *p, std::int64_t now);
 // "1 case without a passing alg is skipped." and the plural.
