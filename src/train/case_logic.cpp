@@ -518,7 +518,8 @@ std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg) {
     const auto &group = set.groups[g];
     const PieceMask &free = set.specFor(group).free;
     for (std::size_t i = 0; i < group.cases.size(); ++i) {
-      if (fitAlg(group.cases[i].state, alg, free)) {
+      if (fitAlg(group.cases[i].state, alg, free, set.aufBefore,
+                 set.aufAfter)) {
         return CaseRef{g, i};
       }
     }
@@ -561,7 +562,8 @@ ImportReport importAlgs(AlgSet &set, const std::string &text,
   std::string rawLine;
   int newCaseNumber = set.caseCount() + 1;
   while (std::getline(in, rawLine)) {
-    std::string line = trim(rawLine);
+    // A "//" comment would otherwise be split at its slashes like algs.
+    std::string line = cleanAlgText(rawLine.substr(0, rawLine.find("//")));
     if (line.empty() || line.starts_with("#")) {
       continue;
     }

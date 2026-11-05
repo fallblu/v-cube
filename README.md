@@ -91,8 +91,11 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     `y`, `y'`, `y2` or U turn is done to the case, so the rest of the alg
     solves it directly. The stored case and algs don't change.
   - Paste any list of algs: each one is matched to the case it solves (any
-    AUF, any cube rotations), so the order doesn't matter. Lines may look
-    like `Name: alg1 / alg2`, as in Alg-Trainer.
+    AUF the set allows, any cube rotations), so the order doesn't matter.
+    Lines may look like `Name: alg1 / alg2`, as in Alg-Trainer, and may end
+    with a `// comment`. Algs copied from web pages are fine: curly or
+    accented primes and no-break spaces are stored as plain ' and spaces,
+    and repeats may be written `(R U R' U')2`, `x2`, `*2` or `×2`.
   - Create a case from an alg, and import and export sets as JSON.
 - **Built-in sets**: PLL (21), OLL (57), 2-look OLL (10) and 2-look PLL (6).
   These ship as case definitions only, with no algs, so you add your own.

@@ -109,7 +109,8 @@ struct CaseRef {
   std::size_t index = 0;
 };
 
-// The case of `set` that `alg` solves, if any.
+// The case of `set` that `alg` solves, if any, with the U turns before and
+// after it that the set allows.
 std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg);
 
 // A drill state for a case: random U turns around it (as the set asks) and
@@ -130,8 +131,9 @@ struct ImportReport {
   std::vector<std::string> invalid;   // lines that failed to parse
 };
 
-// Imports algs, one case per line. A line may start with "name:" and may
-// hold several algs separated by "/" (as Alg-Trainer does). Each alg is
+// Imports algs, one case per line. A line may start with "name:", may
+// hold several algs separated by "/" (as Alg-Trainer does) and may end with
+// a "//" comment. Algs are stored as cleanAlgText() gives them. Each alg is
 // matched to the case it solves; unmatched algs make new cases (named from
 // the line or numbered) when `createCases` is set.
 ImportReport importAlgs(AlgSet &set, const std::string &text, bool createCases);

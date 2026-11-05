@@ -161,6 +161,49 @@ TEST_CASE("pasted algs are matched to their cases") {
   CHECK(set.findCase("Line"));
 }
 
+TEST_CASE("pasted lines may carry comments and copied characters") {
+  AlgSet set = ollLikeSet();
+  auto report =
+      importAlgs(set,
+                 "Sune: R U R\xE2\x80\x99 U R U2 R' // the usual one\n"
+                 "R\xC2\xA0U R' U' R' F R F'  // T / chameleon\n",
+                 false);
+  CHECK(report.added == 2);
+  CHECK(report.invalid.empty());
+  CHECK(report.unmatched.empty());
+  CHECK(set.findCase("sune")->algs ==
+        std::vector<std::string>{"R U R' U R U2 R'"});
+  CHECK(set.findCase("t")->algs ==
+        std::vector<std::string>{"R U R' U' R' F R F'"});
+}
+
+TEST_CASE("pasted algs are matched with the set's AUF settings") {
+  // Without AUFs, an alg only matches the case it solves as it stands.
+  AlgSet set;
+  set.id = "plain";
+  set.aufBefore = false;
+  set.aufAfter = false;
+  CaseGroup g{"Group", std::nullopt, {}};
+  AlgCase a;
+  a.id = "a";
+  a.name = "A";
+  a.state = stateSolvedBy(parseAlgOrEmpty("U R U R' U R U2 R'"));
+  g.cases.push_back(a);
+  AlgCase b;
+  b.id = "b";
+  b.name = "B";
+  b.state = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
+  g.cases.push_back(b);
+  set.groups.push_back(g);
+  auto ref = matchCase(set, parseAlgOrEmpty("R U R' U R U2 R'"));
+  REQUIRE(ref);
+  CHECK(set.groups[ref->group].cases[ref->index].id == "b");
+  auto report = importAlgs(set, "R U R' U R U2 R'\n", false);
+  CHECK(report.added == 1);
+  CHECK(set.findCase("b")->algs.size() == 1);
+  CHECK(set.findCase("a")->algs.empty());
+}
+
 TEST_CASE("masked facelets hide what the step ignores") {
   CubieCube s = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
   DiagramMask oll{StickerMode::Orientation, StickerMode::Orientation,

@@ -555,9 +555,9 @@ void LibraryPage::storeAlgs() {
   }
   c->algs.clear();
   for (int i = 0; i < algList_->topLevelItemCount(); ++i) {
-    QString text = algList_->topLevelItem(i)->text(0).trimmed();
-    if (!text.isEmpty()) {
-      c->algs.push_back(ss(text));
+    std::string text = cleanAlgText(ss(algList_->topLevelItem(i)->text(0)));
+    if (!text.empty()) {
+      c->algs.push_back(text);
     }
   }
   changed(true);
@@ -962,7 +962,7 @@ void LibraryPage::newCaseFromAlg() {
                                  "Add it to that case instead?")
                                   .arg(qs(existing.name)));
     if (answer == QMessageBox::Yes) {
-      existing.algs.push_back(ss(text.trimmed()));
+      existing.algs.push_back(cleanAlgText(ss(text)));
       caseId_ = existing.id;
       changed(true);
       loadCase();
@@ -989,7 +989,7 @@ void LibraryPage::newCaseFromAlg() {
                                        : name.trimmed());
   c.id = s->uniqueCaseId(c.name);
   c.state = stateSolvedBy(parsed.alg);
-  c.algs.push_back(ss(text.trimmed()));
+  c.algs.push_back(cleanAlgText(ss(text)));
   caseId_ = c.id;
   s->groups[gi].cases.push_back(std::move(c));
   if (stepSolved(s->groups[gi].cases.back().state,
@@ -1049,16 +1049,16 @@ void LibraryPage::pasteAlgs() {
 
 void LibraryPage::addAlg() {
   AlgCase *c = currentCase();
-  QString text = newAlgEdit_->text().trimmed();
-  if (!c || text.isEmpty()) {
+  std::string text = cleanAlgText(ss(newAlgEdit_->text()));
+  if (!c || text.empty()) {
     return;
   }
   // Failing algs are kept, with a warning: the check shows what's wrong.
-  c->algs.push_back(ss(text));
+  c->algs.push_back(text);
   newAlgEdit_->clear();
   changed(true);
   loadCase();
-  warnIfFailing(ss(text));
+  warnIfFailing(text);
 }
 
 void LibraryPage::removeAlg(int row) {
