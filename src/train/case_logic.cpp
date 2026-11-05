@@ -34,6 +34,74 @@ std::vector<std::string> split(const std::string &s, char sep) {
   return out;
 }
 
+// A top-level token of an alg's text: one move, or a bracketed group with
+// its repetition suffix, as [begin, end) offsets.
+struct Token {
+  std::size_t begin = 0;
+  std::size_t end = 0;
+};
+
+struct Tokens {
+  std::vector<Token> list;
+  bool complete = true; // false if the text has a part that can't be split,
+                        // such as a commutator, after the listed tokens
+};
+
+Tokens topLevelTokens(std::string_view text) {
+  Tokens out;
+  std::size_t pos = 0;
+  for (;;) {
+    while (pos < text.size() &&
+           (std::isspace(static_cast<unsigned char>(text[pos])) ||
+            text[pos] == '.' || text[pos] == '*')) {
+      ++pos;
+    }
+    if (pos >= text.size()) {
+      return out;
+    }
+    std::size_t end = pos;
+    if (text[pos] == '(') {
+      int depth = 0;
+      for (; end < text.size(); ++end) {
+        depth += text[end] == '(' ? 1 : text[end] == ')' ? -1 : 0;
+        if (depth == 0) {
+          ++end;
+          break;
+        }
+      }
+    }
+    // The token (or group's repetition suffix) runs to the next space or
+    // bracket.
+    while (end < text.size() &&
+           !std::isspace(static_cast<unsigned char>(text[end])) &&
+           text[end] != '(' && text[end] != '[') {
+      ++end;
+    }
+    if (end == pos) {
+      out.complete = false;
+      return out;
+    }
+    out.list.push_back({pos, end});
+    pos = end;
+  }
+}
+
+// Quarter turns of a token made of U turns only, e.g. "(U2)" or "U'".
+std::optional<int> uTurnQuarters(std::string_view token) {
+  ParseResult parsed = parseAlg(token);
+  if (!parsed || parsed.alg.empty()) {
+    return std::nullopt;
+  }
+  int quarters = 0;
+  for (const Move &m : parsed.alg) {
+    if (m.type != MoveType::U) {
+      return std::nullopt;
+    }
+    quarters += m.amount;
+  }
+  return quarters;
+}
+
 } // namespace
 
 std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
@@ -95,13 +163,55 @@ std::string aufText(int quarters) {
 }
 
 std::string withAufs(const std::string &alg, AufFit fit) {
-  std::string out;
-  if (fit.before != 0) {
-    out += "(" + aufText(fit.before) + ") ";
+  std::string_view text = alg;
+  Tokens tokens = topLevelTokens(text);
+  const std::size_t count = tokens.list.size();
+  // U turns written at either end of the alg join the AUF on that side,
+  // so that "(U2) R U R'" needing a U first reads "(U') R U R'".
+  int before = fit.before;
+  int after = fit.after;
+  std::size_t first = 0; // tokens [first, last) are kept
+  std::size_t last = count;
+  auto quarters = [&](std::size_t i) {
+    const Token &t = tokens.list[i];
+    return uTurnQuarters(text.substr(t.begin, t.end - t.begin));
+  };
+  if (fit.before % 4 != 0) {
+    while (first < last) {
+      auto q = quarters(first);
+      if (!q) {
+        break;
+      }
+      before += *q;
+      ++first;
+    }
   }
-  out += trim(alg);
-  if (fit.after != 0) {
-    out += " (" + aufText(fit.after) + ")";
+  if (fit.after % 4 != 0 && tokens.complete) {
+    while (last > first) {
+      auto q = quarters(last - 1);
+      if (!q) {
+        break;
+      }
+      after += *q;
+      --last;
+    }
+  }
+  std::size_t begin = first == 0 ? 0 : tokens.list[first - 1].end;
+  std::size_t end = last == count ? text.size() : tokens.list[last].begin;
+  std::string body = trim(text.substr(begin, end - begin));
+  if (body.empty()) {
+    // Nothing but U turns: keep the alg as written.
+    body = trim(text);
+    before = fit.before;
+    after = fit.after;
+  }
+  std::string out;
+  if (!aufText(before).empty()) {
+    out += "(" + aufText(before) + ") ";
+  }
+  out += body;
+  if (!aufText(after).empty()) {
+    out += " (" + aufText(after) + ")";
   }
   return out;
 }
@@ -296,39 +406,19 @@ std::optional<CubieCube> recolouredToCentres(const FaceletCube &f) {
 std::optional<std::string> withoutLeadingMoves(std::string_view text,
                                                std::size_t count) {
   std::size_t pos = 0;
-  while (count > 0) {
-    while (pos < text.size() &&
-           (std::isspace(static_cast<unsigned char>(text[pos])) ||
-            text[pos] == '.' || text[pos] == '*')) {
-      ++pos;
+  for (const Token &t : topLevelTokens(text).list) {
+    if (count == 0) {
+      break;
     }
-    if (pos >= text.size()) {
-      return std::nullopt;
-    }
-    std::size_t end = pos;
-    if (text[pos] == '(') {
-      int depth = 0;
-      for (; end < text.size(); ++end) {
-        depth += text[end] == '(' ? 1 : text[end] == ')' ? -1 : 0;
-        if (depth == 0) {
-          ++end;
-          break;
-        }
-      }
-    }
-    // The token (or group's repetition suffix) runs to the next space or
-    // bracket.
-    while (end < text.size() &&
-           !std::isspace(static_cast<unsigned char>(text[end])) &&
-           text[end] != '(' && text[end] != '[') {
-      ++end;
-    }
-    ParseResult token = parseAlg(text.substr(pos, end - pos));
+    ParseResult token = parseAlg(text.substr(t.begin, t.end - t.begin));
     if (!token || token.alg.empty() || token.alg.size() > count) {
       return std::nullopt;
     }
     count -= token.alg.size();
-    pos = end;
+    pos = t.end;
+  }
+  if (count > 0) {
+    return std::nullopt;
   }
   return trim(text.substr(pos));
 }

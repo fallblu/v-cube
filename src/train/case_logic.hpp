@@ -28,7 +28,9 @@ std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
 // from `free` pieces, up to U turns before and after.
 bool stepSolved(const CubieCube &cube, const PieceMask &free);
 
-// The alg with its AUFs written in, e.g. "(U') R U R' U' (U2)".
+// The alg with its AUFs written in, e.g. "(U') R U R' U' (U2)". U turns
+// written at the start (or end) of the alg are joined with the AUF on that
+// side, so "(U2) R U R'" with a U before it reads "(U') R U R'".
 std::string withAufs(const std::string &alg, AufFit fit);
 
 // Text of a U turn by `quarters` ("", "U", "U2", "U'").

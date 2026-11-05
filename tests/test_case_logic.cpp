@@ -67,6 +67,43 @@ TEST_CASE("algs are fitted with the AUFs they need") {
   CHECK(withAufs("R U R'", {3, 2}) == "(U') R U R' (U2)");
 }
 
+TEST_CASE("written U turns join the AUFs they sit next to") {
+  // A written AUF and a fitted one read as one turn.
+  CHECK(withAufs("(U2) L U2 L'", {3, 0}) == "(U) L U2 L'");
+  CHECK(withAufs("U R U' R'", {1, 0}) == "(U2) R U' R'");
+  CHECK(withAufs("(U) R U R'", {3, 0}) == "R U R'");
+  CHECK(withAufs("U U2 R", {2, 0}) == "(U) R");
+  // ...and at the end, when the alg needs a U turn after it.
+  CHECK(withAufs("R U R' U'", {0, 1}) == "R U R'");
+  CHECK(withAufs("R U R' (U2)", {0, 3}) == "R U R' (U)");
+  // Without a fitted AUF on that side the alg is left as written.
+  CHECK(withAufs("(U2) L U2 L' U", {0, 0}) == "(U2) L U2 L' U");
+  CHECK(withAufs("(U2) L U2 L'", {0, 2}) == "(U2) L U2 L' (U2)");
+  // Moves that aren't only U turns stay, as do algs of U turns alone.
+  CHECK(withAufs("U'D R", {1, 0}) == "(U) U'D R");
+  CHECK(withAufs("U2", {1, 0}) == "(U) U2");
+  // Text after a commutator can't be split, but leading U turns join.
+  CHECK(withAufs("U [R, U] U", {1, 1}) == "(U2) [R, U] U (U)");
+}
+
+TEST_CASE("the joined AUFs still solve the case") {
+  PieceMask ll = *parseFree("LL:p LLC:o");
+  CubieCube s = stateSolvedBy(parseAlgOrEmpty("(U2) L U2 L'"));
+  // The same case seen a U turn later.
+  CubieCube later = s * uTurn(1);
+  std::string alg = "(U2) L U2 L'";
+  auto fit = fitAlg(later, parseAlgOrEmpty(alg), ll);
+  REQUIRE(fit);
+  std::string shown = withAufs(alg, *fit);
+  CHECK(shown == "(U) L U2 L'");
+  FaceletCube f = later.toFacelets();
+  f.apply(parseAlgOrEmpty(shown));
+  f.normalizeOrientation();
+  auto after = CubieCube::fromFacelets(f);
+  REQUIRE(after);
+  CHECK(withinMask(*after, ll));
+}
+
 TEST_CASE("the case an alg solves allows for the alg's cube rotations") {
   PieceMask none;
   for (const char *text : {"R U R' U' R' F R2 U' R' U' R U R' F'",
