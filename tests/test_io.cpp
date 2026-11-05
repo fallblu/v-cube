@@ -366,6 +366,20 @@ TEST_CASE("restoring built-in cases keeps the user's cases and settings") {
   CHECK_FALSE(after.aufAfter);
 }
 
+TEST_CASE("a new case doesn't inherit a deleted case's progress") {
+  QTemporaryDir tmp;
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  lib.progress("pll")["T"].record({100, 1500, false});
+  lib.progress("pll")["H"].record({100, 1500, false});
+  lib.saveProgress("pll");
+  lib.forgetProgress("pll", {"T", "unknown"});
+  AlgLibrary again(tmp.path(), kBuiltins);
+  again.load();
+  CHECK_FALSE(again.progress("pll").contains("T"));
+  CHECK(again.progress("pll").contains("H"));
+}
+
 TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   SetProgress p;
   p["T"].card.state = CardState::Review;

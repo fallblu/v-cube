@@ -48,6 +48,10 @@ public:
   // that can't be read is set aside (see setAside()) and noted in errors().
   SetProgress &progress(const std::string &setId);
   bool saveProgress(const std::string &setId);
+  // Drops the progress of cases that were deleted or are new, so that a
+  // new case never inherits a deleted one's, and saves it if it changed.
+  void forgetProgress(const std::string &setId,
+                      const std::vector<std::string> &caseIds);
 
   QString directory() const { return dir_; }
 

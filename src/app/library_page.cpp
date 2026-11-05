@@ -25,6 +25,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <set>
+
 namespace vcube {
 
 namespace {
@@ -925,7 +927,12 @@ void LibraryPage::deleteSelected() {
     if (answer != QMessageBox::Yes) {
       return;
     }
+    std::vector<std::string> ids;
+    for (const AlgCase &c : s->groups[gi].cases) {
+      ids.push_back(c.id);
+    }
     s->groups.erase(s->groups.begin() + static_cast<std::ptrdiff_t>(gi));
+    library_.forgetProgress(setId_, ids);
   } else {
     std::string id = ss(item->data(0, kCaseRole).toString());
     auto answer = QMessageBox::question(
@@ -937,6 +944,7 @@ void LibraryPage::deleteSelected() {
     for (auto &g : s->groups) {
       std::erase_if(g.cases, [&id](const AlgCase &c) { return c.id == id; });
     }
+    library_.forgetProgress(setId_, {id});
     caseId_.clear();
   }
   changed(true);
@@ -998,6 +1006,7 @@ void LibraryPage::newCaseFromAlg() {
   c.name = ss(name.trimmed().isEmpty() ? tr("Case %1").arg(s->caseCount() + 1)
                                        : name.trimmed());
   c.id = s->uniqueCaseId(c.name);
+  library_.forgetProgress(setId_, {c.id});
   c.state = stateSolvedBy(parsed.alg);
   c.algs.push_back(cleanAlgText(ss(text)));
   caseId_ = c.id;
@@ -1045,8 +1054,23 @@ void LibraryPage::pasteAlgs() {
   if (dialog.exec() != QDialog::Accepted) {
     return;
   }
+  std::set<std::string> before;
+  for (const auto &g : s->groups) {
+    for (const auto &c : g.cases) {
+      before.insert(c.id);
+    }
+  }
   ImportReport report =
       importAlgs(*s, ss(edit->toPlainText()), create->isChecked());
+  std::vector<std::string> created;
+  for (const auto &g : s->groups) {
+    for (const auto &c : g.cases) {
+      if (!before.contains(c.id)) {
+        created.push_back(c.id);
+      }
+    }
+  }
+  library_.forgetProgress(setId_, created);
   changed(true);
   refreshSetList();
   loadCase();

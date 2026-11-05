@@ -259,6 +259,18 @@ SetProgress &AlgLibrary::progress(const std::string &setId) {
   return progress_[setId] = std::move(p);
 }
 
+void AlgLibrary::forgetProgress(const std::string &setId,
+                                const std::vector<std::string> &caseIds) {
+  SetProgress &p = progress(setId);
+  std::size_t erased = 0;
+  for (const auto &id : caseIds) {
+    erased += p.erase(id);
+  }
+  if (erased > 0) {
+    saveProgress(setId);
+  }
+}
+
 bool AlgLibrary::saveProgress(const std::string &setId) {
   if (progressKeptOff_.contains(setId)) {
     return false; // never save over a file that couldn't be read
