@@ -168,8 +168,9 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   lForm->addRow(tr("Relearning steps (after a miss):"), relearningEdit_);
   auto *learningNote = new QLabel(
       tr("Learn mode grades each case by correctness: solved from memory "
-         "is Good, using Tab to see the algs or giving up is Again, and "
-         "keys 1-4 change the grade afterwards. Graduated cases come back "
+         "with one of its algs is Good, while using Tab to see the algs, "
+         "giving up or leaving the algs is Again, and keys 1-4 change the "
+         "grade afterwards. Graduated cases come back "
          "after days, spaced out further each time they go well. Drill mode "
          "never changes the schedule."),
       learning);

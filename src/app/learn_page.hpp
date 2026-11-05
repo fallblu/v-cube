@@ -2,6 +2,7 @@
 
 #include "app/case_page.hpp"
 #include "app/cube_view.hpp"
+#include "train/alg_follow.hpp"
 
 #include <array>
 
@@ -12,7 +13,8 @@ namespace vcube {
 
 // Untimed practice on the virtual cube with spaced repetition: each case
 // is set up on the cube and solved from memory. The algs stay hidden until
-// Tab; solving without a hint grades the case Good, a hint or giving up
+// Tab; solving the case with one of its algs and without a hint grades it
+// Good, while a hint, giving up or leaving the algs (see AlgFollower)
 // grades it Again. Due reviews come first, then cards in their learning
 // steps, then new cases from the learn queue.
 class LearnPage : public CasePage {
@@ -55,6 +57,8 @@ private:
   std::string last_;
   bool hinted_ = false;
   bool gaveUp_ = false;
+  AlgFollower follower_; // whether the moves keep to the case's algs
+  bool leftAlgs_ = false;
   SrsCard cardBefore_; // to change the grade afterwards
   Grade grade_ = Grade::Good;
 
@@ -77,6 +81,9 @@ private:
   void showReveal();
   void showGrade();
   void setPhase(Phase p);
+  void showSolvingStatus();
+  // The algs shown for a case, main alg first, as the follower checks them.
+  std::vector<Alg> shownAlgs(const std::string &caseId);
   void learnNext();
 };
 

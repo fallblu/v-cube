@@ -1,4 +1,5 @@
 add_library(vcube_train
+  alg_follow.cpp
   algset.cpp
   case_logic.cpp
   move_count.cpp

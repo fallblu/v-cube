@@ -157,8 +157,8 @@ void markLearned(SrsCard &card, std::int64_t now, const SrsConfig &config) {
 
 void resetCard(SrsCard &card) { card = SrsCard{}; }
 
-Grade learnGrade(bool hinted, bool gaveUp) {
-  return hinted || gaveUp ? Grade::Again : Grade::Good;
+Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs) {
+  return hinted || gaveUp || leftAlgs ? Grade::Again : Grade::Good;
 }
 
 void CaseProgress::record(const Attempt &a) {

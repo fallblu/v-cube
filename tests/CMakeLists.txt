@@ -20,6 +20,7 @@ add_executable(vcube_tests
   test_scramble.cpp
   test_hold.cpp
   test_case_logic.cpp
+  test_alg_follow.cpp
   test_timer_stats.cpp
   test_srs.cpp
   test_io.cpp

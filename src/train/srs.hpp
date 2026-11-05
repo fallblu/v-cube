@@ -52,8 +52,9 @@ void markLearned(SrsCard &card, std::int64_t now, const SrsConfig &config);
 void resetCard(SrsCard &card);
 
 // Learn-mode grade, from correctness rather than time: Good when the case
-// was solved from memory, Again after a hint or giving up.
-Grade learnGrade(bool hinted, bool gaveUp);
+// was solved from memory with one of its algs, Again after a hint, giving
+// up or leaving the algs.
+Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs);
 
 // Which mode an attempt was made in. Learn attempts are untimed and drive
 // the SRS card; drill attempts are timed and feed the time statistics.
@@ -63,7 +64,7 @@ enum class AttemptMode : std::uint8_t { Drill, Learn };
 struct Attempt {
   std::int64_t timestamp = 0; // Unix seconds
   std::int64_t timeMs = 0;    // 0 for learn attempts
-  bool failed = false;        // wrong alg (drill) or hint/give-up (learn)
+  bool failed = false;        // wrong alg (drill) or graded Again (learn)
   AttemptMode mode = AttemptMode::Drill;
 };
 

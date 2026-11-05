@@ -23,8 +23,20 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
 - **Learn**: learn the cases of an alg set on the virtual cube.
   - Each case is set up on the cube and you solve it from memory, with no
     timer. The algs stay hidden until you press Tab.
-  - Solving the case without a hint grades it Good; a hint or giving up
-    grades it Again. Keys 1-4 change the grade afterwards.
+  - Solving the case with one of its algs and without a hint grades it
+    Good; a hint, giving up or leaving the algs grades it Again. Keys 1-4
+    change the grade afterwards.
+  - U turns and rotations are free until your first turn of a layer other
+    than U or D, so you can look at the case from any side and line it up
+    (an alg's D turns may come before or after that AUF). From then on
+    your moves must follow one of the case's algs. The same turns done
+    another way still count: rotations, a half turn as two quarter turns
+    either way, a wide or slice turn as the turns it is made of (r as
+    R M'), turns of opposite faces in either order, and leaving out a U
+    turn at the end. A wrong turn, even one you undo, or starting over
+    with Esc once the alg is begun leaves the algs. The status line says
+    so straight away, and your moves are shown under the algs after the
+    case.
   - Cases are scheduled Anki-style: due reviews first, then cases in their
     learning steps (minutes apart), then new cases from your learn queue,
     up to a daily limit. "Start learning" adds the next N ticked cases to
@@ -232,7 +244,7 @@ picks the plugin as usual.
 | Learn | turning keys | turn the virtual cube; solving the case finishes it |
 | Learn | Tab | show the algs (grades the case Again) |
 | Learn | Space | give up (grades the case Again) |
-| Learn | Esc | reset the case |
+| Learn | Esc | reset the case (grades it Again once the alg is begun) |
 | Learn, after a case | Space / Enter | next case |
 | Learn, after a case | 1-4 | grade Again / Hard / Good / Easy |
 | Learn, after a case | Esc | reset the cube to practise the case |
