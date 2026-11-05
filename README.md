@@ -26,8 +26,9 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     random U turns before and after its cases (as Drill uses), the case
     comes from a random side, so you learn to recognise it from any angle.
   - Solving the case with one of its algs and without a hint grades it
-    Good; a hint, giving up or leaving the algs grades it Again. Keys 1-4
-    change the grade afterwards.
+    Good; a hint, giving up (Shift+Space, so that a double tap of Space
+    after a case can't give up the next one) or leaving the algs grades it
+    Again. Keys 1-4 change the grade afterwards.
   - U turns and rotations are free until your first turn of a layer other
     than U or D, so you can look at the case from any side and line it up
     (an alg's D turns may come before or after that AUF). From then on
@@ -38,7 +39,10 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     turn at the end. A wrong turn, even one you undo, or starting over
     with Esc once the alg is begun leaves the algs. The status line says
     so straight away, and your moves are shown under the algs after the
-    case.
+    case, with the move where they left the algs marked (a turn the wrong
+    way is marked even though the next turn is what gave it away).
+  - Once the case is solved the cube turns back upright, e.g. after an
+    alg that solves the case before its last rotation.
   - Cases are scheduled Anki-style: cases in their learning steps (minutes
     apart) first, then reviews due today (a review is due all day on the
     day it falls due), then new cases from your learn queue, up to a daily
@@ -57,8 +61,9 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     scrambled too, and there's a random U turn before and after, so you
     can't tell the case from the scramble.
   - Drill your learned cases (the default), all ticked cases, or the cases
-    you are still learning, in random order, weighted order (slow and
-    failed cases come up more) or list order.
+    you are still learning, in random order (never the same case twice
+    in a row), weighted order (slow and failed cases come up more) or list
+    order.
   - After each case you see your time, coloured green at or under the
     set's target time, and the algs with the AUFs this scramble needs.
     Backspace marks a wrong alg.
@@ -68,6 +73,14 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
   with at least one alg that solves them are offered, and both modes show
   how many are skipped. Cases are set up for the holds chosen under
   colour neutrality (below).
+- The case lists in Learn, Drill and Library can be searched by case or
+  group name (so "BL" finds every case in a group named for the BL slot)
+  and filtered by status: ticked or not, new, in the learn queue,
+  learning, learned or due in Learn; learned, never drilled or slower than
+  the target in Drill; without algs, without a passing alg or with
+  failing algs in Library. While the list is filtered, "Tick shown" and
+  "Untick shown" change only the cases shown. Double-click a case in
+  Learn or Drill to practise it now.
 - **Library**: create and edit alg sets.
   - The main view shows the set list, the selected set's case tree and the
     selected case with its diagram and algs. The **Set** menu (also on
@@ -167,13 +180,16 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     its 3D view looks from the corner the case's diagrams are drawn from
     (e.g. front left for left-slot F2L cases).
   - Turned from the keyboard with cstimer's face keys (Shift for wide
-    moves), which you can remap in Settings.
+    moves), which you can remap in Settings: select a row and **Change**
+    its key or move, or **Add** one. A turning key may be held with Shift
+    but not Ctrl or Alt.
 - **Full screen**: F11 (or View > Full screen) toggles full screen, and
   the window reopens the way you left it.
 - **Focus mode**: F10 (or View > Focus mode) hides the sidebar, menus,
   status bar and each mode's lists and options, leaving the scramble,
-  timer, cube and algs. Right-click anywhere outside them to switch full
-  screen or focus mode with the mouse.
+  timer, cube and algs; messages show at the top of the window instead.
+  Right-click anywhere outside them to switch full screen or focus mode
+  with the mouse.
 
 ## Building
 
@@ -259,6 +275,7 @@ picks the plugin as usual.
 | Learn, after a case | Space / Enter | next case |
 | Learn, after a case | 1-4 | grade Again / Hard / Good / Easy |
 | Learn, after a case | Esc | reset the cube to practise the case |
+| Learn, Drill, Library | search box: Enter / Esc | return the keys to the cube / clear the search |
 | Drill, Timer | hold Space, release | start (after the hold time, when the time turns green) |
 | Drill, Timer | any key | stop |
 | Drill, Timer | Esc | cancel |
@@ -311,7 +328,10 @@ ticked) builds the cases. If you change a set's step settings later,
 
 A file that can't be read (e.g. cut short by a crash) is never saved
 over: it is renamed to `<name>.unreadable-<date>-<time>` next to where it
-was, the app says so when it starts, and that data starts afresh.
+was, the app says so when it starts, and that data starts afresh. An alg
+set file with a case whose stickers no real cube has (e.g. from a typo in
+a hand-edited file) is left out, and the app names the case when it
+starts.
 
 Settings are an INI file on every platform; Windows doesn't use the
 registry. Earlier versions kept them in `~/.config/v-cube/v-cube.conf`.
