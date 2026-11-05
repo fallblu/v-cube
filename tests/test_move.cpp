@@ -26,11 +26,53 @@ TEST_CASE("parses groups, repetition, commutators and conjugates") {
   CHECK(roundTrip("(U) R U R' // comment\n U'") == "U R U R' U'");
 }
 
+TEST_CASE("reads the spaces and primes of copied text") {
+  // No-break space, zero-width space and byte order mark.
+  CHECK(roundTrip("\xEF\xBB\xBFR\xC2\xA0U\xE2\x80\x8BR'") == "R U R'");
+  // Curly quotes, prime, acute accent.
+  CHECK(roundTrip("R\xE2\x80\x98 U\xE2\x80\xB2 F\xC2\xB4") == "R' U' F'");
+  // The prime may come before the 2.
+  CHECK(roundTrip("R'2 U2'") == "R2 U2");
+}
+
+TEST_CASE("reads common ways of writing a repetition") {
+  CHECK(roundTrip("(R U R' U')x2") == "R U R' U' R U R' U'");
+  CHECK(roundTrip("(R U)*2 F") == "R U R U F");
+  CHECK(roundTrip("[R, U] * 2") == "R U R' U' R U R' U'");
+  CHECK(roundTrip("(R U)\xC3\x97"
+                  "2") == "R U R U");
+  CHECK(roundTrip("(R U)x2'") == "U' R' U' R'");
+  // A rotation after a space, and a lone '*', are what they were.
+  CHECK(roundTrip("(R U) x2") == "R U x2");
+  CHECK(roundTrip("(R U)* F") == "R U F");
+  CHECK(roundTrip("(R U) * F") == "R U F");
+}
+
 TEST_CASE("reports parse errors") {
   CHECK_FALSE(parseAlg("R U Q"));
   CHECK_FALSE(parseAlg("(R U"));
   CHECK_FALSE(parseAlg("[R U]"));
   CHECK(parseAlg("R U Q").error->position == 4);
+  // Positions count characters, and the message quotes the character.
+  ParseResult r = parseAlg("R\xE2\x80\x99 U\xE2\x80\x99 \xC3\xA9");
+  REQUIRE_FALSE(r);
+  CHECK(r.error->position == 6);
+  CHECK(r.error->message == "unexpected character '\xC3\xA9'");
+}
+
+TEST_CASE("refuses algs too big to be typos") {
+  CHECK_FALSE(parseAlg("(((R U)1000)1000)1000"));
+  CHECK_FALSE(parseAlg("R1001"));
+  CHECK(roundTrip("R1000 U999") == "U'");
+  std::string deep(200000, '(');
+  CHECK_FALSE(parseAlg(deep + "R"));
+  std::string nested;
+  for (int i = 0; i < 64; ++i) {
+    nested = "(" + nested + "R)";
+  }
+  CHECK(parseAlg(nested));
+  CHECK_FALSE(parseAlg("(" + nested + ")"));
+  CHECK(parseAlg("(R U R' U')1000").alg.size() == 4000);
 }
 
 TEST_CASE("inverts, mirrors and simplifies") {

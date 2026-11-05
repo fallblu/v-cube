@@ -1,7 +1,9 @@
 #include "cube/move.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
+#include <span>
 
 namespace vcube {
 
@@ -16,6 +18,37 @@ constexpr std::array<int, kMoveTypeCount> kAxis = {1, 0, 2, 1, 0, 2, 1, 0, 2,
 
 std::uint8_t negate(std::uint8_t amount) {
   return static_cast<std::uint8_t>((4 - amount) % 4);
+}
+
+// Limits that keep a typo such as "((R U)1000)1000" from using up memory or
+// the stack.
+constexpr std::size_t kMaxMoves = 10000;
+constexpr int kMaxDepth = 64;
+constexpr int kMaxCount = 1000;
+
+// UTF-8 spellings of the spaces and prime marks that text copied from web
+// pages and documents uses: no-break and thin spaces, zero-width spaces and
+// the byte order mark; curly quotes, acute accents and other primes.
+constexpr std::array<std::string_view, 17> kSpaces = {
+    "\xC2\xA0",     "\xE2\x80\x80", "\xE2\x80\x81", "\xE2\x80\x82",
+    "\xE2\x80\x83", "\xE2\x80\x84", "\xE2\x80\x85", "\xE2\x80\x86",
+    "\xE2\x80\x87", "\xE2\x80\x88", "\xE2\x80\x89", "\xE2\x80\x8A",
+    "\xE2\x80\x8B", "\xE2\x80\xAF", "\xE2\x81\x9F", "\xE3\x80\x80",
+    "\xEF\xBB\xBF"};
+constexpr std::array<std::string_view, 7> kPrimes = {
+    "\xE2\x80\x99", // right single quotation mark
+    "\xE2\x80\x98", // left single quotation mark
+    "\xE2\x80\xB2", // prime
+    "\xC2\xB4",     // acute accent
+    "\xCA\xB9",     // modifier letter prime
+    "\xCA\xBC",     // modifier letter apostrophe
+    "\xEF\xBC\x87", // fullwidth apostrophe
+};
+constexpr std::string_view kTimes = "\xC3\x97"; // multiplication sign
+
+// Bytes in the UTF-8 sequence that starts with `lead`.
+std::size_t utf8Length(unsigned char lead) {
+  return lead < 0xC0 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
 }
 
 class Parser {
@@ -34,15 +67,40 @@ public:
 private:
   std::string_view text_;
   std::size_t pos_ = 0;
+  int depth_ = 0;
   ParseError error_;
 
-  bool fail(std::string message) {
-    error_ = {std::move(message), pos_};
+  // Fails with `message` at `at` (a byte offset), reported in characters.
+  bool fail(std::string message, std::optional<std::size_t> at = {}) {
+    std::size_t byte = std::min(at.value_or(pos_), text_.size());
+    std::size_t chars = 0;
+    for (std::size_t i = 0; i < byte; ++i) {
+      chars += (static_cast<unsigned char>(text_[i]) & 0xC0) != 0x80 ? 1u : 0u;
+    }
+    error_ = {std::move(message), chars};
     return false;
   }
 
   bool atEnd() const { return pos_ >= text_.size(); }
   char peek() const { return atEnd() ? '\0' : text_[pos_]; }
+  bool isDigitAt(std::size_t i) const {
+    return i < text_.size() &&
+           std::isdigit(static_cast<unsigned char>(text_[i]));
+  }
+
+  // Skips over `token` if the text continues with it.
+  bool skip(std::string_view token) {
+    if (text_.substr(pos_, token.size()) == token) {
+      pos_ += token.size();
+      return true;
+    }
+    return false;
+  }
+
+  bool skipAny(std::span<const std::string_view> tokens) {
+    return std::any_of(tokens.begin(), tokens.end(),
+                       [this](std::string_view t) { return skip(t); });
+  }
 
   // Skips whitespace, ignorable punctuation and // comments.
   void skipSpace() {
@@ -55,7 +113,7 @@ private:
         while (!atEnd() && text_[pos_] != '\n') {
           ++pos_;
         }
-      } else {
+      } else if (!skipAny(kSpaces)) {
         return;
       }
     }
@@ -67,51 +125,70 @@ private:
       ++pos_;
       return true;
     }
-    // U+2019 RIGHT SINGLE QUOTATION MARK and U+2032 PRIME in UTF-8.
-    static constexpr std::array<std::string_view, 2> kPrimes = {"\xE2\x80\x99",
-                                                                "\xE2\x80\xB2"};
-    for (auto p : kPrimes) {
-      if (text_.substr(pos_, p.size()) == p) {
-        pos_ += p.size();
-        return true;
-      }
-    }
-    return false;
+    return skipAny(kPrimes);
   }
 
-  // Optional repetition count and prime after a move or group. Returns the
-  // signed count (e.g. 2' -> -2).
-  int readAmount() {
+  // Optional repetition count and prime after a move or group, as the
+  // signed count (2' and '2 give -2), or nullopt after an error.
+  std::optional<int> readAmount() {
+    bool prime = readPrime();
+    std::size_t start = pos_;
     int count = 0;
     bool any = false;
-    while (std::isdigit(static_cast<unsigned char>(peek()))) {
+    while (isDigitAt(pos_)) {
       count = count * 10 + (peek() - '0');
       any = true;
       ++pos_;
-      if (count > 1000) {
-        count = 1000;
+      if (count > kMaxCount) {
+        fail("a count can be at most " + std::to_string(kMaxCount), start);
+        return std::nullopt;
       }
     }
     if (!any) {
       count = 1;
     }
-    if (readPrime()) {
-      count = -count;
+    if (!prime && readPrime()) {
+      prime = true;
     }
-    return count;
+    return prime ? -count : count;
   }
 
-  static void appendRepeated(Alg &out, const Alg &body, int count) {
-    if (count < 0) {
-      Alg inv = invert(body);
-      for (int i = 0; i < -count; ++i) {
-        out.insert(out.end(), inv.begin(), inv.end());
+  // The repetition after a group: as after a move, or written x2, *2 or
+  // ×2 (x straight after the bracket, so that "(R U) x2" stays a rotation).
+  std::optional<int> readGroupAmount() {
+    std::size_t start = pos_;
+    if ((peek() == 'x' || peek() == 'X') && isDigitAt(pos_ + 1)) {
+      ++pos_;
+      return readAmount();
+    }
+    while (peek() == ' ') {
+      ++pos_;
+    }
+    bool star = peek() == '*';
+    if (star || skip(kTimes)) {
+      pos_ += star ? 1 : 0;
+      while (peek() == ' ') {
+        ++pos_;
       }
-    } else {
-      for (int i = 0; i < count; ++i) {
-        out.insert(out.end(), body.begin(), body.end());
+      if (isDigitAt(pos_)) {
+        return readAmount();
       }
     }
+    pos_ = start; // a lone '*' is ignored, as anywhere else
+    return readAmount();
+  }
+
+  bool append(Alg &out, const Alg &body, int count) {
+    std::size_t times = static_cast<std::size_t>(count < 0 ? -count : count);
+    if (out.size() + body.size() * times > kMaxMoves) {
+      return fail("the alg is longer than " + std::to_string(kMaxMoves) +
+                  " moves");
+    }
+    const Alg &part = count < 0 ? invert(body) : body;
+    for (std::size_t i = 0; i < times; ++i) {
+      out.insert(out.end(), part.begin(), part.end());
+    }
+    return true;
   }
 
   bool parseMove(Alg &out) {
@@ -183,16 +260,26 @@ private:
       type = MoveType::Z;
       break;
     default:
-      return fail(std::string("unexpected character '") + c + "'");
+      return fail("unexpected character '" +
+                  std::string(text_.substr(
+                      pos_, utf8Length(static_cast<unsigned char>(c)))) +
+                  "'");
     }
     ++pos_;
     if (!wideByCase && peek() == 'w' && isFaceTurn(*type)) {
       ++pos_;
       type = static_cast<MoveType>(static_cast<int>(*type) + 6);
     }
-    int count = readAmount();
-    int amount = ((count % 4) + 4) % 4;
+    std::optional<int> count = readAmount();
+    if (!count) {
+      return false;
+    }
+    int amount = ((*count % 4) + 4) % 4;
     if (amount != 0) {
+      if (out.size() >= kMaxMoves) {
+        return fail("the alg is longer than " + std::to_string(kMaxMoves) +
+                    " moves");
+      }
       out.push_back({*type, static_cast<std::uint8_t>(amount)});
     }
     return true;
@@ -213,17 +300,30 @@ private:
       if (closers.find(c) != std::string_view::npos) {
         return true;
       }
+      if ((c == '(' || c == '[') && depth_ >= kMaxDepth) {
+        return fail("brackets nested more than " + std::to_string(kMaxDepth) +
+                    " deep");
+      }
       if (c == '(') {
         ++pos_;
         Alg body;
-        if (!parseSequence(body, ")")) {
+        ++depth_;
+        bool ok = parseSequence(body, ")");
+        --depth_;
+        if (!ok) {
           return false;
         }
         ++pos_; // ')'
-        appendRepeated(out, body, readAmount());
+        std::optional<int> count = readGroupAmount();
+        if (!count || !append(out, body, *count)) {
+          return false;
+        }
       } else if (c == '[') {
         ++pos_;
-        if (!parseBracket(out)) {
+        ++depth_;
+        bool ok = parseBracket(out);
+        --depth_;
+        if (!ok) {
           return false;
         }
       } else if (c == ')' || c == ']' || c == ',' || c == ':') {
@@ -258,8 +358,8 @@ private:
       Alg bi = invert(b);
       body.insert(body.end(), bi.begin(), bi.end());
     }
-    appendRepeated(out, body, readAmount());
-    return true;
+    std::optional<int> count = readGroupAmount();
+    return count && append(out, body, *count);
   }
 };
 
@@ -293,6 +393,31 @@ std::string toString(const Alg &alg) {
 }
 
 ParseResult parseAlg(std::string_view text) { return Parser(text).run(); }
+
+std::string cleanAlgText(std::string_view text) {
+  std::string out;
+  for (std::size_t i = 0; i < text.size();) {
+    auto at = [&](std::string_view token) {
+      return text.substr(i, token.size()) == token;
+    };
+    auto space = std::find_if(kSpaces.begin(), kSpaces.end(), at);
+    auto prime = std::find_if(kPrimes.begin(), kPrimes.end(), at);
+    if (space != kSpaces.end()) {
+      out += ' ';
+      i += space->size();
+    } else if (prime != kPrimes.end()) {
+      out += '\'';
+      i += prime->size();
+    } else {
+      out += text[i++];
+    }
+  }
+  auto b = out.find_first_not_of(" \t\r\n");
+  if (b == std::string::npos) {
+    return {};
+  }
+  return out.substr(b, out.find_last_not_of(" \t\r\n") - b + 1);
+}
 
 Alg parseAlgOrEmpty(std::string_view text) {
   ParseResult r = parseAlg(text);
