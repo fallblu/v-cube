@@ -69,8 +69,8 @@ int modeFromId(const QString &id) {
 // Settings that earlier versions used and nothing reads any more.
 void removeObsoleteSettings(QSettings &q) {
   for (const char *key :
-       {"window/tab", "trainer/virtual", "trainer/showScramble",
-        "timer/virtual", "timer/cubeMode"}) {
+       {"window/tab", "window/focus", "trainer/virtual",
+        "trainer/showScramble", "timer/virtual", "timer/cubeMode"}) {
     q.remove(key);
   }
 }
@@ -171,6 +171,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   if (q.value("window/geometry").isNull()) {
     resize(1280, 800);
   }
+  // The app always opens out of full screen and focus mode, however it was
+  // closed; the window keeps its size, position and maximised state.
+  setWindowState(windowState() & ~Qt::WindowFullScreen);
   int mode = modeFromId(q.value("window/mode").toString());
   if (mode < 0) {
     // Earlier versions saved a tab: Timer, Trainer or Library.
@@ -180,9 +183,6 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   }
   removeObsoleteSettings(q);
   setMode(mode);
-  if (q.value("window/focus", false).toBool()) {
-    focusAction_->setChecked(true);
-  }
 }
 
 QWidget *MainWindow::buildSidebar() {
@@ -282,7 +282,6 @@ void MainWindow::setFocusMode(bool on) {
   for (ModePage *page : pages_) {
     page->setFocusMode(on);
   }
-  QSettings().setValue("window/focus", on);
   if (on) {
     showFocusHint();
   } else {

@@ -185,8 +185,9 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     moves), which you can remap in Settings: select a row and **Change**
     its key or move, or **Add** one. A turning key may be held with Shift
     but not Ctrl or Alt.
-- **Full screen**: F11 (or View > Full screen) toggles full screen, and
-  the window reopens the way you left it.
+- **Full screen**: F11 (or View > Full screen) toggles full screen. The
+  window reopens at the size and place you left it, but never in full
+  screen or focus mode.
 - **Focus mode**: F10 (or View > Focus mode) hides the sidebar, menus,
   status bar and each mode's lists and options, leaving the scramble,
   timer, cube and algs; messages show at the top of the window instead.
