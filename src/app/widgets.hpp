@@ -11,6 +11,7 @@
 #include <QWidget>
 
 #include <functional>
+#include <optional>
 
 namespace vcube {
 
@@ -20,13 +21,22 @@ class TimeDisplay : public QLabel {
 public:
   explicit TimeDisplay(QWidget *parent = nullptr);
   void setDecimals(int d) { decimals_ = d; }
-  // Shows the timer's state at `now` (ms on its clock).
+  // Shows the timer's state at `now` (ms on its clock). A hold let go of
+  // before it was ready brings back what was shown before it.
   void showTimer(const SolveTimer &timer, std::int64_t now);
   void showTime(std::int64_t ms, Penalty penalty = Penalty::None);
   void showText(const QString &text, const QColor &colour = {});
 
 private:
+  struct Shown {
+    QString text;
+    QColor colour;
+  };
+
   int decimals_ = 2;
+  QColor colour_;
+  std::optional<Shown> beforeHold_; // during a hold: what it replaced
+  void show(const QString &text, const QColor &colour);
   void setColour(const QColor &c);
 };
 

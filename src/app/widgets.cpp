@@ -47,6 +47,7 @@ TimeDisplay::TimeDisplay(QWidget *parent) : QLabel(parent) {
 }
 
 void TimeDisplay::setColour(const QColor &c) {
+  colour_ = c;
   // Only a colour of its own is set, so that the text otherwise follows
   // the theme, also when it changes.
   QPalette p;
@@ -57,6 +58,11 @@ void TimeDisplay::setColour(const QColor &c) {
 }
 
 void TimeDisplay::showText(const QString &text, const QColor &colour) {
+  beforeHold_.reset();
+  show(text, colour);
+}
+
+void TimeDisplay::show(const QString &text, const QColor &colour) {
   setColour(colour);
   setText(text);
 }
@@ -82,9 +88,19 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
       inspectText = "DNF";
     }
   }
+  bool holding = timer.state() == S::Holding || timer.state() == S::Ready;
+  if (holding && !beforeHold_) {
+    beforeHold_ = Shown{text(), colour_};
+  }
   switch (timer.state()) {
   case S::Idle:
-    break; // leave the last result up
+    // Leave the last result up, or bring it back after a hold that was let
+    // go of (or cancelled) before the timer started.
+    if (beforeHold_) {
+      Shown was = *beforeHold_;
+      showText(was.text, was.colour);
+    }
+    break;
   case S::Inspecting: {
     std::int64_t t = *inspection;
     QColor c = t >= 12000  ? QColor(0xff, 0x55, 0x55)
@@ -94,14 +110,14 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
     break;
   }
   case S::Holding:
-    showText(inspection ? inspectText
-                        : QString::fromStdString(formatTime(0, decimals_)),
-             QColor(0xff, 0x55, 0x55));
+    show(inspection ? inspectText
+                    : QString::fromStdString(formatTime(0, decimals_)),
+         QColor(0xff, 0x55, 0x55));
     break;
   case S::Ready:
-    showText(inspection ? inspectText
-                        : QString::fromStdString(formatTime(0, decimals_)),
-             QColor(0x3d, 0xd6, 0x6b));
+    show(inspection ? inspectText
+                    : QString::fromStdString(formatTime(0, decimals_)),
+         QColor(0x3d, 0xd6, 0x6b));
     break;
   case S::Running: {
     // One decimal while running keeps the display calm, like cstimer.

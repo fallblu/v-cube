@@ -248,7 +248,7 @@ void DrillPage::windowDeactivated() {
   auto s = timer_.state();
   if (s == SolveTimer::State::Holding || s == SolveTimer::State::Ready) {
     timer_.cancel(); // Space's release would never arrive
-    display_->showTime(0);
+    display_->showTimer(timer_, monotonicMs()); // what was shown before
     updateControls();
   }
 }
