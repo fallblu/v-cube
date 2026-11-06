@@ -631,7 +631,10 @@ void LearnPage::turn(Move m) {
   auto c = CubieCube::fromFacelets(f);
   const AlgSet *s = set();
   const CaseGroup *g = s ? s->groupOf(current_->caseId) : nullptr;
-  if (c && g && stepSolved(*c, s->specFor(*g).free)) {
+  // The cube itself must reach the step's end state: a case that leaves
+  // the last layer to be lined up (PLL, say) needs its last U turn too,
+  // while one that leaves the last-layer permutation free (OLL) doesn't.
+  if (c && g && withinMask(*c, s->specFor(*g).free)) {
     finish();
     turnUpright();
   } else if (follower_.deviated() != wasOff) {

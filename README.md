@@ -37,12 +37,17 @@ The app has seven modes, listed in a sidebar in two groups (`Ctrl+1` to
     either way, a move written with a 3 as those three quarter turns or
     one turn the other way (R3 as R R R or R'), a wide or slice turn as
     the turns it is made of (r as
-    R M'), turns of opposite faces in either order, and leaving out a U
-    turn at the end. A wrong turn, even one you undo, or starting over
+    R M'), turns of opposite faces in either order, and a U turn at the
+    end that the alg leaves out or adds. A wrong turn, even one you undo, or starting over
     with Esc once the alg is begun leaves the algs. The status line says
     so straight away, and your moves are shown under the algs after the
     case, with the move where they left the algs marked (a turn the wrong
     way is marked even though the next turn is what gave it away).
+  - The case is finished when the cube reaches the step's end state. For
+    a step that leaves nothing free, such as PLL, that is a solved cube, so
+    a case that needs a U turn after its alg isn't done until you turn it.
+    A step that leaves the last-layer permutation free (OLL) needs no U
+    turn at the end.
   - Once the case is solved the cube turns back upright, e.g. after an
     alg that solves the case before its last rotation.
   - Cases are scheduled Anki-style: cases in their learning steps (minutes

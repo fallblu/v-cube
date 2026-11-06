@@ -248,9 +248,9 @@ TEST_CASE("a wrong turn leaves the algs") {
     doMoves(g, "D D' D");
     CHECK(g.deviated());
   }
-  SECTION("or going on after the alg") {
+  SECTION("or going on after the alg (with more than a U turn)") {
     AlgFollower f = follower({kSune});
-    doMoves(f, kSune + " U");
+    doMoves(f, kSune + " R");
     CHECK(f.deviated());
   }
 }
@@ -299,7 +299,7 @@ TEST_CASE("the move that left the algs is found") {
   SECTION("a turn on another axis") {
     CHECK(leftAt({kSune}, "R F") == 1u);
     CHECK(leftAt({kSune}, "F F") == 1u);
-    CHECK(leftAt({kSune}, kSune + " U") == 7u);
+    CHECK(leftAt({kSune}, kSune + " R") == 7u);
   }
   SECTION("a turn the wrong way, once the next turn shows it") {
     CHECK(leftAt({kSune}, "R U'") == std::nullopt);
@@ -333,4 +333,24 @@ TEST_CASE("the move that left the algs is found") {
     CHECK_FALSE(f.leftAt());
     CHECK(f.deviated()); // started over
   }
+}
+
+TEST_CASE("a U turn after the end of the alg lines up the last layer") {
+  // The case needs a U after the alg, which the alg doesn't write.
+  const std::string tPerm = "R U R' U' R' F R2 U' R' U' R U R' F'";
+  FaceletCube start = stateSolvedBy(alg(tPerm + " U")).toFacelets();
+  AlgFollower f(start, {alg(tPerm)});
+  doMoves(f, tPerm);
+  CHECK(f.onAlg());
+  doMoves(f, "U");
+  CHECK(f.onAlg());
+  CHECK_FALSE(f.deviated());
+  // Turned the long way round, as two quarter turns, it still counts.
+  AlgFollower g(start, {alg(tPerm)});
+  doMoves(g, tPerm + " U' U' U'");
+  CHECK_FALSE(g.deviated());
+  // Another layer after the end leaves the algs.
+  AlgFollower h(start, {alg(tPerm)});
+  doMoves(h, tPerm + " U R");
+  CHECK(h.deviated());
 }

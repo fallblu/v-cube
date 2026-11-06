@@ -44,7 +44,8 @@ AlgOpening algOpening(const Alg &alg);
 //     one turn the other way (R');
 //   - a wide or slice turn as the turns it is made of (r as R M');
 //   - turns of opposite faces in either order (R L' as L' R);
-//   - leaving out a U turn at the end, which only lines up the last layer.
+//   - leaving out a U turn at the end, or adding one after the alg, which
+//     only lines up the last layer.
 // Anything else, such as a wrong turn, even one that is undone, leaves the
 // algs. So does starting over after the alg was begun.
 class AlgFollower {

@@ -297,6 +297,10 @@ void AlgFollower::step(std::size_t i) {
   }
   int cost = doneCost(m);
   int axis = cost == 0 ? -1 : heldAxis(cube_, m.type);
+  // A turn of the U layer alone, which after the end of an alg is the AUF
+  // that lines up the last layer.
+  std::optional<UdTurn> ud = udTurn(cube_, m);
+  bool auf = ud && ud->d == 0;
   cube_.apply(m);
   if (cost == 0) {
     return; // a rotation changes nothing that is compared
@@ -305,6 +309,9 @@ void AlgFollower::step(std::size_t i) {
   for (Path &p : paths_) {
     if (!p.alive) {
       continue;
+    }
+    if (auf && p.transit == 0 && p.at + 1 == p.states.size()) {
+      continue; // the alg is done; U turns only line up the last layer
     }
     // Another way of doing the alg's next turns only turns layers on the
     // same axis as they do until it catches up with the alg.
