@@ -421,8 +421,7 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
   CHECK(back[0].solves[1].moves == "R U R'");
   CHECK(back[0].cube == CubeKind::Virtual); // a new session's default
   s.cube = CubeKind::Physical;
-  CHECK(sessionsFromJson(sessionsToJson({s}, 0))[0].cube ==
-        CubeKind::Physical);
+  CHECK(sessionsFromJson(sessionsToJson({s}, 0))[0].cube == CubeKind::Physical);
   // Saved before sessions had a cube: the timer was for physical cubes.
   auto old = QJsonDocument::fromJson(
       R"({"version": 1, "sessions": [{"name": "A", "solves": []}]})");

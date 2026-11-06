@@ -70,8 +70,8 @@ TEST_CASE("move count sessions round-trip through JSON") {
   MoveCountSession s;
   s.name = "EO Cross";
   s.scrambleType = "eocross";
-  s.attempts.push_back({9, false, "R U F", "nice", 1700000000});
-  s.attempts.push_back({0, true, "D2 L", "", 1700000100});
+  s.attempts.push_back({9, false, "R U F", "nice", 1700000000, "", true});
+  s.attempts.push_back({0, true, "D2 L", "", 1700000100, "", true});
   MoveCountSession other;
   other.name = "Old";
   other.scrambleType = "pll"; // not offered: read back as 333
@@ -109,7 +109,7 @@ TEST_CASE("the move count store starts with a virtual session per step") {
   CHECK(store.sessions()[4].scrambleType == "eocross");
 
   store.setCurrentIndex(2);
-  store.current().attempts.push_back({14, false, "F2 U", "", 1});
+  store.current().attempts.push_back({14, false, "F2 U", "", 1, "", true});
   store.addSession("EOLine").scrambleType = "333";
   CHECK(store.currentIndex() == 5);
   REQUIRE(store.save());

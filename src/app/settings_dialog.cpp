@@ -254,8 +254,9 @@ QWidget *SettingsDialog::buildNeutralityTab(QWidget *parent) {
   auto *layout = new QVBoxLayout(page);
   auto *intro = new QLabel(
       tr("Scrambles are always applied holding white on top and green in "
-         "front. Choose the holds you solve in: every scramble in Timer, "
-         "Scramble and Virtual, and every case in Learn and Drill, is set up "
+         "front. Choose the holds you solve in: every scramble in Timed, "
+         "Untimed and Move Count, and every case in Learn and Drill, is set "
+         "up "
          "for one of the ticked holds, picked at random. For example, an "
          "EOCross scramble held x2 y neutral gives a white or yellow cross "
          "with any front colour."),

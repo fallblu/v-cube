@@ -29,14 +29,13 @@ enum class SolveLog { MoveCount, Untimed };
 // The sessions a new store starts with. Move Count: one per step on the
 // virtual cube, from WCA scrambles (EO Cross solved for ZZ F2L). Untimed:
 // one session on the virtual cube.
-std::vector<MoveCountSession> defaultMoveCountSessions(
-    SolveLog mode = SolveLog::MoveCount);
+std::vector<MoveCountSession>
+defaultMoveCountSessions(SolveLog mode = SolveLog::MoveCount);
 
 // Move Count or Untimed mode's sessions, saved as one JSON file.
 class MoveCountStore {
 public:
-  explicit MoveCountStore(QString path,
-                          SolveLog mode = SolveLog::MoveCount);
+  explicit MoveCountStore(QString path, SolveLog mode = SolveLog::MoveCount);
 
   // A missing file gives the default sessions. A file that can't be read
   // is set aside (see setAside()) and also gives the default sessions; if

@@ -94,7 +94,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   timeColumn->addWidget(resultRow_);
   timeColumn->addStretch();
   // An empty column as wide as the diagram keeps the time centred, as in
-  // Timer mode. Both are hidden until there is a diagram to show.
+  // Timed mode. Both are hidden until there is a diagram to show.
   diagramBalance_ = new QWidget(right);
   diagramBalance_->setMinimumSize(200, 0);
   middle->addWidget(diagramBalance_, 2);

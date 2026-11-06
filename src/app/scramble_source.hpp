@@ -21,7 +21,7 @@ namespace vcube {
 std::function<ScrambleSetup(Rng &)>
 scrambleStateMaker(const AlgLibrary &library, const QString &type);
 
-// The scramble types shared by Timer, Scramble and Virtual mode: the
+// The scramble types shared by Timed and Untimed mode: the
 // built-in random-state types, then one per alg set with cases. With
 // `only`, just those built-in types (by id, in that order) and no alg sets.
 class ScrambleTypeBox : public QComboBox {
@@ -90,8 +90,8 @@ private:
   void ready();
 };
 
-// The algs of the alg set case a scramble sets up, for Timer, Scramble and
-// Virtual mode: a checkable "Algs (Tab)" button, offered for alg set
+// The algs of the alg set case a scramble sets up, for Timed and Untimed
+// mode: a checkable "Algs (Tab)" button, offered for alg set
 // scramble types, and a label that shows the case's algs (with the AUFs
 // the scramble needs, and the hold it was meant for when that was picked
 // at random) while the button is on. Showing the algs changes nothing else.

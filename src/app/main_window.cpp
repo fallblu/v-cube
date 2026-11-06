@@ -1,14 +1,12 @@
 #include "app/main_window.hpp"
 
+#include "app/attempt_page.hpp"
 #include "app/drill_page.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
-#include "app/move_count_page.hpp"
 #include "app/platform.hpp"
-#include "app/scramble_page.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/timer_page.hpp"
-#include "app/virtual_page.hpp"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
@@ -51,10 +49,9 @@ constexpr std::array<ModeInfo, MainWindow::ModeCount> kModes = {{
     {"learn", QT_TRANSLATE_NOOP("MainWindow", "Learn")},
     {"drill", QT_TRANSLATE_NOOP("MainWindow", "Drill")},
     {"library", QT_TRANSLATE_NOOP("MainWindow", "Library")},
-    {"timer", QT_TRANSLATE_NOOP("MainWindow", "Timer")},
+    {"timed", QT_TRANSLATE_NOOP("MainWindow", "Timed")},
+    {"untimed", QT_TRANSLATE_NOOP("MainWindow", "Untimed")},
     {"movecount", QT_TRANSLATE_NOOP("MainWindow", "Move Count")},
-    {"scramble", QT_TRANSLATE_NOOP("MainWindow", "Scramble")},
-    {"virtual", QT_TRANSLATE_NOOP("MainWindow", "Virtual")},
 }};
 
 int modeFromId(const QString &id) {
@@ -63,14 +60,23 @@ int modeFromId(const QString &id) {
       return static_cast<int>(i);
     }
   }
+  // Modes of earlier versions: Timer became Timed; Scramble and Virtual
+  // became Untimed.
+  if (id == "timer") {
+    return MainWindow::Timed;
+  }
+  if (id == "scramble" || id == "virtual") {
+    return MainWindow::Untimed;
+  }
   return -1;
 }
 
 // Settings that earlier versions used and nothing reads any more.
 void removeObsoleteSettings(QSettings &q) {
   for (const char *key :
-       {"window/tab", "window/focus", "trainer/virtual",
-        "trainer/showScramble", "timer/virtual", "timer/cubeMode"}) {
+       {"window/tab", "window/focus", "trainer/virtual", "trainer/showScramble",
+        "timer/virtual", "timer/cubeMode", "scramble/type", "scramble/showAlgs",
+        "virtual/scrambleType", "virtual/showAlgs", "ui/view/virtual"}) {
     q.remove(key);
   }
 }
@@ -81,6 +87,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     : QMainWindow(parent), settings_(settings), dataDir_(std::move(dataDir)),
       library_(QDir(dataDir_).filePath("algsets"), ":/algsets"),
       sessions_(QDir(dataDir_).filePath("sessions.json")),
+      untimed_(QDir(dataDir_).filePath("untimed.json"), SolveLog::Untimed),
       moveCounts_(QDir(dataDir_).filePath("movecounts.json")) {
   setWindowTitle("v-cube");
   library_.load();
@@ -99,6 +106,13 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
                                  .arg(error) +
                              " " + kept(sessions_.setAsidePath()));
   }
+  if (!untimed_.load(&error)) {
+    QMessageBox::warning(this, "v-cube",
+                         tr("Could not read your untimed solves (%1), so "
+                            "Untimed starts with an empty session.")
+                                 .arg(error) +
+                             " " + kept(untimed_.setAsidePath()));
+  }
   if (!moveCounts_.load(&error)) {
     QMessageBox::warning(this, "v-cube",
                          tr("Could not read your move counts (%1), so Move "
@@ -111,12 +125,11 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   learnPage_ = new LearnPage(settings_, library_, stack_);
   drillPage_ = new DrillPage(settings_, library_, stack_);
   libraryPage_ = new LibraryPage(settings_, library_, stack_);
-  timerPage_ = new TimerPage(settings_, sessions_, library_, stack_);
-  moveCountPage_ = new MoveCountPage(settings_, moveCounts_, library_, stack_);
-  scramblePage_ = new ScramblePage(settings_, library_, stack_);
-  virtualPage_ = new VirtualPage(settings_, library_, stack_);
-  pages_ = {learnPage_,     drillPage_,    libraryPage_, timerPage_,
-            moveCountPage_, scramblePage_, virtualPage_};
+  timedPage_ = new TimerPage(settings_, sessions_, library_, stack_);
+  untimedPage_ = new AttemptPage(settings_, untimed_, library_, stack_);
+  moveCountPage_ = new AttemptPage(settings_, moveCounts_, library_, stack_);
+  pages_ = {learnPage_, drillPage_,   libraryPage_,
+            timedPage_, untimedPage_, moveCountPage_};
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
@@ -125,9 +138,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
           [this](const QString &setId) {
             learnPage_->reloadSets();
             drillPage_->reloadSets();
-            timerPage_->refreshScrambleTypes(setId);
-            scramblePage_->refreshScrambleTypes(setId);
-            virtualPage_->refreshScrambleTypes(setId);
+            timedPage_->refreshScrambleTypes(setId);
+            untimedPage_->refreshScrambleTypes(setId);
           });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
                          static_cast<CasePage *>(drillPage_)}) {
@@ -177,7 +189,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   int mode = modeFromId(q.value("window/mode").toString());
   if (mode < 0) {
     // Earlier versions saved a tab: Timer, Trainer or Library.
-    constexpr std::array<int, 3> fromTab = {Timer, Drill, Library};
+    constexpr std::array<int, 3> fromTab = {Timed, Drill, Library};
     int tab = q.value("window/tab", -1).toInt();
     mode = tab >= 0 && tab < 3 ? fromTab[static_cast<std::size_t>(tab)] : Learn;
   }
@@ -217,7 +229,7 @@ QWidget *MainWindow::buildSidebar() {
   for (int m = 0; m < ModeCount; ++m) {
     if (m == Learn) {
       header(tr("ALGS"));
-    } else if (m == Timer) {
+    } else if (m == Timed) {
       header(tr("SOLVES"));
     }
     auto *b = new QToolButton(bar);
@@ -506,9 +518,9 @@ void MainWindow::exportAlgSet() {
 void MainWindow::showControls() {
   QString text = tr(
       "<h3>Modes</h3>"
-      "<p><b>Ctrl+1</b> to <b>Ctrl+7</b> switch between Learn, Drill, "
-      "Library, Timer, Move Count, Scramble and Virtual. Switching is "
-      "blocked while a solve or inspection is running.</p>"
+      "<p><b>Ctrl+1</b> to <b>Ctrl+6</b> switch between Learn, Drill, "
+      "Library, Timed, Untimed and Move Count. Switching is blocked while "
+      "a solve or inspection is running.</p>"
       "<h3>Window</h3>"
       "<p><b>F11</b> toggles full screen. <b>F10</b> toggles focus mode, "
       "which hides everything but the scramble, timer, cube and algs; "
@@ -525,26 +537,33 @@ void MainWindow::showControls() {
       "press any key to stop. After the case: <b>Space</b> next case, "
       "<b>Backspace</b> toggles \"wrong alg\", <b>Esc</b> tries the case "
       "again.</p>"
-      "<h3>Timer (physical cube)</h3>"
-      "<p>Hold <b>Space</b> until the time turns green, release to start, "
-      "press any key to stop. With inspection on, tap Space to start "
-      "inspecting first. <b>Esc</b> cancels.</p>"
-      "<h3>Move Count (physical cube, untimed)</h3>"
-      "<p>Solve the session's step, then type the number of moves your "
+      "<h3>Timed</h3>"
+      "<p>Hold <b>Space</b> until the time turns green, release to start. "
+      "With inspection on, tap Space to start inspecting first. <b>Esc</b> "
+      "cancels. Physical cube: any key stops. Virtual cube: until the timer "
+      "starts only rotations turn the cube; <b>Space</b> stops it, and a "
+      "cube that isn't solved then is a DNF.</p>"
+      "<h3>Untimed</h3>"
+      "<p>Virtual cube: rotations only until <b>Space</b> starts the solve; "
+      "<b>Space</b> ends it (DNF if the cube isn't solved) and the cube then "
+      "turns freely; <b>Space</b> again gives the next scramble. <b>Esc</b> "
+      "starts the scramble again during a solve, or resets the cube to "
+      "solved after it. In the alg field, <b>Enter</b> applies the alg and "
+      "<b>Esc</b> returns the keyboard to the cube. Physical cube: "
+      "<b>Space</b> or <b>→</b> keeps the scramble as done and shows the "
+      "next, <b>Backspace</b> or <b>←</b> goes back.</p>"
+      "<h3>Move Count</h3>"
+      "<p>Virtual cube: rotations only until <b>Space</b> starts the solve; "
+      "<b>Space</b> ends it, counting the moves (HTM) if the session's step "
+      "is done and DNF if not. <b>Esc</b> starts the scramble again. "
+      "Physical cube: solve the step, then type the number of moves your "
       "solution took: <b>0–9</b> type the count, <b>Backspace</b> corrects "
       "it, <b>Esc</b> clears it and <b>Enter</b> records it and shows the "
       "next scramble.</p>"
-      "<h3>Alg set scrambles (Timer, Scramble and Virtual)</h3>"
+      "<h3>Alg set scrambles (Timed and Untimed)</h3>"
       "<p><b>Tab</b> shows or hides the algs for the case the scramble "
       "sets up. Nothing is graded.</p>"
-      "<h3>Scramble</h3>"
-      "<p><b>Space</b> or <b>→</b> shows the next scramble, "
-      "<b>Backspace</b> or <b>←</b> goes back.</p>"
-      "<h3>Virtual</h3>"
-      "<p><b>Space</b> scrambles, <b>Esc</b> resets to solved. In the alg "
-      "field, <b>Enter</b> applies the alg and <b>Esc</b> returns the "
-      "keyboard to the cube.</p>"
-      "<h3>Turning keys (Learn and Virtual)</h3><p>");
+      "<h3>Turning keys (Learn and the virtual cube)</h3><p>");
   QStringList rows;
   for (const auto &b : settings_.keymap.bindings) {
     rows << QString("<code>%1</code>&nbsp;%2")

@@ -6,9 +6,9 @@ class QKeyEvent;
 
 namespace vcube {
 
-// A page of the main window, one per mode (Learn, Drill, Library, Timer,
-// Move Count, Scramble, Virtual). The main window forwards the keyboard to the
-// active page and tells pages when they are shown and hidden.
+// A page of the main window, one per mode (Learn, Drill, Library, Timed,
+// Untimed, Move Count). The main window forwards the keyboard to the active
+// page and tells pages when they are shown and hidden.
 class ModePage : public QWidget {
   Q_OBJECT
 public:

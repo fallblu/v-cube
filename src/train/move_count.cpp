@@ -148,9 +148,8 @@ bool reachedAsHeld(const CubieCube &c, SolveStep step) {
     return cross == 4;
   case SolveStep::ZZF2L:
     return cross == 4 && cornerSolved(c, DFR) && cornerSolved(c, DLF) &&
-           cornerSolved(c, DBL) && cornerSolved(c, DRB) &&
-           edgeSolved(c, FR) && edgeSolved(c, FL) && edgeSolved(c, BL) &&
-           edgeSolved(c, BR);
+           cornerSolved(c, DBL) && cornerSolved(c, DRB) && edgeSolved(c, FR) &&
+           edgeSolved(c, FL) && edgeSolved(c, BL) && edgeSolved(c, BR);
   }
   return false;
 }

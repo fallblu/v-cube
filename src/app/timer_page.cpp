@@ -3,6 +3,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -82,10 +83,27 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   typeBox_ = new ScrambleTypeBox(library_, typeRow_);
   auto *nextButton = flatButton(tr("Next scramble"), typeRow_);
   nextButton_ = nextButton;
+  cubeBox_ = new QComboBox(typeRow_);
+  cubeBox_->setFocusPolicy(Qt::NoFocus);
+  cubeBox_->addItem(tr("Virtual cube"));
+  cubeBox_->addItem(tr("Physical cube"));
+  cubeBox_->setToolTip(tr("The cube this session's solves are done on"));
+  cubeView_ = new CubeView(right);
+  cubeView_->setToolTip(
+      tr("Turn the cube as a whole to look at it, hold Space to start the "
+         "timer, solve, and press Space to stop"));
+  viewPicker_ = new QWidget(typeRow_);
+  auto *viewLayout = new QHBoxLayout(viewPicker_);
+  viewLayout->setContentsMargins(0, 0, 0, 0);
+  viewLayout->addWidget(new QLabel(tr("View:"), viewPicker_));
+  viewLayout->addWidget(createViewSelector(cubeView_, "timed", viewPicker_));
   typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
   algs_ = new ScrambleAlgs(library_, settings_.scheme, "timer/showAlgs", right);
   typeRow->addWidget(typeBox_, 1);
   typeRow->addWidget(algs_->button());
+  typeRow->addSpacing(12);
+  typeRow->addWidget(cubeBox_);
+  typeRow->addWidget(viewPicker_);
   typeRow->addWidget(nextButton);
   rightLayout->addWidget(typeRow_);
 
@@ -119,12 +137,13 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   penaltyRow->addWidget(dnfButton_);
   penaltyRow->addWidget(deleteButton_);
   penaltyRow->addStretch();
-  timeColumn->addStretch();
+  timeColumn->addStretch(1);
+  timeColumn->addWidget(cubeView_, 8);
   timeColumn->addWidget(display_);
   timeColumn->addWidget(statusLabel_);
   timeColumn->addLayout(penaltyRow);
   timeColumn->addWidget(algs_->label());
-  timeColumn->addStretch();
+  timeColumn->addStretch(1);
   rightLayout->addLayout(timeColumn, 3);
 
   chart_ = new TrendChart(right);
@@ -157,6 +176,16 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
             algs_->setType(type);
             feed_.setType(type);
           });
+  connect(cubeBox_, &QComboBox::activated, this, [this](int index) {
+    CubeKind kind = index == 0 ? CubeKind::Virtual : CubeKind::Physical;
+    if (isBusy() || session().cube == kind) {
+      return;
+    }
+    session().cube = kind;
+    save();
+    showCubeKind();
+    showScramble();
+  });
   connect(sessionMenu_, &QMenu::aboutToShow, this,
           &TimerPage::refreshSessionMenu);
   connect(plus2Button_, &QPushButton::clicked, this,
@@ -186,7 +215,20 @@ bool TimerPage::isBusy() const {
 
 void TimerPage::activated() { updateControls(); }
 
+bool TimerPage::onVirtualCube() const {
+  return store_.sessions()[store_.currentIndex()].cube == CubeKind::Virtual;
+}
+
+void TimerPage::showCubeKind() {
+  bool virt = onVirtualCube();
+  cubeBox_->setCurrentIndex(virt ? 0 : 1);
+  cubeView_->setVisible(virt);
+  viewPicker_->setVisible(virt);
+  net_->setVisible(!virt);
+}
+
 void TimerPage::deactivated() {
+  cubeView_->finishAnimations();
   tick_.stop();
   timer_.cancel();
   updateControls();
@@ -217,8 +259,8 @@ void TimerPage::updateControls() {
   }
   controlsLocked_ = busy;
   for (QWidget *w : std::initializer_list<QWidget *>{
-           typeBox_, nextButton_, sessionButton_, plus2Button_, dnfButton_,
-           deleteButton_}) {
+           typeBox_, nextButton_, sessionButton_, cubeBox_, plus2Button_,
+           dnfButton_, deleteButton_}) {
     w->setEnabled(!busy);
   }
 }
@@ -233,6 +275,10 @@ void TimerPage::applySettings() {
   timer_.setConfig({settings_.holdMs, settings_.inspection, 15000});
   display_->setDecimals(settings_.decimals);
   net_->setScheme(settings_.scheme);
+  CubeLook look = cubeView_->look();
+  look.scheme = settings_.scheme;
+  cubeView_->setLook(look);
+  cubeView_->setAnimationMs(settings_.animationMs);
   feed_.setNeutrality(settings_.neutrality);
   algs_->refresh();
   refreshSolves();
@@ -254,10 +300,15 @@ void TimerPage::showScramble() {
   if (!current) {
     scrambleLabel_->setText(tr("Generating scramble…"));
     net_->setCube(std::nullopt);
+    attempt_.load({});
+    cubeView_->setState(attempt_.cube());
     return;
   }
   scrambleLabel_->setText(current->text);
   net_->setScramble(current->text);
+  // Shown as scrambled holding white on top and green in front.
+  attempt_.load(parseAlgOrEmpty(ss(current->text)));
+  cubeView_->setState(attempt_.cube());
 }
 
 void TimerPage::onTick() {
@@ -274,18 +325,38 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     TimerPage *page;
     ~Update() { page->updateControls(); }
   } update{this};
+  bool virt = onVirtualCube();
+  std::optional<Move> move =
+      virt ? settings_.keymap.lookup(e) : std::optional<Move>();
   if (e->isAutoRepeat()) {
-    return e->key() == Qt::Key_Space;
+    return e->key() == Qt::Key_Space || move.has_value();
   }
   std::int64_t now = monotonicMs();
   using S = SolveTimer::State;
+  // Back to the scramble as it was dealt, e.g. after a cancelled solve.
+  auto restartCube = [this] {
+    attempt_.restart();
+    cubeView_->setState(attempt_.cube());
+  };
 
   if (timer_.state() == S::Running) {
     if (press && e->key() == Qt::Key_Escape) {
       timer_.cancel();
       display_->showTime(0);
       statusLabel_->setText(tr("Solve cancelled; nothing was recorded."));
+      if (virt) {
+        restartCube();
+      }
       return true;
+    }
+    if (virt) {
+      // Only Space stops the timer; the turning keys turn the cube.
+      if (press && e->key() == Qt::Key_Space) {
+        stopVirtual(now);
+      } else if (press && move && attempt_.turn(*move)) {
+        cubeView_->animateMove(*move);
+      }
+      return e->key() == Qt::Key_Space || move.has_value();
     }
     if (press) {
       timer_.pressStop(now);
@@ -300,9 +371,24 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     timer_.cancel();
     display_->showTime(0);
     statusLabel_->clear();
+    if (virt) {
+      restartCube();
+    }
     return true;
   }
-  if (e->key() == Qt::Key_Tab && press && algs_->toggle()) {
+  if (e->key() == Qt::Key_Tab && press && !move && algs_->toggle()) {
+    return true;
+  }
+  if (move) {
+    // Before the solve the cube can only be turned as a whole.
+    if (press && timer_.state() != S::Holding && timer_.state() != S::Ready) {
+      if (attempt_.turn(*move)) {
+        cubeView_->animateMove(*move);
+      } else {
+        statusLabel_->setText(
+            tr("Only rotations until the timer starts (hold Space)"));
+      }
+    }
     return true;
   }
   if (e->key() != Qt::Key_Space) {
@@ -317,16 +403,37 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     timer_.releaseStart(now);
     if (timer_.state() == S::Running) {
       statusLabel_->clear();
+      if (virt) {
+        attempt_.start();
+      }
     }
   }
   display_->showTimer(timer_, now);
   return true;
 }
 
-void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty) {
+void TimerPage::stopVirtual(std::int64_t now) {
+  timer_.pressStop(now);
+  auto r = timer_.takeResult();
+  if (!r) {
+    return;
+  }
+  bool solved = attempt_.cube().isSolved();
+  int moves = attempt_.count();
+  recordSolve(r->timeMs, solved ? r->penalty : Penalty::Dnf,
+              toString(attempt_.solution()));
+  statusLabel_->setText(
+      solved ? (moves == 1 ? tr("Solved in 1 move (HTM).")
+                           : tr("Solved in %1 moves (HTM).").arg(moves))
+             : tr("DNF: the cube wasn't solved when you stopped the timer."));
+}
+
+void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
+                            const std::string &solution) {
   Solve s;
   s.timeMs = timeMs;
   s.penalty = penalty;
+  s.moves = solution;
   s.scramble = feed_.current() ? ss(feed_.current()->text) : std::string();
   s.timestamp = unixNow();
   session().solves.push_back(s);
@@ -370,7 +477,9 @@ void TimerPage::selectSession(std::size_t index) {
   }
   store_.setCurrentIndex(index);
   sessionButton_->setText(tr("Session: %1").arg(qs(session().name)));
+  showCubeKind();
   typeBox_->setCurrentType(qs(session().scrambleType));
+  showScramble(); // onto the session's cube
   refreshSolves();
   save();
 }
@@ -395,9 +504,14 @@ void TimerPage::refreshSolves() {
     set(1, qs(formatSolve(solves[i], d)));
     set(2, statText(ao5[i], d));
     set(3, statText(ao12[i], d));
+    QStringList tip;
     if (!solves[i].comment.empty()) {
-      table_->item(row, 1)->setToolTip(qs(solves[i].comment));
+      tip << qs(solves[i].comment);
     }
+    if (!solves[i].moves.empty()) {
+      tip << tr("Solution: %1").arg(qs(solves[i].moves));
+    }
+    table_->item(row, 1)->setToolTip(tip.join("\n"));
   }
   SessionSummary sum = summarize(solves);
   QString html =
@@ -475,7 +589,7 @@ void TimerPage::showSolveMenu(const QPoint &pos) {
   auto *copy = menu.addAction(tr("Copy scramble"));
   QAction *copyMoves = nullptr;
   if (!s.moves.empty()) {
-    copyMoves = menu.addAction(tr("Copy solution moves"));
+    copyMoves = menu.addAction(tr("Copy solution"));
   }
   menu.addSeparator();
   auto *del = menu.addAction(tr("Delete"));

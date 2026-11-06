@@ -140,17 +140,15 @@ QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,
     }
     arr.append(so);
   }
-  return QJsonObject{{"format", mode == SolveLog::MoveCount
-                                    ? "v-cube.movecount"
-                                    : "v-cube.untimed"},
+  return QJsonObject{{"format", mode == SolveLog::MoveCount ? "v-cube.movecount"
+                                                            : "v-cube.untimed"},
                      {"version", 1},
                      {"current", static_cast<int>(current)},
                      {"sessions", arr}};
 }
 
-std::vector<MoveCountSession> moveCountsFromJson(const QJsonObject &o,
-                                                 std::size_t *current,
-                                                 SolveLog mode) {
+std::vector<MoveCountSession>
+moveCountsFromJson(const QJsonObject &o, std::size_t *current, SolveLog mode) {
   std::vector<MoveCountSession> out;
   for (const auto &v : o.value("sessions").toArray()) {
     QJsonObject so = v.toObject();
@@ -168,8 +166,8 @@ std::vector<MoveCountSession> moveCountsFromJson(const QJsonObject &o,
     } else if (auto named = stepFromName(s.name)) {
       s.step = *named;
     } else {
-      s.step = s.scrambleType == "eocross" ? SolveStep::ZZF2L
-                                           : SolveStep::EOCross;
+      s.step =
+          s.scrambleType == "eocross" ? SolveStep::ZZF2L : SolveStep::EOCross;
     }
     for (const auto &av : so.value("attempts").toArray()) {
       QJsonObject ao = av.toObject();

@@ -162,7 +162,7 @@ private:
 // The algs of a case that solve `state` (the case set up in its display
 // orientation, possibly with AUFs and free pieces scrambled), with the
 // AUFs they need, main alg first, as rich text under the case's name. For
-// Timer, Scramble and Virtual, which have no case list.
+// Timed and Untimed, which have no case list.
 QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
                      const CubieCube &state);
 
