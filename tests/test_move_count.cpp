@@ -93,33 +93,35 @@ TEST_CASE("move count sessions round-trip through JSON") {
   CHECK(back[1].scrambleType == "333");
 }
 
-TEST_CASE("the move count store starts with EO, EO Cross and ZZ F2L") {
+TEST_CASE("the move count store starts with a virtual session per step") {
   QTemporaryDir dir;
   QString path = dir.filePath("movecounts.json");
   MoveCountStore store(path);
   REQUIRE(store.load());
-  REQUIRE(store.sessions().size() == 3);
-  CHECK(store.sessions()[0].name == "EO");
-  CHECK(store.sessions()[0].scrambleType == "333");
-  CHECK(store.sessions()[1].name == "EO Cross");
-  CHECK(store.sessions()[1].scrambleType == "333");
-  CHECK(store.sessions()[2].name == "ZZ F2L");
-  CHECK(store.sessions()[2].scrambleType == "eocross");
+  REQUIRE(store.sessions().size() == 5);
+  for (std::size_t i = 0; i < 5; ++i) {
+    const MoveCountSession &s = store.sessions()[i];
+    CHECK(s.step == solveSteps()[i]);
+    CHECK(s.name == stepName(s.step));
+    CHECK(s.cube == CubeKind::Virtual);
+    CHECK(s.scrambleType == defaultScrambleType(s.step));
+  }
+  CHECK(store.sessions()[4].scrambleType == "eocross");
 
   store.setCurrentIndex(2);
   store.current().attempts.push_back({14, false, "F2 U", "", 1});
   store.addSession("EOLine").scrambleType = "333";
-  CHECK(store.currentIndex() == 3);
+  CHECK(store.currentIndex() == 5);
   REQUIRE(store.save());
 
   MoveCountStore again(path);
   REQUIRE(again.load());
-  REQUIRE(again.sessions().size() == 4);
-  CHECK(again.currentIndex() == 3);
+  REQUIRE(again.sessions().size() == 6);
+  CHECK(again.currentIndex() == 5);
   CHECK(again.sessions()[2].attempts.size() == 1);
   CHECK(again.sessions()[2].attempts[0].moves == 14);
 
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 6; ++i) {
     again.removeSession(0);
   }
   REQUIRE(again.sessions().size() == 1); // never empty
@@ -133,4 +135,143 @@ TEST_CASE("the move count store starts with EO, EO Cross and ZZ F2L") {
   QString error;
   CHECK_FALSE(MoveCountStore(path).load(&error));
   CHECK_FALSE(error.isEmpty());
+}
+
+namespace {
+FaceletCube after(std::string_view moves) {
+  FaceletCube f;
+  f.apply(parseAlgOrEmpty(moves));
+  return f;
+}
+} // namespace
+
+TEST_CASE("move count steps are named and found by name") {
+  CHECK(solveSteps().size() == 5);
+  for (SolveStep s : solveSteps()) {
+    CHECK(stepFromId(stepId(s)) == s);
+    CHECK(stepFromName(stepName(s)) == s);
+  }
+  CHECK(stepFromName("eo cross") == SolveStep::EOCross);
+  CHECK(stepFromName("ZZ-F2L") == SolveStep::ZZF2L);
+  CHECK(stepFromName("EOLine") == std::nullopt);
+  CHECK(defaultScrambleType(SolveStep::ZZF2L) == "eocross");
+  CHECK(defaultScrambleType(SolveStep::EO) == "333");
+}
+
+TEST_CASE("EO is edges solvable without F or B quarter turns, on any axis") {
+  CHECK(stepReached(after(""), SolveStep::EO));
+  CHECK(stepReached(after("R U L' D2 F2 B2 R'"), SolveStep::EO));
+  // F flips four edges for the F/B axis, but they are still oriented for
+  // the R/L axis (held with a y), so EO counts there.
+  CHECK(stepReached(after("F"), SolveStep::EO));
+  // F, R and U turns flip edges for every axis.
+  CHECK_FALSE(stepReached(after("F R U"), SolveStep::EO));
+  // However the cube is turned.
+  CHECK(stepReached(after("x y R U L'"), SolveStep::EO));
+}
+
+TEST_CASE("EO+1, EO+2 and EO Cross need that many cross edges") {
+  // R L keeps EO and leaves two cross edges on every side: DF and DB on D.
+  FaceletCube f = after("R L");
+  CHECK(stepReached(f, SolveStep::EOPlus1));
+  CHECK(stepReached(f, SolveStep::EOPlus2));
+  CHECK_FALSE(stepReached(f, SolveStep::EOCross));
+  // R alone leaves the cross on L (held with L at the bottom).
+  CHECK(stepReached(after("R"), SolveStep::EOCross));
+  // A solved cube held another way has its cross on any colour.
+  CHECK(stepReached(after("z2"), SolveStep::EOCross));
+  CHECK(stepReached(after("y x"), SolveStep::ZZF2L));
+  // The F2L solved apart from the last layer, edges oriented: ZZ F2L.
+  CHECK(stepReached(after("R U R' U R U2 R'"), SolveStep::ZZF2L));
+  // A U-layer edge flipped (an F turn sends edges up flipped): not.
+  CHECK_FALSE(stepReached(after("F R U R' U' F'"), SolveStep::ZZF2L));
+}
+
+TEST_CASE("HTM counts slices twice and rotations not at all") {
+  CHECK(htmCount(parseAlgOrEmpty("R U2 r M' x y E S")) == 3 + 6);
+  CHECK(htmCount({}) == 0);
+}
+
+TEST_CASE("a virtual attempt turns only the whole cube until it starts") {
+  VirtualAttempt a;
+  a.load(parseAlgOrEmpty("R U F"));
+  CHECK_FALSE(a.turn(parseAlgOrEmpty("R").front()));
+  CHECK(a.turn(parseAlgOrEmpty("y").front()));
+  CHECK(a.moves().size() == 1);
+  a.start();
+  for (Move m : parseAlgOrEmpty("y' F' U U U R' R R' L L'")) {
+    CHECK(a.turn(m));
+  }
+  CHECK(a.cube().isSolved());
+  CHECK(toString(a.solution()) == "F' U' R'");
+  CHECK(a.count() == 3);
+  a.restart();
+  CHECK_FALSE(a.started());
+  CHECK(a.moves().empty());
+  CHECK_FALSE(a.cube().isSolved());
+  a.setFree(true);
+  CHECK(a.turn(parseAlgOrEmpty("R").front()));
+}
+
+TEST_CASE("move count sessions keep their cube, step and solutions") {
+  MoveCountSession s;
+  s.name = "Mine";
+  s.cube = CubeKind::Virtual;
+  s.step = SolveStep::EOPlus2;
+  MoveCountAttempt a;
+  a.moves = 7;
+  a.scramble = "R U";
+  a.solution = "y F R";
+  s.attempts.push_back(a);
+  auto back = moveCountsFromJson(moveCountsToJson({s}, 0));
+  REQUIRE(back.size() == 1);
+  CHECK(back[0].cube == CubeKind::Virtual);
+  CHECK(back[0].step == SolveStep::EOPlus2);
+  REQUIRE(back[0].attempts.size() == 1);
+  CHECK(back[0].attempts[0].solution == "y F R");
+  CHECK(back[0].attempts[0].counted);
+}
+
+TEST_CASE("move count files from before cubes and steps read as physical") {
+  QJsonObject old = QJsonDocument::fromJson(R"({
+    "format": "v-cube.movecount", "version": 1, "current": 0,
+    "sessions": [
+      {"name": "EO Cross", "scrambleType": "333", "attempts": [
+        {"moves": 9, "scramble": "R", "timestamp": 1}]},
+      {"name": "Practice", "scrambleType": "eocross", "attempts": []},
+      {"name": "Mine", "scrambleType": "333", "attempts": []}]})")
+                        .object();
+  auto s = moveCountsFromJson(old);
+  REQUIRE(s.size() == 3);
+  CHECK(s[0].cube == CubeKind::Physical);
+  CHECK(s[0].step == SolveStep::EOCross); // from the name
+  CHECK(s[0].attempts[0].counted);
+  CHECK(s[1].step == SolveStep::ZZF2L); // from the scramble type
+  CHECK(s[2].step == SolveStep::EOCross);
+}
+
+TEST_CASE("untimed sessions take any scramble type and uncounted solves") {
+  QTemporaryDir dir;
+  QString path = dir.filePath("untimed.json");
+  MoveCountStore store(path, SolveLog::Untimed);
+  REQUIRE(store.load());
+  REQUIRE(store.sessions().size() == 1);
+  CHECK(store.current().cube == CubeKind::Virtual);
+  store.current().scrambleType = "set:pll";
+  MoveCountAttempt physical;
+  physical.counted = false;
+  physical.scramble = "R U";
+  store.current().attempts.push_back(physical);
+  REQUIRE(store.save());
+  QFile f(path);
+  REQUIRE(f.open(QIODevice::ReadOnly));
+  QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+  CHECK(o.value("format").toString() == "v-cube.untimed");
+  MoveCountStore again(path, SolveLog::Untimed);
+  REQUIRE(again.load());
+  CHECK(again.current().scrambleType == "set:pll");
+  REQUIRE(again.current().attempts.size() == 1);
+  CHECK_FALSE(again.current().attempts[0].counted);
+  CHECK(formatAttempt(again.current().attempts[0]) == "-");
+  CHECK(attemptsAsSolves(again.current().attempts).empty());
 }

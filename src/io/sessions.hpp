@@ -15,6 +15,7 @@ struct Session {
   std::string name = "Session 1";
   std::string scrambleType = "333";
   std::vector<Solve> solves;
+  CubeKind cube = CubeKind::Virtual;
 };
 
 // The timer's sessions, saved as one JSON file.
@@ -51,6 +52,10 @@ private:
   bool unreadable(QString *error, const QString &why);
 };
 
+// {"version": 1, "current": 0, "sessions": [{"name": ..., "scrambleType":
+// ..., "cube": "virtual", "solves": [[ms, penalty, scramble, comment,
+// unixSeconds, moves?], ...]}]}. A session without "cube" was saved before
+// sessions had one, when the timer was for physical cubes only.
 QJsonObject sessionsToJson(const std::vector<Session> &sessions,
                            std::size_t current);
 std::vector<Session> sessionsFromJson(const QJsonObject &o,
@@ -58,7 +63,8 @@ std::vector<Session> sessionsFromJson(const QJsonObject &o,
 
 // cstimer export files: {"session1": [[[penalty, ms], scramble, comment,
 // unixSeconds], ...], ..., "properties": {"sessionData": "<json>"}}, where
-// penalty is 0, 2000 (+2) or -1 (DNF).
+// penalty is 0, 2000 (+2) or -1 (DNF). Imported sessions are for a
+// physical cube.
 std::optional<std::vector<Session>> sessionsFromCstimer(const QJsonObject &o,
                                                         QString *error);
 QJsonObject sessionsToCstimer(const std::vector<Session> &sessions);

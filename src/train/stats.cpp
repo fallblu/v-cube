@@ -5,6 +5,20 @@
 
 namespace vcube {
 
+std::string_view cubeKindId(CubeKind k) {
+  return k == CubeKind::Virtual ? "virtual" : "physical";
+}
+
+std::optional<CubeKind> cubeKindFromId(std::string_view id) {
+  if (id == "virtual") {
+    return CubeKind::Virtual;
+  }
+  if (id == "physical") {
+    return CubeKind::Physical;
+  }
+  return std::nullopt;
+}
+
 std::int64_t effectiveTime(const Solve &s) {
   switch (s.penalty) {
   case Penalty::Dnf:

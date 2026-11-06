@@ -134,6 +134,7 @@ QJsonObject sessionsToJson(const std::vector<Session> &sessions,
     }
     arr.append(QJsonObject{{"name", qs(s.name)},
                            {"scrambleType", qs(s.scrambleType)},
+                           {"cube", qs(std::string(cubeKindId(s.cube)))},
                            {"solves", solves}});
   }
   return QJsonObject{{"version", 1},
@@ -149,6 +150,8 @@ std::vector<Session> sessionsFromJson(const QJsonObject &o,
     Session s;
     s.name = ss(so.value("name").toString("Session"));
     s.scrambleType = ss(so.value("scrambleType").toString("333"));
+    s.cube = cubeKindFromId(ss(so.value("cube").toString()))
+                 .value_or(CubeKind::Physical);
     for (const auto &sv : so.value("solves").toArray()) {
       s.solves.push_back(solveFromJson(sv.toArray()));
     }
@@ -195,6 +198,7 @@ std::optional<std::vector<Session>> sessionsFromCstimer(const QJsonObject &o,
             : value.toArray();
     QJsonObject meta = sessionData.value(QString::number(number)).toObject();
     Entry e{number, meta.value("rank").toInt(number), {}};
+    e.session.cube = CubeKind::Physical;
     e.session.name = ss(meta.value("name").toVariant().toString());
     if (e.session.name.empty()) {
       e.session.name = "Session " + std::to_string(number);

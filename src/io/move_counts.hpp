@@ -11,21 +11,32 @@
 namespace vcube {
 
 // A Move Count session: the attempts at one step from one scramble type,
-// e.g. "EO Cross" from WCA scrambles or "ZZ F2L" from EO Cross solved.
+// e.g. "EO Cross" from WCA scrambles or "ZZ F2L" from EO Cross solved, on
+// the virtual cube (which checks the step) or a physical one (the count is
+// typed in). Untimed mode keeps its sessions the same way: whole solves,
+// from any scramble type, with no step.
 struct MoveCountSession {
   std::string name = "Session 1";
-  std::string scrambleType = "333"; // one of moveCountScrambleTypes()
+  std::string scrambleType = "333"; // Move Count: moveCountScrambleTypes()
   std::vector<MoveCountAttempt> attempts;
+  CubeKind cube = CubeKind::Virtual;
+  SolveStep step = SolveStep::EOCross; // Move Count only
 };
 
-// The sessions a new store starts with: EO and EO Cross from WCA
-// scrambles, and ZZ F2L from EO Cross solved.
-std::vector<MoveCountSession> defaultMoveCountSessions();
+// Which mode a store is for.
+enum class SolveLog { MoveCount, Untimed };
 
-// Move Count mode's sessions, saved as one JSON file.
+// The sessions a new store starts with. Move Count: one per step on the
+// virtual cube, from WCA scrambles (EO Cross solved for ZZ F2L). Untimed:
+// one session on the virtual cube.
+std::vector<MoveCountSession> defaultMoveCountSessions(
+    SolveLog mode = SolveLog::MoveCount);
+
+// Move Count or Untimed mode's sessions, saved as one JSON file.
 class MoveCountStore {
 public:
-  explicit MoveCountStore(QString path);
+  explicit MoveCountStore(QString path,
+                          SolveLog mode = SolveLog::MoveCount);
 
   // A missing file gives the default sessions. A file that can't be read
   // is set aside (see setAside()) and also gives the default sessions; if
@@ -35,6 +46,7 @@ public:
   const QString &setAsidePath() const { return setAside_; }
   bool save(QString *error = nullptr) const;
 
+  SolveLog mode() const { return mode_; }
   std::vector<MoveCountSession> &sessions() { return sessions_; }
   const std::vector<MoveCountSession> &sessions() const { return sessions_; }
   std::size_t currentIndex() const { return current_; }
@@ -49,7 +61,8 @@ public:
 
 private:
   QString path_;
-  std::vector<MoveCountSession> sessions_ = defaultMoveCountSessions();
+  SolveLog mode_;
+  std::vector<MoveCountSession> sessions_;
   std::size_t current_ = 0;
   QString setAside_;
   bool keepOff_ = false; // the unreadable file is still there
@@ -58,13 +71,22 @@ private:
 };
 
 // {"format": "v-cube.movecount", "version": 1, "current": 0, "sessions":
-// [{"name": ..., "scrambleType": "eocross", "attempts": [{"moves": 23,
-// "scramble": ..., "timestamp": ..., "dnf": true, "comment": ...}]}]};
-// "dnf" and "comment" are left out when false or empty. A scramble type
-// Move Count doesn't offer reads as "333".
+// [{"name": ..., "scrambleType": "eocross", "cube": "virtual", "step":
+// "zzf2l", "attempts": [{"moves": 23, "scramble": ..., "timestamp": ...,
+// "dnf": true, "comment": ..., "solution": ...}]}]}; "dnf", "comment" and
+// "solution" are left out when false or empty, and "moves" when the attempt
+// isn't counted. Untimed files are the same with "format": "v-cube.untimed"
+// and no "step".
+//
+// Files from before sessions had a cube were for physical cubes only, so a
+// session without "cube" is for a physical cube. A Move Count session
+// without "step" takes it from its name, or else from its scramble type.
+// In Move Count, a scramble type it doesn't offer reads as "333".
 QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,
-                             std::size_t current);
+                             std::size_t current,
+                             SolveLog mode = SolveLog::MoveCount);
 std::vector<MoveCountSession>
-moveCountsFromJson(const QJsonObject &o, std::size_t *current = nullptr);
+moveCountsFromJson(const QJsonObject &o, std::size_t *current = nullptr,
+                   SolveLog mode = SolveLog::MoveCount);
 
 } // namespace vcube

@@ -5,11 +5,20 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace vcube {
 
 enum class Penalty : std::uint8_t { None, Plus2, Dnf };
+
+// The cube a session's solves are done on: the keyboard-turned virtual
+// cube or a physical one.
+enum class CubeKind : std::uint8_t { Virtual, Physical };
+// "virtual" or "physical".
+std::string_view cubeKindId(CubeKind k);
+// nullopt for any other text.
+std::optional<CubeKind> cubeKindFromId(std::string_view id);
 
 struct Solve {
   std::int64_t timeMs = 0; // raw time, without the +2

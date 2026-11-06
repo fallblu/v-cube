@@ -419,6 +419,14 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
   CHECK(back[0].solves.size() == 3);
   CHECK(back[0].solves[1].penalty == Penalty::Plus2);
   CHECK(back[0].solves[1].moves == "R U R'");
+  CHECK(back[0].cube == CubeKind::Virtual); // a new session's default
+  s.cube = CubeKind::Physical;
+  CHECK(sessionsFromJson(sessionsToJson({s}, 0))[0].cube ==
+        CubeKind::Physical);
+  // Saved before sessions had a cube: the timer was for physical cubes.
+  auto old = QJsonDocument::fromJson(
+      R"({"version": 1, "sessions": [{"name": "A", "solves": []}]})");
+  CHECK(sessionsFromJson(old.object())[0].cube == CubeKind::Physical);
 
   QJsonObject cs = sessionsToCstimer({s});
   QString error;
@@ -439,6 +447,7 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
   REQUIRE(imported);
   REQUIRE(imported->size() == 2);
   CHECK((*imported)[0].name == "OH");
+  CHECK((*imported)[0].cube == CubeKind::Physical);
   CHECK((*imported)[0].solves[0].penalty == Penalty::Dnf);
   CHECK((*imported)[1].solves[1].penalty == Penalty::Plus2);
   CHECK((*imported)[1].solves[1].comment == "c");
