@@ -383,14 +383,18 @@ TEST_CASE("a new case doesn't inherit a deleted case's progress") {
 TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   SetProgress p;
   p["T"].card.state = CardState::Review;
-  p["T"].record({100, 1500, false, AttemptMode::Drill});
+  p["T"].record({100, 1500, false, AttemptMode::PhysicalDrill});
   p["T"].record({200, 0, true, AttemptMode::Learn});
+  p["T"].record({300, 2500, true, AttemptMode::VirtualDrill});
   SetProgress back = progressFromJson(progressToJson(p));
-  REQUIRE(back["T"].attempts.size() == 2);
-  CHECK(back["T"].attempts[0].mode == AttemptMode::Drill);
+  REQUIRE(back["T"].attempts.size() == 3);
+  CHECK(back["T"].attempts[0].mode == AttemptMode::PhysicalDrill);
   CHECK(back["T"].attempts[0].timeMs == 1500);
   CHECK(back["T"].attempts[1].mode == AttemptMode::Learn);
   CHECK(back["T"].attempts[1].failed);
+  CHECK(back["T"].attempts[2].mode == AttemptMode::VirtualDrill);
+  CHECK(back["T"].attempts[2].timeMs == 2500);
+  CHECK(back["T"].attempts[2].failed);
   CHECK(back["T"].card.state == CardState::Review);
 
   // A file written before attempts had a mode.
@@ -400,11 +404,11 @@ TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
     "attempts": [[100, 2100, 0], [200, 1900, 1]]}}})");
   SetProgress loaded = progressFromJson(old.object());
   REQUIRE(loaded["Ua"].attempts.size() == 2);
-  CHECK(loaded["Ua"].attempts[0].mode == AttemptMode::Drill);
-  CHECK(loaded["Ua"].attempts[1].mode == AttemptMode::Drill);
+  CHECK(loaded["Ua"].attempts[0].mode == AttemptMode::PhysicalDrill);
+  CHECK(loaded["Ua"].attempts[1].mode == AttemptMode::PhysicalDrill);
   CHECK(loaded["Ua"].attempts[1].failed);
   CHECK(loaded["Ua"].card.state == CardState::Review);
-  CHECK(loaded["Ua"].best() == 2100);
+  CHECK(loaded["Ua"].best(AttemptMode::PhysicalDrill) == 2100);
 }
 
 TEST_CASE("sessions round-trip and convert to and from cstimer") {

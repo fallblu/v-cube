@@ -62,15 +62,16 @@ void resetCard(SrsCard &card);
 Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs);
 
 // Which mode an attempt was made in. Learn attempts are untimed and drive
-// the SRS card; drill attempts are timed and feed the time statistics.
-enum class AttemptMode : std::uint8_t { Drill, Learn };
+// the SRS card; drill attempts are timed and feed the time statistics,
+// kept apart for drills on a physical cube and on the virtual cube.
+enum class AttemptMode : std::uint8_t { PhysicalDrill, Learn, VirtualDrill };
 
 // Per-case history plus its SRS card.
 struct Attempt {
   std::int64_t timestamp = 0; // Unix seconds
   std::int64_t timeMs = 0;    // 0 for learn attempts
   bool failed = false;        // wrong alg (drill) or graded Again (learn)
-  AttemptMode mode = AttemptMode::Drill;
+  AttemptMode mode = AttemptMode::PhysicalDrill;
 };
 
 struct CaseProgress {
@@ -79,12 +80,13 @@ struct CaseProgress {
 
   static constexpr std::size_t kMaxAttempts = 100; // per mode
   void record(const Attempt &a);
-  // Drill statistics; learn attempts are ignored.
+  // Statistics of the drill attempts made in `mode` (a drill mode); other
+  // attempts are ignored.
   // Mean of the last n successful drill attempts, in ms.
-  std::optional<double> recentMean(std::size_t n = 5) const;
-  std::optional<std::int64_t> best() const;
-  double failRate(std::size_t n = 10) const;
-  std::size_t drillCount() const;
+  std::optional<double> recentMean(AttemptMode mode, std::size_t n = 5) const;
+  std::optional<std::int64_t> best(AttemptMode mode) const;
+  double failRate(AttemptMode mode, std::size_t n = 10) const;
+  std::size_t drillCount(AttemptMode mode) const;
 };
 
 // Learning status shown in the case list.
@@ -111,6 +113,8 @@ public:
   // Reference time for Weighted: cases slower than this come up more.
   // 0 compares cases with the pool's overall mean instead.
   void setTargetMs(double ms) { targetMs_ = ms; }
+  // The drill mode whose statistics Weighted goes by.
+  void setAttemptMode(AttemptMode mode) { attemptMode_ = mode; }
 
   std::optional<std::string> next(const SetProgress &progress,
                                   std::mt19937_64 &rng);
@@ -120,6 +124,7 @@ private:
   std::vector<std::string> pool_;
   std::size_t orderPos_ = 0;
   double targetMs_ = 0;
+  AttemptMode attemptMode_ = AttemptMode::PhysicalDrill;
   std::string last_;
 };
 

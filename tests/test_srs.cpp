@@ -32,33 +32,60 @@ TEST_CASE("learn grades come from correctness, not time") {
 }
 
 TEST_CASE("drill statistics ignore learn attempts") {
+  constexpr auto drill = AttemptMode::PhysicalDrill;
   CaseProgress p;
-  p.record({10, 2000, false, AttemptMode::Drill});
+  p.record({10, 2000, false, drill});
   p.record({11, 0, true, AttemptMode::Learn});
   p.record({12, 0, false, AttemptMode::Learn});
-  p.record({13, 4000, false, AttemptMode::Drill});
-  p.record({14, 1000, true, AttemptMode::Drill});
-  CHECK(p.drillCount() == 3);
-  REQUIRE(p.recentMean());
-  CHECK(*p.recentMean() == 3000.0);
-  CHECK(p.best() == 2000);
-  CHECK(p.failRate() == 1.0 / 3.0);
+  p.record({13, 4000, false, drill});
+  p.record({14, 1000, true, drill});
+  CHECK(p.drillCount(drill) == 3);
+  REQUIRE(p.recentMean(drill));
+  CHECK(*p.recentMean(drill) == 3000.0);
+  CHECK(p.best(drill) == 2000);
+  CHECK(p.failRate(drill) == 1.0 / 3.0);
   // Only learn attempts: no drill statistics.
   CaseProgress learnOnly;
   learnOnly.record({1, 0, false, AttemptMode::Learn});
-  CHECK_FALSE(learnOnly.recentMean());
-  CHECK_FALSE(learnOnly.best());
-  CHECK(learnOnly.failRate() == 0.0);
+  CHECK_FALSE(learnOnly.recentMean(drill));
+  CHECK_FALSE(learnOnly.best(drill));
+  CHECK(learnOnly.failRate(drill) == 0.0);
+}
+
+TEST_CASE("virtual and physical drill statistics are kept apart") {
+  constexpr auto physical = AttemptMode::PhysicalDrill;
+  constexpr auto virt = AttemptMode::VirtualDrill;
+  CaseProgress p;
+  p.record({1, 2000, false, physical});
+  p.record({2, 5000, false, virt});
+  p.record({3, 7000, true, virt});
+  p.record({4, 1000, true, physical});
+  CHECK(p.drillCount(physical) == 2);
+  CHECK(p.drillCount(virt) == 2);
+  CHECK(*p.recentMean(physical) == 2000.0);
+  CHECK(*p.recentMean(virt) == 5000.0);
+  CHECK(p.best(physical) == 2000);
+  CHECK(p.best(virt) == 5000);
+  CHECK(p.failRate(physical) == 0.5);
+  CHECK(p.failRate(virt) == 0.5);
+  // Each mode is capped on its own.
+  for (int i = 0; i < 150; ++i) {
+    p.record({10 + i, 9000, false, virt});
+  }
+  CHECK(p.drillCount(virt) == CaseProgress::kMaxAttempts);
+  CHECK(p.drillCount(physical) == 2);
+  CHECK(p.best(physical) == 2000);
 }
 
 TEST_CASE("attempts are capped per mode") {
   CaseProgress p;
-  p.record({0, 1234, false, AttemptMode::Drill});
+  p.record({0, 1234, false, AttemptMode::PhysicalDrill});
   for (int i = 1; i <= 150; ++i) {
     p.record({i, 0, false, AttemptMode::Learn});
   }
   CHECK(p.attempts.size() == CaseProgress::kMaxAttempts + 1);
-  CHECK(p.best() == 1234); // the one drill attempt survives
+  // The one drill attempt survives.
+  CHECK(p.best(AttemptMode::PhysicalDrill) == 1234);
   CHECK(p.attempts.back().timestamp == 150);
 }
 
@@ -228,13 +255,27 @@ TEST_CASE("drill picker orders and weights cases") {
   p.setMode(PickMode::Weighted);
   p.setTargetMs(2000);
   for (int i = 0; i < 5; ++i) {
-    prog["a"].record({i, 1000, false, AttemptMode::Drill});
-    prog["b"].record({i, 1000, false, AttemptMode::Drill});
-    prog["c"].record({i, 6000, false, AttemptMode::Drill});
+    prog["a"].record({i, 1000, false, AttemptMode::PhysicalDrill});
+    prog["b"].record({i, 1000, false, AttemptMode::PhysicalDrill});
+    prog["c"].record({i, 6000, false, AttemptMode::PhysicalDrill});
   }
   std::map<std::string, int> seen;
   for (int i = 0; i < 400; ++i) {
     ++seen[*p.next(prog, rng)];
   }
   CHECK(seen["c"] > seen["a"] + seen["b"]);
+
+  // Weighted goes by the statistics of its own drill mode: virtual drills
+  // where "a" is the slow case.
+  for (int i = 0; i < 5; ++i) {
+    prog["a"].record({i, 6000, false, AttemptMode::VirtualDrill});
+    prog["b"].record({i, 1000, false, AttemptMode::VirtualDrill});
+    prog["c"].record({i, 1000, false, AttemptMode::VirtualDrill});
+  }
+  p.setAttemptMode(AttemptMode::VirtualDrill);
+  seen.clear();
+  for (int i = 0; i < 400; ++i) {
+    ++seen[*p.next(prog, rng)];
+  }
+  CHECK(seen["a"] > seen["b"] + seen["c"]);
 }

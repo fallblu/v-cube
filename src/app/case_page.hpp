@@ -93,15 +93,11 @@ protected:
 
   // The hold for the next case, picked from the colour neutrality.
   Hold pickHold();
-  // Whether the colour neutrality allows more than one hold.
-  bool isNeutral() const { return !settings_.neutrality.isFixed(); }
 
   // The passing algs with the AUFs they need from `state`, main alg first
   // (without the rotations and U turns the display orientation took over),
   // as rich text under the case's name.
-  // With `hold`, a line saying which hold the AUFs are for follows.
-  QString algsHtml(const std::string &caseId, const CubieCube &state,
-                   std::optional<Hold> hold = std::nullopt);
+  QString algsHtml(const std::string &caseId, const CubieCube &state);
   QPixmap caseDiagram(const std::string &caseId, const CubieCube &state,
                       int size, const ColourMap &colours);
   void saveProgress();

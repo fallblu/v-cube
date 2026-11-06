@@ -46,7 +46,6 @@ struct GeneratedScramble {
   std::string setId;  // for a scramble from an alg set: the set
   std::string caseId; // and the case it sets up
   Hold hold = kWcaHold;
-  bool neutral = false; // `hold` was picked from several
 };
 
 // Runs `makeState`, picks a hold allowed by `neutrality` and solves for

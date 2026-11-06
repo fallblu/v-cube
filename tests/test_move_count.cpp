@@ -213,6 +213,22 @@ TEST_CASE("a virtual attempt turns only the whole cube until it starts") {
   CHECK(a.turn(parseAlgOrEmpty("R").front()));
 }
 
+TEST_CASE("a virtual attempt can start from a cube set up directly") {
+  FaceletCube start;
+  start.apply(parseAlgOrEmpty("R U R' U'"));
+  VirtualAttempt a;
+  a.load(start);
+  CHECK_FALSE(a.turn(parseAlgOrEmpty("U").front()));
+  CHECK(a.turn(parseAlgOrEmpty("y").front()));
+  a.restart();
+  CHECK(a.cube() == start);
+  a.start();
+  for (Move m : parseAlgOrEmpty("U R U' R'")) {
+    CHECK(a.turn(m));
+  }
+  CHECK(a.cube().isSolved());
+}
+
 TEST_CASE("move count sessions keep their cube, step and solutions") {
   MoveCountSession s;
   s.name = "Mine";

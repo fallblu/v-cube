@@ -127,8 +127,7 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
   typeRow->addWidget(typeBox_, 1);
   if (!moveCount_) {
-    algs_ =
-        new ScrambleAlgs(library, settings_.scheme, "untimed/showAlgs", right);
+    algs_ = new ScrambleAlgs(library, "untimed/showAlgs", right);
     typeRow->addWidget(algs_->button());
   }
   typeRow->addSpacing(12);
@@ -544,7 +543,7 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
         next();
       }
     } else if (phase_ == Phase::Done) { // Esc
-      attempt_.load({});
+      attempt_.load(Alg{});
       attempt_.setFree(true);
       cubeView_->setState(attempt_.cube());
     } else {

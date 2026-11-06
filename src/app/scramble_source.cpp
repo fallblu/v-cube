@@ -72,10 +72,9 @@ scrambleStateMaker(const AlgLibrary &library, const QString &type) {
 
 // --- ScrambleAlgs -----------------------------------------------------------
 
-ScrambleAlgs::ScrambleAlgs(AlgLibrary &library, const ColourScheme &scheme,
-                           QString settingsKey, QWidget *parent)
-    : QObject(parent), library_(library), scheme_(scheme),
-      settingsKey_(std::move(settingsKey)) {
+ScrambleAlgs::ScrambleAlgs(AlgLibrary &library, QString settingsKey,
+                           QWidget *parent)
+    : QObject(parent), library_(library), settingsKey_(std::move(settingsKey)) {
   button_ = new QPushButton(tr("Algs (Tab)"), parent);
   button_->setFocusPolicy(Qt::NoFocus);
   button_->setCheckable(true);
@@ -131,11 +130,6 @@ void ScrambleAlgs::update() {
   QString html;
   if (set) {
     html = caseAlgsHtml(*set, scramble_->caseId, scramble_->state);
-    if (scramble_->neutral) {
-      html += "<p style='color:gray'>" +
-              tr("Held with %1").arg(holdHtml(scramble_->hold, scheme_)) +
-              "</p>";
-    }
   }
   label_->setText(html);
 }

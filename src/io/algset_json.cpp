@@ -13,6 +13,18 @@ namespace vcube {
 
 namespace {
 
+const char *attemptModeId(AttemptMode m) {
+  switch (m) {
+  case AttemptMode::Learn:
+    return "learn";
+  case AttemptMode::VirtualDrill:
+    return "vdrill";
+  case AttemptMode::PhysicalDrill:
+    break;
+  }
+  return "drill";
+}
+
 constexpr auto kFormat = "v-cube.algset";
 
 QJsonObject maskToJson(const DiagramMask &m) {
@@ -263,9 +275,9 @@ QJsonObject progressToJson(const SetProgress &p) {
                      {"lapses", c.lapses}};
     QJsonArray attempts;
     for (const auto &a : cp.attempts) {
-      attempts.append(QJsonArray{
-          static_cast<double>(a.timestamp), static_cast<double>(a.timeMs),
-          a.failed ? 1 : 0, a.mode == AttemptMode::Learn ? "learn" : "drill"});
+      attempts.append(QJsonArray{static_cast<double>(a.timestamp),
+                                 static_cast<double>(a.timeMs),
+                                 a.failed ? 1 : 0, attemptModeId(a.mode)});
     }
     cases[qs(id)] = QJsonObject{{"card", card}, {"attempts", attempts}};
   }
@@ -289,13 +301,16 @@ SetProgress progressFromJson(const QJsonObject &o) {
     cp.card.lapses = card.value("lapses").toInt();
     for (const auto &av : co.value("attempts").toArray()) {
       QJsonArray a = av.toArray();
-      // Files written before Learn mode existed have no mode: their
-      // attempts were all timed, so they count as drill attempts.
-      cp.attempts.push_back(
-          {static_cast<std::int64_t>(a.at(0).toDouble()),
-           static_cast<std::int64_t>(a.at(1).toDouble()), a.at(2).toInt() != 0,
-           a.at(3).toString() == "learn" ? AttemptMode::Learn
-                                         : AttemptMode::Drill});
+      // Files written before Learn mode existed have no mode, and files
+      // written before virtual drills existed have only "drill": their
+      // attempts were all timed on a physical cube.
+      QString mode = a.at(3).toString();
+      cp.attempts.push_back({static_cast<std::int64_t>(a.at(0).toDouble()),
+                             static_cast<std::int64_t>(a.at(1).toDouble()),
+                             a.at(2).toInt() != 0,
+                             mode == "learn"    ? AttemptMode::Learn
+                             : mode == "vdrill" ? AttemptMode::VirtualDrill
+                                                : AttemptMode::PhysicalDrill});
     }
     p[ss(it.key())] = std::move(cp);
   }

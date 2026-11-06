@@ -177,11 +177,12 @@ void CaseProgress::record(const Attempt &a) {
   }
 }
 
-std::optional<double> CaseProgress::recentMean(std::size_t n) const {
+std::optional<double> CaseProgress::recentMean(AttemptMode mode,
+                                               std::size_t n) const {
   double sum = 0;
   std::size_t count = 0;
   for (auto it = attempts.rbegin(); it != attempts.rend() && count < n; ++it) {
-    if (it->mode == AttemptMode::Drill && !it->failed) {
+    if (it->mode == mode && !it->failed) {
       sum += static_cast<double>(it->timeMs);
       ++count;
     }
@@ -192,20 +193,20 @@ std::optional<double> CaseProgress::recentMean(std::size_t n) const {
   return sum / static_cast<double>(count);
 }
 
-std::optional<std::int64_t> CaseProgress::best() const {
+std::optional<std::int64_t> CaseProgress::best(AttemptMode mode) const {
   std::optional<std::int64_t> b;
   for (const auto &a : attempts) {
-    if (a.mode == AttemptMode::Drill && !a.failed && (!b || a.timeMs < *b)) {
+    if (a.mode == mode && !a.failed && (!b || a.timeMs < *b)) {
       b = a.timeMs;
     }
   }
   return b;
 }
 
-double CaseProgress::failRate(std::size_t n) const {
+double CaseProgress::failRate(AttemptMode mode, std::size_t n) const {
   std::size_t count = 0, fails = 0;
   for (auto it = attempts.rbegin(); it != attempts.rend() && count < n; ++it) {
-    if (it->mode != AttemptMode::Drill) {
+    if (it->mode != mode) {
       continue;
     }
     ++count;
@@ -217,11 +218,10 @@ double CaseProgress::failRate(std::size_t n) const {
                     : static_cast<double>(fails) / static_cast<double>(count);
 }
 
-std::size_t CaseProgress::drillCount() const {
+std::size_t CaseProgress::drillCount(AttemptMode mode) const {
   return static_cast<std::size_t>(
-      std::count_if(attempts.begin(), attempts.end(), [](const Attempt &a) {
-        return a.mode == AttemptMode::Drill;
-      }));
+      std::count_if(attempts.begin(), attempts.end(),
+                    [mode](const Attempt &a) { return a.mode == mode; }));
 }
 
 CaseStatus statusOf(const CaseProgress *p) {
@@ -377,7 +377,7 @@ std::optional<std::string> CasePicker::next(const SetProgress &progress,
       int counted = 0;
       for (const auto &id : pool_) {
         if (const auto *p = find(id)) {
-          if (auto m = p->recentMean()) {
+          if (auto m = p->recentMean(attemptMode_)) {
             total += *m;
             ++counted;
           }
@@ -389,10 +389,10 @@ std::optional<std::string> CasePicker::next(const SetProgress &progress,
     for (const auto &id : pool_) {
       const auto *p = find(id);
       double w = 2.0; // never drilled: favour it
-      if (p && p->drillCount() > 0) {
-        auto m = p->recentMean();
+      if (p && p->drillCount(attemptMode_) > 0) {
+        auto m = p->recentMean(attemptMode_);
         double ratio = (m && reference > 0) ? *m / reference : 1.5;
-        w = ratio * ratio * (1.0 + 3.0 * p->failRate());
+        w = ratio * ratio * (1.0 + 3.0 * p->failRate(attemptMode_));
       }
       if (id == last_ && pool_.size() > 1) {
         w *= 0.1;

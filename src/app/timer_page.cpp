@@ -98,7 +98,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   viewLayout->addWidget(new QLabel(tr("View:"), viewPicker_));
   viewLayout->addWidget(createViewSelector(cubeView_, "timed", viewPicker_));
   typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
-  algs_ = new ScrambleAlgs(library_, settings_.scheme, "timer/showAlgs", right);
+  algs_ = new ScrambleAlgs(library_, "timer/showAlgs", right);
   typeRow->addWidget(typeBox_, 1);
   typeRow->addWidget(algs_->button());
   typeRow->addSpacing(12);
@@ -300,7 +300,7 @@ void TimerPage::showScramble() {
   if (!current) {
     scrambleLabel_->setText(tr("Generating scramble…"));
     net_->setCube(std::nullopt);
-    attempt_.load({});
+    attempt_.load(Alg{});
     cubeView_->setState(attempt_.cube());
     return;
   }

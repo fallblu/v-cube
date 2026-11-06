@@ -555,8 +555,7 @@ QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
   return algsHtmlFor(set, *g, *c, a.passing, a.mainAlg, state);
 }
 
-QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state,
-                           std::optional<Hold> hold) {
+QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state) {
   const AlgSet *s = set();
   const AlgCase *c = s ? s->findCase(caseId) : nullptr;
   const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
@@ -564,12 +563,7 @@ QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state,
   if (!c || !g || !info) {
     return {};
   }
-  QString html = algsHtmlFor(*s, *g, *c, info->passing, info->mainAlg, state);
-  if (hold && !info->passing.empty()) {
-    html += "<p style='color:gray'>" +
-            tr("Held with %1").arg(holdHtml(*hold, settings_.scheme)) + "</p>";
-  }
-  return html;
+  return algsHtmlFor(*s, *g, *c, info->passing, info->mainAlg, state);
 }
 
 QPixmap CasePage::caseDiagram(const std::string &caseId, const CubieCube &state,

@@ -3,7 +3,7 @@
 A lightweight Qt desktop app for creating, learning and drilling 3x3 alg
 sets, with random-state scrambles and a cstimer-style solve timer. Learn
 algs on a virtual cube turned from the keyboard, then drill and time them
-on a normal (non-smart) cube with the space-bar timer. Solves can be timed,
+on the virtual cube or a normal (non-smart) cube with the space-bar timer. Solves can be timed,
 untimed or move-counted, on the virtual cube or a physical one.
 
 ## Features
@@ -14,7 +14,7 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
 | Group | Mode | What it's for |
 | --- | --- | --- |
 | Algs | **Learn** | Untimed practice on the virtual cube, scheduled by spaced repetition |
-| Algs | **Drill** | Timed practice on a physical cube with the space-bar timer |
+| Algs | **Drill** | Timed practice on the virtual cube or a physical one with the space-bar timer |
 | Algs | **Library** | Creating and editing alg sets |
 | Solves | **Timed** | Timed solves, with sessions and statistics |
 | Solves | **Untimed** | Solves with no timer, with their move counts |
@@ -67,18 +67,26 @@ choice are for a physical cube.
     `(U') R U R' U' ... (U2)`. A U turn written at the start or end of an
     alg joins the AUF on that side, so `(U2) R U R'` that needs a U first
     shows as `(U') R U R'`.
-- **Drill**: drill cases on a physical cube.
-  - The scrambles are real random-state scrambles. The pieces the step
-    doesn't care about (e.g. the permutation when drilling OLL) are
-    scrambled too, and there's a random U turn before and after, so you
-    can't tell the case from the scramble.
+- **Drill**: drill cases on the virtual cube (the default) or a physical
+  cube, chosen for each alg set under "Cube". The two keep separate drill
+  times and statistics, and the case list shows the chosen cube's.
+  - The pieces the step doesn't care about (e.g. the permutation when
+    drilling OLL) are scrambled too, and there's a random U turn before
+    and after.
+  - On the virtual cube the case is set up on the cube, which only turns
+    as a whole until the timer starts (hold Space, release). Space stops
+    it, and the attempt is a DNF unless the cube then shows the step done:
+    solved for PLL, the last layer oriented for OLL, and so on.
+  - On a physical cube a real random-state scramble sets the case up, so
+    you can't tell the case from the scramble, and any key stops the
+    timer.
   - Drill your learned cases (the default), all ticked cases, or the cases
     you are still learning, in random order (never the same case twice
     in a row), weighted order (slow and failed cases come up more) or list
     order.
   - After each case you see your time, coloured green at or under the
-    set's target time, and the algs with the AUFs this scramble needs.
-    Backspace marks a wrong alg.
+    set's target time, and the algs with the AUFs this case needs.
+    Backspace toggles DNF (virtual) or marks a wrong alg (physical).
   - Per-case recent average, best time and fail rate. Drill attempts never
     change the spaced-repetition schedule.
 - Learn and Drill share each set's ticked cases and learn queue. Only cases
@@ -209,17 +217,17 @@ choice are for a physical cube.
   - For example, an EOCross scramble held x2 y neutral from white top,
     green front gives a yellow or a white cross (on the bottom once you
     turn the cube to the hold), with any front colour.
-  - Learn shows each case on the virtual cube in the colours of its hold,
-    and Drill's scrambles set the case up for its hold. After a Drill case,
-    and with the algs shown for an alg set scramble, a line names the hold
-    the AUFs are for when there was more than one to pick from.
+  - Learn and virtual Drill show each case on the virtual cube in the
+    colours of its hold, and physical Drill's scrambles set the case up for
+    its hold.
   - Case diagrams and thumbnails are drawn in the main hold.
-- **Virtual cube** (Learn, and sessions on the virtual cube):
+- **Virtual cube** (Learn, Drill on the virtual cube, and sessions on the
+  virtual cube):
   - Choose the view in each mode: animated 3D, a flat view of the U and F
     faces with the adjacent L and R stickers (as in Alg-Trainer), an
     unfolded net, or hidden. Learn remembers the view for each alg set, and
-    its 3D view looks from the corner the case's diagrams are drawn from
-    (e.g. front left for left-slot F2L cases).
+    its 3D view (and Drill's) looks from the corner the case's diagrams are
+    drawn from (e.g. front left for left-slot F2L cases).
   - Turned from the keyboard with cstimer's face keys (Shift for wide
     moves), which you can remap in Settings: select a row and **Change**
     its key or move, or **Add** one. A turning key may be held with Shift
@@ -321,8 +329,10 @@ picks the plugin as usual.
 | Drill, Timed | hold Space, release | start (after the hold time, when the time turns green) |
 | Drill, Timed (physical) | any key | stop |
 | Drill, Timed | Esc | cancel |
+| Drill (virtual) | turning keys | rotations only before the timer starts, then any turn |
+| Drill (virtual) | Space | stop (DNF if the case's step isn't done) |
 | Drill, after a case | Space | next case |
-| Drill, after a case | Backspace | toggle "wrong alg" |
+| Drill, after a case | Backspace | toggle DNF (virtual) or "wrong alg" (physical) |
 | Drill, after a case | Esc | try the case again |
 | Timed (virtual) | turning keys | rotations only before the timer starts, then any turn |
 | Timed (virtual) | Space | stop (DNF if the cube isn't solved) |

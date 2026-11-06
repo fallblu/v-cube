@@ -62,6 +62,8 @@ class VirtualAttempt {
 public:
   // A new scramble: only rotations until start().
   void load(const Alg &scramble);
+  // A cube set up some other way (a Drill case), likewise.
+  void load(const FaceletCube &start);
   // Back to the scramble, forgetting the moves.
   void restart();
   void start() { started_ = true; }
@@ -79,7 +81,7 @@ public:
   int count() const { return htmCount(solution()); }
 
 private:
-  Alg scramble_;
+  FaceletCube start_;
   FaceletCube cube_;
   Alg moves_;
   bool started_ = false;

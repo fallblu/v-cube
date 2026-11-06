@@ -93,14 +93,12 @@ private:
 // The algs of the alg set case a scramble sets up, for Timed and Untimed
 // mode: a checkable "Algs (Tab)" button, offered for alg set
 // scramble types, and a label that shows the case's algs (with the AUFs
-// the scramble needs, and the hold it was meant for when that was picked
-// at random) while the button is on. Showing the algs changes nothing else.
-// The choice is kept under `settingsKey`.
+// the scramble needs) while the button is on. Showing the algs changes nothing
+// else. The choice is kept under `settingsKey`.
 class ScrambleAlgs : public QObject {
   Q_OBJECT
 public:
-  ScrambleAlgs(AlgLibrary &library, const ColourScheme &scheme,
-               QString settingsKey, QWidget *parent);
+  ScrambleAlgs(AlgLibrary &library, QString settingsKey, QWidget *parent);
 
   QPushButton *button() const { return button_; }
   QLabel *label() const { return label_; }
@@ -117,7 +115,6 @@ public:
 
 private:
   AlgLibrary &library_;
-  const ColourScheme &scheme_;
   QString settingsKey_;
   QPushButton *button_;
   QLabel *label_;

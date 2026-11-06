@@ -219,13 +219,18 @@ int htmCount(const Alg &alg) {
 }
 
 void VirtualAttempt::load(const Alg &scramble) {
-  scramble_ = scramble;
+  FaceletCube start;
+  start.apply(scramble);
+  load(start);
+}
+
+void VirtualAttempt::load(const FaceletCube &start) {
+  start_ = start;
   restart();
 }
 
 void VirtualAttempt::restart() {
-  cube_ = FaceletCube();
-  cube_.apply(scramble_);
+  cube_ = start_;
   moves_.clear();
   started_ = false;
   free_ = false;
