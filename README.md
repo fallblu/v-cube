@@ -150,8 +150,10 @@ choice are for a physical cube.
     deletes sessions, and imports and exports cstimer sessions (imported
     sessions are for a physical cube).
 - **Untimed**: solves with no timer.
-  - Virtual cube: Space starts the solve and Space ends it; a cube that
-    isn't solved then is a DNF. After the solve the cube turns freely, and
+  - Virtual cube: hold Space until the hint turns green and release it to
+    start the solve, as in Timed; Space ends it, and a cube that isn't
+    solved then is a DNF. No move count is shown during or after the
+    solve, but it is kept with the solve. After the solve the cube turns freely, and
     the alg field applies a typed alg with animation; Esc resets the cube
     to solved, and Space gives the next scramble. During a solve Esc puts
     the scramble back.
@@ -166,7 +168,8 @@ choice are for a physical cube.
   or two cross edges), EO Cross or ZZ F2L (the first two layers with every
   edge oriented). New installs start with one virtual-cube session per
   step.
-  - Virtual cube: Space starts the solve and Space ends it. The move count
+  - Virtual cube: hold Space until the count turns green and release it
+    to start the solve, as in Timed; Space ends it. The move count
     is recorded if the step is done, and DNF if not, and the next scramble
     follows. The step may be done on any colour and any axis: EO is
     checked as ZZ does (edges that need no F or B quarter turns) with the
@@ -324,7 +327,8 @@ picks the plugin as usual.
 | Timed (virtual) | turning keys | rotations only before the timer starts, then any turn |
 | Timed (virtual) | Space | stop (DNF if the cube isn't solved) |
 | Untimed, Move Count (virtual) | turning keys | rotations only before the solve starts, then any turn |
-| Untimed, Move Count (virtual) | Space | start the solve / end it (DNF if not solved, or the step not done) |
+| Untimed, Move Count (virtual) | hold Space, release | start the solve (after the hold time, when it turns green) |
+| Untimed, Move Count (virtual) | Space | end the solve (DNF if not solved, or the step not done) |
 | Untimed, Move Count (virtual) | Esc | put the scramble back |
 | Untimed (virtual), after a solve | Space / Esc | next scramble / reset the cube to solved |
 | Untimed (virtual), alg field | Enter / Esc | apply the alg / return the keys to the cube |

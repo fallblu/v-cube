@@ -9,6 +9,8 @@
 #include "io/move_counts.hpp"
 #include "train/move_count.hpp"
 
+#include <QTimer>
+
 #include <deque>
 
 class QComboBox;
@@ -46,6 +48,7 @@ public:
   void applySettings() override;
   bool isBusy() const override { return phase_ == Phase::Solving; }
   void deactivated() override;
+  void windowDeactivated() override { cancelHold(); }
   void setFocusMode(bool on) override;
   // The alg sets changed (Untimed offers alg set scrambles); an alg set
   // scramble is made again only when its own set (`changedSet`) changed.
@@ -60,6 +63,9 @@ private:
   // On the virtual cube: looking at the scramble (rotations only), solving,
   // and (Untimed) turning freely after the solve.
   enum class Phase { Inspect, Solving, Done };
+  // Space held to start a solve on the virtual cube: as in Timed mode, it
+  // must be held for the hold time (Ready) before releasing it starts.
+  enum class Hold { None, Holding, Ready };
 
   AppSettings &settings_;
   MoveCountStore &store_;
@@ -68,6 +74,8 @@ private:
   ScrambleAlgs *algs_ = nullptr; // Untimed only
   VirtualAttempt attempt_;
   Phase phase_ = Phase::Inspect;
+  Hold hold_ = Hold::None;
+  QTimer holdTimer_;
   QString entry_; // Move Count, physical: the digits typed
   // Untimed, physical: the scrambles done, to go back to; history_[index_]
   // is shown while going back, the feed's scramble when index_ is at the
@@ -119,6 +127,12 @@ private:
   void updateControls();
 
   void turn(Move m);
+  // Space pressed or released before the solve.
+  void pressStart();
+  void releaseStart();
+  void cancelHold();
+  // Shows how far the hold is: red until it may be released, then green.
+  void showHold();
   void startSolve();
   void endSolve();
   // Records the current scramble with `count` (nullopt: not counted), and

@@ -227,6 +227,13 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   layout->addWidget(split);
 
   // --- wiring ---
+  holdTimer_.setSingleShot(true);
+  connect(&holdTimer_, &QTimer::timeout, this, [this] {
+    if (hold_ == Hold::Holding) {
+      hold_ = Hold::Ready;
+      showHold();
+    }
+  });
   connect(&feed_, &ScrambleFeed::currentChanged, this,
           &AttemptPage::showScramble);
   connect(skipButton_, &QPushButton::clicked, this, &AttemptPage::skip);
@@ -307,6 +314,7 @@ const GeneratedScramble *AttemptPage::shownScramble() const {
 }
 
 void AttemptPage::deactivated() {
+  cancelHold();
   cubeView_->finishAnimations();
   returnFocus();
 }
@@ -373,7 +381,7 @@ void AttemptPage::showCubeKind() {
   bool typed = moveCount_ && !virt; // the count is typed in
   recordButton_->setVisible(typed);
   dnfButton_->setVisible(typed);
-  display_->setVisible(moveCount_ || virt);
+  display_->setVisible(moveCount_);
   display_->setToolTip(typed ? tr("The move count you are typing")
                              : tr("Moves so far (HTM)"));
   algPanel_->setVisible(!moveCount_ && virt && typeRow_->isVisibleTo(this));
@@ -427,8 +435,8 @@ void AttemptPage::showHint() {
                : tr("Solve the scramble, then press Space (or →) for the "
                     "next one. Backspace (or ←) goes back.");
   } else if (phase_ == Phase::Inspect) {
-    text = tr("Turn the cube as a whole to look at it, then press Space to "
-              "start.");
+    text = tr("Turn the cube as a whole to look at it, then hold Space and "
+              "release it to start.");
   } else if (phase_ == Phase::Solving) {
     text = moveCount_
                ? tr("Press Space when the step is done. Esc starts the "
@@ -474,6 +482,7 @@ void AttemptPage::showEntry() {
 }
 
 void AttemptPage::setPhase(Phase p) {
+  cancelHold();
   phase_ = p;
   attempt_.setFree(p == Phase::Done);
   algEdit_->setEnabled(p == Phase::Done);
@@ -506,7 +515,20 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
     if (!known) {
       return false;
     }
-    if (!press || e->isAutoRepeat()) {
+    if (e->isAutoRepeat()) {
+      return true;
+    }
+    if (!press) {
+      if (key == Qt::Key_Space) {
+        releaseStart();
+      }
+      return true;
+    }
+    if (hold_ != Hold::None) {
+      // Holding Space to start: Esc lets go, other keys wait.
+      if (key == Qt::Key_Escape) {
+        cancelHold();
+      }
       return true;
     }
     if (move) {
@@ -515,7 +537,7 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
       return algs_->toggle();
     } else if (key == Qt::Key_Space) {
       if (phase_ == Phase::Inspect) {
-        startSolve();
+        pressStart();
       } else if (phase_ == Phase::Solving) {
         endSolve();
       } else {
@@ -592,6 +614,50 @@ void AttemptPage::turn(Move m) {
   cubeView_->animateMove(m);
   if (phase_ == Phase::Solving) {
     showEntry();
+  }
+}
+
+void AttemptPage::pressStart() {
+  if (!feed_.current()) {
+    emit message(tr("Wait for the scramble before starting"));
+    return;
+  }
+  hold_ = Hold::Holding;
+  holdTimer_.start(static_cast<int>(settings_.holdMs));
+  showHold();
+}
+
+void AttemptPage::releaseStart() {
+  Hold was = hold_;
+  cancelHold();
+  if (was == Hold::Ready) {
+    startSolve();
+  }
+}
+
+void AttemptPage::cancelHold() {
+  if (hold_ == Hold::None) {
+    return;
+  }
+  hold_ = Hold::None;
+  holdTimer_.stop();
+  showHold();
+}
+
+void AttemptPage::showHold() {
+  if (hold_ == Hold::None) {
+    hintLabel_->setStyleSheet({});
+    showHint();
+    showEntry();
+    return;
+  }
+  QColor colour = hold_ == Hold::Ready ? QColor(0x3d, 0xd6, 0x6b)
+                                       : QColor(0xff, 0x55, 0x55);
+  hintLabel_->setStyleSheet(QString("color: %1").arg(colour.name()));
+  hintLabel_->setText(hold_ == Hold::Ready ? tr("Release Space to start")
+                                           : tr("Keep holding Space…"));
+  if (moveCount_) {
+    display_->showText("0", colour);
   }
 }
 
