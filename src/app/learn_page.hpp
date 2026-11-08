@@ -46,7 +46,21 @@ protected:
   void neutralityChanged() override;
 
 private:
-  enum class Phase { NoCase, Solving, Done };
+  // Demo: guided learning's walkthrough of a new case, stepped with the
+  // arrow keys before the case is tried.
+  enum class Phase { NoCase, Demo, Solving, Done };
+
+  // Guided learning: the main alg as done from the case as set up (its U
+  // turns written in), and how far the cube has got along it.
+  struct Guide {
+    Alg moves;
+    QStringList tokens;              // each move as text
+    std::vector<FaceletCube> states; // after each prefix, orientation removed
+    std::size_t at = 0;  // Demo: moves shown; else: the prefix reached last
+    bool matched = true; // the cube is at states[at]
+    bool follow = false; // every next move is shown (a new case's first try)
+    bool next = false;   // the next move is shown (a learning-step hint)
+  };
 
   struct Current {
     std::string caseId;
@@ -61,6 +75,7 @@ private:
   FaceletCube cube_;
   std::string last_;
   bool hinted_ = false;
+  bool nextHinted_ = false; // the next-move hint was used: graded Hard
   bool gaveUp_ = false;
   AlgFollower follower_; // whether the moves keep to the case's algs
   bool leftAlgs_ = false;
@@ -75,12 +90,29 @@ private:
   QComboBox *viewBox_;
   CubeView *cubeView_;
   QLabel *statusLabel_;
+  QLabel *guideLabel_;
   QLabel *reveal_;
   QWidget *gradeRow_;
   QLabel *gradeLabel_;
   std::array<QPushButton *, 4> gradeButtons_{};
 
+  std::optional<Guide> guide_;
+
   std::vector<std::string> pool() const { return tickedEligible(); }
+  // The set walks through new cases and gives next-move hints.
+  bool guided();
+  // The case was never graded: it is seen for the first time.
+  bool firstSight(const std::string &caseId);
+  // The case's card is in its learning or relearning steps.
+  bool inLearningSteps(const std::string &caseId);
+  void buildGuide();
+  // Moves the walkthrough `delta` moves forward or back.
+  void stepDemo(int delta);
+  // From the walkthrough to trying the case with each next move shown.
+  void startFollowing();
+  // Where the cube is along the guide after a turn.
+  void trackGuide();
+  void showGuide();
   void nextCase();
   void begin(const std::string &caseId, bool isNew, bool practice = false);
   // A learned case that isn't due yet, which "Learn this case now" only

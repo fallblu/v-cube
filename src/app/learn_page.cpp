@@ -63,6 +63,13 @@ QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
   return parts.join(' ');
 }
 
+// The cube with its orientation removed, so that states reached holding
+// the cube differently compare equal.
+FaceletCube oriented(FaceletCube f) {
+  f.normalizeOrientation();
+  return f;
+}
+
 } // namespace
 
 LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
@@ -104,6 +111,15 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   statusLabel_ = new QLabel(right);
   statusLabel_->setAlignment(Qt::AlignCenter);
   statusLabel_->setWordWrap(true);
+  guideLabel_ = new QLabel(right);
+  guideLabel_->setAlignment(Qt::AlignCenter);
+  guideLabel_->setWordWrap(true);
+  guideLabel_->setTextFormat(Qt::RichText);
+  QFont gf = guideLabel_->font();
+  gf.setPointSize(gf.pointSize() + 5);
+  guideLabel_->setFont(gf);
+  guideLabel_->setVisible(false);
+  rightLayout->addWidget(guideLabel_);
   rightLayout->addWidget(statusLabel_);
 
   gradeRow_ = new QWidget(right);
@@ -384,6 +400,10 @@ void LearnPage::startSet() {
 }
 
 void LearnPage::setReloaded() {
+  if (current_ && phase_ == Phase::Demo && eligible(current_->caseId)) {
+    begin(current_->caseId, current_->isNew, current_->practice);
+    return;
+  }
   if (current_ && !eligible(current_->caseId)) {
     current_.reset();
     nextCase();
@@ -474,6 +494,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   current_ = Current{caseId, start, hold, isNew, practice};
   last_ = caseId;
   hinted_ = false;
+  nextHinted_ = false;
   gaveUp_ = false;
   leftAlgs_ = false;
   gradeReplaced_ = false;
@@ -490,7 +511,161 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   }
   resetCube();
   selectInTree(caseId);
+  buildGuide();
+  // A guided set walks through a case the first time it comes up.
+  setPhase(guide_ && !practice && firstSight(caseId) ? Phase::Demo
+                                                     : Phase::Solving);
+}
+
+bool LearnPage::guided() {
+  const AlgSet *s = set();
+  return s && s->guided;
+}
+
+bool LearnPage::firstSight(const std::string &caseId) {
+  const CaseProgress *cp = progressOf(caseId);
+  return !cp || cp->card.reps == 0;
+}
+
+bool LearnPage::inLearningSteps(const std::string &caseId) {
+  const CaseProgress *cp = progressOf(caseId);
+  return cp && cp->card.reps > 0 &&
+         (cp->card.state == CardState::Learning ||
+          cp->card.state == CardState::Relearning);
+}
+
+void LearnPage::buildGuide() {
+  guide_.reset();
+  if (!current_ || !guided()) {
+    return;
+  }
+  const AlgSet *s = set();
+  const CaseGroup *g = s->groupOf(current_->caseId);
+  const CaseInfo *info = infoOf(current_->caseId);
+  if (!g || !info || info->passing.empty()) {
+    return;
+  }
+  std::optional<AufFit> fit =
+      fitAlg(current_->start, parseAlgOrEmpty(info->mainAlg),
+             s->specFor(*g).free, s->aufBefore, s->aufAfter);
+  if (!fit) {
+    return;
+  }
+  Guide guide;
+  guide.moves = parseAlgOrEmpty(withAufs(info->mainAlg, *fit));
+  FaceletCube f = current_->start.toFacelets();
+  guide.states.push_back(oriented(f));
+  for (Move m : guide.moves) {
+    guide.tokens << qs(toString(m));
+    f.apply(m);
+    guide.states.push_back(oriented(f));
+  }
+  guide_ = std::move(guide);
+}
+
+void LearnPage::stepDemo(int delta) {
+  if (!guide_ || phase_ != Phase::Demo) {
+    return;
+  }
+  Guide &g = *guide_;
+  if (delta > 0 && g.at < g.moves.size()) {
+    Move m = g.moves[g.at++];
+    cube_.apply(m);
+    cubeView_->animateMove(m);
+  } else if (delta < 0 && g.at > 0) {
+    for (Move m : invert(Alg{g.moves[--g.at]})) {
+      cube_.apply(m);
+      cubeView_->animateMove(m);
+    }
+  }
+  showGuide();
+}
+
+void LearnPage::startFollowing() {
+  if (!guide_) {
+    setPhase(Phase::Solving);
+    return;
+  }
+  resetCube();
+  follower_.restart();
+  guide_->at = 0;
+  guide_->matched = true;
+  guide_->follow = true;
   setPhase(Phase::Solving);
+}
+
+void LearnPage::trackGuide() {
+  if (!guide_) {
+    return;
+  }
+  Guide &g = *guide_;
+  FaceletCube now = oriented(cube_);
+  // Forward from where it was first, so that a state the alg passes twice
+  // counts as the later one.
+  std::optional<std::size_t> found;
+  for (std::size_t k = g.at; k < g.states.size() && !found; ++k) {
+    if (g.states[k] == now) {
+      found = k;
+    }
+  }
+  for (std::size_t k = 0; k < g.at && !found; ++k) {
+    if (g.states[k] == now) {
+      found = k;
+    }
+  }
+  g.matched = found.has_value();
+  if (found) {
+    g.at = *found;
+  }
+}
+
+void LearnPage::showGuide() {
+  bool shown = guide_ &&
+               (phase_ == Phase::Demo ||
+                (phase_ == Phase::Solving && (guide_->follow || guide_->next)));
+  guideLabel_->setVisible(shown);
+  if (!shown) {
+    guideLabel_->clear();
+    return;
+  }
+  const Guide &g = *guide_;
+  static const QString nextStyle =
+      "color:#ffb030; font-weight:bold; text-decoration:underline";
+  QString muted = palette().color(QPalette::PlaceholderText).name();
+  QString text;
+  if (phase_ == Phase::Solving && !g.follow) {
+    // A learning-step hint: only the next move.
+    if (g.at >= g.moves.size()) {
+      text = tr("The alg is done.");
+    } else {
+      text = tr("Next move: %1")
+                 .arg("<span style='" + nextStyle + "'>" +
+                      g.tokens[static_cast<qsizetype>(g.at)].toHtmlEscaped() +
+                      "</span>");
+    }
+  } else {
+    QStringList parts;
+    for (std::size_t i = 0; i < g.moves.size(); ++i) {
+      QString t = g.tokens[static_cast<qsizetype>(i)].toHtmlEscaped();
+      if (i < g.at) {
+        parts << "<span style='color:" + muted + "'>" + t + "</span>";
+      } else if (i == g.at) {
+        parts << "<span style='" + nextStyle + "'>" + t + "</span>";
+      } else {
+        parts << t;
+      }
+    }
+    text = parts.join(' ');
+  }
+  if (phase_ == Phase::Solving && !g.matched) {
+    text += "<br><span style='font-size:small; color:" + muted + "'>" +
+            (follower_.deviated()
+                 ? tr("That isn't the alg: Esc starts the case again.")
+                 : tr("Keep going: the cube is between two moves of the "
+                      "alg.")) +
+            "</span>";
+  }
+  guideLabel_->setText(text);
 }
 
 std::vector<Alg> LearnPage::shownAlgs(const std::string &caseId) {
@@ -520,10 +695,19 @@ void LearnPage::setPhase(Phase p) {
   switch (p) {
   case Phase::NoCase:
     break;
+  case Phase::Demo:
+    showGuide();
+    statusLabel_->setText(
+        tr("New case: → and ← step through the main alg, Home goes back to "
+           "the start. Space: try it yourself, with each next move shown."));
+    statusLabel_->setStyleSheet({});
+    return;
   case Phase::Solving:
+    showGuide();
     showSolvingStatus();
     return;
   case Phase::Done:
+    showGuide();
     statusLabel_->setText(
         current_ && current_->practice
             ? tr("Space/Enter: next case. Esc: reset the cube to practise.")
@@ -536,7 +720,11 @@ void LearnPage::setPhase(Phase p) {
 
 void LearnPage::showSolvingStatus() {
   static const QString warning = "color: #ffb030";
-  QString keys = tr("Tab shows the algs, Shift+Space gives up, Esc resets.");
+  QString keys =
+      guide_ && !guide_->follow && !guide_->next && !hinted_ && current_ &&
+              inLearningSteps(current_->caseId)
+          ? tr("Tab shows the next move, Shift+Space gives up, Esc resets.")
+          : tr("Tab shows the algs, Shift+Space gives up, Esc resets.");
   if (follower_.deviated()) {
     statusLabel_->setText(
         (follower_.startedOver()
@@ -550,6 +738,7 @@ void LearnPage::showSolvingStatus() {
   statusLabel_->setText(
       (current_ && current_->practice
            ? tr("Practice: the case isn't due, so it won't be graded.")
+       : guide_ && guide_->follow    ? tr("Do the alg, one move at a time.")
        : current_ && current_->isNew ? tr("New case.")
                                      : tr("Solve the case from memory.")) +
       " " + keys);
@@ -573,8 +762,34 @@ bool LearnPage::handleKey(QKeyEvent *e, bool press) {
       return true;
     }
     return false;
+  case Phase::Demo:
+    if (key == Qt::Key_Right) {
+      stepDemo(1);
+    } else if (key == Qt::Key_Left) {
+      stepDemo(-1);
+    } else if (key == Qt::Key_Home || key == Qt::Key_Escape) {
+      resetCube();
+      guide_->at = 0;
+      showGuide();
+    } else if (next) {
+      startFollowing();
+    } else {
+      // The turning keys wait for the try, so that the demo stays in step.
+      return settings_.keymap.lookup(e).has_value() || key == Qt::Key_Tab;
+    }
+    return true;
   case Phase::Solving:
     if (key == Qt::Key_Tab) {
+      if (guide_ && !guide_->follow && !guide_->next && !hinted_ && current_ &&
+          inLearningSteps(current_->caseId)) {
+        // In the learning steps the first hint is the next move only.
+        nextHinted_ = true;
+        guide_->next = true;
+        trackGuide();
+        showGuide();
+        showSolvingStatus();
+        return true;
+      }
       hinted_ = true;
       showReveal();
       return true;
@@ -592,6 +807,11 @@ bool LearnPage::handleKey(QKeyEvent *e, bool press) {
     if (key == Qt::Key_Escape) {
       resetCube();
       follower_.restart();
+      if (guide_) {
+        guide_->at = 0;
+        guide_->matched = true;
+        showGuide();
+      }
       showSolvingStatus();
       return true;
     }
@@ -626,6 +846,10 @@ void LearnPage::turn(Move m) {
   }
   bool wasOff = follower_.deviated();
   follower_.move(m);
+  if (guide_) {
+    trackGuide();
+    showGuide();
+  }
   FaceletCube f = cube_;
   f.normalizeOrientation();
   auto c = CubieCube::fromFacelets(f);
@@ -656,6 +880,9 @@ void LearnPage::finish() {
   }
   leftAlgs_ = !gaveUp_ && !follower_.onAlg();
   grade_ = learnGrade(hinted_, gaveUp_, leftAlgs_);
+  if (grade_ == Grade::Good && nextHinted_) {
+    grade_ = Grade::Hard;
+  }
   autoGrade_ = grade_;
   if (current_->practice) {
     setPhase(Phase::Done); // nothing is recorded
@@ -725,9 +952,11 @@ void LearnPage::showGrade() {
   for (QPushButton *b : gradeButtons_) {
     b->setVisible(!current_->practice && !gradeReplaced_);
   }
-  QString why = grade_ != autoGrade_ ? tr("graded by hand")
-                : gaveUp_            ? tr("gave up")
-                : hinted_            ? tr("used a hint")
+  QString why = grade_ != autoGrade_       ? tr("graded by hand")
+                : gaveUp_                  ? tr("gave up")
+                : hinted_                  ? tr("used a hint")
+                : nextHinted_              ? tr("used the next-move hint")
+                : guide_ && guide_->follow ? tr("walked through")
                 : leftAlgs_ ? (follower_.startedOver() ? tr("started over")
                                                        : tr("left the algs"))
                             : tr("solved from memory");
