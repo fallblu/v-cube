@@ -205,6 +205,16 @@ bool stepReached(const FaceletCube &cube, SolveStep step) {
   return false;
 }
 
+std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step) {
+  std::vector<Hold> out;
+  for (Hold h : allHolds()) {
+    if (auto c = heldCubie(cube, h); c && reachedAsHeld(*c, step)) {
+      out.push_back(h);
+    }
+  }
+  return out; // allHolds() is sorted
+}
+
 int htmCount(const Alg &alg) {
   int n = 0;
   for (Move m : alg) {

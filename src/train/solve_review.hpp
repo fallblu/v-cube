@@ -69,9 +69,9 @@ struct PairOption {
 std::vector<PairOption> pairOptions(const CubieCube &state,
                                     const AlgSet *reference);
 
-// Whether every case of the set leaves exactly one slot's corner and edge
-// to solve and keeps EO Cross (as a ZZ F2L set's cases do), so that it can
-// be a reference for pairOptions().
+// Whether every case of the set leaves one slot's pair to solve (its
+// corner, its edge or both) and has EO Cross done (as a ZZ F2L set's cases
+// do), so that it can be a reference for pairOptions().
 bool isPairSet(const AlgSet &set);
 
 // A stretch of a solve that solved one or more F2L slots.
