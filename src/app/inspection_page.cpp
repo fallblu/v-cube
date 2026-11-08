@@ -718,8 +718,9 @@ void InspectionPage::showAnalysis() {
       QString moves =
           solution.empty() ? tr("(already done)") : qs(toString(solution));
       QString text = rotation.isEmpty() ? moves : rotation + " · " + moves;
-      lines << holdHtml(h.hold, settings_.scheme) + ": <code>" +
-                   text.toHtmlEscaped() + "</code>";
+      lines << stepHoldHtml(h.hold, session().step == SolveStep::EO,
+                            settings_.scheme) +
+                   ": <code>" + text.toHtmlEscaped() + "</code>";
     }
   }
   if (!lines.isEmpty()) {
