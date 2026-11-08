@@ -7,6 +7,7 @@
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/platform.hpp"
+#include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/timer_page.hpp"
 
@@ -146,6 +147,28 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
             drillPage_->reloadSets();
             timedPage_->refreshScrambleTypes(setId);
             untimedPage_->refreshScrambleTypes(setId);
+          });
+  connect(inspectionPage_, &InspectionPage::reviewRequested, this,
+          [this](const QString &scramble, const QString &solution, int step,
+                 int index) {
+            ReviewedSolve solve;
+            auto s = static_cast<SolveStep>(step);
+            solve.title = tr("Inspection: %1 #%2")
+                              .arg(qs(std::string(stepName(s))))
+                              .arg(index + 1);
+            solve.scramble = parseAlgOrEmpty(ss(scramble));
+            solve.solution = parseAlgOrEmpty(ss(solution));
+            solve.step = s;
+            solve.dnf = !stepReached(
+                [&] {
+                  FaceletCube f;
+                  f.apply(solve.scramble);
+                  f.apply(solve.solution);
+                  return f;
+                }(),
+                s);
+            ReviewDialog dialog(solve, settings_, &library_, this);
+            dialog.exec();
           });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
                          static_cast<CasePage *>(drillPage_)}) {
