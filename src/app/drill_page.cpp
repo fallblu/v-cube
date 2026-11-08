@@ -278,7 +278,7 @@ std::vector<CasePage::CaseStatusFilter> DrillPage::statusFilters() {
   return {
       {tr("Learned"),
        [this](const std::string &id) {
-         return eligible(id) && statusOf(progressOf(id)) == CaseStatus::Learned;
+         return eligible(id) && statusOf(cardOf(id)) == CaseStatus::Learned;
        }},
       {tr("Never drilled"),
        [this](const std::string &id) {
@@ -355,7 +355,7 @@ std::vector<std::string> DrillPage::pool() {
   Pool choice = poolChoice();
   std::vector<std::string> out;
   for (const auto &id : tickedEligible()) {
-    CaseStatus st = statusOf(progressOf(id));
+    CaseStatus st = statusOf(cardOf(id));
     if (choice == Pool::Ticked ||
         (choice == Pool::Learned && st == CaseStatus::Learned) ||
         (choice == Pool::Learning && st == CaseStatus::Learning)) {

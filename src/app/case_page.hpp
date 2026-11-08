@@ -6,6 +6,7 @@
 #include "app/mode_page.hpp"
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
+#include "train/families.hpp"
 
 #include <functional>
 #include <map>
@@ -64,6 +65,8 @@ protected:
   std::string setId_;
   Rng rng_;
   std::map<std::string, CaseInfo> info_;
+  // The set's mirror families, when it learns by family (else empty).
+  CaseFamilies families_;
 
   QWidget *left_;
   QVBoxLayout *leftLayout_;
@@ -77,6 +80,14 @@ protected:
   AlgSet *set();
   SetProgress &progress();
   const CaseProgress *progressOf(const std::string &caseId);
+  // The set learns each case with its mirror images as one family.
+  bool byFamily() const { return !families_.families.empty(); }
+  // The case whose card is this case's: the first case of its family when
+  // learning by family, else the case itself.
+  std::string cardId(const std::string &caseId) const;
+  // The progress holding the case's spaced-repetition card (its family's
+  // when learning by family); drill statistics stay with each case.
+  const CaseProgress *cardOf(const std::string &caseId);
   const CaseInfo *infoOf(const std::string &caseId) const;
   // Has at least one passing alg, so it can be offered.
   bool eligible(const std::string &caseId) const;

@@ -200,6 +200,14 @@ const CaseProgress *CasePage::progressOf(const std::string &caseId) {
   return it == p.end() ? nullptr : &it->second;
 }
 
+std::string CasePage::cardId(const std::string &caseId) const {
+  return byFamily() ? families_.representative(caseId) : caseId;
+}
+
+const CaseProgress *CasePage::cardOf(const std::string &caseId) {
+  return progressOf(cardId(caseId));
+}
+
 const CasePage::CaseInfo *CasePage::infoOf(const std::string &caseId) const {
   auto it = info_.find(caseId);
   return it == info_.end() ? nullptr : &it->second;
@@ -315,9 +323,13 @@ void CasePage::selectSet(const std::string &id) {
 
 void CasePage::computeInfo() {
   info_.clear();
+  families_ = {};
   AlgSet *s = set();
   if (!s) {
     return;
+  }
+  if (s->families) {
+    families_ = findFamilies(*s);
   }
   for (const auto &g : s->groups) {
     for (const auto &c : g.cases) {

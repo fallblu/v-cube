@@ -3,6 +3,7 @@
 #include "app/case_page.hpp"
 #include "app/cube_view.hpp"
 #include "train/alg_follow.hpp"
+#include "train/solve_review.hpp"
 
 #include <array>
 
@@ -48,7 +49,16 @@ protected:
 private:
   // Demo: guided learning's walkthrough of a new case, stepped with the
   // arrow keys before the case is tried.
-  enum class Phase { NoCase, Demo, Solving, Done };
+  // Context and ContextDone: in-context practice of a set of F2L pairs,
+  // with several slots open at once (not graded).
+  enum class Phase { NoCase, Demo, Solving, Done, Context, ContextDone };
+
+  struct Context {
+    CubieCube start; // in the solver's frame
+    Hold hold = kWcaHold;
+    Alg moves; // done since the start
+    bool gaveUp = false;
+  };
 
   // Guided learning: the main alg as done from the case as set up (its U
   // turns written in), and how far the cube has got along it.
@@ -92,13 +102,23 @@ private:
   QLabel *statusLabel_;
   QLabel *guideLabel_;
   QLabel *reveal_;
+  QWidget *familyRow_; // after a case learned by family: all its members
   QWidget *gradeRow_;
   QLabel *gradeLabel_;
   std::array<QPushButton *, 4> gradeButtons_{};
 
   std::optional<Guide> guide_;
+  std::optional<Context> context_;
+  bool pairSet_ = false; // the set's cases are F2L pairs
+  QSpinBox *slotsSpin_;
+  QPushButton *contextButton_;
 
-  std::vector<std::string> pool() const { return tickedEligible(); }
+  // The cases to learn (one per family when learning by family).
+  std::vector<std::string> pool() const;
+  // A random ticked case of a family to set up for its card.
+  std::string pickMember(const std::string &card);
+  // Updates the rows of every case sharing the case's card.
+  void updateCardRows(const std::string &caseId);
   // The set walks through new cases and gives next-move hints.
   bool guided();
   // The case was never graded: it is seen for the first time.
@@ -113,6 +133,14 @@ private:
   // Where the cube is along the guide after a turn.
   void trackGuide();
   void showGuide();
+  // In-context practice: a new state with the chosen number of open slots,
+  // set up from the cases learned so far where it can be.
+  void startContext();
+  void resetContext();
+  void finishContext(bool gaveUp);
+  void showContextStatus();
+  void showContextResult();
+  void leaveContext();
   void nextCase();
   void begin(const std::string &caseId, bool isNew, bool practice = false);
   // A learned case that isn't due yet, which "Learn this case now" only
@@ -126,6 +154,9 @@ private:
   void turnUpright();
   void regrade(Grade grade);
   void showReveal();
+  // After a case learned by family: every case of the family, with its
+  // main alg.
+  void showFamily();
   void showGrade();
   void setPhase(Phase p);
   void showSolvingStatus();

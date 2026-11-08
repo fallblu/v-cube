@@ -63,6 +63,12 @@ QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
   return parts.join(' ');
 }
 
+constexpr Slot kAllSlots[] = {Slot::FR, Slot::FL, Slot::BL, Slot::BR};
+
+// Tries for an in-context state whose open pairs are all cases already
+// started in Learn, before taking any.
+constexpr int kContextTries = 40;
+
 // The cube with its orientation removed, so that states reached holding
 // the cube differently compare equal.
 FaceletCube oriented(FaceletCube f) {
@@ -105,6 +111,20 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
       tr("How the virtual cube is shown, remembered for each alg set"));
   options->addWidget(viewBox_);
   options->addStretch();
+  slotsSpin_ = new QSpinBox(optionsRow_);
+  slotsSpin_->setRange(1, 4);
+  slotsSpin_->setValue(2);
+  slotsSpin_->setSuffix(tr(" open"));
+  slotsSpin_->setFocusPolicy(Qt::NoFocus);
+  slotsSpin_->setToolTip(tr("How many slots are open in context practice"));
+  contextButton_ = new QPushButton(tr("Practise in context"), optionsRow_);
+  contextButton_->setFocusPolicy(Qt::NoFocus);
+  contextButton_->setToolTip(
+      tr("Solve several pairs at once on a cube with EO Cross done and some "
+         "slots open, then compare your moves with this set's algs and its "
+         "cheapest order. Not graded."));
+  options->addWidget(slotsSpin_);
+  options->addWidget(contextButton_);
   rightLayout->addWidget(optionsRow_);
 
   rightLayout->addWidget(cubeView_, 3);
@@ -152,6 +172,10 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   reveal_->setFont(rf);
   reveal_->setMinimumHeight(110);
   rightLayout->addWidget(reveal_, 1);
+  familyRow_ = new QWidget(right);
+  new QHBoxLayout(familyRow_);
+  familyRow_->setVisible(false);
+  rightLayout->addWidget(familyRow_);
 
   auto *split = new QSplitter(this);
   split->addWidget(left_);
@@ -163,6 +187,13 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   layout->addWidget(split);
 
   connect(learnButton, &QPushButton::clicked, this, &LearnPage::learnNext);
+  connect(contextButton_, &QPushButton::clicked, this, [this] {
+    if (context_) {
+      leaveContext();
+    } else {
+      startContext();
+    }
+  });
   connect(viewBox_, &QComboBox::activated, this, [this] {
     QSettings().setValue(setSettingsKey(setId_, "learnView"),
                          viewBox_->currentData());
@@ -198,7 +229,7 @@ void LearnPage::applySettings() {
 
 void LearnPage::activated() {
   CasePage::activated();
-  if (!current_) {
+  if (!current_ && !context_) {
     nextCase();
   }
 }
@@ -217,12 +248,12 @@ void LearnPage::deactivated() {
 std::vector<CasePage::CaseStatusFilter> LearnPage::statusFilters() {
   // As the Status and Due columns show them.
   auto queued = [this](const std::string &id) {
-    const CaseProgress *cp = progressOf(id);
+    const CaseProgress *cp = cardOf(id);
     return cp && isQueued(cp->card);
   };
   auto status = [this, queued](CaseStatus st) {
     return [this, queued, st](const std::string &id) {
-      return eligible(id) && !queued(id) && statusOf(progressOf(id)) == st;
+      return eligible(id) && !queued(id) && statusOf(cardOf(id)) == st;
     };
   };
   return {
@@ -232,7 +263,7 @@ std::vector<CasePage::CaseStatusFilter> LearnPage::statusFilters() {
       {tr("Learned"), status(CaseStatus::Learned)},
       {tr("Due"),
        [this, queued](const std::string &id) {
-         const CaseProgress *cp = progressOf(id);
+         const CaseProgress *cp = cardOf(id);
          if (!cp || queued(id) || statusOf(cp) == CaseStatus::Unstarted) {
            return false;
          }
@@ -245,7 +276,7 @@ std::vector<CasePage::CaseStatusFilter> LearnPage::statusFilters() {
 }
 
 void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
-  const CaseProgress *cp = progressOf(caseId);
+  const CaseProgress *cp = cardOf(caseId);
   static const QColor learning(0xff, 0xb0, 0x30), learned(0x3d, 0xd6, 0x6b);
   QColor muted = palette().color(QPalette::PlaceholderText);
   if (!eligible(caseId)) {
@@ -284,7 +315,7 @@ void LearnPage::updateSummary() {
   int learning = 0, learned = 0, due = 0, queued = 0;
   std::int64_t now = unixNow();
   for (const auto &id : pool()) {
-    const CaseProgress *cp = progressOf(id);
+    const CaseProgress *cp = cardOf(id);
     if (!cp) {
       continue;
     }
@@ -315,13 +346,14 @@ void LearnPage::updateSummary() {
 
 void LearnPage::extendCaseMenu(QMenu &menu, const std::string &caseId) {
   auto change = [this, caseId](auto &&apply) {
-    apply(progress()[caseId]);
+    apply(progress()[cardId(caseId)]);
     saveProgress();
-    if (current_ && current_->caseId == caseId && phase_ == Phase::Done) {
+    if (current_ && cardId(current_->caseId) == cardId(caseId) &&
+        phase_ == Phase::Done) {
       gradeReplaced_ = true; // 1-4 would undo the change
       showGrade();
     }
-    updateRow(caseId);
+    updateCardRows(caseId);
     if (phase_ == Phase::NoCase) {
       nextCase();
     }
@@ -352,8 +384,8 @@ void LearnPage::learnNext() {
     if (started >= n) {
       break;
     }
-    if (statusOf(progressOf(id)) == CaseStatus::Unstarted) {
-      startLearning(progress()[id].card, now, settings_.srs);
+    if (statusOf(cardOf(id)) == CaseStatus::Unstarted) {
+      startLearning(progress()[cardId(id)].card, now, settings_.srs);
       ++started;
     }
   }
@@ -375,7 +407,7 @@ QString LearnPage::startCaseLabel(const std::string &caseId) {
 }
 
 bool LearnPage::notDue(const std::string &caseId) {
-  const CaseProgress *cp = progressOf(caseId);
+  const CaseProgress *cp = cardOf(caseId);
   return cp && cp->card.state == CardState::Review &&
          !isDue(cp->card, unixNow(), settings_.srs, localDayEnd());
 }
@@ -393,6 +425,11 @@ void LearnPage::applySetView() {
 }
 
 void LearnPage::startSet() {
+  context_.reset();
+  pairSet_ = set() && isPairSet(*set());
+  slotsSpin_->setVisible(pairSet_);
+  contextButton_->setVisible(pairSet_);
+  contextButton_->setText(tr("Practise in context"));
   applySetView();
   current_.reset();
   last_.clear();
@@ -400,6 +437,19 @@ void LearnPage::startSet() {
 }
 
 void LearnPage::setReloaded() {
+  pairSet_ = set() && isPairSet(*set());
+  slotsSpin_->setVisible(pairSet_);
+  contextButton_->setVisible(pairSet_);
+  if (context_) {
+    if (pairSet_) {
+      if (phase_ == Phase::ContextDone) {
+        showContextResult();
+      }
+      return;
+    }
+    leaveContext();
+    return;
+  }
   if (current_ && phase_ == Phase::Demo && eligible(current_->caseId)) {
     begin(current_->caseId, current_->isNew, current_->practice);
     return;
@@ -442,6 +492,7 @@ void LearnPage::startCase(const std::string &caseId) {
 
 void LearnPage::nextCase() {
   reveal_->clear();
+  familyRow_->setVisible(false);
   gradeRow_->setVisible(false);
   if (!set()) {
     current_.reset();
@@ -479,7 +530,53 @@ void LearnPage::nextCase() {
     setPhase(Phase::NoCase);
     return;
   }
-  begin(*pick.caseId, pick.isNew);
+  begin(pickMember(*pick.caseId), pick.isNew);
+}
+
+std::vector<std::string> LearnPage::pool() const {
+  std::vector<std::string> ticked = tickedEligible();
+  if (!byFamily()) {
+    return ticked;
+  }
+  // One card per family that has a ticked case with an alg.
+  std::vector<std::string> out;
+  for (const auto &id : ticked) {
+    std::string card = cardId(id);
+    if (std::find(out.begin(), out.end(), card) == out.end()) {
+      out.push_back(card);
+    }
+  }
+  return out;
+}
+
+std::string LearnPage::pickMember(const std::string &card) {
+  const std::vector<std::string> *members = families_.familyFor(card);
+  if (!byFamily() || !members) {
+    return card;
+  }
+  std::vector<std::string> ticked = tickedEligible();
+  std::vector<std::string> choices;
+  for (const auto &m : *members) {
+    if (std::find(ticked.begin(), ticked.end(), m) != ticked.end()) {
+      choices.push_back(m);
+    }
+  }
+  if (choices.empty()) {
+    return card;
+  }
+  std::uniform_int_distribution<std::size_t> pick(0, choices.size() - 1);
+  return choices[pick(rng_)];
+}
+
+void LearnPage::updateCardRows(const std::string &caseId) {
+  const std::vector<std::string> *members = families_.familyFor(caseId);
+  if (!byFamily() || !members) {
+    updateRow(caseId);
+    return;
+  }
+  for (const auto &m : *members) {
+    updateRow(m);
+  }
 }
 
 void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
@@ -487,12 +584,16 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   if (!info) {
     return;
   }
+  if (context_) {
+    context_.reset();
+    contextButton_->setText(tr("Practise in context"));
+  }
   Hold hold = pickHold();
   // From a random side, as in Drill, when the set asks for random U turns.
   CubieCube start =
       set() ? withRandomAufs(*set(), info->state, rng_) : info->state;
   current_ = Current{caseId, start, hold, isNew, practice};
-  last_ = caseId;
+  last_ = cardId(caseId);
   hinted_ = false;
   nextHinted_ = false;
   gaveUp_ = false;
@@ -501,6 +602,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   follower_ = AlgFollower(start.toFacelets(), shownAlgs(caseId));
   reveal_->clear();
   gradeRow_->setVisible(false);
+  familyRow_->setVisible(false);
   cubeView_->setColourMap(colourMapOf(hold));
   // In 3D, look from the corner the group's diagrams are drawn from, so
   // that e.g. a back-left F2L slot can be seen.
@@ -523,12 +625,12 @@ bool LearnPage::guided() {
 }
 
 bool LearnPage::firstSight(const std::string &caseId) {
-  const CaseProgress *cp = progressOf(caseId);
+  const CaseProgress *cp = cardOf(caseId);
   return !cp || cp->card.reps == 0;
 }
 
 bool LearnPage::inLearningSteps(const std::string &caseId) {
-  const CaseProgress *cp = progressOf(caseId);
+  const CaseProgress *cp = cardOf(caseId);
   return cp && cp->card.reps > 0 &&
          (cp->card.state == CardState::Learning ||
           cp->card.state == CardState::Relearning);
@@ -695,6 +797,13 @@ void LearnPage::setPhase(Phase p) {
   switch (p) {
   case Phase::NoCase:
     break;
+  case Phase::Context:
+  case Phase::ContextDone:
+    showGuide();
+    gradeRow_->setVisible(false);
+    familyRow_->setVisible(false);
+    showContextStatus();
+    return;
   case Phase::Demo:
     showGuide();
     statusLabel_->setText(
@@ -762,6 +871,33 @@ bool LearnPage::handleKey(QKeyEvent *e, bool press) {
       return true;
     }
     return false;
+  case Phase::Context:
+    if (key == Qt::Key_Tab) {
+      // The set's cheapest order as a hint; nothing is graded anyway.
+      showContextResult();
+      return true;
+    }
+    if (key == Qt::Key_Space) {
+      if (e->modifiers().testFlag(Qt::ShiftModifier)) {
+        finishContext(true);
+      }
+      return true;
+    }
+    if (key == Qt::Key_Escape) {
+      resetContext();
+      return true;
+    }
+    break;
+  case Phase::ContextDone:
+    if (next) {
+      startContext();
+      return true;
+    }
+    if (key == Qt::Key_Escape) {
+      resetContext();
+      return true;
+    }
+    break;
   case Phase::Demo:
     if (key == Qt::Key_Right) {
       stepDemo(1);
@@ -841,6 +977,20 @@ bool LearnPage::handleKey(QKeyEvent *e, bool press) {
 void LearnPage::turn(Move m) {
   cube_.apply(m);
   cubeView_->animateMove(m);
+  if (phase_ == Phase::Context && context_) {
+    context_->moves.push_back(m);
+    FaceletCube f = oriented(cube_);
+    auto c = CubieCube::fromFacelets(f);
+    if (c && eoCrossSolved(*c) &&
+        std::all_of(std::begin(kAllSlots), std::end(kAllSlots),
+                    [&](Slot slot) { return slotSolved(*c, slot); })) {
+      finishContext(false);
+    }
+    return;
+  }
+  if (phase_ == Phase::ContextDone) {
+    return; // turning freely after the pairs
+  }
   if (phase_ != Phase::Solving || !current_) {
     return; // untimed practice after the case
   }
@@ -891,7 +1041,7 @@ void LearnPage::finish() {
     return;
   }
   std::int64_t now = unixNow();
-  CaseProgress &cp = progress()[current_->caseId];
+  CaseProgress &cp = progress()[cardId(current_->caseId)];
   cardBefore_ = cp.card;
   attemptTime_ = now;
   cp.record({now, 0, grade_ == Grade::Again, AttemptMode::Learn});
@@ -900,7 +1050,7 @@ void LearnPage::finish() {
   setPhase(Phase::Done);
   showReveal();
   showGrade();
-  updateRow(current_->caseId);
+  updateCardRows(current_->caseId);
 }
 
 void LearnPage::regrade(Grade grade) {
@@ -910,7 +1060,7 @@ void LearnPage::regrade(Grade grade) {
     return;
   }
   grade_ = grade;
-  CaseProgress &cp = progress()[current_->caseId];
+  CaseProgress &cp = progress()[cardId(current_->caseId)];
   cp.card = cardBefore_;
   for (auto a = cp.attempts.rbegin(); a != cp.attempts.rend(); ++a) {
     if (a->mode == AttemptMode::Learn && a->timestamp == attemptTime_) {
@@ -921,10 +1071,203 @@ void LearnPage::regrade(Grade grade) {
   review(cp.card, grade_, unixNow(), settings_.srs);
   saveProgress();
   showGrade();
-  updateRow(current_->caseId);
+  updateCardRows(current_->caseId);
+}
+
+void LearnPage::startContext() {
+  AlgSet *s = set();
+  if (!s || !pairSet_) {
+    return;
+  }
+  int count = slotsSpin_->value();
+  CubieCube state = randomPairState(count, rng_);
+  for (int i = 0; i < kContextTries; ++i) {
+    CubieCube candidate = i == 0 ? state : randomPairState(count, rng_);
+    std::vector<PairOption> options = pairOptions(candidate, s);
+    bool started = std::all_of(
+        options.begin(), options.end(), [this](const PairOption &o) {
+          return !o.caseId.empty() &&
+                 statusOf(cardOf(o.caseId)) != CaseStatus::Unstarted;
+        });
+    if (started) {
+      state = candidate;
+      break;
+    }
+  }
+  current_.reset();
+  guide_.reset();
+  context_ = Context{state, pickHold(), {}, false};
+  contextButton_->setText(tr("Back to learning"));
+  cubeView_->setColourMap(colourMapOf(context_->hold));
+  CubeLook look = cubeView_->look();
+  look.yaw = CubeLook{}.yaw;
+  cubeView_->setLook(look);
+  reveal_->clear();
+  resetContext();
+}
+
+void LearnPage::resetContext() {
+  if (!context_) {
+    return;
+  }
+  context_->moves.clear();
+  context_->gaveUp = false;
+  cube_ = context_->start.toFacelets();
+  cubeView_->setState(cube_);
+  reveal_->clear();
+  setPhase(Phase::Context);
+}
+
+void LearnPage::finishContext(bool gaveUp) {
+  if (!context_) {
+    return;
+  }
+  context_->gaveUp = gaveUp;
+  setPhase(Phase::ContextDone);
+  showContextResult();
+}
+
+void LearnPage::leaveContext() {
+  context_.reset();
+  contextButton_->setText(tr("Practise in context"));
+  reveal_->clear();
+  nextCase();
+}
+
+void LearnPage::showContextStatus() {
+  if (!context_) {
+    return;
+  }
+  int open = 0;
+  for (Slot slot : kAllSlots) {
+    open += slotSolved(context_->start, slot) ? 0 : 1;
+  }
+  statusLabel_->setStyleSheet({});
+  if (phase_ == Phase::Context) {
+    statusLabel_->setText(
+        (open == 1 ? tr("In context: solve the open pair.")
+                   : tr("In context: solve the %1 open pairs in any order.")
+                         .arg(open)) +
+        " " +
+        tr("Tab shows the set's cheapest order, Esc starts again, "
+           "Shift+Space gives up. Not graded."));
+  } else {
+    statusLabel_->setText(tr("Space/Enter: another one. Esc: try this one "
+                             "again. \"Back to learning\" returns to your "
+                             "cases."));
+  }
+}
+
+void LearnPage::showContextResult() {
+  const AlgSet *s = set();
+  if (!context_ || !s) {
+    return;
+  }
+  QString muted = palette().color(QPalette::PlaceholderText).name();
+  auto grey = [&](const QString &t) {
+    return "<span style='color:" + muted + "'>" + t + "</span>";
+  };
+  auto moves = [](int n) {
+    return n == 1 ? tr("1 move") : tr("%1 moves").arg(n);
+  };
+  QString html;
+  if (phase_ == Phase::ContextDone) {
+    html +=
+        context_->gaveUp
+            ? "<p>" + tr("Gave up.") + "</p>"
+            : "<p><b>" +
+                  tr("Solved in %1.").arg(moves(htmCount(context_->moves))) +
+                  "</b></p>";
+    F2LBreakdown b =
+        f2lBreakdown(context_->start.toFacelets(), context_->moves, s);
+    for (const PairSegment &seg : b.segments) {
+      QStringList slotNames;
+      for (Slot slot : seg.solved) {
+        slotNames << qs(std::string(slotName(slot)));
+      }
+      QString line =
+          tr("%1: you %2").arg(slotNames.join(" + "), moves(seg.htm));
+      for (const PairOption &o : seg.options) {
+        if (seg.solved.size() == 1 && o.slot == seg.solved.front() &&
+            !o.caseId.empty()) {
+          line +=
+              " · " + tr("%1: %2 %3")
+                          .arg(qs(o.caseName).toHtmlEscaped(), moves(o.moves),
+                               grey(qs(o.alg).toHtmlEscaped()));
+        }
+      }
+      html += line + "<br>";
+    }
+  }
+  PairPlan plan = cheapestPairOrder(context_->start, *s);
+  if (!plan.steps.empty()) {
+    html += "<p>" + tr("The set's cheapest order, %1:").arg(moves(plan.moves));
+    for (const PairOption &o : plan.steps) {
+      html +=
+          "<br>" +
+          tr("%1 (%2): %3")
+              .arg(qs(std::string(slotName(o.slot))),
+                   qs(o.caseName).toHtmlEscaped(), qs(o.alg).toHtmlEscaped()) +
+          " " + grey(moves(o.moves));
+    }
+    if (!plan.complete) {
+      html += "<br>" + grey(tr("Some pairs have no case in the set."));
+    }
+    html += "</p>";
+  }
+  reveal_->setText(html);
+}
+
+void LearnPage::showFamily() {
+  auto *layout = static_cast<QHBoxLayout *>(familyRow_->layout());
+  while (QLayoutItem *item = layout->takeAt(0)) {
+    delete item->widget();
+    delete item;
+  }
+  const std::vector<std::string> *members =
+      current_ ? families_.familyFor(current_->caseId) : nullptr;
+  bool shown =
+      byFamily() && phase_ == Phase::Done && members && members->size() > 1;
+  familyRow_->setVisible(shown);
+  if (!shown) {
+    return;
+  }
+  const AlgSet *s = set();
+  QColor muted = palette().color(QPalette::PlaceholderText);
+  layout->addStretch();
+  for (const auto &id : *members) {
+    const CaseInfo *info = infoOf(id);
+    const AlgCase *c = s ? s->findCase(id) : nullptr;
+    if (!info || !c) {
+      continue;
+    }
+    bool done = id == current_->caseId;
+    auto *cell = new QWidget(familyRow_);
+    auto *cellLayout = new QVBoxLayout(cell);
+    cellLayout->setContentsMargins(6, 0, 6, 0);
+    auto *picture = new QLabel(cell);
+    picture->setPixmap(caseDiagram(id, info->state, 84,
+                                   colourMapOf(settings_.neutrality.main)));
+    picture->setAlignment(Qt::AlignCenter);
+    auto *text = new QLabel(cell);
+    text->setAlignment(Qt::AlignCenter);
+    text->setTextFormat(Qt::RichText);
+    QString alg = info->passing.empty() ? tr("no alg")
+                                        : qs(info->mainAlg).toHtmlEscaped();
+    text->setText(QString("<b>%1</b><br><span style='color:%2'>%3</span>")
+                      .arg(qs(c->name).toHtmlEscaped(),
+                           done ? QString("#ffb030") : muted.name(), alg));
+    text->setToolTip(done ? tr("The case you just did")
+                          : tr("A mirror image of it"));
+    cellLayout->addWidget(picture);
+    cellLayout->addWidget(text);
+    layout->addWidget(cell);
+  }
+  layout->addStretch();
 }
 
 void LearnPage::showReveal() {
+  showFamily();
   if (!current_) {
     return;
   }
@@ -960,8 +1303,7 @@ void LearnPage::showGrade() {
                 : leftAlgs_ ? (follower_.startedOver() ? tr("started over")
                                                        : tr("left the algs"))
                             : tr("solved from memory");
-  QString next =
-      dueText(progressOf(current_->caseId), unixNow(), localDayEnd());
+  QString next = dueText(cardOf(current_->caseId), unixNow(), localDayEnd());
   if (gradeReplaced_) {
     gradeLabel_->setText(tr("Changed from the case list → next %1").arg(next));
     return;
