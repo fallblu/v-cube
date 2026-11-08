@@ -1,7 +1,9 @@
 #include "app/main_window.hpp"
 
 #include "app/attempt_page.hpp"
+#include "app/blind_page.hpp"
 #include "app/drill_page.hpp"
+#include "app/inspection_page.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/platform.hpp"
@@ -52,6 +54,8 @@ constexpr std::array<ModeInfo, MainWindow::ModeCount> kModes = {{
     {"timed", QT_TRANSLATE_NOOP("MainWindow", "Timed")},
     {"untimed", QT_TRANSLATE_NOOP("MainWindow", "Untimed")},
     {"movecount", QT_TRANSLATE_NOOP("MainWindow", "Move Count")},
+    {"inspection", QT_TRANSLATE_NOOP("MainWindow", "Inspection")},
+    {"blind", QT_TRANSLATE_NOOP("MainWindow", "Blind")},
 }};
 
 int modeFromId(const QString &id) {
@@ -128,8 +132,10 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   timedPage_ = new TimerPage(settings_, sessions_, library_, stack_);
   untimedPage_ = new AttemptPage(settings_, untimed_, library_, stack_);
   moveCountPage_ = new AttemptPage(settings_, moveCounts_, library_, stack_);
-  pages_ = {learnPage_, drillPage_,   libraryPage_,
-            timedPage_, untimedPage_, moveCountPage_};
+  inspectionPage_ = new InspectionPage(settings_, dataDir_, stack_);
+  blindPage_ = new BlindPage(settings_, dataDir_, stack_);
+  pages_ = {learnPage_,   drillPage_,     libraryPage_,    timedPage_,
+            untimedPage_, moveCountPage_, inspectionPage_, blindPage_};
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
@@ -231,6 +237,8 @@ QWidget *MainWindow::buildSidebar() {
       header(tr("ALGS"));
     } else if (m == Timed) {
       header(tr("SOLVES"));
+    } else if (m == Inspection) {
+      header(tr("PRACTICE"));
     }
     auto *b = new QToolButton(bar);
     b->setText(tr(kModes[static_cast<std::size_t>(m)].label));
@@ -419,7 +427,7 @@ void MainWindow::buildMenus() {
         tr(kModes[static_cast<std::size_t>(m)].label),
         QKeySequence(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_1 + m)), this,
         [this, m] { setMode(m); });
-    if (m == Library) {
+    if (m == Library || m == MoveCount) {
       modes->addSeparator();
     }
   }

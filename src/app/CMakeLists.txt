@@ -2,18 +2,22 @@
 add_library(vcube_gui STATIC
   app_settings.cpp
   attempt_page.cpp
+  blind_page.cpp
+  bld_scheme_dialog.cpp
   case_filter.cpp
   case_page.cpp
   colours.cpp
   cube_painter.cpp
   cube_view.cpp
   drill_page.cpp
+  inspection_page.cpp
   keymap.cpp
   learn_page.cpp
   library_page.cpp
   main_window.cpp
   mode_page.hpp
   platform.cpp
+  review_dialog.cpp
   scramble_source.cpp
   set_properties_dialog.cpp
   settings_dialog.cpp

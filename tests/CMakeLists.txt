@@ -29,6 +29,8 @@ add_executable(vcube_tests
   test_solve_review.cpp
   test_families.cpp
   test_bld.cpp
+  test_inspection_io.cpp
+  test_blind_io.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)

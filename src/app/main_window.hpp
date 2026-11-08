@@ -24,14 +24,26 @@ class DrillPage;
 class LibraryPage;
 class TimerPage;
 class AttemptPage;
+class InspectionPage;
+class BlindPage;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
 public:
   MainWindow(AppSettings &settings, QString dataDir, QWidget *parent = nullptr);
 
-  // The modes, in sidebar order (Ctrl+1 to Ctrl+6).
-  enum Mode { Learn, Drill, Library, Timed, Untimed, MoveCount, ModeCount };
+  // The modes, in sidebar order (Ctrl+1 to Ctrl+8).
+  enum Mode {
+    Learn,
+    Drill,
+    Library,
+    Timed,
+    Untimed,
+    MoveCount,
+    Inspection,
+    Blind,
+    ModeCount
+  };
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
@@ -61,6 +73,8 @@ private:
   TimerPage *timedPage_;
   AttemptPage *untimedPage_;
   AttemptPage *moveCountPage_;
+  InspectionPage *inspectionPage_;
+  BlindPage *blindPage_;
   int mode_ = -1;
   struct KeySeen {
     const QEvent *event = nullptr;
