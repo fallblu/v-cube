@@ -4,12 +4,14 @@ A lightweight Qt desktop app for creating, learning and drilling 3x3 alg
 sets, with random-state scrambles and a cstimer-style solve timer. Learn
 algs on a virtual cube turned from the keyboard, then drill and time them
 on the virtual cube or a normal (non-smart) cube with the space-bar timer. Solves can be timed,
-untimed or move-counted, on the virtual cube or a physical one.
+untimed or move-counted, on the virtual cube or a physical one, and
+reviewed against the optimal solutions and your own F2L algs. Practice
+modes train ZZ inspection planning and Old Pochmann blindfolded solving.
 
 ## Features
 
-The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
-`Ctrl+6` switch between them):
+The app has eight modes, listed in a sidebar in three groups (`Ctrl+1` to
+`Ctrl+8` switch between them):
 
 | Group | Mode | What it's for |
 | --- | --- | --- |
@@ -19,6 +21,8 @@ The app has six modes, listed in a sidebar in two groups (`Ctrl+1` to
 | Solves | **Timed** | Timed solves, with sessions and statistics |
 | Solves | **Untimed** | Solves with no timer, with their move counts |
 | Solves | **Move Count** | Move-efficiency practice for one step (EO, EO+1, EO+2, EO Cross, ZZ F2L) |
+| Practice | **Inspection** | Planning EO to EO Cross in inspection and executing it blind, and counting bad edges |
+| Practice | **Blind** | Old Pochmann blindfolded solving: letters, memo tracing, setup moves and blind solves |
 
 Each Solves mode keeps its own sessions, and each session is for the
 virtual cube (the default) or a physical one: pick it with the cube
@@ -67,6 +71,28 @@ choice are for a physical cube.
     `(U') R U R' U' ... (U2)`. A U turn written at the start or end of an
     alg joins the AUF on that side, so `(U2) R U R'` that needs a U first
     shows as `(U') R U R'`.
+  - **Guided learning** (a set property, on by default): the first time a
+    case comes up, its main alg is a walkthrough. → and ← step through it
+    on the cube (Home goes back), then Space sets the case up again for
+    you to do it with each next move highlighted. While the case is in its
+    learning steps, Tab first shows only the next move (graded Hard), and a
+    second Tab shows the algs (Again). Reviews work as before.
+  - **Learn by family** (a set property, off by default): each case is
+    learned together with its mirror images, left-right, front-back and
+    both, such as the four F2L slots' versions of a pair. The family has
+    one review card; each time it comes up one of its ticked cases is set
+    up at random, and afterwards all of them are shown with their main
+    algs. The case list shows every case of a family with the family's
+    status, and Drill counts them as learned together. Families are worked
+    out from the cases themselves, not from their names.
+  - **Practise in context** (for sets of F2L pair cases, such as a ZZ F2L
+    set): a cube with EO Cross done and 1 to 4 slots open (the number next
+    to the button), set up from cases you have started learning where it
+    can be. Solve the pairs in any order; afterwards each pair you did is
+    shown with the set's case and alg for it, and the set's cheapest order
+    for the whole state (Tab shows it as a hint). Not graded; Space gives
+    another, Esc tries the same one again, "Back to learning" returns to
+    your cases.
 - **Drill**: drill cases on the virtual cube (the default) or a physical
   cube, chosen for each alg set under "Cube". The two keep separate drill
   times and statistics, and the case list shows the chosen cube's.
@@ -107,7 +133,8 @@ choice are for a physical cube.
     right-click) creates, duplicates, deletes, imports, exports and checks
     sets; **Edit** (also on right-click) adds and renames groups and cases.
   - **Set properties…** (or double-click a set) edits the name, description,
-    random U turns around cases in Learn and Drill, target time, and the
+    random U turns around cases in Learn and Drill, target time, guided
+    learning and learning by family (see Learn), and the
     step settings for the whole set or as a group's own override: what the
     algs may leave unsolved (e.g. "last-layer permutation" for OLL-like
     sets) and how diagrams look (full colour, top colour only or grey; from
@@ -192,12 +219,56 @@ choice are for a physical cube.
     **Skip scramble** moves on without recording, and right-clicking a
     count edits it, toggles DNF, adds a comment or copies its scramble or
     solution.
+  - The **Opt** column has each scramble's optimal move count for the
+    session's step (EO to EO Cross) in the holds of your colour neutrality,
+    either EO axis allowed, and the statistics add the mean moves over
+    optimal and how often you were optimal.
+  - **Review** (double-click a solve, right-click > Review…, or **Review
+    last**): replays the solve on a cube of its own (←/→, Home/End or the
+    slider) with the moves where EO, EO+1, EO+2, EO Cross and ZZ F2L were
+    first done marked, and how many moves each took and in which hold. For
+    EO to EO Cross it lists the optimal solutions in your holds and over
+    every colour and axis ("show" plays one). For a ZZ F2L (or Untimed)
+    solve it splits the F2L into pairs and compares each with an alg set of
+    F2L pair cases (your ZZ F2L set; any set whose cases each solve one
+    slot's pair): the case the pair was, your moves against your alg, the
+    cheapest pair at that point, and the set's cheapest order overall.
+    Untimed solves can be reviewed too.
+  - **Retry this scramble** (in the review, virtual cube) puts the scramble
+    back on the cube to solve again. The retry isn't recorded; you see its
+    count against the original and the optimal, and Space (or Skip
+    scramble) goes back to new scrambles.
   - Each session keeps its own scramble type. Choosing a step picks a
     WCA scramble, or EO Cross solved for ZZ F2L. Only the scramble types
     that suit these steps are offered: WCA random state (for EO, EOLine,
     EO Cross or cross), EOLine solved, EOCross solved (ZZ F2L) and F2L
     (cross solved, for CFOP F2L). Colour neutrality applies, as
     everywhere.
+- **Inspection**: practise the inspection of a ZZ solve on the virtual
+  cube, in sessions of its own.
+  - Plan sessions are for one step: EO, EO+1, EO+2 or EO Cross. Space shows
+    the scrambled cube, which only turns as a whole while you plan. Space
+    again hides it, and you do your plan with the turning keys without
+    seeing the cube; Space then reveals it. The step is checked (DNF if it
+    isn't done), the moves are counted in HTM, and your count is compared
+    with the optimal in your colour neutrality's holds (either EO axis) and
+    in any hold, with up to three optimal solutions such as
+    `yellow cross, green front: z2 · R' B D2 L' F`. Double-click an
+    attempt (or right-click > Review…) to replay it in the review.
+  - Each Plan session has an inspection limit: WCA (15 s, with calls at 8
+    and 12 seconds), 10, 20 or 30 s, a custom one, or none. The cube is
+    hidden when it runs out, and the time used is kept with each attempt.
+  - Bad edges sessions show the scrambled cube in a hold from your colour
+    neutrality. Type how many edges are bad for the F/B axis (the ZZ axis,
+    as held), then Enter, and for the R/L axis too if the session asks for
+    both. The counts are checked and the bad edges ringed; Tab rings the
+    other axis's.
+  - Plan statistics: mo3/ao5/ao12 over move counts, moves over optimal,
+    how often you were optimal, and mean inspection time. Bad edges
+    statistics: accuracy, mean time when right, and ao5/ao12 of times with
+    a wrong count as DNF. Right-click an attempt to comment, copy its
+    scramble or solution, review it, or delete it. New installs start with
+    EO, EO+2 and EO Cross (WCA inspection) and a Bad edges session.
 - **Scramble types** (Timed and Untimed):
   - WCA random state.
   - cstimer-style subsets: F2L/cross solved, XCross, EOLine, EOCross,
@@ -314,11 +385,15 @@ picks the plugin as usual.
 
 | Where | Key | Action |
 | --- | --- | --- |
-| Anywhere | Ctrl+1 … Ctrl+6 | switch to Learn, Drill, Library, Timed, Untimed, Move Count (not during a solve) |
+| Anywhere | Ctrl+1 … Ctrl+8 | switch to Learn, Drill, Library, Timed, Untimed, Move Count, Inspection, Blind (not during a solve) |
 | Anywhere | F11 | toggle full screen |
 | Anywhere | F10 | toggle focus mode |
 | Anywhere | Ctrl+Shift+N | colour neutrality settings |
 | Learn | turning keys | turn the virtual cube; solving the case finishes it |
+| Learn, walkthrough | → / ← / Home | step through the main alg / back / to the start |
+| Learn, walkthrough | Space / Enter | do the case with each next move shown |
+| Learn, in context | Tab / Esc / Shift+Space | show the set's cheapest order / start again / give up |
+| Learn, in context, afterwards | Space / Enter / Esc | another one / the same one again |
 | Learn | Tab | show the algs (grades the case Again) |
 | Learn | Shift+Space | give up (grades the case Again) |
 | Learn | Esc | reset the case (grades it Again once the alg is begun) |
@@ -348,6 +423,12 @@ picks the plugin as usual.
 | Move Count (physical) | Backspace / Esc | correct / clear the move count |
 | Move Count (physical) | Enter | record the move count and show the next scramble |
 | Timed, Untimed | Tab | show or hide the algs for an alg set scramble's case |
+| Review | ← / → / Home / End | step the replay back / forward / to the scramble / to the end |
+| Inspection | Space | start inspection / hide the cube / reveal it / next scramble |
+| Inspection | turning keys | rotations only while you look at the cube; any turn once it is hidden |
+| Inspection | Esc | put the scramble back (nothing is recorded) |
+| Inspection (bad edges) | 0-9, Backspace, Enter | type a count, correct it, give it |
+| Inspection (bad edges), after an attempt | Tab | ring the other axis's bad edges |
 
 Default turning keys (face keys from cstimer's layout; Shift + a face key
 turns the wide layer, e.g. Shift+I is r and Shift+G is f'):
@@ -381,6 +462,7 @@ ticked) builds the cases. If you change a set's step settings later,
 | Timed sessions | `~/.local/share/v-cube/sessions.json` | `%LOCALAPPDATA%\v-cube\sessions.json` |
 | Untimed sessions | `~/.local/share/v-cube/untimed.json` | `%LOCALAPPDATA%\v-cube\untimed.json` |
 | Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
+| Inspection sessions | `~/.local/share/v-cube/inspection.json` | `%LOCALAPPDATA%\v-cube\inspection.json` |
 | Settings (theme, colours, keys, mode choices) | `~/.config/v-cube/v-cube.ini` | `%APPDATA%\v-cube\v-cube.ini` |
 
 A file that can't be read (e.g. cut short by a crash) is never saved
@@ -428,9 +510,9 @@ pieces; `view` is `top`, `3d` (from the front right), `3d-front-left`,
 | Directory | Contents |
 | --- | --- |
 | `src/cube` | Pure C++ engine. Notation parser (groups, commutators, conjugates; invert, mirror, simplify); a facelet model built from 3D geometry that handles slices, wide moves and rotations; a cubie model; Kociemba's two-phase solver (tables built in under a second); random-state and subset scramblers. |
-| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics (also over move counts), Move Count step checks and virtual-cube attempts, SRS scheduler, Learn and Drill case picking. |
-| `src/io` | Qt Core persistence. JSON alg sets, the user library, progress, timer and move count sessions, and cstimer conversion. |
-| `src/app` | Qt Widgets UI. Cube renderer, the six mode pages, the shared scramble source and settings. |
+| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics (also over move counts), Move Count step checks and virtual-cube attempts, optimal EO to EO Cross solving (IDA*), solve review (step marks, F2L pair breakdown against pair-case sets), mirror families, Old Pochmann tracing and setups, SRS scheduler, Learn and Drill case picking. |
+| `src/io` | Qt Core persistence. JSON alg sets, the user library, progress, timer, move count, inspection and blind sessions, and cstimer conversion. |
+| `src/app` | Qt Widgets UI. Cube renderer, the eight mode pages, the solve review, the shared scramble source and settings. |
 | `tests` | Catch2 tests for the engine, training logic and storage. They also check that every built-in case is distinct and that standard algs are matched to the right cases. |
 
 ## Credits
