@@ -139,7 +139,8 @@ struct MemoCheck {
   std::optional<std::size_t> firstWrong;
   // What would have been right there: the one sticker the buffer's piece
   // belongs at, or at a cycle break every sticker of the unsolved pieces.
-  // Empty when the extra target came after everything was solved.
+  // Empty when the extra target came after everything was solved. When
+  // the memo is too short, the targets that would come next.
   std::vector<int> expected;
   bool tooShort = false; // every target was right but pieces are left
 };
