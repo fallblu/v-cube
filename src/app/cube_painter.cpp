@@ -21,6 +21,15 @@ QColor CubeLook::stickerColour(std::uint8_t value) const {
   return scheme.colourOfSlot(map[value]);
 }
 
+bool StickerMarks::hasLabels() const {
+  return std::any_of(labels.begin(), labels.end(),
+                     [](const QString &l) { return !l.isEmpty(); });
+}
+
+bool StickerMarks::ringed(int facelet) const {
+  return std::find(rings.begin(), rings.end(), facelet) != rings.end();
+}
+
 namespace cube_painter {
 
 namespace {
@@ -120,10 +129,87 @@ void drawSticker(QPainter &p, const QPolygonF &poly, const QColor &colour,
   p.drawPolygon(inner);
 }
 
+// Black or white, whichever reads better on `background`.
+QColor labelColour(const QColor &background) {
+  double luma = 0.299 * background.redF() + 0.587 * background.greenF() +
+                0.114 * background.blueF();
+  return luma > 0.55 ? QColor(0x10, 0x10, 0x10) : QColor(0xf4, 0xf4, 0xf4);
+}
+
+// A sticker's ring and label, drawn over the sticker `shape` (its outline
+// as drawn) of size `size` (about a sticker's width).
+void drawMarks(QPainter &p, const QPolygonF &shape, const QColor &sticker,
+               double size, const StickerMarks &marks, int facelet) {
+  if (facelet < 0) {
+    return;
+  }
+  QPointF centre;
+  for (const auto &pt : shape) {
+    centre += pt;
+  }
+  centre /= static_cast<qreal>(shape.size());
+  const QString &label = marks.labels[static_cast<std::size_t>(facelet)];
+  if (!label.isEmpty()) {
+    QFont font = p.font();
+    font.setPixelSize(std::max(7, static_cast<int>(size * 0.48)));
+    font.setBold(true);
+    p.setFont(font);
+    p.setPen(labelColour(sticker));
+    QRectF box(centre.x() - size, centre.y() - size / 2, 2 * size, size);
+    p.drawText(box, Qt::AlignCenter, label);
+  }
+  if (marks.ringed(facelet)) {
+    QPolygonF ring;
+    for (const auto &pt : shape) {
+      ring << centre + (pt - centre) * 0.9;
+    }
+    p.setBrush(Qt::NoBrush);
+    p.setPen(QPen(QColor(0x10, 0x10, 0x10), std::max(2.0, size * 0.2),
+                  Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.drawPolygon(ring);
+    p.setPen(QPen(marks.ringColour, std::max(1.5, size * 0.11), Qt::SolidLine,
+                  Qt::RoundCap, Qt::RoundJoin));
+    p.drawPolygon(ring);
+  }
+}
+
+QPolygonF rectPolygon(const QRectF &r) {
+  return QPolygonF(
+      {r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft()});
+}
+
+// Where paintNet() draws each face's 3x3 block, and the cell size.
+struct NetGeometry {
+  double cell = 0;
+  QPointF origin;
+  double gap = 1;
+
+  explicit NetGeometry(const QRectF &area) {
+    cell = std::min(area.width() / 12.0, area.height() / 9.0);
+    origin =
+        QPointF(area.center().x() - cell * 6.0, area.center().y() - cell * 4.5);
+    gap = std::max(1.0, cell * 0.08);
+  }
+
+  // Face placement in the net, in 3x3 blocks: U R F D L B.
+  static constexpr std::array<std::array<int, 2>, 6> kBlock = {
+      {{1, 0}, {2, 1}, {1, 1}, {1, 2}, {0, 1}, {3, 1}}};
+
+  QRectF sticker(int facelet) const {
+    int f = facelet / 9, i = facelet % 9;
+    int r = i / 3, c = i % 3;
+    const auto &block = kBlock[static_cast<std::size_t>(f)];
+    return QRectF(origin.x() + (block[0] * 3 + c) * cell + gap / 2,
+                  origin.y() + (block[1] * 3 + r) * cell + gap / 2, cell - gap,
+                  cell - gap);
+  }
+};
+
 } // namespace
 
 void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
-             const CubeLook &look, const std::optional<TurnAnimation> &turn) {
+             const CubeLook &look, const std::optional<TurnAnimation> &turn,
+             const StickerMarks *marks) {
   p.save();
   p.setRenderHint(QPainter::Antialiasing, true);
 
@@ -215,7 +301,16 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
           float lit =
               0.70f +
               0.30f * std::max(0.0f, QVector3D::dotProduct(normal, light));
-          drawSticker(p, poly, shade(look.stickerColour(cube[f]), lit), scale);
+          QColor colour = shade(look.stickerColour(cube[f]), lit);
+          drawSticker(p, poly, colour, scale);
+          if (marks) {
+            QPolygonF inner;
+            QPointF mid = (poly[0] + poly[1] + poly[2] + poly[3]) / 4.0;
+            for (const auto &pt : poly) {
+              inner << mid + (pt - mid) * 0.82;
+            }
+            drawMarks(p, inner, colour, scale * 0.85, *marks, f);
+          }
         }
       }
     }
@@ -224,35 +319,37 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
 }
 
 void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
-              const CubeLook &look) {
+              const CubeLook &look, const StickerMarks *marks) {
   p.save();
   p.setRenderHint(QPainter::Antialiasing, true);
-  double cell = std::min(area.width() / 12.0, area.height() / 9.0);
-  QPointF origin(area.center().x() - cell * 6.0,
-                 area.center().y() - cell * 4.5);
-  // Face placement in the net, in 3x3 blocks: U R F D L B.
-  constexpr std::array<std::array<int, 2>, 6> kBlock = {
-      {{1, 0}, {2, 1}, {1, 1}, {1, 2}, {0, 1}, {3, 1}}};
-  double gap = std::max(1.0, cell * 0.08);
-  for (int f = 0; f < 6; ++f) {
-    for (int i = 0; i < 9; ++i) {
-      int r = i / 3, c = i % 3;
-      QRectF rect(
-          origin.x() + (kBlock[static_cast<std::size_t>(f)][0] * 3 + c) * cell +
-              gap / 2,
-          origin.y() + (kBlock[static_cast<std::size_t>(f)][1] * 3 + r) * cell +
-              gap / 2,
-          cell - gap, cell - gap);
-      p.setPen(Qt::NoPen);
-      p.setBrush(look.stickerColour(cube[f * 9 + i]));
-      p.drawRoundedRect(rect, cell * 0.12, cell * 0.12);
+  NetGeometry net(area);
+  for (int i = 0; i < kFaceletCount; ++i) {
+    QRectF rect = net.sticker(i);
+    QColor colour = look.stickerColour(cube[i]);
+    p.setPen(Qt::NoPen);
+    p.setBrush(colour);
+    p.drawRoundedRect(rect, net.cell * 0.12, net.cell * 0.12);
+    if (marks) {
+      drawMarks(p, rectPolygon(rect), colour, net.cell * 0.8, *marks, i);
     }
   }
   p.restore();
 }
 
+std::optional<int> netFaceletAt(const QRectF &area, QPointF pos) {
+  NetGeometry net(area);
+  for (int i = 0; i < kFaceletCount; ++i) {
+    if (net.sticker(i)
+            .adjusted(-net.gap / 2, -net.gap / 2, net.gap / 2, net.gap / 2)
+            .contains(pos)) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
 void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
-               const CubeLook &look) {
+               const CubeLook &look, const StickerMarks *marks) {
   p.save();
   p.setRenderHint(QPainter::Antialiasing, true);
   // The side columns are narrower, and a small gap separates the U and F
@@ -282,10 +379,16 @@ void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
         w = cell;
       }
       QRectF rect(x + gap / 2, y + gap / 2, w - gap, cell - gap);
+      int facelet =
+          layout[static_cast<std::size_t>(r)][static_cast<std::size_t>(c)];
+      QColor colour = look.stickerColour(cube[facelet]);
       p.setPen(Qt::NoPen);
-      p.setBrush(look.stickerColour(cube[layout[static_cast<std::size_t>(r)]
-                                               [static_cast<std::size_t>(c)]]));
+      p.setBrush(colour);
       p.drawRoundedRect(rect, cell * 0.1, cell * 0.1);
+      if (marks) {
+        drawMarks(p, rectPolygon(rect), colour, std::min(w, cell) * 0.8, *marks,
+                  facelet);
+      }
     }
   }
   p.restore();

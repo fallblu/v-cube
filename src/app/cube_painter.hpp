@@ -8,7 +8,9 @@
 #include <QPixmap>
 #include <QRectF>
 
+#include <array>
 #include <optional>
+#include <vector>
 
 namespace vcube {
 
@@ -27,22 +29,38 @@ struct CubeLook {
   QColor stickerColour(std::uint8_t value) const;
 };
 
+// Marks drawn over stickers, by facelet index: a ring around some (e.g. the
+// sticker a drill asks about) and a short label on others (e.g. a blind
+// lettering scheme's letters).
+struct StickerMarks {
+  std::vector<int> rings;
+  QColor ringColour{0xff, 0x2d, 0xd4};
+  std::array<QString, kFaceletCount> labels{};
+
+  bool hasLabels() const;
+  bool empty() const { return rings.empty() && !hasLabels(); }
+  bool ringed(int facelet) const;
+};
+
 // Stateless drawing of a facelet cube.
 namespace cube_painter {
 
 // Perspective 3D view of U, F and R, optionally mid-turn.
 void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
              const CubeLook &look,
-             const std::optional<TurnAnimation> &turn = std::nullopt);
+             const std::optional<TurnAnimation> &turn = std::nullopt,
+             const StickerMarks *marks = nullptr);
 
 // Unfolded net: U above L F R B, D below.
 void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
-              const CubeLook &look);
+              const CubeLook &look, const StickerMarks *marks = nullptr);
+// The facelet drawn at `pos` by paintNet() in `area`, if any.
+std::optional<int> netFaceletAt(const QRectF &area, QPointF pos);
 
 // Alg-Trainer's flat view (see flatLayout()): U above F with the adjacent
 // L and R stickers, 5 stickers wide and 6 tall.
 void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
-               const CubeLook &look);
+               const CubeLook &look, const StickerMarks *marks = nullptr);
 
 // Last-layer diagram: the U face from above with the side stickers of the
 // top layer around it.

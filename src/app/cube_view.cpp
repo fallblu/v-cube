@@ -1,6 +1,7 @@
 #include "app/cube_view.hpp"
 
 #include <QComboBox>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QSettings>
 
@@ -127,23 +128,72 @@ void CubeView::setHiddenText(const QString &text) {
   update();
 }
 
+void CubeView::setMarks(const StickerMarks &marks) {
+  marks_ = marks;
+  update();
+}
+
+void CubeView::clearMarks() { setMarks(StickerMarks{}); }
+
+StickerMarks CubeView::shownMarks() const {
+  if (queue_.empty() || marks_.empty()) {
+    return marks_;
+  }
+  // Number every sticker of the shown state and do the turns still to
+  // animate: the sticker that ends up at facelet i is the one shown now at
+  // where[i].
+  FaceletCube::Stickers ids{};
+  for (int i = 0; i < kFaceletCount; ++i) {
+    ids[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(i);
+  }
+  FaceletCube where(ids);
+  for (Move m : queue_) {
+    where.apply(m);
+  }
+  StickerMarks out;
+  out.ringColour = marks_.ringColour;
+  for (int f : marks_.rings) {
+    out.rings.push_back(where[f]);
+  }
+  for (int i = 0; i < kFaceletCount; ++i) {
+    out.labels[where[i]] = marks_.labels[static_cast<std::size_t>(i)];
+  }
+  return out;
+}
+
+QRectF CubeView::drawArea() const {
+  return QRectF(rect()).adjusted(6, 6, -6, -6);
+}
+
+void CubeView::mousePressEvent(QMouseEvent *e) {
+  if (mode_ == Mode::Net && e->button() == Qt::LeftButton) {
+    if (auto f = cube_painter::netFaceletAt(drawArea(), e->position())) {
+      emit stickerClicked(*f);
+      return;
+    }
+  }
+  QWidget::mousePressEvent(e);
+}
+
 void CubeView::paintEvent(QPaintEvent *) {
   QPainter p(this);
-  QRectF area = QRectF(rect()).adjusted(6, 6, -6, -6);
+  QRectF area = drawArea();
+  StickerMarks marks = shownMarks();
+  const StickerMarks *m = marks.empty() ? nullptr : &marks;
   switch (mode_) {
   case Mode::ThreeD: {
     std::optional<TurnAnimation> turn;
     if (!queue_.empty()) {
       turn = TurnAnimation{queue_.front(), progress_};
     }
-    cube_painter::paint3D(p, area, shown_, look_, turn);
+    cube_painter::paint3D(p, area, shown_, look_, turn, m);
     break;
   }
   case Mode::Flat:
-    cube_painter::paintFlat(p, area, shown_, look_);
+    cube_painter::paintFlat(p, area, shown_, look_, m);
     break;
   case Mode::Net:
-    cube_painter::paintNet(p, area, shown_, look_);
+    cube_painter::paintNet(p, area, shown_, look_, m);
     break;
   case Mode::Hidden:
     p.setPen(palette().color(QPalette::PlaceholderText));

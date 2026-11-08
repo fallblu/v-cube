@@ -44,14 +44,24 @@ public:
   // Placeholder text drawn when the cube is hidden.
   void setHiddenText(const QString &text);
 
+  // Rings and labels drawn over stickers, by facelet of the state after the
+  // moves fed so far: while turns are still animating, the marks move with
+  // the stickers they will end up on.
+  void setMarks(const StickerMarks &marks);
+  void clearMarks();
+  const StickerMarks &marks() const { return marks_; }
+
   QSize sizeHint() const override { return {360, 300}; }
   QSize minimumSizeHint() const override { return {120, 100}; }
 
 signals:
   void modeChanged(vcube::CubeView::Mode mode);
+  // A sticker of the net view was clicked (other views don't report it).
+  void stickerClicked(int facelet);
 
 protected:
   void paintEvent(QPaintEvent *) override;
+  void mousePressEvent(QMouseEvent *e) override;
 
 private:
   CubeLook look_;
@@ -61,11 +71,16 @@ private:
   int animationMs_ = 110;
   Mode mode_ = Mode::ThreeD;
   QString hiddenText_;
+  StickerMarks marks_;
   QTimer frame_;
   QElapsedTimer clock_;
   qint64 lastFrame_ = 0;
 
   void advance();
+  QRectF drawArea() const;
+  // marks_ moved back through the turns still to animate, onto the stickers
+  // of the state shown now.
+  StickerMarks shownMarks() const;
 };
 
 // A drop-down (3D, Flat, Net, Hidden) that switches `view` and remembers
