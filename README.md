@@ -269,6 +269,45 @@ choice are for a physical cube.
     a wrong count as DNF. Right-click an attempt to comment, copy its
     scramble or solution, review it, or delete it. New installs start with
     EO, EO+2 and EO Cross (WCA inspection) and a Bad edges session.
+- **Blind**: blindfolded solving with Old Pochmann. Edges use buffer UR,
+  swapped with UL by the T-perm. Corners use buffer UBL, swapped with RDF
+  (its R sticker) by the modified Y-perm. After an odd number of edge
+  targets, the parity alg goes before the corners. Pick the drill under
+  **Drill**:
+  - **Letter quiz**: a sticker of the solved cube is ringed on the net and
+    you type its letter, or a letter is shown and you click its sticker.
+    Mixed does both in turn. Choose edges, corners or both. Each letter
+    keeps its tries, right answers and mean time, and slow or missed
+    letters come up more often.
+  - **Memo tracing**: a scrambled cube is shown (turn it as a whole to look
+    around) and the timer runs. Press Enter, type the edge letters, Enter,
+    the corner letters, and Enter again. The memo is checked by doing it,
+    so any valid cycle break counts. The first wrong letter is marked with
+    what should have come there and ringed on the cube, next to the memo
+    traced by the app and whether there is parity.
+  - **Setup moves**: a letter is given and its sticker ringed. Turn the
+    cube to bring that sticker to the swap spot (◎) without moving the
+    buffer or the other pieces the swap alg turns. The drill finishes the
+    moment it's there, and shows your setup next to the one in your scheme.
+    Or choose "Type it" to type the setup instead. Statistics per letter,
+    as in the quiz.
+  - **Blind solves**: sessions on the virtual cube or a physical one.
+    - Virtual: Space starts the memo and the timer, with the cube turning
+      only as a whole. Space hides the cube for the execution, and Space
+      stops the timer. A cube that isn't solved is a DNF, with how many
+      edges and corners are off and the traced memo.
+    - Physical: Space starts the timer, Space again ends the memo, any key
+      stops. Backspace toggles DNF.
+    - Statistics: mo3, ao5, ao12, success rate, mean of successes and mean
+      memo, plus a trend chart.
+  - **Lettering & setups…**: the blind hold (the colours on top and in
+    front that the letters belong to; white top, green front by default),
+    a net with every sticker's letter, and for each sticker its letter and
+    setup. Setups are worked out by the app (edges with L, D, M, E, l and
+    d; corners with R, D and F) and can be replaced with your own, which
+    are checked. Speffz letters by default; every letter can be changed.
+    The lettering, your own setups and the blind hold are kept in the
+    settings file under `[blind]`.
 - **Scramble types** (Timed and Untimed):
   - WCA random state.
   - cstimer-style subsets: F2L/cross solved, XCross, EOLine, EOCross,
@@ -429,6 +468,14 @@ picks the plugin as usual.
 | Inspection | Esc | put the scramble back (nothing is recorded) |
 | Inspection (bad edges) | 0-9, Backspace, Enter | type a count, correct it, give it |
 | Inspection (bad edges), after an attempt | Tab | ring the other axis's bad edges |
+| Blind, letter quiz | letter keys / Enter / Backspace | answer / answer a longer label / correct |
+| Blind, letter quiz | click a sticker on the net | answer a letter → sticker question |
+| Blind, quiz and setups | Space | next letter (before an answer: give up or skip) |
+| Blind, setup moves | turning keys / Esc | do the setup / start it again (after it: try the letter again) |
+| Blind, memo tracing | Space / Enter / Esc | new scramble / type the letters (Enter after edges, Enter to check) / give up the scramble |
+| Blind solves (virtual) | Space | start memo, start execution (hides the cube), stop |
+| Blind solves (physical) | Space / any key | start, end memo / stop |
+| Blind solves | Esc / Backspace | cancel / toggle DNF (physical, after the solve) |
 
 Default turning keys (face keys from cstimer's layout; Shift + a face key
 turns the wide layer, e.g. Shift+I is r and Shift+G is f'):
@@ -463,6 +510,7 @@ ticked) builds the cases. If you change a set's step settings later,
 | Untimed sessions | `~/.local/share/v-cube/untimed.json` | `%LOCALAPPDATA%\v-cube\untimed.json` |
 | Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
 | Inspection sessions | `~/.local/share/v-cube/inspection.json` | `%LOCALAPPDATA%\v-cube\inspection.json` |
+| Blind sessions and drill statistics | `~/.local/share/v-cube/blind.json` | `%LOCALAPPDATA%\v-cube\blind.json` |
 | Settings (theme, colours, keys, mode choices) | `~/.config/v-cube/v-cube.ini` | `%APPDATA%\v-cube\v-cube.ini` |
 
 A file that can't be read (e.g. cut short by a crash) is never saved
