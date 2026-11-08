@@ -48,6 +48,8 @@ struct BlindScheme {
 // to UF" or "moves the buffer or the T-perm's corners"; empty when it does.
 QString setupProblem(BldPiece kind, int sticker, const std::string &text);
 
+// "1 move", "3 moves": the length of a setup.
+QString setupMovesText(int moves);
 // "Edges" or "Corners" (or the singular), for labels.
 QString pieceName(BldPiece kind, bool plural = true);
 

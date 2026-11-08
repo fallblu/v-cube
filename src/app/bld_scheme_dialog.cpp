@@ -46,6 +46,11 @@ QStringList toList(const std::array<std::string, kBldStickers> &list) {
 
 } // namespace
 
+QString setupMovesText(int moves) {
+  return moves == 1 ? QObject::tr("1 move")
+                    : QObject::tr("%1 moves").arg(moves);
+}
+
 QString pieceName(BldPiece kind, bool plural) {
   if (kind == BldPiece::Edge) {
     return plural ? QObject::tr("Edges") : QObject::tr("Edge");
@@ -328,17 +333,18 @@ void BldSchemeDialog::fillRow(BldPiece kind, int sticker) {
     auto *it = item(SetupCol, computedText, true);
     it->setForeground(muted);
     it->setToolTip(tr("Computed; type your own setup to replace it"));
-    QString check = sticker == op::swapSpot(kind)
-                        ? tr("the swap spot: no setup")
-                        : tr("computed, %n move(s)", nullptr,
-                             computed ? moveCount(*computed) : 0);
+    QString check =
+        sticker == op::swapSpot(kind)
+            ? tr("the swap spot: no setup")
+            : tr("computed, %1")
+                  .arg(setupMovesText(computed ? moveCount(*computed) : 0));
     item(CheckCol, check, false)->setForeground(muted);
   } else {
     item(SetupCol, qs(own), true);
     QString problem = setupProblem(kind, sticker, own);
     auto *check = item(CheckCol,
-                       problem.isEmpty() ? tr("OK, %n move(s)", nullptr,
-                                              moveCount(parseAlgOrEmpty(own)))
+                       problem.isEmpty() ? tr("OK, %1").arg(setupMovesText(
+                                               moveCount(parseAlgOrEmpty(own))))
                                          : problem,
                        false);
     check->setForeground(problem.isEmpty() ? QColor(0x3d, 0xd6, 0x6b)
