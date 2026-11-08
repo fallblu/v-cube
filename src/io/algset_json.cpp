@@ -120,6 +120,8 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
   set.aufBefore = o.value("aufBefore").toBool(true);
   set.aufAfter = o.value("aufAfter").toBool(true);
   set.targetSeconds = o.value("targetSeconds").toDouble(3.0);
+  set.guided = o.value("guided").toBool(true);
+  set.families = o.value("families").toBool(false);
   if (set.id.empty()) {
     if (error) {
       *error = "alg set has no id";
@@ -182,6 +184,12 @@ QJsonObject algSetToJson(const AlgSet &set) {
   o["aufBefore"] = set.aufBefore;
   o["aufAfter"] = set.aufAfter;
   o["targetSeconds"] = set.targetSeconds;
+  if (!set.guided) {
+    o["guided"] = false;
+  }
+  if (set.families) {
+    o["families"] = true;
+  }
   writeSpec(o, set.spec);
   QJsonArray groups;
   for (const auto &g : set.groups) {

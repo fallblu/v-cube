@@ -797,6 +797,8 @@ void LibraryPage::editProperties() {
   s->aufBefore = r.aufBefore;
   s->aufAfter = r.aufAfter;
   s->targetSeconds = r.targetSeconds;
+  s->guided = r.guided;
+  s->families = r.families;
   s->spec = r.spec;
   for (std::size_t i = 0; i < s->groups.size() && i < r.groups.size(); ++i) {
     s->groups[i].spec = r.groups[i].spec;

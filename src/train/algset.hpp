@@ -69,6 +69,13 @@ struct AlgSet {
   bool aufBefore = true;      // Learn and Drill turn U randomly before the
   bool aufAfter = true;       // case, and after it
   double targetSeconds = 3.0; // SRS grading reference time per case
+  // Learn walks through new cases (a steppable demo, then the alg done
+  // with each next move shown) and shows the next move as a hint during
+  // learning steps.
+  bool guided = true;
+  // Learn takes each case with its mirror images as one family: one card
+  // per family, a random member set up each time (see families.hpp).
+  bool families = false;
   std::vector<CaseGroup> groups;
 
   const StepSpec &specFor(const CaseGroup &g) const {

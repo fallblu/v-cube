@@ -75,6 +75,22 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
       tr("Drill times at or under this are shown in green, and slower cases "
          "come up more often in weighted order"));
   form->addRow(tr("Target time:"), targetSpin_);
+  guidedBox_ = new QCheckBox(tr("Guided learning"), general);
+  guidedBox_->setChecked(set_.guided);
+  guidedBox_->setToolTip(
+      tr("New cases start with a walkthrough of the main alg (step through "
+         "it with the arrow keys, then do it with each next move shown), and "
+         "Tab shows only the next move while a case is in its learning "
+         "steps"));
+  familiesBox_ = new QCheckBox(tr("Learn by family"), general);
+  familiesBox_->setChecked(set_.families);
+  familiesBox_->setToolTip(
+      tr("Learn each case together with its mirror images (left-right, "
+         "front-back and both, e.g. the four F2L slots): one review card "
+         "per family, set up as a random one of them, with all of them "
+         "shown afterwards"));
+  form->addRow(tr("Learn:"), guidedBox_);
+  form->addRow(QString(), familiesBox_);
   layout->addWidget(general);
 
   auto *step = new QGroupBox(tr("Step settings"), this);
@@ -262,6 +278,8 @@ void SetPropertiesDialog::accept() {
   set_.aufBefore = aufBeforeBox_->isChecked();
   set_.aufAfter = aufAfterBox_->isChecked();
   set_.targetSeconds = targetSpin_->value();
+  set_.guided = guidedBox_->isChecked();
+  set_.families = familiesBox_->isChecked();
   QDialog::accept();
 }
 
