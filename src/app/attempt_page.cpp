@@ -1010,6 +1010,9 @@ void AttemptPage::refreshAttempts() {
   auto ao5 = rollingAverages(solves, 5);
   auto ao12 = rollingAverages(solves, 12);
   table_->setRowCount(static_cast<int>(attempts.size()));
+  if (moveCount_) {
+    table_->setColumnHidden(2, !hasOptimalSolver(session().step));
+  }
   std::size_t counted = 0; // index into solves
   for (std::size_t i = 0; i < attempts.size(); ++i) {
     const MoveCountAttempt &a = attempts[i];
@@ -1026,7 +1029,9 @@ void AttemptPage::refreshAttempts() {
     set(col++, QString::number(i + 1));
     set(col++, qs(formatAttempt(a)));
     if (moveCount_) {
-      std::optional<int> best = optimalOf(a);
+      std::optional<int> best = hasOptimalSolver(session().step)
+                                    ? optimalOf(a)
+                                    : std::optional<int>(-1);
       set(col++, !best       ? QString("…")
                  : *best < 0 ? QString("-")
                              : QString::number(*best));
