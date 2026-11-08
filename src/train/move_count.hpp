@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cube/facelet.hpp"
+#include "cube/hold.hpp"
 #include "cube/move.hpp"
 #include "train/stats.hpp"
 
@@ -48,6 +49,9 @@ std::string defaultScrambleType(SolveStep step);
 // axis (they can be solved without F or B quarter turns), as in ZZ. So
 // EO counts on any axis and the cross on any colour.
 bool stepReached(const FaceletCube &cube, SolveStep step);
+// The holds in which the cube shows `step` done (cross on the bottom, EO
+// for the front-back axis), sorted; empty if none.
+std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step);
 
 // Moves in HTM: every turn of an outer layer (a face or a wide turn) is
 // one move, a slice turn is two, and rotations are free.

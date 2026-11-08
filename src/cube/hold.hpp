@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cube/cubie.hpp"
+#include "cube/facelet.hpp"
 #include "cube/move.hpp"
 
 #include <array>
@@ -51,6 +52,16 @@ CubieCube heldState(const CubieCube &state, Hold h);
 // The inverse: what the solver sees held as `h` after scrambling to
 // `scrambled` holding white top, green front.
 CubieCube solverState(const CubieCube &scrambled, Hold h);
+
+// The hold a facelet cube is in: the colours of its U and F centres (the
+// stickers carry the colour they had in the WCA hold). nullopt if the
+// centres aren't a real cube's.
+std::optional<Hold> holdOf(const FaceletCube &cube);
+// A facelet cube in any orientation (e.g. after rotations done while
+// solving), turned so that it is held as `h` and seen by the solver: each
+// sticker is renamed for the face whose centre has its colour then.
+// nullopt if the stickers aren't a real cube's.
+std::optional<CubieCube> heldCubie(const FaceletCube &cube, Hold h);
 
 // Common degrees of colour neutrality, as the rotations allowed on top of
 // a main hold: Y means any of y, y2, y' (any front with the same top),

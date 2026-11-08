@@ -25,6 +25,10 @@ add_executable(vcube_tests
   test_srs.cpp
   test_io.cpp
   test_move_count.cpp
+  test_step_solver.cpp
+  test_solve_review.cpp
+  test_families.cpp
+  test_bld.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)
