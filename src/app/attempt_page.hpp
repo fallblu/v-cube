@@ -9,9 +9,11 @@
 #include "io/move_counts.hpp"
 #include "train/move_count.hpp"
 
+#include <QFutureWatcher>
 #include <QTimer>
 
 #include <deque>
+#include <map>
 
 class QComboBox;
 class QLabel;
@@ -69,6 +71,7 @@ private:
 
   AppSettings &settings_;
   MoveCountStore &store_;
+  AlgLibrary &library_;
   const bool moveCount_; // Move Count, not Untimed
   ScrambleFeed feed_;
   ScrambleAlgs *algs_ = nullptr; // Untimed only
@@ -82,6 +85,21 @@ private:
   // end.
   std::deque<GeneratedScramble> history_;
   std::size_t index_ = 0;
+  // A recorded scramble solved again from its review: not recorded, and
+  // compared with the attempt it repeats.
+  struct Retry {
+    std::size_t index = 0; // of the attempt
+    MoveCountAttempt original;
+    GeneratedScramble scramble;
+    bool done = false; // solved; Space goes back to the scrambles
+  };
+  std::optional<Retry> retry_;
+  // Move Count: optimal lengths of attempts' scrambles for the session's
+  // step in the neutrality's holds, by step and scramble, worked out off
+  // the GUI thread.
+  std::map<std::pair<SolveStep, std::string>, int> optimal_;
+  QFutureWatcher<std::vector<std::pair<std::string, int>>> optimalWatcher_;
+  SolveStep optimalStep_ = SolveStep::EO; // what the watcher works on
 
   QWidget *leftPanel_;
   QWidget *typeRow_;
@@ -105,6 +123,7 @@ private:
   QPushButton *recordButton_;
   QPushButton *dnfButton_;
   QPushButton *deleteButton_;
+  QPushButton *reviewButton_;
   QWidget *algPanel_; // Untimed only
   QLineEdit *algEdit_;
   QLabel *algError_;
@@ -145,6 +164,15 @@ private:
   void skip();
   void applyAlg();
   void returnFocus();
+
+  // Opens the review of an attempt done on the virtual cube.
+  void review(int index);
+  void startRetry(std::size_t index);
+  void endRetry();
+  // Works out the optimal lengths the attempt list is missing.
+  void requestOptimal();
+  // nullopt while it is being worked out, -1 if it can't be.
+  std::optional<int> optimalOf(const MoveCountAttempt &a) const;
 
   void refreshSessionMenu();
   void selectSession(std::size_t index);

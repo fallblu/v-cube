@@ -2,6 +2,8 @@
 
 #include <QCoreApplication>
 
+#include <algorithm>
+
 namespace vcube {
 
 ColourScheme ColourScheme::standard() {
@@ -35,6 +37,24 @@ QString holdHtml(Hold h, const ColourScheme &scheme) {
   return QCoreApplication::translate("vcube", "%1 %2 top, %3 %4 front")
       .arg(square(h.top), colourName(h.top).toLower().toHtmlEscaped(),
            square(h.front), colourName(h.front).toLower().toHtmlEscaped());
+}
+
+QString colourHtml(int slot, const ColourScheme &scheme) {
+  return QString("<span style=\"color:%1\">&#9632;</span> %2")
+      .arg(scheme.colourOfSlot(slot).name(),
+           colourName(slot).toLower().toHtmlEscaped());
+}
+
+QString stepHoldHtml(Hold h, bool eoOnly, const ColourScheme &scheme) {
+  int bottom = (h.top + 3) % 6; // opposite colours are 3 apart
+  int back = (h.front + 3) % 6;
+  if (eoOnly) {
+    return QCoreApplication::translate("vcube", "EO on %1 / %2")
+        .arg(colourHtml(std::min(h.front, back), scheme),
+             colourHtml(std::max(h.front, back), scheme));
+  }
+  return QCoreApplication::translate("vcube", "%1 cross, %2 front")
+      .arg(colourHtml(bottom, scheme), colourHtml(h.front, scheme));
 }
 
 } // namespace vcube
