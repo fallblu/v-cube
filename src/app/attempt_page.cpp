@@ -902,6 +902,7 @@ void AttemptPage::startRetry(std::size_t index) {
   }
   Retry r;
   r.index = index;
+  r.feedSolved = retry_ ? retry_->feedSolved : phase_ == Phase::Done;
   r.original = attempts[index];
   r.scramble.text = qs(r.original.scramble);
   retry_ = r;
@@ -913,9 +914,14 @@ void AttemptPage::startRetry(std::size_t index) {
 }
 
 void AttemptPage::endRetry() {
+  bool feedSolved = retry_ && retry_->feedSolved;
   retry_.reset();
   setPhase(Phase::Inspect);
-  showScramble(); // the scramble that was shown before the retry
+  if (feedSolved) {
+    feed_.advance(); // the scramble shown before was solved already
+  } else {
+    showScramble(); // the scramble that was shown before the retry
+  }
   refreshAttempts();
 }
 

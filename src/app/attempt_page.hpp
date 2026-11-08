@@ -91,7 +91,8 @@ private:
     std::size_t index = 0; // of the attempt
     MoveCountAttempt original;
     GeneratedScramble scramble;
-    bool done = false; // solved; Space goes back to the scrambles
+    bool done = false;       // solved; Space goes back to the scrambles
+    bool feedSolved = false; // the scramble shown before was solved
   };
   std::optional<Retry> retry_;
   // Move Count: optimal lengths of attempts' scrambles for the session's
