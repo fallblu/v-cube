@@ -81,8 +81,9 @@ struct StepProgress {
 };
 StepProgress stepProgress(const FaceletCube &cube);
 
-// Moves in HTM: every turn of an outer layer (a face or a wide turn) is
-// one move, a slice turn is two, and rotations are free.
+// Moves in HTM, as moveCount() counts them (the same count as the Library
+// shows): every turn of an outer layer (a face or a wide turn) is one move, a
+// slice turn is two, and rotations are free.
 int htmCount(const Alg &alg);
 
 // One attempt on the virtual cube: the scrambled cube can only be turned

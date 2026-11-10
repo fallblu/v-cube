@@ -1,0 +1,54 @@
+#pragma once
+
+#include "train/case_logic.hpp"
+
+#include <QDialog>
+
+class QCheckBox;
+class QComboBox;
+class QLabel;
+class QPlainTextEdit;
+class QPushButton;
+class QStackedWidget;
+class QTableWidget;
+
+namespace vcube {
+
+// Pastes a list of algs into a set in two steps: the text, then a table of
+// what each alg would do (the case it goes to, or why it isn't filed),
+// where algs that aren't filed can be corrected or given a case before
+// anything is changed. Apply keeps plan().
+class PasteDialog : public QDialog {
+  Q_OBJECT
+public:
+  // `group`: the group new cases go to at first, or -1 for the last one.
+  PasteDialog(const AlgSet &set, int group, const QString &text,
+              QWidget *parent = nullptr);
+
+  const PastePlan &plan() const { return plan_; }
+  // The algs that aren't filed, as lines to paste again.
+  QString leftOver() const;
+
+private:
+  const AlgSet &set_;
+  std::vector<PasteItem> items_;
+  PastePlan plan_;
+  bool loading_ = false;
+
+  QStackedWidget *pages_;
+  QPlainTextEdit *edit_;
+  QCheckBox *create_;
+  QComboBox *groupBox_;
+  QLabel *summary_;
+  QTableWidget *table_;
+  QPushButton *backButton_;
+  QPushButton *checkButton_;
+  QPushButton *applyButton_;
+
+  void check();
+  void replan();
+  void fillTable();
+  void chooseCase(int row, int index);
+};
+
+} // namespace vcube

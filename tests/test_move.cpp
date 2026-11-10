@@ -102,3 +102,8 @@ TEST_CASE("inverts, mirrors and simplifies") {
   CHECK(toString(simplify(parseAlgOrEmpty("R L R'"))) == "L");
   CHECK(moveCount(parseAlgOrEmpty("x R U y R'")) == 3);
 }
+
+TEST_CASE("the move count is HTM, with slice turns counted twice") {
+  CHECK(moveCount(parseAlgOrEmpty("M2 U M2 U2 M2 U M2")) == 11);
+  CHECK(moveCount(parseAlgOrEmpty("r U R' E S' x")) == 7);
+}

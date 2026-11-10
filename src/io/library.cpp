@@ -1,5 +1,7 @@
 #include "io/library.hpp"
 
+#include "train/case_logic.hpp"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -47,6 +49,9 @@ AlgLibrary::AlgLibrary(QString dir, QString builtinDir)
     : dir_(std::move(dir)), builtinDir_(std::move(builtinDir)) {}
 
 QString AlgLibrary::pathFor(const std::string &id) const {
+  if (auto it = paths_.find(id); it != paths_.end()) {
+    return it->second;
+  }
   return QDir(dir_).filePath(sanitizeId(id) + ".json");
 }
 
@@ -54,29 +59,82 @@ QString AlgLibrary::progressPathFor(const std::string &id) const {
   return QDir(dir_).filePath("progress/" + sanitizeId(id) + ".json");
 }
 
-QStringList AlgLibrary::builtinIds() const {
-  QStringList ids;
-  for (const QString &file :
-       QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
-    QString error;
-    if (auto set = readAlgSetFile(QDir(builtinDir_).filePath(file), &error)) {
-      ids << qs(set->id);
+const std::vector<AlgSet> &AlgLibrary::shipped() const {
+  if (!shipped_) {
+    shipped_.emplace();
+    for (const QString &file :
+         QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
+      QString error;
+      if (auto set =
+              readAlgSetFile(QDir(builtinDir_).filePath(file), &error)) {
+        set->builtin = true;
+        shipped_->push_back(std::move(*set));
+      }
     }
   }
+  return *shipped_;
+}
+
+QStringList AlgLibrary::builtinIds() const {
+  QStringList ids;
+  for (const AlgSet &set : shipped()) {
+    ids << qs(set.id);
+  }
   return ids;
+}
+
+std::vector<AlgSet> AlgLibrary::missingBuiltins() const {
+  std::vector<AlgSet> out;
+  for (const AlgSet &set : shipped()) {
+    if (std::none_of(sets_.begin(), sets_.end(),
+                     [&set](const AlgSet &s) { return s.id == set.id; })) {
+      out.push_back(set);
+    }
+  }
+  return out;
 }
 
 void AlgLibrary::installBuiltins() {
   QDir dir(dir_);
   QStringList installed;
   QFile marker(dir.filePath(kInstalledFile));
+  bool known = false; // the marker could be read
   if (marker.open(QIODevice::ReadOnly)) {
-    for (const auto &v : QJsonDocument::fromJson(marker.readAll()).array()) {
+    QJsonParseError pe;
+    auto doc = QJsonDocument::fromJson(marker.readAll(), &pe);
+    known = pe.error == QJsonParseError::NoError && doc.isArray();
+    for (const auto &v : doc.array()) {
       installed << v.toString();
     }
     marker.close();
   }
   bool changed = false;
+  if (!known) {
+    // Without the marker, a library that already has sets can't tell
+    // deleted built-ins from new ones: install none, and say how to get
+    // them back, rather than bring back every set the user deleted.
+    QStringList existing = dir.entryList({"*.json"}, QDir::Files);
+    existing.removeAll(kInstalledFile);
+    if (!existing.isEmpty()) {
+      QStringList missing;
+      for (const AlgSet &set : shipped()) {
+        QString id = qs(set.id);
+        if (!installed.contains(id)) {
+          if (!QFile::exists(pathFor(set.id))) {
+            missing << qs(set.name);
+          }
+          installed << id;
+          changed = true;
+        }
+      }
+      if (!missing.isEmpty()) {
+        errors_ << QString("%1 was missing or unreadable, so built-in sets "
+                           "not in your library (%2) were not added; Set > "
+                           "Restore a built-in set adds one")
+                       .arg(kInstalledFile, missing.join(", "));
+      }
+    }
+  }
   for (const QString &file :
        QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
     QString error;
@@ -112,9 +170,11 @@ void AlgLibrary::load() {
   sets_.clear();
   progress_.clear();
   progressKeptOff_.clear();
+  paths_.clear();
   QDir().mkpath(dir_);
   QDir().mkpath(QDir(dir_).filePath("progress"));
   installBuiltins();
+  paths_.clear();
   QDir dir(dir_);
   for (const QString &file :
        dir.entryList({"*.json"}, QDir::Files, QDir::Name)) {
@@ -123,16 +183,42 @@ void AlgLibrary::load() {
     }
     QString error;
     FileStatus status = FileStatus::Read;
-    auto set = readAlgSetFile(dir.filePath(file), &error, &status);
+    QString path = dir.filePath(file);
+    auto set = readAlgSetFile(path, &error, &status);
     if (!set) {
       errors_ << unreadableSetMessage(dir.filePath(file), error, status);
       continue;
     }
+    auto same = std::find_if(sets_.begin(), sets_.end(), [&](const AlgSet &s) {
+      return s.id == set->id;
+    });
+    if (same != sets_.end()) {
+      // Two files of one set, such as a copy made in a file manager: keep
+      // the one named for the id, so that edits never go over it from the
+      // other, and leave the other alone.
+      QString canonical = sanitizeId(set->id) + ".json";
+      QString kept = QFileInfo(paths_[set->id]).fileName();
+      QString skipped = file;
+      if (file == canonical && kept != canonical) {
+        std::swap(kept, skipped);
+        *same = std::move(*set);
+        paths_[same->id] = path;
+      }
+      errors_ << QString("%1 has the same set id (\"%2\") as %3, so it was "
+                         "not loaded; give it another id or remove it")
+                     .arg(skipped, qs(same->id), kept);
+      continue;
+    }
+    paths_[set->id] = path;
     sets_.push_back(std::move(*set));
   }
   for (const AlgSet &s : sets_) {
     progress(s.id); // to report unreadable progress files now
   }
+  sortSets();
+}
+
+void AlgLibrary::sortSets() {
   // Built-ins first in a fixed order, then the user's sets by name.
   QStringList order = {"pll", "oll", "2look-oll", "2look-pll"};
   std::stable_sort(sets_.begin(), sets_.end(),
@@ -159,7 +245,12 @@ AlgSet *AlgLibrary::find(const std::string &id) {
 
 bool AlgLibrary::save(const AlgSet &set, QString *error) {
   QDir().mkpath(dir_);
-  return writeAlgSetFile(set, pathFor(set.id), error);
+  QString path = pathFor(set.id);
+  if (!writeAlgSetFile(set, path, error)) {
+    return false;
+  }
+  paths_[set.id] = path;
+  return true;
 }
 
 bool AlgLibrary::idTaken(const std::string &id) const {
@@ -184,68 +275,116 @@ std::string AlgLibrary::uniqueId(const std::string &base) const {
   }
 }
 
-AlgSet &AlgLibrary::add(AlgSet set) {
+AlgSet *AlgLibrary::add(AlgSet set, QString *error) {
   if (set.id.empty() || idTaken(set.id) ||
       sanitizeId(set.id).size() > kMaxNewId) {
     set.id = uniqueId(set.id.empty() ? set.name : set.id);
   }
+  if (!save(set, error)) {
+    paths_.erase(set.id);
+    return nullptr;
+  }
+  std::string id = set.id;
   sets_.push_back(std::move(set));
-  save(sets_.back());
-  return sets_.back();
+  sortSets();
+  return find(id);
 }
 
-bool AlgLibrary::remove(const std::string &id) {
+bool AlgLibrary::remove(const std::string &id, QString *error) {
   auto it = std::find_if(sets_.begin(), sets_.end(),
                          [&](const AlgSet &s) { return s.id == id; });
   if (it == sets_.end()) {
+    if (error) {
+      *error = "no set with that id";
+    }
     return false;
   }
   finishBackgroundWrites(progressPathFor(id));
-  QFile::remove(pathFor(id));
-  QFile::remove(progressPathFor(id));
+  QFile file(pathFor(id));
+  if (file.exists() && !file.remove()) {
+    if (error) {
+      *error = QString("could not delete %1: %2")
+                   .arg(QDir::toNativeSeparators(file.fileName()),
+                        file.errorString());
+    }
+    return false;
+  }
+  QFile progressFile(progressPathFor(id));
+  if (progressFile.exists() && !progressFile.remove() && error) {
+    *error = QString("could not delete %1: %2")
+                 .arg(QDir::toNativeSeparators(progressFile.fileName()),
+                      progressFile.errorString());
+  }
   progress_.erase(id);
+  progressKeptOff_.erase(id);
+  paths_.erase(id);
   sets_.erase(it);
   return true;
 }
 
 bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
-  for (const QString &file :
-       QDir(builtinDir_).entryList({"*.json"}, QDir::Files)) {
-    auto shipped = readAlgSetFile(QDir(builtinDir_).filePath(file), error);
-    if (!shipped || shipped->id != id) {
-      continue;
+  const std::vector<AlgSet> &all = shipped();
+  auto ship = std::find_if(all.begin(), all.end(),
+                           [&id](const AlgSet &s) { return s.id == id; });
+  if (ship == all.end()) {
+    if (error) {
+      *error = "no built-in set with that id";
     }
-    AlgSet *current = find(id);
-    if (!current) {
-      sets_.push_back(*shipped);
-      return save(*shipped, error);
+    return false;
+  }
+  AlgSet *current = find(id);
+  if (!current) {
+    progress_.erase(id);
+    QFile::remove(progressPathFor(id)); // left by an older version
+    return add(*ship, error) != nullptr;
+  }
+  AlgSet restored = *current;
+  std::vector<std::string> newIds;
+  // Shipped cases go back into the group of that name (made again if the
+  // user deleted it); everything else of the user's stays.
+  for (const CaseGroup &sg : ship->groups) {
+    auto group =
+        std::find_if(restored.groups.begin(), restored.groups.end(),
+                     [&sg](const CaseGroup &g) { return g.name == sg.name; });
+    if (group == restored.groups.end()) {
+      restored.groups.push_back({sg.name, sg.spec, {}});
+      group = restored.groups.end() - 1;
     }
-    // Shipped cases go back into the group of that name (made again if the
-    // user deleted it); everything else of the user's stays.
-    for (const CaseGroup &sg : shipped->groups) {
-      auto group =
-          std::find_if(current->groups.begin(), current->groups.end(),
-                       [&sg](const CaseGroup &g) { return g.name == sg.name; });
-      if (group == current->groups.end()) {
-        current->groups.push_back({sg.name, sg.spec, {}});
-        group = current->groups.end() - 1;
-      }
-      for (const AlgCase &sc : sg.cases) {
-        if (AlgCase *c = current->findCase(sc.id)) {
-          c->name = sc.name;
-          c->state = sc.state;
-        } else {
-          group->cases.push_back(sc);
+    for (const AlgCase &sc : sg.cases) {
+      AlgCase *c = restored.findCase(sc.id);
+      if (c && c->state != sc.state) {
+        // The same case if one of its algs solves the shipped one, as a
+        // corrected shipped state still would.
+        const CaseGroup *g = restored.groupOf(c->id);
+        bool same = c->algs.empty() && c->name == sc.name;
+        for (const std::string &alg : c->algs) {
+          same = same || checkCaseAlg(restored, *g, sc, alg).passes();
+        }
+        if (!same) {
+          c = nullptr; // the user's own case under that id
+          AlgCase back = sc;
+          back.id = restored.uniqueCaseId(sc.id);
+          newIds.push_back(back.id);
+          group->cases.push_back(std::move(back));
+          continue;
         }
       }
+      if (c) {
+        c->name = sc.name;
+        c->state = sc.state;
+      } else {
+        group->cases.push_back(sc);
+        newIds.push_back(sc.id);
+      }
     }
-    current->builtin = true;
-    return save(*current, error);
   }
-  if (error) {
-    *error = "no built-in set with that id";
+  restored.builtin = true;
+  if (!save(restored, error)) {
+    return false;
   }
-  return false;
+  *current = std::move(restored);
+  forgetProgress(id, newIds);
+  return true;
 }
 
 SetProgress &AlgLibrary::progress(const std::string &setId) {

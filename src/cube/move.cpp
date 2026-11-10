@@ -533,8 +533,11 @@ Alg simplify(const Alg &alg) {
 int moveCount(const Alg &alg) {
   int n = 0;
   for (Move m : alg) {
-    if (!isRotation(m.type)) {
-      ++n;
+    if (m.type == MoveType::M || m.type == MoveType::E ||
+        m.type == MoveType::S) {
+      n += 2;
+    } else if (!isRotation(m.type)) {
+      n += 1;
     }
   }
   return n;

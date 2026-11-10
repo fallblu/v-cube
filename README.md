@@ -182,10 +182,20 @@ choice are for a physical cube.
   Learn or Drill to practise it now.
 - **Library**: create and edit alg sets.
   - The main view shows the set list, the selected set's case tree and the
-    selected case with its diagram and algs. The **Set** menu (also on
-    right-click) creates, duplicates, deletes, imports, exports and checks
-    sets; **Edit** (also on right-click) adds and renames groups and cases.
-  - **Set properties…** (or double-click a set) edits the name, description,
+    selected case with its diagram, group, algs and Learn and Drill
+    progress. In Library mode the menu bar has a **Set** menu (also on
+    right-click in the set list) that creates, duplicates, deletes,
+    imports, exports and checks sets, and a **Cases** menu (also on
+    right-click in the case tree) that adds, renames, moves and deletes
+    groups and cases. Ctrl- or Shift-click selects several cases; drag
+    them (or a group) to another place, or use **Move to group** or
+    Alt+Up / Alt+Down.
+  - Every change is saved at once and can be undone (**Edit > Undo**,
+    Ctrl+Z) and redone while v-cube is open, including deleted cases,
+    groups and sets with their progress and per-set settings. Deleting asks
+    first and says how much progress goes with it.
+  - **Set properties…** (or double-click a set, or Alt+Enter) edits, on
+    three tabs with each option explained, the name, description,
     random U turns around cases in Learn and Drill, target time, guided
     learning, learning by family, solving a step at a time and the mirror
     images cases are also set up in (see Learn), and the
@@ -197,13 +207,19 @@ choice are for a physical cube.
     F2L pieces the step leaves free, so that F2L pieces in the top layer
     keep their colours (F2L sets use it). With "top colour only", a
     D-layer corner the step leaves free shows its D sticker instead, as it
-    does when it sits in the last layer.
-  - Each case can have several algs. Drag them to reorder, double-click to
-    edit, and right-click to make one the main alg or remove it.
+    does when it sits in the last layer. A diagram shows a case of the set
+    as the settings draw it, and a line says how many algs would stop (or
+    start) passing. Pieces that trade places share what may be left
+    unsolved, so a spec like `LLE:p UF:o` is checked as `LLE:po`, as drill
+    scrambles have it.
+  - Each case can have several algs (no two the same). Drag them to
+    reorder (or Alt+Up / Alt+Down), double-click or F2 to edit, Delete to
+    remove, and right-click to make one the main alg.
   - Every alg is checked against its case under the step settings in force,
     with a visible result: e.g. `(U') … (U2), 14 moves` for a pass, or
     `leaves 3 corners unsolved (U layer)` or `can't read at character 7`
-    for a fail. OLL algs pass whatever last-layer permutation they leave,
+    for a fail (moves in HTM, a slice turn counting two, as solves count
+    them). OLL algs pass whatever last-layer permutation they leave,
     and algs may need a U turn before or after when the set allows it.
     In a set solved a step at a time an alg also passes when it stops at
     another case of the set, shown as `→ Sune, 4 moves`, and the case shows
@@ -215,13 +231,26 @@ choice are for a physical cube.
     in Learn and Drill, from the angle its main alg starts from: a leading
     `y`, `y'`, `y2` or U turn is done to the case, so the rest of the alg
     solves it directly. The stored case and algs don't change.
-  - Paste any list of algs: each one is matched to the case it solves (any
-    AUF the set allows, any cube rotations), so the order doesn't matter.
-    Lines may look like `Name: alg1 / alg2`, as in Alg-Trainer, and may end
-    with a `// comment`. Algs copied from web pages are fine: curly or
+  - **Paste algs…** (Ctrl+Shift+V) takes any list of algs. Lines may look
+    like `Name: alg1 / alg2`, as in Alg-Trainer, or be tab-separated
+    `name, alg, alg…` columns copied from a spreadsheet, and may end with a
+    `// comment`. Each alg goes to the case its line names (by name or id)
+    when it solves it; without a name, to the case it solves (any AUF the
+    set allows, any cube rotations), so the order doesn't matter. Check
+    shows a table of what each alg would do before anything changes: an
+    alg that solves another case than the one named, or several cases, or
+    none, isn't filed but can be corrected in place or given a case. New
+    cases (when allowed) go to the group you pick; a set solved a step at a
+    time gets none. Apply adds the rest, and algs left out come back the
+    next time you paste. Algs copied from web pages are fine: curly or
     accented primes and no-break spaces are stored as plain ' and spaces,
     and repeats may be written `(R U R' U')2`, `x2`, `*2` or `×2`.
-  - Create a case from an alg, and import and export sets as JSON.
+  - Create a case from an alg, and import and export sets as JSON. Each
+    set is saved back to the file it came from; if two files hold the same
+    set id (such as a copy made in a file manager), only one is loaded and
+    the other is reported. **Set > Restore a built-in set** brings back a
+    deleted built-in set, and **Restore built-in cases…** its deleted
+    cases.
 - **Built-in sets**: PLL (21), OLL (57), 2-look OLL (10) and 2-look PLL (6).
   These ship as case definitions only, with no algs, so you add your own.
 - **Solving on the virtual cube** (Timed, Untimed and Move Count): each
@@ -527,6 +556,10 @@ picks the plugin as usual.
 | Learn, after a case | 1-4 | grade Again / Hard / Good / Easy |
 | Learn, after a case | Esc | reset the cube to practise the case |
 | Learn, Drill, Library | search box: Enter / Esc | return the keys to the cube / clear the search |
+| Library | Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) | undo / redo |
+| Library | Ctrl+Shift+V / Ctrl+Shift+A / Ctrl+Shift+G | paste algs / new case from alg / new group |
+| Library | Ctrl+N / Alt+Enter / Ctrl+K | new set / set properties / check algs |
+| Library | Delete / F2 / Alt+Up, Alt+Down | delete, rename, move the selected cases or group (or the selected alg, in the alg list) |
 | Drill, Timed | hold Space, release | start (after the hold time, when the time turns green) |
 | Drill, Timed (physical) | any key | stop |
 | Drill, Timed | Esc | cancel |
@@ -579,13 +612,15 @@ turns the wide layer, e.g. Shift+I is r and Shift+G is f'):
 ### Getting algs into a set
 
 1. In **Library** mode, pick a set (e.g. PLL) and click **Paste algs…**.
-2. Paste your list. Each alg is matched to its case automatically, and its
-   check result is shown next to it.
+2. Paste your list and click **Check**. Each alg is matched to its case
+   (the one its line names, or the one it solves), and the table shows
+   where each goes; fix or assign the ones that aren't filed, then
+   **Apply**. Each alg's check result is shown next to it in its case.
 3. In a case's alg list, drag an alg to the top or right-click it and
    choose **Make main** to pick which alg Learn and Drill show first.
 
 For your own sets, **Set > New set…** asks what the algs solve, then
-**Edit > New case from alg…** or **Paste algs…** (with "Create new cases"
+**Cases > New case from alg…** or **Paste algs…** (with "Make new cases"
 ticked) builds the cases. If you change a set's step settings later,
 **Set > Check algs…** lists the algs that no longer pass.
 
