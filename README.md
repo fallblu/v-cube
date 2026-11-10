@@ -85,6 +85,36 @@ choice are for a physical cube.
     algs. The case list shows every case of a family with the family's
     status, and Drill counts them as learned together. Families are worked
     out from the cases themselves, not from their names.
+  - **A step at a time** (a set property, off by default) is for sets
+    solved by reducing one case to an easier one, such as a last-slot set
+    done with triggers: each case holds only its next step (`U (R U' R')`),
+    which stops at another case of the set, and that case's step carries on
+    until an alg finishes the step.
+    - A case's card asks for its next step only. Any step that leaves fewer
+      steps to go than before is Good, whether or not it is the set's; a
+      step that doesn't, a hint or giving up is Again. A case with an alg
+      that finishes the step (an OCLL at the end, say) needs an alg that
+      does.
+    - After the step the cube shows the case it stopped at and you carry
+      on, case after case, to the end. Each case you pass is checked
+      against its own card: a due one is graded, one that isn't due
+      changes only if you miss its step, and one you haven't started
+      learning has its step shown and isn't graded. A case is graded once
+      per attempt.
+    - Cases come up with the pieces the step leaves free anywhere, as they
+      are after a step, and the status line says how many steps are left
+      after each one. Esc goes back to where the current case came up.
+    - Afterwards every case you went through is listed with the set's step,
+      what you did instead where that differed, and what became of its
+      card. Keys 1-4 change the grade of the case that came up.
+  - **Mirrored cases** (a set property): a set written for one F2L slot is
+    also set up for the others. Each case then comes up as written or in
+    one of the chosen mirror images (left-right, front-back or both), with
+    the cube seen from that slot's corner and the algs mirrored to match:
+    `R U R'` is `L' U' L` left-right, `R' U' R` front-back and `L U L'`
+    both ways. A case that doesn't depend on the slot, such as an OCLL
+    with the F2L whole, keeps its algs as you wrote them. A case has one
+    card whichever way it comes up.
   - **Practise in context** (for sets of F2L pair cases, such as a ZZ F2L
     set): a cube with EO Cross done and 1 to 4 slots open (the number next
     to the button), set up from cases you have started learning where it
@@ -113,6 +143,9 @@ choice are for a physical cube.
   - After each case you see your time, coloured green at or under the
     set's target time, and the algs with the AUFs this case needs.
     Backspace toggles DNF (virtual) or marks a wrong alg (physical).
+  - A set with mirrored cases has each case set up in a random one of its
+    mirror images, and a set solved a step at a time is drilled from the
+    case to the end of the step, with every step shown afterwards.
   - Per-case recent average, best time and fail rate. Drill attempts never
     change the spaced-repetition schedule.
 - Learn and Drill share each set's ticked cases and learn queue. Only cases
@@ -134,14 +167,17 @@ choice are for a physical cube.
     sets; **Edit** (also on right-click) adds and renames groups and cases.
   - **Set properties…** (or double-click a set) edits the name, description,
     random U turns around cases in Learn and Drill, target time, guided
-    learning and learning by family (see Learn), and the
+    learning, learning by family, solving a step at a time and the mirror
+    images cases are also set up in (see Learn), and the
     step settings for the whole set or as a group's own override: what the
     algs may leave unsolved (e.g. "last-layer permutation" for OLL-like
     sets) and how diagrams look (full colour, top colour only or grey; from
     above, or in 3D from any top corner). "Follow the pieces" applies the
     last-layer settings to the last-layer pieces wherever they are, and to
     F2L pieces the step leaves free, so that F2L pieces in the top layer
-    keep their colours (F2L sets use it).
+    keep their colours (F2L sets use it). With "top colour only", a
+    D-layer corner the step leaves free shows its D sticker instead, as it
+    does when it sits in the last layer.
   - Each case can have several algs. Drag them to reorder, double-click to
     edit, and right-click to make one the main alg or remove it.
   - Every alg is checked against its case under the step settings in force,
@@ -149,6 +185,9 @@ choice are for a physical cube.
     `leaves 3 corners unsolved (U layer)` or `can't read at character 7`
     for a fail. OLL algs pass whatever last-layer permutation they leave,
     and algs may need a U turn before or after when the set allows it.
+    In a set solved a step at a time an alg also passes when it stops at
+    another case of the set, shown as `→ Sune, 4 moves`, and the case shows
+    every step from there to the end.
     Failing algs are kept with a warning; the case tree marks cases with
     failing or no passing algs, the set list counts failing algs, and
     **Check algs…** lists them all.
@@ -312,9 +351,10 @@ choice are for a physical cube.
   - WCA random state.
   - cstimer-style subsets: F2L/cross solved, XCross, EOLine, EOCross,
     LSLL, LL, ZBLL, CLL, ELL, PLL, EPLL, corners only, edges only.
-  - Any of your alg sets, using its ticked cases. Tab (or the Algs
-    button) shows or hides the algs for the case each scramble sets up,
-    with the AUFs it needs; nothing is graded or recorded.
+  - Any of your alg sets, using its ticked cases, in the set's mirror
+    images too. Tab (or the Algs button) shows or hides the algs for the
+    case each scramble sets up, with the AUFs it needs (every step to the
+    end for a set solved a step at a time); nothing is graded or recorded.
 - **Colour neutrality** (Edit > Colour neutrality…, `Ctrl+Shift+N`, or the
   Settings tab of the same name) applies to every mode. Scrambles are
   always applied holding white on top and green in front; you choose the
@@ -435,7 +475,7 @@ picks the plugin as usual.
 | Learn, in context, afterwards | Space / Enter / Esc | another one / the same one again |
 | Learn | Tab | show the algs (grades the case Again) |
 | Learn | Shift+Space | give up (grades the case Again) |
-| Learn | Esc | reset the case (grades it Again once the alg is begun) |
+| Learn | Esc | reset the case (grades it Again once the alg is begun; in a set solved a step at a time, back to where the current case came up) |
 | Learn, after a case | Space / Enter | next case |
 | Learn, after a case | 1-4 | grade Again / Hard / Good / Easy |
 | Learn, after a case | Esc | reset the cube to practise the case |
@@ -539,7 +579,9 @@ Alg-set files look like this (states are 54-character facelet strings in
 URFDLB order; `free` lists what the step may leave unsolved, e.g. `LL:p` =
 last-layer permutation; `"by": "piece"` in `mask` makes it follow the
 pieces; `view` is `top`, `3d` (from the front right), `3d-front-left`,
-`3d-back-left` or `3d-back-right`):
+`3d-back-left` or `3d-back-right`; `"reduction": true` makes the set one
+solved a step at a time, and `"mirrors"` lists the mirror images its cases
+are also set up in, of `"left-right"`, `"front-back"` and `"both"`):
 
 ```json
 {
@@ -558,7 +600,7 @@ pieces; `view` is `top`, `3d` (from the front right), `3d-front-left`,
 | Directory | Contents |
 | --- | --- |
 | `src/cube` | Pure C++ engine. Notation parser (groups, commutators, conjugates; invert, mirror, simplify); a facelet model built from 3D geometry that handles slices, wide moves and rotations; a cubie model; Kociemba's two-phase solver (tables built in under a second); random-state and subset scramblers. |
-| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics (also over move counts), Move Count step checks and virtual-cube attempts, optimal EO to EO Cross solving (IDA*), solve review (step marks, F2L pair breakdown against pair-case sets), mirror families, Old Pochmann tracing and setups, SRS scheduler, Learn and Drill case picking. |
+| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics (also over move counts), Move Count step checks and virtual-cube attempts, optimal EO to EO Cross solving (IDA*), solve review (step marks, F2L pair breakdown against pair-case sets), mirror families, mirror worlds and step-at-a-time (reduction) sets, Old Pochmann tracing and setups, SRS scheduler, Learn and Drill case picking. |
 | `src/io` | Qt Core persistence. JSON alg sets, the user library, progress, timer, move count, inspection and blind sessions, and cstimer conversion. |
 | `src/app` | Qt Widgets UI. Cube renderer, the eight mode pages, the solve review, the shared scramble source and settings. |
 | `tests` | Catch2 tests for the engine, training logic and storage. They also check that every built-in case is distinct and that standard algs are matched to the right cases. |
