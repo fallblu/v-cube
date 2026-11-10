@@ -240,6 +240,77 @@ TEST_CASE("pasted algs are matched with the set's AUF settings") {
   CHECK(set.findCase("a")->algs.empty());
 }
 
+TEST_CASE("a pasted alg goes to the case its line names") {
+  // Two cases that the same alg solves: the line's name decides.
+  AlgSet set = ollLikeSet();
+  AlgCase copy = set.groups[0].cases[0];
+  copy.id = "sune-2";
+  copy.name = "Sune 2";
+  set.groups[0].cases.push_back(copy);
+  auto plan = planPaste(set,
+                        readPaste("Sune 2: R U R' U R U2 R'\n"
+                                  "R U R' U R U2 R'\n"
+                                  "T: R U R' U R U2 R'\n"
+                                  "t: F R U R' U' F'\n"),
+                        true, 0);
+  REQUIRE(plan.results.size() == 4);
+  CHECK(plan.results[0].outcome == PasteOutcome::Added);
+  CHECK(plan.results[0].caseId == "sune-2");
+  // No name and two cases: reported, not filed.
+  CHECK(plan.results[1].outcome == PasteOutcome::Ambiguous);
+  CHECK(plan.results[1].candidates ==
+        std::vector<std::string>{"sune", "sune-2"});
+  // Named T but it solves the Sunes: reported, not filed.
+  CHECK(plan.results[2].outcome == PasteOutcome::Mismatch);
+  CHECK(plan.results[2].candidates.size() == 2);
+  // Named t (by id) but solves no case: no stray case is made for it.
+  CHECK(plan.results[3].outcome == PasteOutcome::Unmatched);
+  CHECK(plan.report.added == 1);
+  CHECK(plan.report.ambiguous.size() == 2);
+  CHECK(plan.set.caseCount() == 3);
+  CHECK(plan.set.findCase("sune")->algs.empty());
+  CHECK(plan.set.findCase("sune-2")->algs.size() == 1);
+  // A chosen case skips the matching.
+  auto items = readPaste("R U R' U R U2 R'\n");
+  items[0].caseId = "sune";
+  plan = planPaste(set, items, false, 0);
+  CHECK(plan.results[0].outcome == PasteOutcome::Added);
+  CHECK(plan.set.findCase("sune")->algs.size() == 1);
+}
+
+TEST_CASE("pasted spreadsheet rows are name, then algs") {
+  auto items = readPaste("Sune\tR U R' U R U2 R'\ty2 L U L' U L U2 L'\n"
+                         "\"T\"\t\"R U R' U' R' F R F'\"\n"
+                         "R U R' U R U2 R'\t\n");
+  REQUIRE(items.size() == 4);
+  CHECK(items[0].name == "Sune");
+  CHECK(items[0].line == 1);
+  CHECK(items[1].alg == "y2 L U L' U L U2 L'");
+  CHECK(items[2].name == "T");
+  CHECK(items[2].alg == "R U R' U' R' F R F'");
+  // A single column is an ordinary line.
+  CHECK(items[3].name.empty());
+  CHECK(items[3].line == 3);
+  AlgSet set = ollLikeSet();
+  auto report = importAlgs(set, "Sune\tR U R' U R U2 R'\n", false);
+  CHECK(report.added == 1);
+}
+
+TEST_CASE("pasted new cases go to the chosen group") {
+  AlgSet set = ollLikeSet();
+  set.groups.push_back({"Other", std::nullopt, {}});
+  auto plan = planPaste(set,
+                        readPaste("Line: F R U R' U' F'\n"
+                                  "Line: U F R U R' U' F'\n"),
+                        true, 0);
+  CHECK(plan.results[0].outcome == PasteOutcome::NewCase);
+  CHECK(plan.set.groups[0].cases.size() == 3);
+  CHECK(plan.set.groups[1].cases.empty());
+  // The second line names the case the first one made.
+  CHECK(plan.results[1].caseId == plan.results[0].caseId);
+  CHECK(plan.results[1].outcome == PasteOutcome::Added);
+}
+
 TEST_CASE("masked facelets hide what the step ignores") {
   CubieCube s = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
   DiagramMask oll{StickerMode::Orientation, StickerMode::Orientation,

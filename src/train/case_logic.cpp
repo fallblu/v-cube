@@ -519,28 +519,33 @@ displayOrientation(const CubieCube &state, const std::string &mainAlg,
   return DisplayOrientation{*shown, restText};
 }
 
+AlgCheck checkCaseAlg(const AlgSet &set, const CaseGroup &group,
+                      const AlgCase &c, std::string_view alg) {
+  AlgCheck check = checkAlg(c.state, alg, set.specFor(group).free,
+                            set.aufBefore, set.aufAfter);
+  if (set.reduction && !check.passes() && !check.parseError && !check.empty) {
+    // A step: done as written, it stops at another case of the set.
+    FaceletCube f = c.state.toFacelets();
+    f.apply(parseAlgOrEmpty(alg));
+    f.normalizeOrientation();
+    auto after = CubieCube::fromFacelets(f);
+    auto seen = after ? seenCase(set, *after) : std::nullopt;
+    const AlgCase *next = seen ? set.findCase(seen->caseId) : nullptr;
+    if (next && next->id != c.id) {
+      check.fit = AufFit{};
+      check.reducesTo = next->id;
+      check.reducesToName = next->name;
+    }
+  }
+  return check;
+}
+
 CaseAnalysis analyzeCase(const AlgSet &set, const CaseGroup &group,
                          const AlgCase &c) {
   CaseAnalysis a;
   const PieceMask &free = set.specFor(group).free;
   for (std::size_t i = 0; i < c.algs.size(); ++i) {
-    a.checks.push_back(
-        checkAlg(c.state, c.algs[i], free, set.aufBefore, set.aufAfter));
-    AlgCheck &check = a.checks.back();
-    if (set.reduction && !check.passes() && !check.parseError && !check.empty) {
-      // A step: done as written, it stops at another case of the set.
-      FaceletCube f = c.state.toFacelets();
-      f.apply(parseAlgOrEmpty(c.algs[i]));
-      f.normalizeOrientation();
-      auto after = CubieCube::fromFacelets(f);
-      auto seen = after ? seenCase(set, *after) : std::nullopt;
-      const AlgCase *next = seen ? set.findCase(seen->caseId) : nullptr;
-      if (next && next->id != c.id) {
-        check.fit = AufFit{};
-        check.reducesTo = next->id;
-        check.reducesToName = next->name;
-      }
-    }
+    a.checks.push_back(checkCaseAlg(set, group, c, c.algs[i]));
     if (a.checks.back().passes()) {
       a.passing.push_back(i);
     }
@@ -558,18 +563,36 @@ CaseAnalysis analyzeCase(const AlgSet &set, const CaseGroup &group,
   return a;
 }
 
-std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg) {
+namespace {
+
+std::vector<CaseRef> casesSolvedBy(const AlgSet &set, const Alg &alg,
+                                   bool firstOnly) {
+  std::vector<CaseRef> out;
   for (std::size_t g = 0; g < set.groups.size(); ++g) {
     const auto &group = set.groups[g];
     const PieceMask &free = set.specFor(group).free;
     for (std::size_t i = 0; i < group.cases.size(); ++i) {
       if (fitAlg(group.cases[i].state, alg, free, set.aufBefore,
                  set.aufAfter)) {
-        return CaseRef{g, i};
+        out.push_back(CaseRef{g, i});
+        if (firstOnly) {
+          return out;
+        }
       }
     }
   }
-  return std::nullopt;
+  return out;
+}
+
+} // namespace
+
+std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg) {
+  auto found = casesSolvedBy(set, alg, true);
+  return found.empty() ? std::nullopt : std::optional(found.front());
+}
+
+std::vector<CaseRef> matchCases(const AlgSet &set, const Alg &alg) {
+  return casesSolvedBy(set, alg, false);
 }
 
 CubieCube withRandomAufs(const AlgSet &set, const CubieCube &state, Rng &rng) {
@@ -604,27 +627,113 @@ CubieCube stateSolvedBy(const Alg &alg) {
   return CubieCube::fromFacelets(f).value_or(CubieCube{});
 }
 
-ImportReport importAlgs(AlgSet &set, const std::string &text,
-                        bool createCases) {
-  ImportReport report;
+namespace {
+
+std::string lower(std::string_view s) {
+  std::string out(s);
+  for (char &c : out) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
+  return out;
+}
+
+// The case of `set` that a pasted line names, by name or id, ignoring case.
+AlgCase *namedCase(AlgSet &set, const std::string &name) {
+  if (name.empty()) {
+    return nullptr;
+  }
+  std::string want = lower(name);
+  for (auto &g : set.groups) {
+    for (auto &c : g.cases) {
+      if (lower(c.name) == want) {
+        return &c;
+      }
+    }
+  }
+  for (auto &g : set.groups) {
+    for (auto &c : g.cases) {
+      if (lower(c.id) == want) {
+        return &c;
+      }
+    }
+  }
+  return nullptr;
+}
+
+std::string namesOf(const AlgSet &set, const std::vector<std::string> &ids) {
+  std::string out;
+  for (std::size_t i = 0; i < ids.size(); ++i) {
+    const AlgCase *c = set.findCase(ids[i]);
+    out += i == 0 ? "" : i + 1 == ids.size() ? " and " : ", ";
+    out += c ? c->name : ids[i];
+  }
+  return out;
+}
+
+std::string unquoted(std::string s) {
+  while (!s.empty() && (s.back() == ',' || s.back() == '"')) {
+    s.pop_back();
+  }
+  while (!s.empty() && s.front() == '"') {
+    s.erase(s.begin());
+  }
+  return s;
+}
+
+void addPiecesOf(std::vector<PasteItem> &out, int line,
+                 const std::string &name, const std::string &text) {
+  for (const std::string &piece : split(text, '/')) {
+    std::string alg = cleanAlgText(piece);
+    if (!alg.empty()) {
+      out.push_back({line, name, alg, {}});
+    }
+  }
+}
+
+} // namespace
+
+std::vector<PasteItem> readPaste(const std::string &text) {
+  std::vector<PasteItem> out;
   std::istringstream in(text);
   std::string rawLine;
-  int newCaseNumber = set.caseCount() + 1;
+  int number = 0;
   while (std::getline(in, rawLine)) {
+    ++number;
     // A "//" comment would otherwise be split at its slashes like algs.
-    std::string line = cleanAlgText(rawLine.substr(0, rawLine.find("//")));
+    std::string raw = rawLine.substr(0, rawLine.find("//"));
+    if (raw.find('\t') != std::string::npos) {
+      // Spreadsheet columns: the case name, then its algs.
+      std::vector<std::string> columns;
+      for (const std::string &column : split(raw, '\t')) {
+        std::string c = unquoted(cleanAlgText(column));
+        if (!c.empty()) {
+          columns.push_back(c);
+        }
+      }
+      if (columns.size() >= 2 && !columns.front().starts_with("#")) {
+        std::string name = columns.front();
+        if (name.ends_with(':')) {
+          name = trim(std::string_view(name).substr(0, name.size() - 1));
+        }
+        for (std::size_t i = 1; i < columns.size(); ++i) {
+          addPiecesOf(out, number, name, columns[i]);
+        }
+        continue;
+      }
+    }
+    std::string line = cleanAlgText(raw);
     if (line.empty() || line.starts_with("#")) {
       continue;
     }
     // Drop list numbering such as "12." or "3)".
-    std::size_t digits = 0;
-    while (digits < line.size() &&
-           std::isdigit(static_cast<unsigned char>(line[digits]))) {
-      ++digits;
+    std::size_t numerals = 0;
+    while (numerals < line.size() &&
+           std::isdigit(static_cast<unsigned char>(line[numerals]))) {
+      ++numerals;
     }
-    if (digits > 0 && digits < line.size() &&
-        (line[digits] == '.' || line[digits] == ')')) {
-      line = trim(std::string_view(line).substr(digits + 1));
+    if (numerals > 0 && numerals < line.size() &&
+        (line[numerals] == '.' || line[numerals] == ')')) {
+      line = trim(std::string_view(line).substr(numerals + 1));
     }
     // Optional "name:" prefix, but not a conjugate inside brackets.
     std::string name;
@@ -636,51 +745,128 @@ ImportReport importAlgs(AlgSet &set, const std::string &text,
       line = trim(std::string_view(line).substr(colon + 1));
     }
     // Strip surrounding quotes and trailing commas from pasted lists.
-    while (!line.empty() && (line.back() == ',' || line.back() == '"')) {
-      line.pop_back();
+    addPiecesOf(out, number, name, unquoted(line));
+  }
+  return out;
+}
+
+PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
+                    bool createCases, std::size_t newCaseGroup) {
+  PastePlan plan;
+  plan.set = set;
+  AlgSet &work = plan.set;
+  ImportReport &report = plan.report;
+  int newCaseNumber = work.caseCount() + 1;
+  auto file = [&](AlgCase &c, const std::string &alg, PasteResult &r) {
+    r.caseId = c.id;
+    if (std::find(c.algs.begin(), c.algs.end(), alg) != c.algs.end()) {
+      r.outcome = PasteOutcome::Duplicate;
+      r.reason = "already in " + c.name;
+      ++report.duplicates;
+    } else {
+      r.outcome = PasteOutcome::Added;
+      r.reason = c.name;
+      c.algs.push_back(alg);
+      ++report.added;
     }
-    while (!line.empty() && line.front() == '"') {
-      line.erase(line.begin());
+  };
+  auto checkIn = [&work](const AlgCase &c, const std::string &alg) {
+    return checkCaseAlg(work, *work.groupOf(c.id), c, alg);
+  };
+  for (const PasteItem &item : items) {
+    PasteResult &r = plan.results.emplace_back();
+    ParseResult parsed = parseAlg(item.alg);
+    if (!parsed || parsed.alg.empty()) {
+      r.outcome = PasteOutcome::Invalid;
+      r.reason = parsed.error ? "can't read at character " +
+                                    std::to_string(parsed.error->position + 1)
+                              : "no moves";
+      report.invalid.push_back(item.alg);
+      continue;
     }
-    for (const std::string &piece : split(line, '/')) {
-      std::string algText = trim(piece);
-      if (algText.empty()) {
-        continue;
-      }
-      ParseResult parsed = parseAlg(algText);
-      if (!parsed || parsed.alg.empty()) {
-        report.invalid.push_back(algText);
-        continue;
-      }
-      if (auto ref = matchCase(set, parsed.alg)) {
-        AlgCase &c = set.groups[ref->group].cases[ref->index];
-        if (std::find(c.algs.begin(), c.algs.end(), algText) != c.algs.end()) {
-          ++report.duplicates;
-        } else {
-          c.algs.push_back(algText);
-          ++report.added;
+    if (!item.caseId.empty()) {
+      if (AlgCase *c = work.findCase(item.caseId)) {
+        AlgCheck check = checkIn(*c, item.alg);
+        file(*c, item.alg, r);
+        if (!check.passes() && r.outcome == PasteOutcome::Added) {
+          r.reason += ", but it " + describeCheck(check);
         }
         continue;
       }
-      if (!createCases) {
-        report.unmatched.push_back(algText);
+    }
+    std::vector<std::string> solved;
+    for (const CaseRef &ref : matchCases(work, parsed.alg)) {
+      solved.push_back(work.groups[ref.group].cases[ref.index].id);
+    }
+    if (AlgCase *named = namedCase(work, item.name)) {
+      AlgCheck check = checkIn(*named, item.alg);
+      if (check.passes()) {
+        file(*named, item.alg, r);
         continue;
       }
-      if (set.groups.empty()) {
-        set.groups.push_back({"Cases", std::nullopt, {}});
+      std::erase(solved, named->id);
+      r.candidates = solved;
+      if (!solved.empty()) {
+        r.outcome = PasteOutcome::Mismatch;
+        r.reason =
+            "named " + named->name + " but solves " + namesOf(work, solved);
+        report.ambiguous.push_back(item.alg);
+      } else {
+        r.outcome = PasteOutcome::Unmatched;
+        r.reason = "doesn't solve " + named->name + ": it " +
+                   describeCheck(check);
+        report.unmatched.push_back(item.alg);
       }
-      AlgCase c;
-      c.name = name.empty() ? "Case " + std::to_string(newCaseNumber) : name;
-      c.id =
-          set.uniqueCaseId(name.empty() ? std::to_string(newCaseNumber) : name);
-      ++newCaseNumber;
-      c.state = stateSolvedBy(parsed.alg);
-      c.algs.push_back(algText);
-      set.groups.back().cases.push_back(std::move(c));
-      ++report.created;
+      continue;
     }
+    if (solved.size() == 1) {
+      file(*work.findCase(solved.front()), item.alg, r);
+      continue;
+    }
+    if (solved.size() > 1) {
+      r.outcome = PasteOutcome::Ambiguous;
+      r.candidates = solved;
+      r.reason = "solves " + namesOf(work, solved);
+      report.ambiguous.push_back(item.alg);
+      continue;
+    }
+    if (!createCases || work.reduction) {
+      r.outcome = PasteOutcome::Unmatched;
+      r.reason = work.reduction && createCases
+                     ? "solves no case (a set solved a step at a time gets "
+                       "no new cases from pasted algs)"
+                     : "solves no case";
+      report.unmatched.push_back(item.alg);
+      continue;
+    }
+    if (work.groups.empty()) {
+      work.groups.push_back({"Cases", std::nullopt, {}});
+    }
+    CaseGroup &group =
+        work.groups[std::min(newCaseGroup, work.groups.size() - 1)];
+    AlgCase c;
+    c.name = item.name.empty() ? "Case " + std::to_string(newCaseNumber)
+                               : item.name;
+    c.id = work.uniqueCaseId(item.name.empty() ? std::to_string(newCaseNumber)
+                                               : item.name);
+    ++newCaseNumber;
+    c.state = stateSolvedBy(parsed.alg);
+    c.algs.push_back(item.alg);
+    r.outcome = PasteOutcome::NewCase;
+    r.caseId = c.id;
+    r.reason = "new case " + c.name + " in " + group.name;
+    group.cases.push_back(std::move(c));
+    ++report.created;
   }
-  return report;
+  return plan;
+}
+
+ImportReport importAlgs(AlgSet &set, const std::string &text,
+                        bool createCases) {
+  PastePlan plan = planPaste(set, readPaste(text), createCases,
+                             set.groups.empty() ? 0 : set.groups.size() - 1);
+  set = std::move(plan.set);
+  return plan.report;
 }
 
 } // namespace vcube

@@ -104,6 +104,25 @@ TEST_CASE("a step passes by stopping at another case", "[reduction]") {
   CHECK_FALSE(analyzeCase(set, g, *set.findCase("two")).main);
 }
 
+TEST_CASE("pasted steps go to the case named and make no cases",
+          "[reduction]") {
+  AlgSet set = lastSlotSet();
+  for (auto &c : set.groups[0].cases) {
+    c.algs.clear();
+  }
+  auto plan = planPaste(set,
+                        readPaste("two: R U2 R'\n"
+                                  "R U R'\n"),
+                        true, 0);
+  REQUIRE(plan.results.size() == 2);
+  CHECK(plan.results[0].outcome == PasteOutcome::Added);
+  CHECK(plan.results[0].caseId == "two");
+  // A step with no name doesn't finish any case: it isn't filed, and no
+  // case is made that it would solve.
+  CHECK(plan.results[1].outcome == PasteOutcome::Unmatched);
+  CHECK(plan.set.caseCount() == set.caseCount());
+}
+
 TEST_CASE("steps left count each case's own steps", "[reduction]") {
   AlgSet set = lastSlotSet();
   auto steps = stepsLeft(set);
