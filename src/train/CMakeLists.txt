@@ -5,6 +5,7 @@ add_library(vcube_train
   bld.cpp
   case_logic.cpp
   drill_session.cpp
+  inspection_flow.cpp
   families.cpp
   move_count.cpp
   optimal_cache.cpp
