@@ -1,6 +1,9 @@
 #include "io/algset_json.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -8,6 +11,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <set>
 #include <utility>
 
 namespace vcube {
@@ -26,7 +31,17 @@ const char *attemptModeId(AttemptMode m) {
   return "drill";
 }
 
-constexpr auto kFormat = "v-cube.algset";
+constexpr FileFormat kAlgSetFile{"v-cube.algset", 1, false, "alg set"};
+// Progress files were written without a "format" at first.
+constexpr FileFormat kProgressFile{"v-cube.progress", 1, true,
+                                   "progress file"};
+
+bool fail(QString *error, const QString &why) {
+  if (error) {
+    *error = why;
+  }
+  return false;
+}
 
 QJsonObject maskToJson(const DiagramMask &m) {
   QJsonObject o{{"llCorners", qs(std::string(stickerModeName(m.llCorners)))},
@@ -107,10 +122,7 @@ void writeSpec(QJsonObject &o, const StepSpec &spec) {
 } // namespace
 
 std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
-  if (o.value("format").toString() != kFormat) {
-    if (error) {
-      *error = "not a v-cube alg set";
-    }
+  if (checkFileFormat(o, kAlgSetFile, error) != FileStatus::Read) {
     return std::nullopt;
   }
   AlgSet set;
@@ -121,6 +133,12 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
   set.aufBefore = o.value("aufBefore").toBool(true);
   set.aufAfter = o.value("aufAfter").toBool(true);
   set.targetSeconds = o.value("targetSeconds").toDouble(3.0);
+  if (o.contains("targetSeconds") &&
+      (!o.value("targetSeconds").isDouble() || !(set.targetSeconds > 0) ||
+       !std::isfinite(set.targetSeconds))) {
+    fail(error, "\"targetSeconds\" isn't a positive number of seconds");
+    return std::nullopt;
+  }
   set.guided = o.value("guided").toBool(true);
   set.families = o.value("families").toBool(false);
   set.reduction = o.value("reduction").toBool(false);
@@ -142,6 +160,7 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
   if (!readSpec(o, set.spec, error)) {
     return std::nullopt;
   }
+  std::set<std::string> caseIds;
   for (const auto &gv : o.value("groups").toArray()) {
     QJsonObject go = gv.toObject();
     CaseGroup g;
@@ -158,6 +177,15 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
       AlgCase c;
       c.id = ss(co.value("id").toString());
       c.name = ss(co.value("name").toString());
+      if (c.id.empty()) {
+        fail(error, QString("a case in group \"%1\" has no id")
+                        .arg(qs(g.name)));
+        return std::nullopt;
+      }
+      if (!caseIds.insert(c.id).second) {
+        fail(error, QString("two cases have the id \"%1\"").arg(qs(c.id)));
+        return std::nullopt;
+      }
       auto facelets = FaceletCube::fromString(ss(co.value("state").toString()));
       std::optional<CubieCube> state;
       if (facelets) {
@@ -175,6 +203,11 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
       }
       c.state = *state;
       for (const auto &av : co.value("algs").toArray()) {
+        if (!av.isString()) {
+          fail(error,
+               QString("case \"%1\" has an alg that isn't text").arg(qs(c.id)));
+          return std::nullopt;
+        }
         c.algs.push_back(ss(av.toString()));
       }
       g.cases.push_back(std::move(c));
@@ -186,8 +219,8 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
 
 QJsonObject algSetToJson(const AlgSet &set) {
   QJsonObject o;
-  o["format"] = kFormat;
-  o["version"] = 1;
+  o["format"] = kAlgSetFile.format;
+  o["version"] = kAlgSetFile.version;
   o["id"] = qs(set.id);
   o["name"] = qs(set.name);
   o["description"] = qs(set.description);
@@ -239,40 +272,43 @@ QJsonObject algSetToJson(const AlgSet &set) {
   return o;
 }
 
-std::optional<AlgSet> readAlgSetFile(const QString &path, QString *error) {
-  QFile f(path);
-  if (!f.open(QIODevice::ReadOnly)) {
-    if (error) {
-      *error = f.errorString();
-    }
+std::optional<AlgSet> readAlgSetFile(const QString &path, QString *error,
+                                     FileStatus *status) {
+  FileRead r = readDataFile(path, kAlgSetFile);
+  if (status) {
+    *status = r.status;
+  }
+  if (r.status != FileStatus::Read) {
+    fail(error, r.status == FileStatus::Missing ? QString("there is no file")
+                                                : r.error);
     return std::nullopt;
   }
-  QJsonParseError pe;
-  auto doc = QJsonDocument::fromJson(f.readAll(), &pe);
-  if (pe.error != QJsonParseError::NoError) {
-    if (error) {
-      *error = pe.errorString();
-    }
-    return std::nullopt;
-  }
-  return algSetFromJson(doc.object(), error);
+  return algSetFromJson(r.object, error);
 }
 
 bool writeFileAtomically(const QString &path, const QByteArray &data,
                          QString *error) {
+  finishBackgroundWrites(path); // so that an older write can't land after
   QSaveFile f(path);
+  auto fail = [&] {
+    if (error) {
+      QString why = f.errorString();
+      *error = why.isEmpty() || why == "Unknown error"
+                   ? QString("%1 couldn't be written")
+                         .arg(QDir::toNativeSeparators(path))
+                   : why;
+    }
+    return false;
+  };
   if (!f.open(QIODevice::WriteOnly)) {
-    if (error) {
-      *error = f.errorString();
-    }
-    return false;
+    return fail();
   }
-  f.write(data);
+  if (f.write(data) != data.size()) {
+    f.cancelWriting();
+    return fail();
+  }
   if (!f.commit()) {
-    if (error) {
-      *error = f.errorString();
-    }
-    return false;
+    return fail();
   }
   return true;
 }
@@ -316,7 +352,13 @@ QJsonObject progressToJson(const SetProgress &p) {
     }
     cases[qs(id)] = QJsonObject{{"card", card}, {"attempts", attempts}};
   }
-  return QJsonObject{{"version", 1}, {"cases", cases}};
+  return QJsonObject{{"format", kProgressFile.format},
+                     {"version", kProgressFile.version},
+                     {"cases", cases}};
+}
+
+FileRead readProgressFile(const QString &path) {
+  return readDataFile(path, kProgressFile);
 }
 
 SetProgress progressFromJson(const QJsonObject &o) {

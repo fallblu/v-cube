@@ -1,5 +1,7 @@
 #include "app/timer_page.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
@@ -714,10 +716,14 @@ void TimerPage::exportCstimer() {
 }
 
 void TimerPage::save() {
-  QString error;
-  if (!store_.save(&error)) {
-    emit message(tr("Could not save sessions: %1").arg(error));
-  }
+  // Written in the background from a copy, so that saving never holds up
+  // the next attempt.
+  writeInBackground(
+      store_.path(),
+      [copy = store_](QString *error) { return copy.save(error); }, this,
+      [this](const QString &error) {
+        emit message(tr("Could not save sessions: %1").arg(error));
+      });
 }
 
 } // namespace vcube

@@ -1,5 +1,7 @@
 #include "app/main_window.hpp"
 
+#include "io/data_file.hpp"
+
 #include "app/attempt_page.hpp"
 #include "app/blind_page.hpp"
 #include "app/drill_page.hpp"
@@ -100,8 +102,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   // An unreadable file is kept, under another name if it could be moved.
   auto kept = [](const QString &path) {
     return path.isEmpty()
-               ? tr("It couldn't be moved aside either, so nothing will be "
-                    "saved over it.")
+               ? tr("It is left where it is, and nothing will be saved "
+                    "over it.")
                : tr("It was kept as %1.").arg(QDir::toNativeSeparators(path));
   };
   if (!sessions_.load(&error)) {
@@ -373,6 +375,7 @@ void MainWindow::changeEvent(QEvent *e) {
 void MainWindow::closeEvent(QCloseEvent *e) {
   QSettings q;
   q.setValue("window/geometry", saveGeometry());
+  finishBackgroundWrites();
   QMainWindow::closeEvent(e);
 }
 

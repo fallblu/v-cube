@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -182,4 +183,24 @@ TEST_CASE("the flat view shows U and F with the adjacent L and R stickers") {
   // to the front row; the side rows come from the old F, R and B rows.
   CHECK(flatAfter("R U") ==
         Rows{"FUUUB", "FUUUB", "DFFFU", "DRRRU", "LFFDR", "LFFDR"});
+}
+
+TEST_CASE("cubie moves other than face turns turn the pieces as cubieOf") {
+  for (const char *alg : {"M", "E2", "S'", "r", "Uw2", "x", "y'", "z2"}) {
+    INFO(alg);
+    Alg a = parseAlgOrEmpty(alg);
+    REQUIRE(a.size() == 1);
+    CubieCube c = cubieOf(parseAlgOrEmpty("R U F"));
+    CubieCube expected = c * cubieOf(a);
+    c.apply(a.front());
+    CHECK(c == expected);
+    CHECK(c.isValid());
+  }
+}
+
+TEST_CASE("conversions that can't fail say so when they do") {
+  FaceletCube f;
+  CHECK(CubieCube::fromRealFacelets(f).isSolved());
+  f[0] = f[9]; // an R sticker on U's corner
+  CHECK_THROWS_AS(CubieCube::fromRealFacelets(f), std::logic_error);
 }

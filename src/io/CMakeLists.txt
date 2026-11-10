@@ -1,6 +1,7 @@
 add_library(vcube_io
   algset_json.cpp
   blind_store.cpp
+  data_file.cpp
   inspection_store.cpp
   library.cpp
   move_counts.cpp

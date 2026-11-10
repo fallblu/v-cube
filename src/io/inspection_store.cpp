@@ -14,7 +14,8 @@ namespace vcube {
 
 namespace {
 
-constexpr const char *kFormat = "v-cube.inspection";
+constexpr FileFormat kInspectionFile{"v-cube.inspection", 1, false,
+                                     "inspection file"};
 
 // A count as stored: 0..12, or -1 for none.
 int countFrom(const QJsonObject &o, const char *key) {
@@ -142,28 +143,18 @@ std::vector<Solve> edgesAsSolves(std::span<const InspectionAttempt> attempts) {
 }
 
 InspectionStore::InspectionStore(QString path)
-    : path_(std::move(path)), sessions_(defaultInspectionSessions()) {}
+    : path_(path), sessions_(defaultInspectionSessions()),
+      file_(std::move(path), kInspectionFile) {}
 
 bool InspectionStore::load(QString *error) {
-  QFile f(path_);
-  if (!f.exists()) {
-    sessions_ = defaultInspectionSessions();
-    current_ = 0;
-    return true;
+  sessions_ = defaultInspectionSessions();
+  current_ = 0;
+  QJsonObject o;
+  FileStatus status = file_.load(o, error);
+  if (status != FileStatus::Read) {
+    return status == FileStatus::Missing;
   }
-  if (!f.open(QIODevice::ReadOnly)) {
-    return unreadable(error, f.errorString());
-  }
-  QJsonParseError pe;
-  auto doc = QJsonDocument::fromJson(f.readAll(), &pe);
-  f.close();
-  if (pe.error != QJsonParseError::NoError || !doc.isObject() ||
-      doc.object().value("format").toString() != kFormat) {
-    return unreadable(error, pe.error != QJsonParseError::NoError
-                                 ? pe.errorString()
-                                 : QString("not an inspection file"));
-  }
-  sessions_ = inspectionFromJson(doc.object(), &current_);
+  sessions_ = inspectionFromJson(o, &current_);
   if (sessions_.empty()) {
     sessions_.push_back(InspectionSession{});
   }
@@ -171,31 +162,8 @@ bool InspectionStore::load(QString *error) {
   return true;
 }
 
-bool InspectionStore::unreadable(QString *error, const QString &why) {
-  if (error) {
-    *error = why;
-  }
-  sessions_ = defaultInspectionSessions();
-  current_ = 0;
-  setAside_ = setAside(path_);
-  keepOff_ = setAside_.isEmpty();
-  return false;
-}
-
 bool InspectionStore::save(QString *error) const {
-  if (keepOff_) {
-    if (error) {
-      *error =
-          QString("%1 couldn't be read, so it isn't saved over").arg(path_);
-    }
-    return false;
-  }
-  QDir().mkpath(QFileInfo(path_).absolutePath());
-  return writeFileAtomically(
-      path_,
-      QJsonDocument(inspectionToJson(sessions_, current_))
-          .toJson(QJsonDocument::Compact),
-      error);
+  return file_.save(inspectionToJson(sessions_, current_), error);
 }
 
 void InspectionStore::setCurrentIndex(std::size_t i) {
@@ -277,7 +245,7 @@ QJsonObject inspectionToJson(const std::vector<InspectionSession> &sessions,
     }
     arr.append(so);
   }
-  return QJsonObject{{"format", kFormat},
+  return QJsonObject{{"format", kInspectionFile.format},
                      {"version", 1},
                      {"current", static_cast<int>(current)},
                      {"sessions", arr}};

@@ -1,5 +1,7 @@
 #include "app/inspection_page.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
@@ -89,8 +91,8 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   if (!store_.load(&error)) {
     QString kept =
         store_.setAsidePath().isEmpty()
-            ? tr("It couldn't be moved aside either, so nothing will be saved "
-                 "over it.")
+            ? tr("It is left where it is, and nothing will be saved over "
+                 "it.")
             : tr("It was kept as %1.")
                   .arg(QDir::toNativeSeparators(store_.setAsidePath()));
     QMessageBox::warning(this, "v-cube",
@@ -1324,10 +1326,14 @@ void InspectionPage::deleteSession() {
 }
 
 void InspectionPage::save() {
-  QString error;
-  if (!store_.save(&error)) {
-    emit message(tr("Could not save inspection sessions: %1").arg(error));
-  }
+  // Written in the background from a copy, so that saving never holds up
+  // the next attempt.
+  writeInBackground(
+      store_.path(),
+      [copy = store_](QString *error) { return copy.save(error); }, this,
+      [this](const QString &error) {
+        emit message(tr("Could not save inspection sessions: %1").arg(error));
+      });
 }
 
 } // namespace vcube

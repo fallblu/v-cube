@@ -1,5 +1,8 @@
 #include "cube/cubie.hpp"
 
+#include <stdexcept>
+#include <string>
+
 namespace vcube {
 
 // U=0..8 R=9..17 F=18..26 D=27..35 L=36..44 B=45..53
@@ -81,6 +84,10 @@ CubieCube CubieCube::inverse() const {
 }
 
 void CubieCube::apply(Move m) {
+  if (!isFaceTurn(m.type)) {
+    *this = *this * cubieOf(Alg{m});
+    return;
+  }
   const CubieCube &t = faceTurnCubie(static_cast<Face>(m.type));
   for (int i = 0; i < m.amount; ++i) {
     *this = *this * t;
@@ -199,13 +206,22 @@ std::optional<CubieCube> CubieCube::fromFacelets(const FaceletCube &f) {
   return c;
 }
 
+CubieCube CubieCube::fromRealFacelets(const FaceletCube &f) {
+  std::optional<CubieCube> c = fromFacelets(f);
+  if (!c) {
+    throw std::logic_error("stickers expected to be a real cube aren't: " +
+                           f.toString());
+  }
+  return *c;
+}
+
 const CubieCube &faceTurnCubie(Face f) {
   static const std::array<CubieCube, 6> turns = [] {
     std::array<CubieCube, 6> out{};
     for (std::size_t i = 0; i < 6; ++i) {
       FaceletCube fc;
       fc.apply(Move{static_cast<MoveType>(i), 1});
-      out[i] = *CubieCube::fromFacelets(fc);
+      out[i] = CubieCube::fromRealFacelets(fc);
     }
     return out;
   }();
@@ -216,7 +232,7 @@ CubieCube cubieOf(const Alg &alg) {
   FaceletCube f;
   f.apply(alg);
   f.normalizeOrientation();
-  return CubieCube::fromFacelets(f).value_or(CubieCube{});
+  return CubieCube::fromRealFacelets(f);
 }
 
 CubieCube uTurn(int quarters) {

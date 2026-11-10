@@ -40,7 +40,9 @@ struct CubieCube {
   CubieCube operator*(const CubieCube &b) const { return multiply(*this, b); }
   CubieCube inverse() const;
 
-  // Face turns only (U R F D L B); see moveCubie for others.
+  // Face turns (U R F D L B). Other moves turn the pieces as cubieOf()
+  // does: a slice or wide move as the face turns it amounts to with the
+  // centres kept still, and a rotation not at all.
   void apply(Move m);
   void apply(const Alg &alg);
 
@@ -55,6 +57,10 @@ struct CubieCube {
   // the stickers are not those of a real cube (a piece with stickers no
   // piece has, a piece twice, a twisted corner or flipped edge alone, ...).
   static std::optional<CubieCube> fromFacelets(const FaceletCube &f);
+  // For stickers that are a real cube by construction (e.g. a real cube
+  // turned, mirrored or recoloured): throws std::logic_error if they
+  // aren't, rather than carrying on with a wrong cube.
+  static CubieCube fromRealFacelets(const FaceletCube &f);
 };
 
 // Cubie cube of one face quarter turn.

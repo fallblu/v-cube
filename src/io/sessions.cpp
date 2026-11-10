@@ -15,6 +15,9 @@ namespace vcube {
 
 namespace {
 
+// Sessions files were written without a "format" at first.
+constexpr FileFormat kSessionsFile{"v-cube.sessions", 1, true, "sessions file"};
+
 int penaltyCode(Penalty p) {
   return p == Penalty::Plus2 ? 1 : p == Penalty::Dnf ? 2 : 0;
 }
@@ -45,27 +48,18 @@ Solve solveFromJson(const QJsonArray &a) {
 
 } // namespace
 
-SessionStore::SessionStore(QString path) : path_(std::move(path)) {}
+SessionStore::SessionStore(QString path)
+    : path_(path), file_(std::move(path), kSessionsFile) {}
 
 bool SessionStore::load(QString *error) {
-  QFile f(path_);
-  if (!f.exists()) {
-    sessions_ = {Session{}};
-    current_ = 0;
-    return true;
+  sessions_ = {Session{}};
+  current_ = 0;
+  QJsonObject o;
+  FileStatus status = file_.load(o, error);
+  if (status != FileStatus::Read) {
+    return status == FileStatus::Missing;
   }
-  if (!f.open(QIODevice::ReadOnly)) {
-    return unreadable(error, f.errorString());
-  }
-  QJsonParseError pe;
-  auto doc = QJsonDocument::fromJson(f.readAll(), &pe);
-  f.close();
-  if (pe.error != QJsonParseError::NoError || !doc.isObject()) {
-    return unreadable(error, pe.error != QJsonParseError::NoError
-                                 ? pe.errorString()
-                                 : QString("not a sessions file"));
-  }
-  sessions_ = sessionsFromJson(doc.object(), &current_);
+  sessions_ = sessionsFromJson(o, &current_);
   if (sessions_.empty()) {
     sessions_.push_back(Session{});
   }
@@ -73,30 +67,8 @@ bool SessionStore::load(QString *error) {
   return true;
 }
 
-bool SessionStore::unreadable(QString *error, const QString &why) {
-  if (error) {
-    *error = why;
-  }
-  sessions_ = {Session{}};
-  current_ = 0;
-  setAside_ = setAside(path_);
-  keepOff_ = setAside_.isEmpty();
-  return false;
-}
-
 bool SessionStore::save(QString *error) const {
-  if (keepOff_) {
-    if (error) {
-      *error =
-          QString("%1 couldn't be read, so it isn't saved over").arg(path_);
-    }
-    return false;
-  }
-  QDir().mkpath(QFileInfo(path_).absolutePath());
-  return writeFileAtomically(path_,
-                             QJsonDocument(sessionsToJson(sessions_, current_))
-                                 .toJson(QJsonDocument::Compact),
-                             error);
+  return file_.save(sessionsToJson(sessions_, current_), error);
 }
 
 void SessionStore::setCurrentIndex(std::size_t i) {
@@ -137,7 +109,8 @@ QJsonObject sessionsToJson(const std::vector<Session> &sessions,
                            {"cube", qs(std::string(cubeKindId(s.cube)))},
                            {"solves", solves}});
   }
-  return QJsonObject{{"version", 1},
+  return QJsonObject{{"format", kSessionsFile.format},
+                     {"version", 1},
                      {"current", static_cast<int>(current)},
                      {"sessions", arr}};
 }

@@ -3,6 +3,8 @@
 #include "train/bld.hpp"
 #include "train/stats.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QJsonObject>
 #include <QString>
 
@@ -98,7 +100,7 @@ public:
   // <name>.unreadable-<date>-<time>) and also starts afresh; if it can't
   // be moved, nothing is saved over it.
   bool load(QString *error = nullptr);
-  const QString &setAsidePath() const { return setAside_; }
+  const QString &setAsidePath() const { return file_.setAsidePath(); }
   bool save(QString *error = nullptr) const;
 
   BlindData &data() { return data_; }
@@ -118,10 +120,7 @@ public:
 private:
   QString path_;
   BlindData data_;
-  QString setAside_;
-  bool keepOff_ = false; // the unreadable file is still there
-
-  bool unreadable(QString *error, const QString &why);
+  DataFile file_;
 };
 
 // {"format": "v-cube.blind", "version": 1, "current": 0,

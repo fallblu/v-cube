@@ -4,6 +4,8 @@
 #include "train/move_count.hpp"
 #include "train/stats.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QJsonObject>
 #include <QString>
 
@@ -97,7 +99,7 @@ public:
   // it can't be moved, nothing is saved over it.
   bool load(QString *error = nullptr);
   // Where load() moved an unreadable file, if it did.
-  const QString &setAsidePath() const { return setAside_; }
+  const QString &setAsidePath() const { return file_.setAsidePath(); }
   bool save(QString *error = nullptr) const;
 
   std::vector<InspectionSession> &sessions() { return sessions_; }
@@ -116,10 +118,7 @@ private:
   QString path_;
   std::vector<InspectionSession> sessions_;
   std::size_t current_ = 0;
-  QString setAside_;
-  bool keepOff_ = false; // the unreadable file is still there
-
-  bool unreadable(QString *error, const QString &why);
+  DataFile file_;
 };
 
 // {"format": "v-cube.inspection", "version": 1, "current": 0, "sessions":
