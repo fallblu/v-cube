@@ -278,6 +278,16 @@ TEST_CASE("a pasted alg goes to the case its line names") {
   CHECK(plan.set.findCase("sune")->algs.size() == 1);
 }
 
+TEST_CASE("a pasted alg goes to the named case it solves when names repeat") {
+  // Groups for different slots may use the same case names.
+  AlgSet set = ollLikeSet();
+  set.groups[0].cases[1].name = "Sune";
+  auto plan =
+      planPaste(set, readPaste("Sune: R U R' U' R' F R F'\n"), false, 0);
+  CHECK(plan.results[0].outcome == PasteOutcome::Added);
+  CHECK(plan.results[0].caseId == "t");
+}
+
 TEST_CASE("pasted spreadsheet rows are name, then algs") {
   auto items = readPaste("Sune\tR U R' U R U2 R'\ty2 L U L' U L U2 L'\n"
                          "\"T\"\t\"R U R' U' R' F R F'\"\n"

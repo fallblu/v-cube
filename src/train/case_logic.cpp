@@ -637,27 +637,30 @@ std::string lower(std::string_view s) {
   return out;
 }
 
-// The case of `set` that a pasted line names, by name or id, ignoring case.
-AlgCase *namedCase(AlgSet &set, const std::string &name) {
+// The cases of `set` that a pasted line names, by name or else by id,
+// ignoring case. Several cases may share a name, e.g. in groups for
+// different slots.
+std::vector<AlgCase *> namedCases(AlgSet &set, const std::string &name) {
+  std::vector<AlgCase *> out;
   if (name.empty()) {
-    return nullptr;
+    return out;
   }
   std::string want = lower(name);
   for (auto &g : set.groups) {
     for (auto &c : g.cases) {
       if (lower(c.name) == want) {
-        return &c;
+        out.push_back(&c);
       }
     }
   }
   for (auto &g : set.groups) {
     for (auto &c : g.cases) {
-      if (lower(c.id) == want) {
-        return &c;
+      if (out.empty() && lower(c.id) == want) {
+        out.push_back(&c);
       }
     }
   }
-  return nullptr;
+  return out;
 }
 
 std::string namesOf(const AlgSet &set, const std::vector<std::string> &ids) {
@@ -794,31 +797,41 @@ PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
         continue;
       }
     }
-    std::vector<std::string> solved;
-    for (const CaseRef &ref : matchCases(work, parsed.alg)) {
-      solved.push_back(work.groups[ref.group].cases[ref.index].id);
-    }
-    if (AlgCase *named = namedCase(work, item.name)) {
-      AlgCheck check = checkIn(*named, item.alg);
-      if (check.passes()) {
-        file(*named, item.alg, r);
+    auto solvedCases = [&] {
+      std::vector<std::string> ids;
+      for (const CaseRef &ref : matchCases(work, parsed.alg)) {
+        ids.push_back(work.groups[ref.group].cases[ref.index].id);
+      }
+      return ids;
+    };
+    if (std::vector<AlgCase *> named = namedCases(work, item.name);
+        !named.empty()) {
+      auto passing = std::find_if(named.begin(), named.end(), [&](AlgCase *c) {
+        return checkIn(*c, item.alg).passes();
+      });
+      if (passing != named.end()) {
+        file(**passing, item.alg, r);
         continue;
       }
-      std::erase(solved, named->id);
+      std::vector<std::string> solved = solvedCases();
+      for (const AlgCase *c : named) {
+        std::erase(solved, c->id);
+      }
       r.candidates = solved;
       if (!solved.empty()) {
         r.outcome = PasteOutcome::Mismatch;
-        r.reason =
-            "named " + named->name + " but solves " + namesOf(work, solved);
+        r.reason = "named " + named.front()->name + " but solves " +
+                   namesOf(work, solved);
         report.ambiguous.push_back(item.alg);
       } else {
         r.outcome = PasteOutcome::Unmatched;
-        r.reason = "doesn't solve " + named->name + ": it " +
-                   describeCheck(check);
+        r.reason = "doesn't solve " + named.front()->name + ": it " +
+                   describeCheck(checkIn(*named.front(), item.alg));
         report.unmatched.push_back(item.alg);
       }
       continue;
     }
+    std::vector<std::string> solved = solvedCases();
     if (solved.size() == 1) {
       file(*work.findCase(solved.front()), item.alg, r);
       continue;
