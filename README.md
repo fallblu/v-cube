@@ -21,7 +21,7 @@ The app has eight modes, listed in a sidebar in three groups (`Ctrl+1` to
 | Solves | **Timed** | Timed solves, with sessions and statistics |
 | Solves | **Untimed** | Solves with no timer, with their move counts |
 | Solves | **Move Count** | Move-efficiency practice for one step (EO, EO+1, EO+2, EO Cross, ZZ F2L) |
-| Practice | **Inspection** | Planning EO to EO Cross in inspection and executing it blind, and counting bad edges |
+| Practice | **Inspection** | Planning EO to EO Cross (or EOLine) in inspection and executing it blind, and counting bad edges |
 | Practice | **Blind** | Old Pochmann blindfolded solving: letters, memo tracing, setup moves and blind solves |
 
 Each Solves mode keeps its own sessions, and each session is for the
@@ -297,25 +297,42 @@ choice are for a physical cube.
     everywhere.
 - **Inspection**: practise the inspection of a ZZ solve on the virtual
   cube, in sessions of its own.
-  - Plan sessions are for one step: EO, EO+1, EO+2 or EO Cross. Space shows
-    the scrambled cube, which only turns as a whole while you plan. Space
-    again hides it, and you do your plan with the turning keys without
-    seeing the cube; Space then reveals it. The step is checked (DNF if it
-    isn't done), the moves are counted in HTM, and your count is compared
-    with the optimal in your colour neutrality's holds (either EO axis) and
-    in any hold, with up to three optimal solutions such as
-    `yellow cross, green front: z2 · R' B D2 L' F`. Double-click an
-    attempt (or right-click > Review…) to replay it in the review.
+  - Plan sessions are for one step: EO, EOLine, EO+1, EO+2 or EO Cross.
+    Space shows the scrambled cube, which only turns as a whole while you
+    plan. Space again hides it, and you do your plan with the turning keys
+    without seeing the cube; Space then reveals it. The step is checked
+    (DNF if it isn't done, with how far it got: bad edges left, cross edges
+    solved), the moves are counted in HTM, the hold you did it in is kept,
+    and your count is compared with the optimal in your colour neutrality's
+    holds (either EO axis) and in any hold, with up to three optimal
+    solutions that aren't reorderings of one another, such as
+    `yellow cross, green front: z2 · R' B D2 L' F`. After an attempt,
+    rotations turn the cube to look at it. **Review last**, double-click
+    or right-click > Review… replays an attempt; **Retry** (or Retry in the
+    review) plans its scramble again without recording it; **Delete last**
+    deletes the last attempt. A scramble you have seen is never served
+    again (Esc during an attempt puts it back, unrecorded).
+  - An EO Cross session can track a pair: pick it under **Then** (FL, BL,
+    FR or BR, as you hold the cube when the cross is done) and solve that
+    pair blind after the cross. The moves to EO Cross are compared with the
+    optimum, and whether the pair was solved (and in how many more moves)
+    is kept.
   - Each Plan session has an inspection limit: WCA (15 s, with calls at 8
-    and 12 seconds), 10, 20 or 30 s, a custom one, or none. The cube is
-    hidden when it runs out, and the time used is kept with each attempt.
+    and 12 seconds), 10, 20 or 30 s, a custom one, or none. With a limit
+    the seconds left are counted down, as in Timed mode. The cube is
+    hidden when it runs out (a Space just then is ignored, and Space with
+    no moves done doesn't finish), and the time used is kept with each
+    attempt.
   - Bad edges sessions show the scrambled cube in a hold from your colour
     neutrality. Type how many edges are bad for the F/B axis (the ZZ axis,
     as held), then Enter, and for the R/L axis too if the session asks for
     both. The counts are checked and the bad edges ringed; Tab rings the
     other axis's.
   - Plan statistics: mo3/ao5/ao12 over move counts, moves over optimal,
-    how often you were optimal, and mean inspection time. Bad edges
+    how often you were optimal, and mean inspection time, broken down by
+    the scramble's optimal length and by the inspection time used. The
+    chart shows moves over optimal, the optimal rate over the last 12
+    attempts, or move counts. Bad edges
     statistics: accuracy, mean time when right, and ao5/ao12 of times with
     a wrong count as DNF. Right-click an attempt to comment, copy its
     scramble or solution, review it, or delete it. New installs start with
@@ -323,32 +340,40 @@ choice are for a physical cube.
 - **Blind**: blindfolded solving with Old Pochmann. Edges use buffer UR,
   swapped with UL by the T-perm. Corners use buffer UBL, swapped with RDF
   (its R sticker) by the modified Y-perm. After an odd number of edge
-  targets, the parity alg goes before the corners. Pick the drill under
-  **Drill**:
+  targets, the parity alg goes before the corners. Each drill has a tab
+  at the top of the page, shown in focus mode too:
   - **Letter quiz**: a sticker of the solved cube is ringed on the net and
     you type its letter, or a letter is shown and you click its sticker.
     Mixed does both in turn. Choose edges, corners or both. Each letter
-    keeps its tries, right answers and mean time, and slow or missed
-    letters come up more often.
+    keeps its tries, right answers and mean time (an answer counts for at
+    most 30 s, and the clock stops while you are away from the page or
+    the window), and slow or missed letters come up more often. Letters
+    are matched ignoring the case of A-Z, as the scheme checks them.
   - **Memo tracing**: a scrambled cube is shown (turn it as a whole to look
     around) and the timer runs. Press Enter, type the edge letters, Enter,
     the corner letters, and Enter again. The memo is checked by doing it,
-    so any valid cycle break counts. The first wrong letter is marked with
+    so any valid cycle break counts (letters that can't be read are
+    pointed out to fix, not graded). The first wrong letter is marked with
     what should have come there and ringed on the cube, next to the memo
-    traced by the app and whether there is parity.
+    traced by the app and whether there is parity; rotations still turn
+    the cube. A scramble traced is never one of the blind solves. Right-
+    click a trace to delete it.
   - **Setup moves**: a letter is given and its sticker ringed. Turn the
     cube to bring that sticker to the swap spot (◎) without moving the
     buffer or the other pieces the swap alg turns. The drill finishes the
     moment it's there, and shows your setup next to the one in your scheme.
-    Or choose "Type it" to type the setup instead. Statistics per letter,
-    as in the quiz.
+    Or choose "Type it" to type the setup instead: keys pressed outside
+    the field go back to it, Esc there gives the letter up, and an empty
+    Enter isn't an answer. Statistics per letter, as in the quiz.
   - **Blind solves**: sessions on the virtual cube or a physical one.
     - Virtual: Space starts the memo and the timer, with the cube turning
       only as a whole. Space hides the cube for the execution, and Space
       stops the timer. A cube that isn't solved is a DNF, with how many
-      edges and corners are off and the traced memo.
+      edges and corners are off and the traced memo; rotations turn the
+      cube to look at it.
     - Physical: Space starts the timer, Space again ends the memo, any key
-      stops. Backspace toggles DNF.
+      stops. Backspace toggles DNF on the solve just done.
+    - A solve cancelled after the memo started gets a new scramble.
     - Statistics: mo3, ao5, ao12, success rate, mean of successes and mean
       memo, plus a trend chart.
   - **Lettering & setups…**: the blind hold (the colours on top and in
@@ -356,7 +381,9 @@ choice are for a physical cube.
     a net with every sticker's letter, and for each sticker its letter and
     setup. Setups are worked out by the app (edges with L, D, M, E, l and
     d; corners with R, D and F) and can be replaced with your own, which
-    are checked. Speffz letters by default; every letter can be changed.
+    are checked; one that doesn't work isn't used (the computed one is,
+    until it is fixed). Speffz letters by default; every letter can be
+    changed.
     The lettering, your own setups and the blind hold are kept in the
     settings file under `[blind]`.
 - **Scramble types** (Timed and Untimed):
@@ -516,15 +543,17 @@ picks the plugin as usual.
 | Timed, Untimed | Tab | show or hide the algs for an alg set scramble's case |
 | Review | ← / → / Home / End | step the replay back / forward / to the scramble / to the end |
 | Inspection | Space | start inspection / hide the cube / reveal it / next scramble |
-| Inspection | turning keys | rotations only while you look at the cube; any turn once it is hidden |
-| Inspection | Esc | put the scramble back (nothing is recorded) |
+| Inspection | turning keys | rotations only while you look at the cube; any turn once it is hidden; rotations after an attempt |
+| Inspection | Esc | put the scramble back (nothing is recorded); end a retry |
 | Inspection (bad edges) | 0-9, Backspace, Enter | type a count, correct it, give it |
 | Inspection (bad edges), after an attempt | Tab | ring the other axis's bad edges |
 | Blind, letter quiz | letter keys / Enter / Backspace | answer / answer a longer label / correct |
 | Blind, letter quiz | click a sticker on the net | answer a letter → sticker question |
-| Blind, quiz and setups | Space | next letter (before an answer: give up or skip) |
+| Blind, quiz and setups | Space | next letter (before an answer: give up or skip; not for half a second after the quiz moved on) |
 | Blind, setup moves | turning keys / Esc | do the setup / start it again (after it: try the letter again) |
+| Blind, typed setups | Esc (outside the field) | give the letter up |
 | Blind, memo tracing | Space / Enter / Esc | new scramble / type the letters (Enter after edges, Enter to check) / give up the scramble |
+| Blind, after a trace or a virtual solve | turning keys | rotations, to look at the cube |
 | Blind solves (virtual) | Space | start memo, start execution (hides the cube), stop |
 | Blind solves (physical) | Space / any key | start, end memo / stop |
 | Blind solves | Esc / Backspace | cancel / toggle DNF (physical, after the solve) |
