@@ -11,13 +11,14 @@
 
 namespace vcube {
 
-// Optimal solutions for the inspection steps of ZZ: EO, EO+1, EO+2 and EO
-// Cross. ZZ F2L is far too long to solve optimally, so it has no solver.
+// Optimal solutions for the inspection steps of ZZ: EO, EOLine, EO+1, EO+2
+// and EO Cross. ZZ F2L is far too long to solve optimally, so it has no solver.
 //
 // A step is solved in the solver's frame, as stepReached() checks it held
 // one way: the cross on D and the edges oriented for the F/B axis (they can
 // be solved without F or B quarter turns). EO+1 and EO+2 need any one or
-// two of the four cross edges (DF, DR, DB, DL) solved as well.
+// two of the four cross edges (DF, DR, DB, DL) solved as well, EOLine the
+// DF and DB edges.
 //
 // IDA* over the 18 face turns (no slice, wide or rotation moves), with
 // pruning tables on the edge orientation and the cross edges, built on
@@ -57,9 +58,9 @@ struct HeldOptimum {
 // The optimum for each of `holds`, for a scramble applied holding white
 // top and green front. Holds that pose the same problem for the step are
 // solved once, under the first of them in `holds`: for EO+1, EO+2 and EO
-// Cross a hold and the same hold turned y2 (same cross, same EO axis); for
-// EO every hold with the same front-back axis. Sorted by length, then in
-// the order of `holds`. Empty for ZZ F2L.
+// Cross (and EOLine) a hold and the same hold turned y2 (same cross, same
+// EO axis); for EO every hold with the same front-back axis. Sorted by
+// length, then in the order of `holds`. Empty for ZZ F2L.
 std::vector<HeldOptimum> solveStepHeld(const Alg &scramble, SolveStep step,
                                        const std::vector<Hold> &holds,
                                        int maxSolutions = 8);
@@ -70,6 +71,14 @@ std::vector<HeldOptimum> solveStepHeld(const Alg &scramble, SolveStep step,
 // Move Count list can ask for every attempt.
 std::optional<int> heldDistance(const Alg &scramble, SolveStep step,
                                 const std::vector<Hold> &holds);
+
+// Up to `max` of `solutions` (by index) that aren't trivial variants of
+// one another: none is the same moves as another in a different order.
+// Solutions that turn a set of faces no solution picked before turns come
+// first, in their order (so after "R U' F", "B L D" comes before "R U F"),
+// then the others in their order fill up what is left.
+std::vector<std::size_t> distinctSolutions(const std::vector<Alg> &solutions,
+                                           std::size_t max);
 
 // The holds of a colour neutrality with both EO axes allowed: each hold and
 // the same hold turned a quarter (y), so that the front-back axis may be

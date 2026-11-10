@@ -9,8 +9,10 @@ using namespace vcube;
 
 namespace {
 
-const std::vector<SolveStep> kSolvable = {
-    SolveStep::EO, SolveStep::EOPlus1, SolveStep::EOPlus2, SolveStep::EOCross};
+// In order of their optimal lengths: EOLine is a particular EO+2.
+const std::vector<SolveStep> kSolvable = {SolveStep::EO, SolveStep::EOPlus1,
+                                          SolveStep::EOPlus2, SolveStep::EOLine,
+                                          SolveStep::EOCross};
 
 // The step done held as the solver sees it (no rotations allowed).
 bool doneAsHeld(const CubieCube &c, SolveStep step) {
@@ -24,6 +26,8 @@ bool doneAsHeld(const CubieCube &c, SolveStep step) {
   switch (step) {
   case SolveStep::EO:
     return true;
+  case SolveStep::EOLine:
+    return c.ep[DF] == DF && c.ep[DB] == DB;
   case SolveStep::EOPlus1:
     return cross >= 1;
   case SolveStep::EOPlus2:
@@ -203,4 +207,32 @@ TEST_CASE("bad edges are counted for each axis by position", "[step]") {
   CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("U D2 R2 L' F2 B")), 1) == 4);
   CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("U R2 D' F2 L2 B2")), 1) == 0);
   CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("R L F2 B2 U2 D2")), 2) == 0);
+}
+
+TEST_CASE("distinct solutions leave out reorderings and prefer new faces",
+          "[step]") {
+  auto algs = [](std::initializer_list<const char *> texts) {
+    std::vector<Alg> out;
+    for (const char *t : texts) {
+      out.push_back(parseAlgOrEmpty(t));
+    }
+    return out;
+  };
+  // "U F R" is "F U R" reordered; "F' U R" turns the same faces as "F U R".
+  std::vector<Alg> list = algs({"F U R", "U F R", "F' U R", "B L D"});
+  CHECK(distinctSolutions(list, 3) == std::vector<std::size_t>{0, 3, 2});
+  CHECK(distinctSolutions(list, 2) == std::vector<std::size_t>{0, 3});
+  CHECK(distinctSolutions(list, 1) == std::vector<std::size_t>{0});
+  CHECK(distinctSolutions({}, 3).empty());
+  // Only reorderings: one is kept.
+  CHECK(distinctSolutions(algs({"R U", "U R"}), 3) ==
+        std::vector<std::size_t>{0});
+}
+
+TEST_CASE("EOLine is solved optimally with DF and DB", "[step]") {
+  // R2 L2 keeps both line edges; F2 and F move DF.
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("R2 L2")), SolveStep::EOLine) ==
+        0);
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F2")), SolveStep::EOLine) == 1);
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F")), SolveStep::EOLine) == 1);
 }

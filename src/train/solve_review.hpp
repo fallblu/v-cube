@@ -33,9 +33,11 @@ struct StepMark {
   Hold hold;
 };
 
-// The steps of solveSteps() the solve did at some point, in that order,
-// each at the first move after which stepReached() holds (0 when the
-// start already has it).
+// The steps of `steps` (Move Count's, solveSteps(), unless given) the
+// solve did at some point, in that order, each at the first move after
+// which stepReached() holds (0 when the start already has it).
+std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
+                                const std::vector<SolveStep> &steps);
 std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution);
 
 // F2L slots in the solver's frame (cross on D), by their corner and edge.

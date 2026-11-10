@@ -190,6 +190,8 @@ int heuristic(const Tables &t, SolveStep step, const State &s) {
   switch (step) {
   case SolveStep::EO:
     return t.eo[flipBase];
+  case SolveStep::EOLine:
+    return pairDist(1); // DF and DB
   case SolveStep::EOPlus1: {
     int best = INT_MAX;
     for (std::size_t e = 0; e < 4; ++e) {
@@ -449,6 +451,55 @@ std::optional<int> heldDistance(const Alg &scramble, SolveStep step,
   std::scoped_lock lock(mutex);
   cache[key] = best;
   return best;
+}
+
+std::vector<std::size_t> distinctSolutions(const std::vector<Alg> &solutions,
+                                           std::size_t max) {
+  // The moves sorted (the same moves in any order), and the faces sorted
+  // (the same faces, whatever the amounts).
+  auto movesKey = [](const Alg &a) {
+    std::vector<std::pair<int, int>> key;
+    for (Move m : a) {
+      key.emplace_back(static_cast<int>(m.type), m.amount);
+    }
+    std::sort(key.begin(), key.end());
+    return key;
+  };
+  auto facesKey = [](const Alg &a) {
+    std::vector<int> key;
+    for (Move m : a) {
+      key.push_back(static_cast<int>(m.type));
+    }
+    std::sort(key.begin(), key.end());
+    return key;
+  };
+  std::vector<std::size_t> out;
+  std::vector<std::vector<std::pair<int, int>>> movesSeen;
+  std::vector<std::vector<int>> facesSeen;
+  std::vector<bool> taken(solutions.size(), false);
+  for (int pass = 0; pass < 2; ++pass) {
+    for (std::size_t i = 0; i < solutions.size() && out.size() < max; ++i) {
+      if (taken[i]) {
+        continue;
+      }
+      auto moves = movesKey(solutions[i]);
+      if (std::find(movesSeen.begin(), movesSeen.end(), moves) !=
+          movesSeen.end()) {
+        continue; // a reordering of one already picked
+      }
+      auto faces = facesKey(solutions[i]);
+      bool newFaces = std::find(facesSeen.begin(), facesSeen.end(), faces) ==
+                      facesSeen.end();
+      if (pass == 0 && !newFaces) {
+        continue; // only if there is room after the others
+      }
+      taken[i] = true;
+      out.push_back(i);
+      movesSeen.push_back(std::move(moves));
+      facesSeen.push_back(std::move(faces));
+    }
+  }
+  return out;
 }
 
 std::vector<Hold> withBothEoAxes(const std::vector<Hold> &holds) {

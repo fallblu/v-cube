@@ -72,7 +72,10 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
       library_(library) {
   setWindowTitle(tr("Review: %1").arg(solve_.title));
   start_.apply(solve_.scramble);
-  marks_ = stepMarks(start_, solve_.solution);
+  // Every step, EOLine too when that is the step reviewed.
+  marks_ =
+      stepMarks(start_, solve_.solution,
+                solve_.step == SolveStep::EOLine ? allSteps() : solveSteps());
   // Name each step's hold from the neutrality's holds when one has it.
   std::vector<Hold> neutral = withBothEoAxes(settings_.neutrality.holds);
   for (StepMark &m : marks_) {

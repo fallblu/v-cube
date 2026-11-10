@@ -240,7 +240,11 @@ PairOption bestOption(const CubieCube &state, Slot slot,
 } // namespace
 
 std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution) {
-  const auto &steps = solveSteps();
+  return stepMarks(start, solution, solveSteps());
+}
+
+std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
+                                const std::vector<SolveStep> &steps) {
   std::vector<std::optional<StepMark>> found(steps.size());
   FaceletCube f = start;
   int htm = 0;
