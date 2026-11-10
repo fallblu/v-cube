@@ -370,8 +370,15 @@ void LearnPage::extendCaseMenu(QMenu &menu, const std::string &caseId) {
       markLearned(p.card, unixNow(), settings_.srs);
     });
   });
-  menu.addAction(tr("Reset progress"), this, [change] {
-    change([](CaseProgress &p) { p = CaseProgress{}; });
+  const CaseProgress *cp = cardOf(caseId);
+  menu.addAction(tr("Remove from learn queue"), this,
+                 [change] {
+                   change([](CaseProgress &p) { resetCard(p.card); });
+                 })
+      ->setEnabled(cp && isQueued(cp->card));
+  // Its card and Learn attempts; its drill times stay.
+  menu.addAction(tr("Reset learning progress"), this, [change] {
+    change([](CaseProgress &p) { resetLearning(p); });
   });
 }
 
