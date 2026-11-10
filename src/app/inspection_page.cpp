@@ -1,6 +1,7 @@
 #include "app/inspection_page.hpp"
 
 #include "app/flow_layout.hpp"
+#include "app/ui_state.hpp"
 
 #include "io/data_file.hpp"
 
@@ -18,7 +19,6 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTableWidget>
@@ -333,8 +333,7 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   chartBox_->addItem(tr("Moves"));
   chartBox_->setToolTip(tr("What the chart shows for Plan sessions"));
   chartBox_->setCurrentIndex(
-      std::clamp(QSettings().value("inspection/chart", 0).toInt(), 0,
-                 chartBox_->count() - 1));
+      std::clamp(saved::inspectionChart().get(), 0, chartBox_->count() - 1));
   chart_ = new TrendChart(right);
   auto *chartRow = new QHBoxLayout;
   chartRow->addWidget(chart_, 1);
@@ -447,7 +446,7 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
     selectSession(store_.currentIndex());
   });
   connect(chartBox_, &QComboBox::activated, this, [this](int index) {
-    QSettings().setValue("inspection/chart", index);
+    saved::inspectionChart().set(index);
     showChart();
   });
   connect(reviewButton_, &QPushButton::clicked, this, [this] {

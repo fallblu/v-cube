@@ -1,6 +1,7 @@
 #include "app/blind_page.hpp"
 
 #include "app/flow_layout.hpp"
+#include "app/ui_state.hpp"
 
 #include "io/data_file.hpp"
 
@@ -20,7 +21,6 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QTabBar>
@@ -320,13 +320,12 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
     selectDrill(static_cast<Drill>(index));
   });
   auto optionChanged = [this] {
-    QSettings q;
     if (drill_ == Drill::Quiz) {
-      q.setValue("blind/quizPieces", piecesBox_->currentIndex());
-      q.setValue("blind/quizDirection", directionBox_->currentIndex());
+      saved::blindQuizPieces().set(piecesBox_->currentIndex());
+      saved::blindQuizDirection().set(directionBox_->currentIndex());
     } else if (drill_ == Drill::Setups) {
-      q.setValue("blind/setupPieces", piecesBox_->currentIndex());
-      q.setValue("blind/setupMode", setupModeBox_->currentIndex());
+      saved::blindSetupPieces().set(piecesBox_->currentIndex());
+      saved::blindSetupMode().set(setupModeBox_->currentIndex());
     }
     selectDrill(drill_);
   };
@@ -372,8 +371,8 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
 
   feed_.setType("333"); // WCA scrambles held white top, green front
   applySettings();
-  int saved = QSettings().value("blind/drill", 0).toInt();
-  selectDrill(static_cast<Drill>(std::clamp(saved, 0, 3)));
+  int drill = saved::blindDrill().get();
+  selectDrill(static_cast<Drill>(std::clamp(drill, 0, 3)));
   pause(); // until the page is shown
 }
 
@@ -519,8 +518,7 @@ void BlindPage::selectDrill(Drill d) {
   }
   bool changed = drill_ != d;
   drill_ = d;
-  QSettings q;
-  q.setValue("blind/drill", static_cast<int>(d));
+  saved::blindDrill().set(static_cast<int>(d));
   {
     QSignalBlocker block(drillTabs_);
     drillTabs_->setCurrentIndex(static_cast<int>(d));
@@ -544,11 +542,11 @@ void BlindPage::selectDrill(Drill d) {
   if (changed || d == Drill::Quiz || d == Drill::Setups) {
     // Each drill keeps its own choice of pieces.
     if (d == Drill::Quiz) {
-      piecesBox_->setCurrentIndex(q.value("blind/quizPieces", 0).toInt());
-      directionBox_->setCurrentIndex(q.value("blind/quizDirection", 0).toInt());
+      piecesBox_->setCurrentIndex(saved::blindQuizPieces().get());
+      directionBox_->setCurrentIndex(saved::blindQuizDirection().get());
     } else if (d == Drill::Setups) {
-      piecesBox_->setCurrentIndex(q.value("blind/setupPieces", 0).toInt());
-      setupModeBox_->setCurrentIndex(q.value("blind/setupMode", 0).toInt());
+      piecesBox_->setCurrentIndex(saved::blindSetupPieces().get());
+      setupModeBox_->setCurrentIndex(saved::blindSetupMode().get());
     }
   }
   bool letters = d == Drill::Quiz || d == Drill::Setups;

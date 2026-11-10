@@ -1,6 +1,7 @@
 #include "app/timer_page.hpp"
 
 #include "app/review_dialog.hpp"
+#include "app/ui_state.hpp"
 #include "io/data_file.hpp"
 #include "train/step_solver.hpp"
 
@@ -19,7 +20,6 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSplitter>
 #include <QTableWidget>
 #include <QToolButton>
@@ -61,11 +61,7 @@ enum Column {
   kLl,
   kColumns
 };
-const char *const kHiddenKey = "timed/hiddenColumns";
-
-QStringList hiddenColumns() {
-  return QSettings().value(kHiddenKey).toStringList();
-}
+QStringList hiddenColumns() { return saved::timedHiddenColumns().get(); }
 
 SolveSplits computeSplits(const Solve &s, bool simplified) {
   ParseResult scramble = parseAlg(s.scramble);
@@ -1214,7 +1210,7 @@ void TimerPage::showColumnMenu(const QPoint &pos) {
       if (!on) {
         h << name;
       }
-      QSettings().setValue(kHiddenKey, h);
+      saved::timedHiddenColumns().set(h);
       showCubeKind();
     });
   }
