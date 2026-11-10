@@ -17,36 +17,6 @@ const std::vector<SolveStep> kSolvable = {
     SolveStep::EO,     SolveStep::EOPlus1, SolveStep::EOPlus2,
     SolveStep::EOLine, SolveStep::EOCross, SolveStep::Cross};
 
-// The step done held as the solver sees it (no rotations allowed).
-bool doneAsHeld(const CubieCube &c, SolveStep step) {
-  if (stepNeedsEo(step) &&
-      std::any_of(c.eo.begin(), c.eo.end(), [](auto o) { return o != 0; })) {
-    return false;
-  }
-  int cross = 0;
-  for (Edge e : {DF, DR, DB, DL}) {
-    cross += c.ep[e] == e && c.eo[e] == 0 ? 1 : 0;
-  }
-  switch (step) {
-  case SolveStep::EO:
-    return true;
-  case SolveStep::EOPlus1:
-    return cross >= 1;
-  case SolveStep::EOPlus2:
-    return cross >= 2;
-  case SolveStep::EOLine:
-    return c.ep[DF] == DF && c.ep[DB] == DB;
-  case SolveStep::EOCross:
-  case SolveStep::Cross:
-    return cross == 4;
-  case SolveStep::ZZF2L:
-  case SolveStep::XEOCross:
-  case SolveStep::CFOPF2L:
-    break;
-  }
-  return false;
-}
-
 CubieCube after(const CubieCube &c, const Alg &alg) {
   CubieCube out = c;
   out.apply(alg);
@@ -58,7 +28,7 @@ void checkOptimum(const CubieCube &c, SolveStep step, const StepOptimum &o) {
   REQUIRE_FALSE(o.solutions.empty());
   for (const Alg &s : o.solutions) {
     CHECK(static_cast<int>(s.size()) == o.length);
-    CHECK(doneAsHeld(after(c, s), step));
+    CHECK(stepDoneAsHeld(after(c, s), step));
     FaceletCube f = c.toFacelets();
     f.apply(s);
     CHECK(stepReached(f, step));

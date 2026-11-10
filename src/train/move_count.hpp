@@ -72,6 +72,9 @@ std::string defaultScrambleType(SolveStep step);
 // axis (they can be solved without F or B quarter turns), as in ZZ. So
 // EO counts on any axis and the cross on any colour.
 bool stepReached(const FaceletCube &cube, SolveStep step);
+// Whether the cube shows `step` done held as it is, in the solver's frame
+// (cross on D, EO for the F/B axis): what stepReached() checks in each hold.
+bool stepDoneAsHeld(const CubieCube &cube, SolveStep step);
 // The holds in which the cube shows `step` done (cross on the bottom, EO
 // for the front-back axis), sorted; empty if none.
 std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step);

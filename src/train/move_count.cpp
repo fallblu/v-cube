@@ -103,35 +103,6 @@ std::string squashed(std::string_view text) {
   return out;
 }
 
-// The cube as seen held so that its centres are in the standard places:
-// each sticker takes the colour of the face whose centre has its colour.
-std::optional<CubieCube> asHeld(const FaceletCube &f) {
-  std::array<std::uint8_t, 6> faceOf{};
-  for (int face = 0; face < 6; ++face) {
-    std::uint8_t centre = f[face * 9 + 4];
-    if (centre >= 6) {
-      return std::nullopt;
-    }
-    faceOf[centre] = static_cast<std::uint8_t>(face);
-  }
-  FaceletCube::Stickers s{};
-  for (int i = 0; i < kFaceletCount; ++i) {
-    if (f[i] >= 6) {
-      return std::nullopt;
-    }
-    s[static_cast<std::size_t>(i)] = faceOf[f[i]];
-  }
-  return CubieCube::fromFacelets(FaceletCube(s));
-}
-
-bool edgeSolved(const CubieCube &c, Edge e) {
-  return c.ep[e] == e && c.eo[e] == 0;
-}
-
-bool cornerSolved(const CubieCube &c, Corner k) {
-  return c.cp[k] == k && c.co[k] == 0;
-}
-
 int solvedSlots(const CubieCube &c) {
   int n = 0;
   n += cornerSolved(c, DFR) && edgeSolved(c, FR);
@@ -139,39 +110,6 @@ int solvedSlots(const CubieCube &c) {
   n += cornerSolved(c, DBL) && edgeSolved(c, BL);
   n += cornerSolved(c, DRB) && edgeSolved(c, BR);
   return n;
-}
-
-// The step done with the cube held as it is (cross on D, EO for F/B).
-bool reachedAsHeld(const CubieCube &c, SolveStep step) {
-  // Kociemba's edge orientation is the ZZ one: F and B quarter turns flip
-  // edges, the other turns don't.
-  if (stepNeedsEo(step) &&
-      std::any_of(c.eo.begin(), c.eo.end(), [](auto o) { return o != 0; })) {
-    return false;
-  }
-  int cross = 0;
-  for (Edge e : {DF, DR, DB, DL}) {
-    cross += edgeSolved(c, e) ? 1 : 0;
-  }
-  switch (step) {
-  case SolveStep::EO:
-    return true;
-  case SolveStep::EOPlus1:
-    return cross >= 1;
-  case SolveStep::EOPlus2:
-    return cross >= 2;
-  case SolveStep::EOLine:
-    return edgeSolved(c, DF) && edgeSolved(c, DB);
-  case SolveStep::EOCross:
-  case SolveStep::Cross:
-    return cross == 4;
-  case SolveStep::XEOCross:
-    return cross == 4 && solvedSlots(c) >= 1;
-  case SolveStep::ZZF2L:
-  case SolveStep::CFOPF2L:
-    return cross == 4 && solvedSlots(c) == 4;
-  }
-  return false;
 }
 
 } // namespace
@@ -224,11 +162,43 @@ std::string defaultScrambleType(SolveStep step) {
                                       : "333";
 }
 
+bool stepDoneAsHeld(const CubieCube &c, SolveStep step) {
+  // Kociemba's edge orientation is the ZZ one: F and B quarter turns flip
+  // edges, the other turns don't.
+  if (stepNeedsEo(step) &&
+      std::any_of(c.eo.begin(), c.eo.end(), [](auto o) { return o != 0; })) {
+    return false;
+  }
+  int cross = 0;
+  for (Edge e : {DF, DR, DB, DL}) {
+    cross += edgeSolved(c, e) ? 1 : 0;
+  }
+  switch (step) {
+  case SolveStep::EO:
+    return true;
+  case SolveStep::EOPlus1:
+    return cross >= 1;
+  case SolveStep::EOPlus2:
+    return cross >= 2;
+  case SolveStep::EOLine:
+    return edgeSolved(c, DF) && edgeSolved(c, DB);
+  case SolveStep::EOCross:
+  case SolveStep::Cross:
+    return cross == 4;
+  case SolveStep::XEOCross:
+    return cross == 4 && solvedSlots(c) >= 1;
+  case SolveStep::ZZF2L:
+  case SolveStep::CFOPF2L:
+    return cross == 4 && solvedSlots(c) == 4;
+  }
+  return false;
+}
+
 bool stepReached(const FaceletCube &cube, SolveStep step) {
   for (const Alg &rotation : allRotations()) {
     FaceletCube held = cube;
     held.apply(rotation);
-    if (auto c = asHeld(held); c && reachedAsHeld(*c, step)) {
+    if (auto c = heldAsIs(held); c && stepDoneAsHeld(*c, step)) {
       return true;
     }
   }
@@ -238,7 +208,7 @@ bool stepReached(const FaceletCube &cube, SolveStep step) {
 std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step) {
   std::vector<Hold> out;
   for (Hold h : allHolds()) {
-    if (auto c = heldCubie(cube, h); c && reachedAsHeld(*c, step)) {
+    if (auto c = heldCubie(cube, h); c && stepDoneAsHeld(*c, step)) {
       out.push_back(h);
     }
   }

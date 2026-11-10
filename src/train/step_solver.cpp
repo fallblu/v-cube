@@ -643,15 +643,9 @@ private:
 std::optional<Alg>
 solvePairRul(const CubieCube &state, Corner corner, Edge edge,
              const std::vector<std::pair<Corner, Edge>> &keep, int maxDepth) {
-  // A ZZ F2L state: every edge oriented and the cross solved.
-  if (std::any_of(state.eo.begin(), state.eo.end(),
-                  [](auto o) { return o != 0; })) {
+  // A ZZ F2L state: EO Cross done.
+  if (!stepDoneAsHeld(state, SolveStep::EOCross)) {
     return std::nullopt;
-  }
-  for (int e : kCross) {
-    if (state.ep[static_cast<std::size_t>(e)] != e) {
-      return std::nullopt;
-    }
   }
   auto slotOf = [](Corner c, Edge e) -> std::optional<std::size_t> {
     for (std::size_t s = 0; s < 4; ++s) {
