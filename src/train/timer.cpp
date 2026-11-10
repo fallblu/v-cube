@@ -24,6 +24,7 @@ void SolveTimer::pressStart(std::int64_t now) {
 }
 
 void SolveTimer::releaseStart(std::int64_t now) {
+  tick(now); // a release after the hold time counts with no tick in between
   switch (state_) {
   case State::Idle:
     if (armedForInspection_) {

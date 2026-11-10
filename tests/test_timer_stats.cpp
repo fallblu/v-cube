@@ -71,6 +71,14 @@ TEST_CASE("space-bar timer needs a hold before it starts") {
   CHECK_FALSE(t.takeResult());
 }
 
+TEST_CASE("a release after the hold time starts the timer without a tick") {
+  SolveTimer t;
+  t.setConfig({300, false, 15000});
+  t.pressStart(0);
+  t.releaseStart(400); // no tick since the press
+  CHECK(t.state() == SolveTimer::State::Running);
+}
+
 TEST_CASE("inspection gives +2 and DNF") {
   SolveTimer t;
   t.setConfig({0, true, 15000});
