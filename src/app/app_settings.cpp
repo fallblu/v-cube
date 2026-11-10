@@ -1,5 +1,7 @@
 #include "app/app_settings.hpp"
 
+#include "train/algset.hpp"
+
 #include <QCoreApplication>
 #include <QFile>
 #include <QPalette>
@@ -175,17 +177,33 @@ QString setSettingsKey(const std::string &setId, const QString &name) {
   return QString("trainer/sets/%1/%2").arg(QString::fromStdString(setId), name);
 }
 
-std::optional<QStringList> tickedCases(const std::string &setId) {
+QStringList untickedCases(const AlgSet &set) {
   QSettings q;
-  QString key = setSettingsKey(setId, "selection");
-  if (!q.contains(key)) {
-    return std::nullopt;
+  QString key = setSettingsKey(set.id, "unticked");
+  if (q.contains(key)) {
+    return q.value(key).toStringList();
   }
-  return q.value(key).toStringList();
+  QString old = setSettingsKey(set.id, "selection");
+  if (!q.contains(old)) {
+    return {}; // never changed: every case is ticked
+  }
+  QStringList ticked = q.value(old).toStringList();
+  QStringList unticked;
+  for (const auto &g : set.groups) {
+    for (const auto &c : g.cases) {
+      QString id = QString::fromStdString(c.id);
+      if (!ticked.contains(id)) {
+        unticked << id;
+      }
+    }
+  }
+  q.setValue(key, unticked);
+  q.remove(old);
+  return unticked;
 }
 
-void setTickedCases(const std::string &setId, const QStringList &caseIds) {
-  QSettings().setValue(setSettingsKey(setId, "selection"), caseIds);
+void setUntickedCases(const std::string &setId, const QStringList &caseIds) {
+  QSettings().setValue(setSettingsKey(setId, "unticked"), caseIds);
 }
 
 QString stepsToText(const std::vector<std::int64_t> &steps) {

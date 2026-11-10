@@ -8,6 +8,8 @@
 
 namespace vcube {
 
+struct AlgSet;
+
 // Makes QSettings use an INI file on every platform
 // (~/.config/v-cube/v-cube.ini, %APPDATA%\v-cube\v-cube.ini on Windows)
 // and copies settings over from the native store used by earlier versions.
@@ -39,12 +41,13 @@ struct AppSettings {
 void applyTheme(QApplication &app, bool dark);
 
 // Settings key for a per-alg-set choice shared by Learn, Drill and the
-// Library, e.g. "trainer/sets/pll/selection".
+// Library, e.g. "trainer/sets/pll/unticked".
 QString setSettingsKey(const std::string &setId, const QString &name);
-// The cases ticked for an alg set in Learn and Drill; nullopt when the
-// ticks were never changed (every case counts as ticked).
-std::optional<QStringList> tickedCases(const std::string &setId);
-void setTickedCases(const std::string &setId, const QStringList &caseIds);
+// The cases unticked for an alg set in Learn and Drill; every other case is
+// ticked, so that cases added to the set later come ticked. Ticks saved by
+// earlier versions (the ticked cases) are turned into this the first time.
+QStringList untickedCases(const AlgSet &set);
+void setUntickedCases(const std::string &setId, const QStringList &caseIds);
 
 // "1m 10m" <-> seconds.
 QString stepsToText(const std::vector<std::int64_t> &steps);
