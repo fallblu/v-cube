@@ -19,6 +19,8 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <cmath>
+
 namespace vcube {
 
 namespace {
@@ -61,7 +63,9 @@ QString skippedText(int cases) {
 }
 
 QString secondsText(std::optional<double> ms) {
-  return ms ? QString::number(*ms / 1000.0, 'f', 2) : QString("-");
+  // Truncated to hundredths, as the timer shows times.
+  return ms ? QString::number(std::floor(*ms / 10.0) / 100.0, 'f', 2)
+            : QString("-");
 }
 
 CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
