@@ -327,7 +327,7 @@ void ReviewDialog::showPosition(std::size_t at) {
   at = std::min(at, replay_.size());
   if (at == at_ + 1) {
     cube_->animateMove(replay_[at_]);
-  } else if (at + 1 == at_) {
+  } else if (at + 1 == at_ && at < replay_.size()) {
     for (Move m : invert(Alg{replay_[at]})) {
       cube_->animateMove(m);
     }
