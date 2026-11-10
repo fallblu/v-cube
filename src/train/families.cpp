@@ -272,14 +272,20 @@ CasePieces casePieces(const CubieCube &state, const PieceMask &free) {
 }
 
 const std::vector<std::string> *
-CaseFamilies::familyFor(const std::string &caseId) const {
-  auto it = familyOf.find(caseId);
-  return it == familyOf.end() ? nullptr : &families[it->second];
+CaseFamilies::familyFor(const std::string &id) const {
+  if (auto it = familyOf.find(id); it != familyOf.end()) {
+    return &families[it->second];
+  }
+  auto it = familyOfId.find(id);
+  return it == familyOfId.end() ? nullptr : &families[it->second];
 }
 
 std::string CaseFamilies::representative(const std::string &caseId) const {
-  const auto *family = familyFor(caseId);
-  return family && !family->empty() ? family->front() : caseId;
+  if (auto it = familyOf.find(caseId);
+      it != familyOf.end() && it->second < ids.size()) {
+    return ids[it->second];
+  }
+  return caseId;
 }
 
 CaseFamilies findFamilies(const AlgSet &set) {
@@ -335,16 +341,84 @@ CaseFamilies findFamilies(const AlgSet &set) {
   }
   CaseFamilies out;
   std::map<std::size_t, std::size_t> familyOfRoot;
+  std::vector<std::vector<int>> keys;
   for (std::size_t i = 0; i < cases.size(); ++i) {
     std::size_t root = uf.find(i);
     auto [it, added] = familyOfRoot.emplace(root, out.families.size());
     if (added) {
       out.families.emplace_back();
+      keys.emplace_back();
     }
     out.families[it->second].push_back(cases[i].c->id);
     out.familyOf[cases[i].c->id] = it->second;
+    // The family's key: the least of its cases' mirror images with any U
+    // turns around them (whatever U turns the set allows, so that the key
+    // doesn't change with them), which is the same for every case of it.
+    const Entry &e = cases[i];
+    std::vector<int> &best = keys[it->second];
+    for (std::size_t k = 0; k <= kMirrors.size(); ++k) {
+      Mirror m = k == 0 ? Mirror{} : kMirrors[k - 1];
+      CubieCube mirroredState = mirrorState(e.c->state, m);
+      PieceMask free = mirrorMask(e.free, m);
+      for (int u = 0; u < 4; ++u) {
+        for (int v = 0; v < 4; ++v) {
+          CubieCube x = uTurn(v) * mirroredState * uTurn(u);
+          std::vector<int> key = pieceKey(casePieces(x, free), x);
+          if (best.empty() || key < best) {
+            best = std::move(key);
+          }
+        }
+      }
+    }
+  }
+  std::map<std::string, int> used;
+  for (std::size_t f = 0; f < keys.size(); ++f) {
+    std::string id = "family:";
+    for (std::size_t j = 0; j < keys[f].size(); ++j) {
+      id += (j == 0 ? "" : ".") + std::to_string(keys[f][j]);
+    }
+    // Families that the set's U turns keep apart but that differ only by
+    // U turns.
+    if (int n = ++used[id]; n > 1) {
+      id += "~" + std::to_string(n);
+    }
+    out.familyOfId[id] = f;
+    out.ids.push_back(std::move(id));
   }
   return out;
+}
+
+bool adoptFamilyCards(const CaseFamilies &families, SetProgress &progress) {
+  bool changed = false;
+  for (std::size_t f = 0; f < families.families.size(); ++f) {
+    if (f >= families.ids.size() || progress.contains(families.ids[f])) {
+      continue;
+    }
+    CaseProgress *best = nullptr;
+    for (const std::string &id : families.families[f]) {
+      auto it = progress.find(id);
+      if (it == progress.end() || it->second.card.state == CardState::New) {
+        continue;
+      }
+      if (!best || it->second.card.reps > best->card.reps) {
+        best = &it->second;
+      }
+    }
+    if (!best) {
+      continue;
+    }
+    CaseProgress card;
+    card.card = best->card;
+    for (const Attempt &a : best->attempts) {
+      if (a.mode == AttemptMode::Learn) {
+        card.attempts.push_back(a);
+      }
+    }
+    resetLearning(*best);
+    progress[families.ids[f]] = std::move(card);
+    changed = true;
+  }
+  return changed;
 }
 
 } // namespace vcube

@@ -86,12 +86,70 @@ TEST_CASE("pair cases form families with their three mirrors", "[families]") {
     std::string n = std::to_string(i + 1);
     CHECK(f.families[i] ==
           std::vector<std::string>{"FR-" + n, "FL-" + n, "BR-" + n, "BL-" + n});
-    CHECK(f.representative("BL-" + n) == "FR-" + n);
+    CHECK(f.representative("BL-" + n) == f.ids[i]);
+    CHECK(f.representative("FR-" + n) == f.ids[i]);
+    CHECK(f.representative(f.ids[i]) == f.ids[i]);
+    CHECK(f.familyFor(f.ids[i]) == &f.families[i]);
   }
+  CHECK(f.ids[0] != f.ids[1]);
   REQUIRE(f.familyFor("FL-2"));
   CHECK(f.familyFor("FL-2")->size() == 4);
   CHECK_FALSE(f.familyFor("nope"));
   CHECK(f.representative("nope") == "nope");
+}
+
+TEST_CASE("a family's id doesn't depend on which of its cases come first",
+          "[families]") {
+  AlgSet set = pairSet();
+  CaseFamilies f = findFamilies(set);
+  std::vector<std::string> ids = f.ids;
+  // Without its first case, with the groups the other way round, or with
+  // the set's U turns changed, each family keeps its id.
+  AlgSet fewer = set;
+  fewer.groups[0].cases.erase(fewer.groups[0].cases.begin());
+  CaseFamilies g = findFamilies(fewer);
+  CHECK(g.representative("BL-1") == ids[0]);
+  CHECK(g.representative("FL-2") == ids[1]);
+  AlgSet reversed = set;
+  std::reverse(reversed.groups.begin(), reversed.groups.end());
+  g = findFamilies(reversed);
+  for (std::size_t i = 0; i < 3; ++i) {
+    CHECK(g.representative("FR-" + std::to_string(i + 1)) == ids[i]);
+  }
+  AlgSet noAuf = set;
+  noAuf.aufBefore = false;
+  g = findFamilies(noAuf);
+  CHECK(g.representative("FL-3") == ids[2]);
+}
+
+TEST_CASE("family cards kept under a case move to the family's id",
+          "[families]") {
+  AlgSet set = pairSet();
+  CaseFamilies f = findFamilies(set);
+  SrsConfig cfg;
+  SetProgress p;
+  // The card was the first case's; a mirror has a card from before the
+  // set learned by family, reviewed less.
+  p["FR-1"].record({50, 1200, false, AttemptMode::PhysicalDrill});
+  p["FR-1"].record({100, 0, false, AttemptMode::Learn});
+  review(p["FR-1"].card, Grade::Good, 100, cfg);
+  review(p["FR-1"].card, Grade::Good, 200, cfg);
+  review(p["BL-1"].card, Grade::Again, 100, cfg);
+  p["FL-2"].record({60, 1500, false, AttemptMode::VirtualDrill});
+  CHECK(adoptFamilyCards(f, p));
+  const CaseProgress &family = p.at(f.ids[0]);
+  CHECK(family.card.reps == 2);
+  REQUIRE(family.attempts.size() == 1);
+  CHECK(family.attempts[0].mode == AttemptMode::Learn);
+  // The case keeps its drill times only.
+  CHECK(p.at("FR-1").card.state == CardState::New);
+  CHECK(p.at("FR-1").drillCount(AttemptMode::PhysicalDrill) == 1);
+  CHECK(p.at("FR-1").attempts.size() == 1);
+  CHECK(p.at("BL-1").card.reps == 1); // left as it was
+  // A family with only drill times has no card to move.
+  CHECK_FALSE(p.contains(f.ids[1]));
+  // Once moved, nothing changes again.
+  CHECK_FALSE(adoptFamilyCards(f, p));
 }
 
 TEST_CASE("families are found up to the U turns around a case", "[families]") {

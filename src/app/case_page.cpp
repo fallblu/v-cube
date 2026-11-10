@@ -358,6 +358,9 @@ void CasePage::computeInfo() {
   }
   if (s->families) {
     families_ = findFamilies(*s);
+    if (adoptFamilyCards(families_, progress())) {
+      saveProgress();
+    }
   }
   for (const auto &g : s->groups) {
     for (const auto &c : g.cases) {
