@@ -25,8 +25,11 @@ public:
   static std::optional<Alg> solve(const CubieCube &cube, int maxLength,
                                   Clock::time_point deadline);
 
-  // A solution, trying for <= 21 moves within `budget` and then accepting
-  // longer ones. Always succeeds for a valid cube.
+  // A solution from one anytime search: it keeps the shortest solution so
+  // far and stops once one of <= 21 moves is found and shorter ones stop
+  // coming quickly (or the search space is done, which is quick near
+  // solved). Without one of <= 21 moves within `budget` it takes the best
+  // it has. Always succeeds for a valid cube.
   static Alg
   solve(const CubieCube &cube,
         std::chrono::milliseconds budget = std::chrono::milliseconds(500));

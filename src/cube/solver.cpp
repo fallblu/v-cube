@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -292,11 +293,26 @@ const Tables &tables() {
 
 constexpr int kMaxDepth = 32;
 
+// Solutions of at most this many moves are good enough to stop for once
+// the search stops finding shorter ones quickly.
+constexpr int kGoodLength = 21;
+// After each shorter solution the search goes on for at least this long,
+// and at least as long again as it has taken so far.
+constexpr auto kMinPatience = std::chrono::milliseconds(10);
+
 class Search {
 public:
-  Search(const CubieCube &cube, int maxLength,
-         TwoPhaseSolver::Clock::time_point deadline)
+  using Clock = TwoPhaseSolver::Clock;
+
+  // The first solution of at most `maxLength` moves found before `deadline`.
+  Search(const CubieCube &cube, int maxLength, Clock::time_point deadline)
       : t_(tables()), cube_(cube), maxLength_(maxLength), deadline_(deadline) {}
+
+  // Anytime: a solution, made shorter while that pays (see improved()).
+  Search(const CubieCube &cube, std::chrono::milliseconds budget)
+      : t_(tables()), cube_(cube), maxLength_(kMaxDepth - 2),
+        deadline_(Clock::time_point::max()), anytime_(true),
+        start_(Clock::now()), budget_(budget) {}
 
   std::optional<Alg> run() {
     int twist = twistOf(cube_), flip = flipOf(cube_), slice = sliceOf(cube_);
@@ -305,21 +321,49 @@ public:
         return result_;
       }
       if (timedOut_) {
-        return std::nullopt;
+        break;
       }
     }
-    return std::nullopt;
+    return best_;
   }
 
 private:
   const Tables &t_;
   CubieCube cube_;
   int maxLength_;
-  TwoPhaseSolver::Clock::time_point deadline_;
+  Clock::time_point deadline_;
   std::array<int, kMaxDepth> moves_{};
   Alg result_;
   long nodes_ = 0;
   bool timedOut_ = false;
+
+  bool anytime_ = false;
+  Clock::time_point start_;
+  std::chrono::milliseconds budget_{0};
+  std::optional<Alg> best_;
+  std::optional<Clock::time_point> polishEnd_;
+
+  // Anytime: result_ is the shortest solution so far. Only shorter ones
+  // are looked for from now on. Until one of at most kGoodLength moves is
+  // found the search goes on for the whole budget (and past it until there
+  // is any solution); after that it stops when no shorter one has turned
+  // up for a while (kMinPatience), or a fifth of the budget after the
+  // first good one.
+  void improved() {
+    best_ = result_;
+    maxLength_ = static_cast<int>(result_.size()) - 1;
+    auto now = Clock::now();
+    if (static_cast<int>(result_.size()) > kGoodLength) {
+      deadline_ = start_ + budget_;
+      return;
+    }
+    if (!polishEnd_) {
+      polishEnd_ = now + budget_ / 5;
+    }
+    auto patience =
+        std::max<Clock::duration>(now - start_, Clock::duration(kMinPatience));
+    deadline_ = std::min({start_ + budget_, *polishEnd_, now + patience});
+  }
 
   bool checkTime() {
     if ((++nodes_ & 0xFFF) == 0 && TwoPhaseSolver::Clock::now() > deadline_) {
@@ -351,6 +395,9 @@ private:
 
   bool phase1(int twist, int flip, int slice, int depth, int togo,
               int prevFace) {
+    if (depth + togo > maxLength_) {
+      return false; // a shorter solution was found meanwhile
+    }
     if (togo == 0) {
       if (twist != 0 || flip != 0 || slice != kSolvedSlice) {
         return false;
@@ -410,7 +457,11 @@ private:
           result_.push_back({static_cast<MoveType>(m / 3),
                              static_cast<std::uint8_t>(m % 3 + 1)});
         }
-        return true;
+        if (!anytime_) {
+          return true;
+        }
+        improved();
+        return false; // a longer phase 2 from here can't be shorter
       }
       if (timedOut_) {
         return false;
@@ -471,26 +522,13 @@ std::optional<Alg> TwoPhaseSolver::solve(const CubieCube &cube, int maxLength,
 Alg TwoPhaseSolver::solve(const CubieCube &cube,
                           std::chrono::milliseconds budget) {
   warmUp();
-  auto start = Clock::now();
-  std::optional<Alg> best = solve(cube, 21, start + budget);
-  if (!best) {
-    best = solve(cube, 24, Clock::now() + budget);
+  if (!cube.isValid() || cube.isSolved()) {
+    return {};
   }
-  if (!best) {
-    return solve(cube, 30, Clock::time_point::max()).value_or(Alg{});
-  }
-  // Spend a little more time looking for shorter solutions; this mostly
-  // pays off for states near solved (subset and case scrambles).
-  auto improveUntil = Clock::now() + budget / 5;
-  while (!best->empty() && Clock::now() < improveUntil) {
-    auto shorter =
-        solve(cube, static_cast<int>(best->size()) - 1, improveUntil);
-    if (!shorter) {
-      break;
-    }
-    best = shorter;
-  }
-  return *best;
+  // One search that keeps the shortest solution so far and stops once
+  // shorter ones stop coming quickly (or exhausts the space, which is
+  // quick near solved).
+  return Search(cube, budget).run().value_or(Alg{});
 }
 
 } // namespace vcube

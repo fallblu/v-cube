@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <random>
 
 using namespace vcube;
@@ -33,4 +34,20 @@ TEST_CASE("solver handles solved trivial and superflip cubes") {
   CubieCube c = flip;
   c.apply(sol);
   CHECK(c.isSolved());
+}
+
+TEST_CASE("near-solved states get short solutions without using the budget") {
+  TwoPhaseSolver::warmUp();
+  CubieCube t =
+      cubieOf(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"));
+  auto start = std::chrono::steady_clock::now();
+  Alg sol = TwoPhaseSolver::solve(t, std::chrono::milliseconds(2000));
+  auto took = std::chrono::steady_clock::now() - start;
+  CubieCube c = t;
+  c.apply(sol);
+  CHECK(c.isSolved());
+  CHECK(sol.size() <= 14);
+  // It stops once shorter solutions stop coming, long before the fifth of
+  // the budget that used to be spent looking for them.
+  CHECK(took < std::chrono::milliseconds(300));
 }
