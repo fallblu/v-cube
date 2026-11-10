@@ -657,17 +657,26 @@ QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world) {
 
 QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
                      const CubieCube &state) {
-  // The scramble may show the case in one of the set's mirror worlds.
-  std::optional<WorldView> seen = worldOf(set, state);
-  if (!seen) {
-    const AlgCase *c = set.findCase(caseId);
-    const CaseGroup *g = set.groupOf(caseId);
-    seen = WorldView{Mirror{}, CaseView{caseId, false, 0}};
-    if (c && g) {
-      if (auto view = viewOfCase(set, *g, *c, state, Mirror{})) {
-        seen->view = *view;
+  // The scramble may show the case in one of the set's mirror worlds. The
+  // case it was made for comes first: other cases of the set can look the
+  // same from the cube (up to the pieces the step leaves free), and the
+  // first of those in the set isn't the one the scramble sets up.
+  std::optional<WorldView> seen;
+  const AlgCase *c = set.findCase(caseId);
+  const CaseGroup *g = set.groupOf(caseId);
+  if (c && g) {
+    for (Mirror world : set.worlds()) {
+      if (auto view = viewOfCase(set, *g, *c, state, world)) {
+        seen = WorldView{world, *view};
+        break;
       }
     }
+  }
+  if (!seen) {
+    seen = worldOf(set, state);
+  }
+  if (!seen) {
+    seen = WorldView{Mirror{}, CaseView{caseId, false, 0}};
   }
   return set.reduction ? chainHtml(set, state, seen->world)
                        : viewAlgsHtml(set, seen->view, state, seen->world);
