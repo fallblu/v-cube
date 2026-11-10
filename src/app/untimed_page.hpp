@@ -53,7 +53,7 @@ protected:
   void scrambleTypeChanged(const QString &type, bool fresh) override;
   void scrambleShown(const GeneratedScramble *shown) override;
   void phaseShown(bool done) override;
-  void focusModeChanged(bool on) override;
+  void pageFocusChanged(bool on) override;
   void returnFocus() override;
   bool toggleAlgs() override;
   void solveRecorded(const MoveCountAttempt &a) override;

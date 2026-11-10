@@ -1,14 +1,18 @@
 add_library(vcube_train
   alg_follow.cpp
+  alg_guide.cpp
   attempt_flow.cpp
   algset.cpp
   bld.cpp
   blind_flow.cpp
   case_logic.cpp
+  drill_flow.cpp
   case_picker.cpp
   drill_session.cpp
   inspection_flow.cpp
   families.cpp
+  learn_attempt.cpp
+  learn_session.cpp
   move_count.cpp
   optimal_cache.cpp
   reduction.cpp

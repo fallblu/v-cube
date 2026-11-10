@@ -1,5 +1,6 @@
 #include "app/scramble_source.hpp"
 
+#include "app/ui_state.hpp"
 #include "train/reduction.hpp"
 
 #include "app/app_settings.hpp"
@@ -9,7 +10,6 @@
 
 #include <QPainter>
 #include <QPushButton>
-#include <QSettings>
 
 #include <memory>
 
@@ -88,7 +88,7 @@ ScrambleAlgs::ScrambleAlgs(AlgLibrary &library, QString settingsKey,
   button_ = new QPushButton(tr("Algs (Tab)"), parent);
   button_->setFocusPolicy(Qt::NoFocus);
   button_->setCheckable(true);
-  button_->setChecked(QSettings().value(settingsKey_, false).toBool());
+  button_->setChecked(saved::showAlgs(settingsKey_).get());
   button_->setToolTip(
       tr("Show the algs for the alg set case the scramble sets up"));
   label_ = new QLabel(parent);
@@ -101,7 +101,7 @@ ScrambleAlgs::ScrambleAlgs(AlgLibrary &library, QString settingsKey,
   label_->setFont(f);
   label_->setMinimumHeight(110);
   connect(button_, &QPushButton::toggled, this, [this](bool on) {
-    QSettings().setValue(settingsKey_, on);
+    saved::showAlgs(settingsKey_).set(on);
     update();
   });
   setType({});

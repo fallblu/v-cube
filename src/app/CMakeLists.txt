@@ -1,5 +1,7 @@
 # Everything but main(), so tools and tests can link the widgets.
 add_library(vcube_gui STATIC
+  alg_html.cpp
+  app_data.cpp
   app_settings.cpp
   attempt_page.cpp
   blind_drill.cpp
@@ -11,24 +13,33 @@ add_library(vcube_gui STATIC
   bld_scheme_dialog.cpp
   case_filter.cpp
   case_history_dialog.cpp
+  case_list_panel.cpp
   case_page.cpp
+  case_stage.cpp
   colours.cpp
+  context_practice.cpp
   command_palette.cpp
   cube_painter.cpp
   cube_view.cpp
   drill_history_dialog.cpp
+  drill_list.cpp
   drill_page.cpp
   drill_settings.cpp
   flow_layout.cpp
+  help_panel.cpp
   help_text.cpp
   inspection_page.cpp
+  key_router.cpp
   keymap.cpp
+  learn_list.cpp
   learn_page.cpp
+  library_editor.cpp
   library_page.cpp
   paste_dialog.cpp
   main_window.cpp
   move_count_page.cpp
   mode_page.hpp
+  mode_table.cpp
   platform.cpp
   review_dialog.cpp
   scramble_source.cpp
@@ -39,6 +50,7 @@ add_library(vcube_gui STATIC
   sounds.cpp
   timer_page.cpp
   today_page.cpp
+  ui_state.cpp
   untimed_page.cpp
   widgets.cpp
 )

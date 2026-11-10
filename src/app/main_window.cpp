@@ -6,8 +6,9 @@
 #include "app/blind_page.hpp"
 #include "app/command_palette.hpp"
 #include "app/drill_page.hpp"
-#include "app/help_text.hpp"
+#include "app/help_panel.hpp"
 #include "app/inspection_page.hpp"
+#include "app/key_router.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/move_count_page.hpp"
@@ -17,10 +18,10 @@
 #include "app/sounds.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
+#include "app/ui_state.hpp"
 #include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
 
-#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QClipboard>
@@ -31,161 +32,54 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
-#include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QGuiApplication>
 #include <QHBoxLayout>
-#include <QKeyEvent>
-#include <QKeySequenceEdit>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenuBar>
 #include <QMessageBox>
-#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScreen>
-#include <QScrollBar>
-#include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
-#include <QTextBrowser>
-#include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 namespace vcube {
 
-namespace {
-
-struct ModeInfo {
-  const char *id; // settings value, e.g. "learn"
-  const char *label;
-};
-
-constexpr std::array<ModeInfo, MainWindow::ModeCount> kModes = {{
-    {"learn", QT_TRANSLATE_NOOP("MainWindow", "Learn")},
-    {"drill", QT_TRANSLATE_NOOP("MainWindow", "Drill")},
-    {"library", QT_TRANSLATE_NOOP("MainWindow", "Library")},
-    {"timed", QT_TRANSLATE_NOOP("MainWindow", "Timed")},
-    {"untimed", QT_TRANSLATE_NOOP("MainWindow", "Untimed")},
-    {"movecount", QT_TRANSLATE_NOOP("MainWindow", "Move Count")},
-    {"inspection", QT_TRANSLATE_NOOP("MainWindow", "Inspection")},
-    {"blind", QT_TRANSLATE_NOOP("MainWindow", "Blind")},
-    {"today", QT_TRANSLATE_NOOP("MainWindow", "Today")},
-}};
-
-// Sidebar and Mode menu order.
-constexpr std::array<int, MainWindow::ModeCount> kModeOrder = {
-    MainWindow::Today,     MainWindow::Learn,      MainWindow::Drill,
-    MainWindow::Library,   MainWindow::Timed,      MainWindow::Untimed,
-    MainWindow::MoveCount, MainWindow::Inspection, MainWindow::Blind};
-
-QString modeLabel(int m) {
-  return QCoreApplication::translate("MainWindow",
-                                     kModes[static_cast<std::size_t>(m)].label);
-}
-
-QKeySequence modeShortcut(int m) {
-  return m == MainWindow::Today
-             ? QKeySequence(Qt::CTRL | Qt::Key_0)
-             : QKeySequence(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_1 + m));
-}
-
-int modeFromId(const QString &id) {
-  for (std::size_t i = 0; i < kModes.size(); ++i) {
-    if (id == kModes[i].id) {
-      return static_cast<int>(i);
-    }
-  }
-  // Modes of earlier versions: Timer became Timed; Scramble and Virtual
-  // became Untimed.
-  if (id == "timer") {
-    return MainWindow::Timed;
-  }
-  if (id == "scramble" || id == "virtual") {
-    return MainWindow::Untimed;
-  }
-  return -1;
-}
-
-// Settings that earlier versions used and nothing reads any more.
-void removeObsoleteSettings(QSettings &q) {
-  for (const char *key :
-       {"window/tab", "window/focus", "trainer/virtual", "trainer/showScramble",
-        "timer/virtual", "timer/cubeMode", "scramble/type", "scramble/showAlgs",
-        "virtual/scrambleType", "virtual/showAlgs", "ui/view/virtual"}) {
-    q.remove(key);
-  }
-}
-
-// Dated copies of the data files kept in the backups folder.
-constexpr int kBackupDays = 14;
-
-} // namespace
-
 MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
-    : QMainWindow(parent), settings_(settings), dataDir_(std::move(dataDir)),
-      library_(QDir(dataDir_).filePath("algsets"), ":/algsets"),
-      sessions_(QDir(dataDir_).filePath("sessions.json")),
-      untimed_(QDir(dataDir_).filePath("untimed.json"), SolveLog::Untimed),
-      moveCounts_(QDir(dataDir_).filePath("movecounts.json")) {
+    : QMainWindow(parent), settings_(settings), data_(std::move(dataDir)) {
   setWindowTitle("v-cube");
   setWriteReporter([this](const QString &path, const QString &error) {
     writeReported(path, error);
   });
-  // Today's copy of the data files, before anything is changed.
-  QString backupError;
-  if (!makeDailyBackup(dataDir_, QDate::currentDate(), kBackupDays,
-                       &backupError)) {
-    failedWrites_[QDir(dataDir_).filePath(kBackupsFolder)] =
-        tr("Today's backup failed: %1").arg(backupError);
+  AppData::LoadReport loaded = data_.load();
+  if (!loaded.backupError.isEmpty()) {
+    failedWrites_[data_.backupsDir()] = loaded.backupError;
   }
-  library_.load();
-  QString error;
-  // An unreadable file is kept, under another name if it could be moved.
-  auto kept = [](const QString &path) {
-    return path.isEmpty()
-               ? tr("It is left where it is, and nothing will be saved "
-                    "over it.")
-               : tr("It was kept as %1.").arg(QDir::toNativeSeparators(path));
-  };
-  if (!sessions_.load(&error)) {
-    QMessageBox::warning(this, "v-cube",
-                         tr("Could not read your timer sessions (%1), so the "
-                            "timer starts with an empty session.")
-                                 .arg(error) +
-                             " " + kept(sessions_.setAsidePath()));
-  }
-  if (!untimed_.load(&error)) {
-    QMessageBox::warning(this, "v-cube",
-                         tr("Could not read your untimed solves (%1), so "
-                            "Untimed starts with an empty session.")
-                                 .arg(error) +
-                             " " + kept(untimed_.setAsidePath()));
-  }
-  if (!moveCounts_.load(&error)) {
-    QMessageBox::warning(this, "v-cube",
-                         tr("Could not read your move counts (%1), so Move "
-                            "Count starts with the default sessions.")
-                                 .arg(error) +
-                             " " + kept(moveCounts_.setAsidePath()));
+  for (const QString &warning : loaded.warnings) {
+    QMessageBox::warning(this, "v-cube", warning);
   }
 
   stack_ = new QStackedWidget(this);
-  learnPage_ = new LearnPage(settings_, library_, stack_);
-  drillPage_ = new DrillPage(settings_, library_, stack_);
-  libraryPage_ = new LibraryPage(settings_, library_, stack_);
-  timedPage_ = new TimerPage(settings_, sessions_, library_, stack_);
-  untimedPage_ = new UntimedPage(settings_, untimed_, library_, stack_);
-  moveCountPage_ = new MoveCountPage(settings_, moveCounts_, library_, stack_);
-  inspectionPage_ = new InspectionPage(settings_, dataDir_, stack_);
-  blindPage_ = new BlindPage(settings_, dataDir_, stack_);
-  todayPage_ = new TodayPage(settings_, library_, sessions_, untimed_,
-                             moveCounts_, dataDir_, stack_);
+  learnPage_ = new LearnPage(settings_, data_.library, stack_);
+  drillPage_ = new DrillPage(settings_, data_.library, stack_);
+  libraryPage_ = new LibraryPage(settings_, data_.library, stack_);
+  timedPage_ = new TimerPage(settings_, data_.sessions, data_.library, stack_);
+  untimedPage_ =
+      new UntimedPage(settings_, data_.untimed, data_.library, stack_);
+  moveCountPage_ =
+      new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_);
+  inspectionPage_ = new InspectionPage(settings_, data_.dataDir(), stack_);
+  blindPage_ = new BlindPage(settings_, data_.dataDir(), stack_);
+  todayPage_ =
+      new TodayPage(settings_, data_.library, data_.sessions, data_.untimed,
+                    data_.moveCounts, data_.dataDir(), stack_);
   pages_ = {learnPage_,      drillPage_,   libraryPage_,
             timedPage_,      untimedPage_, moveCountPage_,
             inspectionPage_, blindPage_,   todayPage_};
@@ -222,7 +116,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
                   return f;
                 }(),
                 s);
-            ReviewDialog dialog(solve, settings_, &library_, this);
+            ReviewDialog dialog(solve, settings_, &data_.library, this);
             dialog.setRetryEnabled(true);
             connect(&dialog, &ReviewDialog::retryRequested, inspectionPage_,
                     [this, index] { inspectionPage_->startRetry(index); });
@@ -232,7 +126,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
                          static_cast<CasePage *>(drillPage_)}) {
     connect(page, &CasePage::editCaseRequested, this,
             [this](const QString &setId, const QString &caseId) {
-              if (setMode(Library)) {
+              if (setMode(AppMode::Library)) {
                 libraryPage_->selectCase(setId, caseId);
               }
             });
@@ -267,35 +161,35 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   connect(badgeTimer_, &QTimer::timeout, this, &MainWindow::updateBadges);
   badgeTimer_->start();
 
-  buildHelpPanel();
+  help_ = new HelpPanel(this);
+  addDockWidget(Qt::RightDockWidgetArea, help_);
+  resizeDocks({help_}, {340}, Qt::Horizontal);
+  help_->hide();
   buildMenus();
-  qApp->installEventFilter(this);
+  qApp->installEventFilter(
+      new KeyRouter(this, [this] { return currentPage(); }, this));
 
-  if (!library_.errors().isEmpty()) {
+  if (!data_.library.errors().isEmpty()) {
     QMessageBox::warning(this, "v-cube",
                          tr("Some alg set files had problems:") + "\n\n" +
-                             library_.errors().join("\n"));
+                             data_.library.errors().join("\n"));
   }
-  QSettings q;
-  restoreGeometry(q.value("window/geometry").toByteArray());
-  if (q.value("window/geometry").isNull()) {
+  restoreGeometry(saved::windowGeometry().get());
+  if (!saved::windowGeometry().exists()) {
     resize(1280, 800);
   }
-  restoreState(q.value("window/state").toByteArray());
+  restoreState(saved::windowState().get());
   // The app always opens out of full screen and focus mode, however it was
   // closed; the window keeps its size, position and maximised state.
   setWindowState(windowState() & ~Qt::WindowFullScreen);
   fitToScreen();
   restoreLayout();
-  setSidebarShown(q.value("window/sidebar", true).toBool());
-  int mode = modeFromId(q.value("window/mode").toString());
+  setSidebarShown(saved::sidebarShown().get());
+  int mode = AppMode::fromSettingsId(saved::windowMode().get());
   if (mode < 0) {
-    // Earlier versions saved a tab: Timer, Trainer or Library.
-    constexpr std::array<int, 3> fromTab = {Timed, Drill, Library};
-    int tab = q.value("window/tab", -1).toInt();
-    mode = tab >= 0 && tab < 3 ? fromTab[static_cast<std::size_t>(tab)] : Learn;
+    mode = AppMode::fromSavedTab(saved::legacyTab().get());
   }
-  removeObsoleteSettings(q);
+  saved::removeObsolete();
   applyWindowSettings();
   setMode(mode);
   updateBadges();
@@ -334,18 +228,15 @@ QWidget *MainWindow::buildSidebar() {
     label->setContentsMargins(6, 10, 0, 4);
     layout->addWidget(label);
   };
-  for (int m : kModeOrder) {
-    if (m == Learn) {
-      header(tr("ALGS"));
-    } else if (m == Timed) {
-      header(tr("SOLVES"));
-    } else if (m == Inspection) {
-      header(tr("PRACTICE"));
+  for (int m : AppMode::sidebarOrder()) {
+    if (QString h = AppMode::sidebarHeader(m); !h.isEmpty()) {
+      header(h);
     }
     auto *b = new QToolButton(bar);
-    b->setText(modeLabel(m));
+    b->setText(AppMode::label(m));
     b->setToolTip(tr("%1 (%2)").arg(
-        modeLabel(m), modeShortcut(m).toString(QKeySequence::NativeText)));
+        AppMode::label(m),
+        AppMode::shortcut(m).toString(QKeySequence::NativeText)));
     b->setCheckable(true);
     b->setFocusPolicy(Qt::NoFocus);
     b->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -431,32 +322,9 @@ void MainWindow::updateBanner() {
   banner_->show();
 }
 
-void MainWindow::buildHelpPanel() {
-  helpDock_ = new QDockWidget(tr("Keyboard controls"), this);
-  helpDock_->setObjectName("helpPanel");
-  helpDock_->setFeatures(QDockWidget::DockWidgetClosable |
-                         QDockWidget::DockWidgetMovable |
-                         QDockWidget::DockWidgetFloatable);
-  helpText_ = new QTextBrowser(helpDock_);
-  helpText_->setFocusPolicy(Qt::NoFocus);
-  helpText_->setOpenLinks(false);
-  helpText_->setMinimumWidth(220);
-  helpDock_->setWidget(helpText_);
-  addDockWidget(Qt::RightDockWidgetArea, helpDock_);
-  resizeDocks({helpDock_}, {340}, Qt::Horizontal);
-  helpDock_->hide();
-  connect(helpDock_, &QDockWidget::visibilityChanged, this, [this](bool on) {
-    if (on) {
-      updateHelp();
-    }
-  });
-}
-
 void MainWindow::updateHelp() {
-  if (helpText_ && helpDock_->isVisible()) {
-    int scroll = helpText_->verticalScrollBar()->value();
-    helpText_->setHtml(controlsHtml(mode_, settings_.keymap));
-    helpText_->verticalScrollBar()->setValue(scroll);
+  if (help_) {
+    help_->setContext(mode_, settings_.keymap);
   }
 }
 
@@ -465,7 +333,7 @@ ModePage *MainWindow::currentPage() const {
 }
 
 bool MainWindow::setMode(int mode) {
-  mode = std::clamp(mode, 0, ModeCount - 1);
+  mode = std::clamp(mode, 0, AppMode::Count - 1);
   ModePage *old = currentPage();
   if (mode == mode_) {
     return true;
@@ -496,11 +364,10 @@ bool MainWindow::setMode(int mode) {
   }
   stack_->setCurrentWidget(currentPage());
   currentPage()->activated();
-  QSettings().setValue("window/mode",
-                       kModes[static_cast<std::size_t>(mode)].id);
+  saved::windowMode().set(AppMode::settingsId(mode));
   if (switching && !sidebar_->isVisible()) {
     // Nothing else shows which mode this is.
-    showOverlay(modeLabel(mode), 1500);
+    showOverlay(AppMode::label(mode), 1500);
   }
   updateHelp();
   updateBadges();
@@ -510,26 +377,26 @@ bool MainWindow::setMode(int mode) {
 void MainWindow::updateBadges() {
   TodayPage::Totals t = todayPage_->totals();
   auto label = [&t](int m) {
-    QString text = modeLabel(m);
+    QString text = AppMode::label(m);
     if (t.due > 0) {
       text += QString("  (%1)").arg(t.due);
     }
     return text;
   };
-  for (int m : {static_cast<int>(Today), static_cast<int>(Learn)}) {
+  for (int m : {AppMode::Today, AppMode::Learn}) {
     auto *b = modeButtons_->button(m);
     b->setText(label(m));
-    b->setToolTip(tr("%1 (%2): %n review(s) due", "", t.due)
-                      .arg(modeLabel(m),
-                           modeShortcut(m).toString(QKeySequence::NativeText)) +
-                  (t.newLeft > 0
-                       ? tr(", %n new case(s) left today", "", t.newLeft)
+    b->setToolTip(
+        tr("%1 (%2): %n review(s) due", "", t.due)
+            .arg(AppMode::label(m),
+                 AppMode::shortcut(m).toString(QKeySequence::NativeText)) +
+        (t.newLeft > 0 ? tr(", %n new case(s) left today", "", t.newLeft)
                        : QString()));
   }
 }
 
 void MainWindow::learnSet(const QString &setId) {
-  if (!setMode(Learn)) {
+  if (!setMode(AppMode::Learn)) {
     return;
   }
   // Pick the set in Learn's set list, as a click would.
@@ -569,7 +436,7 @@ void MainWindow::setSidebarShown(bool on) {
     return;
   }
   sidebar_->setVisible(on && !focusMode_);
-  QSettings().setValue("window/sidebar", on);
+  saved::sidebarShown().set(on);
 }
 
 void MainWindow::showFocusHint() {
@@ -623,28 +490,23 @@ void MainWindow::closeEvent(QCloseEvent *e) {
       return;
     }
   }
-  QSettings q;
-  q.setValue("window/geometry", saveGeometry());
-  q.setValue("window/state", saveState());
+  saved::windowGeometry().set(saveGeometry());
+  saved::windowState().set(saveState());
   saveLayout();
   finishBackgroundWrites();
   QMainWindow::closeEvent(e);
 }
 
 void MainWindow::restoreLayout() {
-  QSettings q;
-  for (int m = 0; m < ModeCount; ++m) {
-    if (m == Learn) {
+  for (int m = 0; m < AppMode::Count; ++m) {
+    if (m == AppMode::Learn) {
       continue; // Learn keeps its own splitters
     }
     const auto splitters =
         pages_[static_cast<std::size_t>(m)]->findChildren<QSplitter *>();
     for (qsizetype i = 0; i < splitters.size(); ++i) {
       QByteArray state =
-          q.value(QString("window/splitters/%1/%2")
-                      .arg(kModes[static_cast<std::size_t>(m)].id)
-                      .arg(i))
-              .toByteArray();
+          saved::splitter(AppMode::settingsId(m), static_cast<int>(i)).get();
       if (!state.isEmpty()) {
         splitters[i]->restoreState(state);
       }
@@ -653,18 +515,15 @@ void MainWindow::restoreLayout() {
 }
 
 void MainWindow::saveLayout() {
-  QSettings q;
-  for (int m = 0; m < ModeCount; ++m) {
-    if (m == Learn) {
+  for (int m = 0; m < AppMode::Count; ++m) {
+    if (m == AppMode::Learn) {
       continue; // Learn keeps its own splitters
     }
     const auto splitters =
         pages_[static_cast<std::size_t>(m)]->findChildren<QSplitter *>();
     for (qsizetype i = 0; i < splitters.size(); ++i) {
-      q.setValue(QString("window/splitters/%1/%2")
-                     .arg(kModes[static_cast<std::size_t>(m)].id)
-                     .arg(i),
-                 splitters[i]->saveState());
+      saved::splitter(AppMode::settingsId(m), static_cast<int>(i))
+          .set(splitters[i]->saveState());
     }
   }
 }
@@ -692,37 +551,6 @@ void MainWindow::fitToScreen() {
     g.moveCenter(avail.center());
     setGeometry(g);
   }
-}
-
-bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
-  if (event->type() != QEvent::KeyPress &&
-      event->type() != QEvent::KeyRelease) {
-    return QMainWindow::eventFilter(obj, event);
-  }
-  // Only keys aimed at this window, not at dialogs, menus or text fields.
-  if (QApplication::activeModalWidget() || QApplication::activePopupWidget()) {
-    return false;
-  }
-  auto *w = qobject_cast<QWidget *>(obj);
-  if (!w || w->window() != this) {
-    return false;
-  }
-  QWidget *focus = QApplication::focusWidget();
-  if (qobject_cast<QLineEdit *>(focus) || qobject_cast<QTextEdit *>(focus) ||
-      qobject_cast<QPlainTextEdit *>(focus) ||
-      qobject_cast<QAbstractSpinBox *>(focus) ||
-      qobject_cast<QKeySequenceEdit *>(focus)) {
-    return false;
-  }
-  auto *key = static_cast<QKeyEvent *>(event);
-  // An unhandled key event is offered again to each parent; handle it once.
-  KeySeen seen{event, event->type(), key->key(), key->timestamp()};
-  if (seen == lastKey_) {
-    return false;
-  }
-  lastKey_ = seen;
-  ModePage *page = currentPage();
-  return page && page->handleKey(key, event->type() == QEvent::KeyPress);
 }
 
 void MainWindow::buildMenus() {
@@ -771,16 +599,16 @@ void MainWindow::buildMenus() {
   sidebarAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_B));
   connect(sidebarAction_, &QAction::toggled, this,
           &MainWindow::setSidebarShown);
-  QAction *help = helpDock_->toggleViewAction();
+  QAction *help = help_->toggleViewAction();
   help->setText(tr("&Keyboard controls"));
   help->setShortcut(QKeySequence(Qt::Key_F1));
   view->addAction(help);
 
   QMenu *modes = menuBar()->addMenu(tr("&Mode"));
-  for (int m : kModeOrder) {
-    modes->addAction(modeLabel(m), modeShortcut(m), this,
+  for (int m : AppMode::sidebarOrder()) {
+    modes->addAction(AppMode::label(m), AppMode::shortcut(m), this,
                      [this, m] { setMode(m); });
-    if (m == Today || m == Library || m == MoveCount) {
+    if (AppMode::menuSeparatorAfter(m)) {
       modes->addSeparator();
     }
   }
@@ -817,7 +645,7 @@ void MainWindow::openCommandPalette() {
 }
 
 void MainWindow::openDataFolder() {
-  if (openFolder(dataDir_)) {
+  if (openFolder(data_.dataDir())) {
     return;
   }
   // No file manager could be started: show the paths so they can be opened
@@ -830,8 +658,8 @@ void MainWindow::openDataFolder() {
   layout->addWidget(intro);
   auto *grid = new QGridLayout;
   const std::pair<QString, QString> rows[] = {
-      {tr("Data folder"), QDir::toNativeSeparators(dataDir_)},
-      {tr("Config file"), QDir::toNativeSeparators(QSettings().fileName())},
+      {tr("Data folder"), QDir::toNativeSeparators(data_.dataDir())},
+      {tr("Config file"), QDir::toNativeSeparators(saved::settingsFile())},
   };
   int row = 0;
   for (const auto &[label, path] : rows) {
@@ -859,11 +687,11 @@ void MainWindow::openDataFolder() {
 void MainWindow::exportAllData() {
   QString parent = QFileDialog::getExistingDirectory(
       this, tr("Export all data into a new folder in…"),
-      QSettings().value("export/folder", QDir::homePath()).toString());
+      saved::exportFolder().get());
   if (parent.isEmpty()) {
     return;
   }
-  QSettings().setValue("export/folder", parent);
+  saved::exportFolder().set(parent);
   QString base = QString("v-cube-export-%1")
                      .arg(QDate::currentDate().toString(Qt::ISODate));
   QString target = QDir(parent).filePath(base);
@@ -871,7 +699,8 @@ void MainWindow::exportAllData() {
     target = QDir(parent).filePath(QString("%1-%2").arg(base).arg(n));
   }
   QString error;
-  if (!vcube::exportAllData(dataDir_, QSettings().fileName(), target, &error)) {
+  if (!vcube::exportAllData(data_.dataDir(), saved::settingsFile(), target,
+                            &error)) {
     QMessageBox::warning(this, tr("Export all data"),
                          tr("The export failed: %1").arg(error));
     return;
@@ -905,15 +734,23 @@ void MainWindow::openSettings(bool neutrality) {
   if (dialog.exec() != QDialog::Accepted) {
     return;
   }
-  bool themeChanged = dialog.result().darkTheme != settings_.darkTheme;
+  SettingsParts changed = changedParts(settings_, dialog.result());
   settings_ = dialog.result();
   settings_.save();
-  if (themeChanged) {
+  settingsChanged(changed);
+}
+
+void MainWindow::settingsChanged(SettingsParts parts) {
+  if (parts.testFlag(SettingsPart::Theme)) {
     applyTheme(*qApp, settings_.darkTheme);
   }
   applyWindowSettings();
   for (ModePage *page : pages_) {
-    page->applySettings();
+    // A new theme changes the colours of every page.
+    SettingsParts used = page->settingsUsed() | SettingsPart::Theme;
+    if (used & parts) {
+      page->applySettings();
+    }
   }
   updateBadges();
 }
@@ -951,13 +788,13 @@ void MainWindow::applyWindowSettings() {
 }
 
 void MainWindow::importAlgSet() {
-  if (setMode(Library)) {
+  if (setMode(AppMode::Library)) {
     libraryPage_->importSetFile();
   }
 }
 
 void MainWindow::exportAlgSet() {
-  if (setMode(Library)) {
+  if (setMode(AppMode::Library)) {
     libraryPage_->exportSetFile();
   }
 }
@@ -975,8 +812,8 @@ void MainWindow::showAbout() {
          "<p>Data folder: <code>%2</code><br>Qt %3, platform "
          "<code>%4</code></p>")
           .arg(QApplication::applicationVersion().toHtmlEscaped(),
-               QDir::toNativeSeparators(dataDir_).toHtmlEscaped(), qVersion(),
-               QGuiApplication::platformName()));
+               QDir::toNativeSeparators(data_.dataDir()).toHtmlEscaped(),
+               qVersion(), QGuiApplication::platformName()));
   box.exec();
 }
 

@@ -322,8 +322,8 @@ void AttemptPage::deactivated() {
 
 void AttemptPage::windowDeactivated() { apply(flow_.dropHold()); }
 
-void AttemptPage::setFocusMode(bool on) {
-  focusMode_ = on;
+void AttemptPage::focusModeChanged() {
+  const bool on = focusMode();
   if (on) {
     returnFocus();
   }
@@ -333,7 +333,7 @@ void AttemptPage::setFocusMode(bool on) {
   hintLabel_->setVisible(!on || flow_.isHolding());
   chart_->setVisible(!on && !scramblesOnly());
   focusStats_->setVisible(on && !scramblesOnly());
-  focusModeChanged(on);
+  pageFocusChanged(on);
 }
 
 void AttemptPage::applySettings() {
@@ -367,8 +367,8 @@ void AttemptPage::showCubeKind() {
   viewPicker_->setVisible(virt);
   net_->setVisible(!virt);
   showModeWidgets(virt);
-  chart_->setVisible(!scramblesOnly() && !focusMode_);
-  focusStats_->setVisible(focusMode_ && !scramblesOnly());
+  chart_->setVisible(!scramblesOnly() && !focusMode());
+  focusStats_->setVisible(focusMode() && !scramblesOnly());
   historyCleared();
   flow_.clearEntry();
 }
@@ -488,6 +488,11 @@ void AttemptPage::updateControls() {
       !session().attempts.empty() && reviewable(session().attempts.back());
   reviewButton_->setVisible(canReview);
   reviewButton_->setEnabled(!busy);
+}
+
+bool AttemptPage::acceptsAutoRepeat(const QKeyEvent *e) const {
+  return moveCountFlow_ && !onVirtualCube() &&
+         (e->key() == Qt::Key_Backspace || e->key() == Qt::Key_Escape);
 }
 
 bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
@@ -631,7 +636,7 @@ void AttemptPage::showHold() {
     holdTimer_.stop();
     holdWatch_.stop();
   }
-  if (focusMode_) {
+  if (focusMode()) {
     hintLabel_->setVisible(hold != H::None);
   }
   if (hold == H::None) {

@@ -21,6 +21,8 @@ add_executable(vcube_tests
   test_case_logic.cpp
   test_alg_follow.cpp
   test_timer_stats.cpp
+  test_drill_flow.cpp
+  test_learn.cpp
   test_srs.cpp
   test_io.cpp
   test_move_count.cpp

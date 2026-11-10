@@ -2,6 +2,7 @@
 
 #include "app/flow_layout.hpp"
 #include "app/session_panel.hpp"
+#include "app/ui_state.hpp"
 
 #include "io/session_store.hpp"
 
@@ -13,7 +14,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QToolButton>
@@ -299,8 +299,7 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   chartBox_->addItem(tr("Moves"));
   chartBox_->setToolTip(tr("What the chart shows for Plan sessions"));
   chartBox_->setCurrentIndex(
-      std::clamp(QSettings().value("inspection/chart", 0).toInt(), 0,
-                 chartBox_->count() - 1));
+      std::clamp(saved::inspectionChart().get(), 0, chartBox_->count() - 1));
   chart_ = panel_->chart();
   chart_->setVisible(true);
   auto *chartRow = new QHBoxLayout;
@@ -414,7 +413,7 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
     selectSession(store_.currentIndex());
   });
   connect(chartBox_, &QComboBox::activated, this, [this](int index) {
-    QSettings().setValue("inspection/chart", index);
+    saved::inspectionChart().set(index);
     showChart();
   });
   connect(reviewButton_, &QPushButton::clicked, this, [this] {
@@ -463,7 +462,8 @@ void InspectionPage::windowDeactivated() {
   }
 }
 
-void InspectionPage::setFocusMode(bool on) {
+void InspectionPage::focusModeChanged() {
+  const bool on = focusMode();
   panel_->setVisible(!on);
   optionsRow_->setVisible(!on);
   chart_->setVisible(!on);
@@ -594,7 +594,7 @@ void InspectionPage::showDrill() {
     }
   }
   pairBox_->setCurrentIndex(pairIndex);
-  chartBox_->setVisible(plan && optionsRow_->isVisibleTo(this));
+  chartBox_->setVisible(plan && !focusMode());
   auto stepIt = std::find(planSteps().begin(), planSteps().end(), s.step);
   stepBox_->setCurrentIndex(static_cast<int>(
       stepIt == planSteps().end()

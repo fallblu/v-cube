@@ -48,16 +48,22 @@ public:
   ~TimerPage() override;
 
   bool handleKey(QKeyEvent *e, bool press) override;
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
+           SettingsPart::Timer | SettingsPart::Counts;
+  }
   void applySettings() override;
   bool isBusy() const override; // a solve or inspection is in progress
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;
-  void setFocusMode(bool on) override;
 
   // The alg sets changed; an alg set scramble is made again only when its
   // own set (`changedSet`) changed.
   void refreshScrambleTypes(const QString &changedSet = {});
+
+protected:
+  void focusModeChanged() override;
 
 private:
   using SplitResults = std::vector<std::pair<std::string, SolveSplits>>;
@@ -79,7 +85,6 @@ private:
   // After a virtual solve: the optimal EO Cross of its scramble.
   QFutureWatcher<std::optional<int>> eoWatcher_;
   std::optional<int> eoYours_; // the solve's own EO Cross count
-  bool focusMode_ = false;
 
   SessionPanel *panel_;
   QWidget *typeRow_;

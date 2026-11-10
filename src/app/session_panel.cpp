@@ -1,6 +1,7 @@
 #include "app/session_panel.hpp"
 
 #include "app/review_dialog.hpp"
+#include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
 #include <QActionGroup>
@@ -15,7 +16,6 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QTableView>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -235,7 +235,7 @@ void SessionPanel::setHiddenColumnsKey(const QString &key) {
 void SessionPanel::applyColumns() {
   QStringList hidden;
   if (!hiddenKey_.isEmpty()) {
-    hidden = QSettings().value(hiddenKey_).toStringList();
+    hidden = saved::hiddenSessionColumns(hiddenKey_).get();
   }
   QHeaderView *header = table_->horizontalHeader();
   const auto &columns = model_->columns();
@@ -254,7 +254,7 @@ void SessionPanel::showColumnMenu(const QPoint &pos) {
     return;
   }
   QMenu menu(this);
-  QStringList hidden = QSettings().value(hiddenKey_).toStringList();
+  QStringList hidden = saved::hiddenSessionColumns(hiddenKey_).get();
   for (const AttemptColumn &c : model_->columns()) {
     if (!c.hideable) {
       continue;
@@ -264,12 +264,12 @@ void SessionPanel::showColumnMenu(const QPoint &pos) {
     a->setChecked(!hidden.contains(c.id));
     a->setEnabled(c.available);
     connect(a, &QAction::toggled, this, [this, id = c.id](bool on) {
-      QStringList h = QSettings().value(hiddenKey_).toStringList();
+      QStringList h = saved::hiddenSessionColumns(hiddenKey_).get();
       h.removeAll(id);
       if (!on) {
         h << id;
       }
-      QSettings().setValue(hiddenKey_, h);
+      saved::hiddenSessionColumns(hiddenKey_).set(h);
       applyColumns();
     });
   }

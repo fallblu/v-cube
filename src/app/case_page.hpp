@@ -1,7 +1,9 @@
 #pragma once
 
+#include "app/alg_html.hpp"
 #include "app/app_settings.hpp"
 #include "app/case_filter.hpp"
+#include "app/case_list_panel.hpp"
 #include "app/colours.hpp"
 #include "app/mode_page.hpp"
 #include "io/library.hpp"
@@ -48,7 +50,6 @@ public:
   void applySettings() override;
   void activated() override;
   void deactivated() override;
-  void setFocusMode(bool on) override;
 
   // The set drop-down's entry for reviewing every set at once.
   static constexpr const char *kAcrossSetsId = "*across*";
@@ -59,6 +60,7 @@ signals:
   void editCaseRequested(const QString &setId, const QString &caseId);
 
 protected:
+  void focusModeChanged() override;
   // `mode` names the page in settings keys ("learn", "drill").
   CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
            QWidget *parent);
@@ -86,6 +88,8 @@ protected:
   // Steps left from each case by the set's algs (see stepsLeft()).
   std::map<std::string, int> steps_;
 
+  // The case list on the left; the pointers below are its parts.
+  CaseListPanel *panel_;
   QWidget *left_;
   QVBoxLayout *leftLayout_;
   QFormLayout *form_; // set selector; derived pages add rows
@@ -217,8 +221,6 @@ protected:
   virtual void neutralityChanged() {}
 
 private:
-  QPushButton *tickAllButton_;
-  QPushButton *tickNoneButton_;
   bool reloadPending_ = false;  // the library changed while hidden
   bool rebuildPending_ = false; // the look changed while hidden
   bool ticksPending_ = false;   // a tick change waits to be saved
@@ -240,9 +242,6 @@ private:
   void startCaseFromList(const std::string &id);
   // `cached`: reuse what was worked out for the set before.
   void computeInfo(bool cached = false);
-  // The case list's header menu: which columns are shown.
-  void showHeaderMenu(const QPoint &pos);
-  void applyHiddenColumns();
   // Builds the case list, keeping its scroll position and collapsed groups.
   void buildTree();
   // Brings the ticks and rows up to date without drawing the thumbnails
@@ -251,33 +250,10 @@ private:
   void saveTicks();
   // Saves the ticks once a batch of changes (e.g. "Tick all") is done.
   void ticksEdited();
-  // Ticks or unticks every case shown.
-  void tickShown(bool on);
-  // "Tick all" becomes "Tick shown" while the list is filtered.
-  void filterChanged();
   ColourNeutrality neutrality_; // as last applied
-  int sortColumn_ = -1;         // -1: list order
-  Qt::SortOrder sortOrder_ = Qt::DescendingOrder;
-  void sortClicked(int column);
   void fillGroupRows();
   void showCaseMenu(const QPoint &pos);
 };
-
-// The algs of a case that solve `state` (the case set up in its display
-// orientation, possibly with AUFs and free pieces scrambled), with the
-// AUFs they need, main alg first, as rich text under the case's name. For
-// Timed and Untimed, which have no case list.
-QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
-                     const CubieCube &state);
-
-// The algs of the case a cube shows in `world` as they are done from the
-// cube (mirrored for a mirrored view), main alg first, under the case's
-// name. A step that stops at another case names it.
-QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
-                     const CubieCube &state, Mirror world);
-// Every step from `state` to the end of a reduction set's step by the
-// set's main algs, under the first case's name.
-QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world);
 
 // When a case is due: "now", "10 min", "3 h" or "4 d", or "today" for a
 // review due before `dayEnd` (reviews are due all day).

@@ -55,11 +55,17 @@ public:
   ~AttemptPage() override;
 
   bool handleKey(QKeyEvent *e, bool press) override;
+  // A typed move count: Backspace and Esc go on as they are held.
+  bool acceptsAutoRepeat(const QKeyEvent *e) const override;
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
+           SettingsPart::Timer | SettingsPart::Counts;
+  }
   void applySettings() override;
-  bool isBusy() const override { return flow_.isBusy(); }
+  // Space held to start counts, as in Timed.
+  bool isBusy() const override { return flow_.isBusy() || flow_.isHolding(); }
   void deactivated() override;
   void windowDeactivated() override;
-  void setFocusMode(bool on) override;
   // The alg sets changed (Untimed offers alg set scrambles); an alg set
   // scramble is made again only when its own set (`changedSet`) changed.
   void refreshScrambleTypes(const QString &changedSet = {});
@@ -68,6 +74,7 @@ public:
   static constexpr std::size_t kWorst = 5;
 
 protected:
+  void focusModeChanged() override;
   // `moveCount`: the flow is Move Count's (see AttemptFlow::Config);
   // `mode` names the page's settings ("untimed", "movecount"). The
   // subclass adds its own widgets, sets the scramble type box with
@@ -150,7 +157,7 @@ protected:
   virtual void holdShown(const QColor &colour) { (void)colour; }
   virtual void entryShown() {}
   virtual void controlsEnabled(bool on) { (void)on; }
-  virtual void focusModeChanged(bool on) { (void)on; }
+  virtual void pageFocusChanged(bool on) { (void)on; }
   virtual void returnFocus() {}
   // Tab: shows or hides the algs; false when they aren't offered.
   virtual bool toggleAlgs() { return false; }
@@ -167,7 +174,6 @@ protected:
   MoveCountSession &session() { return store_.current(); }
   const MoveCountSession &session() const { return store_.current(); }
   bool onVirtualCube() const;
-  bool focusMode() const { return focusMode_; }
   // The scramble shown: a retry's, one gone back to, or the feed's.
   const GeneratedScramble *shownScramble() const;
   // Does what the flow said.
@@ -205,7 +211,6 @@ private:
   // The scramble of the attempt being retried.
   GeneratedScramble retryScramble_;
   DeletedAttempt<MoveCountAttempt> deleted_;
-  bool focusMode_ = false;
 
   QWidget *typeRow_;
   FlowLayout *typeLayout_;

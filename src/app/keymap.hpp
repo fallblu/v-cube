@@ -18,6 +18,8 @@ struct KeyBinding {
   int key = 0; // Qt::Key
   bool shift = false;
   Move move;
+
+  friend bool operator==(const KeyBinding &, const KeyBinding &) = default;
 };
 
 class Keymap {
@@ -41,6 +43,8 @@ public:
   // empty string if it can.
   static QString reservedReason(int key);
   static std::optional<std::pair<int, bool>> parseKeyText(const QString &text);
+
+  friend bool operator==(const Keymap &, const Keymap &) = default;
 };
 
 } // namespace vcube

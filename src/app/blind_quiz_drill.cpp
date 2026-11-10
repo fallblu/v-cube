@@ -1,6 +1,7 @@
 #include "app/blind_quiz_drill.hpp"
 
 #include "app/session_panel.hpp"
+#include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
 
@@ -9,7 +10,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 
 #include <algorithm>
 #include <random>
@@ -37,9 +37,8 @@ QuizDrill::QuizDrill(BlindContext &context, QWidget *parent)
       [](std::string_view s) { return ss(foldedLetter(qs(std::string(s)))); });
   for (QComboBox *box : {piecesBox_, directionBox_}) {
     connect(box, &QComboBox::activated, this, [this] {
-      QSettings q;
-      q.setValue("blind/quizPieces", piecesBox_->currentIndex());
-      q.setValue("blind/quizDirection", directionBox_->currentIndex());
+      saved::blindQuizPieces().set(piecesBox_->currentIndex());
+      saved::blindQuizDirection().set(directionBox_->currentIndex());
       emit restartRequested();
     });
   }
@@ -85,9 +84,8 @@ void QuizDrill::enter(bool changed) {
   (void)changed; // the options are read again either way
   nextTimer_.stop();
   flow_.reset();
-  QSettings q;
-  piecesBox_->setCurrentIndex(q.value("blind/quizPieces", 0).toInt());
-  directionBox_->setCurrentIndex(q.value("blind/quizDirection", 0).toInt());
+  piecesBox_->setCurrentIndex(saved::blindQuizPieces().get());
+  directionBox_->setCurrentIndex(saved::blindQuizDirection().get());
   nextItem();
 }
 

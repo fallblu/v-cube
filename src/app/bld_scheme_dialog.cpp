@@ -1,6 +1,7 @@
 #include "app/bld_scheme_dialog.hpp"
 
 #include "app/cube_view.hpp"
+#include "app/ui_state.hpp"
 #include "io/algset_json.hpp"
 
 #include <QComboBox>
@@ -10,7 +11,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSplitter>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -24,8 +24,8 @@ constexpr std::array<BldPiece, 2> kKinds = {BldPiece::Edge, BldPiece::Corner};
 
 // A list of 24 strings from the settings, or nullopt if it isn't one.
 std::optional<std::array<std::string, kBldStickers>>
-readList(const QSettings &q, const QString &key) {
-  QStringList list = q.value(key).toStringList();
+readList(const QString &name) {
+  QStringList list = saved::blindList(name).get();
   if (list.size() != kBldStickers) {
     return std::nullopt;
   }
@@ -59,22 +59,21 @@ QString pieceName(BldPiece kind, bool plural) {
 }
 
 BlindScheme BlindScheme::load() {
-  QSettings q;
   BlindScheme s;
-  if (auto letters = readList(q, "blind/edgeLetters")) {
+  if (auto letters = readList("edgeLetters")) {
     s.letters.edges = *letters;
   }
-  if (auto letters = readList(q, "blind/cornerLetters")) {
+  if (auto letters = readList("cornerLetters")) {
     s.letters.corners = *letters;
   }
-  if (auto setups = readList(q, "blind/edgeSetups")) {
+  if (auto setups = readList("edgeSetups")) {
     s.edgeSetups = *setups;
   }
-  if (auto setups = readList(q, "blind/cornerSetups")) {
+  if (auto setups = readList("cornerSetups")) {
     s.cornerSetups = *setups;
   }
-  Hold h{q.value("blind/top", kWcaHold.top).toInt(),
-         q.value("blind/front", kWcaHold.front).toInt()};
+  Hold h{saved::blindHoldTop(kWcaHold.top).get(),
+         saved::blindHoldFront(kWcaHold.front).get()};
   s.hold = isValidHold(h) ? h : kWcaHold;
   // Letters that can't be used (e.g. from a hand-edited file) fall back to
   // Speffz.
@@ -91,13 +90,12 @@ BlindScheme BlindScheme::load() {
 }
 
 void BlindScheme::save() const {
-  QSettings q;
-  q.setValue("blind/edgeLetters", toList(letters.edges));
-  q.setValue("blind/cornerLetters", toList(letters.corners));
-  q.setValue("blind/edgeSetups", toList(edgeSetups));
-  q.setValue("blind/cornerSetups", toList(cornerSetups));
-  q.setValue("blind/top", hold.top);
-  q.setValue("blind/front", hold.front);
+  saved::blindList("edgeLetters").set(toList(letters.edges));
+  saved::blindList("cornerLetters").set(toList(letters.corners));
+  saved::blindList("edgeSetups").set(toList(edgeSetups));
+  saved::blindList("cornerSetups").set(toList(cornerSetups));
+  saved::blindHoldTop(kWcaHold.top).set(hold.top);
+  saved::blindHoldFront(kWcaHold.front).set(hold.front);
 }
 
 const std::string &BlindScheme::ownSetup(BldPiece kind, int sticker) const {

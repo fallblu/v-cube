@@ -25,6 +25,8 @@ struct ColourScheme {
     return slot >= 0 && slot < 6 ? faces[static_cast<std::size_t>(slot)]
                                  : masked;
   }
+
+  friend bool operator==(const ColourScheme &, const ColourScheme &) = default;
 };
 
 // Which scheme colour each logical face shows. The logic always works in a

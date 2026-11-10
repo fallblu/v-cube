@@ -1,5 +1,6 @@
 #include "app/case_page.hpp"
 
+#include "app/ui_state.hpp"
 #include "io/data_file.hpp"
 
 #include "app/cube_painter.hpp"
@@ -16,7 +17,6 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSet>
-#include <QSettings>
 #include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -52,12 +52,6 @@ public:
     return data(0, kOrderRole).toInt() < other.data(0, kOrderRole).toInt();
   }
 };
-
-QComboBox *combo(QWidget *parent) {
-  auto *c = new QComboBox(parent);
-  c->setFocusPolicy(Qt::NoFocus);
-  return c;
-}
 
 } // namespace
 
@@ -97,42 +91,15 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
                    QWidget *parent)
     : ModePage(parent), settings_(settings), library_(library),
       mode_(std::move(mode)), rng_(makeRng()) {
-  left_ = new QWidget(this);
-  leftLayout_ = new QVBoxLayout(left_);
-  leftLayout_->setContentsMargins(0, 0, 0, 0);
-  form_ = new QFormLayout;
-  setBox_ = combo(left_);
-  form_->addRow(tr("Alg set:"), setBox_);
-  leftLayout_->addLayout(form_);
-
-  tree_ = new QTreeWidget(left_);
-  tree_->setIconSize(QSize(settings_.thumbnailSize, settings_.thumbnailSize));
-  tree_->setIndentation(14);
-  tree_->setFocusPolicy(Qt::NoFocus);
-  tree_->setContextMenuPolicy(Qt::CustomContextMenu);
-  tree_->setSelectionMode(QAbstractItemView::ExtendedSelection);
-  tree_->header()->setContextMenuPolicy(Qt::CustomContextMenu);
-  connect(tree_->header(), &QHeaderView::customContextMenuRequested, this,
-          &CasePage::showHeaderMenu);
-  connect(tree_->header(), &QHeaderView::sectionClicked, this,
-          &CasePage::sortClicked);
-  filter_ = new CaseFilter(tree_, left_);
-  leftLayout_->addWidget(filter_);
-  leftLayout_->addWidget(tree_, 1);
-
-  tickRow_ = new QHBoxLayout;
-  tickAllButton_ = new QPushButton(left_);
-  tickNoneButton_ = new QPushButton(left_);
-  for (auto *b : {tickAllButton_, tickNoneButton_}) {
-    b->setFocusPolicy(Qt::NoFocus);
-    tickRow_->addWidget(b);
-  }
-  filterChanged();
-  tickRow_->addStretch();
-  leftLayout_->addLayout(tickRow_);
-  summary_ = new QLabel(left_);
-  summary_->setWordWrap(true);
-  leftLayout_->addWidget(summary_);
+  panel_ = new CaseListPanel(mode_, settings_.thumbnailSize, this);
+  left_ = panel_;
+  leftLayout_ = panel_->layout;
+  form_ = panel_->form;
+  setBox_ = panel_->setBox;
+  filter_ = panel_->filter;
+  tree_ = panel_->tree;
+  tickRow_ = panel_->tickRow;
+  summary_ = panel_->summary;
 
   connect(setBox_, &QComboBox::activated, this, [this](int i) {
     std::string id = ss(setBox_->itemData(i).toString());
@@ -157,38 +124,8 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
               startCaseFromList(ss(id.toString()));
             }
           });
-  connect(tickAllButton_, &QPushButton::clicked, this,
-          [this] { tickShown(true); });
-  connect(tickNoneButton_, &QPushButton::clicked, this,
-          [this] { tickShown(false); });
-  connect(filter_, &CaseFilter::changed, this, &CasePage::filterChanged);
+  connect(panel_, &CaseListPanel::sorted, this, [this] { sortChanged(); });
   neutrality_ = settings_.neutrality;
-}
-
-void CasePage::tickShown(bool on) {
-  Qt::CheckState state = on ? Qt::Checked : Qt::Unchecked;
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    QTreeWidgetItem *group = tree_->topLevelItem(g);
-    if (!filter_->isActive()) {
-      group->setCheckState(0, state); // its cases follow
-      continue;
-    }
-    for (int i = 0; i < group->childCount(); ++i) {
-      if (!group->child(i)->isHidden()) {
-        group->child(i)->setCheckState(0, state);
-      }
-    }
-  }
-}
-
-void CasePage::filterChanged() {
-  bool filtered = filter_->isActive();
-  tickAllButton_->setText(filtered ? tr("Tick shown") : tr("Tick all"));
-  tickNoneButton_->setText(filtered ? tr("Untick shown") : tr("Tick none"));
-  tickAllButton_->setToolTip(filtered ? tr("Tick the cases shown")
-                                      : tr("Tick every case"));
-  tickNoneButton_->setToolTip(filtered ? tr("Untick the cases shown")
-                                       : tr("Untick every case"));
 }
 
 void CasePage::init() {
@@ -212,32 +149,13 @@ void CasePage::init() {
                       })});
   filter_->setStatuses(std::move(statuses));
 
-  QStringList headers = {tr("Case")};
-  headers << columns();
-  tree_->setColumnCount(static_cast<int>(headers.size()));
-  tree_->setHeaderLabels(headers);
-  tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-  for (int c = 1; c < headers.size(); ++c) {
-    tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
-  }
-  applyHiddenColumns();
-  if (sortableColumns()) {
-    tree_->header()->setSectionsClickable(true);
-    QSettings q;
-    sortColumn_ = q.value(mode_ + "/sortColumn", -1).toInt();
-    if (sortColumn_ <= 0 || sortColumn_ >= tree_->columnCount()) {
-      sortColumn_ = -1;
-    }
-    sortOrder_ = q.value(mode_ + "/sortAscending", false).toBool()
-                     ? Qt::AscendingOrder
-                     : Qt::DescendingOrder;
-  }
+  panel_->setColumns(columns(), defaultHiddenColumns());
+  panel_->setSortable(sortableColumns());
   applySettings();
   populateSets();
-  QSettings q;
-  QString last = q.value(mode_ + "/set", q.value("trainer/set")).toString();
+  QString last = saved::caseSet(mode_);
   if (last == kAcrossSetsId && offersAcrossSets()) {
-    setId_ = ss(q.value(mode_ + "/shownSet").toString());
+    setId_ = ss(saved::shownSet(mode_).get());
     selectAcrossSets();
     return;
   }
@@ -246,60 +164,7 @@ void CasePage::init() {
                 : ss(last));
 }
 
-void CasePage::showHeaderMenu(const QPoint &pos) {
-  QMenu menu(this);
-  for (int c = 1; c < tree_->columnCount(); ++c) {
-    QAction *a = menu.addAction(tree_->headerItem()->text(c));
-    a->setCheckable(true);
-    a->setChecked(!tree_->isColumnHidden(c));
-    connect(a, &QAction::toggled, this, [this, c](bool on) {
-      tree_->setColumnHidden(c, !on);
-      QStringList hidden;
-      for (int k = 1; k < tree_->columnCount(); ++k) {
-        if (tree_->isColumnHidden(k)) {
-          hidden << tree_->headerItem()->text(k);
-        }
-      }
-      QSettings().setValue(mode_ + "/hiddenColumns", hidden);
-    });
-  }
-  menu.exec(tree_->header()->viewport()->mapToGlobal(pos));
-}
-
-void CasePage::sortClicked(int column) {
-  if (!sortableColumns()) {
-    return;
-  }
-  if (column <= 0) {
-    sortColumn_ = -1;
-  } else if (column != sortColumn_) {
-    sortColumn_ = column;
-    sortOrder_ = Qt::DescendingOrder;
-  } else if (sortOrder_ == Qt::DescendingOrder) {
-    sortOrder_ = Qt::AscendingOrder;
-  } else {
-    sortColumn_ = -1;
-  }
-  QSettings q;
-  q.setValue(mode_ + "/sortColumn", sortColumn_);
-  q.setValue(mode_ + "/sortAscending", sortOrder_ == Qt::AscendingOrder);
-  applySort();
-  sortChanged();
-}
-
-void CasePage::applySort() {
-  if (!sortableColumns()) {
-    return;
-  }
-  QSignalBlocker block(tree_);
-  if (sortColumn_ < 0) {
-    tree_->sortItems(0, Qt::AscendingOrder); // list order
-    tree_->header()->setSortIndicatorShown(false);
-  } else {
-    tree_->sortItems(sortColumn_, sortOrder_);
-    tree_->header()->setSortIndicatorShown(true);
-  }
-}
+void CasePage::applySort() { panel_->applySort(); }
 
 void CasePage::fillGroupRows() {
   QSignalBlocker block(tree_);
@@ -310,16 +175,6 @@ void CasePage::fillGroupRows() {
       ids.push_back(ss(group->child(i)->data(0, kCaseIdRole).toString()));
     }
     fillGroupRow(group, ids);
-  }
-}
-
-void CasePage::applyHiddenColumns() {
-  QStringList hidden =
-      QSettings()
-          .value(mode_ + "/hiddenColumns", defaultHiddenColumns())
-          .toStringList();
-  for (int c = 1; c < tree_->columnCount(); ++c) {
-    tree_->setColumnHidden(c, hidden.contains(tree_->headerItem()->text(c)));
   }
 }
 
@@ -472,7 +327,7 @@ void CasePage::activated() {
 
 void CasePage::deactivated() { filter_->release(); }
 
-void CasePage::setFocusMode(bool on) { left_->setVisible(!on); }
+void CasePage::focusModeChanged() { left_->setVisible(!focusMode()); }
 
 QString CasePage::setItemText(const AlgSet &s) {
   return QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount());
@@ -537,7 +392,7 @@ void CasePage::selectSet(const std::string &id) {
   if (!library_.find(id) && !library_.sets().empty()) {
     setId_ = library_.sets().front().id;
   }
-  QSettings().setValue(mode_ + "/set", qs(setId_));
+  saved::setCaseSet(mode_, qs(setId_));
   setBox_->setCurrentIndex(setBox_->findData(qs(setId_)));
   computeInfo();
   buildTree();
@@ -550,7 +405,7 @@ void CasePage::selectAcrossSets() {
     setId_ =
         library_.sets().empty() ? std::string() : library_.sets().front().id;
   }
-  QSettings().setValue(mode_ + "/set", QString(kAcrossSetsId));
+  saved::setCaseSet(mode_, QString(kAcrossSetsId));
   setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
   computeInfo(true);
   buildTree();
@@ -563,7 +418,7 @@ void CasePage::showSet(const std::string &id) {
   }
   filter_->clearSearch();
   setId_ = id;
-  QSettings().setValue(mode_ + "/shownSet", qs(setId_));
+  saved::shownSet(mode_).set(qs(setId_));
   computeInfo(true);
   buildTree();
 }
@@ -890,114 +745,6 @@ double CasePage::yawFor(const std::string &caseId, Mirror world) {
 }
 
 Hold CasePage::pickHold() { return settings_.neutrality.pick(rng_); }
-
-// --- reveal ----------------------------------------------------------------
-
-namespace {
-
-QString caseHeaderHtml(const AlgCase &c, const CaseGroup &group) {
-  return QString("<p style='font-size:large'><b>%1</b> <span "
-                 "style='color:gray'>· %2</span></p>")
-      .arg(qs(c.name).toHtmlEscaped(), qs(group.name).toHtmlEscaped());
-}
-
-QString greyHtml(const QString &text) {
-  return "<span style='color:gray'>" + text + "</span>";
-}
-
-// " → Sune" after a step that stops at that case.
-QString reachedHtml(const AlgSet &set, const std::string &caseId) {
-  const AlgCase *next = set.findCase(caseId);
-  return next ? " " + greyHtml("→ " + qs(next->name).toHtmlEscaped())
-              : QString();
-}
-
-} // namespace
-
-QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
-                     const CubieCube &state, Mirror world) {
-  const AlgCase *c = set.findCase(view.caseId);
-  const CaseGroup *g = set.groupOf(view.caseId);
-  if (!c || !g) {
-    return {};
-  }
-  QString html = caseHeaderHtml(*c, *g);
-  std::vector<ViewAlg> algs =
-      algsFor(set, *g, *c, analyzeCase(set, *g, *c), view, state, world);
-  if (algs.empty()) {
-    return html + "<p style='color:gray'>" +
-           QObject::tr("No alg solves this case yet. Add one in the Library.")
-               .toHtmlEscaped() +
-           "</p>";
-  }
-  bool first = true;
-  for (const ViewAlg &alg : algs) {
-    QString line = qs(alg.text).toHtmlEscaped();
-    line = first ? "<b>" + line + "</b>" : greyHtml(line);
-    html += "<p>" + line + reachedHtml(set, alg.reducesTo) + "</p>";
-    first = false;
-  }
-  return html;
-}
-
-QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world) {
-  Chain chain = solveChain(set, state, world);
-  if (chain.steps.empty()) {
-    return {};
-  }
-  if (chain.steps.size() == 1) {
-    return viewAlgsHtml(set, chain.steps.front().view, state, world);
-  }
-  const std::string &firstId = chain.steps.front().view.caseId;
-  const AlgCase *c = set.findCase(firstId);
-  const CaseGroup *g = set.groupOf(firstId);
-  if (!c || !g) {
-    return {};
-  }
-  QStringList lines;
-  for (std::size_t i = 0; i < chain.steps.size(); ++i) {
-    QString line = "<b>" + qs(chain.steps[i].alg).toHtmlEscaped() + "</b>";
-    if (i + 1 < chain.steps.size()) {
-      line += reachedHtml(set, chain.steps[i + 1].view.caseId);
-    }
-    lines << line;
-  }
-  QString html = caseHeaderHtml(*c, *g) + "<p>" + lines.join("<br>") + "</p>";
-  if (!chain.complete) {
-    html += "<p style='color:gray'>" +
-            QObject::tr("The set's algs don't reach the end from there.")
-                .toHtmlEscaped() +
-            "</p>";
-  }
-  return html;
-}
-
-QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
-                     const CubieCube &state) {
-  // The scramble may show the case in one of the set's mirror worlds. The
-  // case it was made for comes first: other cases of the set can look the
-  // same from the cube (up to the pieces the step leaves free), and the
-  // first of those in the set isn't the one the scramble sets up.
-  std::optional<WorldView> seen;
-  const AlgCase *c = set.findCase(caseId);
-  const CaseGroup *g = set.groupOf(caseId);
-  if (c && g) {
-    for (Mirror world : set.worlds()) {
-      if (auto view = viewOfCase(set, *g, *c, state, world)) {
-        seen = WorldView{world, *view};
-        break;
-      }
-    }
-  }
-  if (!seen) {
-    seen = worldOf(set, state);
-  }
-  if (!seen) {
-    seen = WorldView{Mirror{}, CaseView{caseId, false, 0}};
-  }
-  return set.reduction ? chainHtml(set, state, seen->world)
-                       : viewAlgsHtml(set, seen->view, state, seen->world);
-}
 
 QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state,
                            Mirror world) {

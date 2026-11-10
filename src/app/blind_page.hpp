@@ -58,9 +58,12 @@ public:
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;
-  void setFocusMode(bool on) override;
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Timer;
+  }
 
 protected:
+  void focusModeChanged() override;
   void changeEvent(QEvent *event) override;
 
 private:

@@ -18,7 +18,7 @@ struct Section {
   const char *body;
 };
 
-// By mode, in MainWindow::Mode order.
+// By mode, in AppMode order.
 constexpr std::array<Section, 9> kModeSections = {{
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Learn (virtual cube, untimed)"),
      QT_TRANSLATE_NOOP(

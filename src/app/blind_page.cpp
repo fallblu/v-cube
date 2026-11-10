@@ -7,6 +7,7 @@
 #include "app/cube_view.hpp"
 #include "app/flow_layout.hpp"
 #include "app/session_panel.hpp"
+#include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
 #include <QComboBox>
@@ -16,7 +17,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QTabBar>
@@ -204,8 +204,8 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
 
   feed_.setType("333"); // WCA scrambles held white top, green front
   applySettings();
-  int saved = QSettings().value("blind/drill", 0).toInt();
-  selectDrill(static_cast<Drill>(std::clamp(saved, 0, 3)));
+  int drill = saved::blindDrill().get();
+  selectDrill(static_cast<Drill>(std::clamp(drill, 0, 3)));
   current()->pause(); // until the page is shown
 }
 
@@ -240,7 +240,8 @@ void BlindPage::changeEvent(QEvent *event) {
   ModePage::changeEvent(event);
 }
 
-void BlindPage::setFocusMode(bool on) {
+void BlindPage::focusModeChanged() {
+  const bool on = focusMode();
   leftPanel_->setVisible(!on);
   optionsRow_->setVisible(!on);
   chart_->setVisible(!on && current()->layout().chart);
@@ -272,7 +273,7 @@ void BlindPage::selectDrill(Drill d) {
     current()->leave();
   }
   drill_ = d;
-  QSettings().setValue("blind/drill", static_cast<int>(d));
+  saved::blindDrill().set(static_cast<int>(d));
   {
     QSignalBlocker block(drillTabs_);
     drillTabs_->setCurrentIndex(static_cast<int>(d));
@@ -293,7 +294,7 @@ void BlindPage::selectDrill(Drill d) {
     }
   }
   BlindDrill::Layout shown = current()->layout();
-  chart_->setVisible(shown.chart && optionsRow_->isVisibleTo(this));
+  chart_->setVisible(shown.chart && !focusMode());
   cubeView_->setVisible(shown.cube);
   viewPicker_->setVisible(shown.viewPicker);
   net_->setVisible(shown.net);

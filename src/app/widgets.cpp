@@ -1,6 +1,7 @@
 #include "app/widgets.hpp"
 
 #include "app/colours.hpp"
+#include "app/ui_state.hpp"
 
 #include "cube/solver.hpp"
 #include "train/move_count.hpp"
@@ -13,7 +14,6 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QSettings>
 #include <QToolTip>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -223,9 +223,8 @@ void TrendChart::setMoveCounts(bool on) {
 
 void TrendChart::setSettingsKey(const QString &key) {
   settingsKey_ = key;
-  QSettings q;
-  last_ = std::max(0, q.value(key + "/last", 0).toInt());
-  showSeries_ = q.value(key + "/series", false).toBool();
+  last_ = std::max(0, saved::chartLast(key).get());
+  showSeries_ = saved::chartSeries(key).get();
   update();
 }
 
@@ -469,7 +468,7 @@ void TrendChart::contextMenuEvent(QContextMenuEvent *e) {
     connect(a, &QAction::triggered, this, [this, n] {
       last_ = n;
       if (!settingsKey_.isEmpty()) {
-        QSettings().setValue(settingsKey_ + "/last", n);
+        saved::chartLast(settingsKey_).set(n);
       }
       update();
     });
@@ -486,7 +485,7 @@ void TrendChart::contextMenuEvent(QContextMenuEvent *e) {
     connect(a, &QAction::toggled, this, [this](bool on) {
       showSeries_ = on;
       if (!settingsKey_.isEmpty()) {
-        QSettings().setValue(settingsKey_ + "/series", on);
+        saved::chartSeries(settingsKey_).set(on);
       }
       update();
     });

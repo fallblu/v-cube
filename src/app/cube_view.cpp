@@ -1,9 +1,9 @@
 #include "app/cube_view.hpp"
 
+#include "app/ui_state.hpp"
 #include <QComboBox>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QSettings>
 
 #include <algorithm>
 
@@ -257,15 +257,14 @@ QComboBox *createViewSelector(CubeView *view, const QString &mode,
   for (const auto &[m, label] : items) {
     box->addItem(label, CubeView::modeName(m));
   }
-  QString key = "ui/view/" + mode;
-  Mode saved = CubeView::modeFromName(QSettings().value(key).toString())
-                   .value_or(Mode::ThreeD);
-  box->setCurrentIndex(box->findData(CubeView::modeName(saved)));
-  view->setMode(saved);
-  QObject::connect(box, &QComboBox::activated, view, [view, box, key] {
+  Stored<QString> stored = saved::cubeViewMode(mode);
+  Mode savedMode = CubeView::modeFromName(stored.get()).value_or(Mode::ThreeD);
+  box->setCurrentIndex(box->findData(CubeView::modeName(savedMode)));
+  view->setMode(savedMode);
+  QObject::connect(box, &QComboBox::activated, view, [view, box, stored] {
     QString name = box->currentData().toString();
     view->setMode(CubeView::modeFromName(name).value_or(Mode::ThreeD));
-    QSettings().setValue(key, name);
+    stored.set(name);
   });
   return box;
 }

@@ -1,6 +1,6 @@
 #include "app/today_page.hpp"
 
-#include "app/main_window.hpp"
+#include "app/mode_table.hpp"
 #include "app/widgets.hpp"
 #include "io/blind_store.hpp"
 #include "io/data_file.hpp"
@@ -163,19 +163,19 @@ std::vector<ActivityEvent> TodayPage::events() {
     for (const auto &[id, p] : library_.progress(set.id)) {
       for (const Attempt &a : p.attempts) {
         bool learn = a.mode == AttemptMode::Learn;
-        add(learn ? MainWindow::Learn : MainWindow::Drill, a.timestamp,
+        add(learn ? AppMode::Learn : AppMode::Drill, a.timestamp,
             learn ? 0 : a.timeMs);
       }
     }
   }
   for (const Session &s : timed_.sessions()) {
     for (const Solve &solve : s.solves) {
-      add(MainWindow::Timed, solve.timestamp, solve.timeMs);
+      add(AppMode::Timed, solve.timestamp, solve.timeMs);
     }
   }
   for (const auto &[store, mode] :
-       {std::pair{&untimed_, int(MainWindow::Untimed)},
-        std::pair{&moveCounts_, int(MainWindow::MoveCount)}}) {
+       {std::pair{&untimed_, int(AppMode::Untimed)},
+        std::pair{&moveCounts_, int(AppMode::MoveCount)}}) {
     for (const MoveCountSession &s : store->sessions()) {
       for (const MoveCountAttempt &a : s.attempts) {
         add(mode, a.timestamp, 0);
@@ -187,7 +187,7 @@ std::vector<ActivityEvent> TodayPage::events() {
   if (inspection.status == FileStatus::Read) {
     for (const InspectionSession &s : inspectionFromJson(inspection.object)) {
       for (const InspectionAttempt &a : s.attempts) {
-        add(MainWindow::Inspection, a.timestamp, a.ms);
+        add(AppMode::Inspection, a.timestamp, a.ms);
       }
     }
   }
@@ -197,11 +197,11 @@ std::vector<ActivityEvent> TodayPage::events() {
     BlindData blindData = blindFromJson(blind.object);
     for (const BlindSession &s : blindData.sessions) {
       for (const BlindAttempt &a : s.attempts) {
-        add(MainWindow::Blind, a.timestamp, a.timeMs);
+        add(AppMode::Blind, a.timestamp, a.timeMs);
       }
     }
     for (const TraceAttempt &t : blindData.traces) {
-      add(MainWindow::Blind, t.timestamp, t.timeMs);
+      add(AppMode::Blind, t.timestamp, t.timeMs);
     }
   }
   return out;
@@ -233,16 +233,16 @@ void TodayPage::refresh() {
   QDate date = QDate::currentDate();
   std::int64_t week =
       QDateTime(date.addDays(-6), QTime(0, 0)).toSecsSinceEpoch();
-  auto activity = summarizeActivity(all, MainWindow::ModeCount, today, week);
+  auto activity = summarizeActivity(all, AppMode::Count, today, week);
   modes_->clear();
   static const std::pair<int, const char *> rows[] = {
-      {MainWindow::Learn, QT_TR_NOOP("Learn (cases)")},
-      {MainWindow::Drill, QT_TR_NOOP("Drill (cases)")},
-      {MainWindow::Timed, QT_TR_NOOP("Timed (solves)")},
-      {MainWindow::Untimed, QT_TR_NOOP("Untimed (solves)")},
-      {MainWindow::MoveCount, QT_TR_NOOP("Move Count (solves)")},
-      {MainWindow::Inspection, QT_TR_NOOP("Inspection (scrambles)")},
-      {MainWindow::Blind, QT_TR_NOOP("Blind (solves and traces)")},
+      {AppMode::Learn, QT_TR_NOOP("Learn (cases)")},
+      {AppMode::Drill, QT_TR_NOOP("Drill (cases)")},
+      {AppMode::Timed, QT_TR_NOOP("Timed (solves)")},
+      {AppMode::Untimed, QT_TR_NOOP("Untimed (solves)")},
+      {AppMode::MoveCount, QT_TR_NOOP("Move Count (solves)")},
+      {AppMode::Inspection, QT_TR_NOOP("Inspection (scrambles)")},
+      {AppMode::Blind, QT_TR_NOOP("Blind (solves and traces)")},
   };
   ActivityTotals dayTotal, weekTotal;
   for (const auto &[mode, label] : rows) {

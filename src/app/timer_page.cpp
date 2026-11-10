@@ -1,6 +1,7 @@
 #include "app/timer_page.hpp"
 
 #include "app/review_dialog.hpp"
+#include "app/ui_state.hpp"
 #include "io/data_file.hpp"
 #include "train/step_solver.hpp"
 
@@ -41,7 +42,6 @@ enum Column {
   kLl,
   kColumns
 };
-const char *const kHiddenKey = "timed/hiddenColumns";
 
 std::vector<AttemptColumn> columns(bool virt) {
   auto col = [](const char *id, const QString &title, const QString &tip,
@@ -100,7 +100,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   panel_->setDeleteRowVisible(true);
   panel_->setStretchLast(true);
   panel_->setColumns(columns(true));
-  panel_->setHiddenColumnsKey(kHiddenKey);
+  panel_->setHiddenColumnsKey(saved::timedHiddenColumns().key());
 
   // --- right column: scramble, timer, chart ---
   auto *right = new QWidget(this);
@@ -335,7 +335,7 @@ void TimerPage::showCubeKind() {
   bool virt = onVirtualCube();
   cubeBox_->setCurrentIndex(virt ? 0 : 1);
   cubeView_->setVisible(virt);
-  viewPicker_->setVisible(virt && !focusMode_);
+  viewPicker_->setVisible(virt && !focusMode());
   net_->setVisible(!virt);
   showColumns();
 }
@@ -398,8 +398,8 @@ void TimerPage::updateControls() {
   reviewButton_->setEnabled(!busy);
 }
 
-void TimerPage::setFocusMode(bool on) {
-  focusMode_ = on;
+void TimerPage::focusModeChanged() {
+  const bool on = focusMode();
   panel_->setVisible(!on);
   typeRow_->setVisible(!on);
   chart_->setVisible(!on);
@@ -545,9 +545,6 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
   std::optional<Move> move =
       virt ? settings_.keymap.lookup(e) : std::optional<Move>();
   int key = e->key();
-  if (e->isAutoRepeat()) {
-    return key == Qt::Key_Space || move.has_value();
-  }
   std::int64_t now = monotonicMs();
 
   if (flow_.isRunning()) {

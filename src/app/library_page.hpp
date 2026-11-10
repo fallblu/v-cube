@@ -2,6 +2,7 @@
 
 #include "app/app_settings.hpp"
 #include "app/cube_painter.hpp"
+#include "app/library_editor.hpp"
 #include "app/mode_page.hpp"
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
@@ -74,6 +75,9 @@ public:
               QWidget *parent = nullptr);
 
   void selectCase(const QString &setId, const QString &caseId);
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Neutrality;
+  }
   void applySettings() override;
   void importSetFile();
   void exportSetFile();
@@ -85,37 +89,22 @@ public:
   QList<QMenu *> menus() const;
   QList<QAction *> editActions() const;
 
-  // One undoable change of a set: its state before and after (nullopt
-  // when it doesn't exist, i.e. it was added or deleted).
-  struct Edit {
-    std::string setId;
-    std::optional<AlgSet> before;
-    std::optional<AlgSet> after;
-    SetProgress forgotten;  // progress the change dropped, put back by undo
-    SetProgress progress;   // a removed set's progress
-    QVariantMap settings;   // and its per-set settings
-    std::string caseBefore; // the selected case before and after
-    std::string caseAfter;
-  };
-  void applyEdit(Edit &edit, bool undoing, const QString &text);
-
 signals:
   // The library changed: `setId` names the set whose contents changed, or
   // is empty when sets were added, removed or renamed.
   void setsChanged(const QString &setId);
 
 private:
+  using Edit = LibraryEditor::Edit;
+
   AppSettings &settings_;
   AlgLibrary &library_;
-  std::string setId_;
+  QUndoStack *undo_;
+  // The selected set and case, the edits and the checks of each set.
+  LibraryEditor editor_;
   std::string caseTreeSet_; // the set the case tree was last built for
-  std::string caseId_;
   bool loading_ = false;
   bool active_ = false;
-  // Every case of each set, checked under its step settings; filled when
-  // first needed and kept up to date edit by edit.
-  std::map<std::string, std::map<std::string, CaseAnalysis>> analysis_;
-  QUndoStack *undo_;
   // Pasted algs that weren't filed, offered again by the next paste.
   std::map<std::string, QString> pasteLeftOver_;
 
@@ -155,29 +144,12 @@ private:
   QAction *moveUpAction_;
   QAction *moveDownAction_;
 
-  AlgSet *set();
-  AlgCase *currentCase();
-  const std::map<std::string, CaseAnalysis> &analysisFor(const AlgSet &s);
-  const CaseAnalysis *analysisOf(const std::string &caseId);
-  int failingIn(const AlgSet &s);
+  AlgSet *set() { return editor_.set(); }
+  AlgCase *currentCase() { return editor_.currentCase(); }
 
-  // An edit of the current set: take begin() before changing it and
-  // commit() after. commit() saves it and makes it undoable (or puts the
-  // set back if it can't be saved); `changedCases` names the only cases
-  // whose algs changed, or is nullopt when anything else may have.
-  struct Pending {
-    AlgSet before;
-    std::string caseId;
-  };
-  std::optional<Pending> begin();
-  bool
-  commit(const QString &text, Pending pending,
-         std::optional<std::vector<std::string>> changedCases = std::nullopt,
-         const std::vector<std::string> &forget = {});
-  // Refreshes the page after a set changed.
-  void refreshAfter(const std::string &setId,
-                    const std::optional<std::vector<std::string>> &cases);
-  void pushSetEdit(const QString &text, Edit edit);
+  // The one way the page catches up with a change of the library, from an
+  // edit, an undo or a redo.
+  void refresh(const LibraryEditor::Change &change);
 
   void buildActions();
   void fillContextMenu(QMenu *menu, bool forSets);

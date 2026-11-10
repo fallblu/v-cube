@@ -1,6 +1,7 @@
 #include "app/blind_setup_drill.hpp"
 
 #include "app/session_panel.hpp"
+#include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
 
@@ -11,7 +12,6 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 
 #include <algorithm>
 
@@ -39,9 +39,8 @@ SetupDrill::SetupDrill(BlindContext &context, QWidget *parent)
 
   for (QComboBox *box : {piecesBox_, modeBox_}) {
     connect(box, &QComboBox::activated, this, [this] {
-      QSettings q;
-      q.setValue("blind/setupPieces", piecesBox_->currentIndex());
-      q.setValue("blind/setupMode", modeBox_->currentIndex());
+      saved::blindSetupPieces().set(piecesBox_->currentIndex());
+      saved::blindSetupMode().set(modeBox_->currentIndex());
       emit restartRequested();
     });
   }
@@ -77,9 +76,8 @@ void SetupDrill::enter(bool changed) {
   flow_.reset();
   edit_->clear();
   edit_->clearFocus();
-  QSettings q;
-  piecesBox_->setCurrentIndex(q.value("blind/setupPieces", 0).toInt());
-  modeBox_->setCurrentIndex(q.value("blind/setupMode", 0).toInt());
+  piecesBox_->setCurrentIndex(saved::blindSetupPieces().get());
+  modeBox_->setCurrentIndex(saved::blindSetupMode().get());
   flow_.setTyped(!onCube());
   row_->setVisible(!onCube());
   nextItem();

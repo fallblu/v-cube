@@ -82,7 +82,7 @@ void UntimedPage::returnFocus() {
 void UntimedPage::showModeWidgets(bool virtualCube) {
   display_->setVisible(false);
   display_->setToolTip(tr("Moves so far (HTM)"));
-  algPanel_->setVisible(virtualCube && typeRow()->isVisibleTo(this));
+  algPanel_->setVisible(virtualCube && !focusMode());
 }
 
 std::vector<AttemptColumn> UntimedPage::columns() const {
@@ -193,7 +193,7 @@ void UntimedPage::phaseShown(bool done) {
   }
 }
 
-void UntimedPage::focusModeChanged(bool on) {
+void UntimedPage::pageFocusChanged(bool on) {
   algPanel_->setVisible(!on && onVirtualCube());
 }
 

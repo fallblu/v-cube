@@ -4,6 +4,7 @@
 #include "app/cube_painter.hpp"
 #include "app/paste_dialog.hpp"
 #include "app/set_properties_dialog.hpp"
+#include "app/ui_state.hpp"
 #include "train/reduction.hpp"
 
 #include <QAction>
@@ -25,7 +26,6 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSet>
-#include <QSettings>
 #include <QSplitter>
 #include <QUndoStack>
 #include <QVBoxLayout>
@@ -44,65 +44,6 @@ const StatusColour kWarn{Status::Warning};
 const QColor kFail(0xe6, 0x66, 0x66);
 
 constexpr int kDiagramSize = 160;
-
-// The settings group that holds a set's own settings (ticked cases, Drill
-// and Learn choices).
-QString setSettingsGroup(const std::string &setId) {
-  return setSettingsKey(setId, QString()).chopped(1);
-}
-
-QVariantMap readSetSettings(const std::string &setId) {
-  QSettings q;
-  q.beginGroup(setSettingsGroup(setId));
-  QVariantMap out;
-  for (const QString &key : q.allKeys()) {
-    out[key] = q.value(key);
-  }
-  return out;
-}
-
-void writeSetSettings(const std::string &setId, const QVariantMap &values) {
-  QSettings q;
-  q.remove(setSettingsGroup(setId));
-  q.beginGroup(setSettingsGroup(setId));
-  for (auto it = values.begin(); it != values.end(); ++it) {
-    q.setValue(it.key(), it.value());
-  }
-}
-
-// The cases whose algs differ between two states of a set, or nullopt if
-// anything else differs too.
-std::optional<std::vector<std::string>> algChanges(const AlgSet &a,
-                                                   const AlgSet &b) {
-  if (a.id != b.id || a.name != b.name || a.description != b.description ||
-      a.builtin != b.builtin || !(a.spec == b.spec) ||
-      a.aufBefore != b.aufBefore || a.aufAfter != b.aufAfter ||
-      a.targetSeconds != b.targetSeconds || a.guided != b.guided ||
-      a.families != b.families || a.reduction != b.reduction ||
-      a.mirrors != b.mirrors || a.groups.size() != b.groups.size()) {
-    return std::nullopt;
-  }
-  std::vector<std::string> out;
-  for (std::size_t g = 0; g < a.groups.size(); ++g) {
-    const CaseGroup &ga = a.groups[g];
-    const CaseGroup &gb = b.groups[g];
-    if (ga.name != gb.name || ga.spec != gb.spec ||
-        ga.cases.size() != gb.cases.size()) {
-      return std::nullopt;
-    }
-    for (std::size_t i = 0; i < ga.cases.size(); ++i) {
-      const AlgCase &ca = ga.cases[i];
-      const AlgCase &cb = gb.cases[i];
-      if (ca.id != cb.id || ca.name != cb.name || ca.state != cb.state) {
-        return std::nullopt;
-      }
-      if (ca.algs != cb.algs) {
-        out.push_back(ca.id);
-      }
-    }
-  }
-  return out;
-}
 
 // "1 alg", "3 algs".
 QString counted(int n, const QString &one, const QString &many) {
@@ -125,28 +66,6 @@ QString drillText(const CaseProgress &p, AttemptMode mode) {
   }
   return text;
 }
-
-// An undoable change of the library, made by LibraryPage::applyEdit. The
-// change is already done when the command is pushed.
-class SetEditCommand : public QUndoCommand {
-public:
-  SetEditCommand(LibraryPage *page, const QString &text, LibraryPage::Edit edit)
-      : QUndoCommand(text), page_(page), edit_(std::move(edit)) {}
-
-  void undo() override { page_->applyEdit(edit_, true, text()); }
-  void redo() override {
-    if (done_) {
-      done_ = false; // done before it was pushed
-      return;
-    }
-    page_->applyEdit(edit_, false, text());
-  }
-
-private:
-  LibraryPage *page_;
-  LibraryPage::Edit edit_;
-  bool done_ = true;
-};
 
 } // namespace
 
@@ -211,8 +130,12 @@ void CaseTreeWidget::dropEvent(QDropEvent *event) {
 
 LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
                          QWidget *parent)
-    : ModePage(parent), settings_(settings), library_(library) {
-  undo_ = new QUndoStack(this);
+    : ModePage(parent), settings_(settings), library_(library),
+      undo_(new QUndoStack(this)),
+      editor_(
+          library, undo_,
+          [this](const LibraryEditor::Change &c) { refresh(c); },
+          [this](const QString &text) { emit message(text); }) {
   undo_->setUndoLimit(200); // each step keeps two copies of its set
   buildActions();
 
@@ -251,7 +174,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
     return s ? s->findCase(ss(item->data(0, kCaseRole).toString())) : nullptr;
   };
   auto analysis = [this](const QTreeWidgetItem *item) {
-    return analysisOf(ss(item->data(0, kCaseRole).toString()));
+    return editor_.analysisOf(ss(item->data(0, kCaseRole).toString()));
   };
   caseFilter_->setStatuses({
       {tr("No algs"),
@@ -342,8 +265,8 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   // --- wiring ---
   connect(setList_, &QListWidget::currentRowChanged, this, [this](int row) {
     if (row >= 0 && row < static_cast<int>(library_.sets().size())) {
-      setId_ = library_.sets()[static_cast<std::size_t>(row)].id;
-      caseId_.clear();
+      editor_.setId = library_.sets()[static_cast<std::size_t>(row)].id;
+      editor_.caseId.clear();
       newAlgEdit_->clear();
       loadSet();
     }
@@ -376,10 +299,10 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
             if (id.empty() && item) {
               return; // a group: keep showing the case
             }
-            if (id != caseId_) {
+            if (id != editor_.caseId) {
               newAlgEdit_->clear(); // it was meant for the other case
             }
-            caseId_ = id;
+            editor_.caseId = id;
             loadCase();
           });
   connect(caseTree_, &QTreeWidget::itemSelectionChanged, this,
@@ -394,9 +317,9 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
     if (!c || loading_ || name.isEmpty() || ss(name) == c->name) {
       return;
     }
-    auto pending = begin();
+    auto pending = editor_.begin();
     c->name = ss(name);
-    commit(tr("Rename case"), *pending);
+    editor_.commit(tr("Rename case"), *pending);
   });
   connect(addButton, &QPushButton::clicked, this, &LibraryPage::addAlg);
   connect(newAlgEdit_, &QLineEdit::returnPressed, this, &LibraryPage::addAlg);
@@ -625,46 +548,6 @@ void LibraryPage::fillMoveToMenu() {
 
 // --- helpers ---------------------------------------------------------------
 
-AlgSet *LibraryPage::set() { return library_.find(setId_); }
-
-AlgCase *LibraryPage::currentCase() {
-  AlgSet *s = set();
-  return s && !caseId_.empty() ? s->findCase(caseId_) : nullptr;
-}
-
-const std::map<std::string, CaseAnalysis> &
-LibraryPage::analysisFor(const AlgSet &s) {
-  auto it = analysis_.find(s.id);
-  if (it == analysis_.end()) {
-    std::map<std::string, CaseAnalysis> all;
-    for (const auto &g : s.groups) {
-      for (const auto &c : g.cases) {
-        all[c.id] = analyzeCase(s, g, c);
-      }
-    }
-    it = analysis_.emplace(s.id, std::move(all)).first;
-  }
-  return it->second;
-}
-
-const CaseAnalysis *LibraryPage::analysisOf(const std::string &caseId) {
-  const AlgSet *s = set();
-  if (!s) {
-    return nullptr;
-  }
-  const auto &all = analysisFor(*s);
-  auto it = all.find(caseId);
-  return it == all.end() ? nullptr : &it->second;
-}
-
-int LibraryPage::failingIn(const AlgSet &s) {
-  int failing = 0;
-  for (const auto &[id, a] : analysisFor(s)) {
-    failing += a.failing();
-  }
-  return failing;
-}
-
 CubeLook LibraryPage::look() const {
   CubeLook l;
   l.scheme = settings_.scheme;
@@ -679,182 +562,49 @@ void LibraryPage::applySettings() {
 
 // --- edits and undo ----------------------------------------------------------
 
-std::optional<LibraryPage::Pending> LibraryPage::begin() {
-  AlgSet *s = set();
-  if (!s) {
-    return std::nullopt;
-  }
-  return Pending{*s, caseId_};
-}
-
-bool LibraryPage::commit(const QString &text, Pending pending,
-                         std::optional<std::vector<std::string>> changedCases,
-                         const std::vector<std::string> &forget) {
-  AlgSet *s = set();
-  if (!s) {
-    return false;
-  }
-  QString error;
-  if (!library_.save(*s, &error)) {
-    *s = std::move(pending.before);
-    caseId_ = pending.caseId;
-    emit message(tr("Could not save %1, so the change was undone: %2")
-                     .arg(qs(s->name), error));
-    refreshAfter(s->id, std::nullopt);
-    return false;
-  }
-  Edit edit;
-  edit.setId = s->id;
-  edit.caseBefore = pending.caseId;
-  edit.caseAfter = caseId_;
-  if (!forget.empty()) {
-    SetProgress &p = library_.progress(s->id);
-    for (const std::string &id : forget) {
-      if (auto it = p.find(id); it != p.end()) {
-        edit.forgotten.insert(*it);
-      }
-    }
-    library_.forgetProgress(s->id, forget);
-  }
-  edit.before = std::move(pending.before);
-  edit.after = *s;
-  undo_->push(new SetEditCommand(this, text, std::move(edit)));
-  refreshAfter(s->id, changedCases);
-  emit setsChanged(qs(s->id));
-  return true;
-}
-
-void LibraryPage::pushSetEdit(const QString &text, Edit edit) {
-  undo_->push(new SetEditCommand(this, text, std::move(edit)));
-}
-
-void LibraryPage::applyEdit(Edit &edit, bool undoing, const QString &text) {
-  const std::optional<AlgSet> &to = undoing ? edit.before : edit.after;
-  const std::optional<AlgSet> &from = undoing ? edit.after : edit.before;
-  const std::string &id = edit.setId;
-  QString error;
-  AlgSet *current = library_.find(id);
-  if (to && current) {
-    *current = *to;
-    if (!library_.save(*current, &error)) {
-      emit message(tr("Could not save %1: %2").arg(qs(to->name), error));
-    }
-    // Progress the change dropped comes back with undo, and goes again.
-    if (!edit.forgotten.empty()) {
-      SetProgress &p = library_.progress(id);
-      for (const auto &[caseId, cp] : edit.forgotten) {
-        if (undoing) {
-          p.try_emplace(caseId, cp);
-        } else {
-          p.erase(caseId);
-        }
-      }
-      library_.saveProgress(id);
-    }
-  } else if (to) {
-    // The set comes back, with its progress and settings.
-    if (!library_.add(*to, &error)) {
-      emit message(tr("Could not add %1 again: %2").arg(qs(to->name), error));
-      return;
-    }
-    if (!edit.progress.empty()) {
-      library_.progress(id) = edit.progress;
-      library_.saveProgress(id);
-    }
-    if (!edit.settings.isEmpty()) {
-      writeSetSettings(id, edit.settings);
-    }
-  } else if (current) {
-    // The set goes; keep what it had so that it can come back.
-    edit.progress = library_.progress(id);
-    edit.settings = readSetSettings(id);
-    if (!library_.remove(id, &error)) {
-      emit message(tr("Could not delete %1: %2").arg(qs(from->name), error));
-      return;
-    }
-    QSettings().remove(setSettingsGroup(id));
-  }
-  // Show what changed.
-  std::optional<std::vector<std::string>> cases;
-  if (to && from) {
-    cases = algChanges(*from, *to);
-  }
-  bool sameSet = setId_ == id;
-  setId_ = to ? id
-              : (library_.sets().empty() ? std::string()
-                                         : library_.sets().front().id);
-  caseId_ = to ? (undoing ? edit.caseBefore : edit.caseAfter) : std::string();
-  if (!to || !from || !sameSet) {
-    analysis_.erase(id);
-    loadSet();
-  } else {
-    refreshAfter(id, cases);
-  }
-  emit setsChanged(to && from ? qs(id) : QString());
-  emit message((undoing ? tr("Undid: %1") : tr("Redid: %1")).arg(text));
-}
-
-void LibraryPage::refreshAfter(
-    const std::string &setId,
-    const std::optional<std::vector<std::string>> &cases) {
+void LibraryPage::refresh(const LibraryEditor::Change &change) {
+  const std::string &setId = change.setId;
   AlgSet *s = library_.find(setId);
-  if (!s) {
-    analysis_.erase(setId);
-    return;
-  }
-  if (!cases) {
-    analysis_.erase(setId);
-    refreshSetList();
-    buildCaseTree();
-    loadCase();
-    return;
-  }
-  // Only these cases' algs changed: check just them again.
-  if (auto it = analysis_.find(setId); it != analysis_.end()) {
-    for (const std::string &id : *cases) {
-      const AlgCase *c = s->findCase(id);
-      const CaseGroup *g = c ? s->groupOf(id) : nullptr;
-      if (c && g) {
-        it->second[id] = analyzeCase(*s, *g, *c);
-      } else {
-        it->second.erase(id);
-      }
-    }
-  }
   refreshSetList();
-  if (setId != setId_ || caseTreeSet_ != setId_) {
+  if (change.reload || !change.cases || !s || setId != editor_.setId ||
+      caseTreeSet_ != editor_.setId) {
     buildCaseTree();
     loadCase();
-    return;
-  }
-  // Update those rows of the tree in place.
-  {
-    QSignalBlocker block(caseTree_);
-    for (int gi = 0; gi < caseTree_->topLevelItemCount(); ++gi) {
-      QTreeWidgetItem *groupItem = caseTree_->topLevelItem(gi);
-      auto g = static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt());
-      if (g >= s->groups.size()) {
-        continue;
-      }
-      bool touched = false;
-      for (int ci = 0; ci < groupItem->childCount(); ++ci) {
-        QTreeWidgetItem *item = groupItem->child(ci);
-        std::string id = ss(item->data(0, kCaseRole).toString());
-        if (std::find(cases->begin(), cases->end(), id) == cases->end()) {
+  } else {
+    // Only these cases' algs changed: update their rows in place.
+    const std::vector<std::string> &cases = *change.cases;
+    {
+      QSignalBlocker block(caseTree_);
+      for (int gi = 0; gi < caseTree_->topLevelItemCount(); ++gi) {
+        QTreeWidgetItem *groupItem = caseTree_->topLevelItem(gi);
+        auto g =
+            static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt());
+        if (g >= s->groups.size()) {
           continue;
         }
-        if (const AlgCase *c = s->findCase(id)) {
-          fillCaseItem(item, *s, s->groups[g], *c);
-          touched = true;
+        bool touched = false;
+        for (int ci = 0; ci < groupItem->childCount(); ++ci) {
+          QTreeWidgetItem *item = groupItem->child(ci);
+          std::string id = ss(item->data(0, kCaseRole).toString());
+          if (std::find(cases.begin(), cases.end(), id) == cases.end()) {
+            continue;
+          }
+          if (const AlgCase *c = s->findCase(id)) {
+            fillCaseItem(item, *s, s->groups[g], *c);
+            touched = true;
+          }
+        }
+        if (touched) {
+          fillGroupItem(groupItem, *s, s->groups[g]);
         }
       }
-      if (touched) {
-        fillGroupItem(groupItem, *s, s->groups[g]);
-      }
     }
+    caseFilter_->apply();
+    loadCase();
   }
-  caseFilter_->apply();
-  loadCase();
+  if (change.announce) {
+    emit setsChanged(*change.announce);
+  }
 }
 
 // --- sets and cases
@@ -866,7 +616,7 @@ void LibraryPage::refreshSetList() {
   int current = -1;
   for (std::size_t i = 0; i < library_.sets().size(); ++i) {
     const AlgSet &s = library_.sets()[i];
-    int failing = failingIn(s);
+    int failing = editor_.failingIn(s);
     QString details = counted(s.caseCount(), tr("case"), tr("cases"));
     QStringList tips;
     if (s.builtin) {
@@ -883,7 +633,7 @@ void LibraryPage::refreshSetList() {
     }
     item->setText(qs(s.name) + "\n" + details);
     item->setToolTip(tips.join(" "));
-    if (s.id == setId_) {
+    if (s.id == editor_.setId) {
       current = static_cast<int>(i);
     }
   }
@@ -899,7 +649,7 @@ void LibraryPage::loadSet() {
 void LibraryPage::fillCaseItem(QTreeWidgetItem *item, const AlgSet &s,
                                const CaseGroup &g, const AlgCase &c) {
   const StepSpec &spec = s.specFor(g);
-  const CaseAnalysis *a = analysisOf(c.id);
+  const CaseAnalysis *a = editor_.analysisOf(c.id);
   QColor muted = palette().color(QPalette::PlaceholderText);
   QColor normal = palette().color(QPalette::Text);
   item->setText(0, qs(c.name));
@@ -945,7 +695,7 @@ void LibraryPage::fillGroupItem(QTreeWidgetItem *item, const AlgSet &s,
                              : QString());
   int failing = 0;
   for (const auto &c : g.cases) {
-    if (const CaseAnalysis *a = analysisOf(c.id)) {
+    if (const CaseAnalysis *a = editor_.analysisOf(c.id)) {
       failing += a->failing();
     }
   }
@@ -961,8 +711,8 @@ void LibraryPage::buildCaseTree() {
     QSignalBlocker block(caseTree_);
     // Keep the scroll position, the selection and collapsed groups of the
     // same set.
-    bool sameSet = caseTreeSet_ == setId_;
-    caseTreeSet_ = setId_;
+    bool sameSet = caseTreeSet_ == editor_.setId;
+    caseTreeSet_ = editor_.setId;
     int scroll = sameSet ? caseTree_->verticalScrollBar()->value() : 0;
     QSet<QString> collapsed;
     for (int g = 0; sameSet && g < caseTree_->topLevelItemCount(); ++g) {
@@ -988,7 +738,7 @@ void LibraryPage::buildCaseTree() {
       for (const auto &c : g.cases) {
         auto *item = new QTreeWidgetItem(groupItem);
         fillCaseItem(item, *s, g, c);
-        if (c.id == caseId_) {
+        if (c.id == editor_.caseId) {
           current = item;
         }
         if (std::find(selected.begin(), selected.end(), c.id) !=
@@ -1033,7 +783,7 @@ void LibraryPage::loadCase() {
   AlgSet *s = set();
   const CaseGroup &group = *s->groupOf(c->id);
   const StepSpec &spec = s->specFor(group);
-  const CaseAnalysis *a = analysisOf(c->id);
+  const CaseAnalysis *a = editor_.analysisOf(c->id);
   caseDiagram_->setPixmap(cube_painter::diagram(
       maskedFacelets(a ? a->display : c->state, spec.mask, spec.free),
       spec.view, kDiagramSize, look(), devicePixelRatioF()));
@@ -1104,7 +854,7 @@ void LibraryPage::refreshAlgList() {
                 : -1;
   algList_->clear();
   if (c) {
-    const CaseAnalysis *a = analysisOf(c->id);
+    const CaseAnalysis *a = editor_.analysisOf(c->id);
     for (std::size_t i = 0; i < c->algs.size(); ++i) {
       auto *item = new QTreeWidgetItem(algList_, {qs(c->algs[i])});
       // Items can be dragged and edited but not dropped onto (no nesting).
@@ -1166,9 +916,9 @@ void LibraryPage::storeAlgs(const QString &text, std::optional<int> edited) {
     refreshAlgList(); // e.g. only spaces were tidied
     return;
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   c->algs = std::move(algs);
-  commit(text, *pending, std::vector<std::string>{caseId_});
+  editor_.commit(text, *pending, std::vector<std::string>{editor_.caseId});
   // The edited alg as stored, which may have been tidied up.
   if (editedIndex) {
     warnIfFailing(*editedIndex);
@@ -1177,7 +927,7 @@ void LibraryPage::storeAlgs(const QString &text, std::optional<int> edited) {
 
 void LibraryPage::warnIfFailing(std::size_t index) {
   const AlgCase *c = currentCase();
-  const CaseAnalysis *a = c ? analysisOf(c->id) : nullptr;
+  const CaseAnalysis *a = c ? editor_.analysisOf(c->id) : nullptr;
   if (!a || index >= a->checks.size() || index >= c->algs.size() ||
       a->checks[index].passes()) {
     return;
@@ -1218,7 +968,7 @@ void LibraryPage::selectCase(const QString &setId, const QString &caseId) {
       break;
     }
   }
-  caseId_ = ss(caseId);
+  editor_.caseId = ss(caseId);
   buildCaseTree();
   loadCase();
   newAlgEdit_->setFocus();
@@ -1281,7 +1031,7 @@ void LibraryPage::selectItems(const std::vector<std::string> &cases,
         if (std::find(cases.begin(), cases.end(), id) != cases.end()) {
           item->setSelected(true);
           // Keep the shown case when it is one of them.
-          if (!first || id == caseId_) {
+          if (!first || id == editor_.caseId) {
             first = item;
           }
         }
@@ -1343,12 +1093,7 @@ void LibraryPage::newSet() {
                          tr("Could not create the set: %1").arg(error));
     return;
   }
-  setId_ = added->id;
-  caseId_.clear();
-  pushSetEdit(tr("New set"),
-              Edit{added->id, std::nullopt, *added, {}, {}, {}, {}, {}});
-  loadSet();
-  emit setsChanged({});
+  editor_.added(*added, tr("New set"));
   emit message(tr("Created \"%1\". Add cases with Cases > New case from "
                   "alg, or Paste algs.")
                    .arg(name));
@@ -1370,11 +1115,7 @@ void LibraryPage::duplicateSet() {
                          tr("Could not save the copy: %1").arg(error));
     return;
   }
-  setId_ = added->id;
-  pushSetEdit(tr("Duplicate set"),
-              Edit{added->id, std::nullopt, *added, {}, {}, {}, {}, {}});
-  loadSet();
-  emit setsChanged({});
+  editor_.added(*added, tr("Duplicate set"), true);
 }
 
 void LibraryPage::deleteSet() {
@@ -1411,8 +1152,8 @@ void LibraryPage::deleteSet() {
             std::nullopt,
             {},
             std::move(progress),
-            readSetSettings(s->id),
-            caseId_,
+            saved::setSettings(s->id),
+            editor_.caseId,
             {}};
   QString error;
   if (!library_.remove(edit.setId, &error)) {
@@ -1423,14 +1164,7 @@ void LibraryPage::deleteSet() {
   if (!error.isEmpty()) {
     emit message(tr("Deleted the set, but %1").arg(error));
   }
-  // A later set with the same id must start afresh.
-  QSettings().remove(setSettingsGroup(edit.setId));
-  analysis_.erase(edit.setId);
-  pushSetEdit(tr("Delete set"), std::move(edit));
-  setId_ = library_.sets().empty() ? std::string() : library_.sets().front().id;
-  caseId_.clear();
-  loadSet();
-  emit setsChanged({});
+  editor_.removed(std::move(edit), tr("Delete set"));
 }
 
 void LibraryPage::restoreSet() {
@@ -1447,13 +1181,13 @@ void LibraryPage::restoreSet() {
   if (answer != QMessageBox::Yes) {
     return;
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   QString error;
-  if (!library_.restoreBuiltin(setId_, &error)) {
+  if (!library_.restoreBuiltin(editor_.setId, &error)) {
     QMessageBox::warning(this, tr("Restore"), error);
     return;
   }
-  if (commit(tr("Restore built-in cases"), *pending)) {
+  if (editor_.commit(tr("Restore built-in cases"), *pending)) {
     emit message(tr("Restored the built-in cases of %1; your algs, cases and "
                     "settings were kept.")
                      .arg(qs(set()->name)));
@@ -1470,12 +1204,7 @@ void LibraryPage::restoreBuiltinSet(const std::string &id) {
   if (!s) {
     return;
   }
-  setId_ = id;
-  caseId_.clear();
-  pushSetEdit(tr("Restore %1").arg(qs(s->name)),
-              Edit{id, std::nullopt, *s, {}, {}, {}, {}, {}});
-  loadSet();
-  emit setsChanged({});
+  editor_.added(*s, tr("Restore %1").arg(qs(s->name)));
   emit message(tr("Added the built-in set %1 again, with no algs yet.")
                    .arg(qs(s->name)));
 }
@@ -1496,12 +1225,12 @@ void LibraryPage::editProperties() {
       group = gi;
     }
   }
-  SetPropertiesDialog dialog(*s, group, look(), caseId_, this);
+  SetPropertiesDialog dialog(*s, group, look(), editor_.caseId, this);
   if (dialog.exec() != QDialog::Accepted) {
     return;
   }
   const AlgSet &r = dialog.result();
-  auto pending = begin();
+  auto pending = editor_.begin();
   bool renamed = r.name != s->name;
   s->name = r.name;
   s->description = r.description;
@@ -1519,7 +1248,7 @@ void LibraryPage::editProperties() {
   if (algChanges(pending->before, *s)) {
     return; // nothing changed
   }
-  commit(tr("Set properties"), *pending);
+  editor_.commit(tr("Set properties"), *pending);
   if (renamed) {
     emit setsChanged({});
   }
@@ -1540,7 +1269,7 @@ void LibraryPage::checkAlgs() {
   int total = 0, failing = 0, noPassing = 0;
   for (const auto &g : s->groups) {
     for (const auto &c : g.cases) {
-      const CaseAnalysis *a = analysisOf(c.id);
+      const CaseAnalysis *a = editor_.analysisOf(c.id);
       if (!a) {
         continue;
       }
@@ -1583,7 +1312,7 @@ void LibraryPage::checkAlgs() {
   layout->addWidget(buttons);
   connect(tree, &QTreeWidget::itemDoubleClicked, &dialog,
           [this, &dialog](QTreeWidgetItem *item) {
-            caseId_ = ss(item->data(0, kCaseRole).toString());
+            editor_.caseId = ss(item->data(0, kCaseRole).toString());
             buildCaseTree();
             loadCase();
             dialog.accept();
@@ -1619,12 +1348,7 @@ void LibraryPage::importSetFile() {
                          tr("Could not import: %1").arg(error));
     return;
   }
-  setId_ = added->id;
-  caseId_.clear();
-  pushSetEdit(tr("Import set"),
-              Edit{added->id, std::nullopt, *added, {}, {}, {}, {}, {}});
-  loadSet();
-  emit setsChanged({});
+  editor_.added(*added, tr("Import set"));
 }
 
 void LibraryPage::exportSetFile() {
@@ -1659,10 +1383,10 @@ void LibraryPage::newGroup() {
   if (!ok || name.trimmed().isEmpty()) {
     return;
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   s->groups.push_back({ss(name.trimmed()), std::nullopt, {}});
   std::size_t added = s->groups.size() - 1;
-  if (commit(tr("New group"), *pending)) {
+  if (editor_.commit(tr("New group"), *pending)) {
     selectItems({}, {added});
   }
 }
@@ -1694,9 +1418,9 @@ void LibraryPage::renameSelected() {
       ss(name.trimmed()) == s->groups[gi].name) {
     return;
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   s->groups[gi].name = ss(name.trimmed());
-  commit(tr("Rename group"), *pending);
+  editor_.commit(tr("Rename group"), *pending);
 }
 
 void LibraryPage::deleteSelected() {
@@ -1755,7 +1479,7 @@ void LibraryPage::deleteSelected() {
   if (QMessageBox::question(this, title, text) != QMessageBox::Yes) {
     return;
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   for (auto &g : s->groups) {
     std::erase_if(g.cases, [&ids](const AlgCase &c) {
       return std::find(ids.begin(), ids.end(), c.id) != ids.end();
@@ -1766,10 +1490,10 @@ void LibraryPage::deleteSelected() {
   for (std::size_t gi : sorted) {
     s->groups.erase(s->groups.begin() + static_cast<std::ptrdiff_t>(gi));
   }
-  if (std::find(ids.begin(), ids.end(), caseId_) != ids.end()) {
-    caseId_.clear();
+  if (std::find(ids.begin(), ids.end(), editor_.caseId) != ids.end()) {
+    editor_.caseId.clear();
   }
-  commit(title, *pending, std::nullopt, ids);
+  editor_.commit(title, *pending, std::nullopt, ids);
 }
 
 void LibraryPage::moveSelected(int direction) {
@@ -1783,10 +1507,10 @@ void LibraryPage::moveSelected(int direction) {
   }
   std::vector<std::string> cases = selectedCases();
   std::vector<std::size_t> groups = selectedGroups();
-  auto pending = begin();
+  auto pending = editor_.begin();
   if (!cases.empty()) {
     if (shiftCases(*s, cases, direction) &&
-        commit(tr("Move cases"), *pending)) {
+        editor_.commit(tr("Move cases"), *pending)) {
       selectItems(cases, {});
     }
     return;
@@ -1796,7 +1520,7 @@ void LibraryPage::moveSelected(int direction) {
   }
   std::size_t from = groups.front();
   auto to = static_cast<std::size_t>(static_cast<long>(from) + direction);
-  if (moveGroup(*s, from, to) && commit(tr("Move group"), *pending)) {
+  if (moveGroup(*s, from, to) && editor_.commit(tr("Move group"), *pending)) {
     selectItems({}, {to});
   }
 }
@@ -1807,8 +1531,9 @@ void LibraryPage::moveCasesTo(std::size_t group) {
   if (!s || cases.empty()) {
     return;
   }
-  auto pending = begin();
-  if (moveCases(*s, cases, group) && commit(tr("Move cases"), *pending)) {
+  auto pending = editor_.begin();
+  if (moveCases(*s, cases, group) &&
+      editor_.commit(tr("Move cases"), *pending)) {
     selectItems(cases, {});
   }
 }
@@ -1832,7 +1557,7 @@ void LibraryPage::dropOnTree(QTreeWidgetItem *target, int position) {
   auto where = static_cast<CaseTreeWidget::Drop>(position);
   std::vector<std::string> cases = selectedCases();
   std::vector<std::size_t> groups = selectedGroups();
-  auto pending = begin();
+  auto pending = editor_.begin();
   if (!cases.empty()) {
     std::size_t group = s->groups.size() - 1;
     std::string before;
@@ -1856,7 +1581,7 @@ void LibraryPage::dropOnTree(QTreeWidgetItem *target, int position) {
       }
     }
     if (moveCases(*s, cases, group, before) &&
-        commit(tr("Move cases"), *pending)) {
+        editor_.commit(tr("Move cases"), *pending)) {
       selectItems(cases, {});
     }
     return;
@@ -1875,7 +1600,7 @@ void LibraryPage::dropOnTree(QTreeWidgetItem *target, int position) {
     }
   }
   to = std::min(to, s->groups.size() - 1);
-  if (moveGroup(*s, from, to) && commit(tr("Move group"), *pending)) {
+  if (moveGroup(*s, from, to) && editor_.commit(tr("Move group"), *pending)) {
     selectItems({}, {to});
   }
 }
@@ -1916,10 +1641,11 @@ void LibraryPage::newCaseFromAlg() {
                                  "Add it to that case instead?")
                                   .arg(qs(existing.name)));
     if (answer == QMessageBox::Yes) {
-      auto pending = begin();
+      auto pending = editor_.begin();
       existing.algs.push_back(alg);
-      caseId_ = existing.id;
-      commit(tr("Add alg"), *pending, std::vector<std::string>{existing.id});
+      editor_.caseId = existing.id;
+      editor_.commit(tr("Add alg"), *pending,
+                     std::vector<std::string>{existing.id});
       buildCaseTree();
     }
     return;
@@ -1930,7 +1656,7 @@ void LibraryPage::newCaseFromAlg() {
   if (!ok) {
     return;
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   if (s->groups.empty()) {
     s->groups.push_back({"Cases", std::nullopt, {}});
   }
@@ -1943,11 +1669,11 @@ void LibraryPage::newCaseFromAlg() {
   c.id = s->uniqueCaseId(c.name);
   c.state = stateSolvedBy(parsed.alg);
   c.algs.push_back(alg);
-  caseId_ = c.id;
+  editor_.caseId = c.id;
   std::string id = c.id;
   bool solved = stepSolved(c.state, s->specFor(s->groups[gi]).free);
   s->groups[gi].cases.push_back(std::move(c));
-  if (commit(tr("New case"), *pending, std::nullopt, {id}) && solved) {
+  if (editor_.commit(tr("New case"), *pending, std::nullopt, {id}) && solved) {
     emit message(tr("Note: with this set's \"left unsolved\" setting, that "
                     "case already counts as solved."));
   }
@@ -1974,14 +1700,14 @@ void LibraryPage::pasteAlgs() {
       changed.push_back(r.caseId);
     }
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   *s = std::move(plan.set);
-  if (caseId_.empty() && !created.empty()) {
-    caseId_ = created.front();
+  if (editor_.caseId.empty() && !created.empty()) {
+    editor_.caseId = created.front();
   }
-  if (!commit(tr("Paste algs"), *pending,
-              created.empty() ? std::optional(changed) : std::nullopt,
-              created)) {
+  if (!editor_.commit(tr("Paste algs"), *pending,
+                      created.empty() ? std::optional(changed) : std::nullopt,
+                      created)) {
     return;
   }
   const ImportReport &r = plan.report;
@@ -2010,11 +1736,12 @@ void LibraryPage::addAlg() {
     return;
   }
   // Failing algs are kept, with a warning: the check shows what's wrong.
-  auto pending = begin();
+  auto pending = editor_.begin();
   c->algs.push_back(text);
   std::size_t index = c->algs.size() - 1;
   newAlgEdit_->clear();
-  if (commit(tr("Add alg"), *pending, std::vector<std::string>{caseId_})) {
+  if (editor_.commit(tr("Add alg"), *pending,
+                     std::vector<std::string>{editor_.caseId})) {
     warnIfFailing(index);
   }
 }
@@ -2024,10 +1751,11 @@ void LibraryPage::removeAlg(int row) {
   if (!c || row < 0 || row >= static_cast<int>(c->algs.size())) {
     return;
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   std::string alg = c->algs[static_cast<std::size_t>(row)];
   c->algs.erase(c->algs.begin() + row);
-  if (commit(tr("Remove alg"), *pending, std::vector<std::string>{caseId_})) {
+  if (editor_.commit(tr("Remove alg"), *pending,
+                     std::vector<std::string>{editor_.caseId})) {
     emit message(tr("Removed \"%1\"; %2 brings it back")
                      .arg(qs(alg), undoAction_->shortcut().toString(
                                        QKeySequence::NativeText)));
@@ -2041,10 +1769,11 @@ void LibraryPage::moveAlg(int row, int direction) {
       to >= static_cast<int>(c->algs.size())) {
     return;
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   std::swap(c->algs[static_cast<std::size_t>(row)],
             c->algs[static_cast<std::size_t>(to)]);
-  if (commit(tr("Reorder algs"), *pending, std::vector<std::string>{caseId_})) {
+  if (editor_.commit(tr("Reorder algs"), *pending,
+                     std::vector<std::string>{editor_.caseId})) {
     algList_->setCurrentItem(algList_->topLevelItem(to));
   }
 }
@@ -2054,7 +1783,7 @@ void LibraryPage::makeMain(int row) {
   if (!c || row <= 0 || row >= static_cast<int>(c->algs.size())) {
     return;
   }
-  const CaseAnalysis *a = analysisOf(c->id);
+  const CaseAnalysis *a = editor_.analysisOf(c->id);
   if (a && static_cast<std::size_t>(row) < a->checks.size() &&
       !a->checks[static_cast<std::size_t>(row)].passes()) {
     auto answer = QMessageBox::question(
@@ -2067,11 +1796,12 @@ void LibraryPage::makeMain(int row) {
       return;
     }
   }
-  auto pending = begin();
+  auto pending = editor_.begin();
   std::string alg = c->algs[static_cast<std::size_t>(row)];
   c->algs.erase(c->algs.begin() + row);
   c->algs.insert(c->algs.begin(), alg);
-  if (commit(tr("Make main"), *pending, std::vector<std::string>{caseId_})) {
+  if (editor_.commit(tr("Make main"), *pending,
+                     std::vector<std::string>{editor_.caseId})) {
     algList_->setCurrentItem(algList_->topLevelItem(0));
   }
 }
