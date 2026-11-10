@@ -331,14 +331,14 @@ void BldSchemeDialog::fillRow(BldPiece kind, int sticker) {
         sticker == op::swapSpot(kind)
             ? tr("the swap spot: no setup")
             : tr("computed, %1")
-                  .arg(setupMovesText(computed ? moveCount(*computed) : 0));
+                  .arg(setupMovesText(computed ? htmCount(*computed) : 0));
     item(CheckCol, check, false)->setForeground(muted);
   } else {
     item(SetupCol, qs(own), true);
     QString problem = setupProblem(kind, sticker, own);
     auto *check = item(CheckCol,
                        problem.isEmpty() ? tr("OK, %1").arg(setupMovesText(
-                                               moveCount(parseAlgOrEmpty(own))))
+                                               htmCount(parseAlgOrEmpty(own))))
                                          : problem,
                        false);
     check->setForeground(problem.isEmpty() ? statusColour(Status::Good)

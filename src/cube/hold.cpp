@@ -96,6 +96,28 @@ std::optional<Hold> holdOf(const FaceletCube &cube) {
   return h;
 }
 
+std::optional<CubieCube> heldAsIs(const FaceletCube &held) {
+  // Rename each sticker for the face whose centre has its colour.
+  std::array<std::uint8_t, 6> faceOf{};
+  std::array<bool, 6> seen{};
+  for (int face = 0; face < 6; ++face) {
+    std::uint8_t centre = held[face * 9 + 4];
+    if (centre >= 6 || seen[centre]) {
+      return std::nullopt;
+    }
+    seen[centre] = true;
+    faceOf[centre] = static_cast<std::uint8_t>(face);
+  }
+  FaceletCube::Stickers s{};
+  for (int i = 0; i < kFaceletCount; ++i) {
+    if (held[i] >= 6) {
+      return std::nullopt;
+    }
+    s[static_cast<std::size_t>(i)] = faceOf[held[i]];
+  }
+  return CubieCube::fromFacelets(FaceletCube(s));
+}
+
 std::optional<CubieCube> heldCubie(const FaceletCube &cube, Hold h) {
   if (!isValidHold(h)) {
     return std::nullopt;
@@ -103,28 +125,9 @@ std::optional<CubieCube> heldCubie(const FaceletCube &cube, Hold h) {
   for (const Alg &r : allRotations()) {
     FaceletCube held = cube;
     held.apply(r);
-    if (held[4] != h.top || held[22] != h.front) {
-      continue;
+    if (held[4] == h.top && held[22] == h.front) {
+      return heldAsIs(held);
     }
-    // Rename each sticker for the face whose centre has its colour.
-    std::array<std::uint8_t, 6> faceOf{};
-    std::array<bool, 6> seen{};
-    for (int face = 0; face < 6; ++face) {
-      std::uint8_t centre = held[face * 9 + 4];
-      if (centre >= 6 || seen[centre]) {
-        return std::nullopt;
-      }
-      seen[centre] = true;
-      faceOf[centre] = static_cast<std::uint8_t>(face);
-    }
-    FaceletCube::Stickers s{};
-    for (int i = 0; i < kFaceletCount; ++i) {
-      if (held[i] >= 6) {
-        return std::nullopt;
-      }
-      s[static_cast<std::size_t>(i)] = faceOf[held[i]];
-    }
-    return CubieCube::fromFacelets(FaceletCube(s));
   }
   return std::nullopt;
 }

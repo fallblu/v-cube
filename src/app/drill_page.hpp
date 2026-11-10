@@ -3,6 +3,7 @@
 #include "app/case_page.hpp"
 #include "app/cube_view.hpp"
 #include "app/widgets.hpp"
+#include "train/case_picker.hpp"
 #include "train/drill_flow.hpp"
 #include "train/drill_session.hpp"
 #include "train/move_count.hpp"

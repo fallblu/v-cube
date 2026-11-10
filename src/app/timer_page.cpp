@@ -5,23 +5,18 @@
 #include "io/data_file.hpp"
 #include "train/step_solver.hpp"
 
-#include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
-#include <QDateTime>
 #include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
-#include <QHeaderView>
-#include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
-#include <QTableWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
@@ -30,25 +25,11 @@ namespace vcube {
 
 namespace {
 
-QPushButton *flatButton(const QString &text, QWidget *parent) {
-  auto *b = new QPushButton(text, parent);
-  b->setFocusPolicy(Qt::NoFocus);
-  return b;
-}
-
 QString statText(StatValue v, int decimals) {
   return QString::fromStdString(formatTime(v, decimals));
 }
 
-QString dateText(std::int64_t unixSeconds) {
-  if (unixSeconds <= 0) {
-    return {};
-  }
-  return QLocale().toString(QDateTime::fromSecsSinceEpoch(unixSeconds),
-                            QLocale::ShortFormat);
-}
-
-// The table's columns. Those after Ao12 are for virtual sessions.
+// The table's columns. Those after ao12 are for virtual sessions.
 enum Column {
   kNumber,
   kTime,
@@ -61,7 +42,37 @@ enum Column {
   kLl,
   kColumns
 };
-QStringList hiddenColumns() { return saved::timedHiddenColumns().get(); }
+
+std::vector<AttemptColumn> columns(bool virt) {
+  auto col = [](const char *id, const QString &title, const QString &tip,
+                bool hideable, bool available) {
+    AttemptColumn c;
+    c.id = id;
+    c.title = title;
+    c.tip = tip;
+    c.fit = true;
+    c.hideable = hideable;
+    c.available = available;
+    return c;
+  };
+  return {
+      col("#", "#", {}, false, true),
+      col("time", QObject::tr("Time"), {}, false, true),
+      col("ao5", "ao5", {}, true, true),
+      col("ao12", "ao12", {}, true, true),
+      col("moves", QObject::tr("Moves"),
+          QObject::tr("The solve's move count (HTM)"), true, virt),
+      col("tps", QObject::tr("TPS"),
+          QObject::tr("Moves per second over the whole solve"), true, virt),
+      col("cross", QObject::tr("Cross"),
+          QObject::tr("Time to the cross (EO Cross in a ZZ solve)"), true,
+          virt),
+      col("f2l", QObject::tr("F2L"),
+          QObject::tr("Time from the cross to the end of the F2L"), true, virt),
+      col("ll", QObject::tr("LL"),
+          QObject::tr("Time from the F2L to the end of the solve"), true, virt),
+  };
+}
 
 SolveSplits computeSplits(const Solve &s, bool simplified) {
   ParseResult scramble = parseAlg(s.scramble);
@@ -81,66 +92,15 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
     : ModePage(parent), settings_(settings), store_(store), library_(library),
       feed_(library) {
   // --- left column: sessions, stats, times ---
-  auto *left = leftPanel_ = new QWidget(this);
-  auto *leftLayout = new QVBoxLayout(left);
-  leftLayout->setContentsMargins(0, 0, 0, 0);
-  sessionButton_ = new QToolButton(left);
-  sessionButton_->setFocusPolicy(Qt::NoFocus);
-  sessionButton_->setPopupMode(QToolButton::InstantPopup);
-  sessionButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
-  sessionButton_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  sessionButton_->setToolTip(
+  panel_ = new SessionPanel(this);
+  panel_->setMenuTip(
       tr("Switch, add, rename or delete sessions, or import and export "
          "cstimer sessions"));
-  sessionMenu_ = new QMenu(sessionButton_);
-  sessionButton_->setMenu(sessionMenu_);
-  leftLayout->addWidget(sessionButton_);
-
-  stats_ = new QLabel(left);
-  stats_->setTextFormat(Qt::RichText);
-  stats_->setTextInteractionFlags(Qt::TextSelectableByMouse |
-                                  Qt::LinksAccessibleByMouse);
-  stats_->setFocusPolicy(Qt::NoFocus);
-  stats_->setToolTip(tr("Click a statistic to see its solves"));
-  leftLayout->addWidget(stats_);
-
-  table_ = new QTableWidget(0, kColumns, left);
-  table_->setHorizontalHeaderLabels({"#", tr("Time"), "ao5", "ao12",
-                                     tr("Moves"), tr("TPS"), tr("Cross"),
-                                     tr("F2L"), tr("LL")});
-  table_->horizontalHeaderItem(kMoves)->setToolTip(
-      tr("The solve's move count (HTM)"));
-  table_->horizontalHeaderItem(kTps)->setToolTip(
-      tr("Moves per second over the whole solve"));
-  table_->horizontalHeaderItem(kCross)->setToolTip(
-      tr("Time to the cross (EO Cross in a ZZ solve)"));
-  table_->horizontalHeaderItem(kF2l)->setToolTip(
-      tr("Time from the cross to the end of the F2L"));
-  table_->horizontalHeaderItem(kLl)->setToolTip(
-      tr("Time from the F2L to the end of the solve"));
-  table_->verticalHeader()->setVisible(false);
-  table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-  table_->setSelectionBehavior(QAbstractItemView::SelectRows);
-  table_->setFocusPolicy(Qt::NoFocus);
-  table_->setContextMenuPolicy(Qt::CustomContextMenu);
-  table_->horizontalHeader()->setSectionResizeMode(
-      QHeaderView::ResizeToContents);
-  table_->horizontalHeader()->setStretchLastSection(true);
-  table_->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
-  table_->horizontalHeader()->setToolTip(
-      tr("Right-click to choose the columns"));
-  leftLayout->addWidget(table_, 1);
-
-  auto *listRow = new QHBoxLayout;
-  deleteButton_ = flatButton(tr("Delete last"), left);
-  deleteButton_->setToolTip(tr("Delete the last solve (Delete)"));
-  undoButton_ = flatButton(tr("Undo delete"), left);
-  undoButton_->setToolTip(tr("Put back the solve last deleted (Ctrl+Z)"));
-  undoButton_->setVisible(false);
-  listRow->addWidget(deleteButton_);
-  listRow->addWidget(undoButton_);
-  listRow->addStretch();
-  leftLayout->addLayout(listRow);
+  panel_->setStatsClickable(true);
+  panel_->setDeleteRowVisible(true);
+  panel_->setStretchLast(true);
+  panel_->setColumns(columns(true));
+  panel_->setHiddenColumnsKey(saved::timedHiddenColumns().key());
 
   // --- right column: scramble, timer, chart ---
   auto *right = new QWidget(this);
@@ -234,12 +194,13 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   timeColumn->addStretch(1);
   rightLayout->addLayout(timeColumn, 3);
 
-  chart_ = new TrendChart(right);
+  chart_ = panel_->chart();
+  chart_->setVisible(true);
   chart_->setSettingsKey("timed/chart");
   rightLayout->addWidget(chart_, 1);
 
   auto *split = new QSplitter(this);
-  split->addWidget(left);
+  split->addWidget(panel_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);
   split->setStretchFactor(1, 1);
@@ -258,7 +219,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
               session().scrambleType = ss(type);
               save();
             }
-            finished_ = false;
+            flow_.nextScramble();
             algs_->setType(type);
             feed_.setType(type);
           });
@@ -275,42 +236,47 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
       return;
     }
     session().cube = kind;
-    finished_ = false;
+    flow_.nextScramble();
+    configureFlow(); // the flow is for the session's cube
     save();
     showCubeKind();
     showScramble();
     refreshSolves();
   });
-  connect(sessionMenu_, &QMenu::aboutToShow, this,
+  connect(panel_, &SessionPanel::menuAboutToShow, this,
           &TimerPage::refreshSessionMenu);
+  connect(panel_, &SessionPanel::sessionChosen, this,
+          &TimerPage::selectSession);
+  connect(panel_, &SessionPanel::newSessionRequested, this,
+          &TimerPage::addSession);
+  connect(panel_, &SessionPanel::renameSessionRequested, this,
+          &TimerPage::renameSession);
+  connect(panel_, &SessionPanel::deleteSessionRequested, this,
+          &TimerPage::deleteSession);
   connect(plus2Button_, &QPushButton::clicked, this,
           [this] { setLastPenalty(Penalty::Plus2); });
   connect(dnfButton_, &QPushButton::clicked, this,
           [this] { setLastPenalty(Penalty::Dnf); });
-  connect(deleteButton_, &QPushButton::clicked, this, [this] {
+  connect(panel_, &SessionPanel::deleteLastClicked, this, [this] {
     if (!session().solves.empty()) {
       deleteSolve(static_cast<int>(session().solves.size()) - 1);
     }
   });
-  connect(undoButton_, &QPushButton::clicked, this, &TimerPage::undoDelete);
+  connect(panel_, &SessionPanel::undoClicked, this, &TimerPage::undoDelete);
   connect(reviewButton_, &QPushButton::clicked, this,
           [this] { review(static_cast<int>(session().solves.size()) - 1); });
-  connect(table_, &QTableWidget::customContextMenuRequested, this,
+  connect(panel_, &SessionPanel::attemptMenuRequested, this,
           &TimerPage::showSolveMenu);
-  connect(table_->horizontalHeader(), &QWidget::customContextMenuRequested,
-          this, &TimerPage::showColumnMenu);
-  connect(table_, &QTableWidget::itemDoubleClicked, this,
-          [this](QTableWidgetItem *item) {
-            int index = item->data(Qt::UserRole).toInt();
-            const auto &solves = session().solves;
-            if (index >= 0 && index < static_cast<int>(solves.size()) &&
-                !solves[static_cast<std::size_t>(index)].moves.empty()) {
-              review(index);
-            } else {
-              showDetails(index);
-            }
-          });
-  connect(stats_, &QLabel::linkActivated, this, &TimerPage::showStat);
+  connect(panel_, &SessionPanel::attemptActivated, this, [this](int index) {
+    const auto &solves = session().solves;
+    if (index >= 0 && index < static_cast<int>(solves.size()) &&
+        !solves[static_cast<std::size_t>(index)].moves.empty()) {
+      review(index);
+    } else {
+      showDetails(index);
+    }
+  });
+  connect(panel_, &SessionPanel::statActivated, this, &TimerPage::showStat);
   connect(&splitsWatcher_, &QFutureWatcher<SplitResults>::finished, this,
           [this] {
             for (auto &[key, s] : splitsWatcher_.result()) {
@@ -342,12 +308,7 @@ TimerPage::~TimerPage() {
   eoWatcher_.waitForFinished();
 }
 
-bool TimerPage::isBusy() const {
-  auto s = timer_.state();
-  return s == SolveTimer::State::Running ||
-         s == SolveTimer::State::Inspecting ||
-         s == SolveTimer::State::Holding || s == SolveTimer::State::Ready;
-}
+bool TimerPage::isBusy() const { return flow_.isBusy(); }
 
 void TimerPage::activated() { updateControls(); }
 
@@ -355,17 +316,8 @@ bool TimerPage::onVirtualCube() const {
   return store_.sessions()[store_.currentIndex()].cube == CubeKind::Virtual;
 }
 
-bool TimerPage::cubeHidden() const {
-  if (!onVirtualCube() || !settings_.inspection ||
-      !settings_.hideBeforeInspection || finished_) {
-    return false;
-  }
-  auto s = timer_.state();
-  return s == SolveTimer::State::Idle || s == SolveTimer::State::Stopped;
-}
-
 void TimerPage::showCube() {
-  if (cubeHidden()) {
+  if (flow_.cubeHidden()) {
     FaceletCube::Stickers blank{};
     blank.fill(kMaskedColour);
     cubeView_->setState(FaceletCube(blank));
@@ -385,15 +337,10 @@ void TimerPage::showCubeKind() {
   cubeView_->setVisible(virt);
   viewPicker_->setVisible(virt && !focusMode());
   net_->setVisible(!virt);
-  QStringList hidden = hiddenColumns();
-  const QStringList names = {"#",   "time",  "ao5", "ao12", "moves",
-                             "tps", "cross", "f2l", "ll"};
-  for (int c = 0; c < kColumns; ++c) {
-    bool virtualOnly = c >= kMoves;
-    table_->setColumnHidden(c, (virtualOnly && !virt) ||
-                                   hidden.contains(names[c]));
-  }
+  showColumns();
 }
+
+void TimerPage::showColumns() { panel_->setColumns(columns(onVirtualCube())); }
 
 void TimerPage::showLastResult() {
   const auto &solves = session().solves;
@@ -407,8 +354,7 @@ void TimerPage::showLastResult() {
 void TimerPage::deactivated() {
   cubeView_->finishAnimations();
   tick_.stop();
-  if (isBusy()) {
-    timer_.cancel();
+  if (flow_.leave()) {
     if (onVirtualCube()) {
       attempt_.restart();
     }
@@ -420,10 +366,8 @@ void TimerPage::deactivated() {
 }
 
 void TimerPage::windowDeactivated() {
-  auto s = timer_.state();
-  if (s == SolveTimer::State::Holding || s == SolveTimer::State::Ready) {
-    timer_.cancel(); // Space's release would never arrive
-    display_->showTimer(timer_, monotonicMs()); // what was shown before
+  if (flow_.dropHold()) { // Space's release would never arrive
+    display_->showTimer(flow_.timer(), monotonicMs()); // what was shown before
     showCube();
     updateControls();
   }
@@ -442,31 +386,35 @@ void TimerPage::updateControls() {
   }
   bool any = !session().solves.empty();
   for (QWidget *w : std::initializer_list<QWidget *>{
-           typeBox_, nextButton_, sessionButton_, cubeBox_}) {
+           typeBox_, nextButton_, panel_->sessionButton(), cubeBox_}) {
     w->setEnabled(!busy);
   }
   plus2Button_->setEnabled(!busy && any);
   dnfButton_->setEnabled(!busy && any);
-  deleteButton_->setEnabled(!busy && any);
-  undoButton_->setEnabled(!busy);
-  undoButton_->setVisible(deleted_.has_value());
+  panel_->setDeleteEnabled(!busy && any);
+  panel_->setUndo(deleted_.has(), !busy);
   bool reviewable = any && !session().solves.back().moves.empty();
   reviewButton_->setVisible(reviewable);
   reviewButton_->setEnabled(!busy);
-  controlsLocked_ = busy;
 }
 
 void TimerPage::focusModeChanged() {
   const bool on = focusMode();
-  leftPanel_->setVisible(!on);
+  panel_->setVisible(!on);
   typeRow_->setVisible(!on);
   chart_->setVisible(!on);
   focusStats_->setVisible(on);
   showCubeKind();
 }
 
+void TimerPage::configureFlow() {
+  flow_.setConfig({{settings_.holdMs, settings_.inspection, 15000},
+                   onVirtualCube(),
+                   settings_.hideBeforeInspection});
+}
+
 void TimerPage::applySettings() {
-  timer_.setConfig({settings_.holdMs, settings_.inspection, 15000});
+  configureFlow();
   display_->setDecimals(settings_.decimals);
   net_->setScheme(settings_.scheme);
   CubeLook look = cubeView_->look();
@@ -487,14 +435,14 @@ void TimerPage::refreshScrambleTypes(const QString &changedSet) {
   typeBox_->refresh(); // emits typeChanged if the type went away
   if (typeBox_->currentType() == before && !changedSet.isEmpty() &&
       before == "set:" + changedSet) {
-    finished_ = false;
+    flow_.nextScramble();
     feed_.regenerate(); // the set's cases or ticks may have changed
   }
   algs_->refresh();
 }
 
 void TimerPage::showScramble() {
-  if (finished_) {
+  if (flow_.finished()) {
     return; // the finished solve stays until Space
   }
   const auto &current = feed_.current();
@@ -520,18 +468,13 @@ void TimerPage::showScramble() {
 
 void TimerPage::onTick() {
   std::int64_t now = monotonicMs();
-  bool wasHidden = cubeHidden();
-  timer_.tick(now);
-  auto s = timer_.state();
+  bool wasHidden = flow_.cubeHidden();
   // A popup or dialog took the Space release: the hold can't be let go of.
-  if ((s == SolveTimer::State::Holding || s == SolveTimer::State::Ready) &&
-      (QApplication::activePopupWidget() ||
-       QApplication::activeModalWidget())) {
-    timer_.cancel();
-  }
+  flow_.tick(now, QApplication::activePopupWidget() ||
+                      QApplication::activeModalWidget());
   // Also after a cancelled hold, to bring back what it replaced.
-  display_->showTimer(timer_, now);
-  if (wasHidden != cubeHidden()) {
+  display_->showTimer(flow_.timer(), now);
+  if (wasHidden != flow_.cubeHidden()) {
     showCube();
   }
   updateControls();
@@ -541,7 +484,7 @@ void TimerPage::nextScramble() {
   if (isBusy()) {
     return;
   }
-  finished_ = false;
+  flow_.nextScramble();
   statusLabel_->clear();
   feed_.advance();
 }
@@ -601,129 +544,131 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
   bool virt = onVirtualCube();
   std::optional<Move> move =
       virt ? settings_.keymap.lookup(e) : std::optional<Move>();
+  int key = e->key();
   std::int64_t now = monotonicMs();
-  using S = SolveTimer::State;
-  // Back to the scramble as it was dealt, e.g. after a cancelled solve.
-  auto restartCube = [this] {
-    attempt_.restart();
-    showCube();
-  };
 
-  if (timer_.state() == S::Running) {
-    if (press && e->key() == Qt::Key_Escape) {
-      timer_.cancel();
-      showLastResult();
-      statusLabel_->setText(tr("Solve cancelled; nothing was recorded."));
-      if (virt) {
-        restartCube();
-      }
+  if (flow_.isRunning()) {
+    if (press && key == Qt::Key_Escape) {
+      apply(flow_.escape(), now);
       return true;
     }
     if (virt) {
       // Space stops the timer; the turning keys turn the cube.
-      if (press && e->key() == Qt::Key_Space) {
-        stopVirtual(now);
-      } else if (press && move && attempt_.turn(*move, now)) {
-        cubeView_->animateMove(*move);
-        if (settings_.autoStop && attempt_.cube().isSolved()) {
-          stopVirtual(now);
-        }
+      if (key == Qt::Key_Space) {
+        apply(flow_.space(press, now, true), now);
+      } else if (press && move) {
+        turnDuringSolve(*move, now);
       }
-      return e->key() == Qt::Key_Space || move.has_value();
+      return key == Qt::Key_Space || move.has_value();
     }
     if (press) {
-      timer_.pressStop(now);
-      if (auto r = timer_.takeResult()) {
-        recordSolve(r->timeMs, r->penalty);
-      }
+      apply(flow_.stopKey(now), now);
       return true;
     }
     return false;
   }
-  bool idle = timer_.state() == S::Idle || timer_.state() == S::Stopped;
-  if (press && idle && handleActionKey(e)) {
+  if (press && flow_.isIdle() && handleActionKey(e)) {
     return true;
   }
-  if (e->key() == Qt::Key_Escape && press) {
-    bool was = isBusy();
-    timer_.cancel();
-    if (was) {
-      showLastResult();
-    }
-    statusLabel_->clear();
-    if (finished_) {
-      nextScramble();
-    } else if (virt) {
-      restartCube();
-    }
+  if (key == Qt::Key_Escape && press) {
+    apply(flow_.escape(), now);
     return true;
   }
-  if (e->key() == Qt::Key_Tab && press && !move && algs_->toggle()) {
+  if (key == Qt::Key_Tab && press && !move && algs_->toggle()) {
     return true;
   }
   if (move) {
-    // Before the solve the cube can only be turned as a whole.
-    if (press && timer_.state() != S::Holding && timer_.state() != S::Ready) {
-      if (cubeHidden()) {
-        statusLabel_->setText(tr("Press Space to start inspection"));
-      } else if ((finished_ && !isRotation(move->type)) ||
-                 !attempt_.turn(*move, now)) {
-        statusLabel_->setText(
-            finished_ ? tr("Press Space for the next scramble")
-                      : tr("Only rotations until the timer starts (hold "
-                           "Space)"));
-      } else {
-        cubeView_->animateMove(*move);
-      }
-    }
-    return true;
-  }
-  if (e->key() != Qt::Key_Space &&
-      !(finished_ &&
-        (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter))) {
-    return false;
-  }
-  if (finished_) {
-    // Space (or Enter) after a DNF: on to the next scramble; the release
-    // that follows does nothing.
     if (press) {
-      nextScramble();
+      // Before the solve the cube can only be turned as a whole.
+      switch (flow_.move(isRotation(move->type))) {
+      case TimedFlow::MoveAnswer::Ignore:
+        break;
+      case TimedFlow::MoveAnswer::Hidden:
+        statusLabel_->setText(tr("Press Space to start inspection"));
+        break;
+      case TimedFlow::MoveAnswer::NextScramble:
+        statusLabel_->setText(tr("Press Space for the next scramble"));
+        break;
+      case TimedFlow::MoveAnswer::Turn:
+        if (attempt_.turn(*move, now)) {
+          cubeView_->animateMove(*move);
+        } else {
+          statusLabel_->setText(
+              flow_.finished() ? tr("Press Space for the next scramble")
+                               : tr("Only rotations until the timer starts "
+                                    "(hold Space)"));
+        }
+        break;
+      }
     }
     return true;
   }
-  if (press) {
-    if (!feed_.current() && timer_.state() != S::Inspecting) {
-      return true; // wait for a scramble
+  if (key == Qt::Key_Space) {
+    apply(flow_.space(press, now, feed_.current().has_value()), now);
+    return true;
+  }
+  if ((key == Qt::Key_Return || key == Qt::Key_Enter) && flow_.finished()) {
+    // Enter after a DNF, as Space: the next scramble.
+    if (press) {
+      apply(flow_.enter(), now);
     }
-    timer_.pressStart(now);
-  } else {
-    timer_.releaseStart(now);
-    if (timer_.state() == S::Inspecting) {
-      statusLabel_->clear();
-    }
-    if (timer_.state() == S::Running) {
-      statusLabel_->clear();
-      if (virt) {
-        attempt_.setClock(now);
-        attempt_.start();
-      }
+    return true;
+  }
+  return false;
+}
+
+void TimerPage::apply(const TimedFlow::Effects &e, std::int64_t now) {
+  if (e.showLastResult) {
+    showLastResult();
+  }
+  if (e.cancelled) {
+    statusLabel_->setText(tr("Solve cancelled; nothing was recorded."));
+  }
+  if (e.clearStatus) {
+    statusLabel_->clear();
+  }
+  if (e.nextScramble) {
+    nextScramble();
+  }
+  if (e.restartCube) {
+    // Back to the scramble as it was dealt, e.g. after a cancelled solve.
+    attempt_.restart();
+    showCube();
+  }
+  if (e.startAttempt) {
+    attempt_.setClock(now);
+    attempt_.start();
+  }
+  if (e.stopVirtual) {
+    stopVirtual(now);
+  }
+  if (e.record) {
+    recordSolve(e.record->timeMs, e.record->penalty);
+  }
+  if (e.showTimer) {
+    display_->showTimer(flow_.timer(), now);
+    showCube();
+  }
+}
+
+void TimerPage::turnDuringSolve(Move m, std::int64_t now) {
+  if (attempt_.turn(m, now)) {
+    cubeView_->animateMove(m);
+    if (settings_.autoStop && attempt_.cube().isSolved()) {
+      stopVirtual(now);
     }
   }
-  display_->showTimer(timer_, now);
-  showCube();
-  return true;
 }
 
 void TimerPage::stopVirtual(std::int64_t now) {
-  timer_.pressStop(now);
-  auto r = timer_.takeResult();
+  bool solved = attempt_.cube().isSolved();
+  std::optional<SolveTimer::Result> r = flow_.stopVirtual(now, solved);
   if (!r) {
     return;
   }
-  bool solved = attempt_.cube().isSolved();
   int moves = attempt_.count(settings_.simplifiedCounts);
-  recordSolve(r->timeMs, solved ? r->penalty : Penalty::Dnf,
-              toString(attempt_.solution()), attempt_.solutionTimes());
+  recordSolve(r->timeMs, r->penalty, toString(attempt_.solution()),
+              attempt_.solutionTimes());
   QString text =
       solved ? (moves == 1 ? tr("Solved in 1 move (HTM)")
                            : tr("Solved in %1 moves (HTM)").arg(moves))
@@ -736,7 +681,7 @@ void TimerPage::stopVirtual(std::int64_t now) {
   statusLabel_->setText(was.isEmpty() ? text : text + "\n" + was);
   if (!solved) {
     // Keep the cube as it was left, to look at.
-    finished_ = true;
+    flow_.keepDnf();
   }
   analyseEoCross(session().solves.back());
 }
@@ -775,7 +720,7 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
   s.scramble = feed_.current() ? ss(feed_.current()->text) : std::string();
   s.timestamp = unixNow();
   session().solves.push_back(s);
-  deleted_.reset();
+  deleted_.forget();
   display_->showTime(timeMs, penalty);
   statusLabel_->clear();
   // A new best, as cstimer marks it.
@@ -800,30 +745,17 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
 }
 
 void TimerPage::refreshSessionMenu() {
-  sessionMenu_->clear();
-  auto *group = new QActionGroup(sessionMenu_);
-  for (std::size_t i = 0; i < store_.sessions().size(); ++i) {
-    const Session &s = store_.sessions()[i];
-    QAction *a = sessionMenu_->addAction(
-        tr("%1 (%2)").arg(qs(s.name)).arg(s.solves.size()), this,
-        [this, i] { selectSession(i); });
-    a->setCheckable(true);
-    a->setChecked(i == store_.currentIndex());
-    group->addAction(a);
+  std::vector<SessionPanel::MenuSession> list;
+  for (const Session &s : store_.sessions()) {
+    list.push_back({qs(s.name), s.solves.size()});
   }
-  sessionMenu_->addSeparator();
-  sessionMenu_->addAction(tr("New session…"), this, &TimerPage::addSession);
-  sessionMenu_->addAction(tr("Rename…"), this, &TimerPage::renameSession);
-  sessionMenu_->addAction(tr("Delete…"), this, &TimerPage::deleteSession);
-  sessionMenu_->addSeparator();
-  sessionMenu_->addAction(tr("Import from cstimer…"), this,
-                          &TimerPage::importCstimer);
-  sessionMenu_->addAction(tr("Export to cstimer…"), this,
-                          &TimerPage::exportCstimer);
+  panel_->fillSessionMenu(list, store_.currentIndex());
+  QMenu *menu = panel_->menu();
+  menu->addSeparator();
+  menu->addAction(tr("Import from cstimer…"), this, &TimerPage::importCstimer);
+  menu->addAction(tr("Export to cstimer…"), this, &TimerPage::exportCstimer);
   // No session changes in the middle of a solve.
-  for (QAction *a : sessionMenu_->actions()) {
-    a->setEnabled(!isBusy());
-  }
+  panel_->setMenuEnabled(!isBusy());
 }
 
 void TimerPage::selectSession(std::size_t index) {
@@ -833,11 +765,12 @@ void TimerPage::selectSession(std::size_t index) {
   bool changed = index != store_.currentIndex();
   store_.setCurrentIndex(index);
   if (changed) {
-    deleted_.reset(); // undo is for the session it was deleted from
+    deleted_.forget(); // undo is for the session it was deleted from
   }
-  bool wasFinished = finished_;
-  finished_ = false;
-  sessionButton_->setText(tr("Session: %1").arg(qs(session().name)));
+  bool wasFinished = flow_.finished();
+  flow_.nextScramble();
+  panel_->setSessionName(qs(session().name));
+  configureFlow(); // the flow is for the session's cube
   showCubeKind();
   typeBox_->setCurrentType(qs(session().scrambleType));
   if (wasFinished) {
@@ -894,17 +827,17 @@ void TimerPage::refreshSolves() {
   bool missing = false;
   std::vector<StatValue> crossSeries(solves.size()), f2lSeries(solves.size()),
       llSeries(solves.size());
-  table_->setRowCount(static_cast<int>(solves.size()));
-  for (std::size_t i = 0; i < solves.size(); ++i) {
+  std::vector<AttemptRow> rows;
+  rows.reserve(solves.size());
+  for (std::size_t i = solves.size(); i-- > 0;) {
     const Solve &s = solves[i];
-    int row = static_cast<int>(solves.size() - 1 - i);
+    AttemptRow row;
+    row.index = static_cast<int>(i);
+    row.cells.resize(kColumns);
     auto set = [&](int col, const QString &text) {
-      auto *item = new QTableWidgetItem(text);
-      item->setData(Qt::UserRole, static_cast<int>(i));
-      if (col > 0) {
-        item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-      }
-      table_->setItem(row, col, item);
+      AttemptCell &cell = row.cells[static_cast<std::size_t>(col)];
+      cell.text = text;
+      cell.alignRight = col > 0;
     };
     // A solve with a comment is marked.
     set(kNumber, s.comment.empty() ? QString::number(i + 1)
@@ -957,51 +890,32 @@ void TimerPage::refreshSolves() {
     if (!s.moves.empty()) {
       tip << tr("Solution: %1").arg(qs(s.moves));
     }
-    for (int c = 0; c < kColumns; ++c) {
-      table_->item(row, c)->setToolTip(tip.join("\n"));
+    for (AttemptCell &cell : row.cells) {
+      cell.tip = tip.join("\n");
     }
+    rows.push_back(std::move(row));
   }
+  panel_->setRows(std::move(rows));
   if (missing) {
     requestSplits();
   }
-  SessionSummary sum = summarize(solves, unit);
-  QString html =
-      "<table cellspacing='4' width='100%'><tr><th></th><th align='right'>" +
-      tr("current") + "</th><th align='right'>" + tr("best") + "</th></tr>";
-  // Each value links to the solves behind it.
-  auto link = [&](const QString &href, StatValue v, bool bold) {
-    QString text = statText(v, d);
-    if (bold) {
-      text = "<b>" + text + "</b>";
-    }
-    // Coloured as the text: the statistics read as before, clickable.
-    return v ? QString("<a href='%1' style='text-decoration:none; color:%3'>"
-                       "%2</a>")
-                   .arg(href, text,
-                        palette().color(QPalette::WindowText).name())
-             : text;
-  };
-  auto row = [&](const QString &name, const QString &id, StatValue cur,
-                 StatValue best) {
-    html += QString("<tr><td>%1</td><td align='right'>%2</td><td "
-                    "align='right'>%3</td></tr>")
-                .arg(name, link("cur:" + id, cur, false),
-                     link("best:" + id, best, true));
-  };
-  row(tr("time"), "single",
-      solves.empty() ? StatValue{} : StatValue{effectiveTime(solves.back())},
-      sum.best);
-  row("mo3", "mo3", currentMean(solves, 3, unit), bestMean(solves, 3, unit));
-  for (std::size_t n : {5u, 12u, 100u}) {
-    QString id = QString("ao%1").arg(n);
-    row(id, id, currentAverage(solves, n, unit), bestAverage(solves, n, unit));
-  }
-  html += "</table>";
+  static constexpr std::string_view kStats[] = {"single", "mo3", "ao5", "ao12",
+                                                "ao100"};
+  SessionStats stats = sessionStats(solves, kStats, unit);
+  const SessionSummary &sum = stats.summary;
+  QString colour = palette().color(QPalette::WindowText).name();
+  QString html = statsTableHtml(
+      stats,
+      [this](const std::string &id) {
+        return id == "single" ? tr("time") : qs(id);
+      },
+      [d](const std::string &, StatValue v) { return statText(v, d); }, colour);
   html += tr("<p>Solves: %1%2 &nbsp; Mean: %3</p>")
               .arg(sum.count)
               .arg(sum.dnfs ? QString(" (%1 DNF)").arg(sum.dnfs) : QString())
-              .arg(link("mean:all", sum.mean, false));
-  stats_->setText(html);
+              .arg(statLinkHtml("mean:all", sum.mean, statText(sum.mean, d),
+                                colour));
+  panel_->setStatsHtml(html);
   focusStats_->setText(tr("ao5 %1 · ao12 %2 · best %3 · %4 solves")
                            .arg(statText(currentAverage(solves, 5, unit), d),
                                 statText(currentAverage(solves, 12, unit), d),
@@ -1020,60 +934,16 @@ void TimerPage::refreshSolves() {
 
 void TimerPage::showStat(const QString &link) {
   const auto &solves = session().solves;
-  QStringList parts = link.split(':');
-  if (parts.size() != 2 || solves.empty()) {
-    return;
-  }
   int d = settings_.decimals;
-  std::int64_t unit = statUnit(d);
-  bool best = parts[0] == "best";
-  QString id = parts[1];
-  auto result = [&](std::size_t from) {
-    return [&, from](std::size_t i) {
-      return qs(formatSolve(solves[from + i], d));
-    };
+  StatLinkView view;
+  view.unit = statUnit(d);
+  view.format = [d](StatValue v) { return statText(v, d); };
+  view.result = [&solves, d](std::size_t i) {
+    return qs(formatSolve(solves[i], d));
   };
-  if (id == "single") {
-    std::size_t at = solves.size() - 1;
-    if (best) {
-      for (std::size_t i = 0; i < solves.size(); ++i) {
-        if (effectiveTime(solves[i]) < effectiveTime(solves[at])) {
-          at = i;
-        }
-      }
-    }
-    showDetails(static_cast<int>(at));
-    return;
-  }
-  if (parts[0] == "mean") {
-    showTextDialog(
-        this, tr("Session mean"),
-        statListing(tr("Mean of %1: %2")
-                        .arg(solves.size())
-                        .arg(statText(summarize(solves, unit).mean, d)),
-                    solves, 1, false, result(0)));
-    return;
-  }
-  bool mean = id == "mo3";
-  std::size_t n = mean ? 3 : id.mid(2).toULongLong();
-  if (n == 0 || solves.size() < n) {
-    return;
-  }
-  std::size_t from = solves.size() - n;
-  if (best) {
-    std::optional<std::size_t> at = bestAverageStart(solves, n, mean, unit);
-    if (!at) {
-      return;
-    }
-    from = *at;
-  }
-  auto span = std::span(solves).subspan(from, n);
-  StatValue value = mean ? meanOf(span, unit) : averageOf(span, unit);
-  QString heading = (mean ? tr("Mean of %1: %2") : tr("Average of %1: %2"))
-                        .arg(n)
-                        .arg(statText(value, d));
-  showTextDialog(this, best ? tr("Best %1").arg(id) : tr("Current %1").arg(id),
-                 statListing(heading, span, from + 1, !mean, result(from)));
+  view.number = [](std::size_t i) { return i + 1; };
+  view.details = [this](std::size_t i) { showDetails(static_cast<int>(i)); };
+  openStatLink(this, link, solves, view);
 }
 
 void TimerPage::setLastPenalty(Penalty p) {
@@ -1089,12 +959,10 @@ void TimerPage::setLastPenalty(Penalty p) {
 
 void TimerPage::deleteSolve(int index) {
   auto &solves = session().solves;
-  if (isBusy() || index < 0 || index >= static_cast<int>(solves.size())) {
+  if (isBusy() || index < 0 ||
+      !deleted_.erase(solves, static_cast<std::size_t>(index))) {
     return;
   }
-  deleted_ = {static_cast<std::size_t>(index),
-              solves[static_cast<std::size_t>(index)]};
-  solves.erase(solves.begin() + index);
   save();
   refreshSolves();
   showLastResult();
@@ -1102,15 +970,11 @@ void TimerPage::deleteSolve(int index) {
 }
 
 void TimerPage::undoDelete() {
-  if (!deleted_ || isBusy()) {
+  if (!deleted_.has() || isBusy()) {
     return;
   }
-  auto &solves = session().solves;
-  auto at =
-      static_cast<std::ptrdiff_t>(std::min(deleted_->first, solves.size()));
-  solves.insert(solves.begin() + at, deleted_->second);
-  emit message(tr("Put back solve #%1").arg(at + 1));
-  deleted_.reset();
+  std::optional<std::size_t> at = deleted_.restore(session().solves);
+  emit message(tr("Put back solve #%1").arg(*at + 1));
   save();
   refreshSolves();
   showLastResult();
@@ -1122,12 +986,9 @@ void TimerPage::commentSolve(int index) {
     return;
   }
   Solve &s = solves[static_cast<std::size_t>(index)];
-  bool accepted = false;
-  QString text = QInputDialog::getText(
-      this, tr("Comment"), tr("Comment on solve #%1:").arg(index + 1),
-      QLineEdit::Normal, qs(s.comment), &accepted);
-  if (accepted) {
-    s.comment = ss(text);
+  if (std::optional<QString> text = askComment(
+          this, tr("Comment on solve #%1:").arg(index + 1), qs(s.comment))) {
+    s.comment = ss(*text);
     save();
     refreshSolves();
   }
@@ -1192,141 +1053,80 @@ void TimerPage::showDetails(int index) {
                       : [this, index] { review(index); });
 }
 
-void TimerPage::showColumnMenu(const QPoint &pos) {
-  QMenu menu(this);
-  const QStringList names = {"#",   "time",  "ao5", "ao12", "moves",
-                             "tps", "cross", "f2l", "ll"};
-  QStringList hidden = hiddenColumns();
-  for (int c = kAo5; c < kColumns; ++c) {
-    QAction *a = menu.addAction(table_->horizontalHeaderItem(c)->text());
-    a->setCheckable(true);
-    a->setChecked(!hidden.contains(names[c]));
-    if (c >= kMoves && !onVirtualCube()) {
-      a->setEnabled(false); // only virtual solves have them
-    }
-    connect(a, &QAction::toggled, this, [this, name = names[c]](bool on) {
-      QStringList h = hiddenColumns();
-      h.removeAll(name);
-      if (!on) {
-        h << name;
-      }
-      saved::timedHiddenColumns().set(h);
-      showCubeKind();
-    });
-  }
-  menu.exec(table_->horizontalHeader()->mapToGlobal(pos));
-}
-
-void TimerPage::showSolveMenu(const QPoint &pos) {
-  auto *item = table_->itemAt(pos);
-  if (!item || isBusy()) {
+void TimerPage::showSolveMenu(int index, const QPoint &globalPos) {
+  const auto &solves = session().solves;
+  if (isBusy() || index < 0 || index >= static_cast<int>(solves.size())) {
     return; // nothing changes in the middle of a solve
   }
-  int index = item->data(Qt::UserRole).toInt();
-  auto &solves = session().solves;
-  if (index < 0 || index >= static_cast<int>(solves.size())) {
-    return;
-  }
-  Solve &s = solves[static_cast<std::size_t>(index)];
-  QMenu menu(this);
-  auto *ok = menu.addAction(tr("No penalty"));
-  auto *plus2 = menu.addAction("+2");
-  auto *dnf = menu.addAction("DNF");
-  ok->setCheckable(true);
-  plus2->setCheckable(true);
-  dnf->setCheckable(true);
-  ok->setChecked(s.penalty == Penalty::None);
-  plus2->setChecked(s.penalty == Penalty::Plus2);
-  dnf->setChecked(s.penalty == Penalty::Dnf);
-  menu.addSeparator();
-  QAction *reviewAction = nullptr;
-  if (!s.moves.empty()) {
-    reviewAction = menu.addAction(tr("Review…"));
-  }
-  auto *details = menu.addAction(tr("Details…"));
-  auto *comment = menu.addAction(tr("Comment…"));
-  auto *copy = menu.addAction(tr("Copy scramble"));
-  QAction *copyMoves = nullptr;
-  if (!s.moves.empty()) {
-    copyMoves = menu.addAction(tr("Copy solution"));
+  const Solve &s = solves[static_cast<std::size_t>(index)];
+  ActionMenu menu(this);
+  auto penalty = [this, index](Penalty p) {
+    return [this, index, p] {
+      auto &list = session().solves;
+      if (index >= static_cast<int>(list.size())) {
+        return;
+      }
+      list[static_cast<std::size_t>(index)].penalty = p;
+      if (index + 1 == static_cast<int>(list.size())) {
+        showLastResult();
+      }
+      save();
+      refreshSolves();
+    };
+  };
+  for (auto [text, p] : {std::pair{tr("No penalty"), Penalty::None},
+                         std::pair{QString("+2"), Penalty::Plus2},
+                         std::pair{QString("DNF"), Penalty::Dnf}}) {
+    QAction *a = menu.add(text, penalty(p));
+    a->setCheckable(true);
+    a->setChecked(s.penalty == p);
   }
   menu.addSeparator();
-  auto *del = menu.addAction(tr("Delete"));
-  QAction *chosen = menu.exec(table_->viewport()->mapToGlobal(pos));
-  if (!chosen || isBusy()) {
-    return;
+  if (!s.moves.empty()) {
+    menu.add(tr("Review…"), [this, index] { review(index); });
   }
-  if (chosen == ok) {
-    s.penalty = Penalty::None;
-  } else if (chosen == plus2) {
-    s.penalty = Penalty::Plus2;
-  } else if (chosen == dnf) {
-    s.penalty = Penalty::Dnf;
-  } else if (chosen == reviewAction) {
-    review(index);
-    return;
-  } else if (chosen == details) {
-    showDetails(index);
-    return;
-  } else if (chosen == comment) {
-    commentSolve(index);
-    return;
-  } else if (chosen == copy) {
-    QApplication::clipboard()->setText(qs(s.scramble));
-    return;
-  } else if (copyMoves && chosen == copyMoves) {
-    QApplication::clipboard()->setText(qs(s.moves));
-    return;
-  } else if (chosen == del) {
-    deleteSolve(index);
-    return;
-  }
-  if (index + 1 == static_cast<int>(solves.size())) {
-    showLastResult();
-  }
-  save();
-  refreshSolves();
+  AttemptMenuActions common;
+  common.details = [this, index] { showDetails(index); };
+  common.comment = [this, index] { commentSolve(index); };
+  common.scramble = qs(s.scramble);
+  common.solution = qs(s.moves);
+  common.remove = [this, index] { deleteSolve(index); };
+  addAttemptActions(menu, common);
+  menu.run(globalPos, [this] { return !isBusy(); });
 }
 
 void TimerPage::addSession() {
-  bool ok = false;
-  QString name = QInputDialog::getText(
-      this, tr("New session"), tr("Name:"), QLineEdit::Normal,
-      tr("Session %1").arg(store_.sessions().size() + 1), &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name =
+      askSessionName(this, tr("New session"), tr("Name:"),
+                     tr("Session %1").arg(store_.sessions().size() + 1));
+  if (!name) {
     return;
   }
   CubeKind cube = session().cube;
-  Session &s = store_.addSession(ss(name.trimmed()));
+  Session &s = store_.addSession(ss(*name));
   s.scrambleType = ss(typeBox_->currentType());
   s.cube = cube;
   selectSession(store_.currentIndex());
 }
 
 void TimerPage::renameSession() {
-  bool ok = false;
-  QString name =
-      QInputDialog::getText(this, tr("Rename session"), tr("Name:"),
-                            QLineEdit::Normal, qs(session().name), &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name = askSessionName(this, tr("Rename session"),
+                                               tr("Name:"), qs(session().name));
+  if (!name) {
     return;
   }
-  session().name = ss(name.trimmed());
-  sessionButton_->setText(tr("Session: %1").arg(qs(session().name)));
+  session().name = ss(*name);
+  panel_->setSessionName(qs(session().name));
   save();
 }
 
 void TimerPage::deleteSession() {
-  auto answer =
-      QMessageBox::question(this, tr("Delete session"),
-                            tr("Delete session \"%1\" and its %2 solves?")
-                                .arg(qs(session().name))
-                                .arg(session().solves.size()));
-  if (answer != QMessageBox::Yes) {
+  if (!confirmDeleteSession(this, qs(session().name), session().solves.size(),
+                            tr("solves"))) {
     return;
   }
   store_.removeSession(store_.currentIndex());
-  deleted_.reset();
+  deleted_.forget();
   selectSession(store_.currentIndex());
 }
 
@@ -1407,14 +1207,9 @@ void TimerPage::exportCstimer() {
 }
 
 void TimerPage::save() {
-  // Written in the background from a copy, so that saving never holds up
-  // the next attempt.
-  writeInBackground(
-      store_.path(),
-      [copy = store_](QString *error) { return copy.save(error); }, this,
-      [this](const QString &error) {
-        emit message(tr("Could not save sessions: %1").arg(error));
-      });
+  saveInBackground(store_, this, [this](const QString &error) {
+    emit message(tr("Could not save sessions: %1").arg(error));
+  });
 }
 
 } // namespace vcube

@@ -4,7 +4,12 @@ add_library(vcube_gui STATIC
   app_data.cpp
   app_settings.cpp
   attempt_page.cpp
+  blind_drill.cpp
   blind_page.cpp
+  blind_quiz_drill.cpp
+  blind_setup_drill.cpp
+  blind_solves_drill.cpp
+  blind_tracing_drill.cpp
   bld_scheme_dialog.cpp
   case_filter.cpp
   case_history_dialog.cpp
@@ -32,11 +37,13 @@ add_library(vcube_gui STATIC
   library_page.cpp
   paste_dialog.cpp
   main_window.cpp
+  move_count_page.cpp
   mode_page.hpp
   mode_table.cpp
   platform.cpp
   review_dialog.cpp
   scramble_source.cpp
+  session_panel.cpp
   set_properties_dialog.cpp
   settings_dialog.cpp
   single_instance.cpp
@@ -44,6 +51,7 @@ add_library(vcube_gui STATIC
   timer_page.cpp
   today_page.cpp
   ui_state.cpp
+  untimed_page.cpp
   widgets.cpp
 )
 target_include_directories(vcube_gui PUBLIC ${PROJECT_SOURCE_DIR}/src)

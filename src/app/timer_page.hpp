@@ -4,11 +4,14 @@
 #include "app/cube_view.hpp"
 #include "app/mode_page.hpp"
 #include "app/scramble_source.hpp"
+#include "app/session_panel.hpp"
 #include "app/widgets.hpp"
 #include "io/library.hpp"
 #include "io/sessions.hpp"
 #include "train/move_count.hpp"
+#include "train/session_edit.hpp"
 #include "train/solve_review.hpp"
+#include "train/timed_flow.hpp"
 
 #include <QFutureWatcher>
 #include <QTimer>
@@ -22,10 +25,7 @@
 
 class QComboBox;
 class QLabel;
-class QMenu;
 class QPushButton;
-class QTableWidget;
-class QToolButton;
 
 namespace vcube {
 
@@ -72,16 +72,12 @@ private:
   SessionStore &store_;
   AlgLibrary &library_;
 
-  SolveTimer timer_;
+  TimedFlow flow_;
   QTimer tick_;
   ScrambleFeed feed_;
   ScrambleAlgs *algs_;
   VirtualAttempt attempt_;
-  // A virtual solve ended as a DNF: the cube stays as it was left (it can
-  // be turned as a whole) until Space brings the next scramble.
-  bool finished_ = false;
-  // The last solve deleted, and where it was, to undo.
-  std::optional<std::pair<std::size_t, Solve>> deleted_;
+  DeletedAttempt<Solve> deleted_;
   // Step splits of virtual solves, by splitKey(), worked out off the GUI
   // thread.
   std::map<std::string, SolveSplits> splits_;
@@ -90,10 +86,8 @@ private:
   QFutureWatcher<std::optional<int>> eoWatcher_;
   std::optional<int> eoYours_; // the solve's own EO Cross count
 
-  QWidget *leftPanel_;
+  SessionPanel *panel_;
   QWidget *typeRow_;
-  QToolButton *sessionButton_;
-  QMenu *sessionMenu_;
   ScrambleTypeBox *typeBox_;
   QComboBox *cubeBox_;
   QWidget *viewPicker_;
@@ -104,21 +98,17 @@ private:
   TimeDisplay *display_;
   QLabel *statusLabel_;
   QLabel *focusStats_;
-  QTableWidget *table_;
-  QLabel *stats_;
   TrendChart *chart_;
   QPushButton *plus2Button_;
   QPushButton *dnfButton_;
   QPushButton *reviewButton_;
-  QPushButton *deleteButton_;
-  QPushButton *undoButton_;
   QPushButton *nextButton_;
-  bool controlsLocked_ = false;
 
   Session &session() { return store_.current(); }
   bool onVirtualCube() const;
-  // The virtual cube is hidden until inspection starts.
-  bool cubeHidden() const;
+  // Does what the flow said a key or the timer called for.
+  void apply(const TimedFlow::Effects &e, std::int64_t now);
+  void turnDuringSolve(Move m, std::int64_t now);
   // Shows the cube, view and preview the session's cube needs.
   void showCubeKind();
   void showScramble();
@@ -139,6 +129,8 @@ private:
   bool handleActionKey(QKeyEvent *e);
   void nextScramble();
   void refreshSessionMenu();
+  // The flow follows the settings and the session's cube.
+  void configureFlow();
   void selectSession(std::size_t index);
   void refreshSolves();
   void setLastPenalty(Penalty p);
@@ -147,8 +139,8 @@ private:
   void commentSolve(int index);
   void review(int index);
   void showDetails(int index);
-  void showSolveMenu(const QPoint &pos);
-  void showColumnMenu(const QPoint &pos);
+  void showSolveMenu(int index, const QPoint &globalPos);
+  void showColumns();
   // The solves behind a statistic, from a link in the statistics.
   void showStat(const QString &link);
   void addSession();

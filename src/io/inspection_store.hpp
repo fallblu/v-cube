@@ -5,7 +5,7 @@
 #include "train/solve_review.hpp"
 #include "train/stats.hpp"
 
-#include "io/data_file.hpp"
+#include "io/session_store.hpp"
 
 #include <QJsonObject>
 #include <QString>
@@ -152,36 +152,16 @@ planByInspection(std::span<const InspectionAttempt> attempts);
 std::string slotId(Slot s);
 std::optional<Slot> slotFromId(std::string_view id);
 
-// Inspection mode's sessions, saved as one JSON file.
-class InspectionStore {
+// Inspection mode's sessions, saved as one JSON file. A new file starts
+// with defaultInspectionSessions().
+class InspectionStore : public SessionFileStore<InspectionSession> {
 public:
   explicit InspectionStore(QString path);
 
-  // A missing file gives the default sessions. A file that can't be read
-  // is set aside (see setAside()) and also gives the default sessions; if
-  // it can't be moved, nothing is saved over it.
-  bool load(QString *error = nullptr);
-  // Where load() moved an unreadable file, if it did.
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-  bool save(QString *error = nullptr) const;
-
-  std::vector<InspectionSession> &sessions() { return sessions_; }
-  const std::vector<InspectionSession> &sessions() const { return sessions_; }
-  std::size_t currentIndex() const { return current_; }
-  void setCurrentIndex(std::size_t i);
-  InspectionSession &current() { return sessions_[current_]; }
-
-  InspectionSession &addSession(const std::string &name);
-  // Removing the last session leaves one empty session.
-  void removeSession(std::size_t i);
-
-  QString path() const { return path_; }
-
-private:
-  QString path_;
-  std::vector<InspectionSession> sessions_;
-  std::size_t current_ = 0;
-  DataFile file_;
+protected:
+  std::vector<InspectionSession> defaults() const override;
+  QJsonObject toJson() const override;
+  void fromJson(const QJsonObject &o) override;
 };
 
 // {"format": "v-cube.inspection", "version": 1, "current": 0, "sessions":

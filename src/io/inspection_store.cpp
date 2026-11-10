@@ -273,52 +273,21 @@ std::optional<Slot> slotFromId(std::string_view id) {
 }
 
 InspectionStore::InspectionStore(QString path)
-    : path_(path), sessions_(defaultInspectionSessions()),
-      file_(std::move(path), kInspectionFile) {}
+    : SessionFileStore(std::move(path), kInspectionFile,
+                       defaultInspectionSessions()) {}
 
-bool InspectionStore::load(QString *error) {
-  sessions_ = defaultInspectionSessions();
-  current_ = 0;
-  QJsonObject o;
-  FileStatus status = file_.load(o, error);
-  if (status != FileStatus::Read) {
-    return status == FileStatus::Missing;
-  }
-  sessions_ = inspectionFromJson(o, &current_);
-  if (sessions_.empty()) {
-    sessions_.push_back(InspectionSession{});
-  }
-  current_ = std::min(current_, sessions_.size() - 1);
-  return true;
+std::vector<InspectionSession> InspectionStore::defaults() const {
+  return defaultInspectionSessions();
 }
 
-bool InspectionStore::save(QString *error) const {
-  return file_.save(inspectionToJson(sessions_, current_), error);
+QJsonObject InspectionStore::toJson() const {
+  return inspectionToJson(sessions_, current_);
 }
 
-void InspectionStore::setCurrentIndex(std::size_t i) {
-  if (i < sessions_.size()) {
-    current_ = i;
-  }
-}
-
-InspectionSession &InspectionStore::addSession(const std::string &name) {
-  InspectionSession s;
-  s.name = name;
-  sessions_.push_back(std::move(s));
-  current_ = sessions_.size() - 1;
-  return sessions_.back();
-}
-
-void InspectionStore::removeSession(std::size_t i) {
-  if (i >= sessions_.size()) {
-    return;
-  }
-  sessions_.erase(sessions_.begin() + static_cast<std::ptrdiff_t>(i));
-  if (sessions_.empty()) {
-    sessions_.push_back(InspectionSession{});
-  }
-  current_ = std::min(current_, sessions_.size() - 1);
+void InspectionStore::fromJson(const QJsonObject &o) {
+  std::size_t current = 0;
+  std::vector<InspectionSession> sessions = inspectionFromJson(o, &current);
+  assign(std::move(sessions), current);
 }
 
 QJsonObject inspectionToJson(const std::vector<InspectionSession> &sessions,

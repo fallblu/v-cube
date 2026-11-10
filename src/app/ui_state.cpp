@@ -123,6 +123,7 @@ Stored<bool> showAlgs(const QString &key) { return {key, false}; }
 Stored<QString> reviewPairSet() { return {"review/pairSet", "zz-f2l"}; }
 
 Stored<QStringList> timedHiddenColumns() { return {"timed/hiddenColumns"}; }
+Stored<QStringList> hiddenSessionColumns(const QString &key) { return {key}; }
 Stored<int> inspectionChart() { return {"inspection/chart", 0}; }
 Stored<int> blindDrill() { return {"blind/drill", 0}; }
 Stored<int> blindQuizPieces() { return {"blind/quizPieces", 0}; }

@@ -7,27 +7,26 @@
 #include "app/widgets.hpp"
 #include "io/inspection_store.hpp"
 #include "io/library.hpp"
+#include "train/inspection_flow.hpp"
 #include "train/move_count.hpp"
 #include "train/step_solver.hpp"
 
 #include <QFutureWatcher>
 #include <QTimer>
 
-#include <array>
-#include <cstdint>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>
 
 class QComboBox;
 class QLabel;
-class QMenu;
 class QPushButton;
 class QStackedWidget;
-class QTableWidget;
-class QToolButton;
 
 namespace vcube {
+
+class SessionPanel;
 
 // Inspection mode: practice for the inspection of a ZZ solve on the
 // virtual cube, kept in sessions (inspection.json in the data folder).
@@ -45,6 +44,8 @@ namespace vcube {
 // Edges sessions show the scrambled cube in a hold from the colour
 // neutrality; type how many edges are bad for the F/B axis (and the R/L
 // axis), then the answer is checked and the bad edges ringed.
+//
+// The phases and keys are InspectionFlow's; the page shows them.
 class InspectionPage : public ModePage {
   Q_OBJECT
 public:
@@ -78,11 +79,7 @@ protected:
   void focusModeChanged() override;
 
 private:
-  // Ready: the cube hidden until Space. Plan: Inspecting (the cube shown,
-  // rotations only) then Executing (the cube hidden, any turn). Edges:
-  // Counting (the cube shown, rotations only, the counts typed). Result:
-  // the outcome, until Space gives the next scramble.
-  enum class Phase { Ready, Inspecting, Executing, Counting, Result };
+  using Phase = InspectionFlow::Phase;
 
   // The optimal solutions for a Plan attempt, worked out off the GUI
   // thread, for the attempt `attempt` of session `session`.
@@ -94,11 +91,6 @@ private:
     SolveStep step = SolveStep::EOCross;
     std::vector<HeldOptimum> neutral; // the neutrality's holds, both axes
     std::optional<int> overall;       // over all 24 holds
-  };
-  // A Plan attempt planned again: which one, and how it went then.
-  struct Retry {
-    std::size_t index = 0;
-    InspectionAttempt original;
   };
   // The optimum of an attempt recorded without one.
   struct Filled {
@@ -112,24 +104,15 @@ private:
   AlgLibrary noSets_; // the feed only gives WCA scrambles
   ScrambleFeed feed_;
   VirtualAttempt attempt_;
-  Phase phase_ = Phase::Ready;
-  std::int64_t started_ = 0; // monotonicMs() when inspection or counting began
-  std::int64_t usedMs_ = 0;  // the inspection time used
-  // monotonicMs() when the time limit hid the cube, so that a Space meant
-  // to hide it isn't taken as done; -1 when Space hid it.
-  std::int64_t autoHiddenAt_ = -1;
-  std::optional<Retry> retry_;
+  // The phase, the time limit, the counts typed and the retry.
+  InspectionFlow flow_;
+  // During a retry (flow_.retry()): how the attempt it repeats went then.
+  InspectionAttempt retryOf_;
   // Result: the moves of the attempt shown (unless DNF), to compare with
   // the optimum, and the rotations done since to look at the cube.
   std::optional<int> shownMoves_;
   Alg lookTurns_;
   QTimer tick_;
-  // Edges: the counts typed so far ([0] F/B, [1] R/L), the axis being
-  // typed, and the axis whose bad edges are ringed in the result.
-  QString entry_;
-  std::array<int, 2> answers_{-1, -1};
-  int axis_ = 0;
-  int ringAxis_ = 0;
   Hold hold_ = kWcaHold; // Edges: the hold the cube is shown in
   std::optional<GeneratedScramble> scramble_; // the one being practised
   QFutureWatcher<Analysis> analysis_;
@@ -139,10 +122,8 @@ private:
   QFutureWatcher<std::vector<Filled>> backfill_;
   std::size_t backfillSession_ = 0;
 
-  QWidget *leftPanel_;
+  SessionPanel *panel_;
   QWidget *optionsRow_;
-  QToolButton *sessionButton_;
-  QMenu *sessionMenu_;
   QComboBox *drillBox_;
   QWidget *stepPicker_;
   QComboBox *stepBox_;
@@ -166,9 +147,7 @@ private:
   QPushButton *reviewButton_;
   QPushButton *retryButton_;
   QPushButton *deleteButton_;
-  QTableWidget *table_;
-  QLabel *stats_;
-  TrendChart *chart_;
+  TrendChart *chart_; // the panel's, laid out beside chartBox_
 
   InspectionSession &session() { return store_.current(); }
   const InspectionSession &session() const {
@@ -178,15 +157,22 @@ private:
   // The pair tracked after EO Cross, if the session has one.
   std::optional<Slot> trackedPair() const;
 
-  void setPhase(Phase p);
+  // Shows the flow's phase: the cube or not, the clock, the controls.
+  void showPhase();
   void showCube(bool shown);
   void showHint();
   // Locks what would change the scramble or session during an attempt.
   void updateControls();
-  // Shows the session's drill options.
+  // Shows the session's drill options (and gives them to the flow).
   void showDrill();
   void showScramble();
+  // The clock while inspecting or counting: the limit may hide the cube.
   void tick();
+  // The display (and while counting the hint) as of now.
+  void showDisplay();
+  // Does what the flow said to after an event; `move` is the key's turn.
+  void apply(const InspectionFlow::Effects &e,
+             std::optional<Move> move = std::nullopt);
 
   // Plan.
   void startInspection();
@@ -199,17 +185,17 @@ private:
   void backfillOptima();
   // Edges.
   void startCounting();
-  void typeDigit(int digit);
-  void enterCount();
   void finishEdges();
   void showRings();
 
-  void turn(Move m);
+  void turn(InspectionFlow::Turn how, Move m);
   // Result: turns the cube as a whole to look at it, marks and all.
   void look(Move m);
-  // Back to Ready with the same scramble, recording nothing.
-  void cancel();
-  void next();
+  // Back to Ready with the same scramble, recording nothing (the flow is
+  // there already).
+  void showCancelled();
+  // Back to Ready for the next scramble (the flow is there already).
+  void showNext();
   void skip();
 
   void refreshSessionMenu();
@@ -218,14 +204,13 @@ private:
   void showPlanStats();
   void showEdgesStats();
   void showChart();
-  void showAttemptMenu(const QPoint &pos);
+  void showAttemptMenu(int index, const QPoint &globalPos);
   void requestReview(int index);
   void deleteAttempt(int index);
   void addSession();
   void renameSession();
   void deleteSession();
   void chooseLimit(int index);
-  void endRetry();
   void save();
 };
 

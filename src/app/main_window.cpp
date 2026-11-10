@@ -3,7 +3,6 @@
 #include "io/backup.hpp"
 #include "io/data_file.hpp"
 
-#include "app/attempt_page.hpp"
 #include "app/blind_page.hpp"
 #include "app/command_palette.hpp"
 #include "app/drill_page.hpp"
@@ -12,6 +11,7 @@
 #include "app/key_router.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
+#include "app/move_count_page.hpp"
 #include "app/platform.hpp"
 #include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
@@ -19,6 +19,7 @@
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
 #include "app/ui_state.hpp"
+#include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
 
 #include <QApplication>
@@ -71,9 +72,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   libraryPage_ = new LibraryPage(settings_, data_.library, stack_);
   timedPage_ = new TimerPage(settings_, data_.sessions, data_.library, stack_);
   untimedPage_ =
-      new AttemptPage(settings_, data_.untimed, data_.library, stack_);
+      new UntimedPage(settings_, data_.untimed, data_.library, stack_);
   moveCountPage_ =
-      new AttemptPage(settings_, data_.moveCounts, data_.library, stack_);
+      new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_);
   inspectionPage_ = new InspectionPage(settings_, data_.dataDir(), stack_);
   blindPage_ = new BlindPage(settings_, data_.dataDir(), stack_);
   todayPage_ =

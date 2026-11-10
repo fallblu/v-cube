@@ -104,6 +104,8 @@ Stored<QString> reviewPairSet();
 
 // --- Timed, Inspection and Blind
 Stored<QStringList> timedHiddenColumns();
+// A session table's hidden columns, under the key its page gives.
+Stored<QStringList> hiddenSessionColumns(const QString &key);
 Stored<int> inspectionChart();
 Stored<int> blindDrill();
 Stored<int> blindQuizPieces();
