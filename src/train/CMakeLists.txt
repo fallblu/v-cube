@@ -1,11 +1,13 @@
 add_library(vcube_train
   alg_follow.cpp
+  attempt_flow.cpp
   algset.cpp
   bld.cpp
   case_logic.cpp
   drill_session.cpp
   families.cpp
   move_count.cpp
+  optimal_cache.cpp
   reduction.cpp
   solve_review.cpp
   stats.cpp
