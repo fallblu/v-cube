@@ -28,6 +28,7 @@ add_library(vcube_gui STATIC
   keymap.cpp
   learn_list.cpp
   learn_page.cpp
+  library_editor.cpp
   library_page.cpp
   paste_dialog.cpp
   main_window.cpp
