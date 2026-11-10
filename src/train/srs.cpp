@@ -12,8 +12,18 @@ std::int64_t daysToSeconds(double days) {
   return static_cast<std::int64_t>(std::llround(days * kSecondsPerDay));
 }
 
-void scheduleReview(SrsCard &card, std::int64_t now, const SrsConfig &config) {
+// Intervals this long or longer are spread out a little.
+constexpr double kFuzzFromDays = 3.0;
+
+void scheduleReview(SrsCard &card, std::int64_t now, const SrsConfig &config,
+                    std::mt19937_64 *rng) {
   card.intervalDays = std::clamp(card.intervalDays, 1.0, config.maximumDays);
+  if (rng && card.intervalDays >= kFuzzFromDays) {
+    double range = std::max(1.0, card.intervalDays * 0.05);
+    std::uniform_real_distribution<double> fuzz(-range, range);
+    card.intervalDays = std::clamp(card.intervalDays + fuzz(*rng), 1.0,
+                                   config.maximumDays);
+  }
   card.due = now + daysToSeconds(card.intervalDays);
 }
 
@@ -26,10 +36,40 @@ std::int64_t stepDelay(const std::vector<std::int64_t> &steps, int step) {
   return steps[i];
 }
 
+// Hard in the learning or relearning steps: on to the next step (never
+// past the last), or the same step again a little later.
+void hardStep(SrsCard &card, const std::vector<std::int64_t> &steps,
+              std::int64_t now, const SrsConfig &config) {
+  if (config.hardAdvancesSteps &&
+      card.step + 1 < static_cast<int>(steps.size())) {
+    ++card.step;
+    card.due = now + stepDelay(steps, card.step);
+  } else {
+    card.due = now + stepDelay(steps, card.step) * 3 / 2;
+  }
+}
+
+std::uint64_t mix(std::uint64_t x) {
+  // splitmix64's finaliser.
+  x += 0x9e3779b97f4a7c15ULL;
+  x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+  return x ^ (x >> 31);
+}
+
+// The same on every platform and run, unlike std::hash.
+std::uint64_t hashId(const std::string &id, std::uint64_t seed) {
+  std::uint64_t h = 1469598103934665603ULL; // FNV-1a
+  for (char ch : id) {
+    h = (h ^ static_cast<std::uint8_t>(ch)) * 1099511628211ULL;
+  }
+  return mix(h ^ mix(seed));
+}
+
 } // namespace
 
 void review(SrsCard &card, Grade grade, std::int64_t now,
-            const SrsConfig &config) {
+            const SrsConfig &config, std::mt19937_64 *rng) {
   ++card.reps;
   if (card.introduced == 0) {
     card.introduced = std::max<std::int64_t>(now, 1);
@@ -49,14 +89,14 @@ void review(SrsCard &card, Grade grade, std::int64_t now,
       card.due = now + stepDelay(steps, 0);
       break;
     case Grade::Hard:
-      card.due = now + stepDelay(steps, card.step) * 3 / 2;
+      hardStep(card, steps, now, config);
       break;
     case Grade::Good:
       ++card.step;
       if (card.step >= static_cast<int>(steps.size())) {
         card.state = CardState::Review;
         card.intervalDays = config.graduatingDays;
-        scheduleReview(card, now, config);
+        scheduleReview(card, now, config, rng);
       } else {
         card.due = now + stepDelay(steps, card.step);
       }
@@ -64,12 +104,16 @@ void review(SrsCard &card, Grade grade, std::int64_t now,
     case Grade::Easy:
       card.state = CardState::Review;
       card.intervalDays = config.easyDays;
-      scheduleReview(card, now, config);
+      scheduleReview(card, now, config, rng);
       break;
     }
     break;
   }
-  case CardState::Review:
+  case CardState::Review: {
+    // Days past the due time, credited in part to a review done late.
+    double late = config.creditLateReviews && now > card.due
+                      ? static_cast<double>(now - card.due) / kSecondsPerDay
+                      : 0.0;
     switch (grade) {
     case Grade::Again:
       ++card.lapses;
@@ -81,24 +125,30 @@ void review(SrsCard &card, Grade grade, std::int64_t now,
       break;
     case Grade::Hard:
       card.ease = std::max(config.minimumEase, card.ease - 0.15);
-      card.intervalDays = std::max(card.intervalDays + 1.0,
-                                   card.intervalDays * config.hardFactor);
-      scheduleReview(card, now, config);
+      card.intervalDays =
+          std::max(card.intervalDays + 1.0,
+                   (card.intervalDays + late / 4) * config.hardFactor);
+      scheduleReview(card, now, config, rng);
       break;
     case Grade::Good:
-      card.intervalDays =
-          std::max(card.intervalDays + 1.0, card.intervalDays * card.ease);
-      scheduleReview(card, now, config);
+      card.intervalDays = std::max(card.intervalDays + 1.0,
+                                   (card.intervalDays + late / 2) * card.ease);
+      if (card.ease < config.startingEase) {
+        card.ease =
+            std::min(config.startingEase, card.ease + config.easeRecovery);
+      }
+      scheduleReview(card, now, config, rng);
       break;
     case Grade::Easy:
       card.ease += 0.15;
       card.intervalDays =
-          std::max(card.intervalDays + 1.0,
-                   card.intervalDays * card.ease * config.easyBonus);
-      scheduleReview(card, now, config);
+          std::max(card.intervalDays + 1.0, (card.intervalDays + late) *
+                                                card.ease * config.easyBonus);
+      scheduleReview(card, now, config, rng);
       break;
     }
     break;
+  }
   case CardState::Relearning: {
     const auto &steps = config.relearningSteps;
     switch (grade) {
@@ -107,13 +157,13 @@ void review(SrsCard &card, Grade grade, std::int64_t now,
       card.due = now + stepDelay(steps, 0);
       break;
     case Grade::Hard:
-      card.due = now + stepDelay(steps, card.step) * 3 / 2;
+      hardStep(card, steps, now, config);
       break;
     case Grade::Good:
       ++card.step;
       if (card.step >= static_cast<int>(steps.size())) {
         card.state = CardState::Review;
-        scheduleReview(card, now, config);
+        scheduleReview(card, now, config, rng);
       } else {
         card.due = now + stepDelay(steps, card.step);
       }
@@ -121,12 +171,29 @@ void review(SrsCard &card, Grade grade, std::int64_t now,
     case Grade::Easy:
       card.state = CardState::Review;
       card.intervalDays += 1.0;
-      scheduleReview(card, now, config);
+      scheduleReview(card, now, config, rng);
       break;
     }
     break;
   }
   }
+}
+
+std::int64_t nextInterval(const SrsCard &card, Grade grade, std::int64_t now,
+                          const SrsConfig &config) {
+  SrsCard c = card;
+  review(c, grade, now, config);
+  return c.due - now;
+}
+
+void introduce(SrsCard &card, std::int64_t now, const SrsConfig &config) {
+  if (card.introduced == 0) {
+    card.introduced = std::max<std::int64_t>(now, 1);
+  }
+  card.state = CardState::Learning;
+  card.step = 0;
+  card.ease = config.startingEase;
+  card.due = now + stepDelay(config.learningSteps, 0);
 }
 
 bool isDue(const SrsCard &card, std::int64_t now, const SrsConfig &config,
@@ -161,10 +228,24 @@ void markLearned(SrsCard &card, std::int64_t now, const SrsConfig &config) {
     card.ease = config.startingEase;
   }
   card.intervalDays = std::max(card.intervalDays, config.easyDays);
-  scheduleReview(card, now, config);
+  scheduleReview(card, now, config, nullptr);
 }
 
 void resetCard(SrsCard &card) { card = SrsCard{}; }
+
+void bury(SrsCard &card, std::int64_t until) { card.buriedUntil = until; }
+
+bool isBuried(const SrsCard &card, std::int64_t now) {
+  return card.buriedUntil > now;
+}
+
+bool isHeld(const SrsCard &card, std::int64_t now) {
+  return card.suspended || isBuried(card, now);
+}
+
+bool isLeech(const SrsCard &card, const SrsConfig &config) {
+  return config.leechLapses > 0 && card.lapses >= config.leechLapses;
+}
 
 void resetLearning(CaseProgress &progress) {
   resetCard(progress.card);
@@ -238,6 +319,21 @@ std::size_t CaseProgress::drillCount(AttemptMode mode) const {
                     [mode](const Attempt &a) { return a.mode == mode; }));
 }
 
+std::optional<double> CaseProgress::recognitionMean(std::size_t n) const {
+  double sum = 0;
+  std::size_t count = 0;
+  for (auto it = attempts.rbegin(); it != attempts.rend() && count < n; ++it) {
+    if (it->recognitionMs > 0) {
+      sum += static_cast<double>(it->recognitionMs);
+      ++count;
+    }
+  }
+  if (count == 0) {
+    return std::nullopt;
+  }
+  return sum / static_cast<double>(count);
+}
+
 CaseStatus statusOf(const CaseProgress *p) {
   if (!p) {
     return CaseStatus::Unstarted;
@@ -267,14 +363,109 @@ int newCasesIntroducedSince(const SetProgress &progress,
 }
 
 bool isQueued(const SrsCard &card) {
-  return card.state == CardState::Learning && card.reps == 0;
+  return card.state == CardState::Learning && card.reps == 0 &&
+         card.introduced == 0;
+}
+
+int learningCount(const std::vector<std::string> &pool,
+                  const SetProgress &progress) {
+  int n = 0;
+  for (const auto &id : pool) {
+    auto it = progress.find(id);
+    if (it != progress.end() &&
+        it->second.card.state == CardState::Learning &&
+        !isQueued(it->second.card) && !it->second.card.suspended) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+std::vector<std::string> orderNewCases(const std::vector<NewCase> &cases,
+                                       NewOrder order, std::uint64_t seed) {
+  std::vector<const NewCase *> sorted;
+  for (const auto &c : cases) {
+    sorted.push_back(&c);
+  }
+  auto by = [&sorted](auto &&key) {
+    std::stable_sort(sorted.begin(), sorted.end(),
+                     [&key](const NewCase *a, const NewCase *b) {
+                       return key(*a) < key(*b);
+                     });
+  };
+  switch (order) {
+  case NewOrder::ListOrder:
+    break;
+  case NewOrder::Queued:
+    by([](const NewCase &c) { return c.queued; });
+    break;
+  case NewOrder::Shuffled:
+    by([seed](const NewCase &c) { return hashId(c.id, seed); });
+    break;
+  case NewOrder::ShortestAlg:
+    by([](const NewCase &c) { return c.algMoves; });
+    break;
+  case NewOrder::FewestSteps:
+    by([](const NewCase &c) { return c.stepsLeft; });
+    break;
+  case NewOrder::RoundRobin: {
+    // Groups in the order they first come, one case of each in turn.
+    std::vector<std::string> groups;
+    std::vector<std::vector<const NewCase *>> members;
+    for (const NewCase *c : sorted) {
+      auto g = std::find(groups.begin(), groups.end(), c->group);
+      if (g == groups.end()) {
+        groups.push_back(c->group);
+        members.emplace_back();
+        g = groups.end() - 1;
+      }
+      members[static_cast<std::size_t>(g - groups.begin())].push_back(c);
+    }
+    sorted.clear();
+    for (std::size_t round = 0; sorted.size() < cases.size(); ++round) {
+      for (const auto &m : members) {
+        if (round < m.size()) {
+          sorted.push_back(m[round]);
+        }
+      }
+    }
+    break;
+  }
+  }
+  std::vector<std::string> out;
+  out.reserve(sorted.size());
+  for (const NewCase *c : sorted) {
+    out.push_back(c->id);
+  }
+  return out;
+}
+
+bool isDueNow(const SrsCard &card, std::int64_t now, std::int64_t dayStart,
+              const SrsConfig &config) {
+  if (card.state == CardState::New || isQueued(card) || isHeld(card, now)) {
+    return false;
+  }
+  if (card.state == CardState::Review) {
+    return isDue(card, now, config, dayStart + kSecondsPerDay);
+  }
+  return card.due <= now + config.learnAheadSeconds;
 }
 
 LearnPick pickLearnCase(const std::vector<std::string> &pool,
                         const SetProgress &progress, std::int64_t now,
                         std::int64_t dayStart, const SrsConfig &config,
                         const std::string &last) {
+  LearnPickOptions options;
+  options.last = last;
+  return pickLearnCase(pool, progress, now, dayStart, config, options);
+}
+
+LearnPick pickLearnCase(const std::vector<std::string> &pool,
+                        const SetProgress &progress, std::int64_t now,
+                        std::int64_t dayStart, const SrsConfig &config,
+                        const LearnPickOptions &options) {
   LearnPick r;
+  const std::string &last = options.last;
   auto find = [&progress](const std::string &id) -> const CaseProgress * {
     auto it = progress.find(id);
     return it == progress.end() ? nullptr : &it->second;
@@ -298,47 +489,141 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
     }
     return best;
   };
-  auto inReview = [](const SrsCard &c) { return c.state == CardState::Review; };
-  auto inSteps = [](const SrsCard &c) {
+  // Any card of one kind due by `limit`, at random, avoiding `last` if
+  // another one is due.
+  auto anyDue = [&](auto &&wanted, std::int64_t limit) -> const std::string * {
+    if (!options.rng) {
+      return earliest(wanted, limit);
+    }
+    std::vector<const std::string *> due;
+    bool lastDue = false;
+    for (const auto &id : pool) {
+      const auto *p = find(id);
+      if (!p || !wanted(p->card) || p->card.due > limit) {
+        continue;
+      }
+      if (id == last) {
+        lastDue = true;
+      } else {
+        due.push_back(&id);
+      }
+    }
+    if (due.empty()) {
+      return lastDue ? &last : nullptr;
+    }
+    std::uniform_int_distribution<std::size_t> pick(0, due.size() - 1);
+    return due[pick(*options.rng)];
+  };
+  auto inReview = [now](const SrsCard &c) {
+    return c.state == CardState::Review && !isHeld(c, now);
+  };
+  auto inSteps = [now](const SrsCard &c) {
     return (c.state == CardState::Learning ||
             c.state == CardState::Relearning) &&
-           !isQueued(c);
+           !isQueued(c) && !isHeld(c, now);
   };
   const std::int64_t dayEnd = dayStart + kSecondsPerDay;
   std::vector<std::string> queued;
   for (const auto &id : pool) {
     const auto *p = find(id);
-    if (!p || p->card.state == CardState::New) {
+    if (!p || p->card.state == CardState::New || isHeld(p->card, now)) {
       continue;
     }
     if (isQueued(p->card)) {
       queued.push_back(id);
-    } else if (!isDue(p->card, now, config, dayEnd) &&
+    } else if (options.reviews && !isDue(p->card, now, config, dayEnd) &&
                (!r.nextDue || p->card.due < *r.nextDue)) {
       r.nextDue = p->card.due;
     }
   }
   r.queued = static_cast<int>(queued.size());
-  bool canIntroduce =
+  bool underDaily =
       newCasesIntroducedSince(progress, dayStart) < config.newPerDay;
+  bool underLearning = config.maxLearning <= 0 ||
+                       learningCount(pool, progress) < config.maxLearning;
+  bool canIntroduce = options.newCases && underDaily && underLearning;
 
-  if (const auto *id = earliest(inSteps, now)) {
+  const std::string *id = nullptr;
+  if (options.reviews && (id = earliest(inSteps, now))) {
     r.caseId = *id;
-  } else if (const auto *id2 = earliest(inReview, std::max(now, dayEnd - 1))) {
-    r.caseId = *id2;
+  } else if (options.reviews &&
+             (id = anyDue(inReview, std::max(now, dayEnd - 1)))) {
+    r.caseId = *id;
   } else if (!queued.empty() && canIntroduce) {
     r.caseId = queued.front();
     r.isNew = true;
-  } else if (const auto *id3 =
-                 earliest(inSteps, now + config.learnAheadSeconds)) {
+  } else if (options.reviews &&
+             (id = earliest(inSteps,
+                            options.early
+                                ? std::numeric_limits<std::int64_t>::max()
+                                : now + config.learnAheadSeconds))) {
     // Nothing else to do: learning cards due soon come up early.
-    r.caseId = *id3;
+    r.caseId = *id;
   }
-  r.newLimitReached = !r.caseId && !queued.empty() && !canIntroduce;
+  if (!r.caseId && !queued.empty() && options.newCases) {
+    r.newLimitReached = !underDaily;
+    r.learningLimitReached = underDaily && !underLearning;
+  }
   if (r.caseId) {
     r.nextDue.reset();
   }
   return r;
+}
+
+LearnCounts learnCounts(const std::vector<std::string> &pool,
+                        const SetProgress &progress, std::int64_t now,
+                        std::int64_t dayStart, const SrsConfig &config) {
+  LearnCounts n;
+  const std::int64_t dayEnd = dayStart + kSecondsPerDay;
+  for (const auto &id : pool) {
+    auto it = progress.find(id);
+    if (it == progress.end()) {
+      continue;
+    }
+    const CaseProgress &p = it->second;
+    for (const Attempt &a : p.attempts) {
+      if (a.mode == AttemptMode::Learn && a.timestamp >= dayStart) {
+        ++n.doneToday;
+        n.againToday += a.failed ? 1 : 0;
+      }
+    }
+    const SrsCard &c = p.card;
+    if (c.state == CardState::New) {
+      continue;
+    }
+    if (isQueued(c)) {
+      ++n.queued;
+      continue;
+    }
+    if (isHeld(c, now)) {
+      ++n.held;
+    }
+    if (c.state == CardState::Review) {
+      ++n.learned;
+      if (!c.suspended && c.due >= dayEnd && c.due < dayEnd + kSecondsPerDay) {
+        ++n.dueTomorrow;
+      }
+    } else {
+      ++n.learning;
+    }
+    n.due += isDueNow(c, now, dayStart, config) ? 1 : 0;
+  }
+  return n;
+}
+
+std::optional<std::size_t> pickSetToReview(const std::vector<SetDue> &sets,
+                                           std::mt19937_64 &rng) {
+  std::vector<double> weights;
+  bool any = false;
+  for (const SetDue &s : sets) {
+    weights.push_back(std::max(0, s.due));
+    any = any || s.due > 0;
+  }
+  if (!any) {
+    return std::nullopt;
+  }
+  std::discrete_distribution<std::size_t> pick(weights.begin(), weights.end());
+  return pick(rng);
 }
 
 void CasePicker::setMode(PickMode m) {
