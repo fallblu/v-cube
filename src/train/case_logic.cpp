@@ -369,7 +369,7 @@ AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
     r.empty = true;
     return r;
   }
-  r.moves = moveCount(parsed.alg);
+  r.moves = htmCount(parsed.alg);
   r.fit = fitAlg(state, parsed.alg, free, aufBefore, aufAfter);
   if (r.fit) {
     return r;

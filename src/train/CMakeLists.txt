@@ -5,6 +5,7 @@ add_library(vcube_train
   bld.cpp
   blind_flow.cpp
   case_logic.cpp
+  case_picker.cpp
   drill_session.cpp
   inspection_flow.cpp
   families.cpp

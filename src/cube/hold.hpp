@@ -56,6 +56,10 @@ CubieCube solverState(const CubieCube &scrambled, Hold h);
 // stickers carry the colour they had in the WCA hold). nullopt if the
 // centres aren't a real cube's.
 std::optional<Hold> holdOf(const FaceletCube &cube);
+// A facelet cube as the solver sees it held as it is: each sticker renamed
+// for the face whose centre has its colour. nullopt if the stickers aren't
+// a real cube's.
+std::optional<CubieCube> heldAsIs(const FaceletCube &cube);
 // A facelet cube in any orientation (e.g. after rotations done while
 // solving), turned so that it is held as `h` and seen by the solver: each
 // sticker is renamed for the face whose centre has its colour then.

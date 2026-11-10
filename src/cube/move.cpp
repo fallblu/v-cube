@@ -530,7 +530,7 @@ Alg simplify(const Alg &alg) {
   return out;
 }
 
-int moveCount(const Alg &alg) {
+int htmCount(const Alg &alg) {
   int n = 0;
   for (Move m : alg) {
     if (m.type == MoveType::M || m.type == MoveType::E ||

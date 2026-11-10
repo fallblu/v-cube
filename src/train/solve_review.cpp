@@ -21,14 +21,6 @@ namespace {
 constexpr std::array<Slot, kSlots> kAllSlots = {Slot::FR, Slot::FL, Slot::BL,
                                                 Slot::BR};
 
-bool edgeSolved(const CubieCube &c, Edge e) {
-  return c.ep[e] == e && c.eo[e] == 0;
-}
-
-bool cornerSolved(const CubieCube &c, Corner k) {
-  return c.cp[k] == k && c.co[k] == 0;
-}
-
 // Where a piece is: its position and orientation there.
 struct Place {
   int position = -1;
@@ -342,11 +334,7 @@ bool slotSolved(const CubieCube &c, Slot s) {
 }
 
 bool eoCrossSolved(const CubieCube &c) {
-  if (std::any_of(c.eo.begin(), c.eo.end(), [](auto o) { return o != 0; })) {
-    return false;
-  }
-  return edgeSolved(c, DF) && edgeSolved(c, DR) && edgeSolved(c, DB) &&
-         edgeSolved(c, DL);
+  return stepDoneAsHeld(c, SolveStep::EOCross);
 }
 
 std::vector<PairOption> pairOptions(const CubieCube &state,
@@ -390,10 +378,8 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
   FaceletCube f = start;
   std::size_t k = 0;
   SolveStep crossStep = eo ? SolveStep::EOCross : SolveStep::Cross;
-  auto crossDone = [eo](const CubieCube &c) {
-    return eo ? eoCrossSolved(c)
-              : edgeSolved(c, DF) && edgeSolved(c, DR) && edgeSolved(c, DB) &&
-                    edgeSolved(c, DL);
+  auto crossDone = [crossStep](const CubieCube &c) {
+    return stepDoneAsHeld(c, crossStep);
   };
   for (;; ++k) {
     std::vector<Hold> holds = stepReachedHolds(f, crossStep);

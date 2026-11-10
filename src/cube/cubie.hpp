@@ -63,6 +63,14 @@ struct CubieCube {
   static CubieCube fromRealFacelets(const FaceletCube &f);
 };
 
+// Whether the piece of a position is home and not flipped or twisted.
+inline bool edgeSolved(const CubieCube &c, Edge e) {
+  return c.ep[e] == e && c.eo[e] == 0;
+}
+inline bool cornerSolved(const CubieCube &c, Corner k) {
+  return c.cp[k] == k && c.co[k] == 0;
+}
+
 // Cubie cube of one face quarter turn.
 const CubieCube &faceTurnCubie(Face f);
 

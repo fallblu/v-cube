@@ -225,7 +225,7 @@ void SetupDrill::apply(const SetupFlow::Effects &e) {
   if (e.answer) {
     std::optional<Alg> scheme = ctx_.scheme.setup(it->kind, it->sticker);
     Alg done = simplify(flow_.moves());
-    int moves = moveCount(done);
+    int moves = htmCount(done);
     finishItem(
         *e.answer,
         tr("Set up in %1: %2. The setup in your scheme: %3")
