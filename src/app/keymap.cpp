@@ -1,5 +1,6 @@
 #include "app/keymap.hpp"
 
+#include <QCoreApplication>
 #include <QKeySequence>
 
 #include <string>
@@ -91,13 +92,50 @@ Keymap Keymap::fromStrings(const QStringList &lines) {
     }
     auto key = parseKeyText(line.left(eq));
     Alg a = parseAlgOrEmpty(line.mid(eq + 1).toStdString());
-    if (key && a.size() == 1) {
+    if (key && a.size() == 1 && reservedReason(key->first).isEmpty()) {
       // A key turns its layer once, so R3 is bound as R'.
       k.bindings.push_back(
           {key->first, key->second, {a.front().type, a.front().amount}});
     }
   }
   return k;
+}
+
+QString Keymap::reservedReason(int key) {
+  switch (key) {
+  case Qt::Key_Space:
+  case Qt::Key_Escape:
+  case Qt::Key_Backspace:
+  case Qt::Key_Tab:
+  case Qt::Key_Backtab:
+  case Qt::Key_Return:
+  case Qt::Key_Enter:
+    return QCoreApplication::translate(
+        "vcube::Keymap",
+        "Space, Esc, Backspace, Tab and Enter are the modes' own controls.");
+  case Qt::Key_Left:
+  case Qt::Key_Right:
+  case Qt::Key_Up:
+  case Qt::Key_Down:
+  case Qt::Key_Home:
+  case Qt::Key_End:
+    return QCoreApplication::translate(
+        "vcube::Keymap", "The arrow keys, Home and End step through "
+                         "walkthroughs, replays and scrambles.");
+  default:
+    break;
+  }
+  if (key >= Qt::Key_0 && key <= Qt::Key_9) {
+    return QCoreApplication::translate(
+        "vcube::Keymap", "The digits grade cases in Learn and type counts in "
+                         "Move Count and Inspection.");
+  }
+  if (key >= Qt::Key_F1 && key <= Qt::Key_F35) {
+    return QCoreApplication::translate(
+        "vcube::Keymap", "The function keys are window shortcuts (F1 help, "
+                         "F10 focus mode, F11 full screen).");
+  }
+  return {};
 }
 
 } // namespace vcube

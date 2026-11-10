@@ -105,6 +105,9 @@ private:
   void showControls();
   void showAbout();
   void showMessage(const QString &text);
+  // Applies the settings that belong to the window as a whole: the theme's
+  // sidebar colours, text sizes and inspection sounds.
+  void applyWindowSettings();
 };
 
 } // namespace vcube

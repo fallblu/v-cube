@@ -7,8 +7,8 @@
 #include <QPalette>
 #include <QRegularExpression>
 #include <QSettings>
-#include <QStyle>
 #include <QStyleFactory>
+#include <QStyleHints>
 
 #include <algorithm>
 
@@ -78,7 +78,19 @@ AppSettings AppSettings::load() {
   AppSettings s;
   QSettings q;
   s.darkTheme = q.value("ui/darkTheme", s.darkTheme).toBool();
-  s.animationMs = q.value("ui/animationMs", s.animationMs).toInt();
+  auto clamped = [&q](const char *key, int fallback, int lo, int hi) {
+    bool ok = false;
+    int v = q.value(key, fallback).toInt(&ok);
+    return std::clamp(ok ? v : fallback, lo, hi);
+  };
+  s.animationMs =
+      clamped("ui/animationMs", s.animationMs, 0, AppSettings::kMaxAnimationMs);
+  s.scrambleFontPt = clamped("ui/scrambleFontPt", s.scrambleFontPt,
+                             kMinScrambleFontPt, kMaxScrambleFontPt);
+  s.hintTextPercent = clamped("ui/hintTextPercent", s.hintTextPercent,
+                              kMinHintPercent, kMaxHintPercent);
+  s.thumbnailSize = clamped("ui/thumbnailSize", s.thumbnailSize, kMinThumbnail,
+                            kMaxThumbnail);
   QStringList colours = q.value("ui/colours").toStringList();
   if (colours.size() == 6) {
     for (std::size_t i = 0; i < 6; ++i) {
@@ -95,10 +107,14 @@ AppSettings AppSettings::load() {
     }
   }
   s.neutrality = loadNeutrality(q);
-  s.holdMs = q.value("timer/holdMs", s.holdMs).toInt();
+  s.holdMs = clamped("timer/holdMs", s.holdMs, 0, kMaxHoldMs);
   s.inspection = q.value("timer/inspection", s.inspection).toBool();
-  s.decimals = std::clamp(q.value("timer/decimals", s.decimals).toInt(), 1, 3);
-  s.srs.newPerDay = q.value("srs/newPerDay", s.srs.newPerDay).toInt();
+  s.inspectionSounds =
+      q.value("timer/inspectionSounds", s.inspectionSounds).toBool();
+  s.decimals = clamped("timer/decimals", s.decimals, 1, 3);
+  s.timerFontPt =
+      clamped("timer/fontPt", s.timerFontPt, kMinTimerFontPt, kMaxTimerFontPt);
+  s.srs.newPerDay = clamped("srs/newPerDay", s.srs.newPerDay, 0, 100);
   if (q.contains("srs/learningSteps")) {
     auto steps = stepsFromText(q.value("srs/learningSteps").toString());
     if (!steps.empty()) {
@@ -118,6 +134,9 @@ void AppSettings::save() const {
   QSettings q;
   q.setValue("ui/darkTheme", darkTheme);
   q.setValue("ui/animationMs", animationMs);
+  q.setValue("ui/scrambleFontPt", scrambleFontPt);
+  q.setValue("ui/hintTextPercent", hintTextPercent);
+  q.setValue("ui/thumbnailSize", thumbnailSize);
   QStringList colours;
   for (const auto &c : scheme.faces) {
     colours << c.name();
@@ -132,7 +151,9 @@ void AppSettings::save() const {
   q.setValue("neutrality/holds", holds);
   q.setValue("timer/holdMs", holdMs);
   q.setValue("timer/inspection", inspection);
+  q.setValue("timer/inspectionSounds", inspectionSounds);
   q.setValue("timer/decimals", decimals);
+  q.setValue("timer/fontPt", timerFontPt);
   q.setValue("srs/newPerDay", srs.newPerDay);
   q.setValue("srs/learningSteps", stepsToText(srs.learningSteps));
   q.setValue("srs/relearningSteps", stepsToText(srs.relearningSteps));
@@ -140,11 +161,44 @@ void AppSettings::save() const {
 
 void applyTheme(QApplication &app, bool dark) {
   app.setStyle(QStyleFactory::create("Fusion"));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+  // Title bars and native dialogs follow the theme too.
+  QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark
+                                                     : Qt::ColorScheme::Light);
+#endif
+  QPalette p;
   if (!dark) {
-    app.setPalette(app.style()->standardPalette());
+    // Fusion's standard palette follows a dark desktop since Qt 6.5, so
+    // the light one is spelled out.
+    QColor window(0xef, 0xef, 0xf1);
+    QColor text(0x1c, 0x1d, 0x21);
+    QColor accent(0x1f, 0x6f, 0xd6);
+    p.setColor(QPalette::Window, window);
+    p.setColor(QPalette::WindowText, text);
+    p.setColor(QPalette::Base, Qt::white);
+    p.setColor(QPalette::AlternateBase, QColor(0xf5, 0xf5, 0xf7));
+    p.setColor(QPalette::ToolTipBase, QColor(0xff, 0xff, 0xe8));
+    p.setColor(QPalette::ToolTipText, text);
+    p.setColor(QPalette::PlaceholderText, QColor(0x6b, 0x6c, 0x72));
+    p.setColor(QPalette::Text, text);
+    p.setColor(QPalette::Button, QColor(0xe4, 0xe4, 0xe8));
+    p.setColor(QPalette::ButtonText, text);
+    p.setColor(QPalette::BrightText, Qt::white);
+    p.setColor(QPalette::Highlight, accent);
+    p.setColor(QPalette::HighlightedText, Qt::white);
+    p.setColor(QPalette::Link, accent);
+    p.setColor(QPalette::Light, Qt::white);
+    p.setColor(QPalette::Midlight, QColor(0xe0, 0xe0, 0xe4));
+    p.setColor(QPalette::Mid, QColor(0xb8, 0xb8, 0xbe));
+    p.setColor(QPalette::Dark, QColor(0x9a, 0x9a, 0xa0));
+    p.setColor(QPalette::Shadow, QColor(0x50, 0x50, 0x55));
+    for (auto role :
+         {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
+      p.setColor(QPalette::Disabled, role, QColor(0x9a, 0x9b, 0xa0));
+    }
+    app.setPalette(p);
     return;
   }
-  QPalette p;
   QColor window(0x26, 0x27, 0x2b);
   QColor base(0x1c, 0x1d, 0x21);
   QColor text(0xe6, 0xe6, 0xe8);

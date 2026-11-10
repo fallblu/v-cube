@@ -1,7 +1,10 @@
 #include "app/widgets.hpp"
 
+#include "app/colours.hpp"
+
 #include "cube/solver.hpp"
 
+#include <QApplication>
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QPainter>
@@ -34,15 +37,54 @@ std::int64_t localDayEnd() {
   return QDateTime(now.date().addDays(1), QTime(0, 0)).toSecsSinceEpoch();
 }
 
+namespace {
+
+int gScrambleFontPt = 17;
+int gTimerFontPt = 54;
+std::function<void(int)> gInspectionCall;
+const char *const kScrambleLabel = "vcubeScrambleLabel";
+
+void setPointSize(QWidget *w, int pt) {
+  QFont f = w->font();
+  f.setPointSize(pt);
+  w->setFont(f);
+}
+
+} // namespace
+
+void markScrambleLabel(QLabel *label) {
+  label->setProperty(kScrambleLabel, true);
+  setPointSize(label, gScrambleFontPt);
+}
+
+void setDisplayFontSizes(int scramblePt, int timerPt) {
+  gScrambleFontPt = scramblePt;
+  gTimerFontPt = timerPt;
+  for (QWidget *w : QApplication::allWidgets()) {
+    if (w->property(kScrambleLabel).toBool()) {
+      setPointSize(w, scramblePt);
+    } else if (auto *display = qobject_cast<TimeDisplay *>(w)) {
+      setPointSize(display, timerPt);
+      display->setMinimumHeight(QFontMetrics(display->font()).height());
+    }
+  }
+}
+
+void setInspectionCallHandler(std::function<void(int seconds)> call) {
+  gInspectionCall = std::move(call);
+}
+
 TimeDisplay::TimeDisplay(QWidget *parent) : QLabel(parent) {
   setAlignment(Qt::AlignCenter);
   QFont f = font();
-  f.setPointSize(54);
+  f.setPointSize(gTimerFontPt);
   f.setBold(true);
-  f.setFamilies({"DejaVu Sans Mono", "Noto Sans Mono", "Monospace"});
+  // The first of these that is installed: Linux, Windows, then macOS.
+  f.setFamilies({"DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono",
+                 "Cascadia Mono", "Consolas", "Menlo", "Courier New"});
   f.setStyleHint(QFont::Monospace);
   setFont(f);
-  setMinimumHeight(90);
+  setMinimumHeight(QFontMetrics(f).height());
   showTime(0);
 }
 
@@ -88,6 +130,17 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
       inspectText = "DNF";
     }
   }
+  if (inspection) {
+    for (int call : {8, 12}) {
+      std::int64_t at = call * 1000;
+      if (*inspection >= at && lastInspection_ < at && gInspectionCall) {
+        gInspectionCall(call);
+      }
+    }
+    lastInspection_ = *inspection;
+  } else {
+    lastInspection_ = -1;
+  }
   bool holding = timer.state() == S::Holding || timer.state() == S::Ready;
   if (holding && !beforeHold_) {
     beforeHold_ = Shown{text(), colour_};
@@ -103,8 +156,8 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
     break;
   case S::Inspecting: {
     std::int64_t t = *inspection;
-    QColor c = t >= 12000  ? QColor(0xff, 0x55, 0x55)
-               : t >= 8000 ? QColor(0xff, 0xb0, 0x30)
+    QColor c = t >= 12000  ? statusColour(Status::Bad)
+               : t >= 8000 ? statusColour(Status::Warning)
                            : QColor();
     showText(inspectText, c);
     break;
@@ -112,12 +165,12 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
   case S::Holding:
     show(inspection ? inspectText
                     : QString::fromStdString(formatTime(0, decimals_)),
-         QColor(0xff, 0x55, 0x55));
+         statusColour(Status::Bad));
     break;
   case S::Ready:
     show(inspection ? inspectText
                     : QString::fromStdString(formatTime(0, decimals_)),
-         QColor(0x3d, 0xd6, 0x6b));
+         statusColour(Status::Good));
     break;
   case S::Running: {
     // One decimal while running keeps the display calm, like cstimer.

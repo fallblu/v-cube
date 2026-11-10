@@ -67,8 +67,8 @@ int FlowLayout::spacingOr(int fallback) const {
     return spacing();
   }
   if (QWidget *w = parentWidget()) {
-    int s = w->style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing,
-                                    nullptr, w);
+    int s =
+        w->style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing, nullptr, w);
     if (s >= 0) {
       return s;
     }
@@ -171,7 +171,8 @@ int FlowLayout::doLayout(const QRect &rect, bool apply) const {
           continue;
         }
         int extra = left * s / stretchTotal;
-        int grown = std::min(w + extra, entries_[i].item->maximumSize().width());
+        int grown =
+            std::min(w + extra, entries_[i].item->maximumSize().width());
         w = grown;
       }
     } else if (left < 0) {

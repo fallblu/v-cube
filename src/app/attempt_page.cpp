@@ -160,6 +160,7 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   QFont sf = scrambleLabel_->font();
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
+  markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(60);
   net_ = new NetPreview(right);
   scrambleRow->addWidget(scrambleLabel_, 1);
@@ -706,8 +707,8 @@ void AttemptPage::showHold() {
     showEntry();
     return;
   }
-  QColor colour = hold_ == Hold::Ready ? QColor(0x3d, 0xd6, 0x6b)
-                                       : QColor(0xff, 0x55, 0x55);
+  QColor colour = hold_ == Hold::Ready ? statusColour(Status::Good)
+                                       : statusColour(Status::Bad);
   hintLabel_->setStyleSheet(QString("color: %1").arg(colour.name()));
   hintLabel_->setText(hold_ == Hold::Ready ? tr("Release Space to start")
                                            : tr("Keep holding Space…"));

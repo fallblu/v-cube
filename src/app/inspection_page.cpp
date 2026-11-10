@@ -76,9 +76,9 @@ QString axisColours(Hold h, int axis) {
 
 const char *axisName(int axis) { return axis == 0 ? "F/B" : "R/L"; }
 
-const QColor kGood(0x3d, 0xd6, 0x6b);
-const QColor kBad(0xff, 0x55, 0x55);
-const QColor kCall(0xff, 0xb0, 0x30);
+const StatusColour kGood{Status::Good};
+const StatusColour kBad{Status::Bad};
+const StatusColour kCall{Status::Warning};
 // Ring colours for the bad edges of the two axes.
 const QColor kRing[2] = {QColor(0xff, 0x2d, 0xd4), QColor(0x2d, 0xd4, 0xff)};
 
@@ -202,6 +202,7 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   QFont sf = scrambleLabel_->font();
   sf.setPointSize(sf.pointSize() + 3);
   scrambleLabel_->setFont(sf);
+  markScrambleLabel(scrambleLabel_);
   rightLayout->addWidget(scrambleLabel_);
 
   cubeStack_ = new QStackedWidget(right);

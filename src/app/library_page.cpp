@@ -38,8 +38,8 @@ namespace {
 constexpr int kCaseRole = Qt::UserRole;
 constexpr int kGroupRole = Qt::UserRole + 1;
 
-const QColor kPass(0x3d, 0xd6, 0x6b);
-const QColor kWarn(0xff, 0xb0, 0x30);
+const StatusColour kPass{Status::Good};
+const StatusColour kWarn{Status::Warning};
 const QColor kFail(0xe6, 0x66, 0x66);
 
 QString reportText(const ImportReport &r) {

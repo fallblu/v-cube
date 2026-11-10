@@ -250,9 +250,9 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
       }
     }
   }
-  double scale = std::min(area.width() / (right - left),
-                          area.height() / (bottom - top)) *
-                 0.95;
+  double scale =
+      std::min(area.width() / (right - left), area.height() / (bottom - top)) *
+      0.95;
   QPointF centre = area.center() - QPointF((left + right) / 2.0 * scale,
                                            (top + bottom) / 2.0 * scale);
   QVector3D eye(0, 0, static_cast<float>(kEyeDistance));

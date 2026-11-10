@@ -22,6 +22,7 @@ add_library(vcube_gui STATIC
   scramble_source.cpp
   set_properties_dialog.cpp
   settings_dialog.cpp
+  sounds.cpp
   timer_page.cpp
   widgets.cpp
 )
@@ -30,6 +31,13 @@ target_link_libraries(vcube_gui
   PUBLIC vcube_io Qt6::Widgets Qt6::Concurrent
   PRIVATE vcube_warnings)
 set_target_properties(vcube_gui PROPERTIES AUTOMOC ON)
+# The inspection calls play a sound with Qt Multimedia when it is installed,
+# else the system beep.
+find_package(Qt6 QUIET COMPONENTS Multimedia)
+if(Qt6Multimedia_FOUND)
+  target_link_libraries(vcube_gui PRIVATE Qt6::Multimedia)
+  target_compile_definitions(vcube_gui PRIVATE VCUBE_HAVE_MULTIMEDIA)
+endif()
 
 qt_add_executable(vcube main.cpp)
 qt_add_resources(vcube resources

@@ -11,7 +11,9 @@
 #include "app/platform.hpp"
 #include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
+#include "app/sounds.hpp"
 #include "app/timer_page.hpp"
+#include "app/widgets.hpp"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
@@ -225,6 +227,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     mode = tab >= 0 && tab < 3 ? fromTab[static_cast<std::size_t>(tab)] : Learn;
   }
   removeObsoleteSettings(q);
+  applyWindowSettings();
   setMode(mode);
 }
 
@@ -232,9 +235,7 @@ QWidget *MainWindow::buildSidebar() {
   auto *bar = new QWidget(this);
   bar->setObjectName("modeSidebar");
   bar->setAutoFillBackground(true);
-  QPalette pal = bar->palette();
-  pal.setColor(QPalette::Window, palette().color(QPalette::Base));
-  bar->setPalette(pal);
+  bar->setBackgroundRole(QPalette::Base); // follows the theme
   bar->setFocusPolicy(Qt::NoFocus);
   bar->setStyleSheet(
       "QToolButton { text-align: left; padding: 6px 18px 6px 14px; border: "
@@ -539,8 +540,39 @@ void MainWindow::openSettings(bool neutrality) {
   if (themeChanged) {
     applyTheme(*qApp, settings_.darkTheme);
   }
+  applyWindowSettings();
   for (ModePage *page : pages_) {
     page->applySettings();
+  }
+}
+
+void MainWindow::applyWindowSettings() {
+  setDisplayFontSizes(settings_.scrambleFontPt, settings_.timerFontPt);
+  // The hints under the timer and cube (muted, wrapped labels) and the
+  // status bar, which are otherwise small in a large window.
+  double scale = settings_.hintTextPercent / 100.0;
+  QFont base = QApplication::font();
+  QFont hint = base;
+  hint.setPointSizeF(base.pointSizeF() * scale);
+  for (ModePage *page : pages_) {
+    for (QLabel *label : page->findChildren<QLabel *>()) {
+      // Labels given a font of their own keep it.
+      bool isHint = label->property("vcubeHint").toBool() ||
+                    (label->wordWrap() &&
+                     label->foregroundRole() == QPalette::PlaceholderText &&
+                     !label->testAttribute(Qt::WA_SetFont));
+      if (isHint) {
+        label->setProperty("vcubeHint", true);
+        label->setFont(hint);
+      }
+    }
+  }
+  statusBar()->setFont(hint);
+  if (settings_.inspectionSounds) {
+    prepareSounds();
+    setInspectionCallHandler([](int seconds) { playInspectionCall(seconds); });
+  } else {
+    setInspectionCallHandler({});
   }
 }
 

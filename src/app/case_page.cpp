@@ -28,7 +28,6 @@ namespace vcube {
 namespace {
 
 constexpr int kCaseIdRole = Qt::UserRole;
-constexpr int kThumb = 38;
 
 QComboBox *combo(QWidget *parent) {
   auto *c = new QComboBox(parent);
@@ -83,7 +82,7 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   leftLayout_->addLayout(form_);
 
   tree_ = new QTreeWidget(left_);
-  tree_->setIconSize(QSize(kThumb, kThumb));
+  tree_->setIconSize(QSize(settings_.thumbnailSize, settings_.thumbnailSize));
   tree_->setIndentation(14);
   tree_->setFocusPolicy(Qt::NoFocus);
   tree_->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -281,6 +280,7 @@ int CasePage::excludedCount() const {
 }
 
 void CasePage::applySettings() {
+  tree_->setIconSize(QSize(settings_.thumbnailSize, settings_.thumbnailSize));
   if (!isVisible()) {
     rebuildPending_ = true;
   } else if (set()) {
@@ -417,8 +417,9 @@ void CasePage::buildTree() {
       const CaseInfo *info = infoOf(c.id);
       FaceletCube masked =
           maskedFacelets(info ? info->state : c.state, spec.mask, spec.free);
-      item->setIcon(0, QIcon(cube_painter::cachedDiagram(masked, spec.view,
-                                                         kThumb, look, dpr)));
+      item->setIcon(
+          0, QIcon(cube_painter::cachedDiagram(
+                 masked, spec.view, settings_.thumbnailSize, look, dpr)));
       if (eligible(c.id)) {
         item->setToolTip(0, qs(info->mainAlg));
       } else {

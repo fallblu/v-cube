@@ -36,6 +36,9 @@ public:
   static Keymap fromStrings(const QStringList &lines);
 
   static QString keyText(int key, bool shift);
+  // Why a key can't turn the cube (the modes or the window use it), or an
+  // empty string if it can.
+  static QString reservedReason(int key);
   static std::optional<std::pair<int, bool>> parseKeyText(const QString &text);
 };
 

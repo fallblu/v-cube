@@ -117,6 +117,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   QFont sf = scrambleLabel_->font();
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
+  markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(60);
   net_ = new NetPreview(right);
   scrambleRow->addWidget(scrambleLabel_, 1);
