@@ -1379,12 +1379,14 @@ void AttemptPage::refreshAttempts() {
   table_->setRowCount(static_cast<int>(attempts.size()));
   if (moveCount_) {
     table_->setColumnHidden(2, !hasOptimalSolver(session().step));
-    table_->horizontalHeaderItem(2)->setToolTip(
-        settings_.optimalAnyHold
-            ? tr("The optimal move count for the scramble's step in any hold, "
-                 "as the step is checked")
-            : tr("The optimal move count for the scramble's step in the holds "
-                 "of your colour neutrality (either EO axis)"));
+    if (QTableWidgetItem *opt = table_->horizontalHeaderItem(2)) {
+      opt->setToolTip(
+          settings_.optimalAnyHold
+              ? tr("The optimal move count for the scramble's step in any "
+                   "hold, as the step is checked")
+              : tr("The optimal move count for the scramble's step in the "
+                   "holds of your colour neutrality (either EO axis)"));
+    }
   }
   std::size_t counted = 0; // index into solves
   for (std::size_t i = 0; i < attempts.size(); ++i) {

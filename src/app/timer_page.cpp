@@ -828,11 +828,16 @@ void TimerPage::selectSession(std::size_t index) {
   if (changed) {
     deleted_.reset(); // undo is for the session it was deleted from
   }
+  bool wasFinished = finished_;
   finished_ = false;
   sessionButton_->setText(tr("Session: %1").arg(qs(session().name)));
   showCubeKind();
   typeBox_->setCurrentType(qs(session().scrambleType));
-  showScramble(); // onto the session's cube
+  if (wasFinished) {
+    feed_.advance(); // the scramble shown was solved (as a DNF) already
+  } else {
+    showScramble(); // onto the session's cube
+  }
   showLastResult();
   statusLabel_->clear();
   refreshSolves();
@@ -1162,7 +1167,8 @@ void TimerPage::showDetails(int index) {
     SolveSplits splits = computeSplits(s, settings_.simplifiedCounts);
     QStringList phases;
     for (const SolvePhase &p : splits.phases) {
-      QString line = tr("%1: %2 moves").arg(qs(p.name)).arg(p.htm);
+      QString line = p.htm == 1 ? tr("%1: 1 move").arg(qs(p.name))
+                                : tr("%1: %2 moves").arg(qs(p.name)).arg(p.htm);
       if (p.ms > 0) {
         line += tr(" in %1").arg(statText(p.ms, d));
       }
