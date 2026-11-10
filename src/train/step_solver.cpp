@@ -342,7 +342,7 @@ CubieCube rotated(const CubieCube &c, Move rotation) {
   for (int i = 0; i < kFaceletCount; ++i) {
     f[i] = faceOf[f[i]];
   }
-  return CubieCube::fromFacelets(f).value_or(CubieCube{});
+  return CubieCube::fromRealFacelets(f);
 }
 
 // Where each edge position goes under a whole-cube rotation.

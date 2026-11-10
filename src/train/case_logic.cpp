@@ -601,7 +601,7 @@ CubieCube stateSolvedBy(const Alg &alg) {
   f.apply(invert(back));
   f.apply(invert(alg));
   f.normalizeOrientation(); // a no-op unless the alg is malformed
-  return CubieCube::fromFacelets(f).value_or(CubieCube{});
+  return CubieCube::fromRealFacelets(f);
 }
 
 ImportReport importAlgs(AlgSet &set, const std::string &text,

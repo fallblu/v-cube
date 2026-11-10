@@ -70,7 +70,7 @@ CubieCube heldState(const CubieCube &state, Hold h) {
     f[i] = static_cast<std::uint8_t>(colours[f[i]]);
   }
   f.apply(invert(holdRotation(h)));
-  return CubieCube::fromFacelets(f).value_or(CubieCube{});
+  return CubieCube::fromRealFacelets(f);
 }
 
 CubieCube solverState(const CubieCube &scrambled, Hold h) {
@@ -85,7 +85,7 @@ CubieCube solverState(const CubieCube &scrambled, Hold h) {
   for (int i = 0; i < kFaceletCount; ++i) {
     f[i] = faceOf[f[i]];
   }
-  return CubieCube::fromFacelets(f).value_or(CubieCube{});
+  return CubieCube::fromRealFacelets(f);
 }
 
 std::optional<Hold> holdOf(const FaceletCube &cube) {

@@ -217,7 +217,7 @@ CubieCube mirrorState(const CubieCube &c, bool leftRight, bool frontBack) {
   for (int i = 0; i < kFaceletCount; ++i) {
     out[to[static_cast<std::size_t>(i)]] = mirroredColour(f[i], m);
   }
-  return CubieCube::fromFacelets(out).value_or(CubieCube{});
+  return CubieCube::fromRealFacelets(out);
 }
 
 CasePieces casePieces(const CubieCube &state, const PieceMask &free) {
