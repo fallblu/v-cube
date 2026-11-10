@@ -193,7 +193,7 @@ void CasePage::filterChanged() {
 }
 
 void CasePage::init() {
-  auto byId = [this](std::function<bool(const std::string &)> test) {
+  auto byId = [](std::function<bool(const std::string &)> test) {
     return [test = std::move(test)](const QTreeWidgetItem *item) {
       return test(ss(item->data(0, kCaseIdRole).toString()));
     };
