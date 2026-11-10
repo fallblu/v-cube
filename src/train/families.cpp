@@ -124,14 +124,22 @@ std::string mirrorAlgText(std::string_view text, Mirror m) {
     if (text.substr(i).starts_with("//")) {
       break; // a comment
     }
-    if (kLetters.find(text[i]) == std::string_view::npos) {
+    // An x straight after a bracket and before a count repeats the group
+    // ("(R U R' U')x3"): it isn't a rotation.
+    bool repeat = (text[i] == 'x' || text[i] == 'X') && i > 0 &&
+                  (text[i - 1] == ')' || text[i - 1] == ']') &&
+                  i + 1 < text.size() &&
+                  std::isdigit(static_cast<unsigned char>(text[i + 1]));
+    if (repeat || kLetters.find(text[i]) == std::string_view::npos) {
       out += text[i++];
       continue;
     }
     std::size_t end = i + 1;
-    if (end < text.size() && text[end] == 'w') {
+    bool wideW = end < text.size() && text[end] == 'w';
+    if (wideW) {
       ++end;
     }
+    std::size_t amountAt = end;
     while (end < text.size() &&
            (std::isdigit(static_cast<unsigned char>(text[end])) ||
             isPrime(text[end]))) {
@@ -147,7 +155,28 @@ std::string mirrorAlgText(std::string_view text, Mirror m) {
       if (m.frontBack) {
         one = mirrorS(one);
       }
-      out += toString(one);
+      // The mirrored layer, written as the token was (Rw stays Lw, X
+      // stays upper case), with the count as written (R3 is L3', three
+      // quarter turns) and the direction turned round where the mirror
+      // turns it.
+      std::string name(moveTypeName(one.front().type));
+      if (wideW) {
+        name = std::string(1, static_cast<char>(std::toupper(
+                                  static_cast<unsigned char>(name.front())))) +
+               "w";
+      } else if (std::isupper(static_cast<unsigned char>(text[i]))) {
+        name.front() = static_cast<char>(
+            std::toupper(static_cast<unsigned char>(name.front())));
+      }
+      std::string amount(text.substr(amountAt, end - amountAt));
+      if (one.front().amount != parsed.alg.front().amount) {
+        if (auto p = amount.find('\''); p != std::string::npos) {
+          amount.erase(p, 1);
+        } else {
+          amount += '\'';
+        }
+      }
+      out += name + amount;
     } else {
       out += token;
     }

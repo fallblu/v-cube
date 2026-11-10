@@ -66,6 +66,24 @@ TEST_CASE("alg text is mirrored move by move", "[reduction]") {
   CHECK(mirrorAlgText("U (R U' R')", {true, true}) == "U (L U' L')");
   CHECK(mirrorAlgText("(U2) r U R' U' r' F R F'", {true, false}) ==
         "(U2) l' U' L U l F' L' F");
+  // A group's repeat stays a repeat, and a written count stays written.
+  CHECK(mirrorAlgText("(R U R' U')x3", {true, false}) == "(L' U' L U)x3");
+  CHECK(mirrorAlgText("(R U R' U')x3", {false, true}) == "(R' U' R U)x3");
+  CHECK(mirrorAlgText("(R U R' U') x3", {false, true}) == "(R' U' R U) x3'");
+  CHECK(mirrorAlgText("R3 U2 Rw' x3", {true, false}) == "L3' U2 Lw x3");
+  for (Mirror m : kMirrors) {
+    for (const std::string a :
+         {"(R U R' U')x3", "R3 U R U2' R'", "[R U R' U']2 Rw X' y2 M'"}) {
+      INFO(a);
+      Alg alg = parseAlgOrEmpty(a);
+      Alg mirrored = parseAlgOrEmpty(mirrorAlgText(a, m));
+      REQUIRE(mirrored.size() == alg.size());
+      CHECK(stateSolvedBy(mirrored) == mirrorState(stateSolvedBy(alg), m));
+      for (std::size_t k = 0; k < alg.size(); ++k) {
+        CHECK(quarterTurns(mirrored[k]) == quarterTurns(alg[k]));
+      }
+    }
+  }
   // What it does is the mirror image of what the alg does.
   for (Mirror m : kMirrors) {
     Alg alg = parseAlgOrEmpty(kSune);
