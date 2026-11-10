@@ -2,7 +2,12 @@
 add_library(vcube_gui STATIC
   app_settings.cpp
   attempt_page.cpp
+  blind_drill.cpp
   blind_page.cpp
+  blind_quiz_drill.cpp
+  blind_setup_drill.cpp
+  blind_solves_drill.cpp
+  blind_tracing_drill.cpp
   bld_scheme_dialog.cpp
   case_filter.cpp
   case_history_dialog.cpp

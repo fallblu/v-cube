@@ -3,6 +3,7 @@ add_library(vcube_train
   attempt_flow.cpp
   algset.cpp
   bld.cpp
+  blind_flow.cpp
   case_logic.cpp
   drill_session.cpp
   inspection_flow.cpp
