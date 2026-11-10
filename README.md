@@ -167,7 +167,8 @@ choice are for a physical cube.
     case to the end of the step, with every step shown afterwards.
   - Per-case recent average, best time and fail rate. Drill attempts never
     change the spaced-repetition schedule.
-- Learn and Drill share each set's ticked cases and learn queue. Only cases
+- Learn and Drill share each set's ticked cases and learn queue (cases
+  added to a set later come ticked). Only cases
   with at least one alg that solves them are offered, and both modes show
   how many are skipped. Cases are set up for the holds chosen under
   colour neutrality (below).
