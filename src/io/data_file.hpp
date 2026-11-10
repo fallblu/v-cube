@@ -86,4 +86,16 @@ void writeInBackground(const QString &path,
 // first, so that a background write never lands on top of a newer file.
 void finishBackgroundWrites(const QString &path = {});
 
+// --- write reports ------------------------------------------------------------
+
+// Receives the result of every write to a data file, background or direct
+// (those report themselves with reportWrite()): `error` is empty when the
+// write succeeded. It runs on the GUI thread, e.g. to keep a banner up
+// while a file can't be saved and take it down once it can.
+using WriteReporter =
+    std::function<void(const QString &path, const QString &error)>;
+void setWriteReporter(WriteReporter reporter);
+// Reports a write done directly; from any thread.
+void reportWrite(const QString &path, bool ok, const QString &error = {});
+
 } // namespace vcube
