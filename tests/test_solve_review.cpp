@@ -95,28 +95,51 @@ TEST_CASE("step marks are where a solve first did each step", "[review]") {
   FaceletCube start = after("R U R' F");
   Alg solution = parseAlgOrEmpty("F' R U' R'");
   std::vector<StepMark> marks = stepMarks(start, solution);
-  REQUIRE(marks.size() == 5);
-  for (std::size_t i = 0; i < 4; ++i) {
+  auto markOf = [&](SolveStep step) -> const StepMark * {
+    for (const StepMark &m : marks) {
+      if (m.step == step) {
+        return &m;
+      }
+    }
+    return nullptr;
+  };
+  REQUIRE(marks.size() == solveSteps().size());
+  // In the order of solveSteps().
+  for (std::size_t i = 0; i < marks.size(); ++i) {
     CHECK(marks[i].step == solveSteps()[i]);
-    CHECK(marks[i].moves == 1);
-    CHECK(marks[i].htm == 1);
   }
-  CHECK(marks[3].hold == Hold{0, 2});
+  for (SolveStep s : {SolveStep::EO, SolveStep::EOPlus1, SolveStep::EOPlus2,
+                      SolveStep::EOLine, SolveStep::EOCross}) {
+    REQUIRE(markOf(s));
+    CHECK(markOf(s)->moves == 1);
+    CHECK(markOf(s)->htm == 1);
+  }
+  CHECK(markOf(SolveStep::EOCross)->hold == Hold{0, 2});
   // After F' R the cube is one R turn from solved: ZZ F2L on the orange
   // side, the L layer and M slice, with EO for any other axis.
-  CHECK(marks[4].step == SolveStep::ZZF2L);
-  CHECK(marks[4].moves == 3);
-  CHECK(marks[4].htm == 3);
-  CHECK(marks[4].hold.top == 1);
+  const StepMark *zz = markOf(SolveStep::ZZF2L);
+  REQUIRE(zz);
+  CHECK(zz->moves == 3);
+  CHECK(zz->htm == 3);
+  CHECK(zz->hold.top == 1);
 
   // Rotations are free.
   marks = stepMarks(after("R U R' F"), parseAlgOrEmpty("y2 y2 F'"));
-  REQUIRE(marks.size() == 4);
-  CHECK(marks[3].moves == 3);
-  CHECK(marks[3].htm == 1);
+  REQUIRE(markOf(SolveStep::EOCross));
+  CHECK(markOf(SolveStep::EOCross)->moves == 3);
+  CHECK(markOf(SolveStep::EOCross)->htm == 1);
+
+  // Counted simplified, or as done.
+  marks = stepMarks(after("R U R' F R L' R'"), parseAlgOrEmpty("R L R' F'"));
+  REQUIRE(markOf(SolveStep::EOCross));
+  CHECK(markOf(SolveStep::EOCross)->moves == 4);
+  CHECK(markOf(SolveStep::EOCross)->htm == 2); // L F'
+  marks = stepMarks(after("R U R' F R L' R'"), parseAlgOrEmpty("R L R' F'"),
+                    false);
+  CHECK(markOf(SolveStep::EOCross)->htm == 4);
 
   marks = stepMarks(FaceletCube(), {});
-  CHECK(marks.size() == 5);
+  CHECK(marks.size() == solveSteps().size());
   CHECK(std::all_of(marks.begin(), marks.end(),
                     [](const StepMark &m) { return m.moves == 0; }));
 }
@@ -164,6 +187,107 @@ TEST_CASE("pair options find the set's case and alg", "[review]") {
   REQUIRE(options.size() == 1);
   CHECK(options[0].caseId.empty());
   CHECK(options[0].moves == 0);
+}
+
+TEST_CASE("a set written for one slot covers the others with mirrors",
+          "[review]") {
+  // Only the front-right cases, mirrored to the other three slots.
+  AlgSet set = pairSet();
+  set.id = "review-fr-only";
+  set.groups.resize(1);
+  REQUIRE(set.groups[0].name == "FR");
+  Alg fl = slotAlg(kFrAlgs[1], Slot::FL);
+  CubieCube state = cubieAfter(invert(fl));
+  std::vector<PairOption> options = pairOptions(state, &set);
+  REQUIRE(options.size() == 1);
+  CHECK(options[0].caseId.empty()); // not without mirrors
+  set.mirrors = {Mirror{true, false}, Mirror{false, true}, Mirror{true, true}};
+  options = pairOptions(state, &set);
+  REQUIRE(options.size() == 1);
+  CHECK(options[0].slot == Slot::FL);
+  CHECK(options[0].caseId == "FR-2");
+  CHECK(options[0].moves == 7);
+  FaceletCube f = state.toFacelets();
+  f.apply(parseAlgOrEmpty(options[0].alg));
+  auto solved = CubieCube::fromFacelets(f);
+  REQUIRE(solved);
+  CHECK(slotSolved(*solved, Slot::FL));
+  // And the back slots.
+  Alg bl = slotAlg(kFrAlgs[0], Slot::BL);
+  options = pairOptions(cubieAfter(invert(bl)), &set);
+  REQUIRE(options.size() == 1);
+  CHECK(options[0].caseId == "FR-1");
+}
+
+TEST_CASE("the optimal pair keeps the solved slots", "[review]") {
+  Alg fr = slotAlg(kFrAlgs[1], Slot::FR);
+  CubieCube state = cubieAfter(invert(fr));
+  auto alg = optimalPair(state, Slot::FR);
+  REQUIRE(alg);
+  CHECK(htmCount(*alg) <= 7);
+  CubieCube done = state;
+  done.apply(*alg);
+  for (Slot s : {Slot::FR, Slot::FL, Slot::BL, Slot::BR}) {
+    CHECK(slotSolved(done, s));
+  }
+  CHECK(eoCrossSolved(done));
+}
+
+TEST_CASE("a whole solve is split into cross, pairs and last layer",
+          "[review]") {
+  // EO Cross done by the scramble's inverse in two moves, then two pairs
+  // and a last layer alg.
+  Alg fr = slotAlg(kFrAlgs[1], Slot::FR);
+  Alg fl = slotAlg(kFrAlgs[0], Slot::FL);
+  Alg ll = parseAlgOrEmpty("R U R' U R U2 R'"); // keeps the F2L
+  Alg solution = parseAlgOrEmpty("D R2");
+  solution.insert(solution.end(), fl.begin(), fl.end());
+  solution.insert(solution.end(), fr.begin(), fr.end());
+  solution.insert(solution.end(), ll.begin(), ll.end());
+  FaceletCube start;
+  start.apply(invert(solution));
+  std::vector<std::int64_t> times;
+  for (std::size_t i = 0; i < solution.size(); ++i) {
+    times.push_back(static_cast<std::int64_t>(i + 1) * 100);
+  }
+  SolveSplits s = solveSplits(start, solution, times, 2000);
+  CHECK(s.zz);
+  REQUIRE(s.phases.size() == 4);
+  CHECK(s.phases[0].name == "EO Cross");
+  CHECK(s.phases[0].end == 2);
+  CHECK(s.phases[0].htm == 2);
+  CHECK(s.phases[0].ms == 200);
+  CHECK(s.phases[1].name == "FL");
+  CHECK(s.phases[1].htm == 3);
+  CHECK(s.phases[1].ms == 300);
+  CHECK(s.phases[2].name == "FR");
+  CHECK(s.phases[3].kind == SolvePhase::Kind::LastLayer);
+  CHECK(s.phases[3].htm == 7);
+  CHECK(s.phases[3].ms == 2000 - 1200);
+  CHECK(s.crossMs == 200);
+  CHECK(s.f2lMs == 1000);
+  CHECK(s.llMs == 800);
+  CHECK(s.f2lHtm == 10);
+  CHECK(tps(10, 1000) == 10.0);
+  CHECK(tps(10, 0) == 0.0);
+
+  // Without times: the phases, but no times.
+  s = solveSplits(start, solution, {}, 2000);
+  REQUIRE(s.phases.size() == 4);
+  CHECK_FALSE(s.crossMs);
+  CHECK(s.phases[1].ms == 0);
+
+  std::string text = reconstruction(invert(solution), solution, s);
+  CHECK(text.find("// scramble") != std::string::npos);
+  CHECK(text.find("D R2 // EO Cross (2 moves)") != std::string::npos);
+  CHECK(text.find("// LL (7 moves)") != std::string::npos);
+  std::string url = reconstructionUrl(invert(solution), solution, s, "#1");
+  CHECK(url.starts_with("https://alg.cubing.net/?setup="));
+  CHECK(url.find("R2_D-") != std::string::npos);
+
+  // A solve that never gets a cross has no phases.
+  CHECK(solveSplits(after("R U F D L B R2 F'"), parseAlgOrEmpty("U"), {}, 0)
+            .phases.empty());
 }
 
 TEST_CASE("a pair set is one slot per case with EO Cross done", "[review]") {
