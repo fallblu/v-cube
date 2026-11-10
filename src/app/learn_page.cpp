@@ -596,7 +596,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
     contextButton_->setText(tr("Practise in context"));
   }
   Hold hold = pickHold();
-  Mirror world = pickWorld();
+  Mirror world = pickWorld(caseId);
   // From a random side, as in Drill, when the set asks for random U turns.
   // A reduction set's cases come up with the step's free pieces anywhere,
   // as they do after a step.
@@ -617,9 +617,6 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   gradeRow_->setVisible(false);
   familyRow_->setVisible(false);
   cubeView_->setColourMap(colourMapOf(hold));
-  CubeLook look = cubeView_->look();
-  look.yaw = yawFor(caseId, world);
-  cubeView_->setLook(look);
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);
   startLink(viewOfCase(*s, *g, *c, start, world)
@@ -659,6 +656,18 @@ void LearnPage::startLink(const CaseView &view) {
   links_.push_back(std::move(link));
   hinted_ = false;
   nextHinted_ = false;
+  // In 3D, a mirrored case is looked at from its slot's corner, so that
+  // e.g. a back-left slot can be seen. A case whose algs are done as
+  // written, such as an OCLL a mirrored step stops at, is looked at from
+  // the group's own corner (the front right), as its algs are.
+  CubeLook look = cubeView_->look();
+  double yaw = yawFor(view.caseId, view.mirrored ? current_->world : Mirror{});
+  viewMoved_ = links_.size() > 1 && look.yaw != yaw && !view.mirrored;
+  if (look.yaw != yaw) {
+    look.yaw = yaw;
+    cubeView_->finishAnimations();
+    cubeView_->setLook(look);
+  }
   follower_ = AlgFollower(cube_, {});
   guide_.reset();
   refreshLink();
@@ -910,6 +919,10 @@ void LearnPage::showSolvingStatus() {
     what = guide_ && guide_->follow
                ? tr("You haven't learned this case yet: its step is shown.")
                : tr("Carry on from this case.");
+    if (viewMoved_) {
+      what += " " + tr("Its alg is done as written, so the cube is seen "
+                       "from the front right again.");
+    }
   } else if (current_ && current_->practice) {
     what = tr("Practice: the case isn't due, so it won't be graded.");
   } else if (guide_ && guide_->follow) {

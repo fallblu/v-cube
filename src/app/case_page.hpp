@@ -98,8 +98,9 @@ protected:
   bool eligible(const std::string &caseId) const;
   // Steps left from the case, or 0 if its algs don't reach the end.
   int stepsFrom(const std::string &caseId) const;
-  // The world for the next case: as written or one of the set's mirrors.
-  Mirror pickWorld();
+  // The world to set a case up in: as written or one of the set's mirrors.
+  // A case that doesn't depend on the slot is always set up as written.
+  Mirror pickWorld(const std::string &caseId);
   // Ticked cases that can be offered, in list order.
   std::vector<std::string> tickedEligible() const;
   int tickedCount() const;

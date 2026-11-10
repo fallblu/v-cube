@@ -64,8 +64,8 @@ CubieCube setUpCase(const CubieCube &state, const PieceMask &free, Mirror world,
 // U turns it needs there written in, and mirrored for a mirrored view.
 struct ViewAlg {
   std::string text;
-  // The case the alg stops at, in the view's frame (a reduction step), or
-  // empty for an alg that finishes the step.
+  // The case the cube shows after the alg (a reduction step), or empty for
+  // an alg that finishes the step.
   std::string reducesTo;
 };
 // The passing algs of the case, main alg first. `analysis` is the case's

@@ -111,6 +111,7 @@ private:
   std::optional<Current> current_;
   std::vector<Link> links_; // the last one is being solved
   QString linkNote_;        // what the last step came to
+  bool viewMoved_ = false;  // the cube is seen from another corner since
   QString why_;             // why the first case was graded as it was
   // The cards graded in this attempt: a case passed twice counts once.
   std::vector<std::string> gradedCards_;

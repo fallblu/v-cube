@@ -169,6 +169,14 @@ std::vector<ViewAlg> algsFor(const AlgSet &set, const CaseGroup &group,
                      : withAufs(text, *fit);
     }
     alg.text = mirrorAlgText(alg.text, flip);
+    if (!alg.reducesTo.empty() && view.mirrored) {
+      // The case a mirrored step stops at may be one that is seen as it
+      // is written: its mirror image, by name.
+      std::optional<CubieCube> next = after(cube, parseAlgOrEmpty(alg.text));
+      if (auto seen = next ? seenCase(set, *next, world) : std::nullopt) {
+        alg.reducesTo = seen->caseId;
+      }
+    }
     out.push_back(std::move(alg));
   }
   return out;

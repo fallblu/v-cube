@@ -429,7 +429,7 @@ void DrillPage::neutralityChanged() {
 
 void DrillPage::startCase(const std::string &caseId) {
   if (eligible(caseId) && !isBusy()) {
-    current_ = Current{caseId, {}, pickHold(), {}, pickWorld()};
+    current_ = Current{caseId, {}, pickHold(), {}, pickWorld(caseId)};
     retryCase();
   }
 }
@@ -493,7 +493,7 @@ void DrillPage::nextCase() {
     setPhase(Phase::NoCase);
     return;
   }
-  current_ = Current{*id, {}, pickHold(), {}, pickWorld()};
+  current_ = Current{*id, {}, pickHold(), {}, pickWorld(*id)};
   retryCase();
 }
 
@@ -525,9 +525,6 @@ void DrillPage::retryCase() {
     ++scrambleRequest_; // a physical scramble still on its way is dropped
     scrambleLabel_->clear();
     cubeView_->setColourMap(colourMapOf(current_->hold));
-    CubeLook look = cubeView_->look();
-    look.yaw = yawFor(current_->caseId, current_->world);
-    cubeView_->setLook(look);
     resetCube();
   } else {
     scrambleLabel_->setText(tr("Generating scramble…"));
@@ -536,7 +533,38 @@ void DrillPage::retryCase() {
   setPhase(Phase::Waiting);
 }
 
+void DrillPage::followView() {
+  const AlgSet *s = set();
+  if (!s || !current_ || !s->reduction || current_->world.none()) {
+    return;
+  }
+  // A mirrored case is looked at from its slot's corner. Once a step
+  // leaves a case whose algs are done as written, such as an OCLL at the
+  // end, the cube is seen from the front right again, as the algs are.
+  FaceletCube f = attempt_.cube();
+  f.normalizeOrientation();
+  auto c = CubieCube::fromFacelets(f);
+  auto seen = c ? seenCase(*s, *c, current_->world) : std::nullopt;
+  if (!seen) {
+    return;
+  }
+  double yaw =
+      yawFor(seen->caseId, seen->mirrored ? current_->world : Mirror{});
+  CubeLook look = cubeView_->look();
+  if (look.yaw != yaw) {
+    look.yaw = yaw;
+    cubeView_->setLook(look);
+  }
+}
+
 void DrillPage::resetCube() {
+  if (current_) {
+    // In 3D, look from the corner the group's diagrams are drawn from,
+    // mirrored with the case, so that e.g. a back-left F2L slot can be seen.
+    CubeLook look = cubeView_->look();
+    look.yaw = yawFor(current_->caseId, current_->world);
+    cubeView_->setLook(look);
+  }
   attempt_.load(current_ ? current_->state.toFacelets() : FaceletCube());
   cubeView_->setState(attempt_.cube());
 }
@@ -636,6 +664,7 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
         stopVirtual(now);
       } else if (press && move && attempt_.turn(*move)) {
         cubeView_->animateMove(*move);
+        followView();
       }
       return key == Qt::Key_Space || move.has_value();
     }

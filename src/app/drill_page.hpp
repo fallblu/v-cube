@@ -106,6 +106,9 @@ private:
   void retryCase();
   // Puts the case on the virtual cube as it was set up.
   void resetCube();
+  // In a mirrored reduction set: looks at the cube from where the case it
+  // now shows is done from.
+  void followView();
   void requestScramble();
   void scrambleReady();
   void onTick();

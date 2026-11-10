@@ -214,6 +214,11 @@ TEST_CASE("cases that don't depend on the slot keep their algs",
   REQUIRE(chain.complete);
   REQUIRE(chain.steps.size() == 2);
   CHECK(chain.steps[0].alg == "L' U' L");
+  std::vector<ViewAlg> step =
+      algsFor(set, set.groups[0], three, analyzeCase(set, set.groups[0], three),
+              chain.steps[0].view, cube, leftRight);
+  REQUIRE(step.size() == 1);
+  CHECK(step[0].reducesTo == "antisune");
   CHECK(chain.steps[1].view.caseId == "antisune");
   CHECK_FALSE(chain.steps[1].view.mirrored);
 }

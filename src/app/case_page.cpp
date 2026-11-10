@@ -223,9 +223,20 @@ int CasePage::stepsFrom(const std::string &caseId) const {
   return it == steps_.end() ? 0 : it->second;
 }
 
-Mirror CasePage::pickWorld() {
+Mirror CasePage::pickWorld(const std::string &caseId) {
   const AlgSet *s = library_.find(setId_);
-  std::vector<Mirror> worlds = s ? s->worlds() : std::vector<Mirror>{Mirror{}};
+  const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
+  const CaseInfo *info = infoOf(caseId);
+  std::vector<Mirror> worlds{Mirror{}};
+  if (g && info) {
+    // A mirror image of a case that doesn't depend on the slot would only
+    // be the same case seen from another corner.
+    for (Mirror m : s->worlds()) {
+      if (!m.none() && !slotIndependent(info->state, s->specFor(*g).free, m)) {
+        worlds.push_back(m);
+      }
+    }
+  }
   std::uniform_int_distribution<std::size_t> pick(0, worlds.size() - 1);
   return worlds[pick(rng_)];
 }
