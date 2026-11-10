@@ -292,6 +292,16 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
     if (isBusy() || session().step == step) {
       return;
     }
+    if (!session().attempts.empty()) {
+      // Its attempts were checked against the step they had.
+      auto at = std::find(planSteps().begin(), planSteps().end(),
+                          session().step);
+      stepBox_->setCurrentIndex(
+          static_cast<int>(std::distance(planSteps().begin(), at)));
+      emit message(tr("This session has attempts: start a new session for "
+                      "the other step"));
+      return;
+    }
     session().step = step;
     save();
     selectSession(store_.currentIndex());
