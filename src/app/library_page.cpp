@@ -710,7 +710,14 @@ void LibraryPage::newSet() {
     s.aufAfter = false;
   }
   s.groups.push_back({"Cases", std::nullopt, {}});
-  setId_ = library_.add(std::move(s)).id;
+  QString error;
+  AlgSet *added = library_.add(std::move(s), &error);
+  if (!added) {
+    QMessageBox::warning(this, tr("New alg set"),
+                         tr("Could not create the set: %1").arg(error));
+    return;
+  }
+  setId_ = added->id;
   refreshSetList();
   loadSet();
   emit setsChanged({});
@@ -728,7 +735,14 @@ void LibraryPage::duplicateSet() {
   copy.builtin = false;
   copy.name += " (copy)";
   copy.id = library_.uniqueId(s->id + "-copy");
-  setId_ = library_.add(std::move(copy)).id;
+  QString error;
+  AlgSet *added = library_.add(std::move(copy), &error);
+  if (!added) {
+    QMessageBox::warning(this, tr("Duplicate alg set"),
+                         tr("Could not save the copy: %1").arg(error));
+    return;
+  }
+  setId_ = added->id;
   refreshSetList();
   loadSet();
   emit setsChanged({});
@@ -751,7 +765,15 @@ void LibraryPage::deleteSet() {
   if (answer != QMessageBox::Yes) {
     return;
   }
-  library_.remove(setId_);
+  QString error;
+  if (!library_.remove(setId_, &error)) {
+    QMessageBox::warning(this, tr("Delete alg set"),
+                         tr("Could not delete the set: %1").arg(error));
+    return;
+  }
+  if (!error.isEmpty()) {
+    emit message(tr("Deleted the set, but %1").arg(error));
+  }
   setId_ = library_.sets().empty() ? std::string() : library_.sets().front().id;
   refreshSetList();
   loadSet();
@@ -907,8 +929,17 @@ void LibraryPage::importSetFile() {
     imported->id = library_.uniqueId(imported->id);
     imported->name += " (imported)";
   }
-  imported->builtin = false;
-  setId_ = library_.add(std::move(*imported)).id;
+  // A built-in set exported and imported again stays a built-in one, so
+  // that its shipped cases can still be restored.
+  imported->builtin =
+      imported->builtin && library_.builtinIds().contains(qs(imported->id));
+  AlgSet *added = library_.add(std::move(*imported), &error);
+  if (!added) {
+    QMessageBox::warning(this, tr("Import alg set"),
+                         tr("Could not import: %1").arg(error));
+    return;
+  }
+  setId_ = added->id;
   refreshSetList();
   loadSet();
   emit setsChanged({});

@@ -6,6 +6,7 @@
 #include <QStringList>
 
 #include <map>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -14,7 +15,10 @@ namespace vcube {
 // The user's alg sets, one JSON file each in `dir`, plus per-set progress in
 // `dir/progress`. Built-in sets are copied from `builtinDir` the first time
 // they are seen, so the user can then add and swap algs freely; deleting a
-// built-in set does not bring it back.
+// built-in set does not bring it back (restoreBuiltin() does). Each set is
+// saved back to the file it was loaded from; two files with the same set id
+// load only one of them (the one named for the id, else the first) and the
+// other is reported in errors().
 class AlgLibrary {
 public:
   AlgLibrary(QString dir, QString builtinDir);
@@ -30,8 +34,13 @@ public:
 
   bool save(const AlgSet &set, QString *error = nullptr);
   // Adds a new set and saves it, giving it a unique id if its id is taken.
-  AlgSet &add(AlgSet set);
-  bool remove(const std::string &id);
+  // nullptr (and nothing added) if it can't be saved.
+  AlgSet *add(AlgSet set, QString *error = nullptr);
+  // Deletes a set's file and progress. false (and the set kept) if its file
+  // can't be deleted.
+  bool remove(const std::string &id, QString *error = nullptr);
+  // The file a set is saved to.
+  QString pathFor(const std::string &id) const;
   // Whether a set uses `id` or its file name (ids are stored by file
   // name, so "OLL" and "oll" share one), or a file that failed to load
   // has that name.
@@ -40,9 +49,16 @@ public:
 
   // Brings back a built-in set's shipped cases: their names and states
   // replace the user's and deleted ones return, while the user's algs, the
-  // cases and groups they added and the set's settings are kept.
+  // cases and groups they added and the set's settings are kept. A case of
+  // the user's that only shares a shipped case's id (a different case, none
+  // of whose algs solve the shipped one) is kept, and the shipped case comes
+  // back beside it under a new id. A deleted built-in set is added again
+  // as shipped.
   bool restoreBuiltin(const std::string &id, QString *error = nullptr);
+  // Ids of the shipped built-in sets.
   QStringList builtinIds() const;
+  // Shipped built-in sets that aren't in the library (deleted ones).
+  std::vector<AlgSet> missingBuiltins() const;
 
   // A set's progress, read the first time it is asked for. A progress file
   // that can't be read is set aside (see setAside()) and noted in errors().
@@ -62,8 +78,10 @@ private:
   std::map<std::string, SetProgress> progress_;
   std::set<std::string> progressKeptOff_; // unreadable and not moved aside
   QStringList errors_;
+  std::map<std::string, QString> paths_; // file each set was loaded from
+  mutable std::optional<std::vector<AlgSet>> shipped_;
 
-  QString pathFor(const std::string &id) const;
+  const std::vector<AlgSet> &shipped() const;
   QString progressPathFor(const std::string &id) const;
   void installBuiltins();
 };

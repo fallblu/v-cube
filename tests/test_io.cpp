@@ -327,7 +327,7 @@ TEST_CASE("set ids that share a file name are kept apart") {
   AlgSet copy = *lib.find("pll");
   copy.id = "PLL";
   copy.name = "My PLL";
-  std::string id = lib.add(copy).id;
+  std::string id = lib.add(copy)->id;
   CHECK(id != "PLL");
   CHECK(lib.find("pll")->name == "PLL");
   AlgLibrary again(tmp.path(), kBuiltins);
@@ -364,6 +364,149 @@ TEST_CASE("restoring built-in cases keeps the user's cases and settings") {
   CHECK(after.findCase("T")->algs.size() == 1);
   CHECK(after.targetSeconds == 1.5);
   CHECK_FALSE(after.aufAfter);
+}
+
+TEST_CASE("a stray copy of a set file never overwrites the set") {
+  QTemporaryDir tmp;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+  }
+  // "pll - Copy.json" sorts before "pll.json" and has the same id.
+  QByteArray original = readText(tmp.filePath("pll.json"));
+  QByteArray stale = original;
+  stale.replace("\"name\": \"PLL\"", "\"name\": \"Stale PLL\"");
+  REQUIRE(stale != original);
+  writeText(tmp.filePath("pll - Copy.json"), stale);
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.errors().size() == 1);
+  CHECK(lib.errors().front().contains("pll - Copy.json"));
+  CHECK(lib.find("pll")->name == "PLL");
+  CHECK(lib.sets().size() == 4);
+  lib.find("pll")->findCase("T")->algs.push_back("R U R' U' R' F R2 U' R' U' "
+                                                 "R U R' F'");
+  REQUIRE(lib.save(*lib.find("pll")));
+  CHECK(readText(tmp.filePath("pll - Copy.json")) == stale);
+  CHECK(readText(tmp.filePath("pll.json")) != original);
+
+  // A set in a file of another name is saved back to that file.
+  QFile::rename(tmp.filePath("oll.json"), tmp.filePath("my oll.json"));
+  AlgLibrary again(tmp.path(), kBuiltins);
+  again.load();
+  REQUIRE(again.find("oll"));
+  CHECK(again.pathFor("oll") == tmp.filePath("my oll.json"));
+  REQUIRE(again.save(*again.find("oll")));
+  CHECK_FALSE(QFile::exists(tmp.filePath("oll.json")));
+  REQUIRE(again.remove("oll"));
+  CHECK_FALSE(QFile::exists(tmp.filePath("my oll.json")));
+}
+
+TEST_CASE("deleted built-in sets can be restored") {
+  QTemporaryDir tmp;
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  CHECK(lib.missingBuiltins().empty());
+  lib.progress("oll")["oll27"].record({100, 1500, false});
+  lib.saveProgress("oll");
+  REQUIRE(lib.remove("oll"));
+  REQUIRE(lib.missingBuiltins().size() == 1);
+  CHECK(lib.missingBuiltins().front().id == "oll");
+  REQUIRE(lib.restoreBuiltin("oll"));
+  REQUIRE(lib.find("oll"));
+  CHECK(lib.find("oll")->builtin);
+  CHECK(lib.progress("oll").empty());
+  CHECK(lib.missingBuiltins().empty());
+}
+
+TEST_CASE("a lost install marker doesn't bring deleted built-ins back") {
+  QTemporaryDir tmp;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    REQUIRE(lib.remove("2look-pll"));
+  }
+  REQUIRE(QFile::remove(tmp.filePath("installed-builtins.json")));
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  CHECK_FALSE(lib.find("2look-pll"));
+  REQUIRE(lib.errors().size() == 1);
+  CHECK(lib.errors().front().contains("2-look PLL"));
+  CHECK(lib.missingBuiltins().size() == 1);
+  // The marker is written again, so it is said once.
+  AlgLibrary again(tmp.path(), kBuiltins);
+  again.load();
+  CHECK(again.errors().isEmpty());
+  // A fresh library still gets every built-in.
+  QTemporaryDir fresh;
+  AlgLibrary first(fresh.path(), kBuiltins);
+  first.load();
+  CHECK(first.sets().size() == 4);
+}
+
+TEST_CASE("restoring doesn't overwrite a user case that shares an id") {
+  QTemporaryDir tmp;
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  AlgSet &pll = *lib.find("pll");
+  std::erase_if(pll.groups.front().cases,
+                [](const AlgCase &c) { return c.id == "T"; });
+  // The user's own case named T, which isn't the T perm.
+  AlgCase mine;
+  mine.id = "T";
+  mine.name = "T";
+  mine.state = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
+  mine.algs = {"R U R' U R U2 R'"};
+  pll.groups.front().cases.push_back(mine);
+  lib.progress("pll")["T"].record({100, 1500, false});
+  int cases = pll.caseCount();
+  REQUIRE(lib.restoreBuiltin("pll"));
+  const AlgSet &after = *lib.find("pll");
+  CHECK(after.caseCount() == cases + 1);
+  CHECK(after.findCase("T")->state == mine.state);
+  CHECK(after.findCase("T")->algs == mine.algs);
+  CHECK(lib.progress("pll").contains("T"));
+  // The T perm is back beside it.
+  bool tperm = false;
+  for (const auto &g : after.groups) {
+    for (const auto &c : g.cases) {
+      tperm = tperm ||
+              (c.id != "T" &&
+               checkCaseAlg(after, g, c,
+                            "R U R' U' R' F R2 U' R' U' R U R' F'")
+                   .passes());
+    }
+  }
+  CHECK(tperm);
+}
+
+TEST_CASE("a set that can't be saved or deleted stays as it was") {
+  QTemporaryDir tmp;
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  std::size_t before = lib.sets().size();
+  auto writable = QFile::permissions(tmp.path());
+  QFile::setPermissions(tmp.path(),
+                        QFileDevice::ReadOwner | QFileDevice::ExeOwner);
+  QFile probe(tmp.filePath("probe"));
+  if (probe.open(QIODevice::WriteOnly)) {
+    probe.close();
+    probe.remove();
+    QFile::setPermissions(tmp.path(), writable);
+    SKIP("the directory stays writable (running as root?)");
+  }
+  AlgSet s;
+  s.id = "mine";
+  s.name = "Mine";
+  QString error;
+  CHECK_FALSE(lib.add(s, &error));
+  CHECK_FALSE(error.isEmpty());
+  CHECK(lib.sets().size() == before);
+  error.clear();
+  CHECK_FALSE(lib.remove("pll", &error));
+  CHECK_FALSE(error.isEmpty());
+  CHECK(lib.find("pll"));
+  QFile::setPermissions(tmp.path(), writable);
 }
 
 TEST_CASE("a new case doesn't inherit a deleted case's progress") {
