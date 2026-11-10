@@ -53,12 +53,6 @@ public:
   }
 };
 
-QComboBox *combo(QWidget *parent) {
-  auto *c = new QComboBox(parent);
-  c->setFocusPolicy(Qt::NoFocus);
-  return c;
-}
-
 } // namespace
 
 QString dueText(const CaseProgress *p, std::int64_t now, std::int64_t dayEnd) {
@@ -97,42 +91,15 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
                    QWidget *parent)
     : ModePage(parent), settings_(settings), library_(library),
       mode_(std::move(mode)), rng_(makeRng()) {
-  left_ = new QWidget(this);
-  leftLayout_ = new QVBoxLayout(left_);
-  leftLayout_->setContentsMargins(0, 0, 0, 0);
-  form_ = new QFormLayout;
-  setBox_ = combo(left_);
-  form_->addRow(tr("Alg set:"), setBox_);
-  leftLayout_->addLayout(form_);
-
-  tree_ = new QTreeWidget(left_);
-  tree_->setIconSize(QSize(settings_.thumbnailSize, settings_.thumbnailSize));
-  tree_->setIndentation(14);
-  tree_->setFocusPolicy(Qt::NoFocus);
-  tree_->setContextMenuPolicy(Qt::CustomContextMenu);
-  tree_->setSelectionMode(QAbstractItemView::ExtendedSelection);
-  tree_->header()->setContextMenuPolicy(Qt::CustomContextMenu);
-  connect(tree_->header(), &QHeaderView::customContextMenuRequested, this,
-          &CasePage::showHeaderMenu);
-  connect(tree_->header(), &QHeaderView::sectionClicked, this,
-          &CasePage::sortClicked);
-  filter_ = new CaseFilter(tree_, left_);
-  leftLayout_->addWidget(filter_);
-  leftLayout_->addWidget(tree_, 1);
-
-  tickRow_ = new QHBoxLayout;
-  tickAllButton_ = new QPushButton(left_);
-  tickNoneButton_ = new QPushButton(left_);
-  for (auto *b : {tickAllButton_, tickNoneButton_}) {
-    b->setFocusPolicy(Qt::NoFocus);
-    tickRow_->addWidget(b);
-  }
-  filterChanged();
-  tickRow_->addStretch();
-  leftLayout_->addLayout(tickRow_);
-  summary_ = new QLabel(left_);
-  summary_->setWordWrap(true);
-  leftLayout_->addWidget(summary_);
+  panel_ = new CaseListPanel(mode_, settings_.thumbnailSize, this);
+  left_ = panel_;
+  leftLayout_ = panel_->layout;
+  form_ = panel_->form;
+  setBox_ = panel_->setBox;
+  filter_ = panel_->filter;
+  tree_ = panel_->tree;
+  tickRow_ = panel_->tickRow;
+  summary_ = panel_->summary;
 
   connect(setBox_, &QComboBox::activated, this, [this](int i) {
     std::string id = ss(setBox_->itemData(i).toString());
@@ -157,38 +124,8 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
               startCaseFromList(ss(id.toString()));
             }
           });
-  connect(tickAllButton_, &QPushButton::clicked, this,
-          [this] { tickShown(true); });
-  connect(tickNoneButton_, &QPushButton::clicked, this,
-          [this] { tickShown(false); });
-  connect(filter_, &CaseFilter::changed, this, &CasePage::filterChanged);
+  connect(panel_, &CaseListPanel::sorted, this, [this] { sortChanged(); });
   neutrality_ = settings_.neutrality;
-}
-
-void CasePage::tickShown(bool on) {
-  Qt::CheckState state = on ? Qt::Checked : Qt::Unchecked;
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    QTreeWidgetItem *group = tree_->topLevelItem(g);
-    if (!filter_->isActive()) {
-      group->setCheckState(0, state); // its cases follow
-      continue;
-    }
-    for (int i = 0; i < group->childCount(); ++i) {
-      if (!group->child(i)->isHidden()) {
-        group->child(i)->setCheckState(0, state);
-      }
-    }
-  }
-}
-
-void CasePage::filterChanged() {
-  bool filtered = filter_->isActive();
-  tickAllButton_->setText(filtered ? tr("Tick shown") : tr("Tick all"));
-  tickNoneButton_->setText(filtered ? tr("Untick shown") : tr("Tick none"));
-  tickAllButton_->setToolTip(filtered ? tr("Tick the cases shown")
-                                      : tr("Tick every case"));
-  tickNoneButton_->setToolTip(filtered ? tr("Untick the cases shown")
-                                       : tr("Untick every case"));
 }
 
 void CasePage::init() {
@@ -212,24 +149,8 @@ void CasePage::init() {
                       })});
   filter_->setStatuses(std::move(statuses));
 
-  QStringList headers = {tr("Case")};
-  headers << columns();
-  tree_->setColumnCount(static_cast<int>(headers.size()));
-  tree_->setHeaderLabels(headers);
-  tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-  for (int c = 1; c < headers.size(); ++c) {
-    tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
-  }
-  applyHiddenColumns();
-  if (sortableColumns()) {
-    tree_->header()->setSectionsClickable(true);
-    sortColumn_ = saved::sortColumn(mode_).get();
-    if (sortColumn_ <= 0 || sortColumn_ >= tree_->columnCount()) {
-      sortColumn_ = -1;
-    }
-    sortOrder_ = saved::sortAscending(mode_).get() ? Qt::AscendingOrder
-                                                   : Qt::DescendingOrder;
-  }
+  panel_->setColumns(columns(), defaultHiddenColumns());
+  panel_->setSortable(sortableColumns());
   applySettings();
   populateSets();
   QString last = saved::caseSet(mode_);
@@ -243,59 +164,7 @@ void CasePage::init() {
                 : ss(last));
 }
 
-void CasePage::showHeaderMenu(const QPoint &pos) {
-  QMenu menu(this);
-  for (int c = 1; c < tree_->columnCount(); ++c) {
-    QAction *a = menu.addAction(tree_->headerItem()->text(c));
-    a->setCheckable(true);
-    a->setChecked(!tree_->isColumnHidden(c));
-    connect(a, &QAction::toggled, this, [this, c](bool on) {
-      tree_->setColumnHidden(c, !on);
-      QStringList hidden;
-      for (int k = 1; k < tree_->columnCount(); ++k) {
-        if (tree_->isColumnHidden(k)) {
-          hidden << tree_->headerItem()->text(k);
-        }
-      }
-      saved::hiddenColumns(mode_, defaultHiddenColumns()).set(hidden);
-    });
-  }
-  menu.exec(tree_->header()->viewport()->mapToGlobal(pos));
-}
-
-void CasePage::sortClicked(int column) {
-  if (!sortableColumns()) {
-    return;
-  }
-  if (column <= 0) {
-    sortColumn_ = -1;
-  } else if (column != sortColumn_) {
-    sortColumn_ = column;
-    sortOrder_ = Qt::DescendingOrder;
-  } else if (sortOrder_ == Qt::DescendingOrder) {
-    sortOrder_ = Qt::AscendingOrder;
-  } else {
-    sortColumn_ = -1;
-  }
-  saved::sortColumn(mode_).set(sortColumn_);
-  saved::sortAscending(mode_).set(sortOrder_ == Qt::AscendingOrder);
-  applySort();
-  sortChanged();
-}
-
-void CasePage::applySort() {
-  if (!sortableColumns()) {
-    return;
-  }
-  QSignalBlocker block(tree_);
-  if (sortColumn_ < 0) {
-    tree_->sortItems(0, Qt::AscendingOrder); // list order
-    tree_->header()->setSortIndicatorShown(false);
-  } else {
-    tree_->sortItems(sortColumn_, sortOrder_);
-    tree_->header()->setSortIndicatorShown(true);
-  }
-}
+void CasePage::applySort() { panel_->applySort(); }
 
 void CasePage::fillGroupRows() {
   QSignalBlocker block(tree_);
@@ -306,14 +175,6 @@ void CasePage::fillGroupRows() {
       ids.push_back(ss(group->child(i)->data(0, kCaseIdRole).toString()));
     }
     fillGroupRow(group, ids);
-  }
-}
-
-void CasePage::applyHiddenColumns() {
-  QStringList hidden =
-      saved::hiddenColumns(mode_, defaultHiddenColumns()).get();
-  for (int c = 1; c < tree_->columnCount(); ++c) {
-    tree_->setColumnHidden(c, hidden.contains(tree_->headerItem()->text(c)));
   }
 }
 

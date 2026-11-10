@@ -8,6 +8,7 @@ add_library(vcube_gui STATIC
   bld_scheme_dialog.cpp
   case_filter.cpp
   case_history_dialog.cpp
+  case_list_panel.cpp
   case_page.cpp
   case_stage.cpp
   colours.cpp

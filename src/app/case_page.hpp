@@ -3,6 +3,7 @@
 #include "app/alg_html.hpp"
 #include "app/app_settings.hpp"
 #include "app/case_filter.hpp"
+#include "app/case_list_panel.hpp"
 #include "app/colours.hpp"
 #include "app/mode_page.hpp"
 #include "io/library.hpp"
@@ -87,6 +88,8 @@ protected:
   // Steps left from each case by the set's algs (see stepsLeft()).
   std::map<std::string, int> steps_;
 
+  // The case list on the left; the pointers below are its parts.
+  CaseListPanel *panel_;
   QWidget *left_;
   QVBoxLayout *leftLayout_;
   QFormLayout *form_; // set selector; derived pages add rows
@@ -218,8 +221,6 @@ protected:
   virtual void neutralityChanged() {}
 
 private:
-  QPushButton *tickAllButton_;
-  QPushButton *tickNoneButton_;
   bool reloadPending_ = false;  // the library changed while hidden
   bool rebuildPending_ = false; // the look changed while hidden
   bool ticksPending_ = false;   // a tick change waits to be saved
@@ -241,9 +242,6 @@ private:
   void startCaseFromList(const std::string &id);
   // `cached`: reuse what was worked out for the set before.
   void computeInfo(bool cached = false);
-  // The case list's header menu: which columns are shown.
-  void showHeaderMenu(const QPoint &pos);
-  void applyHiddenColumns();
   // Builds the case list, keeping its scroll position and collapsed groups.
   void buildTree();
   // Brings the ticks and rows up to date without drawing the thumbnails
@@ -252,14 +250,7 @@ private:
   void saveTicks();
   // Saves the ticks once a batch of changes (e.g. "Tick all") is done.
   void ticksEdited();
-  // Ticks or unticks every case shown.
-  void tickShown(bool on);
-  // "Tick all" becomes "Tick shown" while the list is filtered.
-  void filterChanged();
   ColourNeutrality neutrality_; // as last applied
-  int sortColumn_ = -1;         // -1: list order
-  Qt::SortOrder sortOrder_ = Qt::DescendingOrder;
-  void sortClicked(int column);
   void fillGroupRows();
   void showCaseMenu(const QPoint &pos);
 };
