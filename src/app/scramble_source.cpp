@@ -25,7 +25,7 @@ scrambleStateMaker(const AlgLibrary &library, const QString &type) {
     }
     if (set && set->caseCount() > 0) {
       // The cases ticked in Learn and Drill (or all of them).
-      std::optional<QStringList> ticked = tickedCases(id);
+      QStringList unticked = untickedCases(*set);
       struct Entry {
         CubieCube state;
         PieceMask free;
@@ -35,7 +35,7 @@ scrambleStateMaker(const AlgLibrary &library, const QString &type) {
       auto fill = [&](bool tickedOnly) {
         for (const auto &g : set->groups) {
           for (const auto &c : g.cases) {
-            if (!tickedOnly || !ticked || ticked->contains(qs(c.id))) {
+            if (!tickedOnly || !unticked.contains(qs(c.id))) {
               // The case as Drill sets it up: oriented for its main alg.
               pool.push_back({analyzeCase(*set, g, c).display,
                               set->specFor(g).free, c.id});

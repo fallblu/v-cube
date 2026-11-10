@@ -95,6 +95,22 @@ TEST_CASE("doing the alg as written follows it") {
   CHECK(f.moves().size() == 7);
 }
 
+TEST_CASE("an alg that passes through a state twice follows as written") {
+  for (const std::string &a :
+       {std::string("R U R' R U2 R'"), std::string("F l' R U R' F'"),
+        std::string("R U R' U' R U R' R U2 R' U2")}) {
+    INFO(a);
+    AlgFollower f = follower({a});
+    doMoves(f, a);
+    CHECK_FALSE(f.deviated());
+    CHECK(f.finished());
+  }
+  // A turn undone is still a wrong turn.
+  AlgFollower g = follower({kSune});
+  doMoves(g, "R U R' U R U U'");
+  CHECK(g.deviated());
+}
+
 TEST_CASE("U turns and rotations before the alg are free") {
   // The case is set up a U off, so it needs a U' first.
   AlgFollower f = follower({kSune}, "U");

@@ -2,6 +2,7 @@
 
 #include "cube/cubie.hpp"
 #include "train/algset.hpp"
+#include "train/srs.hpp"
 
 #include <map>
 #include <optional>
@@ -44,10 +45,18 @@ struct CaseFamilies {
   // of their first case.
   std::vector<std::vector<std::string>> families;
   std::map<std::string, std::size_t> familyOf; // case id -> family index
+  // Each family's id, under which its progress is kept: "family:" and the
+  // place of the pieces of the first of its cases' mirror images and U
+  // turns (see findFamilies), so that it stays the same whichever of the
+  // cases are in the set and in whatever order.
+  std::vector<std::string> ids;
+  std::map<std::string, std::size_t> familyOfId; // family id -> index
 
-  // The family of a case: its members, or nullptr for an unknown id.
-  const std::vector<std::string> *familyFor(const std::string &caseId) const;
-  // The case whose progress stands for the family: its first case.
+  // The family of a case, or of a family id: its members, or nullptr for
+  // an unknown id.
+  const std::vector<std::string> *familyFor(const std::string &id) const;
+  // The id whose progress stands for the family of a case (or the family
+  // id itself); an unknown id stands for itself.
   std::string representative(const std::string &caseId) const;
 };
 
@@ -55,5 +64,12 @@ struct CaseFamilies {
 // case B is a mirror of case A when B's pieces to solve are A's mirrored and
 // sit where A's mirrored state has them, up to a U turn before the alg.
 CaseFamilies findFamilies(const AlgSet &set);
+
+// Moves a family's card kept under one of its cases, as it was before
+// families had ids (under the family's first case), to the family's id:
+// for a family with no progress of its own, the card of its case reviewed
+// most (in set order on a tie), with that case's Learn attempts. The
+// case's drill attempts stay. Whether anything changed.
+bool adoptFamilyCards(const CaseFamilies &families, SetProgress &progress);
 
 } // namespace vcube

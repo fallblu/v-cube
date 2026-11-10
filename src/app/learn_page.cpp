@@ -76,6 +76,16 @@ FaceletCube oriented(FaceletCube f) {
   return f;
 }
 
+// The cubes are held the same way.
+bool sameCentres(const FaceletCube &a, const FaceletCube &b) {
+  for (int face = 0; face < 6; ++face) {
+    if (a[face * 9 + 4] != b[face * 9 + 4]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace
 
 LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
@@ -324,6 +334,9 @@ void LearnPage::updateSummary() {
       continue;
     }
     CaseStatus st = statusOf(cp);
+    if (st == CaseStatus::Unstarted) {
+      continue; // e.g. only drilled
+    }
     learning += st == CaseStatus::Learning;
     learned += st == CaseStatus::Learned;
     due += st == CaseStatus::Learned
@@ -370,8 +383,15 @@ void LearnPage::extendCaseMenu(QMenu &menu, const std::string &caseId) {
       markLearned(p.card, unixNow(), settings_.srs);
     });
   });
-  menu.addAction(tr("Reset progress"), this, [change] {
-    change([](CaseProgress &p) { p = CaseProgress{}; });
+  const CaseProgress *cp = cardOf(caseId);
+  menu.addAction(tr("Remove from learn queue"), this,
+                 [change] {
+                   change([](CaseProgress &p) { resetCard(p.card); });
+                 })
+      ->setEnabled(cp && isQueued(cp->card));
+  // Its card and Learn attempts; its drill times stay.
+  menu.addAction(tr("Reset learning progress"), this, [change] {
+    change([](CaseProgress &p) { resetLearning(p); });
   });
 }
 
@@ -711,12 +731,12 @@ bool LearnPage::guided() {
 
 bool LearnPage::firstSight(const std::string &caseId) {
   const CaseProgress *cp = cardOf(caseId);
-  return !cp || cp->card.reps == 0;
+  return !cp || cp->card.introduced == 0;
 }
 
 bool LearnPage::inLearningSteps(const std::string &caseId) {
   const CaseProgress *cp = cardOf(caseId);
-  return cp && cp->card.reps > 0 &&
+  return cp && cp->card.introduced != 0 &&
          (cp->card.state == CardState::Learning ||
           cp->card.state == CardState::Relearning);
 }
@@ -734,10 +754,12 @@ void LearnPage::buildGuide() {
   }
   FaceletCube f = link.start;
   guide.states.push_back(oriented(f));
+  guide.held.push_back(f);
   for (Move m : guide.moves) {
     guide.tokens << qs(toString(m));
     f.apply(m);
     guide.states.push_back(oriented(f));
+    guide.held.push_back(f);
   }
   guide_ = std::move(guide);
 }
@@ -793,9 +815,19 @@ void LearnPage::trackGuide() {
     }
   }
   g.matched = found.has_value();
-  if (found) {
-    g.at = *found;
+  if (!found) {
+    return;
   }
+  // A rotation leaves the state as it was: it is done once the cube isn't
+  // held as before it any more (as after it, or some other way when the
+  // cube was turned differently from the start).
+  std::size_t k = *found;
+  while (k < g.moves.size() && isRotation(g.moves[k].type) &&
+         (sameCentres(cube_, g.held[k + 1]) ||
+          !sameCentres(cube_, g.held[k]))) {
+    ++k;
+  }
+  g.at = k;
 }
 
 void LearnPage::showGuide() {
@@ -1183,7 +1215,9 @@ void LearnPage::endLink(bool solved, const std::optional<CaseView> &next) {
   } else if (std::find(gradedCards_.begin(), gradedCards_.end(), cardId(id)) !=
              gradedCards_.end()) {
     link.note = tr("already graded in this attempt");
-  } else if (!card || card->card.reps == 0) {
+  } else if (current_->practice) {
+    link.note = tr("practice, so not graded");
+  } else if (!card || card->card.introduced == 0) {
     link.note = tr("not started yet, so not graded");
   } else if (isDue(card->card, now, settings_.srs, localDayEnd()) ||
              link.grade == Grade::Again) {

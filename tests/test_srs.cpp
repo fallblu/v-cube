@@ -140,6 +140,54 @@ TEST_CASE("learn picks learning cards, then due reviews, then the queue") {
   CHECK(r.queued == 0);
 }
 
+TEST_CASE("a case marked learned counts as introduced but not as new") {
+  SrsConfig cfg;
+  cfg.newPerDay = 1;
+  const std::int64_t dayStart = 10 * kSecondsPerDay;
+  const std::int64_t now = dayStart + 3600;
+  SetProgress prog;
+  for (const char *id : {"m1", "m2"}) {
+    markLearned(prog[id].card, now - 2 * kSecondsPerDay, cfg);
+    CHECK(prog[id].card.introduced != 0);
+    CHECK(prog[id].card.marked);
+    CHECK(prog[id].card.reps == 0);
+  }
+  // Their first reviews today don't use up the day's new cases.
+  for (const char *id : {"m1", "m2"}) {
+    prog[id].record({now, 0, false, AttemptMode::Learn});
+    review(prog[id].card, Grade::Good, now, cfg);
+  }
+  CHECK(newCasesIntroducedSince(prog, dayStart) == 0);
+  startLearning(prog["queued"].card, now, cfg);
+  CHECK(prog["queued"].card.introduced == 0);
+  auto r = pickLearnCase({"m1", "m2", "queued"}, prog, now, dayStart, cfg);
+  REQUIRE(r.caseId);
+  CHECK(*r.caseId == "queued");
+  CHECK(r.isNew);
+  review(prog["queued"].card, Grade::Good, now, cfg);
+  CHECK(prog["queued"].card.introduced == now);
+  CHECK_FALSE(prog["queued"].card.marked);
+  CHECK(newCasesIntroducedSince(prog, dayStart) == 1);
+  // Marking a case learned that was learned in Learn keeps it as it was.
+  markLearned(prog["queued"].card, now, cfg);
+  CHECK_FALSE(prog["queued"].card.marked);
+}
+
+TEST_CASE("resetting a case's learning keeps its drill history") {
+  SrsConfig cfg;
+  CaseProgress p;
+  p.record({100, 1500, false, AttemptMode::PhysicalDrill});
+  p.record({200, 0, false, AttemptMode::Learn});
+  p.record({300, 2500, false, AttemptMode::VirtualDrill});
+  review(p.card, Grade::Good, 200, cfg);
+  resetLearning(p);
+  CHECK(p.card.state == CardState::New);
+  CHECK(p.card.introduced == 0);
+  REQUIRE(p.attempts.size() == 2);
+  CHECK(p.drillCount(AttemptMode::PhysicalDrill) == 1);
+  CHECK(p.drillCount(AttemptMode::VirtualDrill) == 1);
+}
+
 TEST_CASE("reviews are due all day on the day they fall due") {
   SrsConfig cfg;
   cfg.learnAheadSeconds = 0;

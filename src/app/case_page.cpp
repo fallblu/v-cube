@@ -358,6 +358,9 @@ void CasePage::computeInfo() {
   }
   if (s->families) {
     families_ = findFamilies(*s);
+    if (adoptFamilyCards(families_, progress())) {
+      saveProgress();
+    }
   }
   for (const auto &g : s->groups) {
     for (const auto &c : g.cases) {
@@ -392,7 +395,7 @@ void CasePage::buildTree() {
     updateSummary();
     return;
   }
-  std::optional<QStringList> ticked = tickedCases(setId_);
+  QStringList unticked = untickedCases(*s);
   CubeLook look;
   look.scheme = settings_.scheme;
   look.map = colourMapOf(settings_.neutrality.main);
@@ -407,7 +410,7 @@ void CasePage::buildTree() {
       auto *item = new QTreeWidgetItem(groupItem, {qs(c.name)});
       item->setData(0, kCaseIdRole, qs(c.id));
       item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-      bool on = !ticked || ticked->contains(qs(c.id));
+      bool on = !unticked.contains(qs(c.id));
       item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
       const CaseInfo *info = infoOf(c.id);
       FaceletCube masked =
@@ -435,13 +438,16 @@ void CasePage::buildTree() {
 
 void CasePage::syncRows() {
   QSignalBlocker block(tree_);
-  std::optional<QStringList> ticked = tickedCases(setId_);
+  QStringList unticked;
+  if (const AlgSet *s = set()) {
+    unticked = untickedCases(*s);
+  }
   for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
     auto *group = tree_->topLevelItem(g);
     for (int i = 0; i < group->childCount(); ++i) {
       QTreeWidgetItem *item = group->child(i);
       QString id = item->data(0, kCaseIdRole).toString();
-      bool on = !ticked || ticked->contains(id);
+      bool on = !unticked.contains(id);
       if ((item->checkState(0) == Qt::Checked) != on) {
         item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
       }
@@ -513,12 +519,12 @@ void CasePage::saveTicks() {
   for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
     auto *group = tree_->topLevelItem(g);
     for (int i = 0; i < group->childCount(); ++i) {
-      if (group->child(i)->checkState(0) == Qt::Checked) {
+      if (group->child(i)->checkState(0) != Qt::Checked) {
         ids << group->child(i)->data(0, kCaseIdRole).toString();
       }
     }
   }
-  setTickedCases(setId_, ids);
+  setUntickedCases(setId_, ids);
 }
 
 void CasePage::showCaseMenu(const QPoint &pos) {

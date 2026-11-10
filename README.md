@@ -47,7 +47,9 @@ choice are for a physical cube.
     one turn the other way (R3 as R R R or R'), a wide or slice turn as
     the turns it is made of (r as
     R M'), turns of opposite faces in either order, and a U turn at the
-    end that the alg leaves out or adds. A wrong turn, even one you undo, or starting over
+    end that the alg leaves out or adds. Once only U turns are left of the
+    alg, any U turns count (its last U turn and the AUF done separately,
+    or a U turn too far put right). A wrong turn, even one you undo, or starting over
     with Esc once the alg is begun leaves the algs. The status line says
     so straight away, and your moves are shown under the algs after the
     case, with the move where they left the algs marked (a turn the wrong
@@ -64,9 +66,14 @@ choice are for a physical cube.
     day it falls due), then new cases from your learn queue, up to a daily
     limit. "Start learning" adds the next N ticked cases to the queue (type
     N and press Enter to do the same).
+  - Right-click a case to start learning it, mark it as learned (it then
+    comes up as a review, without the walkthrough, and doesn't count
+    against the daily limit), remove it from the learn queue, or reset its
+    learning progress (its card and Learn attempts; drill times stay).
   - "Learn this case now" (right-click a case) on a learned case that isn't
     due yet is a practice run: you see how you did, but the schedule
-    doesn't change.
+    doesn't change, also for the cases a step-at-a-time set passes on the
+    way.
   - When the case is solved you see your algs with the AUFs it needed, e.g.
     `(U') R U R' U' ... (U2)`. A U turn written at the start or end of an
     alg joins the AUF on that side, so `(U2) R U R'` that needs a U first
@@ -160,7 +167,8 @@ choice are for a physical cube.
     case to the end of the step, with every step shown afterwards.
   - Per-case recent average, best time and fail rate. Drill attempts never
     change the spaced-repetition schedule.
-- Learn and Drill share each set's ticked cases and learn queue. Only cases
+- Learn and Drill share each set's ticked cases and learn queue (cases
+  added to a set later come ticked). Only cases
   with at least one alg that solves them are offered, and both modes show
   how many are skipped. Cases are set up for the holds chosen under
   colour neutrality (below).
