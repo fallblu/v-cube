@@ -3,6 +3,7 @@
 #include "app/case_page.hpp"
 #include "app/cube_view.hpp"
 #include "app/widgets.hpp"
+#include "train/drill_flow.hpp"
 #include "train/drill_session.hpp"
 #include "train/move_count.hpp"
 
@@ -95,14 +96,7 @@ protected:
   void neutralityChanged() override;
 
 private:
-  enum class Phase {
-    NoCase,
-    Waiting,
-    Running,
-    Revealed,
-    Aided,   // practice: the same case again with the algs shown
-    Unaided, // and then without them
-  };
+  using Phase = DrillFlow::Phase;
   enum class Pool { Learned, All, Learning, Queue, Weakest };
 
   struct Current {
@@ -115,34 +109,14 @@ private:
   };
 
   CasePicker picker_;
-  SolveTimer timer_;
+  // The attempt's state: the timer, the phase and how the case went.
+  DrillFlow flow_;
   QTimer tick_;
-  Phase phase_ = Phase::NoCase;
   std::optional<Current> current_;
   QFutureWatcher<GeneratedScramble> watcher_;
   int scrambleRequest_ = 0;
   VirtualAttempt attempt_;
-  std::int64_t attemptMs_ = 0;
-  bool failed_ = false;
-  bool unfinished_ = false; // virtual: the step wasn't done at the stop
-  bool gaveUp_ = false;     // the case was given up, so it stays a DNF
-  bool gaveUpBeforeStart_ = false;
-  bool recorded_ = false; // the attempt is recorded (not deleted)
-  bool newBest_ = false;
-  std::optional<std::int64_t> bestBefore_; // the case's best before it
-  bool practiceDone_ = false;   // virtual: the practice solve reached the end
-  int practiceToken_ = 0;       // drops a pending automatic advance
-  bool armed_ = false;          // virtual: Space tapped, waiting for a turn
-  int faceTurns_ = 0;           // face turns since the timer started
-  std::int64_t guardUntil_ = 0; // keys are ignored until then (monotonic)
-  QString missText_;            // why a virtual attempt was a DNF
-  // Recognition timing on the virtual cube (monotonic ms): when the case
-  // was set up, when the timer started and when a layer off the U-D axis
-  // was first turned (0: not yet). Not valid once a solve was cancelled.
-  std::int64_t shownAtMs_ = 0;
-  std::int64_t startMs_ = 0;
-  std::int64_t firstTurnMs_ = 0;
-  bool timingValid_ = false;
+  QString missText_; // why a virtual attempt was a DNF
   DrillSession session_;
   std::optional<std::size_t> sessionIndex_; // the current attempt's
   std::size_t recapFrom_ = 0; // the session's first attempt of the recap
@@ -171,6 +145,11 @@ private:
   AttemptMode attemptMode() const;
   // Shows the cube or the scramble, as the drill's cube needs.
   void showCubeKind();
+  DrillFlow::Config flowConfig() const;
+  DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
+  // Does what the flow asked after a key.
+  void perform(const DrillFlow::Step &step, std::int64_t now);
+  QString hintText(DrillFlow::Hint hint) const;
   Pool poolChoice() const;
   // The cases the scope chooses, and of those the pool's, which can be
   // drilled.
@@ -192,18 +171,11 @@ private:
   void onTick();
   // Locks the set, cube, case and order choices while a solve runs.
   void updateControls();
-  // Cancels the timer, a hold of Space or the armed timer.
-  void cancelTimer();
   // Nothing is recorded; the same case is set up to try again.
   void cancelSolve(const QString &why);
-  // Virtual: starts the timer (on the first face turn, or Space let go).
-  void startVirtual(std::int64_t now);
   // Virtual, while the timer runs: turns the cube, and stops the timer if
   // that did the step and the timer stops by itself.
   void runningTurn(Move m, std::int64_t now);
-  // Virtual: stops the timer, and the attempt is a DNF unless the cube
-  // shows the step done.
-  void stopVirtual(std::int64_t now);
   // The virtual cube as the solver sees it.
   std::optional<CubieCube> cubeState() const;
   // Whether the virtual cube shows the current case's step done.
@@ -211,18 +183,12 @@ private:
   void finish(std::int64_t timeMs, bool failed, bool gaveUp = false);
   // Gives the case up before or during the solve: a DNF.
   void giveUp(std::int64_t now);
-  bool isGiveUpKey(const QKeyEvent *e) const;
   QString giveUpKeyText() const;
-  bool handleWaitingKey(QKeyEvent *e, bool press, std::optional<Move> move,
-                        std::int64_t now);
-  bool handleRevealedKey(QKeyEvent *e, bool press, std::optional<Move> move);
   // Sets the same case up again to solve with no timer and nothing
   // recorded, with the algs shown (aided) or hidden.
   void startPractice(bool aided);
-  bool handlePracticeKey(QKeyEvent *e, bool press, std::optional<Move> move);
-  bool inPractice() const {
-    return phase_ == Phase::Aided || phase_ == Phase::Unaided;
-  }
+  // A turn in practice; goes on by itself once the stage is solved.
+  void practiceTurn(Move m);
   void setWrong(bool wrong);
   // Deletes the attempt just recorded; one given up before the timer
   // started is taken back, and the case set up as before.
@@ -237,7 +203,8 @@ private:
   QString sessionText(std::size_t from);
   // Shows the case diagram beside the algs, or hides it (null pixmap).
   void setDiagram(const QPixmap &pixmap);
-  void setPhase(Phase p);
+  // The keys of the phase the flow is in, under the cube.
+  void showStatus();
 };
 
 } // namespace vcube
