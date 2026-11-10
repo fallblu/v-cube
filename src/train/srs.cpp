@@ -31,6 +31,9 @@ std::int64_t stepDelay(const std::vector<std::int64_t> &steps, int step) {
 void review(SrsCard &card, Grade grade, std::int64_t now,
             const SrsConfig &config) {
   ++card.reps;
+  if (card.introduced == 0) {
+    card.introduced = std::max<std::int64_t>(now, 1);
+  }
   if (card.state == CardState::New) {
     card.state = CardState::Learning;
     card.step = 0;
@@ -148,6 +151,10 @@ void markLearned(SrsCard &card, std::int64_t now, const SrsConfig &config) {
   if (card.state == CardState::Review) {
     return;
   }
+  if (card.introduced == 0) {
+    card.introduced = std::max<std::int64_t>(now, 1);
+    card.marked = true;
+  }
   card.state = CardState::Review;
   card.step = 0;
   if (card.ease < config.minimumEase) {
@@ -158,6 +165,13 @@ void markLearned(SrsCard &card, std::int64_t now, const SrsConfig &config) {
 }
 
 void resetCard(SrsCard &card) { card = SrsCard{}; }
+
+void resetLearning(CaseProgress &progress) {
+  resetCard(progress.card);
+  std::erase_if(progress.attempts, [](const Attempt &a) {
+    return a.mode == AttemptMode::Learn;
+  });
+}
 
 Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs) {
   return hinted || gaveUp || leftAlgs ? Grade::Again : Grade::Good;
@@ -244,10 +258,8 @@ int newCasesIntroducedSince(const SetProgress &progress,
                             std::int64_t dayStart) {
   int n = 0;
   for (const auto &[id, p] : progress) {
-    auto first = std::find_if(
-        p.attempts.begin(), p.attempts.end(),
-        [](const Attempt &a) { return a.mode == AttemptMode::Learn; });
-    if (first != p.attempts.end() && first->timestamp >= dayStart) {
+    if (p.card.introduced != 0 && !p.card.marked &&
+        p.card.introduced >= dayStart) {
       ++n;
     }
   }

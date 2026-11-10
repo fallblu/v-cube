@@ -38,6 +38,13 @@ struct SrsCard {
   std::int64_t due = 0; // Unix seconds
   int reps = 0;
   int lapses = 0;
+  // When the case was introduced: first reviewed, or marked learned
+  // (Unix seconds); 0 while it never was, so that a case marked learned
+  // isn't taken for one never seen.
+  std::int64_t introduced = 0;
+  // Introduced by "Mark as learned" rather than in Learn: it doesn't count
+  // against the day's new cases.
+  bool marked = false;
 };
 
 inline constexpr std::int64_t kSecondsPerDay = 86400;
@@ -92,6 +99,9 @@ struct CaseProgress {
 // Learning status shown in the case list.
 enum class CaseStatus : std::uint8_t { Unstarted, Learning, Learned };
 CaseStatus statusOf(const CaseProgress *p);
+
+// The card back to new and its Learn attempts gone; drill attempts stay.
+void resetLearning(CaseProgress &progress);
 
 using SetProgress = std::map<std::string, CaseProgress>; // by case id
 
@@ -153,7 +163,8 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
                         std::int64_t dayStart, const SrsConfig &config,
                         const std::string &last = {});
 
-// Number of cases whose first learn attempt was at or after `dayStart`.
+// Number of cases introduced in Learn at or after `dayStart` (not those
+// marked learned).
 int newCasesIntroducedSince(const SetProgress &progress, std::int64_t dayStart);
 
 } // namespace vcube

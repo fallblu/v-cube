@@ -303,7 +303,11 @@ QJsonObject progressToJson(const SetProgress &p) {
                      {"interval", c.intervalDays},
                      {"due", static_cast<double>(c.due)},
                      {"reps", c.reps},
-                     {"lapses", c.lapses}};
+                     {"lapses", c.lapses},
+                     {"introduced", static_cast<double>(c.introduced)}};
+    if (c.marked) {
+      card["marked"] = true;
+    }
     QJsonArray attempts;
     for (const auto &a : cp.attempts) {
       attempts.append(QJsonArray{static_cast<double>(a.timestamp),
@@ -342,6 +346,24 @@ SetProgress progressFromJson(const QJsonObject &o) {
                              mode == "learn"    ? AttemptMode::Learn
                              : mode == "vdrill" ? AttemptMode::VirtualDrill
                                                 : AttemptMode::PhysicalDrill});
+    }
+    if (card.contains("introduced")) {
+      cp.card.introduced =
+          static_cast<std::int64_t>(card.value("introduced").toDouble());
+      cp.card.marked = card.value("marked").toBool(false);
+    } else if (cp.card.reps > 0) {
+      // Older files: a reviewed case was introduced at its first Learn
+      // attempt, and a case in review that never was had been marked
+      // learned.
+      auto first = std::find_if(
+          cp.attempts.begin(), cp.attempts.end(),
+          [](const Attempt &a) { return a.mode == AttemptMode::Learn; });
+      cp.card.introduced =
+          first != cp.attempts.end() ? std::max<std::int64_t>(first->timestamp, 1)
+                                     : 1;
+    } else if (cp.card.state == CardState::Review) {
+      cp.card.introduced = 1;
+      cp.card.marked = true;
     }
     p[ss(it.key())] = std::move(cp);
   }

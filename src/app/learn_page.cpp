@@ -711,12 +711,12 @@ bool LearnPage::guided() {
 
 bool LearnPage::firstSight(const std::string &caseId) {
   const CaseProgress *cp = cardOf(caseId);
-  return !cp || cp->card.reps == 0;
+  return !cp || cp->card.introduced == 0;
 }
 
 bool LearnPage::inLearningSteps(const std::string &caseId) {
   const CaseProgress *cp = cardOf(caseId);
-  return cp && cp->card.reps > 0 &&
+  return cp && cp->card.introduced != 0 &&
          (cp->card.state == CardState::Learning ||
           cp->card.state == CardState::Relearning);
 }
@@ -1183,7 +1183,9 @@ void LearnPage::endLink(bool solved, const std::optional<CaseView> &next) {
   } else if (std::find(gradedCards_.begin(), gradedCards_.end(), cardId(id)) !=
              gradedCards_.end()) {
     link.note = tr("already graded in this attempt");
-  } else if (!card || card->card.reps == 0) {
+  } else if (current_->practice) {
+    link.note = tr("practice, so not graded");
+  } else if (!card || card->card.introduced == 0) {
     link.note = tr("not started yet, so not graded");
   } else if (isDue(card->card, now, settings_.srs, localDayEnd()) ||
              link.grade == Grade::Again) {

@@ -409,6 +409,30 @@ TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   CHECK(loaded["Ua"].attempts[1].failed);
   CHECK(loaded["Ua"].card.state == CardState::Review);
   CHECK(loaded["Ua"].best(AttemptMode::PhysicalDrill) == 2100);
+  // Reviewed in Learn, so introduced (when is unknown).
+  CHECK(loaded["Ua"].card.introduced != 0);
+  CHECK_FALSE(loaded["Ua"].card.marked);
+
+  // Before cards knew when they were introduced: a reviewed card was at
+  // its first Learn attempt, a card in review that never was reviewed had
+  // been marked learned, and a queued one wasn't yet.
+  auto noIntro = QJsonDocument::fromJson(R"({"version": 1, "cases": {
+    "learned": {"card": {"state": 1, "reps": 1, "due": 900},
+                "attempts": [[50, 900, 0, "drill"], [700, 0, 0, "learn"]]},
+    "marked": {"card": {"state": 2, "reps": 0, "due": 5000}, "attempts": []},
+    "queued": {"card": {"state": 1, "reps": 0, "due": 0}, "attempts": []}}})");
+  SetProgress intro = progressFromJson(noIntro.object());
+  CHECK(intro["learned"].card.introduced == 700);
+  CHECK_FALSE(intro["learned"].card.marked);
+  CHECK(intro["marked"].card.introduced != 0);
+  CHECK(intro["marked"].card.marked);
+  CHECK(intro["queued"].card.introduced == 0);
+  // And kept from then on.
+  intro["queued"].card.introduced = 12345;
+  SetProgress again = progressFromJson(progressToJson(intro));
+  CHECK(again["queued"].card.introduced == 12345);
+  CHECK(again["marked"].card.marked);
+  CHECK_FALSE(again["learned"].card.marked);
 }
 
 TEST_CASE("sessions round-trip and convert to and from cstimer") {
