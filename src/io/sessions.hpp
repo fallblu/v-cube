@@ -2,7 +2,7 @@
 
 #include "train/stats.hpp"
 
-#include "io/data_file.hpp"
+#include "io/session_store.hpp"
 
 #include <QByteArray>
 #include <QJsonObject>
@@ -22,34 +22,13 @@ struct Session {
 };
 
 // The timer's sessions, saved as one JSON file.
-class SessionStore {
+class SessionStore : public SessionFileStore<Session> {
 public:
   explicit SessionStore(QString path);
 
-  // A missing file gives one empty session. A file that can't be read is
-  // set aside (see setAside()) and also gives one empty session; if it
-  // can't be moved, nothing is saved over it.
-  bool load(QString *error = nullptr);
-  bool save(QString *error = nullptr) const;
-  // Where load() moved an unreadable file, if it did.
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-
-  std::vector<Session> &sessions() { return sessions_; }
-  const std::vector<Session> &sessions() const { return sessions_; }
-  std::size_t currentIndex() const { return current_; }
-  void setCurrentIndex(std::size_t i);
-  Session &current() { return sessions_[current_]; }
-
-  Session &addSession(const std::string &name);
-  void removeSession(std::size_t i);
-
-  QString path() const { return path_; }
-
-private:
-  QString path_;
-  std::vector<Session> sessions_{Session{}};
-  std::size_t current_ = 0;
-  DataFile file_;
+protected:
+  QJsonObject toJson() const override;
+  void fromJson(const QJsonObject &o) override;
 };
 
 // {"format": "v-cube.sessions", "version": 1, "current": 0, "sessions":

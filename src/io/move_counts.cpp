@@ -34,52 +34,23 @@ std::vector<MoveCountSession> defaultMoveCountSessions(SolveLog mode) {
 }
 
 MoveCountStore::MoveCountStore(QString path, SolveLog mode)
-    : path_(path), mode_(mode), sessions_(defaultMoveCountSessions(mode)),
-      file_(std::move(path), moveCountFormat(mode)) {}
+    : SessionFileStore(std::move(path), moveCountFormat(mode),
+                       defaultMoveCountSessions(mode)),
+      mode_(mode) {}
 
-bool MoveCountStore::load(QString *error) {
-  sessions_ = defaultMoveCountSessions(mode_);
-  current_ = 0;
-  QJsonObject o;
-  FileStatus status = file_.load(o, error);
-  if (status != FileStatus::Read) {
-    return status == FileStatus::Missing;
-  }
-  sessions_ = moveCountsFromJson(o, &current_, mode_);
-  if (sessions_.empty()) {
-    sessions_.push_back(MoveCountSession{});
-  }
-  current_ = std::min(current_, sessions_.size() - 1);
-  return true;
+std::vector<MoveCountSession> MoveCountStore::defaults() const {
+  return defaultMoveCountSessions(mode_);
 }
 
-bool MoveCountStore::save(QString *error) const {
-  return file_.save(moveCountsToJson(sessions_, current_, mode_), error);
+QJsonObject MoveCountStore::toJson() const {
+  return moveCountsToJson(sessions_, current_, mode_);
 }
 
-void MoveCountStore::setCurrentIndex(std::size_t i) {
-  if (i < sessions_.size()) {
-    current_ = i;
-  }
-}
-
-MoveCountSession &MoveCountStore::addSession(const std::string &name) {
-  MoveCountSession s;
-  s.name = name;
-  sessions_.push_back(std::move(s));
-  current_ = sessions_.size() - 1;
-  return sessions_.back();
-}
-
-void MoveCountStore::removeSession(std::size_t i) {
-  if (i >= sessions_.size()) {
-    return;
-  }
-  sessions_.erase(sessions_.begin() + static_cast<std::ptrdiff_t>(i));
-  if (sessions_.empty()) {
-    sessions_.push_back(MoveCountSession{});
-  }
-  current_ = std::min(current_, sessions_.size() - 1);
+void MoveCountStore::fromJson(const QJsonObject &o) {
+  std::size_t current = 0;
+  std::vector<MoveCountSession> sessions =
+      moveCountsFromJson(o, &current, mode_);
+  assign(std::move(sessions), current);
 }
 
 QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,

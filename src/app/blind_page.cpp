@@ -363,7 +363,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
     if (answer != QMessageBox::Yes) {
       return;
     }
-    (setups ? store_.data().setups : store_.data().quiz) = LetterStats{};
+    (setups ? store_.setups() : store_.quiz()) = LetterStats{};
     save();
     refreshLeft();
   });
@@ -381,8 +381,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
 // -------------------------------------------------------------------
 
 bool BlindPage::onVirtualCube() const {
-  return store_.data().sessions[store_.currentIndex()].cube ==
-         CubeKind::Virtual;
+  return store_.sessions()[store_.currentIndex()].cube == CubeKind::Virtual;
 }
 
 BlindPage::Pieces BlindPage::pieces() const {
@@ -966,8 +965,7 @@ void BlindPage::refreshLeft() {
   int d = settings_.decimals;
   if (drill_ == Drill::Quiz || drill_ == Drill::Setups) {
     bool setups = drill_ == Drill::Setups;
-    const LetterStats &stats =
-        setups ? store_.data().setups : store_.data().quiz;
+    const LetterStats &stats = setups ? store_.setups() : store_.quiz();
     std::vector<std::pair<BldPiece, int>> rows;
     for (BldPiece kind : kKinds) {
       if ((kind == BldPiece::Edge && pieces() == Pieces::Corners) ||
@@ -1030,7 +1028,7 @@ void BlindPage::refreshLeft() {
   }
 
   if (drill_ == Drill::Tracing) {
-    const auto &traces = store_.data().traces;
+    const auto &traces = store_.traces();
     table_->setColumnCount(4);
     table_->setHorizontalHeaderLabels(
         {"#", tr("Time"), tr("Edges"), tr("Corners")});
@@ -1136,7 +1134,7 @@ void BlindPage::refreshLeft() {
 // ----------------------------------------------
 
 BlindPage::Item BlindPage::pickItem(bool setups) {
-  const LetterStats &stats = setups ? store_.data().setups : store_.data().quiz;
+  const LetterStats &stats = setups ? store_.setups() : store_.quiz();
   struct Choice {
     BldPiece kind;
     int sticker;
@@ -1293,7 +1291,7 @@ void BlindPage::finishItem(bool right, const QString &feedback) {
   item_->right = right;
   std::int64_t ms = monotonicMs() - item_->shownAt;
   bool setups = drill_ == Drill::Setups;
-  (setups ? store_.data().setups : store_.data().quiz)
+  (setups ? store_.setups() : store_.quiz())
       .of(item_->kind, item_->sticker)
       .record(right, ms);
   save();
@@ -1492,7 +1490,7 @@ void BlindPage::showTraceMenu(const QPoint &pos) {
     return;
   }
   auto index = static_cast<std::size_t>(item->data(Qt::UserRole).toInt());
-  if (index >= store_.data().traces.size()) {
+  if (index >= store_.traces().size()) {
     return;
   }
   QMenu menu(this);

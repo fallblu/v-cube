@@ -3,7 +3,7 @@
 #include "train/bld.hpp"
 #include "train/stats.hpp"
 
-#include "io/data_file.hpp"
+#include "io/session_store.hpp"
 
 #include <QJsonObject>
 #include <QString>
@@ -95,39 +95,33 @@ struct BlindData {
   friend bool operator==(const BlindData &, const BlindData &) = default;
 };
 
-// Blind mode's sessions and drill statistics, saved as one JSON file.
-class BlindStore {
+// Blind mode's sessions and drill statistics, saved as one JSON file. A
+// new file has one empty virtual-cube session and no statistics.
+class BlindStore : public SessionFileStore<BlindSession> {
 public:
   explicit BlindStore(QString path);
 
-  // A missing file gives one empty virtual-cube session and no
-  // statistics. A file that can't be read is set aside (renamed to
-  // <name>.unreadable-<date>-<time>) and also starts afresh; if it can't
-  // be moved, nothing is saved over it.
-  bool load(QString *error = nullptr);
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-  bool save(QString *error = nullptr) const;
-
-  BlindData &data() { return data_; }
-  const BlindData &data() const { return data_; }
-
-  std::vector<BlindSession> &sessions() { return data_.sessions; }
-  std::size_t currentIndex() const { return data_.current; }
-  void setCurrentIndex(std::size_t i);
-  BlindSession &current() { return data_.sessions[data_.current]; }
-  BlindSession &addSession(const std::string &name);
-  // Removing the last session leaves one empty session.
-  void removeSession(std::size_t i);
+  // Everything in the file, sessions included.
+  BlindData data() const;
+  LetterStats &quiz() { return quiz_; }
+  LetterStats &setups() { return setups_; }
+  const LetterStats &quiz() const { return quiz_; }
+  const LetterStats &setups() const { return setups_; }
+  // Oldest first, at most BlindData::kMaxTraces.
+  const std::vector<TraceAttempt> &traces() const { return traces_; }
   void addTrace(const TraceAttempt &t);
   // Forgets trace `i` (oldest first); nothing for one that isn't there.
   void removeTrace(std::size_t i);
 
-  QString path() const { return path_; }
+protected:
+  QJsonObject toJson() const override;
+  void fromJson(const QJsonObject &o) override;
+  void reset() override;
 
 private:
-  QString path_;
-  BlindData data_;
-  DataFile file_;
+  LetterStats quiz_;
+  LetterStats setups_;
+  std::vector<TraceAttempt> traces_;
 };
 
 // {"format": "v-cube.blind", "version": 1, "current": 0,
