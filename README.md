@@ -254,7 +254,7 @@ choice are for a physical cube.
     the virtual cube the scrambled cube is hidden until inspection starts
     (a setting).
   - With colour neutrality, the hold a scramble was made for is shown
-    under it.
+    under it (in Untimed and Move Count too).
   - Sessions, with ao5/ao12/ao100, mo3, best, mean, +2/DNF/comments per
     solve, and a trend chart. The session menu switches, adds, renames and
     deletes sessions, and imports and exports cstimer sessions. Imported

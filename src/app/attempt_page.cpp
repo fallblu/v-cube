@@ -174,8 +174,16 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
   scrambleLabel_->setMinimumHeight(60);
+  holdLabel_ = new QLabel(right);
+  holdLabel_->setAlignment(Qt::AlignCenter);
+  holdLabel_->setTextFormat(Qt::RichText);
+  holdLabel_->setToolTip(
+      tr("The hold your colour neutrality picked for this scramble"));
+  auto *scrambleColumn = new QVBoxLayout;
+  scrambleColumn->addWidget(scrambleLabel_);
+  scrambleColumn->addWidget(holdLabel_);
   net_ = new NetPreview(right);
-  scrambleRow->addWidget(scrambleLabel_, 1);
+  scrambleRow->addLayout(scrambleColumn, 1);
   scrambleRow->addWidget(net_);
   rightLayout->addLayout(scrambleRow);
 
@@ -510,12 +518,6 @@ void AttemptPage::showCubeKind() {
   if (moveCount_) {
     table_->setHorizontalHeaderLabels(
         {"#", tr("Moves"), tr("Opt"), "ao5", "ao12"});
-    table_->horizontalHeaderItem(2)->setToolTip(
-        settings_.optimalAnyHold
-            ? tr("The optimal move count for the scramble's step in any hold, "
-                 "as the step is checked")
-            : tr("The optimal move count for the scramble's step in the holds "
-                 "of your colour neutrality (either EO axis)"));
   } else if (virt) {
     table_->setHorizontalHeaderLabels({"#", tr("Moves"), "ao5", "ao12"});
   } else {
@@ -540,6 +542,11 @@ void AttemptPage::showScramble() {
   if (algs_) {
     algs_->setScramble(shown);
   }
+  // A retry's scramble has no hold of its own.
+  holdLabel_->setText(!shown || retry_ || settings_.neutrality.isFixed()
+                          ? QString()
+                          : tr("Hold: %1").arg(
+                                holdHtml(shown->hold, settings_.scheme)));
   if (!shown) {
     scrambleLabel_->setText(tr("Generating scramble…"));
     net_->setCube(std::nullopt);
@@ -1372,6 +1379,12 @@ void AttemptPage::refreshAttempts() {
   table_->setRowCount(static_cast<int>(attempts.size()));
   if (moveCount_) {
     table_->setColumnHidden(2, !hasOptimalSolver(session().step));
+    table_->horizontalHeaderItem(2)->setToolTip(
+        settings_.optimalAnyHold
+            ? tr("The optimal move count for the scramble's step in any hold, "
+                 "as the step is checked")
+            : tr("The optimal move count for the scramble's step in the holds "
+                 "of your colour neutrality (either EO axis)"));
   }
   std::size_t counted = 0; // index into solves
   for (std::size_t i = 0; i < attempts.size(); ++i) {
