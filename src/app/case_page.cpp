@@ -1,5 +1,6 @@
 #include "app/case_page.hpp"
 
+#include "app/ui_state.hpp"
 #include "io/data_file.hpp"
 
 #include "app/cube_painter.hpp"
@@ -16,7 +17,6 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSet>
-#include <QSettings>
 #include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -223,21 +223,18 @@ void CasePage::init() {
   applyHiddenColumns();
   if (sortableColumns()) {
     tree_->header()->setSectionsClickable(true);
-    QSettings q;
-    sortColumn_ = q.value(mode_ + "/sortColumn", -1).toInt();
+    sortColumn_ = saved::sortColumn(mode_).get();
     if (sortColumn_ <= 0 || sortColumn_ >= tree_->columnCount()) {
       sortColumn_ = -1;
     }
-    sortOrder_ = q.value(mode_ + "/sortAscending", false).toBool()
-                     ? Qt::AscendingOrder
-                     : Qt::DescendingOrder;
+    sortOrder_ = saved::sortAscending(mode_).get() ? Qt::AscendingOrder
+                                                   : Qt::DescendingOrder;
   }
   applySettings();
   populateSets();
-  QSettings q;
-  QString last = q.value(mode_ + "/set", q.value("trainer/set")).toString();
+  QString last = saved::caseSet(mode_);
   if (last == kAcrossSetsId && offersAcrossSets()) {
-    setId_ = ss(q.value(mode_ + "/shownSet").toString());
+    setId_ = ss(saved::shownSet(mode_).get());
     selectAcrossSets();
     return;
   }
@@ -260,7 +257,7 @@ void CasePage::showHeaderMenu(const QPoint &pos) {
           hidden << tree_->headerItem()->text(k);
         }
       }
-      QSettings().setValue(mode_ + "/hiddenColumns", hidden);
+      saved::hiddenColumns(mode_, defaultHiddenColumns()).set(hidden);
     });
   }
   menu.exec(tree_->header()->viewport()->mapToGlobal(pos));
@@ -280,9 +277,8 @@ void CasePage::sortClicked(int column) {
   } else {
     sortColumn_ = -1;
   }
-  QSettings q;
-  q.setValue(mode_ + "/sortColumn", sortColumn_);
-  q.setValue(mode_ + "/sortAscending", sortOrder_ == Qt::AscendingOrder);
+  saved::sortColumn(mode_).set(sortColumn_);
+  saved::sortAscending(mode_).set(sortOrder_ == Qt::AscendingOrder);
   applySort();
   sortChanged();
 }
@@ -315,9 +311,7 @@ void CasePage::fillGroupRows() {
 
 void CasePage::applyHiddenColumns() {
   QStringList hidden =
-      QSettings()
-          .value(mode_ + "/hiddenColumns", defaultHiddenColumns())
-          .toStringList();
+      saved::hiddenColumns(mode_, defaultHiddenColumns()).get();
   for (int c = 1; c < tree_->columnCount(); ++c) {
     tree_->setColumnHidden(c, hidden.contains(tree_->headerItem()->text(c)));
   }
@@ -537,7 +531,7 @@ void CasePage::selectSet(const std::string &id) {
   if (!library_.find(id) && !library_.sets().empty()) {
     setId_ = library_.sets().front().id;
   }
-  QSettings().setValue(mode_ + "/set", qs(setId_));
+  saved::setCaseSet(mode_, qs(setId_));
   setBox_->setCurrentIndex(setBox_->findData(qs(setId_)));
   computeInfo();
   buildTree();
@@ -550,7 +544,7 @@ void CasePage::selectAcrossSets() {
     setId_ =
         library_.sets().empty() ? std::string() : library_.sets().front().id;
   }
-  QSettings().setValue(mode_ + "/set", QString(kAcrossSetsId));
+  saved::setCaseSet(mode_, QString(kAcrossSetsId));
   setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
   computeInfo(true);
   buildTree();
@@ -563,7 +557,7 @@ void CasePage::showSet(const std::string &id) {
   }
   filter_->clearSearch();
   setId_ = id;
-  QSettings().setValue(mode_ + "/shownSet", qs(setId_));
+  saved::shownSet(mode_).set(qs(setId_));
   computeInfo(true);
   buildTree();
 }

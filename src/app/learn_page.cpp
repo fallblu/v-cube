@@ -1,6 +1,7 @@
 #include "app/learn_page.hpp"
 
 #include "app/case_history_dialog.hpp"
+#include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
 #include <QComboBox>
@@ -13,7 +14,6 @@
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QScrollArea>
-#include <QSettings>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QTreeWidget>
@@ -358,19 +358,16 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   split_->setSizes({400, 800});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split_);
-  QSettings q;
-  split_->restoreState(q.value("learn/splitter").toByteArray());
-  right->restoreState(q.value("learn/rightSplitter").toByteArray());
-  connect(split_, &QSplitter::splitterMoved, this, [this] {
-    QSettings().setValue("learn/splitter", split_->saveState());
-  });
-  connect(right, &QSplitter::splitterMoved, this, [right] {
-    QSettings().setValue("learn/rightSplitter", right->saveState());
-  });
-  listHidden_ = q.value("learn/listHidden", false).toBool();
+  split_->restoreState(saved::learnSplitter().get());
+  right->restoreState(saved::learnRightSplitter().get());
+  connect(split_, &QSplitter::splitterMoved, this,
+          [this] { saved::learnSplitter().set(split_->saveState()); });
+  connect(right, &QSplitter::splitterMoved, this,
+          [right] { saved::learnRightSplitter().set(right->saveState()); });
+  listHidden_ = saved::learnListHidden().get();
   left_->setVisible(!listHidden_);
   listButton_->setText(listHidden_ ? tr("Show list") : tr("Hide list"));
-  int p = practiceBox_->findData(q.value("learn/practice", "solve"));
+  int p = practiceBox_->findData(saved::learnPractice().get());
   practiceBox_->setCurrentIndex(std::max(0, p));
 
   idleTimer_.setSingleShot(true);
@@ -385,15 +382,14 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   connect(unqueueButton_, &QPushButton::clicked, this, &LearnPage::unqueueHead);
   connect(listButton_, &QPushButton::clicked, this, &LearnPage::toggleList);
   connect(orderBox_, &QComboBox::activated, this, [this] {
-    QSettings().setValue(setSettingsKey(setId_, "learnOrder"),
-                         orderBox_->currentData());
+    saved::learnOrder(setId_).set(orderBox_->currentData().toString());
     updateQueue();
     if (phase_ == Phase::NoCase) {
       nextCase();
     }
   });
   connect(practiceBox_, &QComboBox::activated, this, [this] {
-    QSettings().setValue("learn/practice", practiceBox_->currentData());
+    saved::learnPractice().set(practiceBox_->currentData().toString());
     if (context_) {
       return; // applies when back to learning
     }
@@ -415,8 +411,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
     }
   });
   connect(viewBox_, &QComboBox::activated, this, [this] {
-    QSettings().setValue(setSettingsKey(setId_, "learnView"),
-                         viewBox_->currentData());
+    saved::learnView(setId_).set(viewBox_->currentData().toString());
   });
   init();
 }
@@ -498,7 +493,7 @@ void LearnPage::focusModeChanged() {
 
 void LearnPage::toggleList() {
   listHidden_ = !listHidden_;
-  QSettings().setValue("learn/listHidden", listHidden_);
+  saved::learnListHidden().set(listHidden_);
   left_->setVisible(!listHidden_ && !focusMode());
   listButton_->setText(listHidden_ ? tr("Show list") : tr("Hide list"));
 }
@@ -1016,14 +1011,13 @@ bool LearnPage::notDue(const std::string &caseId) {
 }
 
 void LearnPage::applySetView() {
-  QSettings q;
-  QString key = setSettingsKey(setId_, "learnView");
-  QString name = q.value(key).toString();
+  QString name = saved::learnView(setId_).get();
   if (auto mode = CubeView::modeFromName(name)) {
     viewBox_->setCurrentIndex(viewBox_->findData(name));
     cubeView_->setMode(*mode);
   } else if (!setId_.empty()) {
-    q.setValue(key, viewBox_->currentData()); // the set keeps the view in use
+    // The set keeps the view in use.
+    saved::learnView(setId_).set(viewBox_->currentData().toString());
   }
 }
 
@@ -1032,9 +1026,7 @@ void LearnPage::adoptSet() {
   slotsSpin_->setVisible(pairSet_);
   contextButton_->setVisible(pairSet_);
   applySetView();
-  QString order = QSettings()
-                      .value(setSettingsKey(setId_, "learnOrder"), "list")
-                      .toString();
+  QString order = saved::learnOrder(setId_).get();
   orderBox_->setCurrentIndex(std::max(0, orderBox_->findData(order)));
   updateQueue();
 }
@@ -1169,12 +1161,11 @@ std::vector<std::string> LearnPage::pool() const {
     cases.push_back(std::move(c));
   }
   // The set's shuffled order stays the same from one day to the next.
-  QSettings q;
-  QString key = setSettingsKey(setId_, "learnSeed");
-  if (!q.contains(key)) {
-    q.setValue(key, QString::number(QRandomGenerator::global()->generate64()));
+  Stored<QString> seed = saved::learnSeed(setId_);
+  if (!seed.exists()) {
+    seed.set(QString::number(QRandomGenerator::global()->generate64()));
   }
-  return orderNewCases(cases, order, q.value(key).toString().toULongLong());
+  return orderNewCases(cases, order, seed.get().toULongLong());
 }
 
 std::string LearnPage::pickMember(const std::string &card) {

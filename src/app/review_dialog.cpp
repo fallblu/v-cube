@@ -2,6 +2,7 @@
 
 #include "app/colours.hpp"
 #include "app/cube_view.hpp"
+#include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
 #include <QApplication>
@@ -17,7 +18,6 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QSettings>
 #include <QShortcut>
 #include <QSlider>
 #include <QStyle>
@@ -348,7 +348,7 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
     showPairs();
   });
   connect(pairSetBox_, &QComboBox::activated, this, [this] {
-    QSettings().setValue("review/pairSet", pairSetBox_->currentData());
+    saved::reviewPairSet().set(pairSetBox_->currentData().toString());
     showPairs();
   });
   connect(&optimaWatcher_, &QFutureWatcher<Optima>::finished, this, [this] {
@@ -393,7 +393,7 @@ void ReviewDialog::buildPairSets() {
     compareLabel_->setVisible(false);
     return;
   }
-  QString wanted = QSettings().value("review/pairSet", "zz-f2l").toString();
+  QString wanted = saved::reviewPairSet().get();
   for (const AlgSet &s : library_->sets()) {
     if (isPairSet(s)) {
       pairSetBox_->addItem(qs(s.name), qs(s.id));

@@ -4,6 +4,7 @@
 #include "app/cube_painter.hpp"
 #include "app/paste_dialog.hpp"
 #include "app/set_properties_dialog.hpp"
+#include "app/ui_state.hpp"
 #include "train/reduction.hpp"
 
 #include <QAction>
@@ -25,7 +26,6 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSet>
-#include <QSettings>
 #include <QSplitter>
 #include <QUndoStack>
 #include <QVBoxLayout>
@@ -44,31 +44,6 @@ const StatusColour kWarn{Status::Warning};
 const QColor kFail(0xe6, 0x66, 0x66);
 
 constexpr int kDiagramSize = 160;
-
-// The settings group that holds a set's own settings (ticked cases, Drill
-// and Learn choices).
-QString setSettingsGroup(const std::string &setId) {
-  return setSettingsKey(setId, QString()).chopped(1);
-}
-
-QVariantMap readSetSettings(const std::string &setId) {
-  QSettings q;
-  q.beginGroup(setSettingsGroup(setId));
-  QVariantMap out;
-  for (const QString &key : q.allKeys()) {
-    out[key] = q.value(key);
-  }
-  return out;
-}
-
-void writeSetSettings(const std::string &setId, const QVariantMap &values) {
-  QSettings q;
-  q.remove(setSettingsGroup(setId));
-  q.beginGroup(setSettingsGroup(setId));
-  for (auto it = values.begin(); it != values.end(); ++it) {
-    q.setValue(it.key(), it.value());
-  }
-}
 
 // The cases whose algs differ between two states of a set, or nullopt if
 // anything else differs too.
@@ -762,17 +737,17 @@ void LibraryPage::applyEdit(Edit &edit, bool undoing, const QString &text) {
       library_.saveProgress(id);
     }
     if (!edit.settings.isEmpty()) {
-      writeSetSettings(id, edit.settings);
+      saved::setSetSettings(id, edit.settings);
     }
   } else if (current) {
     // The set goes; keep what it had so that it can come back.
     edit.progress = library_.progress(id);
-    edit.settings = readSetSettings(id);
+    edit.settings = saved::setSettings(id);
     if (!library_.remove(id, &error)) {
       emit message(tr("Could not delete %1: %2").arg(qs(from->name), error));
       return;
     }
-    QSettings().remove(setSettingsGroup(id));
+    saved::removeSetSettings(id);
   }
   // Show what changed.
   std::optional<std::vector<std::string>> cases;
@@ -1411,7 +1386,7 @@ void LibraryPage::deleteSet() {
             std::nullopt,
             {},
             std::move(progress),
-            readSetSettings(s->id),
+            saved::setSettings(s->id),
             caseId_,
             {}};
   QString error;
@@ -1424,7 +1399,7 @@ void LibraryPage::deleteSet() {
     emit message(tr("Deleted the set, but %1").arg(error));
   }
   // A later set with the same id must start afresh.
-  QSettings().remove(setSettingsGroup(edit.setId));
+  saved::removeSetSettings(edit.setId);
   analysis_.erase(edit.setId);
   pushSetEdit(tr("Delete set"), std::move(edit));
   setId_ = library_.sets().empty() ? std::string() : library_.sets().front().id;

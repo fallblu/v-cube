@@ -1,6 +1,7 @@
 #include "app/drill_page.hpp"
 
 #include "app/drill_history_dialog.hpp"
+#include "app/ui_state.hpp"
 #include "train/alg_follow.hpp"
 
 #include <QApplication>
@@ -12,7 +13,6 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSplitter>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -230,8 +230,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   connect(&watcher_, &QFutureWatcher<GeneratedScramble>::finished, this,
           &DrillPage::scrambleReady);
   connect(cubeBox_, &QComboBox::activated, this, [this] {
-    QSettings().setValue(setSettingsKey(setId_, "drillCube"),
-                         cubeBox_->currentData());
+    saved::drillCube(setId_).set(cubeBox_->currentData().toString());
     picker_.setAttemptMode(attemptMode());
     showCubeKind();
     session_.clear(); // the other cube's times
@@ -245,24 +244,21 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
     }
   });
   connect(scopeBox_, &QComboBox::activated, this, [this] {
-    QSettings().setValue(setSettingsKey(setId_, "drillScope"),
-                         scopeBox_->currentData());
+    saved::drillScope(setId_).set(scopeBox_->currentData().toString());
     picker_.restartRecap();
     recapFrom_ = session_.size();
     updateSummary();
     nextCase();
   });
   connect(poolBox_, &QComboBox::activated, this, [this] {
-    QSettings().setValue(setSettingsKey(setId_, "drillPool"),
-                         poolBox_->currentData());
+    saved::drillPool(setId_).set(poolBox_->currentData().toString());
     picker_.restartRecap();
     recapFrom_ = session_.size();
     updateSummary();
     nextCase();
   });
   connect(orderBox_, &QComboBox::activated, this, [this] {
-    QSettings().setValue(setSettingsKey(setId_, "drillOrder"),
-                         orderBox_->currentData());
+    saved::drillOrder(setId_).set(orderBox_->currentData().toString());
     picker_.setMode(static_cast<PickMode>(orderBox_->currentIndex()));
     picker_.restartRecap();
     recapFrom_ = session_.size();
@@ -622,24 +618,19 @@ void DrillPage::fillScopes() {
       }
     }
   }
-  int i = scopeBox_->findData(
-      QSettings().value(setSettingsKey(setId_, "drillScope"), kScopeTicked));
+  int i = scopeBox_->findData(saved::drillScope(setId_).get());
   scopeBox_->setCurrentIndex(std::max(0, i));
 }
 
 void DrillPage::loadChoices() {
-  QSettings q;
-  int c = cubeBox_->findData(
-      q.value(setSettingsKey(setId_, "drillCube"), cubeName(true)));
+  int c = cubeBox_->findData(saved::drillCube(setId_).get());
   cubeBox_->setCurrentIndex(std::max(0, c));
   picker_.setAttemptMode(attemptMode());
   showCubeKind();
   fillScopes();
-  int p = poolBox_->findData(
-      q.value(setSettingsKey(setId_, "drillPool"), poolName(0)));
+  int p = poolBox_->findData(saved::drillPool(setId_).get());
   poolBox_->setCurrentIndex(std::max(0, p));
-  int o = orderBox_->findData(q.value(setSettingsKey(setId_, "drillOrder"),
-                                      orderName(PickMode::Random)));
+  int o = orderBox_->findData(saved::drillOrder(setId_).get());
   orderBox_->setCurrentIndex(std::max(0, o));
   picker_.setMode(static_cast<PickMode>(orderBox_->currentIndex()));
   picker_.restartRecap();
