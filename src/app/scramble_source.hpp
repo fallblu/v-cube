@@ -85,6 +85,11 @@ private:
   std::optional<GeneratedScramble> prefetched_;
   bool wantMore_ = false;
   bool started_ = false;
+  // The state maker for makerType_ with makerTicked_ ticked, kept between
+  // scrambles.
+  std::function<ScrambleSetup(Rng &)> maker_;
+  QString makerType_;
+  std::optional<QStringList> makerTicked_;
 
   void request();
   void ready();

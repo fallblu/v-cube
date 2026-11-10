@@ -11,6 +11,8 @@
 #include <QPushButton>
 #include <QSettings>
 
+#include <memory>
+
 namespace vcube {
 
 std::function<ScrambleSetup(Rng &)>
@@ -49,11 +51,14 @@ scrambleStateMaker(const AlgLibrary &library, const QString &type) {
       }
       bool before = set->aufBefore, after = set->aufAfter;
       std::vector<Mirror> worlds = set->worlds();
-      return [pool, before, after, id, worlds](Rng &rng) {
-        std::uniform_int_distribution<std::size_t> pick(0, pool.size() - 1);
+      // Shared, so that copies of the maker don't copy the pool.
+      auto shared = std::make_shared<const std::vector<Entry>>(std::move(pool));
+      return [shared, before, after, id, worlds](Rng &rng) {
+        const std::vector<Entry> &cases = *shared;
+        std::uniform_int_distribution<std::size_t> pick(0, cases.size() - 1);
         std::uniform_int_distribution<std::size_t> world(0, worlds.size() - 1);
         std::uniform_int_distribution<int> quarter(0, 3);
-        const Entry &e = pool[pick(rng)];
+        const Entry &e = cases[pick(rng)];
         // As Drill sets a case up: in one of the set's mirror images.
         CubieCube s = setUpCase(e.state, e.free, worlds[world(rng)], true, rng);
         if (before) {
@@ -223,6 +228,7 @@ void ScrambleFeed::setType(const QString &type) {
 
 void ScrambleFeed::regenerate() {
   started_ = true;
+  maker_ = nullptr; // the alg sets may have changed
   current_.reset();
   prefetched_.reset();
   emit currentChanged();
@@ -258,8 +264,18 @@ void ScrambleFeed::request() {
   wantMore_ = false;
   pendingType_ = type_;
   pendingNeutrality_ = neutrality_;
-  watcher_.setFuture(generateScramble(
-      scrambleStateMaker(library_, pendingType_), neutrality_));
+  // An alg set's case pool is set up once, and again when the type or the
+  // ticked cases change.
+  std::optional<QStringList> ticked;
+  if (type_.startsWith("set:")) {
+    ticked = tickedCases(ss(type_.mid(4)));
+  }
+  if (!maker_ || makerType_ != type_ || makerTicked_ != ticked) {
+    maker_ = scrambleStateMaker(library_, type_);
+    makerType_ = type_;
+    makerTicked_ = std::move(ticked);
+  }
+  watcher_.setFuture(generateScramble(maker_, neutrality_));
 }
 
 void ScrambleFeed::ready() {
