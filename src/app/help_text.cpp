@@ -33,7 +33,12 @@ constexpr std::array<Section, 9> kModeSections = {{
          "shown; in the learning steps <b>Tab</b> first shows only the next "
          "move. In context: <b>Tab</b> shows the set's cheapest order, "
          "<b>Esc</b> starts again, <b>Shift+Space</b> gives up, then "
-         "<b>Space</b> for another.</p>")},
+         "<b>Space</b> for another; <b>Backspace</b> goes back to "
+         "learning.</p><p><b>Ctrl+Z</b> takes back the last grade and does "
+         "the case again, <b>F9</b> hides the case list. Recognise: "
+         "<b>Space</b> once you recall the alg (<b>Shift+Space</b> if you "
+         "can't), then <b>1–4</b> grade it. Which case?: <b>1–6</b> answer, "
+         "<b>Space</b> next.</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Drill (timed)"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",
@@ -120,8 +125,8 @@ constexpr std::array<Section, 9> kModeSections = {{
          "gives the next scramble. <b>Esc</b> puts the scramble back (or ends "
          "a retry). After an attempt, rotations turn the cube to look at it. "
          "Bad edges: type the count with <b>0–9</b> (<b>Backspace</b> "
-         "corrects)"
-         " and press <b>Enter</b>; afterwards <b>Tab</b> rings the other "
+         "corrects) and press <b>Enter</b>; afterwards <b>Tab</b> rings the "
+         "other "
          "axis's bad edges.</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Blind"),
      QT_TRANSLATE_NOOP(

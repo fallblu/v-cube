@@ -30,7 +30,9 @@ namespace vcube {
 // same choices. The list can be searched and filtered by status; "Tick
 // all" and "Tick none" then tick only the cases shown, and double-clicking
 // a case practises it now. Cases are set up for a hold picked from the
-// app's colour neutrality; thumbnails are drawn in its main hold.
+// app's colour neutrality; thumbnails are drawn in its main hold. Several
+// cases (or a group's row) can be selected for the right-click actions,
+// and the columns after "Case" can be hidden from the header's menu.
 class CasePage : public ModePage {
   Q_OBJECT
 public:
@@ -40,6 +42,9 @@ public:
   void activated() override;
   void deactivated() override;
   void setFocusMode(bool on) override;
+
+  // The set drop-down's entry for reviewing every set at once.
+  static constexpr const char *kAcrossSetsId = "*across*";
 
 signals:
   void editCaseRequested(const QString &setId, const QString &caseId);
@@ -108,9 +113,26 @@ protected:
   int excludedCount() const;
 
   QTreeWidgetItem *itemFor(const std::string &caseId) const;
+  // Selects and shows the case's row: only once the case is revealed, so
+  // that the list doesn't name a case that is to be recognised.
   void selectInTree(const std::string &caseId);
+  void clearCaseSelection();
   void updateRow(const std::string &caseId);
   void updateAllRows();
+
+  // Reviewing the due cases of every set: the set drop-down shows "All
+  // sets" and the list shows the set of the case being practised.
+  bool acrossSets() const { return acrossSets_; }
+  virtual bool offersAcrossSets() const { return false; }
+  // While reviewing across sets: shows another set's cases (without
+  // starting it as selecting it would).
+  void showSet(const std::string &id);
+  // The set drop-down's text for a set, and for "All sets".
+  virtual QString setItemText(const AlgSet &set);
+  virtual QString acrossItemText() { return tr("All sets: due reviews"); }
+  void refreshSetLabels();
+  // Gives the keyboard back to the cube from the search box or a field.
+  void releaseKeys();
 
   // The yaw to look at a case's group from in 3D: the corner its diagrams
   // are drawn from, mirrored with the world, so that e.g. a back-left F2L
@@ -141,6 +163,8 @@ protected:
 
   // The page's case list columns after "Case", and how to fill them.
   virtual QStringList columns() const = 0;
+  // Columns hidden until the header's menu shows them.
+  virtual QStringList defaultHiddenColumns() const { return {}; }
   virtual void fillRow(QTreeWidgetItem *item, const std::string &caseId) = 0;
   virtual void updateSummary() = 0;
   // A set was selected: start practising it.
@@ -150,9 +174,12 @@ protected:
   // Practise this case now (from the case list's menu).
   virtual void startCase(const std::string &caseId) = 0;
   virtual QString startCaseLabel(const std::string &caseId) = 0;
-  virtual void extendCaseMenu(QMenu &menu, const std::string &caseId) {
+  // More actions for the cases right-clicked: the selected cases, or a
+  // group's cases when its row was right-clicked.
+  virtual void extendCaseMenu(QMenu &menu,
+                              const std::vector<std::string> &caseIds) {
     (void)menu;
-    (void)caseId;
+    (void)caseIds;
   }
   virtual void ticksChanged() {}
   // The colour neutrality changed in Settings.
@@ -164,10 +191,27 @@ private:
   bool reloadPending_ = false;  // the library changed while hidden
   bool rebuildPending_ = false; // the look changed while hidden
   bool ticksPending_ = false;   // a tick change waits to be saved
+  bool acrossSets_ = false;
+
+  struct InfoCache {
+    std::map<std::string, CaseInfo> info;
+    CaseFamilies families;
+    std::map<std::string, int> steps;
+  };
+  // What computeInfo() worked out for each set, for reviews across sets;
+  // emptied whenever the library changes.
+  std::map<std::string, InfoCache> infoCache_;
 
   void populateSets();
   void selectSet(const std::string &id);
-  void computeInfo();
+  void selectAcrossSets();
+  // Starts the case chosen in the list, giving the keys back first.
+  void startCaseFromList(const std::string &id);
+  // `cached`: reuse what was worked out for the set before.
+  void computeInfo(bool cached = false);
+  // The case list's header menu: which columns are shown.
+  void showHeaderMenu(const QPoint &pos);
+  void applyHiddenColumns();
   // Builds the case list, keeping its scroll position and collapsed groups.
   void buildTree();
   // Brings the ticks and rows up to date without drawing the thumbnails

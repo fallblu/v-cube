@@ -8,8 +8,9 @@
 
 #include <QDir>
 #include <QFile>
-#include <QJsonDocument>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 
 #include <string>
@@ -581,6 +582,39 @@ TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   CHECK(again["queued"].card.introduced == 12345);
   CHECK(again["marked"].card.marked);
   CHECK_FALSE(again["learned"].card.marked);
+}
+
+TEST_CASE("progress keeps recognition times, suspension and burial") {
+  SetProgress p;
+  Attempt learn{100, 0, false, AttemptMode::Learn};
+  learn.recognitionMs = 850;
+  learn.executionMs = 2100;
+  p["T"].record(learn);
+  Attempt recog{200, 0, true, AttemptMode::Learn};
+  recog.recognitionMs = 1200;
+  recog.recognitionOnly = true;
+  p["T"].record(recog);
+  p["T"].record({300, 2500, false, AttemptMode::PhysicalDrill});
+  p["T"].card.suspended = true;
+  p["U"].card.buriedUntil = 99999;
+  SetProgress back = progressFromJson(progressToJson(p));
+  REQUIRE(back["T"].attempts.size() == 3);
+  CHECK(back["T"].attempts[0].recognitionMs == 850);
+  CHECK(back["T"].attempts[0].executionMs == 2100);
+  CHECK_FALSE(back["T"].attempts[0].recognitionOnly);
+  CHECK(back["T"].attempts[1].recognitionMs == 1200);
+  CHECK(back["T"].attempts[1].recognitionOnly);
+  CHECK(back["T"].attempts[2].recognitionMs == 0);
+  CHECK(back["T"].attempts[2].timeMs == 2500);
+  CHECK(back["T"].card.suspended);
+  CHECK_FALSE(back["U"].card.suspended);
+  CHECK(back["U"].card.buriedUntil == 99999);
+  CHECK(back["T"].card.buriedUntil == 0);
+  // The four-element attempts of earlier files still read the same.
+  QJsonArray row =
+      progressToJson(p).value("cases").toObject().value("T").toObject().value(
+          "attempts").toArray().at(2).toArray();
+  CHECK(row.size() == 4);
 }
 
 TEST_CASE("sessions round-trip and convert to and from cstimer") {

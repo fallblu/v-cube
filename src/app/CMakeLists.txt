@@ -5,6 +5,7 @@ add_library(vcube_gui STATIC
   blind_page.cpp
   bld_scheme_dialog.cpp
   case_filter.cpp
+  case_history_dialog.cpp
   case_page.cpp
   colours.cpp
   command_palette.cpp

@@ -56,6 +56,8 @@ struct AppSettings {
 
   // Spaced repetition
   SrsConfig srs;
+  // A case whose mean recognition time is over this is slow to recognise.
+  int slowRecognitionMs = 1500;
 
   // Allowed ranges; values outside them are brought into range on load.
   static constexpr int kMaxAnimationMs = 500;

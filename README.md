@@ -66,13 +66,66 @@ choice are for a physical cube.
     alg that solves the case before its last rotation.
   - Cases are scheduled Anki-style: cases in their learning steps (minutes
     apart) first, then reviews due today (a review is due all day on the
-    day it falls due), then new cases from your learn queue, up to a daily
-    limit. "Start learning" adds the next N ticked cases to the queue (type
-    N and press Enter to do the same).
+    day it falls due) in a random order, so that cases learned together
+    don't always come up in the same sequence, then new cases from your
+    learn queue, up to a daily limit and only while fewer than 3 cases are
+    in their learning steps (both in Settings), so that new cases don't
+    arrive back to back. Review intervals of three days or more are spread
+    out by a few percent.
+  - Settings > Learning holds the scheduler's choices: the learning and
+    relearning steps, the graduating and easy intervals, how much of its
+    interval a forgotten case keeps (20 %; earlier versions kept 50 %), the
+    ease a Good review regains (so a case once missed can space out again),
+    credit for reviews done late, whether Hard moves a learning case on a
+    step, how many new cases learn at once, the learn-ahead time (off;
+    earlier versions took learning cases up to 20 minutes early), when a
+    case is a leech and when it is slow to recognise.
+  - "Start learning" adds the next N ticked cases to the queue (type N and
+    press Enter to do the same). **New cases** (for each set) chooses the
+    order cases are queued and introduced in: list order, the order you
+    queued them, shuffled, one from each group in turn, shortest alg first,
+    or fewest steps left first (for sets solved a step at a time). Under
+    the list the queue shows the next cases and how many were introduced
+    today; "Learn next" introduces the next one now, whatever the limits,
+    and "Remove" takes it out of the queue.
+  - With nothing due the page says why, when the next review is, and how
+    the day went (reviewed, Again rate, due tomorrow). It looks again by
+    itself when a case falls due; Space looks again, and takes the next
+    learning case early when that is all there is.
+  - The header above the cube (also in focus mode) counts the queued,
+    learning, due and done-today cases, and the set drop-down shows each
+    set's due reviews. **All sets: due reviews** at the top of the
+    drop-down reviews every set's due cases in one session, interleaved;
+    the list shows the set of the case at hand.
   - Right-click a case to start learning it, mark it as learned (it then
     comes up as a review, without the walkthrough, and doesn't count
-    against the daily limit), remove it from the learn queue, or reset its
-    learning progress (its card and Learn attempts; drill times stay).
+    against the daily limit), remove it from the learn queue, suspend it
+    (left out of Learn but still ticked for Drill), bury it until tomorrow,
+    reset its learning progress (its card and Learn attempts; drill times
+    stay) or see its history (its card, and every attempt with its
+    recognition and execution times). Select several cases, or right-click
+    a group's row, to do the same to all of them at once.
+  - The list's Recog column is each case's mean recognition time (from the
+    case being set up to your first turn of a layer other than U or D, in
+    Learn and on the virtual cube in Drill, for cases solved with their
+    algs and recognition reviews); Lapses and Ease (hidden at first) come
+    from its card. A case forgotten 6 times is flagged as a leech. The list
+    can be filtered to cases slow to recognise (over 1.5 s, in Settings),
+    leeches, or suspended and buried ones, and right-clicking the header
+    hides or shows columns. F9 hides the list, and the splitters between the list, the
+    cube and the algs keep their place.
+  - The view drop-down's neighbour picks how reviews go: **Solve** (as
+    above), **Recognise** (a learned case is only shown: press Space as
+    soon as you recall its alg, or Shift+Space if you can't; the algs are
+    shown and you grade yourself 1-4; new and learning cases are still
+    solved) or **Which case?** (name the case among up to six cases of its
+    group, timed but not graded).
+  - After a case the outcome is shown as a coloured badge, and each grade
+    button shows the interval it would give. Ctrl+Z takes back the last
+    grades, up to 10, and brings the case up again.
+  - Learned cases come up with the pieces the step leaves free scrambled
+    (as in Drill), so an OLL isn't known by its permutation; a new case
+    keeps the picture it is learned from.
   - "Learn this case now" (right-click a case) on a learned case that isn't
     due yet is a practice run: you see how you did, but the schedule
     doesn't change, also for the cases a step-at-a-time set passes on the
@@ -84,9 +137,12 @@ choice are for a physical cube.
   - **Guided learning** (a set property, on by default): the first time a
     case comes up, its main alg is a walkthrough. → and ← step through it
     on the cube (Home goes back), then Space sets the case up again for
-    you to do it with each next move highlighted. While the case is in its
-    learning steps, Tab first shows only the next move (graded Hard), and a
-    second Tab shows the algs (Again). Reviews work as before.
+    you to do it with each next move highlighted. The walkthrough isn't
+    graded: the case comes back at its first learning step to be done from
+    memory (1-4 grade it straight away instead). While the case is in its
+    learning steps, Tab first shows only the next move (graded Hard, which
+    moves it on a step but never finishes its steps), and a second Tab
+    shows the algs (Again). Reviews work as before.
   - **Learn by family** (a set property, off by default): each case is
     learned together with its mirror images, left-right, front-back and
     both, such as the four F2L slots' versions of a pair. The family has
@@ -168,8 +224,11 @@ choice are for a physical cube.
   - A set with mirrored cases has each case set up in a random one of its
     mirror images, and a set solved a step at a time is drilled from the
     case to the end of the step, with every step shown afterwards.
-  - Per-case recent average, best time and fail rate. Drill attempts never
-    change the spaced-repetition schedule.
+  - Per-case recent average, best time and fail rate. On the virtual cube
+    each solved attempt also records its recognition time (from the case
+    being set up to the first turn of a layer other than U or D) and its
+    execution time, which Learn's Recog column and the "slow to recognise" filter
+    use. Drill attempts never change the spaced-repetition schedule.
 - Learn and Drill share each set's ticked cases and learn queue (cases
   added to a set later come ticked). Only cases
   with at least one alg that solves them are offered, and both modes show
@@ -180,9 +239,12 @@ choice are for a physical cube.
   and filtered by status: ticked or not, new, in the learn queue,
   learning, learned or due in Learn; learned, never drilled or slower than
   the target in Drill; without algs, without a passing alg or with
-  failing algs in Library. While the list is filtered, "Tick shown" and
-  "Untick shown" change only the cases shown. Double-click a case in
-  Learn or Drill to practise it now.
+  failing algs in Library; slow to recognise in Learn and Drill. In Learn
+  and Drill the search also matches the cases' algs. While the list is
+  filtered, "Tick shown" and "Untick shown" change only the cases shown.
+  Double-click a case in Learn or Drill to practise it now (the keys go
+  back to the cube). A case is selected in the list only once it is
+  revealed, so the list doesn't name the case you are recognising.
 - **Library**: create and edit alg sets.
   - The main view shows the set list, the selected set's case tree and the
     selected case with its diagram, group, algs and Learn and Drill
@@ -619,12 +681,19 @@ picks the plugin as usual.
 | Learn, walkthrough | Space / Enter | do the case with each next move shown |
 | Learn, in context | Tab / Esc / Shift+Space | show the set's cheapest order / start again / give up |
 | Learn, in context, afterwards | Space / Enter / Esc | another one / the same one again |
+| Learn, in context | Backspace | back to learning |
 | Learn | Tab | show the algs (grades the case Again) |
 | Learn | Shift+Space | give up (grades the case Again) |
 | Learn | Esc | reset the case (grades it Again once the alg is begun; in a set solved a step at a time, back to where the current case came up) |
 | Learn, after a case | Space / Enter | next case |
 | Learn, after a case | 1-4 | grade Again / Hard / Good / Easy |
 | Learn, after a case | Esc | reset the cube to practise the case |
+| Learn | Ctrl+Z | take back the last grade (up to 10), and do the case again |
+| Learn | F9 | hide or show the case list |
+| Learn, nothing due | Space / Enter | look again; take the next learning case early |
+| Learn, Recognise | Space / Shift+Space | recalled the alg / can't recall it (the algs are shown) |
+| Learn, Recognise, afterwards | 1-4 / Space | grade and go on / go on with the grade shown |
+| Learn, Which case? | 1-6 / Space | answer / next case |
 | Learn, Drill, Library | search box: Enter / Esc | return the keys to the cube / clear the search |
 | Library | Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) | undo / redo |
 | Library | Ctrl+Shift+V / Ctrl+Shift+A / Ctrl+Shift+G | paste algs / new case from alg / new group |

@@ -18,7 +18,8 @@ CaseFilter::CaseFilter(QTreeWidget *tree, QWidget *parent)
   // Only a click gives it the keys, which the cube or timer needs.
   search_->setFocusPolicy(Qt::ClickFocus);
   search_->setToolTip(
-      tr("Show the cases whose name or group contains this text. Enter "
+      tr("Show the cases whose name, group or algs (in Learn and Drill) "
+         "contain this text. Enter "
          "gives the keys back; Esc clears the search."));
   search_->installEventFilter(this);
   status_ = new QComboBox(this);
@@ -53,6 +54,11 @@ bool CaseFilter::isActive() const {
 
 void CaseFilter::release() { search_->clearFocus(); }
 
+void CaseFilter::clearSearch() {
+  search_->clear();
+  search_->clearFocus();
+}
+
 void CaseFilter::apply() {
   QString text = search_->text().trimmed();
   int choice = status_->currentIndex() - 1;
@@ -68,7 +74,10 @@ void CaseFilter::apply() {
     for (int i = 0; i < group->childCount(); ++i) {
       QTreeWidgetItem *item = group->child(i);
       bool show =
-          (groupFound || item->text(0).contains(text, Qt::CaseInsensitive)) &&
+          (groupFound || item->text(0).contains(text, Qt::CaseInsensitive) ||
+           item->data(0, kSearchRole)
+               .toString()
+               .contains(text, Qt::CaseInsensitive)) &&
           (!test || (*test)(item));
       item->setHidden(!show);
       shown += show ? 1 : 0;

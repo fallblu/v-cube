@@ -55,7 +55,7 @@ private:
   QTreeWidget *modes_;
   QTimer refresh_;
 
-  std::map<std::string, SetDue> dueBySet();
+  std::map<std::string, SetWaiting> dueBySet();
   std::vector<ActivityEvent> events();
   void refresh();
 };

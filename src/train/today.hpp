@@ -48,15 +48,16 @@ Streak practiceStreak(const std::vector<std::int64_t> &timestamps,
 
 // What an alg set has waiting in Learn, for the cases in `pool` (the cases
 // Learn can offer).
-struct SetDue {
+struct SetWaiting {
   int due = 0;     // reviews and learning steps due now (or today)
   int newLeft = 0; // queued cases that can still be introduced today
   int queued = 0;  // cases in the learn queue
   int learned = 0; // cases with a review interval
   int unstarted = 0;
 };
-SetDue setDue(const std::vector<std::string> &pool, const SetProgress &progress,
-              std::int64_t now, std::int64_t dayStart, std::int64_t dayEnd,
-              const SrsConfig &config);
+SetWaiting setWaiting(const std::vector<std::string> &pool,
+                      const SetProgress &progress, std::int64_t now,
+                      std::int64_t dayStart, std::int64_t dayEnd,
+                      const SrsConfig &config);
 
 } // namespace vcube

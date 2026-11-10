@@ -633,6 +633,9 @@ void MainWindow::closeEvent(QCloseEvent *e) {
 void MainWindow::restoreLayout() {
   QSettings q;
   for (int m = 0; m < ModeCount; ++m) {
+    if (m == Learn) {
+      continue; // Learn keeps its own splitters
+    }
     const auto splitters =
         pages_[static_cast<std::size_t>(m)]->findChildren<QSplitter *>();
     for (qsizetype i = 0; i < splitters.size(); ++i) {
@@ -651,6 +654,9 @@ void MainWindow::restoreLayout() {
 void MainWindow::saveLayout() {
   QSettings q;
   for (int m = 0; m < ModeCount; ++m) {
+    if (m == Learn) {
+      continue; // Learn keeps its own splitters
+    }
     const auto splitters =
         pages_[static_cast<std::size_t>(m)]->findChildren<QSplitter *>();
     for (qsizetype i = 0; i < splitters.size(); ++i) {

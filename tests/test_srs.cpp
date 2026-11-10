@@ -1,4 +1,6 @@
 #include "train/srs.hpp"
+#include <algorithm>
+#include <cmath>
 #include <map>
 
 #include <catch2/catch_test_macros.hpp>
@@ -222,7 +224,8 @@ TEST_CASE("reviews are due all day on the day they fall due") {
 }
 
 TEST_CASE("learning cards come up early only when nothing else is left") {
-  SrsConfig cfg; // 20 minutes of learn-ahead
+  SrsConfig cfg;
+  cfg.learnAheadSeconds = 1200;
   const std::int64_t now = 50000;
   SetProgress prog;
   prog["soon"].card.state = CardState::Learning;
@@ -326,4 +329,300 @@ TEST_CASE("drill picker orders and weights cases") {
     ++seen[*p.next(prog, rng)];
   }
   CHECK(seen["a"] > seen["b"] + seen["c"]);
+}
+
+TEST_CASE("new cases can be introduced in several orders") {
+  std::vector<NewCase> cases = {
+      {"a1", "A", 9, 3, 50}, {"a2", "A", 7, 1, 10}, {"a3", "A", 11, 2, 40},
+      {"b1", "B", 5, 2, 30}, {"c1", "C", 8, 1, 20},
+  };
+  using V = std::vector<std::string>;
+  CHECK(orderNewCases(cases, NewOrder::ListOrder, 0) ==
+        V{"a1", "a2", "a3", "b1", "c1"});
+  CHECK(orderNewCases(cases, NewOrder::Queued, 0) ==
+        V{"a2", "c1", "b1", "a3", "a1"});
+  CHECK(orderNewCases(cases, NewOrder::RoundRobin, 0) ==
+        V{"a1", "b1", "c1", "a2", "a3"});
+  CHECK(orderNewCases(cases, NewOrder::ShortestAlg, 0) ==
+        V{"b1", "a2", "c1", "a1", "a3"});
+  // Ties keep list order.
+  CHECK(orderNewCases(cases, NewOrder::FewestSteps, 0) ==
+        V{"a2", "c1", "a3", "b1", "a1"});
+  // Shuffled: the same order for the same seed, all cases kept.
+  V s1 = orderNewCases(cases, NewOrder::Shuffled, 7);
+  CHECK(s1 == orderNewCases(cases, NewOrder::Shuffled, 7));
+  V sorted = s1;
+  std::sort(sorted.begin(), sorted.end());
+  CHECK(sorted == V{"a1", "a2", "a3", "b1", "c1"});
+  bool differs = false;
+  for (std::uint64_t seed = 1; seed < 20 && !differs; ++seed) {
+    differs = orderNewCases(cases, NewOrder::Shuffled, seed) != s1;
+  }
+  CHECK(differs);
+}
+
+TEST_CASE("the learn queue goes in pool order and waits for free places") {
+  SrsConfig cfg;
+  cfg.newPerDay = 10;
+  cfg.maxLearning = 2;
+  const std::int64_t now = 100000;
+  SetProgress prog;
+  // The pool's order is the introduction order: case 40 before case 3.
+  std::vector<std::string> pool = {"c40", "c3", "c7"};
+  for (const auto &id : pool) {
+    startLearning(prog[id].card, now - 100, cfg);
+  }
+  auto r = pickLearnCase(pool, prog, now, 0, cfg);
+  CHECK(*r.caseId == "c40");
+  introduce(prog["c40"].card, now, cfg);
+  CHECK_FALSE(isQueued(prog["c40"].card));
+  CHECK(prog["c40"].card.reps == 0);
+  CHECK(prog["c40"].card.due == now + 60);
+  r = pickLearnCase(pool, prog, now, 0, cfg);
+  CHECK(*r.caseId == "c3");
+  review(prog["c3"].card, Grade::Good, now, cfg);
+  // Two cards in their learning steps: the queue waits, also with nothing
+  // else to do, instead of bringing another walkthrough straight away.
+  r = pickLearnCase(pool, prog, now, 0, cfg);
+  CHECK_FALSE(r.caseId);
+  CHECK(r.learningLimitReached);
+  CHECK_FALSE(r.newLimitReached);
+  CHECK(r.nextDue == now + 60);
+  // Space with nothing due takes the next learning card early.
+  LearnPickOptions early;
+  early.early = true;
+  r = pickLearnCase(pool, prog, now, 0, cfg, early);
+  CHECK(*r.caseId == "c40");
+  // Once c40 graduates there is room again.
+  review(prog["c40"].card, Grade::Easy, now + 60, cfg);
+  r = pickLearnCase(pool, prog, now + 60, 0, cfg);
+  CHECK(*r.caseId == "c7");
+  CHECK(r.isNew);
+  CHECK(learningCount(pool, prog) == 1);
+}
+
+TEST_CASE("suspended and buried cards stay out of Learn") {
+  SrsConfig cfg;
+  const std::int64_t now = 100000;
+  SetProgress prog;
+  for (const char *id : {"a", "b"}) {
+    prog[id].card.state = CardState::Review;
+    prog[id].card.reps = 2;
+    prog[id].card.introduced = 1;
+    prog[id].card.due = now - 10;
+  }
+  prog["a"].card.suspended = true;
+  bury(prog["b"].card, now + 500);
+  CHECK(isHeld(prog["a"].card, now));
+  CHECK(isBuried(prog["b"].card, now));
+  CHECK_FALSE(pickLearnCase({"a", "b"}, prog, now, 0, cfg).caseId);
+  CHECK(*pickLearnCase({"a", "b"}, prog, now + 600, 0, cfg).caseId == "b");
+  LearnCounts n = learnCounts({"a", "b"}, prog, now, 0, cfg);
+  CHECK(n.held == 2);
+  CHECK(n.due == 0);
+  CHECK(n.learned == 2);
+}
+
+TEST_CASE("reviews due today come up in a random order") {
+  SrsConfig cfg;
+  const std::int64_t now = 100000;
+  SetProgress prog;
+  std::vector<std::string> pool;
+  for (int i = 0; i < 6; ++i) {
+    std::string id = "r" + std::to_string(i);
+    pool.push_back(id);
+    prog[id].card.state = CardState::Review;
+    prog[id].card.reps = 2;
+    prog[id].card.introduced = 1;
+    prog[id].card.due = now - 1000 + i;
+  }
+  std::mt19937_64 rng(11);
+  LearnPickOptions opts;
+  opts.rng = &rng;
+  std::map<std::string, int> first;
+  for (int i = 0; i < 600; ++i) {
+    ++first[*pickLearnCase(pool, prog, now, 0, cfg, opts).caseId];
+  }
+  CHECK(first.size() == 6);
+  // Without a generator, earliest first as before.
+  CHECK(*pickLearnCase(pool, prog, now, 0, cfg).caseId == "r0");
+  // The last case is still avoided.
+  opts.last = "r3";
+  for (int i = 0; i < 100; ++i) {
+    CHECK(*pickLearnCase(pool, prog, now, 0, cfg, opts).caseId != "r3");
+  }
+}
+
+TEST_CASE("long intervals are spread out a little") {
+  SrsConfig cfg;
+  std::mt19937_64 rng(3);
+  std::map<std::int64_t, int> dues;
+  for (int i = 0; i < 50; ++i) {
+    SrsCard c;
+    c.state = CardState::Review;
+    c.intervalDays = 10;
+    c.ease = 2.5;
+    c.due = 0;
+    review(c, Grade::Good, 0, cfg, &rng);
+    CHECK(c.intervalDays >= 23.75);
+    CHECK(c.intervalDays <= 26.25);
+    ++dues[c.due];
+  }
+  CHECK(dues.size() > 10);
+  // Short intervals aren't.
+  SrsCard c;
+  review(c, Grade::Good, 0, cfg, &rng);
+  review(c, Grade::Good, 600, cfg, &rng);
+  CHECK(c.intervalDays == cfg.graduatingDays);
+}
+
+TEST_CASE("scheduler: ease recovers, lapses keep less, late reviews count") {
+  SrsConfig cfg;
+  SrsCard c;
+  c.state = CardState::Review;
+  c.intervalDays = 10;
+  c.ease = 2.0;
+  c.due = 0;
+  review(c, Grade::Good, 0, cfg);
+  CHECK(std::abs(c.ease - 2.05) < 1e-9);
+  CHECK(c.intervalDays == 20.0);
+  c.ease = 2.48;
+  review(c, Grade::Good, c.due, cfg);
+  CHECK(c.ease == cfg.startingEase); // never above the starting ease
+  // A lapse keeps a fifth of the interval.
+  c.intervalDays = 50;
+  review(c, Grade::Again, c.due, cfg);
+  CHECK(std::abs(c.intervalDays - 10.0) < 1e-9);
+  CHECK(c.state == CardState::Relearning);
+  // The old behaviour is a setting away.
+  SrsConfig old = cfg;
+  old.lapseFactor = 0.5;
+  old.easeRecovery = 0;
+  old.creditLateReviews = false;
+  SrsCard d;
+  d.state = CardState::Review;
+  d.intervalDays = 50;
+  d.ease = 2.0;
+  review(d, Grade::Again, 0, old);
+  CHECK(d.intervalDays == 25.0);
+
+  // Ten days late: Good credits half of that.
+  SrsCard late;
+  late.state = CardState::Review;
+  late.intervalDays = 10;
+  late.ease = 2.5;
+  late.due = 0;
+  SrsCard onTime = late;
+  review(late, Grade::Good, 10 * kSecondsPerDay, cfg);
+  CHECK(late.intervalDays == 37.5);
+  review(onTime, Grade::Good, 10 * kSecondsPerDay, old);
+  CHECK(onTime.intervalDays == 25.0);
+}
+
+TEST_CASE("hard moves a learning card on but never graduates it") {
+  SrsConfig cfg; // 1m 10m
+  SrsCard c;
+  review(c, Grade::Hard, 0, cfg);
+  CHECK(c.state == CardState::Learning);
+  CHECK(c.step == 1);
+  CHECK(c.due == 600);
+  review(c, Grade::Hard, 600, cfg);
+  CHECK(c.state == CardState::Learning);
+  CHECK(c.step == 1);
+  CHECK(c.due == 600 + 900);
+  SrsConfig old;
+  old.hardAdvancesSteps = false;
+  SrsCard d;
+  review(d, Grade::Hard, 0, old);
+  CHECK(d.step == 0);
+  CHECK(d.due == 90);
+  // What each grade would give, for the buttons.
+  SrsCard fresh;
+  CHECK(nextInterval(fresh, Grade::Again, 0, cfg) == 60);
+  CHECK(nextInterval(fresh, Grade::Good, 0, cfg) == 600);
+  CHECK(nextInterval(fresh, Grade::Easy, 0, cfg) == 4 * kSecondsPerDay);
+  CHECK(fresh.reps == 0);
+}
+
+TEST_CASE("leeches, recognition means and counts") {
+  SrsConfig cfg;
+  SrsCard c;
+  c.lapses = cfg.leechLapses - 1;
+  CHECK_FALSE(isLeech(c, cfg));
+  ++c.lapses;
+  CHECK(isLeech(c, cfg));
+  cfg.leechLapses = 0;
+  CHECK_FALSE(isLeech(c, cfg));
+
+  CaseProgress p;
+  CHECK_FALSE(p.recognitionMean());
+  Attempt a{10, 0, false, AttemptMode::Learn};
+  a.recognitionMs = 1000;
+  p.record(a);
+  p.record({11, 0, false, AttemptMode::Learn}); // not measured
+  Attempt d{12, 3000, false, AttemptMode::VirtualDrill};
+  d.recognitionMs = 2000;
+  p.record(d);
+  REQUIRE(p.recognitionMean());
+  CHECK(*p.recognitionMean() == 1500.0);
+  CHECK(*p.recognitionMean(1) == 2000.0);
+
+  SrsConfig c2;
+  const std::int64_t dayStart = 10 * kSecondsPerDay;
+  const std::int64_t now = dayStart + 3600;
+  SetProgress prog;
+  startLearning(prog["q"].card, now, c2);
+  prog["r"].card.state = CardState::Review;
+  prog["r"].card.introduced = 1;
+  prog["r"].card.due = dayStart + kSecondsPerDay + 100; // tomorrow
+  prog["r"].record({now - 10, 0, true, AttemptMode::Learn});
+  prog["r"].record({now - 5, 0, false, AttemptMode::Learn});
+  prog["r"].record({dayStart - 5, 0, false, AttemptMode::Learn}); // yesterday
+  prog["l"].card.state = CardState::Learning;
+  prog["l"].card.reps = 1;
+  prog["l"].card.introduced = 1;
+  prog["l"].card.due = now;
+  LearnCounts n = learnCounts({"q", "r", "l", "x"}, prog, now, dayStart, c2);
+  CHECK(n.queued == 1);
+  CHECK(n.learning == 1);
+  CHECK(n.learned == 1);
+  CHECK(n.due == 1);
+  CHECK(n.doneToday == 2);
+  CHECK(n.againToday == 1);
+  CHECK(n.dueTomorrow == 1);
+}
+
+TEST_CASE("a family card's learn attempts count for each of its cases") {
+  CaseProgress own;
+  Attempt drill{10, 3000, false, AttemptMode::VirtualDrill};
+  drill.recognitionMs = 1000;
+  own.record(drill);
+  own.record({30, 0, false, AttemptMode::Learn}); // before families
+  CaseProgress family;
+  Attempt learn{20, 0, false, AttemptMode::Learn};
+  learn.recognitionMs = 3000;
+  family.record(learn);
+  family.record({25, 2000, false, AttemptMode::PhysicalDrill}); // not its
+  std::vector<Attempt> all = caseAttempts(&own, &family);
+  REQUIRE(all.size() == 3);
+  CHECK(all[0].timestamp == 10);
+  CHECK(all[1].timestamp == 20);
+  CHECK(all[2].timestamp == 30);
+  CHECK(*recognitionMean(all) == 2000.0);
+  CHECK(caseAttempts(&own, nullptr).size() == 2);
+  CHECK(caseAttempts(nullptr, &family).size() == 1);
+  CHECK(caseAttempts(nullptr, nullptr).empty());
+}
+
+TEST_CASE("reviews across sets are interleaved by what is due") {
+  std::mt19937_64 rng(1);
+  CHECK_FALSE(pickSetToReview({}, rng));
+  CHECK_FALSE(pickSetToReview({{"a", 0}, {"b", 0}}, rng));
+  CHECK(*pickSetToReview({{"a", 0}, {"b", 3}}, rng) == 1);
+  std::map<std::size_t, int> seen;
+  for (int i = 0; i < 400; ++i) {
+    ++seen[*pickSetToReview({{"a", 1}, {"b", 3}}, rng)];
+  }
+  CHECK(seen[0] > 50);
+  CHECK(seen[1] > seen[0]);
 }

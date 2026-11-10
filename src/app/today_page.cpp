@@ -132,12 +132,12 @@ void TodayPage::applySettings() {
   }
 }
 
-std::map<std::string, SetDue> TodayPage::dueBySet() {
-  std::map<std::string, SetDue> out;
+std::map<std::string, SetWaiting> TodayPage::dueBySet() {
+  std::map<std::string, SetWaiting> out;
   std::int64_t now = unixNow();
   for (const AlgSet &set : library_.sets()) {
-    out[set.id] = setDue(learnPool(set), library_.progress(set.id), now,
-                         localDayStart(), localDayEnd(), settings_.srs);
+    out[set.id] = setWaiting(learnPool(set), library_.progress(set.id), now,
+                             localDayStart(), localDayEnd(), settings_.srs);
   }
   return out;
 }
@@ -212,7 +212,7 @@ void TodayPage::refresh() {
   auto due = dueBySet();
   sets_->clear();
   for (const AlgSet &set : library_.sets()) {
-    const SetDue &d = due[set.id];
+    const SetWaiting &d = due[set.id];
     auto *item = new QTreeWidgetItem(sets_, {qs(set.name), count(d.due),
                                              count(d.newLeft), count(d.queued),
                                              count(d.learned)});

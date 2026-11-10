@@ -26,7 +26,10 @@ namespace vcube {
 // timer; a wrong alg is marked by hand.
 //
 // After each case it shows the time and the algs with the AUFs the case
-// needs. Drill attempts feed the case statistics and never change the
+// needs, and the case is selected in the list (not before, so that the list
+// doesn't name it). On the virtual cube each attempt also records the
+// recognition time (from the case being set up to the first turn of a
+// layer off the U-D axis) and the execution time after it. Drill attempts feed the case statistics and never change the
 // spaced-repetition schedule.
 //
 // Backspace gives a case up before or during the solve, which is a DNF. A
@@ -91,6 +94,13 @@ private:
   bool unfinished_ = false;   // virtual: the step wasn't done at the stop
   bool gaveUp_ = false;       // the case was given up, so it stays a DNF
   bool practiceDone_ = false; // virtual: the practice solve reached the end
+  // Recognition timing on the virtual cube (monotonic ms): when the case
+  // was set up, when the timer started and when a layer off the U-D axis
+  // was first turned (0: not yet). Not valid once a solve was cancelled.
+  std::int64_t shownAtMs_ = 0;
+  std::int64_t startMs_ = 0;
+  std::int64_t firstTurnMs_ = 0;
+  bool timingValid_ = false;
 
   QComboBox *cubeBox_;
   QComboBox *poolBox_;

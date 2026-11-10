@@ -134,8 +134,9 @@ QString Keymap::reservedReason(int key) {
   }
   if (key >= Qt::Key_F1 && key <= Qt::Key_F35) {
     return QCoreApplication::translate(
-        "vcube::Keymap", "The function keys are window shortcuts (F1 help, "
-                         "F10 focus mode, F11 full screen).");
+        "vcube::Keymap", "The function keys are shortcuts (F1 help, F9 "
+                         "Learn's case list, F10 focus mode, F11 full "
+                         "screen).");
   }
   return {};
 }

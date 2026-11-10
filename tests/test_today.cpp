@@ -59,11 +59,11 @@ TEST_CASE("an alg set's due, queued and new cases") {
   startLearning(p["e"].card, now, cfg);
   p["d"].card.state = CardState::Learning;
   p["d"].card.reps = 1;
-  p["d"].card.due = now + 30;
+  p["d"].card.due = now - 30;
   p["d"].card.introduced = now - 60; // introduced today
   auto d =
-      setDue({"a", "b", "c", "d", "e", "x"}, p, now, dayStart, dayEnd, cfg);
-  CHECK(d.due == 2); // a, and d within the learn-ahead time
+      setWaiting({"a", "b", "c", "d", "e", "x"}, p, now, dayStart, dayEnd, cfg);
+  CHECK(d.due == 2); // a, and d in its learning steps
   CHECK(d.learned == 2);
   CHECK(d.queued == 2);
   CHECK(d.newLeft == 1); // 2 a day, 1 introduced already

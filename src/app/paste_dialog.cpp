@@ -27,7 +27,7 @@ QString counted(int n, const QString &one, const QString &many) {
   return QString("%1 %2").arg(n).arg(n == 1 ? one : many);
 }
 
-const QColor kPass(0x3d, 0xd6, 0x6b);
+const StatusColour kPass{Status::Good};
 const StatusColour kWarn{Status::Warning};
 const QColor kFail(0xe6, 0x66, 0x66);
 

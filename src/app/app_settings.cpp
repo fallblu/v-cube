@@ -134,6 +134,26 @@ AppSettings AppSettings::load() {
       s.srs.relearningSteps = steps;
     }
   }
+  SrsConfig &c = s.srs;
+  c.graduatingDays = std::clamp(
+      q.value("srs/graduatingDays", c.graduatingDays).toDouble(), 1.0, 365.0);
+  c.easyDays =
+      std::clamp(q.value("srs/easyDays", c.easyDays).toDouble(), 1.0, 365.0);
+  c.lapseFactor =
+      std::clamp(q.value("srs/lapseFactor", c.lapseFactor).toDouble(), 0.0, 1.0);
+  c.easeRecovery = std::clamp(
+      q.value("srs/easeRecovery", c.easeRecovery).toDouble(), 0.0, 1.0);
+  c.creditLateReviews =
+      q.value("srs/creditLateReviews", c.creditLateReviews).toBool();
+  c.hardAdvancesSteps =
+      q.value("srs/hardAdvancesSteps", c.hardAdvancesSteps).toBool();
+  c.maxLearning = std::max(0, q.value("srs/maxLearning", c.maxLearning).toInt());
+  c.learnAheadSeconds = std::max<qint64>(
+      0, q.value("srs/learnAheadSeconds", qint64(c.learnAheadSeconds))
+             .toLongLong());
+  c.leechLapses = std::max(0, q.value("srs/leechLapses", c.leechLapses).toInt());
+  s.slowRecognitionMs = std::max(
+      100, q.value("srs/slowRecognitionMs", s.slowRecognitionMs).toInt());
   return s;
 }
 
@@ -168,6 +188,16 @@ void AppSettings::save() const {
   q.setValue("srs/newPerDay", srs.newPerDay);
   q.setValue("srs/learningSteps", stepsToText(srs.learningSteps));
   q.setValue("srs/relearningSteps", stepsToText(srs.relearningSteps));
+  q.setValue("srs/graduatingDays", srs.graduatingDays);
+  q.setValue("srs/easyDays", srs.easyDays);
+  q.setValue("srs/lapseFactor", srs.lapseFactor);
+  q.setValue("srs/easeRecovery", srs.easeRecovery);
+  q.setValue("srs/creditLateReviews", srs.creditLateReviews);
+  q.setValue("srs/hardAdvancesSteps", srs.hardAdvancesSteps);
+  q.setValue("srs/maxLearning", srs.maxLearning);
+  q.setValue("srs/learnAheadSeconds", qint64(srs.learnAheadSeconds));
+  q.setValue("srs/leechLapses", srs.leechLapses);
+  q.setValue("srs/slowRecognitionMs", slowRecognitionMs);
 }
 
 void applyTheme(QApplication &app, bool dark) {

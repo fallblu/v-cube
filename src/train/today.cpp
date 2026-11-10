@@ -44,10 +44,11 @@ Streak practiceStreak(const std::vector<std::int64_t> &timestamps,
   return s;
 }
 
-SetDue setDue(const std::vector<std::string> &pool, const SetProgress &progress,
-              std::int64_t now, std::int64_t dayStart, std::int64_t dayEnd,
-              const SrsConfig &config) {
-  SetDue d;
+SetWaiting setWaiting(const std::vector<std::string> &pool,
+                      const SetProgress &progress, std::int64_t now,
+                      std::int64_t dayStart, std::int64_t dayEnd,
+                      const SrsConfig &config) {
+  SetWaiting d;
   for (const std::string &id : pool) {
     auto it = progress.find(id);
     if (it == progress.end()) {
@@ -63,7 +64,7 @@ SetDue setDue(const std::vector<std::string> &pool, const SetProgress &progress,
       if (card.state == CardState::Review) {
         ++d.learned;
       }
-      if (isDue(card, now, config, dayEnd)) {
+      if (isDueNow(card, now, dayEnd, config)) { // not suspended or buried
         ++d.due;
       }
     }
