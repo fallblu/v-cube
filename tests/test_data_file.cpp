@@ -213,6 +213,53 @@ TEST_CASE("alg sets from a newer version are reported and left alone") {
   CHECK(readText(path) == text);
 }
 
+TEST_CASE("versions that aren't version numbers are refused") {
+  FileFormat format{"v-cube.test", 1, false, "test file"};
+  QString error;
+  for (QJsonValue v : {QJsonValue(0), QJsonValue(-1), QJsonValue(true),
+                       QJsonValue(QJsonValue::Null), QJsonValue(2.5)}) {
+    CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", v}}, format,
+                          &error) == FileStatus::Unreadable);
+    CHECK(error.contains("version number"));
+  }
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1}}, format) ==
+        FileStatus::Read);
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1000000}},
+                        format) == FileStatus::Newer);
+  CHECK(checkFileFormat({{"format", 1}, {"version", 1}}, format, &error) ==
+        FileStatus::Unreadable);
+  CHECK(error.contains("not a v-cube test file"));
+
+  // Alg sets: newer ones are told from ones that aren't sets at all.
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("set.json");
+  FileStatus status = FileStatus::Read;
+  writeText(path, R"({"format": "v-cube.algset", "version": 7, "id": "s"})");
+  CHECK_FALSE(readAlgSetFile(path, &error, &status));
+  CHECK(status == FileStatus::Newer);
+  CHECK(error.contains("version 7"));
+  writeText(path, R"({"format": "v-cube.sessions", "version": 1, "id": "s"})");
+  CHECK_FALSE(readAlgSetFile(path, &error, &status));
+  CHECK(status == FileStatus::Unreadable);
+  CHECK(error.contains("sessions file"));
+  writeText(path, R"({"version": 1, "id": "s"})"); // sets always have one
+  CHECK_FALSE(readAlgSetFile(path, &error, &status));
+  CHECK(status == FileStatus::Unreadable);
+  // Progress files without a format are from before it was written.
+  writeText(path, R"({"version": 1, "cases": {}})");
+  CHECK(readProgressFile(path).status == FileStatus::Read);
+  writeText(path, R"({"version": 0, "cases": {}})");
+  CHECK(readProgressFile(path).status == FileStatus::Unreadable);
+
+  // A store's file with a version of 0 is set aside, not kept as newer.
+  QString sessions = tmp.filePath("sessions.json");
+  writeText(sessions, R"({"version": 0, "sessions": []})");
+  SessionStore store(sessions);
+  CHECK_FALSE(store.load(&error));
+  CHECK_FALSE(store.setAsidePath().isEmpty());
+  CHECK(store.save(&error));
+}
+
 TEST_CASE("a cut-short alg set file is set aside") {
   QTemporaryDir tmp;
   QString path = tmp.filePath("mine.json");

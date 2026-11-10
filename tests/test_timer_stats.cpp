@@ -149,3 +149,160 @@ TEST_CASE("inspection gives +2 and DNF") {
   CHECK(r->penalty == Penalty::Dnf);
   CHECK(r->timeMs == 2000);
 }
+
+TEST_CASE("cancelling the timer leaves no result and starts afresh") {
+  SolveTimer t;
+  t.setConfig({300, false, 15000});
+  // While holding: back to idle, and the release does nothing.
+  t.pressStart(0);
+  t.cancel();
+  CHECK(t.state() == SolveTimer::State::Idle);
+  t.releaseStart(500);
+  CHECK(t.state() == SolveTimer::State::Idle);
+  // Once ready.
+  t.pressStart(1000);
+  t.tick(1400);
+  REQUIRE(t.state() == SolveTimer::State::Ready);
+  t.cancel();
+  t.releaseStart(1500);
+  CHECK(t.state() == SolveTimer::State::Idle);
+  CHECK_FALSE(t.takeResult());
+  // While running: no result, no time, and the stop key does nothing.
+  t.pressStart(2000);
+  t.releaseStart(2400);
+  REQUIRE(t.state() == SolveTimer::State::Running);
+  t.cancel();
+  CHECK(t.state() == SolveTimer::State::Idle);
+  CHECK(t.elapsed(5000) == 0);
+  t.pressStop(5000);
+  t.stopNow(5000);
+  CHECK(t.state() == SolveTimer::State::Idle);
+  CHECK_FALSE(t.takeResult());
+  // The next solve is timed as usual.
+  t.pressStart(6000);
+  t.releaseStart(6400);
+  t.pressStop(8400);
+  auto r = t.takeResult();
+  REQUIRE(r);
+  CHECK(r->timeMs == 2000);
+  CHECK(r->penalty == Penalty::None);
+  // From stopped, a hold starts the next one.
+  t.pressStart(9000);
+  CHECK(t.state() == SolveTimer::State::Holding);
+}
+
+TEST_CASE("cancelled inspection gives no penalty to the next solve") {
+  SolveTimer t;
+  t.setConfig({0, true, 15000});
+  // Pressed but not yet released: cancelling forgets the inspection.
+  t.pressStart(0);
+  t.cancel();
+  t.releaseStart(10);
+  CHECK(t.state() == SolveTimer::State::Idle);
+  CHECK_FALSE(t.isInspecting());
+  // Inspecting, then cancelled long after the DNF limit.
+  t.pressStart(100);
+  t.releaseStart(150);
+  REQUIRE(t.state() == SolveTimer::State::Inspecting);
+  CHECK(t.inspectionPenalty(20000) == Penalty::Dnf);
+  t.cancel();
+  CHECK_FALSE(t.isInspecting());
+  CHECK_FALSE(t.inspectionElapsed(20000));
+  CHECK(t.inspectionPenalty(20000) == Penalty::None);
+  // A new inspection starts from its own release.
+  t.pressStart(30000);
+  t.releaseStart(30050);
+  REQUIRE(t.state() == SolveTimer::State::Inspecting);
+  CHECK(*t.inspectionElapsed(31050) == 1000);
+  // Cancelled while holding during inspection: idle, not inspecting.
+  t.pressStart(32000);
+  CHECK(t.state() == SolveTimer::State::Ready); // no hold time
+  t.cancel();
+  CHECK(t.state() == SolveTimer::State::Idle);
+  CHECK_FALSE(t.isInspecting());
+
+  // The virtual cube: armed, cancelled, then started by a turn.
+  t.arm(40000);
+  REQUIRE(t.isInspecting());
+  t.cancel();
+  t.startNow(60000);
+  t.stopNow(61000);
+  auto r = t.takeResult();
+  REQUIRE(r);
+  CHECK(r->penalty == Penalty::None);
+  CHECK(r->timeMs == 1000);
+  // The limits: 15 s exactly is fine, just over is +2, 17 s is still +2,
+  // just over that is DNF.
+  t.arm(0);
+  CHECK(t.inspectionPenalty(15000) == Penalty::None);
+  CHECK(t.inspectionPenalty(15001) == Penalty::Plus2);
+  CHECK(t.inspectionPenalty(17000) == Penalty::Plus2);
+  CHECK(t.inspectionPenalty(17001) == Penalty::Dnf);
+  // Arming again drops a result not yet taken.
+  t.startNow(1000);
+  t.stopNow(2000);
+  t.arm(3000);
+  CHECK_FALSE(t.takeResult());
+}
+
+TEST_CASE("ao100 drops five solves each way and rounds like the others") {
+  // 1.00 to 100.00 in whole seconds: the middle 90 average 50.50.
+  std::vector<Solve> hundred;
+  for (int i = 1; i <= 100; ++i) {
+    hundred.push_back(solves({i * 1000})[0]);
+  }
+  CHECK(trimmedIndices(hundred).size() == 10);
+  CHECK(averageOf(hundred) == 50500);
+  CHECK(currentAverage(hundred, 100) == 50500);
+  CHECK_FALSE(currentAverage(std::span(hundred).first(99), 100));
+  // Five DNFs are trimmed; a sixth makes it DNF.
+  std::vector<Solve> dnfs = hundred;
+  for (std::size_t i = 0; i < 5; ++i) {
+    dnfs[i].penalty = Penalty::Dnf;
+  }
+  // 1..5 are now the worst five, and 6..10 the best: 11..100 count.
+  CHECK(averageOf(dnfs) == 55500);
+  dnfs[5].penalty = Penalty::Dnf;
+  CHECK(averageOf(dnfs) == kDnfTime);
+  // A +2 counts two seconds more: 50.5222 rounds down to 50.52.
+  std::vector<Solve> plus = hundred;
+  plus[50].penalty = Penalty::Plus2;
+  CHECK(averageOf(plus) == 50520);
+  // A mean of exactly half a hundredth rounds up.
+  std::vector<Solve> half = hundred;
+  half[50].timeMs += 450; // 51.45: the mean is 50.505
+  CHECK(averageOf(half) == 50510);
+  half[50].timeMs -= 10; // 51.44: 50.5049
+  CHECK(averageOf(half) == 50500);
+  // Thousandths are truncated before averaging.
+  half[50].timeMs += 9; // 51.449 counts as 51.44
+  CHECK(averageOf(half) == 50500);
+
+  // The best rolling ao100, and a new best when it improves: 100.00 down
+  // to 1.00, then another 1.00.
+  std::vector<Solve> down(hundred.rbegin(), hundred.rend());
+  down.push_back(solves({1000})[0]);
+  CHECK(averageOf(std::span(down).last(100)) == 49500);
+  CHECK(bestAverage(down, 100) == 49500);
+  CHECK(bestAverageStart(down, 100) == std::optional<std::size_t>(1));
+  std::vector<NewBest> bests = newBests(down);
+  REQUIRE_FALSE(bests.empty());
+  CHECK(bests.back().name == "ao100");
+  CHECK(bests.back().value == 49500);
+}
+
+TEST_CASE("means round half up at every unit") {
+  CHECK(meanOf(solves({1000, 1010})) == 1010);              // 1.005
+  CHECK(meanOf(solves({1000, 1000, 1010})) == 1000);        // 1.0033
+  CHECK(meanOf(solves({1000, 1010, 1010})) == 1010);        // 1.0067
+  CHECK(meanOf(solves({1000, 1001}), 1) == 1001);           // 1.0005
+  CHECK(meanOf(solves({1000, 1100}), statUnit(1)) == 1100); // 1.05
+  CHECK(meanOf(solves({1000, 2000}), statUnit(0)) == 2000); // 1.5
+  CHECK(meanOf(solves({1000, 1999}), statUnit(0)) == 1000); // 1 and 1
+  CHECK(formatTime(1005, 3) == "1.005");
+  CHECK(formatTime(1009) == "1.00"); // shown truncated
+  CHECK(formatTime(59999) == "59.99");
+  CHECK(formatTime(60000) == "1:00.00");
+  CHECK(formatTime(1999, 0) == "1");
+  CHECK(formatTime(1590, 1) == "1.5");
+}

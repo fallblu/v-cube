@@ -281,6 +281,82 @@ TEST_CASE("a follower knows when an alg is done", "[reduction]") {
   CHECK_FALSE(f.leftAt());
 }
 
+TEST_CASE("a follower fed by algsFor follows mirrored and reducing steps",
+          "[reduction]") {
+  AlgSet set = lastSlotSet();
+  set.mirrors = kMirrors;
+  Rng rng(23);
+  const PieceMask &free = set.spec.free;
+  const CaseGroup &group = set.groups[0];
+  std::vector<Mirror> worlds = {Mirror{}};
+  worlds.insert(worlds.end(), kMirrors.begin(), kMirrors.end());
+  for (Mirror world : worlds) {
+    for (const char *id : {"one", "two", "three", "sune"}) {
+      INFO(id << " in world " << world.leftRight << world.frontBack);
+      const AlgCase &c = *set.findCase(id);
+      CubieCube cube =
+          withRandomAufs(set, setUpCase(c.state, free, world, true, rng), rng);
+      auto view = seenCase(set, cube, world);
+      REQUIRE(view);
+      REQUIRE(view->caseId == id);
+      std::vector<ViewAlg> algs = algsFor(
+          set, group, c, analyzeCase(set, group, c), *view, cube, world);
+      REQUIRE(algs.size() == 1);
+      std::vector<Alg> parsed;
+      for (const ViewAlg &a : algs) {
+        parsed.push_back(parseAlgOrEmpty(a.text));
+      }
+      // Done as shown, the alg is followed to its end.
+      AlgFollower f(cube.toFacelets(), parsed);
+      for (Move m : parsed[0]) {
+        f.move(m);
+        CHECK_FALSE(f.deviated());
+      }
+      CHECK(f.finished());
+      CHECK_FALSE(f.leftAt());
+      // A reducing step ends on the case it names, which algsFor then
+      // feeds the follower for the next step.
+      CubieCube after = done(cube, algs[0].text);
+      if (algs[0].reducesTo.empty()) {
+        CHECK(stepSolved(after, mirrorMask(free, world)));
+        continue;
+      }
+      auto next = seenCase(set, after, world);
+      REQUIRE(next);
+      CHECK(next->caseId == algs[0].reducesTo);
+      const AlgCase &nc = *set.findCase(next->caseId);
+      std::vector<ViewAlg> nextAlgs = algsFor(
+          set, group, nc, analyzeCase(set, group, nc), *next, after, world);
+      REQUIRE_FALSE(nextAlgs.empty());
+      AlgFollower g(after.toFacelets(), {parseAlgOrEmpty(nextAlgs[0].text)});
+      for (Move m : parseAlgOrEmpty(nextAlgs[0].text)) {
+        g.move(m);
+      }
+      CHECK_FALSE(g.deviated());
+      CHECK(g.finished());
+    }
+  }
+  // In a mirror world the alg as written for the right-hand slot leaves
+  // the algs at its first turn.
+  Mirror leftRight{true, false};
+  const AlgCase &one = *set.findCase("one");
+  CubieCube cube = setUpCase(one.state, free, leftRight, false, rng);
+  auto view = seenCase(set, cube, leftRight);
+  REQUIRE(view);
+  std::vector<Alg> algs;
+  for (const ViewAlg &a : algsFor(set, group, one, analyzeCase(set, group, one),
+                                  *view, cube, leftRight)) {
+    algs.push_back(parseAlgOrEmpty(a.text));
+  }
+  AlgFollower f(cube.toFacelets(), algs);
+  for (Move m : parseAlgOrEmpty("R U' R'")) {
+    f.move(m);
+  }
+  CHECK(f.deviated());
+  CHECK(f.leftAt() == std::optional<std::size_t>(0));
+  CHECK_FALSE(f.finished());
+}
+
 TEST_CASE("reduction and mirrors are kept in set files", "[reduction]") {
   AlgSet set = lastSlotSet();
   set.mirrors = kMirrors;
