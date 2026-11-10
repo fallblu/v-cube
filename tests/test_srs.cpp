@@ -401,6 +401,75 @@ TEST_CASE("weighted order: no outlier takes over, no case twice in a row") {
   CHECK(std::find(weak.begin(), weak.end(), "new") == weak.end());
 }
 
+TEST_CASE("weighted order at its extremes") {
+  const AttemptMode mode = AttemptMode::PhysicalDrill;
+  SetProgress prog;
+  // Far under the target: the ratio is held at a half.
+  for (int i = 0; i < 5; ++i) {
+    prog["fast"].record({i, 100, false, mode});
+    prog["mid"].record({i, 2000, false, mode});
+    prog["slowfail"].record({i, 60000, false, mode});
+  }
+  // Every one of the last ten attempts failed as well: 3 squared, times 4.
+  for (int i = 0; i < 10; ++i) {
+    prog["slowfail"].record({10 + i, 0, true, mode});
+  }
+  // Only ever failed: no time to go by, so half as slow again.
+  for (int i = 0; i < 3; ++i) {
+    prog["onlyfail"].record({i, 0, true, mode});
+  }
+  CHECK(*drillWeakness(&prog["fast"], mode, 2000) == Catch::Approx(0.25));
+  CHECK(*drillWeakness(&prog["mid"], mode, 2000) == Catch::Approx(1.0));
+  CHECK(*drillWeakness(&prog["slowfail"], mode, 2000) == Catch::Approx(36.0));
+  CHECK(*drillWeakness(&prog["onlyfail"], mode, 2000) == Catch::Approx(9.0));
+  // No reference time at all (nothing timed, no target): as half as slow
+  // again.
+  CHECK(*drillWeakness(&prog["mid"], mode, 0) == Catch::Approx(2.25));
+  CHECK(drillReference({"onlyfail", "unknown"}, prog, mode, 0) == 0);
+  CHECK(drillReference({"fast", "mid"}, prog, mode, 0) ==
+        Catch::Approx(1050.0));
+  CHECK(drillReference({"fast", "mid"}, prog, mode, 3000) == 3000);
+  auto weak = weakestCases({"fast", "mid", "slowfail", "onlyfail"}, prog, mode,
+                           2000, 10);
+  CHECK(weak ==
+        std::vector<std::string>{"slowfail", "onlyfail", "mid", "fast"});
+
+  CasePicker p;
+  p.setMode(PickMode::Weighted);
+  p.setTargetMs(2000);
+  std::mt19937_64 rng(17);
+  // Nothing to pick from.
+  CHECK_FALSE(p.next(prog, rng));
+  // One case comes every time, weak or not.
+  p.setPool({"fast"});
+  for (int i = 0; i < 5; ++i) {
+    CHECK(*p.next(prog, rng) == "fast");
+  }
+  // The weakest case can take at most every other pick, and the fastest
+  // still comes up.
+  p.setPool({"fast", "mid", "slowfail"});
+  std::map<std::string, int> seen;
+  std::string last;
+  for (int i = 0; i < 3000; ++i) {
+    std::string pick = *p.next(prog, rng);
+    REQUIRE(pick != last);
+    last = pick;
+    ++seen[pick];
+  }
+  CHECK(seen["slowfail"] > 1400);
+  CHECK(seen["slowfail"] <= 1500);
+  CHECK(seen["fast"] > 100);
+  CHECK(seen["fast"] < seen["mid"]);
+  // Cases never drilled come up more than one at the reference time.
+  p.setPool({"mid", "new1", "new2"});
+  seen.clear();
+  for (int i = 0; i < 3000; ++i) {
+    ++seen[*p.next(prog, rng)];
+  }
+  CHECK(seen["mid"] < seen["new1"]);
+  CHECK(seen["mid"] < seen["new2"]);
+}
+
 TEST_CASE("the picker avoids a case started by hand and keeps its place") {
   SetProgress prog;
   std::mt19937_64 rng(2);

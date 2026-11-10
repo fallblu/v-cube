@@ -59,6 +59,19 @@ target_link_libraries(vcube_gui
   PUBLIC vcube_io Qt6::Widgets Qt6::Concurrent Qt6::Network
   PRIVATE vcube_warnings)
 set_target_properties(vcube_gui PROPERTIES AUTOMOC ON)
+# The built-in alg sets (read from :/algsets) and the window icon, in the
+# library so that anything linking it, the tests too, has them.
+qt_add_resources(vcube_gui resources
+  PREFIX "/"
+  BASE ${PROJECT_SOURCE_DIR}/resources
+  FILES
+    ${PROJECT_SOURCE_DIR}/resources/algsets/pll.json
+    ${PROJECT_SOURCE_DIR}/resources/algsets/oll.json
+    ${PROJECT_SOURCE_DIR}/resources/algsets/2look-oll.json
+    ${PROJECT_SOURCE_DIR}/resources/algsets/2look-pll.json
+    ${PROJECT_SOURCE_DIR}/resources/icons/v-cube.svg
+    ${PROJECT_SOURCE_DIR}/resources/icons/v-cube-256.png
+)
 # The inspection calls play a sound with Qt Multimedia when it is installed,
 # else the system beep.
 find_package(Qt6 QUIET COMPONENTS Multimedia)
@@ -100,17 +113,6 @@ if(WIN32)
     ${vcube_rc} @ONLY)
 endif()
 qt_add_executable(vcube main.cpp ${vcube_rc})
-qt_add_resources(vcube resources
-  PREFIX "/"
-  BASE ${PROJECT_SOURCE_DIR}/resources
-  FILES
-    ${PROJECT_SOURCE_DIR}/resources/algsets/pll.json
-    ${PROJECT_SOURCE_DIR}/resources/algsets/oll.json
-    ${PROJECT_SOURCE_DIR}/resources/algsets/2look-oll.json
-    ${PROJECT_SOURCE_DIR}/resources/algsets/2look-pll.json
-    ${PROJECT_SOURCE_DIR}/resources/icons/v-cube.svg
-    ${PROJECT_SOURCE_DIR}/resources/icons/v-cube-256.png
-)
 add_dependencies(vcube vcube_version)
 target_include_directories(vcube PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(vcube PRIVATE vcube_gui vcube_warnings)

@@ -408,6 +408,54 @@ TEST_CASE("a stray copy of a set file never overwrites the set") {
   CHECK_FALSE(QFile::exists(tmp.filePath("my oll.json")));
 }
 
+TEST_CASE("of two files with one set id, one loads and the other is named") {
+  QTemporaryDir tmp;
+  QByteArray mine;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    AlgSet set = *lib.find("pll");
+    set.builtin = false;
+    set.id = "mine";
+    set.name = "Mine";
+    REQUIRE(lib.add(set));
+    mine = readText(tmp.filePath("mine.json"));
+  }
+  // The file named for the id wins even when another sorts before it.
+  QByteArray other = mine;
+  other.replace("\"name\": \"Mine\"", "\"name\": \"Other\"");
+  REQUIRE(other != mine);
+  writeText(tmp.filePath("a mine.json"), other);
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    REQUIRE(lib.errors().size() == 1);
+    CHECK(lib.errors().front().contains("a mine.json"));
+    CHECK(lib.errors().front().contains("\"mine\""));
+    CHECK(lib.find("mine")->name == "Mine");
+    CHECK(lib.pathFor("mine") == tmp.filePath("mine.json"));
+    CHECK(lib.sets().size() == 5);
+  }
+  // Neither named for the id: the first by name loads, and saving it
+  // leaves the other alone.
+  REQUIRE(QFile::rename(tmp.filePath("mine.json"), tmp.filePath("z.json")));
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.errors().size() == 1);
+  CHECK(lib.errors().front().startsWith("z.json"));
+  CHECK(lib.find("mine")->name == "Other");
+  CHECK(lib.pathFor("mine") == tmp.filePath("a mine.json"));
+  lib.find("mine")->name = "Renamed";
+  REQUIRE(lib.save(*lib.find("mine")));
+  CHECK(readText(tmp.filePath("z.json")) == mine);
+  // A set added with a taken id gets one of its own.
+  AlgSet copy = *lib.find("mine");
+  AlgSet *added = lib.add(copy);
+  REQUIRE(added);
+  CHECK(added->id != "mine");
+  CHECK(lib.find("mine")->name == "Renamed");
+}
+
 TEST_CASE("deleted built-in sets can be restored") {
   QTemporaryDir tmp;
   AlgLibrary lib(tmp.path(), kBuiltins);
@@ -726,4 +774,127 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
   CHECK(scrambleTypeFromCstimer("pyrso") == std::nullopt);
   CHECK(scrambleTypeFromCstimer("zbll") == "zbll");
   CHECK(scrambleTypeFromCstimer("roux") == "333");
+}
+
+TEST_CASE("cstimer files in older and odd shapes still import") {
+  QString error;
+  // Sessions stored as JSON text, sessionData as an object, the type under
+  // the older "scr", and no names or ranks.
+  auto doc = QJsonDocument::fromJson(R"({
+    "session2": "[[[0, 5000], \"R\", \"\", 1700000000]]",
+    "session1": [[[0, 7000], "U", "", 1700000001]],
+    "session10": [[[0, 8000], "F", "", 1700000002]],
+    "sessionx": [[[0, 1], "B", "", 1]],
+    "properties": {"sessionData": {"1": {"scr": "pll"}, "10": {"name": 12}}}
+  })");
+  auto imported = sessionsFromCstimer(doc.object(), &error);
+  REQUIRE(imported);
+  REQUIRE(imported->sessions.size() == 3);
+  // Without ranks, in number order.
+  CHECK(imported->sessions[0].name == "Session 1");
+  CHECK(imported->sessions[0].scrambleType == "pll");
+  CHECK(imported->sessions[1].name == "Session 2");
+  CHECK(imported->sessions[1].solves.front().timeMs == 5000);
+  CHECK(imported->sessions[2].name == "12");
+  CHECK(imported->sessions[2].scrambleType == "333");
+  for (const Session &s : imported->sessions) {
+    CHECK(s.cube == CubeKind::Physical);
+  }
+
+  // Solves that can't be read are left out; a session of only those is
+  // skipped as empty. Solutions that don't read, or are for another puzzle,
+  // leave the solve without moves.
+  doc = QJsonDocument::fromJson(R"({
+    "session1": [
+      [[0], "R", "", 1],
+      "not a solve",
+      [[0, 1000], "U", "", 2, ["R@10 junk", "333"]],
+      [[0, 1000], "U", "", 3, ["R@10 U@20", "222"]],
+      [[0, 1000], "U", "", 4, ["R@x", "333"]],
+      [[0, 1000], "U", "", 5, ["", "333"]],
+      [[4000, 1000], "U", "", 6]
+    ],
+    "session2": [[[0]]],
+    "properties": {"sessionData": "not json"}
+  })");
+  imported = sessionsFromCstimer(doc.object(), &error);
+  REQUIRE(imported);
+  REQUIRE(imported->sessions.size() == 1);
+  CHECK(imported->emptySkipped == 1);
+  const auto &solves = imported->sessions[0].solves;
+  REQUIRE(solves.size() == 5);
+  for (const Solve &s : solves) {
+    CHECK(s.moves.empty());
+    CHECK(s.moveTimes.empty());
+  }
+  CHECK(solves.back().penalty == Penalty::Plus2); // any positive penalty
+
+  // Only sessions of other puzzles: none to import, but not an error.
+  doc = QJsonDocument::fromJson(R"({
+    "session1": [[[0, 1000], "R", "", 1]],
+    "properties": {"sessionData": {"1": {"name": "Pyra", "opt": {"scrType": "pyrso"}}}}
+  })");
+  imported = sessionsFromCstimer(doc.object(), &error);
+  REQUIRE(imported);
+  CHECK(imported->sessions.empty());
+  CHECK(imported->others == std::vector<std::string>{"Pyra"});
+
+  // Not an object at all.
+  CHECK_FALSE(sessionsFromCstimerFile("[1, 2]", &error));
+  CHECK(error.contains("not a cstimer export"));
+  CHECK_FALSE(sessionsFromCstimerFile("", &error));
+  CHECK_FALSE(sessionsFromCstimer(QJsonObject{}, &error));
+}
+
+TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {
+  Session a;
+  a.name = "A";
+  a.scrambleType = "xcross"; // cstimer has no such type: 3x3
+  a.solves.push_back({1000, Penalty::Dnf, "R", "", 1, "x y R2 M'", {}});
+  a.solves.push_back({2000, Penalty::Plus2, "U", "", 2, "Rw U", {5}});
+  a.solves.push_back({3000, Penalty::None, "F", "", 3, "", {}});
+  Session empty;
+  empty.name = "Empty";
+  QByteArray cs = sessionsToCstimer({a, empty});
+  QJsonObject o = QJsonDocument::fromJson(cs).object();
+  QJsonArray one = o.value("session1").toArray();
+  REQUIRE(one.size() == 3);
+  CHECK(one.at(0).toArray().at(0).toArray().at(0).toInt() == -1);
+  CHECK(one.at(1).toArray().at(0).toArray().at(0).toInt() == 2000);
+  CHECK(one.at(2).toArray().at(0).toArray().at(0).toInt() == 0);
+  // Rotations stay lower case; moves without a time for each are at 0.
+  CHECK(one.at(0).toArray().at(4).toArray().at(0).toString() ==
+        "x@0 y@0 R2@0 M'@0");
+  CHECK(one.at(1).toArray().at(4).toArray().at(0).toString() == "Rw@0 U@0");
+  CHECK(one.at(2).toArray().size() == 4); // no moves, no solution
+  CHECK(o.value("session2").toArray().isEmpty());
+  QJsonObject data = QJsonDocument::fromJson(o.value("properties")
+                                                 .toObject()
+                                                 .value("sessionData")
+                                                 .toString()
+                                                 .toUtf8())
+                         .object();
+  CHECK(data.value("1")
+            .toObject()
+            .value("opt")
+            .toObject()
+            .value("scrType")
+            .toString() == "333");
+  CHECK(data.value("2").toObject().value("name").toString() == "Empty");
+  CHECK(data.value("2").toObject().value("rank").toInt() == 2);
+
+  // Back in: the empty session is skipped and the rest is as it was.
+  QString error;
+  auto back = sessionsFromCstimerFile(cs, &error);
+  REQUIRE(back);
+  CHECK(back->emptySkipped == 1);
+  REQUIRE(back->sessions.size() == 1);
+  const auto &solves = back->sessions[0].solves;
+  REQUIRE(solves.size() == 3);
+  CHECK(solves[0].penalty == Penalty::Dnf);
+  CHECK(solves[0].timeMs == 1000);
+  CHECK(solves[0].moves == "x y R2 M'");
+  CHECK(solves[1].penalty == Penalty::Plus2);
+  CHECK(solves[1].moves == "r U");
+  CHECK(solves[2].moves.empty());
 }
