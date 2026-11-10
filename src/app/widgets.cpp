@@ -146,7 +146,9 @@ generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
 
 TrendChart::TrendChart(QWidget *parent)
     : QWidget(parent), emptyText_(tr("Times will be charted here")) {
-  setMinimumHeight(110);
+  // The chart gives way first when the window is small: it only gets the
+  // room the cube, scramble and timer leave over.
+  setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
 }
 
 void TrendChart::setEmptyText(const QString &text) {
@@ -165,6 +167,9 @@ void TrendChart::paintEvent(QPaintEvent *) {
   QRectF area = QRectF(rect()).adjusted(44, 10, -10, -20);
   QColor axis = palette().color(QPalette::PlaceholderText);
   p.setPen(axis);
+  if (height() < 60) {
+    return; // too squeezed to read
+  }
   if (solves_.size() < 2) {
     p.drawText(rect(), Qt::AlignCenter, emptyText_);
     return;
