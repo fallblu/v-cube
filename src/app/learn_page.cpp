@@ -76,6 +76,16 @@ FaceletCube oriented(FaceletCube f) {
   return f;
 }
 
+// The cubes are held the same way.
+bool sameCentres(const FaceletCube &a, const FaceletCube &b) {
+  for (int face = 0; face < 6; ++face) {
+    if (a[face * 9 + 4] != b[face * 9 + 4]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace
 
 LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
@@ -744,10 +754,12 @@ void LearnPage::buildGuide() {
   }
   FaceletCube f = link.start;
   guide.states.push_back(oriented(f));
+  guide.held.push_back(f);
   for (Move m : guide.moves) {
     guide.tokens << qs(toString(m));
     f.apply(m);
     guide.states.push_back(oriented(f));
+    guide.held.push_back(f);
   }
   guide_ = std::move(guide);
 }
@@ -803,9 +815,19 @@ void LearnPage::trackGuide() {
     }
   }
   g.matched = found.has_value();
-  if (found) {
-    g.at = *found;
+  if (!found) {
+    return;
   }
+  // A rotation leaves the state as it was: it is done once the cube isn't
+  // held as before it any more (as after it, or some other way when the
+  // cube was turned differently from the start).
+  std::size_t k = *found;
+  while (k < g.moves.size() && isRotation(g.moves[k].type) &&
+         (sameCentres(cube_, g.held[k + 1]) ||
+          !sameCentres(cube_, g.held[k]))) {
+    ++k;
+  }
+  g.at = k;
 }
 
 void LearnPage::showGuide() {

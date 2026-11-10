@@ -73,6 +73,7 @@ private:
     Alg moves;
     QStringList tokens;              // each move as text
     std::vector<FaceletCube> states; // after each prefix, orientation removed
+    std::vector<FaceletCube> held;   // the same as the cube is held
     std::size_t at = 0;  // Demo: moves shown; else: the prefix reached last
     bool matched = true; // the cube is at states[at]
     bool follow = false; // every next move is shown (a new case's first try)
