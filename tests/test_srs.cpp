@@ -1,8 +1,12 @@
+#include "train/drill_session.hpp"
 #include "train/srs.hpp"
 #include <algorithm>
 #include <cmath>
 #include <map>
 
+#include <set>
+
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace vcube;
@@ -314,7 +318,10 @@ TEST_CASE("drill picker orders and weights cases") {
   for (int i = 0; i < 400; ++i) {
     ++seen[*p.next(prog, rng)];
   }
-  CHECK(seen["c"] > seen["a"] + seen["b"]);
+  // (It never comes twice in a row, so at most every other time: almost
+  // always after each other case.)
+  CHECK(seen["c"] > 180);
+  CHECK(seen["c"] > seen["a"] + seen["b"] - 30);
 
   // Weighted goes by the statistics of its own drill mode: virtual drills
   // where "a" is the slow case.
@@ -328,7 +335,223 @@ TEST_CASE("drill picker orders and weights cases") {
   for (int i = 0; i < 400; ++i) {
     ++seen[*p.next(prog, rng)];
   }
-  CHECK(seen["a"] > seen["b"] + seen["c"]);
+  CHECK(seen["a"] > 180);
+  CHECK(seen["a"] > seen["b"] + seen["c"] - 30);
+}
+
+TEST_CASE("weighted order: no outlier takes over, no case twice in a row") {
+  SetProgress prog;
+  std::vector<std::string> pool;
+  for (int c = 0; c < 20; ++c) {
+    std::string id = "c" + std::to_string(c);
+    pool.push_back(id);
+    for (int i = 0; i < 5; ++i) {
+      prog[id].record({i, 2000, false, AttemptMode::VirtualDrill});
+    }
+  }
+  // One walked-away time: the median hardly moves.
+  prog["c0"].record({9, 60000, false, AttemptMode::VirtualDrill});
+  CHECK(*prog["c0"].recentMedian(AttemptMode::VirtualDrill) == 2000);
+  double ref = drillReference(pool, prog, AttemptMode::VirtualDrill, 2000);
+  CHECK(ref == 2000);
+  CHECK(*drillWeakness(&prog["c0"], AttemptMode::VirtualDrill, ref) ==
+        Catch::Approx(1.0));
+  // Even every time slow, the ratio is held at 3.
+  for (int i = 0; i < 5; ++i) {
+    prog["c1"].record({i, 60000, false, AttemptMode::VirtualDrill});
+  }
+  CHECK(*drillWeakness(&prog["c1"], AttemptMode::VirtualDrill, ref) ==
+        Catch::Approx(9.0));
+  CHECK_FALSE(drillWeakness(nullptr, AttemptMode::VirtualDrill, ref));
+  CHECK_FALSE(drillWeakness(&prog["c1"], AttemptMode::PhysicalDrill, ref));
+
+  CasePicker p;
+  p.setMode(PickMode::Weighted);
+  p.setAttemptMode(AttemptMode::VirtualDrill);
+  p.setTargetMs(2000);
+  p.setPool(pool);
+  std::mt19937_64 rng(11);
+  std::map<std::string, int> seen;
+  std::string last;
+  for (int i = 0; i < 4000; ++i) {
+    std::string pick = *p.next(prog, rng);
+    REQUIRE(pick != last);
+    last = pick;
+    ++seen[pick];
+  }
+  // 9 against 19 x 1: under a third of the picks.
+  CHECK(seen["c1"] < 4000 / 3);
+  CHECK(seen["c0"] < 400);
+
+  // Two cases alternate.
+  p.setPool({"c0", "c1"});
+  last = *p.next(prog, rng);
+  for (int i = 0; i < 200; ++i) {
+    std::string pick = *p.next(prog, rng);
+    REQUIRE(pick != last);
+    last = pick;
+  }
+
+  // The weakest cases, weakest first; never-drilled ones aren't among them.
+  pool.push_back("new");
+  auto weak = weakestCases(pool, prog, AttemptMode::VirtualDrill, 2000, 3);
+  REQUIRE(weak.size() == 3);
+  CHECK(weak[0] == "c1");
+  CHECK(std::find(weak.begin(), weak.end(), "new") == weak.end());
+}
+
+TEST_CASE("the picker avoids a case started by hand and keeps its place") {
+  SetProgress prog;
+  std::mt19937_64 rng(2);
+  CasePicker p;
+  p.setPool({"a", "b"});
+  for (int i = 0; i < 100; ++i) {
+    p.setLast("a");
+    CHECK(*p.next(prog, rng) == "b");
+  }
+  p.setMode(PickMode::InOrder);
+  p.setPool({"a", "b", "c", "d"});
+  CHECK(*p.next(prog, rng) == "a");
+  CHECK(*p.next(prog, rng) == "b");
+  // The pool changes (e.g. "a" untucked): on with "c", not from the top.
+  p.setPool({"b", "c", "d"});
+  CHECK(*p.next(prog, rng) == "c");
+  // "d" started from the list: in order goes on after it.
+  p.setLast("d");
+  CHECK(*p.next(prog, rng) == "b");
+}
+
+TEST_CASE("a failed case comes back a few cases later") {
+  SetProgress prog;
+  std::mt19937_64 rng(4);
+  CasePicker p;
+  p.setMode(PickMode::InOrder);
+  p.setPool({"a", "b", "c", "d", "e"});
+  CHECK(*p.next(prog, rng) == "a");
+  p.requeue("a", 2);
+  CHECK(p.isRequeued("a"));
+  CHECK(*p.next(prog, rng) == "b");
+  CHECK(*p.next(prog, rng) == "c");
+  CHECK(*p.next(prog, rng) == "a");
+  CHECK_FALSE(p.isRequeued("a"));
+  CHECK(*p.next(prog, rng) == "d");
+  // Forgotten again, e.g. when the DNF is taken back.
+  p.requeue("d", 1);
+  p.requeue("d", 0);
+  CHECK(*p.next(prog, rng) == "e");
+  CHECK(*p.next(prog, rng) == "a");
+}
+
+TEST_CASE("requeued cases don't hold up the others") {
+  SetProgress prog;
+  std::mt19937_64 rng(4);
+  CasePicker p;
+  p.setMode(PickMode::InOrder);
+  p.setPool({"a", "b", "c", "d", "e", "f"});
+  // Every case fails and comes back one case later.
+  std::vector<std::string> seen;
+  for (int i = 0; i < 9; ++i) {
+    std::string id = *p.next(prog, rng);
+    seen.push_back(id);
+    p.requeue(id, 1);
+  }
+  // New cases keep coming in between.
+  CHECK(std::set<std::string>(seen.begin(), seen.end()).size() >= 5);
+}
+
+TEST_CASE("recap gives every case once, then stops") {
+  SetProgress prog;
+  std::mt19937_64 rng(8);
+  CasePicker p;
+  p.setMode(PickMode::Recap);
+  p.setPool({"a", "b", "c", "d"});
+  std::set<std::string> seen;
+  for (int i = 0; i < 4; ++i) {
+    auto id = p.next(prog, rng);
+    REQUIRE(id);
+    seen.insert(*id);
+    if (i == 1) {
+      p.requeue(*id, 5); // failed: it comes back before the end
+    }
+  }
+  CHECK(seen.size() == 4);
+  CHECK_FALSE(p.recapDone());
+  CHECK(p.next(prog, rng)); // the requeued case
+  CHECK(p.recapDone());
+  CHECK_FALSE(p.next(prog, rng));
+  p.restartRecap();
+  CHECK(p.next(prog, rng));
+  CHECK(p.recapLeft() == 3);
+}
+
+TEST_CASE("drill bests and daily roll-ups outlive the attempts kept") {
+  CaseProgress cp;
+  const std::int64_t day0 = 1'700'000'000;
+  cp.record({day0, 900, false, AttemptMode::VirtualDrill});
+  cp.record({day0 + 60, 5000, true, AttemptMode::VirtualDrill});
+  for (std::size_t i = 0; i < CaseProgress::kMaxAttempts; ++i) {
+    cp.record({day0 + 3 * kSecondsPerDay + static_cast<std::int64_t>(i), 2000,
+               false, AttemptMode::VirtualDrill});
+  }
+  CHECK(cp.drillCount(AttemptMode::VirtualDrill) == CaseProgress::kMaxAttempts);
+  // The 0.90 dropped out of the attempts but is still the best.
+  CHECK(*cp.best(AttemptMode::VirtualDrill) == 900);
+  CHECK_FALSE(cp.best(AttemptMode::PhysicalDrill));
+  auto days = cp.days(AttemptMode::VirtualDrill);
+  REQUIRE(days.size() == 2);
+  CHECK(days[0].day == localDay(day0));
+  CHECK(days[0].count == 2);
+  CHECK(days[0].fails == 1);
+  CHECK(*days[0].meanMs() == 900);
+  CHECK(days[1].count == 100);
+  CHECK(days[1].bestMs == 2000);
+  // Deleting and clearing.
+  CHECK(cp.removeLast(AttemptMode::VirtualDrill));
+  CHECK(cp.drillCount(AttemptMode::VirtualDrill) == 99);
+  CHECK_FALSE(cp.removeLast(AttemptMode::PhysicalDrill));
+  cp.record({day0, 1500, false, AttemptMode::PhysicalDrill});
+  cp.clearDrill(AttemptMode::VirtualDrill);
+  CHECK(cp.drillCount(AttemptMode::VirtualDrill) == 0);
+  CHECK_FALSE(cp.best(AttemptMode::VirtualDrill));
+  CHECK(cp.days(AttemptMode::VirtualDrill).empty());
+  CHECK(*cp.best(AttemptMode::PhysicalDrill) == 1500);
+  // Learn attempts aren't archived.
+  for (std::size_t i = 0; i <= CaseProgress::kMaxAttempts; ++i) {
+    cp.record({day0, 0, false, AttemptMode::Learn});
+  }
+  CHECK_FALSE(cp.archive.contains(AttemptMode::Learn));
+}
+
+TEST_CASE("local days follow the calendar") {
+  const std::int64_t t = 1'700'000'000;
+  CHECK(localDay(t + kSecondsPerDay) == localDay(t) + 1);
+  CHECK(localDay(t) > 19000);
+}
+
+TEST_CASE("a drill session counts attempts, DNFs, new bests and the slowest") {
+  DrillSession s;
+  s.add({"a", 1000, false, true});
+  s.add({"b", 3000, false, false});
+  std::size_t i = s.add({"a", 2500, false, false});
+  s.add({"c", 9000, true, true}); // a DNF is no new best
+  s.add({"d", 1500, false, false});
+  DrillSummary sum = s.summary(0, 2);
+  CHECK(sum.count == 5);
+  CHECK(sum.dnfs == 1);
+  CHECK(sum.newBests == 1);
+  CHECK(*sum.meanMs == Catch::Approx(2000));
+  REQUIRE(sum.slowest.size() == 2);
+  CHECK(sum.slowest[0].caseId == "b");
+  CHECK(sum.slowest[1].caseId == "a");
+  CHECK(sum.slowest[1].timeMs == 2500);
+  s.setFailed(i, true);
+  CHECK(s.summary().dnfs == 2);
+  s.removeLast();
+  CHECK(s.summary().count == 4);
+  // From an index on, e.g. since a recap started.
+  CHECK(s.summary(3).count == 1);
+  s.clear();
+  CHECK_FALSE(s.summary().meanMs);
 }
 
 TEST_CASE("new cases can be introduced in several orders") {

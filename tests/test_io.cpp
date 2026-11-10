@@ -613,6 +613,25 @@ TEST_CASE("progress keeps recognition times, suspension and burial") {
   CHECK(row.size() == 4);
 }
 
+TEST_CASE("progress keeps the drill archive, and files without one load") {
+  SetProgress p;
+  DrillArchive kept;
+  kept.bestMs = 812;
+  kept.days = {{19700, 12, 2, 20000, 900}, {19702, 3, 3, 0, 0}};
+  p["T"].archive[AttemptMode::VirtualDrill] = kept;
+  p["T"].record({300, 2500, false, AttemptMode::VirtualDrill});
+  p["U"].record({300, 2500, false, AttemptMode::PhysicalDrill});
+  QJsonObject json = progressToJson(p);
+  // Nothing more is written for a case without an archive.
+  CHECK_FALSE(json.value("cases").toObject().value("U").toObject().contains(
+      "drillArchive"));
+  SetProgress back = progressFromJson(json);
+  CHECK(back["T"].archive.at(AttemptMode::VirtualDrill) == kept);
+  CHECK(*back["T"].best(AttemptMode::VirtualDrill) == 812);
+  CHECK(back["U"].archive.empty());
+  CHECK(back["T"].days(AttemptMode::VirtualDrill).size() == 3);
+}
+
 TEST_CASE("sessions round-trip and convert to and from cstimer") {
   Session s;
   s.name = "Main";

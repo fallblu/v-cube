@@ -123,19 +123,58 @@ struct Attempt {
   bool recognitionOnly = false;
 };
 
+// The local calendar day of a Unix time, as days since 1970-01-01.
+std::int64_t localDay(std::int64_t unixSeconds);
+
+// One day's drill attempts of a case in one mode: how many, how many
+// failed, and the sum and best of the times of those that didn't.
+struct DayRollup {
+  std::int64_t day = 0; // localDay()
+  int count = 0;
+  int fails = 0;
+  std::int64_t sumMs = 0;  // of the good attempts
+  std::int64_t bestMs = 0; // 0: none was good
+  int good() const { return count - fails; }
+  std::optional<double> meanMs() const;
+  friend bool operator==(const DayRollup &, const DayRollup &) = default;
+};
+
+// What is kept of a drill mode's attempts once they no longer are: the
+// best time, and the attempts summed up day by day (oldest first).
+struct DrillArchive {
+  std::int64_t bestMs = 0; // 0: none
+  std::vector<DayRollup> days;
+  bool empty() const { return bestMs == 0 && days.empty(); }
+  friend bool operator==(const DrillArchive &, const DrillArchive &) = default;
+};
+
 struct CaseProgress {
   SrsCard card;
   std::vector<Attempt> attempts; // oldest first, capped per mode
+  // Per drill mode, the attempts that dropped out of `attempts`.
+  std::map<AttemptMode, DrillArchive> archive;
 
   static constexpr std::size_t kMaxAttempts = 100; // per mode
+  // Adds the attempt; a drill attempt that drops out of the cap is kept in
+  // its mode's archive.
   void record(const Attempt &a);
   // Statistics of the drill attempts made in `mode` (a drill mode); other
   // attempts are ignored.
   // Mean of the last n successful drill attempts, in ms.
   std::optional<double> recentMean(AttemptMode mode, std::size_t n = 5) const;
+  // Median of the last n successful drill attempts, in ms.
+  std::optional<double> recentMedian(AttemptMode mode, std::size_t n = 5) const;
+  // The best time ever, archived attempts included.
   std::optional<std::int64_t> best(AttemptMode mode) const;
   double failRate(AttemptMode mode, std::size_t n = 10) const;
   std::size_t drillCount(AttemptMode mode) const;
+  // Every attempt in `mode` summed up by day, archived ones included,
+  // oldest first.
+  std::vector<DayRollup> days(AttemptMode mode) const;
+  // Deletes the last attempt made in `mode`; false if there is none.
+  bool removeLast(AttemptMode mode);
+  // Forgets every drill attempt in `mode`, archived ones too.
+  void clearDrill(AttemptMode mode);
   // Mean recognition time of the last n attempts that measured it, in any
   // mode, in ms.
   std::optional<double> recognitionMean(std::size_t n = 5) const;
@@ -164,14 +203,33 @@ enum class PickMode : std::uint8_t {
   Random,   // uniform, never the same case twice in a row
   Weighted, // slow and often-failed cases come up more
   InOrder,  // in list order
+  Recap,    // every case once, in a random order, then nothing
 };
+
+// The time Weighted compares a pool's cases with: `targetMs` when there is
+// one, else the mean of the cases' recent means in `mode`.
+double drillReference(const std::vector<std::string> &pool,
+                      const SetProgress &progress, AttemptMode mode,
+                      double targetMs);
+// How weak a case is in `mode`, as Weighted weighs it: the square of its
+// recent median over `referenceMs` (kept between 0.5 and 3, so that one
+// walked-away time can't take over), times 1 + 3 x its fail rate. 1 is a
+// case at the reference time that never fails. nullopt: never drilled.
+std::optional<double> drillWeakness(const CaseProgress *p, AttemptMode mode,
+                                    double referenceMs);
+// The `n` weakest cases of the pool that were drilled in `mode`, weakest
+// first (ties in pool order).
+std::vector<std::string> weakestCases(const std::vector<std::string> &pool,
+                                      const SetProgress &progress,
+                                      AttemptMode mode, double targetMs,
+                                      std::size_t n);
 
 class CasePicker {
 public:
   void setMode(PickMode m);
   PickMode mode() const { return mode_; }
-  // Cases to choose from, in list order. Resets in-order progress if the
-  // pool changed.
+  // Cases to choose from, in list order. In order goes on from where it
+  // was in the old pool.
   void setPool(std::vector<std::string> caseIds);
   const std::vector<std::string> &pool() const { return pool_; }
   // Reference time for Weighted: cases slower than this come up more.
@@ -179,6 +237,21 @@ public:
   void setTargetMs(double ms) { targetMs_ = ms; }
   // The drill mode whose statistics Weighted goes by.
   void setAttemptMode(AttemptMode mode) { attemptMode_ = mode; }
+  // A case started some other way (from the list): the next pick avoids
+  // it as it does the last one picked.
+  void setLast(const std::string &caseId) { last_ = caseId; }
+  // Brings a case back once `after` other cases have come (e.g. one just
+  // failed), whatever the order; `after` 0 forgets it.
+  void requeue(const std::string &caseId, int after);
+  bool isRequeued(const std::string &caseId) const;
+
+  // Recap: the cases still to come this round, and whether the round is
+  // over (next() then gives nothing until restartRecap()).
+  std::size_t recapLeft() const { return recapLeft_.size(); }
+  bool recapDone() const {
+    return recapStarted_ && recapLeft_.empty() && requeued_.empty();
+  }
+  void restartRecap();
 
   std::optional<std::string> next(const SetProgress &progress,
                                   std::mt19937_64 &rng);
@@ -190,6 +263,10 @@ private:
   double targetMs_ = 0;
   AttemptMode attemptMode_ = AttemptMode::PhysicalDrill;
   std::string last_;
+  std::vector<std::pair<std::string, int>> requeued_; // case, cases to wait
+  bool lastRequeued_ = false; // the last pick was a requeued case
+  std::vector<std::string> recapLeft_;
+  bool recapStarted_ = false;
 };
 
 // Whether a card is in the learn queue: started with "Start learning" but

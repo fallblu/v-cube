@@ -617,3 +617,23 @@ TEST_CASE("case analysis picks the first passing alg as the main alg") {
   CHECK(a.display == sune.state);
   CHECK(a.mainAlg.empty());
 }
+
+TEST_CASE("a step not done says whether a U turn is missing") {
+  PieceMask none;
+  CubieCube c;
+  c.apply(parseAlgOrEmpty("R U R' U'"));
+  StepMiss miss = stepMiss(c, none);
+  CHECK(miss.auf == 0);
+  CHECK(miss.pieces > 0);
+  // Off by an AUF: a U turn away from done.
+  CubieCube u;
+  u.apply(parseAlgOrEmpty("U'"));
+  miss = stepMiss(u, none);
+  CHECK(miss.auf == 1);
+  CHECK(miss.pieces == 8);
+  CubieCube u2;
+  u2.apply(parseAlgOrEmpty("U2"));
+  CHECK(stepMiss(u2, none).auf == 2);
+  // The pieces the step leaves free don't count.
+  CHECK(stepMiss(u, PieceMask{}.lastLayer(true, true, true)).pieces == 0);
+}

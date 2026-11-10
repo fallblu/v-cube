@@ -151,6 +151,29 @@ bool stepSolved(const CubieCube &cube, const PieceMask &free) {
   return false;
 }
 
+StepMiss stepMiss(const CubieCube &cube, const PieceMask &free) {
+  StepMiss miss;
+  for (int v : {1, 3, 2}) {
+    if (withinMask(cube * uTurn(v), free)) {
+      miss.auf = v;
+      break;
+    }
+  }
+  for (std::size_t i = 0; i < kCorners; ++i) {
+    miss.pieces +=
+        (!free.cp[i] && cube.cp[i] != i) || (!free.co[i] && cube.co[i] != 0)
+            ? 1
+            : 0;
+  }
+  for (std::size_t i = 0; i < kEdges; ++i) {
+    miss.pieces +=
+        (!free.ep[i] && cube.ep[i] != i) || (!free.eo[i] && cube.eo[i] != 0)
+            ? 1
+            : 0;
+  }
+  return miss;
+}
+
 std::string aufText(int quarters) {
   switch (((quarters % 4) + 4) % 4) {
   case 1:
