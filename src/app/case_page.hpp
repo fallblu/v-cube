@@ -7,6 +7,7 @@
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
 #include "train/families.hpp"
+#include "train/reduction.hpp"
 
 #include <functional>
 #include <map>
@@ -57,6 +58,7 @@ protected:
     CubieCube state;     // the case as it is set up and drawn (oriented for
                          // the main alg)
     std::string mainAlg; // the main alg as done from `state`
+    CaseAnalysis analysis;
   };
 
   AppSettings &settings_;
@@ -67,6 +69,8 @@ protected:
   std::map<std::string, CaseInfo> info_;
   // The set's mirror families, when it learns by family (else empty).
   CaseFamilies families_;
+  // Steps left from each case by the set's algs (see stepsLeft()).
+  std::map<std::string, int> steps_;
 
   QWidget *left_;
   QVBoxLayout *leftLayout_;
@@ -89,8 +93,13 @@ protected:
   // when learning by family); drill statistics stay with each case.
   const CaseProgress *cardOf(const std::string &caseId);
   const CaseInfo *infoOf(const std::string &caseId) const;
-  // Has at least one passing alg, so it can be offered.
+  // Has at least one passing alg, so it can be offered. In a reduction
+  // set its steps must also lead to the end.
   bool eligible(const std::string &caseId) const;
+  // Steps left from the case, or 0 if its algs don't reach the end.
+  int stepsFrom(const std::string &caseId) const;
+  // The world for the next case: as written or one of the set's mirrors.
+  Mirror pickWorld();
   // Ticked cases that can be offered, in list order.
   std::vector<std::string> tickedEligible() const;
   int tickedCount() const;
@@ -102,15 +111,23 @@ protected:
   void updateRow(const std::string &caseId);
   void updateAllRows();
 
+  // The yaw to look at a case's group from in 3D: the corner its diagrams
+  // are drawn from, mirrored with the world, so that e.g. a back-left F2L
+  // slot can be seen.
+  double yawFor(const std::string &caseId, Mirror world);
+
   // The hold for the next case, picked from the colour neutrality.
   Hold pickHold();
 
   // The passing algs with the AUFs they need from `state`, main alg first
   // (without the rotations and U turns the display orientation took over),
   // as rich text under the case's name.
-  QString algsHtml(const std::string &caseId, const CubieCube &state);
+  // In a reduction set: every step from `state` to the end. `world` is the
+  // mirror world the state was set up in.
+  QString algsHtml(const std::string &caseId, const CubieCube &state,
+                   Mirror world = {});
   QPixmap caseDiagram(const std::string &caseId, const CubieCube &state,
-                      int size, const ColourMap &colours);
+                      int size, const ColourMap &colours, Mirror world = {});
   void saveProgress();
 
   // A status the case list can be filtered by.
@@ -172,6 +189,15 @@ private:
 // Timed and Untimed, which have no case list.
 QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
                      const CubieCube &state);
+
+// The algs of the case a cube shows in `world` as they are done from the
+// cube (mirrored for a mirrored view), main alg first, under the case's
+// name. A step that stops at another case names it.
+QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
+                     const CubieCube &state, Mirror world);
+// Every step from `state` to the end of a reduction set's step by the
+// set's main algs, under the first case's name.
+QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world);
 
 // When a case is due: "now", "10 min", "3 h" or "4 d", or "today" for a
 // review due before `dayEnd` (reviews are due all day).

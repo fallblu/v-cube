@@ -18,6 +18,13 @@ namespace vcube {
 // Good, while a hint, giving up or leaving the algs (see AlgFollower)
 // grades it Again. Due reviews come first, then cards in their learning
 // steps, then new cases from the learn queue.
+//
+// In a reduction set (see reduction.hpp) a case's card asks for its next
+// step only: any step that leaves fewer steps to go is Good. The cube then
+// shows the case the step stopped at, which is carried on from, and so on
+// to the end of the set's step; each case passed on the way is checked
+// against its own card. A set with mirrors has each case set up in a
+// random one of its worlds.
 class LearnPage : public CasePage {
   Q_OBJECT
 public:
@@ -78,10 +85,35 @@ private:
     Hold hold = kWcaHold; // the cube is drawn in this hold's colours
     bool isNew = false;
     bool practice = false; // a learned case that isn't due: not graded
+    Mirror world;          // the mirror image the case is set up in
+  };
+
+  // One case of the attempt: the case that came up, then in a reduction
+  // set each case a step stopped at.
+  struct Link {
+    CaseView view;
+    FaceletCube start;         // the cube when the case came up
+    CubieCube state;           // the same, orientation removed
+    std::vector<ViewAlg> algs; // its algs as done from there, main first
+    // Once it is over:
+    bool over = false;
+    bool solved = false; // it finished the set's step
+    std::string reached; // or the case it stopped at
+    bool closer = true;  // fewer steps were left after it than before
+    bool setStep = true; // the moves kept to one of the case's algs
+    bool gaveUp = false;
+    Grade grade = Grade::Good;
+    QString note; // what became of its card
+    Alg moves;
   };
 
   Phase phase_ = Phase::NoCase;
   std::optional<Current> current_;
+  std::vector<Link> links_; // the last one is being solved
+  QString linkNote_;        // what the last step came to
+  QString why_;             // why the first case was graded as it was
+  // The cards graded in this attempt: a case passed twice counts once.
+  std::vector<std::string> gradedCards_;
   FaceletCube cube_;
   std::string last_;
   bool hinted_ = false;
@@ -141,6 +173,22 @@ private:
   void showContextStatus();
   void showContextResult();
   void leaveContext();
+  // The set is solved a step at a time.
+  bool chained();
+  // The case being solved: the one that came up, or the one the last step
+  // stopped at.
+  std::string linkCase() const;
+  // The pieces the step leaves free in the world the case is set up in.
+  PieceMask linkFree();
+  // The cube shows a case: it is solved from here.
+  void startLink(const CaseView &view);
+  // The case being solved is over: the step was finished, stopped at
+  // `next`, or was given up. Grades its card.
+  void endLink(bool solved, const std::optional<CaseView> &next);
+  // The link's algs again, e.g. after they were edited in the Library.
+  void refreshLink();
+  // Each case of a reduction set's attempt, with its step and how it went.
+  QString chainHtml();
   void nextCase();
   void begin(const std::string &caseId, bool isNew, bool practice = false);
   // A learned case that isn't due yet, which "Learn this case now" only
@@ -160,8 +208,6 @@ private:
   void showGrade();
   void setPhase(Phase p);
   void showSolvingStatus();
-  // The algs shown for a case, main alg first, as the follower checks them.
-  std::vector<Alg> shownAlgs(const std::string &caseId);
   void learnNext();
   // Shows the cube the way it was last shown for this set; a set seen for
   // the first time keeps the view in use.

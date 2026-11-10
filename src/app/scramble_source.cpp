@@ -1,5 +1,7 @@
 #include "app/scramble_source.hpp"
 
+#include "train/reduction.hpp"
+
 #include "app/app_settings.hpp"
 #include "app/case_page.hpp"
 #include "app/cube_painter.hpp"
@@ -46,11 +48,14 @@ scrambleStateMaker(const AlgLibrary &library, const QString &type) {
         fill(false);
       }
       bool before = set->aufBefore, after = set->aufAfter;
-      return [pool, before, after, id](Rng &rng) {
+      std::vector<Mirror> worlds = set->worlds();
+      return [pool, before, after, id, worlds](Rng &rng) {
         std::uniform_int_distribution<std::size_t> pick(0, pool.size() - 1);
+        std::uniform_int_distribution<std::size_t> world(0, worlds.size() - 1);
         std::uniform_int_distribution<int> quarter(0, 3);
         const Entry &e = pool[pick(rng)];
-        CubieCube s = randomState(e.free, rng) * e.state;
+        // As Drill sets a case up: in one of the set's mirror images.
+        CubieCube s = setUpCase(e.state, e.free, worlds[world(rng)], true, rng);
         if (before) {
           s = s * uTurn(quarter(rng));
         }

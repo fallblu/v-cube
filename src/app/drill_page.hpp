@@ -63,6 +63,7 @@ private:
     CubieCube state; // the case as the solver sees it, held as `hold`
     Hold hold = kWcaHold;
     QString scramble; // physical: applied holding white top, green front
+    Mirror world;     // the mirror image the case is set up in
   };
 
   CasePicker picker_;

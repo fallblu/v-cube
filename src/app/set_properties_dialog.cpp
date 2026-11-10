@@ -1,5 +1,7 @@
 #include "app/set_properties_dialog.hpp"
 
+#include <algorithm>
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -89,8 +91,41 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
          "front-back and both, e.g. the four F2L slots): one review card "
          "per family, set up as a random one of them, with all of them "
          "shown afterwards"));
+  reductionBox_ = new QCheckBox(tr("Solve a step at a time"), general);
+  reductionBox_->setChecked(set_.reduction);
+  reductionBox_->setToolTip(
+      tr("An alg may stop at another case of the set instead of finishing "
+         "the step, as a trigger does that turns one case into an easier "
+         "one. Each case then holds only its next step: Learn asks for that "
+         "step (any step that leaves fewer to go counts) and carries on "
+         "through the cases that follow, checking each one on the way"));
   form->addRow(tr("Learn:"), guidedBox_);
   form->addRow(QString(), familiesBox_);
+  form->addRow(QString(), reductionBox_);
+  auto hasMirror = [this](Mirror m) {
+    return std::find(set_.mirrors.begin(), set_.mirrors.end(), m) !=
+           set_.mirrors.end();
+  };
+  mirrorLeftRightBox_ = new QCheckBox(tr("Left-right"), general);
+  mirrorFrontBackBox_ = new QCheckBox(tr("Front-back"), general);
+  mirrorBothBox_ = new QCheckBox(tr("Both"), general);
+  mirrorLeftRightBox_->setChecked(hasMirror({true, false}));
+  mirrorFrontBackBox_->setChecked(hasMirror({false, true}));
+  mirrorBothBox_->setChecked(hasMirror({true, true}));
+  auto *mirrorRow = new QHBoxLayout;
+  for (QCheckBox *box :
+       {mirrorLeftRightBox_, mirrorFrontBackBox_, mirrorBothBox_}) {
+    box->setToolTip(
+        tr("Learn and Drill also set each case up in this mirror image, "
+           "with its algs mirrored to match (R U R' becomes L' U' L "
+           "left-right, R' U' R front-back and L U L' both ways). A set "
+           "written for the front-right slot is then practised for the "
+           "front-left, back-right and back-left slots too. Cases that "
+           "don't depend on the slot keep their algs"));
+    mirrorRow->addWidget(box);
+  }
+  mirrorRow->addStretch();
+  form->addRow(tr("Also mirrored:"), mirrorRow);
   layout->addWidget(general);
 
   auto *step = new QGroupBox(tr("Step settings"), this);
@@ -280,6 +315,17 @@ void SetPropertiesDialog::accept() {
   set_.targetSeconds = targetSpin_->value();
   set_.guided = guidedBox_->isChecked();
   set_.families = familiesBox_->isChecked();
+  set_.reduction = reductionBox_->isChecked();
+  set_.mirrors.clear();
+  if (mirrorLeftRightBox_->isChecked()) {
+    set_.mirrors.push_back({true, false});
+  }
+  if (mirrorFrontBackBox_->isChecked()) {
+    set_.mirrors.push_back({false, true});
+  }
+  if (mirrorBothBox_->isChecked()) {
+    set_.mirrors.push_back({true, true});
+  }
   QDialog::accept();
 }
 

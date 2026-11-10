@@ -15,7 +15,8 @@ namespace vcube {
 
 // Edits an alg set's properties: name, description, the random U turns
 // around drilled cases, the target time, how Learn teaches the set (guided
-// learning, families), and the step settings (what the
+// learning, families, a step at a time), the mirror images its cases are
+// also set up in, and the step settings (what the
 // algs may leave unsolved and how diagrams look) for the whole set or as a
 // group's own override. Works on a copy; result() has the edited set.
 class SetPropertiesDialog : public QDialog {
@@ -40,6 +41,10 @@ private:
   QDoubleSpinBox *targetSpin_;
   QCheckBox *guidedBox_;
   QCheckBox *familiesBox_;
+  QCheckBox *reductionBox_;
+  QCheckBox *mirrorLeftRightBox_;
+  QCheckBox *mirrorFrontBackBox_;
+  QCheckBox *mirrorBothBox_;
   QComboBox *scopeBox_;
   QCheckBox *overrideBox_;
   QWidget *specWidgets_;

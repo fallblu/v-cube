@@ -3,6 +3,7 @@
 #include "app/case_filter.hpp"
 #include "app/cube_painter.hpp"
 #include "app/set_properties_dialog.hpp"
+#include "train/reduction.hpp"
 
 #include <QCheckBox>
 #include <QDialog>
@@ -539,7 +540,20 @@ void LibraryPage::loadCase() {
   caseDiagram_->setPixmap(cube_painter::diagram(
       maskedFacelets(a ? a->display : c->state, spec.mask, spec.free),
       spec.view, 120, look(), devicePixelRatioF()));
-  if (a && a->main) {
+  if (a && a->main && s->reduction) {
+    // Every step from this case to the end, by the set's main algs.
+    Chain chain = solveChain(*s, c->state);
+    QStringList steps;
+    for (const ChainStep &step : chain.steps) {
+      steps << qs(step.alg);
+    }
+    caseSummary_->setText(
+        chain.complete
+            ? (steps.size() == 1 ? tr("Finishes the step: %1")
+                                 : tr("To the end, a step at a time: %1"))
+                  .arg(steps.join("  ·  "))
+            : tr("Its steps don't reach the end: %1").arg(steps.join("  ·  ")));
+  } else if (a && a->main) {
     caseSummary_->setText(
         tr("Shown as the main alg starts: %1").arg(qs(a->mainAlg)));
   } else {
@@ -799,6 +813,8 @@ void LibraryPage::editProperties() {
   s->targetSeconds = r.targetSeconds;
   s->guided = r.guided;
   s->families = r.families;
+  s->reduction = r.reduction;
+  s->mirrors = r.mirrors;
   s->spec = r.spec;
   for (std::size_t i = 0; i < s->groups.size() && i < r.groups.size(); ++i) {
     s->groups[i].spec = r.groups[i].spec;

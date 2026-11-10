@@ -429,7 +429,7 @@ void DrillPage::neutralityChanged() {
 
 void DrillPage::startCase(const std::string &caseId) {
   if (eligible(caseId) && !isBusy()) {
-    current_ = Current{caseId, {}, pickHold(), {}};
+    current_ = Current{caseId, {}, pickHold(), {}, pickWorld()};
     retryCase();
   }
 }
@@ -493,7 +493,7 @@ void DrillPage::nextCase() {
     setPhase(Phase::NoCase);
     return;
   }
-  current_ = Current{*id, {}, pickHold(), {}};
+  current_ = Current{*id, {}, pickHold(), {}, pickWorld()};
   retryCase();
 }
 
@@ -507,9 +507,12 @@ void DrillPage::retryCase() {
     nextCase();
     return;
   }
-  AlgCase shown = *c;
-  shown.state = info->state; // as the case is drawn
-  current_->state = drillState(*s, *g, shown, rng_);
+  // The case as it is drawn, in its world, with the step's free pieces
+  // scrambled and random U turns around it.
+  current_->state = withRandomAufs(
+      *s,
+      setUpCase(info->state, s->specFor(*g).free, current_->world, true, rng_),
+      rng_);
   current_->scramble.clear();
   failed_ = false;
   unfinished_ = false;
@@ -522,10 +525,8 @@ void DrillPage::retryCase() {
     ++scrambleRequest_; // a physical scramble still on its way is dropped
     scrambleLabel_->clear();
     cubeView_->setColourMap(colourMapOf(current_->hold));
-    // In 3D, look from the corner the group's diagrams are drawn from, so
-    // that e.g. a back-left F2L slot can be seen.
     CubeLook look = cubeView_->look();
-    look.yaw = cube_painter::yawFor(s->specFor(*g).view, CubeLook{}.yaw);
+    look.yaw = yawFor(current_->caseId, current_->world);
     cubeView_->setLook(look);
     resetCube();
   } else {
@@ -706,7 +707,7 @@ bool DrillPage::stepDone() {
   // case that leaves the last layer to be lined up (PLL, say) needs its
   // last U turn too, while one that leaves the last-layer permutation free
   // (OLL) doesn't.
-  return c && withinMask(*c, s->specFor(*g).free);
+  return c && withinMask(*c, mirrorMask(s->specFor(*g).free, current_->world));
 }
 
 void DrillPage::stopVirtual(std::int64_t now) {
@@ -788,9 +789,10 @@ void DrillPage::showReveal() {
   if (!current_) {
     return;
   }
-  reveal_->setText(algsHtml(current_->caseId, current_->state));
+  reveal_->setText(
+      algsHtml(current_->caseId, current_->state, current_->world));
   setDiagram(caseDiagram(current_->caseId, current_->state, 200,
-                         colourMapOf(current_->hold)));
+                         colourMapOf(current_->hold), current_->world));
 }
 
 void DrillPage::setDiagram(const QPixmap &pixmap) {

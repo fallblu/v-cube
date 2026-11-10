@@ -215,7 +215,19 @@ const CasePage::CaseInfo *CasePage::infoOf(const std::string &caseId) const {
 
 bool CasePage::eligible(const std::string &caseId) const {
   const CaseInfo *i = infoOf(caseId);
-  return i && !i->passing.empty();
+  return i && !i->passing.empty() && steps_.contains(caseId);
+}
+
+int CasePage::stepsFrom(const std::string &caseId) const {
+  auto it = steps_.find(caseId);
+  return it == steps_.end() ? 0 : it->second;
+}
+
+Mirror CasePage::pickWorld() {
+  const AlgSet *s = library_.find(setId_);
+  std::vector<Mirror> worlds = s ? s->worlds() : std::vector<Mirror>{Mirror{}};
+  std::uniform_int_distribution<std::size_t> pick(0, worlds.size() - 1);
+  return worlds[pick(rng_)];
 }
 
 std::vector<std::string> CasePage::tickedEligible() const {
@@ -246,7 +258,7 @@ int CasePage::tickedCount() const {
 int CasePage::excludedCount() const {
   int n = 0;
   for (const auto &[id, i] : info_) {
-    n += i.passing.empty() ? 1 : 0;
+    n += eligible(id) ? 0 : 1;
   }
   return n;
 }
@@ -324,6 +336,7 @@ void CasePage::selectSet(const std::string &id) {
 void CasePage::computeInfo() {
   info_.clear();
   families_ = {};
+  steps_.clear();
   AlgSet *s = set();
   if (!s) {
     return;
@@ -334,8 +347,14 @@ void CasePage::computeInfo() {
   for (const auto &g : s->groups) {
     for (const auto &c : g.cases) {
       CaseAnalysis a = analyzeCase(*s, g, c);
-      info_[c.id] = CaseInfo{a.passing, a.display, a.mainAlg};
+      if (!s->reduction && !a.passing.empty()) {
+        steps_[c.id] = 1;
+      }
+      info_[c.id] = CaseInfo{a.passing, a.display, a.mainAlg, std::move(a)};
     }
+  }
+  if (s->reduction) {
+    steps_ = stepsLeft(*s);
   }
 }
 
@@ -517,69 +536,147 @@ void CasePage::showCaseMenu(const QPoint &pos) {
   menu.exec(tree_->viewport()->mapToGlobal(pos));
 }
 
+double CasePage::yawFor(const std::string &caseId, Mirror world) {
+  const AlgSet *s = set();
+  const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
+  DiagramView view = g ? s->specFor(*g).view : DiagramView::Iso3D;
+  // Front-right, front-left, back-left, back-right, going round.
+  static constexpr DiagramView kViews[] = {
+      DiagramView::Iso3D, DiagramView::Iso3DFrontLeft,
+      DiagramView::Iso3DBackLeft, DiagramView::Iso3DBackRight};
+  int corner = 0;
+  for (int i = 0; i < 4; ++i) {
+    if (kViews[i] == view) {
+      corner = i;
+    }
+  }
+  bool left = corner == 1 || corner == 2, back = corner >= 2;
+  left = left != world.leftRight;
+  back = back != world.frontBack;
+  DiagramView seen = kViews[back ? (left ? 2 : 3) : (left ? 1 : 0)];
+  return cube_painter::yawFor(seen, CubeLook{}.yaw);
+}
+
 Hold CasePage::pickHold() { return settings_.neutrality.pick(rng_); }
 
 // --- reveal ----------------------------------------------------------------
 
 namespace {
 
-// The rich text of CasePage::algsHtml() and caseAlgsHtml(): `passing` are
-// the indices of the passing algs and `mainAlg` the main alg as done from
-// the display orientation.
-QString algsHtmlFor(const AlgSet &set, const CaseGroup &group, const AlgCase &c,
-                    const std::vector<std::size_t> &passing,
-                    const std::string &mainAlg, const CubieCube &state) {
-  const PieceMask &free = set.specFor(group).free;
-  QString html =
-      QString("<p style='font-size:large'><b>%1</b> <span style='color:gray'>· "
-              "%2</span></p>")
-          .arg(qs(c.name).toHtmlEscaped(), qs(group.name).toHtmlEscaped());
-  if (passing.empty()) {
+QString caseHeaderHtml(const AlgCase &c, const CaseGroup &group) {
+  return QString("<p style='font-size:large'><b>%1</b> <span "
+                 "style='color:gray'>· %2</span></p>")
+      .arg(qs(c.name).toHtmlEscaped(), qs(group.name).toHtmlEscaped());
+}
+
+QString greyHtml(const QString &text) {
+  return "<span style='color:gray'>" + text + "</span>";
+}
+
+// " → Sune" after a step that stops at that case.
+QString reachedHtml(const AlgSet &set, const std::string &caseId) {
+  const AlgCase *next = set.findCase(caseId);
+  return next ? " " + greyHtml("→ " + qs(next->name).toHtmlEscaped())
+              : QString();
+}
+
+} // namespace
+
+QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
+                     const CubieCube &state, Mirror world) {
+  const AlgCase *c = set.findCase(view.caseId);
+  const CaseGroup *g = set.groupOf(view.caseId);
+  if (!c || !g) {
+    return {};
+  }
+  QString html = caseHeaderHtml(*c, *g);
+  std::vector<ViewAlg> algs =
+      algsFor(set, *g, *c, analyzeCase(set, *g, *c), view, state, world);
+  if (algs.empty()) {
     return html + "<p style='color:gray'>" +
            QObject::tr("No alg solves this case yet. Add one in the Library.")
                .toHtmlEscaped() +
            "</p>";
   }
   bool first = true;
-  for (std::size_t i : passing) {
-    const std::string &text = first ? mainAlg : c.algs[i];
-    std::optional<AufFit> fit =
-        fitAlg(state, parseAlgOrEmpty(text), free, set.aufBefore, set.aufAfter);
-    QString line = qs(fit ? withAufs(text, *fit) : text).toHtmlEscaped();
-    line = first ? "<b>" + line + "</b>"
-                 : "<span style='color:gray'>" + line + "</span>";
-    html += "<p>" + line + "</p>";
+  for (const ViewAlg &alg : algs) {
+    QString line = qs(alg.text).toHtmlEscaped();
+    line = first ? "<b>" + line + "</b>" : greyHtml(line);
+    html += "<p>" + line + reachedHtml(set, alg.reducesTo) + "</p>";
     first = false;
   }
   return html;
 }
 
-} // namespace
-
-QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
-                     const CubieCube &state) {
-  const AlgCase *c = set.findCase(caseId);
-  const CaseGroup *g = set.groupOf(caseId);
+QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world) {
+  Chain chain = solveChain(set, state, world);
+  if (chain.steps.empty()) {
+    return {};
+  }
+  if (chain.steps.size() == 1) {
+    return viewAlgsHtml(set, chain.steps.front().view, state, world);
+  }
+  const std::string &firstId = chain.steps.front().view.caseId;
+  const AlgCase *c = set.findCase(firstId);
+  const CaseGroup *g = set.groupOf(firstId);
   if (!c || !g) {
     return {};
   }
-  CaseAnalysis a = analyzeCase(set, *g, *c);
-  return algsHtmlFor(set, *g, *c, a.passing, a.mainAlg, state);
+  QStringList lines;
+  for (std::size_t i = 0; i < chain.steps.size(); ++i) {
+    QString line = "<b>" + qs(chain.steps[i].alg).toHtmlEscaped() + "</b>";
+    if (i + 1 < chain.steps.size()) {
+      line += reachedHtml(set, chain.steps[i + 1].view.caseId);
+    }
+    lines << line;
+  }
+  QString html = caseHeaderHtml(*c, *g) + "<p>" + lines.join("<br>") + "</p>";
+  if (!chain.complete) {
+    html += "<p style='color:gray'>" +
+            QObject::tr("The set's algs don't reach the end from there.")
+                .toHtmlEscaped() +
+            "</p>";
+  }
+  return html;
 }
 
-QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state) {
+QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
+                     const CubieCube &state) {
+  // The scramble may show the case in one of the set's mirror worlds.
+  std::optional<WorldView> seen = worldOf(set, state);
+  if (!seen) {
+    const AlgCase *c = set.findCase(caseId);
+    const CaseGroup *g = set.groupOf(caseId);
+    seen = WorldView{Mirror{}, CaseView{caseId, false, 0}};
+    if (c && g) {
+      if (auto view = viewOfCase(set, *g, *c, state, Mirror{})) {
+        seen->view = *view;
+      }
+    }
+  }
+  return set.reduction ? chainHtml(set, state, seen->world)
+                       : viewAlgsHtml(set, seen->view, state, seen->world);
+}
+
+QString CasePage::algsHtml(const std::string &caseId, const CubieCube &state,
+                           Mirror world) {
   const AlgSet *s = set();
   const AlgCase *c = s ? s->findCase(caseId) : nullptr;
   const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
-  const CaseInfo *info = infoOf(caseId);
-  if (!c || !g || !info) {
+  if (!c || !g) {
     return {};
   }
-  return algsHtmlFor(*s, *g, *c, info->passing, info->mainAlg, state);
+  if (s->reduction) {
+    return chainHtml(*s, state, world);
+  }
+  CaseView view =
+      viewOfCase(*s, *g, *c, state, world).value_or(CaseView{caseId, false, 0});
+  return viewAlgsHtml(*s, view, state, world);
 }
 
 QPixmap CasePage::caseDiagram(const std::string &caseId, const CubieCube &state,
-                              int size, const ColourMap &colours) {
+                              int size, const ColourMap &colours,
+                              Mirror world) {
   const AlgSet *s = set();
   const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
   if (!g) {
@@ -589,8 +686,9 @@ QPixmap CasePage::caseDiagram(const std::string &caseId, const CubieCube &state,
   CubeLook look;
   look.scheme = settings_.scheme;
   look.map = colours;
-  return cube_painter::diagram(maskedFacelets(state, spec.mask, spec.free),
-                               spec.view, size, look, devicePixelRatioF());
+  return cube_painter::diagram(
+      maskedFacelets(state, spec.mask, mirrorMask(spec.free, world)), spec.view,
+      size, look, devicePixelRatioF());
 }
 
 void CasePage::saveProgress() {
