@@ -823,7 +823,7 @@ void LibraryPage::editProperties() {
       group = gi;
     }
   }
-  SetPropertiesDialog dialog(*s, group, this);
+  SetPropertiesDialog dialog(*s, group, look(), caseId_, this);
   if (dialog.exec() != QDialog::Accepted) {
     return;
   }
