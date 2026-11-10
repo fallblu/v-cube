@@ -82,6 +82,7 @@ private:
   mutable std::optional<std::vector<AlgSet>> shipped_;
 
   const std::vector<AlgSet> &shipped() const;
+  void sortSets(); // built-ins first in a fixed order, then by name
   QString progressPathFor(const std::string &id) const;
   void installBuiltins();
 };

@@ -196,6 +196,10 @@ void AlgLibrary::load() {
   for (const AlgSet &s : sets_) {
     progress(s.id); // to report unreadable progress files now
   }
+  sortSets();
+}
+
+void AlgLibrary::sortSets() {
   // Built-ins first in a fixed order, then the user's sets by name.
   QStringList order = {"pll", "oll", "2look-oll", "2look-pll"};
   std::stable_sort(sets_.begin(), sets_.end(),
@@ -260,8 +264,10 @@ AlgSet *AlgLibrary::add(AlgSet set, QString *error) {
     paths_.erase(set.id);
     return nullptr;
   }
+  std::string id = set.id;
   sets_.push_back(std::move(set));
-  return &sets_.back();
+  sortSets();
+  return find(id);
 }
 
 bool AlgLibrary::remove(const std::string &id, QString *error) {
