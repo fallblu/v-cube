@@ -24,5 +24,6 @@ if(MSVC)
   target_sources(vcube_train PRIVATE $<TARGET_OBJECTS:vcube_step_solver>)
 else()
   target_sources(vcube_train PRIVATE step_solver.cpp)
-  set_source_files_properties(step_solver.cpp PROPERTIES COMPILE_OPTIONS "-O2")
+  set_source_files_properties(step_solver.cpp PROPERTIES
+    COMPILE_OPTIONS "$<$<CONFIG:Debug>:-O2>")
 endif()

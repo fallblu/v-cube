@@ -22,5 +22,6 @@ if(MSVC)
   target_sources(vcube_cube PRIVATE $<TARGET_OBJECTS:vcube_solver>)
 else()
   target_sources(vcube_cube PRIVATE solver.cpp)
-  set_source_files_properties(solver.cpp PROPERTIES COMPILE_OPTIONS "-O2")
+  set_source_files_properties(solver.cpp PROPERTIES
+    COMPILE_OPTIONS "$<$<CONFIG:Debug>:-O2>")
 endif()
