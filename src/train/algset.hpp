@@ -47,6 +47,18 @@ struct StepSpec {
   friend bool operator==(const StepSpec &, const StepSpec &) = default;
 };
 
+// A mirror image of a case: left-right (across the M plane, R <-> L),
+// front-back (across the S plane, F <-> B) or both, which is the case
+// turned half way round the U-D axis. An F2L case for the front-right
+// slot is, mirrored, the case for the front-left, back-right or back-left
+// slot.
+struct Mirror {
+  bool leftRight = false;
+  bool frontBack = false;
+  bool none() const { return !leftRight && !frontBack; }
+  friend bool operator==(const Mirror &, const Mirror &) = default;
+};
+
 struct AlgCase {
   std::string id; // unique within its set
   std::string name;
@@ -76,7 +88,19 @@ struct AlgSet {
   // Learn takes each case with its mirror images as one family: one card
   // per family, a random member set up each time (see families.hpp).
   bool families = false;
+  // The cases are solved a step at a time: an alg may stop at another case
+  // of the set instead of finishing the step, and that case's alg carries
+  // on from there (see reduction.hpp). Learn then asks for one step per
+  // case and follows the cases through to the end.
+  bool reduction = false;
+  // Learn and Drill also set the cases up in these mirror images, with the
+  // algs mirrored to match, so that a set written for one F2L slot is
+  // practised for the others too.
+  std::vector<Mirror> mirrors;
   std::vector<CaseGroup> groups;
+
+  // The ways a case is set up: as it is, and in each mirror image.
+  std::vector<Mirror> worlds() const;
 
   const StepSpec &specFor(const CaseGroup &g) const {
     return g.spec ? *g.spec : spec;

@@ -1,5 +1,6 @@
 #include "train/algset.hpp"
 
+#include <algorithm>
 #include <array>
 #include <sstream>
 
@@ -56,6 +57,16 @@ int AlgSet::caseCount() const {
     n += static_cast<int>(g.cases.size());
   }
   return n;
+}
+
+std::vector<Mirror> AlgSet::worlds() const {
+  std::vector<Mirror> out{Mirror{}};
+  for (Mirror m : mirrors) {
+    if (!m.none() && std::find(out.begin(), out.end(), m) == out.end()) {
+      out.push_back(m);
+    }
+  }
+  return out;
 }
 
 AlgCase *AlgSet::findCase(std::string_view caseId) {
@@ -226,12 +237,13 @@ std::optional<StickerMode> parseStickerMode(std::string_view s) {
 FaceletCube maskedFacelets(const CubieCube &state, const DiagramMask &mask,
                            const PieceMask &free) {
   FaceletCube f = state.toFacelets();
-  auto applyMode = [&f](StickerMode mode, auto facelets) {
+  // `shown`: the colour that tells a piece's orientation.
+  auto applyMode = [&f](StickerMode mode, auto facelets, Face shown) {
     for (auto idx : facelets) {
       int i = static_cast<int>(idx);
       if (mode == StickerMode::Hidden ||
           (mode == StickerMode::Orientation &&
-           f[i] != static_cast<std::uint8_t>(Face::U))) {
+           f[i] != static_cast<std::uint8_t>(shown))) {
         f[i] = kMaskedColour;
       }
     }
@@ -241,12 +253,15 @@ FaceletCube maskedFacelets(const CubieCube &state, const DiagramMask &mask,
   for (std::size_t i = 0; i < kCorners; ++i) {
     std::size_t piece = state.cp[i];
     bool ll = mask.byPiece ? piece < 4 || free.cp[piece] : i < 4;
-    applyMode(ll ? mask.llCorners : mask.rest, kCornerFacelets[i]);
+    // A D-layer corner the step leaves free is oriented by its D sticker,
+    // as it is when it sits in the last layer.
+    Face shown = mask.byPiece && piece >= 4 ? Face::D : Face::U;
+    applyMode(ll ? mask.llCorners : mask.rest, kCornerFacelets[i], shown);
   }
   for (std::size_t i = 0; i < kEdges; ++i) {
     std::size_t piece = state.ep[i];
     bool ll = mask.byPiece ? piece < 4 || free.ep[piece] : i < 4;
-    applyMode(ll ? mask.llEdges : mask.rest, kEdgeFacelets[i]);
+    applyMode(ll ? mask.llEdges : mask.rest, kEdgeFacelets[i], Face::U);
   }
   return f;
 }

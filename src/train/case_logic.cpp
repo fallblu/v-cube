@@ -1,5 +1,7 @@
 #include "train/case_logic.hpp"
 
+#include "train/reduction.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <sstream>
@@ -216,6 +218,31 @@ std::string withAufs(const std::string &alg, AufFit fit) {
   return out;
 }
 
+std::string withAufBefore(const std::string &alg, int before) {
+  std::string_view text = alg;
+  Tokens tokens = topLevelTokens(text);
+  int total = before;
+  std::size_t first = 0;
+  for (; first < tokens.list.size(); ++first) {
+    const Token &t = tokens.list[first];
+    auto q = uTurnQuarters(text.substr(t.begin, t.end - t.begin));
+    if (!q) {
+      break;
+    }
+    total += *q;
+  }
+  std::string body =
+      trim(text.substr(first == 0 ? 0 : tokens.list[first - 1].end));
+  if (body.empty()) {
+    return withAufs(alg, AufFit{before, 0}); // nothing but U turns
+  }
+  std::string auf = aufText(total);
+  if (auf.empty()) {
+    return body;
+  }
+  return (body.front() == '(' ? auf : "(" + auf + ")") + " " + body;
+}
+
 int Unsolved::corners() const {
   int n = 0;
   for (std::size_t i = 0; i < 3; ++i) {
@@ -363,6 +390,9 @@ std::string describeCheck(const AlgCheck &check) {
   if (!check.fit) {
     return describeUnsolved(check.unsolved);
   }
+  if (!check.reducesTo.empty()) {
+    return "→ " + check.reducesToName + ", " + moves;
+  }
   if (check.fit->before == 0 && check.fit->after == 0) {
     return moves;
   }
@@ -496,6 +526,21 @@ CaseAnalysis analyzeCase(const AlgSet &set, const CaseGroup &group,
   for (std::size_t i = 0; i < c.algs.size(); ++i) {
     a.checks.push_back(
         checkAlg(c.state, c.algs[i], free, set.aufBefore, set.aufAfter));
+    AlgCheck &check = a.checks.back();
+    if (set.reduction && !check.passes() && !check.parseError && !check.empty) {
+      // A step: done as written, it stops at another case of the set.
+      FaceletCube f = c.state.toFacelets();
+      f.apply(parseAlgOrEmpty(c.algs[i]));
+      f.normalizeOrientation();
+      auto after = CubieCube::fromFacelets(f);
+      auto seen = after ? seenCase(set, *after) : std::nullopt;
+      const AlgCase *next = seen ? set.findCase(seen->caseId) : nullptr;
+      if (next && next->id != c.id) {
+        check.fit = AufFit{};
+        check.reducesTo = next->id;
+        check.reducesToName = next->name;
+      }
+    }
     if (a.checks.back().passes()) {
       a.passing.push_back(i);
     }

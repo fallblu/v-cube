@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QSaveFile>
 
+#include <algorithm>
 #include <array>
 #include <utility>
 
@@ -122,6 +123,16 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
   set.targetSeconds = o.value("targetSeconds").toDouble(3.0);
   set.guided = o.value("guided").toBool(true);
   set.families = o.value("families").toBool(false);
+  set.reduction = o.value("reduction").toBool(false);
+  for (const auto &mv : o.value("mirrors").toArray()) {
+    QString name = mv.toString();
+    Mirror m{name == "left-right" || name == "both",
+             name == "front-back" || name == "both"};
+    if (!m.none() && std::find(set.mirrors.begin(), set.mirrors.end(), m) ==
+                         set.mirrors.end()) {
+      set.mirrors.push_back(m);
+    }
+  }
   if (set.id.empty()) {
     if (error) {
       *error = "alg set has no id";
@@ -189,6 +200,18 @@ QJsonObject algSetToJson(const AlgSet &set) {
   }
   if (set.families) {
     o["families"] = true;
+  }
+  if (set.reduction) {
+    o["reduction"] = true;
+  }
+  if (!set.mirrors.empty()) {
+    QJsonArray mirrors;
+    for (Mirror m : set.mirrors) {
+      mirrors.append(m.leftRight && m.frontBack ? "both"
+                     : m.leftRight              ? "left-right"
+                                                : "front-back");
+    }
+    o["mirrors"] = mirrors;
   }
   writeSpec(o, set.spec);
   QJsonArray groups;

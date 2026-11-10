@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <numeric>
 
 namespace vcube {
@@ -11,10 +12,6 @@ namespace vcube {
 namespace {
 
 // The mirrors a family is made of: left-right, front-back and both.
-struct Mirror {
-  bool leftRight;
-  bool frontBack;
-};
 constexpr std::array<Mirror, 3> kMirrors = {{
     {true, false},
     {false, true},
@@ -96,7 +93,12 @@ const PieceMirror &pieceMirror(Mirror m) {
   return table[mirrorIndex(m)];
 }
 
-PieceMask mirroredMask(const PieceMask &mask, Mirror m) {
+} // namespace
+
+PieceMask mirrorMask(const PieceMask &mask, Mirror m) {
+  if (m.none()) {
+    return mask;
+  }
   const PieceMirror &pm = pieceMirror(m);
   PieceMask out;
   for (std::size_t c = 0; c < kCorners; ++c) {
@@ -109,6 +111,52 @@ PieceMask mirroredMask(const PieceMask &mask, Mirror m) {
   }
   return out;
 }
+
+std::string mirrorAlgText(std::string_view text, Mirror m) {
+  if (m.none()) {
+    return std::string(text);
+  }
+  static constexpr std::string_view kLetters = "URFDLBurfdlbMESxyzXYZ";
+  auto isPrime = [](char c) { return c == '\''; };
+  std::string out;
+  std::size_t i = 0;
+  while (i < text.size()) {
+    if (text.substr(i).starts_with("//")) {
+      break; // a comment
+    }
+    if (kLetters.find(text[i]) == std::string_view::npos) {
+      out += text[i++];
+      continue;
+    }
+    std::size_t end = i + 1;
+    if (end < text.size() && text[end] == 'w') {
+      ++end;
+    }
+    while (end < text.size() &&
+           (std::isdigit(static_cast<unsigned char>(text[end])) ||
+            isPrime(text[end]))) {
+      ++end;
+    }
+    std::string_view token = text.substr(i, end - i);
+    ParseResult parsed = parseAlg(token);
+    if (parsed && parsed.alg.size() == 1) {
+      Alg one = parsed.alg;
+      if (m.leftRight) {
+        one = mirrorM(one);
+      }
+      if (m.frontBack) {
+        one = mirrorS(one);
+      }
+      out += toString(one);
+    } else {
+      out += token;
+    }
+    i = end;
+  }
+  return out;
+}
+
+namespace {
 
 // Where a case's pieces to solve are: piece, position and orientation of
 // each, corners then edges, for looking cases up.
@@ -231,7 +279,7 @@ CaseFamilies findFamilies(const AlgSet &set) {
     for (Mirror m : kMirrors) {
       CubieCube mirroredState =
           mirrorState(a.c->state, m.leftRight, m.frontBack);
-      PieceMask free = mirroredMask(a.free, m);
+      PieceMask free = mirrorMask(a.free, m);
       for (int u = 0; u < before; ++u) {
         for (int v = 0; v < after; ++v) {
           // The mirrored case with a U turn after it (to undo before the

@@ -28,6 +28,7 @@ add_executable(vcube_tests
   test_step_solver.cpp
   test_solve_review.cpp
   test_families.cpp
+  test_reduction.cpp
   test_bld.cpp
   test_inspection_io.cpp
   test_blind_io.cpp

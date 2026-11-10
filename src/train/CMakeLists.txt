@@ -5,6 +5,7 @@ add_library(vcube_train
   case_logic.cpp
   families.cpp
   move_count.cpp
+  reduction.cpp
   solve_review.cpp
   stats.cpp
   timer.cpp

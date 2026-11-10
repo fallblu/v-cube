@@ -217,6 +217,13 @@ bool AlgFollower::onAlg() const {
   return false;
 }
 
+bool AlgFollower::finished() const {
+  return !opening_ &&
+         std::any_of(paths_.begin(), paths_.end(), [](const Path &p) {
+           return p.alive && p.transit == 0 && p.at + 1 == p.states.size();
+         });
+}
+
 bool AlgFollower::canCatchUp(const Path &p) const {
   int limit = p.cost[p.runEnd[p.at]] - p.cost[p.at] - p.transit;
   if (limit < 0) {

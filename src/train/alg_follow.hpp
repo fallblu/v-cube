@@ -66,6 +66,10 @@ public:
   // are all or part of an alg, up to a whole move of it (not halfway
   // through a half turn, say) or a U turn short of one.
   bool onAlg() const;
+  // A layer off the U-D axis was turned since the last restart.
+  bool begun() const { return !opening_; }
+  // One of the algs was done to its end, apart from U turns after it.
+  bool finished() const;
   // Restarted after the alg was begun.
   bool startedOver() const { return abandoned_; }
   // Where the moves done since the last restart left every alg, as an

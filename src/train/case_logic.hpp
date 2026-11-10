@@ -33,6 +33,12 @@ bool stepSolved(const CubieCube &cube, const PieceMask &free);
 // side, so "(U2) R U R'" with a U before it reads "(U') R U R'".
 std::string withAufs(const std::string &alg, AufFit fit);
 
+// A step with the U turn before it written in, joined with the U turns
+// the step starts with whether or not one is needed: "U (R U' R')" a
+// quarter turn on reads "U2 (R U' R')". The U turn is written bare before
+// a step in brackets, as trigger steps are, and as "(U2) ..." otherwise.
+std::string withAufBefore(const std::string &alg, int before);
+
 // Text of a U turn by `quarters` ("", "U", "U2", "U'").
 std::string aufText(int quarters);
 
@@ -62,6 +68,10 @@ struct AlgCheck {
   std::optional<AufFit> fit;            // set when the alg passes
   int moves = 0;                        // HTM, when the alg can be read
   Unsolved unsolved; // for a failing alg: the closest it gets
+  // In a reduction set (see reduction.hpp): the alg passes by stopping at
+  // this other case of the set instead of finishing the step.
+  std::string reducesTo;     // its id, or empty
+  std::string reducesToName; // and its name
 
   bool passes() const { return fit.has_value(); }
 };
@@ -69,7 +79,8 @@ struct AlgCheck {
 // before and/or after it as the set does.
 AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
                   const PieceMask &free, bool aufBefore, bool aufAfter);
-// Short visible result: "(U') … (U2), 14 moves" for a pass, otherwise e.g.
+// Short visible result: "(U') … (U2), 14 moves" for a pass ("→ Sune, 3
+// moves" for a step that stops at another case), otherwise e.g.
 // "leaves 3 corners unsolved (U layer)" or "can't read at character 7".
 std::string describeCheck(const AlgCheck &check);
 
@@ -89,7 +100,8 @@ displayOrientation(const CubieCube &state, const std::string &mainAlg,
 
 // Every alg of a case checked under the step definition in force (the
 // group's own or the set's) and the set's AUF settings, plus how the case
-// is shown.
+// is shown. In a reduction set an alg also passes when, done as written
+// from the case as stored, it stops at another case of the set.
 struct CaseAnalysis {
   std::vector<AlgCheck> checks;     // one per alg, in list order
   std::vector<std::size_t> passing; // indices of passing algs

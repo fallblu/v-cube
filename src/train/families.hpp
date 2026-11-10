@@ -20,6 +20,14 @@ namespace vcube {
 // the mirrored face's colour (R <-> L for left-right, F <-> B for
 // front-back). The result is a real cube state.
 CubieCube mirrorState(const CubieCube &c, bool leftRight, bool frontBack);
+inline CubieCube mirrorState(const CubieCube &c, Mirror m) {
+  return mirrorState(c, m.leftRight, m.frontBack);
+}
+// The mask of the mirrored positions.
+PieceMask mirrorMask(const PieceMask &mask, Mirror m);
+// An alg's text with every move mirrored (R U R' is L' U' L left-right and
+// L U L' both ways), keeping its brackets and spacing.
+std::string mirrorAlgText(std::string_view text, Mirror m);
 
 // The pieces a case leaves to solve: those not solved in its state whose
 // home positions the step doesn't leave free (by permutation).
