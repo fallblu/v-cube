@@ -1,3 +1,4 @@
+#include "train/case_picker.hpp"
 #include "train/drill_session.hpp"
 #include "train/srs.hpp"
 #include <algorithm>

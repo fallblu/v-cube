@@ -3,6 +3,7 @@ add_library(vcube_train
   algset.cpp
   bld.cpp
   case_logic.cpp
+  case_picker.cpp
   drill_session.cpp
   families.cpp
   move_count.cpp
