@@ -12,7 +12,10 @@
 
 #include <QTimer>
 
+#include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
 
 class QComboBox;
 class QLabel;

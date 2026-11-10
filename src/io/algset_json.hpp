@@ -9,6 +9,7 @@
 #include <QString>
 
 #include <optional>
+#include <string>
 
 namespace vcube {
 

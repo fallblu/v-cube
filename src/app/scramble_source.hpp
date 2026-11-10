@@ -7,6 +7,8 @@
 #include <QComboBox>
 #include <QFutureWatcher>
 #include <QObject>
+#include <QSize>
+#include <QStringList>
 
 class QPushButton;
 

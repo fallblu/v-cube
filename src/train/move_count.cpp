@@ -178,9 +178,9 @@ bool reachedAsHeld(const CubieCube &c, SolveStep step) {
 
 const std::vector<SolveStep> &solveSteps() {
   static const std::vector<SolveStep> steps = {
-      SolveStep::EO,      SolveStep::EOPlus1,  SolveStep::EOPlus2,
-      SolveStep::EOLine,  SolveStep::EOCross,  SolveStep::XEOCross,
-      SolveStep::ZZF2L,   SolveStep::Cross,    SolveStep::CFOPF2L};
+      SolveStep::EO,     SolveStep::EOPlus1, SolveStep::EOPlus2,
+      SolveStep::EOLine, SolveStep::EOCross, SolveStep::XEOCross,
+      SolveStep::ZZF2L,  SolveStep::Cross,   SolveStep::CFOPF2L};
   return steps;
 }
 

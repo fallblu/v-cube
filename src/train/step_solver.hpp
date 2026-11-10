@@ -7,6 +7,7 @@
 
 #include <array>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace vcube {

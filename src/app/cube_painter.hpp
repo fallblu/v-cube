@@ -4,11 +4,14 @@
 #include "cube/facelet.hpp"
 #include "train/algset.hpp"
 
+#include <QColor>
 #include <QPainter>
 #include <QPixmap>
+#include <QPointF>
 #include <QRectF>
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <vector>
 

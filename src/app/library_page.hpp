@@ -6,11 +6,14 @@
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
 
+#include <QList>
 #include <QTreeWidget>
 #include <QVariantMap>
 
 #include <map>
 #include <optional>
+#include <string>
+#include <vector>
 
 class QAction;
 class QFormLayout;
@@ -167,10 +170,10 @@ private:
     std::string caseId;
   };
   std::optional<Pending> begin();
-  bool commit(const QString &text, Pending pending,
-              std::optional<std::vector<std::string>> changedCases =
-                  std::nullopt,
-              const std::vector<std::string> &forget = {});
+  bool
+  commit(const QString &text, Pending pending,
+         std::optional<std::vector<std::string>> changedCases = std::nullopt,
+         const std::vector<std::string> &forget = {});
   // Refreshes the page after a set changed.
   void refreshAfter(const std::string &setId,
                     const std::optional<std::vector<std::string>> &cases);
@@ -184,8 +187,8 @@ private:
   void refreshSetList();
   void loadSet();
   void buildCaseTree();
-  void fillCaseItem(QTreeWidgetItem *item, const AlgSet &s,
-                    const CaseGroup &g, const AlgCase &c);
+  void fillCaseItem(QTreeWidgetItem *item, const AlgSet &s, const CaseGroup &g,
+                    const AlgCase &c);
   void fillGroupItem(QTreeWidgetItem *item, const AlgSet &s,
                      const CaseGroup &g);
   void loadCase();

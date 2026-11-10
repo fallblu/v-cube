@@ -156,25 +156,6 @@ TEST_CASE("learn cases come from any side when the set allows AUFs") {
   CHECK(withRandomAufs(set, sune.state, rng) == sune.state);
 }
 
-TEST_CASE("drill states keep the case and can be solved with an AUF") {
-  AlgSet set = ollLikeSet();
-  Rng rng(5);
-  const auto &group = set.groups[0];
-  for (int i = 0; i < 30; ++i) {
-    for (const auto &c : group.cases) {
-      CubieCube s = drillState(set, group, c, rng);
-      Alg alg = parseAlgOrEmpty(c.id == "sune" ? "R U R' U R U2 R'"
-                                               : "R U R' U' R' F R F'");
-      auto fit = fitAlg(s, alg, set.spec.free);
-      REQUIRE(fit);
-      CubieCube after = s * uTurn(fit->before);
-      after.apply(alg);
-      CHECK(stepSolved(after, set.spec.free));
-      CHECK_FALSE(stepSolved(s, set.spec.free));
-    }
-  }
-}
-
 TEST_CASE("pasted algs are matched to their cases") {
   AlgSet set = ollLikeSet();
   auto report = importAlgs(set,

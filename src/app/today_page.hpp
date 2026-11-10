@@ -10,6 +10,8 @@
 #include <QTimer>
 
 #include <map>
+#include <string>
+#include <vector>
 
 class QLabel;
 class QTreeWidget;

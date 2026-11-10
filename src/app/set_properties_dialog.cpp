@@ -292,8 +292,8 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
       updateTimer_->start();
     }
   };
-  for (QCheckBox *box : {aufBeforeBox_, aufAfterBox_, reductionBox_,
-                         byPieceBox_}) {
+  for (QCheckBox *box :
+       {aufBeforeBox_, aufAfterBox_, reductionBox_, byPieceBox_}) {
     connect(box, &QCheckBox::toggled, this, changed);
   }
   for (QComboBox *box :
@@ -305,8 +305,8 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
           [this] { targetEdited_ = true; });
   connect(previous, &QToolButton::clicked, this, [this] {
     if (!previewCases_.empty()) {
-      previewIndex_ = (previewIndex_ + previewCases_.size() - 1) %
-                      previewCases_.size();
+      previewIndex_ =
+          (previewIndex_ + previewCases_.size() - 1) % previewCases_.size();
       previewCase_ = previewCases_[previewIndex_];
       updatePreview();
     }
@@ -473,8 +473,8 @@ void SetPropertiesDialog::choosePreviewCases() {
   for (std::size_t g = 0; g < set_.groups.size(); ++g) {
     const CaseGroup &group = set_.groups[g];
     // The set's own settings show on the groups that use them.
-    bool inScope = scope_ < 0 ? !group.spec.has_value()
-                              : static_cast<int>(g) == scope_;
+    bool inScope =
+        scope_ < 0 ? !group.spec.has_value() : static_cast<int>(g) == scope_;
     if (!inScope) {
       continue;
     }
@@ -524,13 +524,12 @@ void SetPropertiesDialog::updatePreview() {
     preview_->setPixmap(cube_painter::diagram(
         maskedFacelets(a.display, spec.mask, spec.free), spec.view,
         kPreviewSize, look_, devicePixelRatioF()));
-    previewName_->setText(
-        previewCases_.size() > 1
-            ? tr("%1 (%2 of %3)")
-                  .arg(qs(c->name))
-                  .arg(previewIndex_ + 1)
-                  .arg(previewCases_.size())
-            : qs(c->name));
+    previewName_->setText(previewCases_.size() > 1
+                              ? tr("%1 (%2 of %3)")
+                                    .arg(qs(c->name))
+                                    .arg(previewIndex_ + 1)
+                                    .arg(previewCases_.size())
+                              : qs(c->name));
   } else {
     preview_->clear();
     previewName_->setText(tr("No case to show"));
@@ -550,18 +549,19 @@ void SetPropertiesDialog::updatePreview() {
   }
   QString text;
   if (stop == 0 && start == 0) {
-    text = total == 0 ? tr("The set has no algs yet.")
-                      : (total == 1 ? tr("The set's alg checks as it does now.")
-                                   : tr("All %1 algs check as they do now.")
-                                         .arg(total));
+    text =
+        total == 0
+            ? tr("The set has no algs yet.")
+            : (total == 1 ? tr("The set's alg checks as it does now.")
+                          : tr("All %1 algs check as they do now.").arg(total));
   } else {
     QStringList parts;
     if (stop > 0) {
       parts << (stop == 1 ? tr("<b>1 alg that passes now would stop "
-                                "passing</b>")
-                           : tr("<b>%1 algs that pass now would stop "
-                                "passing</b>")
-                                 .arg(stop));
+                               "passing</b>")
+                          : tr("<b>%1 algs that pass now would stop "
+                               "passing</b>")
+                                .arg(stop));
     }
     if (start > 0) {
       parts << tr("%1 would pass")

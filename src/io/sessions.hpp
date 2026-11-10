@@ -4,6 +4,7 @@
 
 #include "io/data_file.hpp"
 
+#include <QByteArray>
 #include <QJsonObject>
 #include <QString>
 
@@ -89,8 +90,8 @@ std::optional<CstimerImport> sessionsFromCstimerFile(const QByteArray &bytes,
 // file" restores a backup instead, replacing everything.) Scramble types
 // are cstimer's where it has the same type, else 3x3 (333).
 QByteArray sessionsToCstimer(const std::vector<Session> &sessions);
-// cstimer's scramble type for a v-cube one and back; scrambleTypeFromCstimer gives
-// nullopt for a type that isn't for a 3x3.
+// cstimer's scramble type for a v-cube one and back; scrambleTypeFromCstimer
+// gives nullopt for a type that isn't for a 3x3.
 std::string cstimerScrambleType(const std::string &type);
 std::optional<std::string> scrambleTypeFromCstimer(const std::string &type);
 

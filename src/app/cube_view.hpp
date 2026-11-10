@@ -3,10 +3,13 @@
 #include "app/cube_painter.hpp"
 
 #include <QElapsedTimer>
+#include <QRectF>
+#include <QSize>
 #include <QTimer>
 #include <QWidget>
 
 #include <deque>
+#include <optional>
 
 class QComboBox;
 

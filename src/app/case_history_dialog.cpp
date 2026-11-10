@@ -112,9 +112,12 @@ void showCaseHistory(QWidget *parent, const QString &caseName,
     auto ms = [](std::int64_t t) {
       return t > 0 ? secondsText(static_cast<double>(t)) : QString("-");
     };
-    QStringList cells = {dateText(a->timestamp), mode,
-                         result,                 ms(a->timeMs),
-                         ms(a->recognitionMs),   ms(a->executionMs)};
+    QStringList cells = {dateText(a->timestamp),
+                         mode,
+                         result,
+                         ms(a->timeMs),
+                         ms(a->recognitionMs),
+                         ms(a->executionMs)};
     for (int col = 0; col < 6; ++col) {
       table->setItem(row, col, new QTableWidgetItem(cells[col]));
     }

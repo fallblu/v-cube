@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QLayout>
+#include <QSize>
 
 #include <vector>
 

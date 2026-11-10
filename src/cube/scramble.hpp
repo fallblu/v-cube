@@ -59,8 +59,7 @@ struct ScrambleType {
   std::string id;
   std::string name;
   PieceMask mask;
-  bool aufBefore = false; // random U turn before the subset state
-  bool aufAfter = false;  // random U turn after it
+  bool aufAfter = false; // random U turn after the subset state
 };
 
 // Built-in types; the first is the full WCA random-state scramble.

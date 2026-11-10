@@ -6,6 +6,11 @@
 #include "train/srs.hpp"
 
 #include <QApplication>
+#include <QStringList>
+
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace vcube {
 

@@ -129,26 +129,6 @@ std::optional<CubieCube> heldCubie(const FaceletCube &cube, Hold h) {
   return std::nullopt;
 }
 
-std::string_view neutralityName(Neutrality n) {
-  switch (n) {
-  case Neutrality::Fixed:
-    return "fixed";
-  case Neutrality::Y2:
-    return "y2";
-  case Neutrality::Y:
-    return "y";
-  case Neutrality::X2:
-    return "x2";
-  case Neutrality::X2Y2:
-    return "x2y2";
-  case Neutrality::X2Y:
-    return "x2y";
-  case Neutrality::Full:
-    return "full";
-  }
-  return "fixed";
-}
-
 std::vector<Hold> neutralHolds(Hold main, Neutrality n) {
   if (!isValidHold(main)) {
     main = kWcaHold;

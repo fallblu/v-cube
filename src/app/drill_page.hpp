@@ -7,7 +7,13 @@
 #include "train/move_count.hpp"
 
 #include <QFutureWatcher>
+#include <QStringList>
 #include <QTimer>
+
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 
 class QPushButton;
 

@@ -595,8 +595,7 @@ private:
   int heuristic(const Node &n) const {
     int h = 0;
     for (std::size_t i = 0; i < slots_.size(); ++i) {
-      int d =
-          t_.slot[slots_[i]][pairIndex(n.corner[i], n.edge[i], n.dr, n.dl)];
+      int d = t_.slot[slots_[i]][pairIndex(n.corner[i], n.edge[i], n.dr, n.dl)];
       if (d == kUnseen) {
         return INT_MAX / 2; // out of <R, U, L>'s reach
       }

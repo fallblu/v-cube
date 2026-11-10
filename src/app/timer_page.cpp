@@ -1,7 +1,7 @@
 #include "app/timer_page.hpp"
 
-#include "io/data_file.hpp"
 #include "app/review_dialog.hpp"
+#include "io/data_file.hpp"
 #include "train/step_solver.hpp"
 
 #include <QActionGroup>
@@ -49,8 +49,18 @@ QString dateText(std::int64_t unixSeconds) {
 }
 
 // The table's columns. Those after Ao12 are for virtual sessions.
-enum Column { kNumber, kTime, kAo5, kAo12, kMoves, kTps, kCross, kF2l, kLl,
-              kColumns };
+enum Column {
+  kNumber,
+  kTime,
+  kAo5,
+  kAo12,
+  kMoves,
+  kTps,
+  kCross,
+  kF2l,
+  kLl,
+  kColumns
+};
 const char *const kHiddenKey = "timed/hiddenColumns";
 
 QStringList hiddenColumns() {
@@ -287,9 +297,8 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
     }
   });
   connect(undoButton_, &QPushButton::clicked, this, &TimerPage::undoDelete);
-  connect(reviewButton_, &QPushButton::clicked, this, [this] {
-    review(static_cast<int>(session().solves.size()) - 1);
-  });
+  connect(reviewButton_, &QPushButton::clicked, this,
+          [this] { review(static_cast<int>(session().solves.size()) - 1); });
   connect(table_, &QTableWidget::customContextMenuRequested, this,
           &TimerPage::showSolveMenu);
   connect(table_->horizontalHeader(), &QWidget::customContextMenuRequested,
@@ -313,17 +322,18 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
             }
             refreshSolves();
           });
-  connect(&eoWatcher_, &QFutureWatcher<std::optional<int>>::finished, this,
-          [this] {
-            std::optional<int> best = eoWatcher_.result();
-            if (!best || isBusy()) {
-              return;
-            }
-            QString yours = eoYours_ ? QString::number(*eoYours_) : tr("not done");
-            QString line = tr("EO Cross: yours %1, optimal %2").arg(yours).arg(*best);
-            QString was = statusLabel_->text();
-            statusLabel_->setText(was.isEmpty() ? line : was + "\n" + line);
-          });
+  connect(
+      &eoWatcher_, &QFutureWatcher<std::optional<int>>::finished, this, [this] {
+        std::optional<int> best = eoWatcher_.result();
+        if (!best || isBusy()) {
+          return;
+        }
+        QString yours = eoYours_ ? QString::number(*eoYours_) : tr("not done");
+        QString line =
+            tr("EO Cross: yours %1, optimal %2").arg(yours).arg(*best);
+        QString was = statusLabel_->text();
+        statusLabel_->setText(was.isEmpty() ? line : was + "\n" + line);
+      });
 
   applySettings();
   selectSession(store_.currentIndex());
@@ -380,8 +390,8 @@ void TimerPage::showCubeKind() {
   viewPicker_->setVisible(virt && !focusMode_);
   net_->setVisible(!virt);
   QStringList hidden = hiddenColumns();
-  const QStringList names = {"#",     "time", "ao5", "ao12", "moves",
-                             "tps",   "cross", "f2l", "ll"};
+  const QStringList names = {"#",   "time",  "ao5", "ao12", "moves",
+                             "tps", "cross", "f2l", "ll"};
   for (int c = 0; c < kColumns; ++c) {
     bool virtualOnly = c >= kMoves;
     table_->setColumnHidden(c, (virtualOnly && !virt) ||
@@ -502,10 +512,10 @@ void TimerPage::showScramble() {
     return;
   }
   scrambleLabel_->setText(current->text);
-  holdLabel_->setText(settings_.neutrality.isFixed()
-                          ? QString()
-                          : tr("Hold: %1").arg(
-                                holdHtml(current->hold, settings_.scheme)));
+  holdLabel_->setText(
+      settings_.neutrality.isFixed()
+          ? QString()
+          : tr("Hold: %1").arg(holdHtml(current->hold, settings_.scheme)));
   net_->setScramble(current->text);
   // Shown as scrambled holding white on top and green in front.
   attempt_.load(parseAlgOrEmpty(ss(current->text)));
@@ -676,7 +686,8 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     return true;
   }
   if (e->key() != Qt::Key_Space &&
-      !(finished_ && (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter))) {
+      !(finished_ &&
+        (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter))) {
     return false;
   }
   if (finished_) {
@@ -766,8 +777,8 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
   s.timeMs = timeMs;
   s.penalty = penalty;
   s.moves = solution;
-  s.moveTimes = solution.empty() ? std::vector<std::int64_t>{}
-                                 : std::move(times);
+  s.moveTimes =
+      solution.empty() ? std::vector<std::int64_t>{} : std::move(times);
   s.scramble = feed_.current() ? ss(feed_.current()->text) : std::string();
   s.timestamp = unixNow();
   session().solves.push_back(s);
@@ -778,8 +789,9 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
   std::int64_t unit = statUnit(settings_.decimals);
   QStringList bests;
   for (const NewBest &b : newBests(session().solves, unit)) {
-    bests << tr("%1 %2").arg(qs(b.name)).arg(statText(b.value,
-                                                      settings_.decimals));
+    bests << tr("%1 %2")
+                 .arg(qs(b.name))
+                 .arg(statText(b.value, settings_.decimals));
   }
   if (!bests.isEmpty()) {
     QString text = tr("New best: %1!").arg(bests.join(", "));
@@ -909,7 +921,8 @@ void TimerPage::refreshSolves() {
     set(kAo12, statText(ao12[i], d));
     QString moves, rate, cross, f2l, ll;
     if (virt && !s.moves.empty()) {
-      int htm = solutionHtm(parseAlgOrEmpty(s.moves), settings_.simplifiedCounts);
+      int htm =
+          solutionHtm(parseAlgOrEmpty(s.moves), settings_.simplifiedCounts);
       moves = QString::number(htm);
       if (s.penalty != Penalty::Dnf && s.timeMs > 0) {
         rate = QString::number(tps(htm, s.timeMs), 'f', 2);
@@ -988,8 +1001,7 @@ void TimerPage::refreshSolves() {
   row("mo3", "mo3", currentMean(solves, 3, unit), bestMean(solves, 3, unit));
   for (std::size_t n : {5u, 12u, 100u}) {
     QString id = QString("ao%1").arg(n);
-    row(id, id, currentAverage(solves, n, unit),
-        bestAverage(solves, n, unit));
+    row(id, id, currentAverage(solves, n, unit), bestAverage(solves, n, unit));
   }
   html += "</table>";
   html += tr("<p>Solves: %1%2 &nbsp; Mean: %3</p>")
@@ -997,12 +1009,11 @@ void TimerPage::refreshSolves() {
               .arg(sum.dnfs ? QString(" (%1 DNF)").arg(sum.dnfs) : QString())
               .arg(link("mean:all", sum.mean, false));
   stats_->setText(html);
-  focusStats_->setText(
-      tr("ao5 %1 · ao12 %2 · best %3 · %4 solves")
-          .arg(statText(currentAverage(solves, 5, unit), d),
-               statText(currentAverage(solves, 12, unit), d),
-               statText(sum.best, d))
-          .arg(sum.count));
+  focusStats_->setText(tr("ao5 %1 · ao12 %2 · best %3 · %4 solves")
+                           .arg(statText(currentAverage(solves, 5, unit), d),
+                                statText(currentAverage(solves, 12, unit), d),
+                                statText(sum.best, d))
+                           .arg(sum.count));
   chart_->setSolves(solves);
   if (virt) {
     chart_->setSeries({{tr("cross"), QColor(0x3d, 0xd6, 0x6b), crossSeries},
@@ -1042,12 +1053,12 @@ void TimerPage::showStat(const QString &link) {
     return;
   }
   if (parts[0] == "mean") {
-    showTextDialog(this, tr("Session mean"),
-                   statListing(tr("Mean of %1: %2")
-                                   .arg(solves.size())
-                                   .arg(statText(summarize(solves, unit).mean,
-                                                 d)),
-                               solves, 1, false, result(0)));
+    showTextDialog(
+        this, tr("Session mean"),
+        statListing(tr("Mean of %1: %2")
+                        .arg(solves.size())
+                        .arg(statText(summarize(solves, unit).mean, d)),
+                    solves, 1, false, result(0)));
     return;
   }
   bool mean = id == "mo3";
@@ -1102,7 +1113,8 @@ void TimerPage::undoDelete() {
     return;
   }
   auto &solves = session().solves;
-  auto at = static_cast<std::ptrdiff_t>(std::min(deleted_->first, solves.size()));
+  auto at =
+      static_cast<std::ptrdiff_t>(std::min(deleted_->first, solves.size()));
   solves.insert(solves.begin() + at, deleted_->second);
   emit message(tr("Put back solve #%1").arg(at + 1));
   deleted_.reset();
@@ -1181,9 +1193,10 @@ void TimerPage::showDetails(int index) {
     }
   }
   rows.append({tr("Comment"), qs(s.comment)});
-  showSolveDetails(this, tr("Solve #%1").arg(index + 1), rows,
-                   s.moves.empty() ? std::function<void()>{}
-                                   : [this, index] { review(index); });
+  showSolveDetails(
+      this, tr("Solve #%1").arg(index + 1), rows,
+      s.moves.empty() ? std::function<void()>{}
+                      : [this, index] { review(index); });
 }
 
 void TimerPage::showColumnMenu(const QPoint &pos) {
@@ -1360,13 +1373,14 @@ void TimerPage::importCstimer() {
     for (const auto &n : imported->others) {
       names << qs(n);
     }
-    notes << tr("sessions for other puzzles left out: %1")
-                 .arg(names.join(", "));
+    notes
+        << tr("sessions for other puzzles left out: %1").arg(names.join(", "));
   }
   if (count > 0) {
     selectSession(store_.sessions().size() - 1);
   }
-  QString text = tr("Imported %1 sessions with %2 solves").arg(count).arg(solves);
+  QString text =
+      tr("Imported %1 sessions with %2 solves").arg(count).arg(solves);
   if (!notes.isEmpty()) {
     text += " (" + notes.join("; ") + ")";
   }

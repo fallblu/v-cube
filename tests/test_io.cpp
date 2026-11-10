@@ -478,8 +478,7 @@ TEST_CASE("restoring doesn't overwrite a user case that shares an id") {
     for (const auto &c : g.cases) {
       tperm = tperm ||
               (c.id != "T" &&
-               checkCaseAlg(after, g, c,
-                            "R U R' U' R' F R2 U' R' U' R U R' F'")
+               checkCaseAlg(after, g, c, "R U R' U' R' F R2 U' R' U' R U R' F'")
                    .passes());
     }
   }
@@ -611,9 +610,15 @@ TEST_CASE("progress keeps recognition times, suspension and burial") {
   CHECK(back["U"].card.buriedUntil == 99999);
   CHECK(back["T"].card.buriedUntil == 0);
   // The four-element attempts of earlier files still read the same.
-  QJsonArray row =
-      progressToJson(p).value("cases").toObject().value("T").toObject().value(
-          "attempts").toArray().at(2).toArray();
+  QJsonArray row = progressToJson(p)
+                       .value("cases")
+                       .toObject()
+                       .value("T")
+                       .toObject()
+                       .value("attempts")
+                       .toArray()
+                       .at(2)
+                       .toArray();
   CHECK(row.size() == 4);
 }
 
@@ -658,7 +663,8 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
 
   s.solves[1].moveTimes = {100, 250, 400};
   back = sessionsFromJson(sessionsToJson({s}, 0));
-  CHECK(back[0].solves[1].moveTimes == std::vector<std::int64_t>{100, 250, 400});
+  CHECK(back[0].solves[1].moveTimes ==
+        std::vector<std::int64_t>{100, 250, 400});
   CHECK(back[0].solves[0].moveTimes.empty());
 
   s.scrambleType = "lsll";
@@ -667,10 +673,8 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
   // cstimer tells its own format from other timers' by this start.
   CHECK(cs.startsWith("{\"session1\":"));
   QJsonObject csObject = QJsonDocument::fromJson(cs).object();
-  QString sessionData = csObject.value("properties")
-                            .toObject()
-                            .value("sessionData")
-                            .toString();
+  QString sessionData =
+      csObject.value("properties").toObject().value("sessionData").toString();
   CHECK(sessionData.contains("\"scrType\":\"lsll2\""));
   QJsonArray solution =
       csObject.value("session1").toArray().at(1).toArray().at(4).toArray();

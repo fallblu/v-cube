@@ -23,8 +23,8 @@ void scheduleReview(SrsCard &card, std::int64_t now, const SrsConfig &config,
   if (rng && card.intervalDays >= kFuzzFromDays) {
     double range = std::max(1.0, card.intervalDays * 0.05);
     std::uniform_real_distribution<double> fuzz(-range, range);
-    card.intervalDays = std::clamp(card.intervalDays + fuzz(*rng), 1.0,
-                                   config.maximumDays);
+    card.intervalDays =
+        std::clamp(card.intervalDays + fuzz(*rng), 1.0, config.maximumDays);
   }
   card.due = now + daysToSeconds(card.intervalDays);
 }
@@ -144,8 +144,8 @@ void review(SrsCard &card, Grade grade, std::int64_t now,
     case Grade::Easy:
       card.ease += 0.15;
       card.intervalDays =
-          std::max(card.intervalDays + 1.0, (card.intervalDays + late) *
-                                                card.ease * config.easyBonus);
+          std::max(card.intervalDays + 1.0,
+                   (card.intervalDays + late) * card.ease * config.easyBonus);
       scheduleReview(card, now, config, rng);
       break;
     }
@@ -251,9 +251,8 @@ bool isLeech(const SrsCard &card, const SrsConfig &config) {
 
 void resetLearning(CaseProgress &progress) {
   resetCard(progress.card);
-  std::erase_if(progress.attempts, [](const Attempt &a) {
-    return a.mode == AttemptMode::Learn;
-  });
+  std::erase_if(progress.attempts,
+                [](const Attempt &a) { return a.mode == AttemptMode::Learn; });
 }
 
 Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs) {
@@ -509,8 +508,7 @@ int learningCount(const std::vector<std::string> &pool,
   int n = 0;
   for (const auto &id : pool) {
     auto it = progress.find(id);
-    if (it != progress.end() &&
-        it->second.card.state == CardState::Learning &&
+    if (it != progress.end() && it->second.card.state == CardState::Learning &&
         !isQueued(it->second.card) && !it->second.card.suspended) {
       ++n;
     }

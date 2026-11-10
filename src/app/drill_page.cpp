@@ -1554,9 +1554,8 @@ void DrillPage::finish(std::int64_t timeMs, bool failed, bool gaveUp) {
       StepMiss miss =
           stepMiss(*c, mirrorMask(s->specFor(*g).free, current_->world));
       missText_ =
-          miss.auf != 0
-              ? tr("Off by an AUF: %1 would have finished it.")
-                    .arg(qs(aufText(miss.auf)))
+          miss.auf != 0 ? tr("Off by an AUF: %1 would have finished it.")
+                              .arg(qs(aufText(miss.auf)))
           : miss.pieces == 1
               ? tr("1 piece wasn't where the step leaves it when you stopped "
                    "the timer.")

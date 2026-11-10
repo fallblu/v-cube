@@ -153,17 +153,18 @@ namespace {
 // types (the rest of its types are for other puzzles).
 const std::vector<std::string> &sharedTypes() {
   static const std::vector<std::string> ids = {
-      "333", "f2l", "eoline", "eocross", "ll",      "zbll",
+      "333", "f2l", "eoline", "eocross", "ll",   "zbll",
       "cll", "ell", "pll",    "corners", "edges"};
   return ids;
 }
 
 bool isCstimer3x3(const std::string &type) {
   static const std::vector<std::string> ids = {
-      "2gen", "2genl", "2gll", "333drud", "cmll",    "coll",   "easyc",
-      "easyxc", "eols", "half", "lse",    "lsemu",   "lsll2",  "mt3qb",
-      "mt6cp", "mtcdrll", "mteole", "mtl5ep", "mttdr", "oll", "roux",
-      "sbrx", "ttll", "vls", "wvls", "zbls", "zbllx2", "zzll", "input"};
+      "2gen",  "2genl",  "2gll",   "333drud", "cmll",   "coll",
+      "easyc", "easyxc", "eols",   "half",    "lse",    "lsemu",
+      "lsll2", "mt3qb",  "mt6cp",  "mtcdrll", "mteole", "mtl5ep",
+      "mttdr", "oll",    "roux",   "sbrx",    "ttll",   "vls",
+      "wvls",  "zbls",   "zbllx2", "zzll",    "input"};
   return type.empty() || type.starts_with("333") ||
          std::find(ids.begin(), ids.end(), type) != ids.end() ||
          std::find(sharedTypes().begin(), sharedTypes().end(), type) !=

@@ -42,8 +42,7 @@ QStringList filesStarting(const QString &dir, const QString &prefix) {
 
 // A newer file is refused, left as it is and never saved over.
 template <typename Store>
-void checkNewerKept(const QString &path, const QByteArray &text,
-                    Store &store) {
+void checkNewerKept(const QString &path, const QByteArray &text, Store &store) {
   writeText(path, text);
   QString error;
   CHECK_FALSE(store.load(&error));
@@ -63,8 +62,8 @@ TEST_CASE("file formats and versions are checked in one place") {
   FileFormat strict{"v-cube.test", 2, false, "test file"};
   FileFormat optional{"v-cube.test", 1, true, "test file"};
   QString error;
-  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 2}},
-                        strict) == FileStatus::Read);
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 2}}, strict) ==
+        FileStatus::Read);
   CHECK(checkFileFormat({{"format", "v-cube.test"}}, strict) ==
         FileStatus::Read);
   CHECK(checkFileFormat({{"version", 1}}, strict, &error) ==
@@ -137,8 +136,8 @@ TEST_CASE("sessions and progress are written with their format") {
   QTemporaryDir tmp;
   SessionStore store(tmp.filePath("sessions.json"));
   REQUIRE(store.save());
-  auto o = QJsonDocument::fromJson(readText(tmp.filePath("sessions.json")))
-               .object();
+  auto o =
+      QJsonDocument::fromJson(readText(tmp.filePath("sessions.json"))).object();
   CHECK(o.value("format").toString() == "v-cube.sessions");
   CHECK(o.value("version").toInt() == 1);
   CHECK(store.load());
@@ -272,15 +271,15 @@ TEST_CASE("a set with a very long name gets a short id and saves") {
   set.id = std::string(300, 'i'); // e.g. from an imported file
   std::string imported = lib.add(set)->id;
   CHECK(imported.size() <= 80);
-  CHECK(QFile::exists(tmp.filePath(QString::fromStdString(imported) +
-                                   ".json")));
+  CHECK(
+      QFile::exists(tmp.filePath(QString::fromStdString(imported) + ".json")));
 }
 
 TEST_CASE("a failed write says why") {
   QTemporaryDir tmp;
   QString error;
-  CHECK_FALSE(writeFileAtomically(tmp.filePath(QString(300, 'x')), "{}",
-                                  &error));
+  CHECK_FALSE(
+      writeFileAtomically(tmp.filePath(QString(300, 'x')), "{}", &error));
   CHECK_FALSE(error.isEmpty());
 }
 
@@ -306,9 +305,8 @@ TEST_CASE("background writes run in order and keep the latest data") {
   CHECK(writes.load() <= 50);
 
   // And so does a direct write, so an older background one can't land after.
-  writeInBackground(path, [copy = store](QString *error) {
-    return copy.save(error);
-  });
+  writeInBackground(
+      path, [copy = store](QString *error) { return copy.save(error); });
   store.current().solves.clear();
   REQUIRE(store.save());
   finishBackgroundWrites();

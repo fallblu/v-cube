@@ -1,0 +1,123 @@
+name: Release
+
+# A tag like v0.2.0 builds the Linux AppImage and the Windows zip and
+# publishes them as a GitHub release. The version in both (and in Help >
+# About) comes from `git describe`, i.e. the tag.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: 6.8.3
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  appimage:
+    name: Linux AppImage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build catch2 libgl1-mesa-dev \
+            libxkbcommon-dev libxkbcommon-x11-0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 \
+            libegl1
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: qtmultimedia
+          cache: true
+      - name: Version
+        run: echo "VERSION=$(git describe --tags --always --dirty | sed 's/^v//')" >> "$GITHUB_ENV"
+      - name: Configure
+        run: cmake --preset release -DVCUBE_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build --preset release
+      - name: Test
+        run: ctest --preset release
+      - name: Install into the AppDir
+        run: cmake --install build/release --prefix AppDir/usr
+      - name: Build the AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          LINUXDEPLOY_OUTPUT_VERSION: ${{ env.VERSION }}
+        run: |
+          base=https://github.com/linuxdeploy
+          curl -sSfLO $base/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -sSfLO $base/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-*.AppImage
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage \
+            --desktop-file AppDir/usr/share/applications/v-cube.desktop \
+            --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/v-cube.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: v-cube-*.AppImage
+          if-no-files-found: error
+
+  windows:
+    name: Windows zip
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up the MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          modules: qtmultimedia
+          cache: true
+      - name: Configure
+        shell: cmd
+        run: |
+          set QTDIR=%QT_ROOT_DIR%
+          cmake --preset windows-release -DVCUBE_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build --preset windows-release
+      - name: Test
+        run: ctest --preset windows-release
+      - name: Package
+        working-directory: build/windows-release
+        run: cpack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: build/windows-release/v-cube-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: [appimage, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" dist/*
+          --repo "$GITHUB_REPOSITORY" --title "v-cube $GITHUB_REF_NAME"
+          --generate-notes

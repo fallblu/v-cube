@@ -134,8 +134,8 @@ TEST_CASE("step marks are where a solve first did each step", "[review]") {
   REQUIRE(markOf(SolveStep::EOCross));
   CHECK(markOf(SolveStep::EOCross)->moves == 4);
   CHECK(markOf(SolveStep::EOCross)->htm == 2); // L F'
-  marks = stepMarks(after("R U R' F R L' R'"), parseAlgOrEmpty("R L R' F'"),
-                    false);
+  marks =
+      stepMarks(after("R U R' F R L' R'"), parseAlgOrEmpty("R L R' F'"), false);
   CHECK(markOf(SolveStep::EOCross)->htm == 4);
 
   marks = stepMarks(FaceletCube(), {});

@@ -194,8 +194,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   queueRow->addWidget(unqueueButton_);
   leftLayout_->insertLayout(leftLayout_->count() - 1, queueRow);
   queueMessageTimer_.setSingleShot(true);
-  connect(&queueMessageTimer_, &QTimer::timeout, this,
-          &LearnPage::updateQueue);
+  connect(&queueMessageTimer_, &QTimer::timeout, this, &LearnPage::updateQueue);
 
   // --- right: the virtual cube above, what is said about it below ---
   auto *top = new QWidget(this);
@@ -383,8 +382,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   connect(learnButton_, &QPushButton::clicked, this, &LearnPage::learnNext);
   connect(learnNextButton_, &QPushButton::clicked, this,
           &LearnPage::learnQueueHead);
-  connect(unqueueButton_, &QPushButton::clicked, this,
-          &LearnPage::unqueueHead);
+  connect(unqueueButton_, &QPushButton::clicked, this, &LearnPage::unqueueHead);
   connect(listButton_, &QPushButton::clicked, this, &LearnPage::toggleList);
   connect(orderBox_, &QComboBox::activated, this, [this] {
     QSettings().setValue(setSettingsKey(setId_, "learnOrder"),
@@ -402,8 +400,8 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
     // A case begun is finished first; anything else gives way.
     bool begun = phase_ == Phase::Demo ||
                  (phase_ == Phase::Solving &&
-                  (links_.size() > 1 || !follower_.moves().empty() ||
-                   hinted_ || nextHinted_));
+                  (links_.size() > 1 || !follower_.moves().empty() || hinted_ ||
+                   nextHinted_));
     if (!begun) {
       nextCase();
     }
@@ -532,8 +530,8 @@ std::vector<CasePage::CaseStatusFilter> LearnPage::statusFilters() {
       {tr("Due"),
        [this](const std::string &id) {
          const CaseProgress *cp = cardOf(id);
-         return cp && isDueNow(cp->card, unixNow(), localDayEnd(),
-                               settings_.srs);
+         return cp &&
+                isDueNow(cp->card, unixNow(), localDayEnd(), settings_.srs);
        }},
       {tr("Suspended or buried"),
        [this](const std::string &id) {
@@ -598,23 +596,21 @@ void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
   item->setText(1, status);
   item->setForeground(1, colour);
   item->setToolTip(1, tip);
-  item->setText(2, cp && !isQueued(cp->card)
-                       ? dueText(cp, now, localDayEnd())
-                       : QString("-"));
+  item->setText(2, cp && !isQueued(cp->card) ? dueText(cp, now, localDayEnd())
+                                             : QString("-"));
   std::optional<double> recog = recognitionMean(attemptsOf(caseId));
   item->setText(3, secondsText(recog));
-  item->setForeground(3, recog && *recog > settings_.slowRecognitionMs
-                             ? kLearning
-                             : text);
+  item->setForeground(
+      3, recog && *recog > settings_.slowRecognitionMs ? kLearning : text);
   item->setToolTip(3, tr("Mean recognition time of the last 5 attempts that "
                          "measured it, in Learn and on the virtual cube in "
                          "Drill: from the case being set up to the first "
                          "turn off U and D"));
   bool started = cp && cp->card.introduced != 0;
   item->setText(4, started ? QString::number(cp->card.lapses) : QString("-"));
-  item->setText(5, started ? QString("%1%").arg(std::lround(cp->card.ease *
-                                                            100))
-                           : QString("-"));
+  item->setText(5, started
+                       ? QString("%1%").arg(std::lround(cp->card.ease * 100))
+                       : QString("-"));
   item->setToolTip(4, tr("Times the case was forgotten after it was learned"));
   item->setToolTip(5, tr("How much further apart the reviews get each time "
                          "the case goes well"));
@@ -665,12 +661,12 @@ void LearnPage::updateHeader() {
            tr("All sets").toHtmlEscaped() + ":</span> " + html;
   }
   if (practice() == Practice::Quiz && quizAsked_ > 0) {
-    html += " &nbsp;·&nbsp; " +
-            tr("Quiz %1/%2, mean %3 s")
-                .arg(quizRight_)
-                .arg(quizAsked_)
-                .arg(secondsText(static_cast<double>(quizTotalMs_) /
-                                 quizAsked_));
+    html +=
+        " &nbsp;·&nbsp; " +
+        tr("Quiz %1/%2, mean %3 s")
+            .arg(quizRight_)
+            .arg(quizAsked_)
+            .arg(secondsText(static_cast<double>(quizTotalMs_) / quizAsked_));
   }
   headerLabel_->setText(html);
 }
@@ -766,11 +762,11 @@ void LearnPage::extendCaseMenu(QMenu &menu,
     });
   };
   bool single = caseIds.size() == 1;
-  bool anyEligible = std::any_of(caseIds.begin(), caseIds.end(),
-                                 [this](const auto &id) { return eligible(id); });
+  bool anyEligible =
+      std::any_of(caseIds.begin(), caseIds.end(),
+                  [this](const auto &id) { return eligible(id); });
   // "Start learning" queues them in the set's order for new cases.
-  menu.addAction(single ? tr("Start learning") : tr("Start learning all"),
-                 this,
+  menu.addAction(single ? tr("Start learning") : tr("Start learning all"), this,
                  [this, caseIds] {
                    std::vector<std::string> order;
                    for (const auto &id : pool()) {
@@ -846,11 +842,10 @@ void LearnPage::extendCaseMenu(QMenu &menu,
   }
   menu.addSeparator();
   // Its card and Learn attempts; its drill times stay.
-  menu.addAction(single ? tr("Reset learning progress")
-                        : tr("Reset learning progress of all"),
-                 this, [change] {
-                   change([](CaseProgress &p) { resetLearning(p); });
-                 });
+  menu.addAction(
+      single ? tr("Reset learning progress")
+             : tr("Reset learning progress of all"),
+      this, [change] { change([](CaseProgress &p) { resetLearning(p); }); });
   if (single) {
     std::string id = caseIds.front();
     menu.addAction(tr("History…"), this, [this, id] {
@@ -906,7 +901,8 @@ void LearnPage::showQueueMessage(const QString &text) {
 
 void LearnPage::updateQueue() {
   const AlgSet *s = set();
-  std::vector<std::string> queue = s ? queueOrder() : std::vector<std::string>{};
+  std::vector<std::string> queue =
+      s ? queueOrder() : std::vector<std::string>{};
   learnNextButton_->setEnabled(!queue.empty() && !context_);
   unqueueButton_->setEnabled(!queue.empty());
   if (!s) {
@@ -993,9 +989,9 @@ void LearnPage::learnNext() {
   saveProgress();
   updateAllRows();
   if (started) {
-    showQueueMessage(started == 1
-                         ? tr("Added 1 case to your learn queue")
-                         : tr("Added %1 cases to your learn queue").arg(started));
+    showQueueMessage(
+        started == 1 ? tr("Added 1 case to your learn queue")
+                     : tr("Added %1 cases to your learn queue").arg(started));
   } else {
     showQueueMessage(tr("Every ticked case with an alg is started already"));
   }
@@ -1035,8 +1031,9 @@ void LearnPage::adoptSet() {
   slotsSpin_->setVisible(pairSet_);
   contextButton_->setVisible(pairSet_);
   applySetView();
-  QString order =
-      QSettings().value(setSettingsKey(setId_, "learnOrder"), "list").toString();
+  QString order = QSettings()
+                      .value(setSettingsKey(setId_, "learnOrder"), "list")
+                      .toString();
   orderBox_->setCurrentIndex(std::max(0, orderBox_->findData(order)));
   updateQueue();
 }
@@ -1164,10 +1161,10 @@ std::vector<std::string> LearnPage::pool() const {
     }
     c.stepsLeft = stepsFrom(member);
     auto it = library_.progress(setId_).find(card);
-    c.queued = it != library_.progress(setId_).end() &&
-                       isQueued(it->second.card)
-                   ? it->second.card.due
-                   : std::numeric_limits<std::int64_t>::max();
+    c.queued =
+        it != library_.progress(setId_).end() && isQueued(it->second.card)
+            ? it->second.card.due
+            : std::numeric_limits<std::int64_t>::max();
     cases.push_back(std::move(c));
   }
   // The set's shuffled order stays the same from one day to the next.
@@ -1239,8 +1236,8 @@ void LearnPage::nextCase(bool early) {
   options.early = early;
   options.dayEnd = localDayEnd();
   options.newCases = !acrossSets();
-  LearnPick pick = pickLearnCase(pool(), progress(), unixNow(),
-                                 localDayStart(), settings_.srs, options);
+  LearnPick pick = pickLearnCase(pool(), progress(), unixNow(), localDayStart(),
+                                 settings_.srs, options);
   if (!pick.caseId) {
     showIdle(pick);
     return;
@@ -1349,8 +1346,8 @@ void LearnPage::showIdle(const LearnPick &pick) {
   } else if (cases.empty()) {
     lines << tr("Tick some cases that have algs to learn them.");
   } else {
-    LearnCounts n = learnCounts(cases, progress(), now, dayStart,
-                                settings_.srs, dayEnd);
+    LearnCounts n =
+        learnCounts(cases, progress(), now, dayStart, settings_.srs, dayEnd);
     if (n.doneToday > 0) {
       lines << tr("Done for now: %1 reviewed today, %2 Again (%3%). Due "
                   "tomorrow: %4.")
@@ -1391,9 +1388,9 @@ void LearnPage::showIdle(const LearnPick &pick) {
     early.early = true;
     early.newCases = false;
     early.dayEnd = dayEnd;
-    bool waiting = pickLearnCase(cases, progress(), now, dayStart,
-                                 settings_.srs, early)
-                       .caseId.has_value();
+    bool waiting =
+        pickLearnCase(cases, progress(), now, dayStart, settings_.srs, early)
+            .caseId.has_value();
     lines << (waiting ? tr("Space: the next learning case now, early.")
                       : tr("Space checks again."));
   }
@@ -1405,8 +1402,8 @@ void LearnPage::showIdle(const LearnPick &pick) {
   if (pick.nextDue) {
     target = std::min(target, *pick.nextDue - settings_.srs.learnAheadSeconds);
   }
-  std::int64_t ms = std::clamp<std::int64_t>((target - now) * 1000 + 500,
-                                             1000, 3600 * 1000);
+  std::int64_t ms =
+      std::clamp<std::int64_t>((target - now) * 1000 + 500, 1000, 3600 * 1000);
   idleTimer_.start(static_cast<int>(ms));
 }
 
@@ -1527,8 +1524,8 @@ void LearnPage::recalled(bool knew) {
   if (phase_ != Phase::Recognise || !current_) {
     return;
   }
-  recognitionMs_ = knew ? std::max<std::int64_t>(1, monotonicMs() - shownAtMs_)
-                        : 0;
+  recognitionMs_ =
+      knew ? std::max<std::int64_t>(1, monotonicMs() - shownAtMs_) : 0;
   gradedCard_ = cardId(current_->caseId);
   const CaseProgress *cp = progressOf(gradedCard_);
   cardBefore_ = cp ? cp->card : SrsCard{};
@@ -1647,8 +1644,7 @@ void LearnPage::nextQuiz() {
   for (std::size_t i = 0; i < quizChoices_.size(); ++i) {
     const AlgCase *c = s->findCase(quizChoices_[i]);
     auto *b = new QPushButton(
-        QString("%1 %2").arg(i + 1).arg(c ? qs(c->name) : QString()),
-        quizRow_);
+        QString("%1 %2").arg(i + 1).arg(c ? qs(c->name) : QString()), quizRow_);
     b->setFocusPolicy(Qt::NoFocus);
     connect(b, &QPushButton::clicked, this, [this, i] { answerQuiz(i); });
     layout->addWidget(b);
@@ -1692,8 +1688,7 @@ void LearnPage::answerQuiz(std::size_t choice) {
       (right ? tr("Right, in %1 s.").arg(secondsText(static_cast<double>(ms)))
              : tr("It was %1.").arg(c ? qs(c->name) : QString())) +
       " " + tr("Space/Enter: another one."));
-  statusLabel_->setStyleSheet(right ? QString()
-                                    : "color: " + kLearning.name());
+  statusLabel_->setStyleSheet(right ? QString() : "color: " + kLearning.name());
   updateHeader();
 }
 
@@ -1746,7 +1741,8 @@ void LearnPage::undoLast() {
   }
   updateAllRows();
   const AlgCase *c = set() ? set()->findCase(u.caseId) : nullptr;
-  emit message(tr("Took back the grade of %1").arg(c ? qs(c->name) : QString()));
+  emit message(
+      tr("Took back the grade of %1").arg(c ? qs(c->name) : QString()));
   if (context_ || !eligible(u.caseId)) {
     if (phase_ == Phase::NoCase) {
       nextCase();
@@ -1939,9 +1935,9 @@ void LearnPage::trackGuide() {
   // held as before it any more (as after it, or some other way when the
   // cube was turned differently from the start).
   std::size_t k = *found;
-  while (k < g.moves.size() && isRotation(g.moves[k].type) &&
-         (sameCentres(cube_, g.held[k + 1]) ||
-          !sameCentres(cube_, g.held[k]))) {
+  while (
+      k < g.moves.size() && isRotation(g.moves[k].type) &&
+      (sameCentres(cube_, g.held[k + 1]) || !sameCentres(cube_, g.held[k]))) {
     ++k;
   }
   g.at = k;
@@ -2903,16 +2899,15 @@ void LearnPage::showReveal() {
 }
 
 void LearnPage::showGrade() {
-  bool shown =
-      (phase_ == Phase::Done || phase_ == Phase::Recalled) && current_;
+  bool shown = (phase_ == Phase::Done || phase_ == Phase::Recalled) && current_;
   if (!shown) {
     gradeRow_->setVisible(false);
     return;
   }
   gradeRow_->setVisible(true);
   bool recalled = phase_ == Phase::Recalled;
-  bool buttons = recalled || (!current_->practice && !gradeReplaced_ &&
-                              graded_);
+  bool buttons =
+      recalled || (!current_->practice && !gradeReplaced_ && graded_);
   std::int64_t when = recalled ? unixNow() : gradeTime_;
   for (int g = 0; g < 4; ++g) {
     auto grade = static_cast<Grade>(g + 1);
@@ -2957,15 +2952,14 @@ void LearnPage::showGrade() {
   if (current_->practice) {
     badge(grade_ == Grade::Again ? tr("Missed") : tr("Well done"),
           grade_ == Grade::Again ? gradeColour(Grade::Again) : grey);
-    detail(
-        tr("Practice (%1), not graded; next review %2.").arg(why, next));
+    detail(tr("Practice (%1), not graded; next review %2.").arg(why, next));
     return;
   }
   if (walkedThrough_) {
     badge(tr("Walked through"), "#5a6b80");
     detail(tr("Not graded: it comes back in %1 to do from "
-                            "memory. 1-4 grade it now instead.")
-                             .arg(next));
+              "memory. 1-4 grade it now instead.")
+               .arg(next));
     return;
   }
   if (!graded_) {

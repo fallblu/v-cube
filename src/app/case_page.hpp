@@ -9,8 +9,15 @@
 #include "train/families.hpp"
 #include "train/reduction.hpp"
 
+#include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include <QPixmap>
+#include <QStringList>
 
 class QComboBox;
 class QFormLayout;
