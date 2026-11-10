@@ -113,7 +113,9 @@ choice are for a physical cube.
     the cube seen from that slot's corner and the algs mirrored to match:
     `R U R'` is `L' U' L` left-right, `R' U' R` front-back and `L U L'`
     both ways. A case that doesn't depend on the slot, such as an OCLL
-    with the F2L whole, keeps its algs as you wrote them. A case has one
+    with the F2L whole, is never mirrored: it comes up as written and keeps
+    its algs. When a mirrored step stops at such a case, the cube is seen
+    from the front right again, the way its alg is done. A case has one
     card whichever way it comes up.
   - **Practise in context** (for sets of F2L pair cases, such as a ZZ F2L
     set): a cube with EO Cross done and 1 to 4 slots open (the number next
