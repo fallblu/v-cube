@@ -632,7 +632,24 @@ cmake --build --preset release
 Catch2 is fetched automatically if it isn't installed. Other presets:
 `debug`, and `asan` (AddressSanitizer + UBSan). Run the tests with
 `ctest --preset debug`. Pass `-DVCUBE_BUILD_APP=OFF` to build only the
-libraries and tests, which need Qt Core but no GUI.
+libraries and tests, which need Qt Core but no GUI. Qt Multimedia
+(`qt6-multimedia-dev`) is optional: without it the inspection calls use
+the system beep. `-DVCUBE_USE_CCACHE=ON` compiles through ccache and
+`-DVCUBE_USE_MOLD=ON` links with mold (CMake 3.29+); both are off by
+default. `-DVCUBE_WARNINGS_AS_ERRORS=ON` is what CI builds with.
+
+`cmake --install build/release --prefix ~/.local` installs the app with a
+desktop entry and icon. Formatting follows `.clang-format`; CI checks it
+with clang-format 21.
+
+### Releases
+
+Pushing a tag such as `v0.2.0` runs `.github/workflows/release.yml`, which
+builds a Linux AppImage (with linuxdeploy) and a Windows zip (`cpack` of
+the `windeployqt` install folder) and attaches both to a GitHub release.
+The version shown in **Help > About**, the package names and the Windows
+file version all come from `git describe`, so a tagged build is named after
+its tag and other builds carry the commit (e.g. `0.2.0-3-gabc1234`).
 
 ### Windows
 
@@ -646,7 +663,8 @@ Prerequisites:
   standalone CMake 3.25+ and Ninja work too.
 - Qt 6.5 or later for MSVC (`msvc2022_64`) from the
   [Qt online installer](https://www.qt.io/download-qt-installer).
-- Git, used to fetch Catch2 for the tests.
+- Git, used to fetch Catch2 for the tests unless an installed Catch2 3
+  (e.g. from vcpkg) is on `CMAKE_PREFIX_PATH`.
 
 Open an **x64 Native Tools Command Prompt** for your Visual Studio version
 (`where rc mt` should find both), point `QTDIR` at the Qt install, then
@@ -663,7 +681,8 @@ install\windows-release\bin\v-cube.exe
 
 `cmake --install` runs `windeployqt` and copies the MSVC runtime, so
 `install\windows-release\bin` is a self-contained folder that you can copy
-to a PC without Qt. A `windows-debug` preset is also available. The
+to a PC without Qt; `cpack` in `build\windows-release` zips it. A
+`windows-debug` preset is also available. The
 executable in `build\` needs Qt's `bin` folder on `PATH` to run.
 
 ### WSL
@@ -874,6 +893,8 @@ are also set up in, of `"left-right"`, `"front-back"` and `"both"`):
 | `src/io` | Qt Core persistence. JSON alg sets, the user library, progress, timer, move count, inspection and blind sessions, and cstimer conversion. |
 | `src/app` | Qt Widgets UI. Cube renderer, the eight mode pages, the solve review, the shared scramble source and settings. |
 | `tests` | Catch2 tests for the engine, training logic and storage. They also check that every built-in case is distinct and that standard algs are matched to the right cases. |
+| `resources` | Built-in alg sets, the app icon, the Windows version resource and the Linux desktop entry. |
+| `.github/workflows` | CI (format check; Linux GCC, Clang, ASan and Qt 6.5; Windows MSVC; warnings as errors) and tag releases. |
 
 ## Credits
 
