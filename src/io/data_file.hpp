@@ -86,7 +86,7 @@ void writeInBackground(const QString &path,
 // first, so that a background write never lands on top of a newer file.
 void finishBackgroundWrites(const QString &path = {});
 
-// --- write reports ------------------------------------------------------------
+// --- write reports ----------------------------------------------------------
 
 // Receives the result of every write to a data file, background or direct
 // (those report themselves with reportWrite()): `error` is empty when the
