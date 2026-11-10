@@ -35,8 +35,9 @@ struct BlindScheme {
   // The user's own setup for a sticker, empty for the computed one.
   const std::string &ownSetup(BldPiece kind, int sticker) const;
   std::string &ownSetup(BldPiece kind, int sticker);
-  // The setup in use: the user's own when it can be read, else the
-  // computed one (empty for the swap spot); nullopt for a buffer sticker.
+  // The setup in use: the user's own when it can be read and does the job,
+  // else the computed one (empty for the swap spot); nullopt for a buffer
+  // sticker.
   std::optional<Alg> setup(BldPiece kind, int sticker) const;
   // The setups in use for a piece type, by sticker (empty for buffers).
   std::array<Alg, kBldStickers> setups(BldPiece kind) const;
