@@ -59,51 +59,16 @@ Solve solveFromJson(const QJsonArray &a) {
 } // namespace
 
 SessionStore::SessionStore(QString path)
-    : path_(path), file_(std::move(path), kSessionsFile) {}
+    : SessionFileStore(std::move(path), kSessionsFile) {}
 
-bool SessionStore::load(QString *error) {
-  sessions_ = {Session{}};
-  current_ = 0;
-  QJsonObject o;
-  FileStatus status = file_.load(o, error);
-  if (status != FileStatus::Read) {
-    return status == FileStatus::Missing;
-  }
-  sessions_ = sessionsFromJson(o, &current_);
-  if (sessions_.empty()) {
-    sessions_.push_back(Session{});
-  }
-  current_ = std::min(current_, sessions_.size() - 1);
-  return true;
+QJsonObject SessionStore::toJson() const {
+  return sessionsToJson(sessions_, current_);
 }
 
-bool SessionStore::save(QString *error) const {
-  return file_.save(sessionsToJson(sessions_, current_), error);
-}
-
-void SessionStore::setCurrentIndex(std::size_t i) {
-  if (i < sessions_.size()) {
-    current_ = i;
-  }
-}
-
-Session &SessionStore::addSession(const std::string &name) {
-  Session s;
-  s.name = name;
-  sessions_.push_back(std::move(s));
-  current_ = sessions_.size() - 1;
-  return sessions_.back();
-}
-
-void SessionStore::removeSession(std::size_t i) {
-  if (i >= sessions_.size()) {
-    return;
-  }
-  sessions_.erase(sessions_.begin() + static_cast<std::ptrdiff_t>(i));
-  if (sessions_.empty()) {
-    sessions_.push_back(Session{});
-  }
-  current_ = std::min(current_, sessions_.size() - 1);
+void SessionStore::fromJson(const QJsonObject &o) {
+  std::size_t current = 0;
+  std::vector<Session> sessions = sessionsFromJson(o, &current);
+  assign(std::move(sessions), current);
 }
 
 QJsonObject sessionsToJson(const std::vector<Session> &sessions,

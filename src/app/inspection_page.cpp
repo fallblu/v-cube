@@ -1,42 +1,32 @@
 #include "app/inspection_page.hpp"
 
 #include "app/flow_layout.hpp"
+#include "app/session_panel.hpp"
 
-#include "io/data_file.hpp"
+#include "io/session_store.hpp"
 
-#include <QActionGroup>
-#include <QApplication>
-#include <QClipboard>
 #include <QComboBox>
 #include <QDir>
 #include <QHBoxLayout>
-#include <QHeaderView>
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QLineEdit>
-#include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
-#include <QTableWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <array>
+#include <string_view>
 
 namespace vcube {
 
 namespace {
-
-QPushButton *flatButton(const QString &text, QWidget *parent) {
-  auto *b = new QPushButton(text, parent);
-  b->setFocusPolicy(Qt::NoFocus);
-  return b;
-}
 
 QComboBox *flatBox(QWidget *parent) {
   auto *b = new QComboBox(parent);
@@ -77,8 +67,6 @@ QString axisColours(Hold h, int axis) {
 
 const char *axisName(int axis) { return axis == 0 ? "F/B" : "R/L"; }
 
-// A Space this soon after the time limit hid the cube was meant to hide it.
-constexpr std::int64_t kHideGraceMs = 600;
 // Optimal solutions worked out per hold, to show three that differ.
 constexpr int kSolutionsPerHold = 12;
 
@@ -98,27 +86,6 @@ QString slotWords(Slot s) {
     return QObject::tr("back-right");
   }
   return {};
-}
-
-// The hold a step is done in, of those it is: the one the cube is held
-// in now if it is one of them, else one with the same top colour, else the
-// first.
-std::optional<Hold> doneHold(const FaceletCube &cube, SolveStep step) {
-  std::vector<Hold> holds = stepReachedHolds(cube, step);
-  if (holds.empty()) {
-    return std::nullopt;
-  }
-  if (std::optional<Hold> now = holdOf(cube)) {
-    if (std::find(holds.begin(), holds.end(), *now) != holds.end()) {
-      return *now;
-    }
-    for (Hold h : holds) {
-      if (h.top == now->top) {
-        return h;
-      }
-    }
-  }
-  return holds.front();
 }
 
 // What a cube that didn't reach `step` did get: "EO not done (3 bad edges
@@ -148,6 +115,30 @@ const StatusColour kCall{Status::Warning};
 // Ring colours for the bad edges of the two axes.
 const QColor kRing[2] = {QColor(0xff, 0x2d, 0xd4), QColor(0x2d, 0xd4, 0xff)};
 
+// The flow's settings for a session.
+InspectionFlow::Config flowConfig(const InspectionSession &s) {
+  InspectionFlow::Config c;
+  c.plan = s.drill == InspectionDrill::Plan;
+  c.limitSeconds = s.limitSeconds;
+  c.wca = s.wca;
+  c.axes = {asksAxis(s.axes, 0), asksAxis(s.axes, 1)};
+  return c;
+}
+
+// The attempt table's columns, titled: "#" (fitted to its numbers), then
+// three sharing the width.
+std::vector<AttemptColumn> attemptColumns(const QStringList &titles) {
+  std::vector<AttemptColumn> columns;
+  for (const QString &title : titles) {
+    AttemptColumn c;
+    c.id = title;
+    c.title = title;
+    c.fit = columns.empty();
+    columns.push_back(c);
+  }
+  return columns;
+}
+
 } // namespace
 
 InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
@@ -170,36 +161,11 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
                              " " + kept);
   }
 
-  // --- left column: sessions, stats, attempts ---
-  auto *left = leftPanel_ = new QWidget(this);
-  auto *leftLayout = new QVBoxLayout(left);
-  leftLayout->setContentsMargins(0, 0, 0, 0);
-  sessionButton_ = new QToolButton(left);
-  sessionButton_->setFocusPolicy(Qt::NoFocus);
-  sessionButton_->setPopupMode(QToolButton::InstantPopup);
-  sessionButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
-  sessionButton_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  sessionButton_->setToolTip(tr("Switch, add, rename or delete sessions"));
-  sessionMenu_ = new QMenu(sessionButton_);
-  sessionButton_->setMenu(sessionMenu_);
-  leftLayout->addWidget(sessionButton_);
-
-  stats_ = new QLabel(left);
-  stats_->setTextFormat(Qt::RichText);
-  stats_->setWordWrap(true);
-  stats_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  leftLayout->addWidget(stats_);
-
-  table_ = new QTableWidget(0, 4, left);
-  table_->verticalHeader()->setVisible(false);
-  table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-  table_->setSelectionBehavior(QAbstractItemView::SelectRows);
-  table_->setFocusPolicy(Qt::NoFocus);
-  table_->setContextMenuPolicy(Qt::CustomContextMenu);
-  table_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-  table_->horizontalHeader()->setSectionResizeMode(
-      0, QHeaderView::ResizeToContents);
-  leftLayout->addWidget(table_, 1);
+  // --- left column: sessions, stats, attempts (no delete row: Delete last
+  // is with the result) ---
+  panel_ = new SessionPanel(this);
+  panel_->setColumns(
+      attemptColumns({"#", tr("Moves"), tr("Optimal"), tr("Inspection")}));
 
   // --- right column: options, cube, display, result, chart ---
   auto *right = new QWidget(this);
@@ -335,14 +301,15 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   chartBox_->setCurrentIndex(
       std::clamp(QSettings().value("inspection/chart", 0).toInt(), 0,
                  chartBox_->count() - 1));
-  chart_ = new TrendChart(right);
+  chart_ = panel_->chart();
+  chart_->setVisible(true);
   auto *chartRow = new QHBoxLayout;
   chartRow->addWidget(chart_, 1);
   chartRow->addWidget(chartBox_, 0, Qt::AlignTop);
   rightLayout->addLayout(chartRow, 1);
 
   auto *split = new QSplitter(this);
-  split->addWidget(left);
+  split->addWidget(panel_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);
   split->setStretchFactor(1, 1);
@@ -461,35 +428,43 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
       deleteAttempt(static_cast<int>(session().attempts.size()) - 1);
     }
   });
-  connect(sessionMenu_, &QMenu::aboutToShow, this,
+  connect(panel_, &SessionPanel::menuAboutToShow, this,
           &InspectionPage::refreshSessionMenu);
-  connect(table_, &QTableWidget::customContextMenuRequested, this,
+  connect(panel_, &SessionPanel::sessionChosen, this,
+          &InspectionPage::selectSession);
+  connect(panel_, &SessionPanel::newSessionRequested, this,
+          &InspectionPage::addSession);
+  connect(panel_, &SessionPanel::renameSessionRequested, this,
+          &InspectionPage::renameSession);
+  connect(panel_, &SessionPanel::deleteSessionRequested, this,
+          &InspectionPage::deleteSession);
+  connect(panel_, &SessionPanel::attemptMenuRequested, this,
           &InspectionPage::showAttemptMenu);
-  connect(table_, &QTableWidget::cellDoubleClicked, this, [this](int row, int) {
-    if (auto *item = table_->item(row, 0)) {
-      requestReview(item->data(Qt::UserRole).toInt());
-    }
-  });
+  connect(panel_, &SessionPanel::attemptActivated, this,
+          &InspectionPage::requestReview);
 
   applySettings();
   selectSession(store_.currentIndex());
   feed_.setType("333");
 }
 
-bool InspectionPage::isBusy() const {
-  return phase_ == Phase::Inspecting || phase_ == Phase::Executing ||
-         phase_ == Phase::Counting;
-}
+bool InspectionPage::isBusy() const { return flow_.isBusy(); }
 
 void InspectionPage::deactivated() {
-  cancel();
+  if (flow_.leave()) {
+    showCancelled();
+  }
   cubeView_->finishAnimations();
 }
 
-void InspectionPage::windowDeactivated() { cancel(); }
+void InspectionPage::windowDeactivated() {
+  if (flow_.leave()) {
+    showCancelled();
+  }
+}
 
 void InspectionPage::setFocusMode(bool on) {
-  leftPanel_->setVisible(!on);
+  panel_->setVisible(!on);
   optionsRow_->setVisible(!on);
   chart_->setVisible(!on);
   chartBox_->setVisible(!on && planning());
@@ -514,8 +489,8 @@ void InspectionPage::applySettings() {
 
 // --- showing ---------------------------------------------------------------
 
-void InspectionPage::setPhase(Phase p) {
-  phase_ = p;
+void InspectionPage::showPhase() {
+  Phase p = flow_.phase();
   bool timing = p == Phase::Inspecting || p == Phase::Counting;
   if (timing != tick_.isActive()) {
     if (timing) {
@@ -531,22 +506,22 @@ void InspectionPage::setPhase(Phase p) {
   }
   updateControls();
   showHint();
-  tick();
+  showDisplay();
 }
 
 void InspectionPage::showCube(bool shown) {
   if (!shown) {
     hiddenLabel_->setText(
-        phase_ == Phase::Executing
+        flow_.phase() == Phase::Executing
             ? (trackedPair()
                    ? tr("The cube is hidden: do your plan, then the %1 "
                         "pair.\nSpace when you are done.")
                          .arg(qs(std::string(slotName(*trackedPair()))))
                    : tr("The cube is hidden: do your plan.\nSpace when you "
                         "are done."))
-        : !retry_ && !feed_.current() ? tr("Generating scramble…")
-        : planning()                  ? tr("Space: start inspection")
-                                      : tr("Space: show the cube"));
+        : !flow_.retry() && !feed_.current() ? tr("Generating scramble…")
+        : planning()                         ? tr("Space: start inspection")
+                                             : tr("Space: show the cube"));
   }
   cubeStack_->setCurrentWidget(shown ? static_cast<QWidget *>(cubeView_)
                                      : hiddenLabel_);
@@ -554,13 +529,13 @@ void InspectionPage::showCube(bool shown) {
 
 void InspectionPage::showHint() {
   QString text;
-  switch (phase_) {
+  switch (flow_.phase()) {
   case Phase::Ready:
     text = planning()
                ? tr("Space shows the scrambled cube and starts inspection.")
                : tr("Space shows the scrambled cube; count its bad edges.");
-    if (retry_) {
-      text = tr("Retry of #%1, not recorded. ").arg(retry_->index + 1) + text +
+    if (std::optional<std::size_t> retry = flow_.retry()) {
+      text = tr("Retry of #%1, not recorded. ").arg(*retry + 1) + text +
              tr(" Esc ends the retry.");
     }
     break;
@@ -574,7 +549,7 @@ void InspectionPage::showHint() {
               "the cube. Esc puts the scramble back.");
     break;
   case Phase::Counting:
-    break; // tick() shows what to type and the time
+    break; // showDisplay() shows what to type and the time
   case Phase::Result:
     text = !planning() && session().axes == EdgeAxes::Both
                ? tr("Space: next scramble. Tab: ring the other axis's bad "
@@ -583,7 +558,7 @@ void InspectionPage::showHint() {
                     "at it.");
     break;
   }
-  if (phase_ != Phase::Counting) {
+  if (flow_.phase() != Phase::Counting) {
     hintLabel_->setStyleSheet({});
     hintLabel_->setText(text);
   }
@@ -592,7 +567,7 @@ void InspectionPage::showHint() {
 void InspectionPage::updateControls() {
   bool busy = isBusy();
   for (QWidget *w : std::initializer_list<QWidget *>{
-           sessionButton_, drillBox_, stepBox_, axesBox_, limitBox_,
+           panel_->sessionButton(), drillBox_, stepBox_, axesBox_, limitBox_,
            skipButton_, pairBox_}) {
     w->setEnabled(!busy);
   }
@@ -657,9 +632,14 @@ void InspectionPage::showDrill() {
     what = axesBox_->currentText(); // "Bad edges (F/B, then R/L)"
   }
   stepLabel_->setText(name == what ? name : tr("%1 (%2)").arg(name, what));
-  table_->setHorizontalHeaderLabels(
+  QStringList titles =
       plan ? QStringList{"#", tr("Moves"), tr("Optimal"), tr("Inspection")}
-           : QStringList{"#", tr("F/B"), tr("R/L"), tr("Time")});
+           : QStringList{"#", tr("F/B"), tr("R/L"), tr("Time")};
+  if (panel_->model()->headerData(1, Qt::Horizontal, Qt::DisplayRole) !=
+      titles[1]) {
+    panel_->setColumns(attemptColumns(titles));
+  }
+  flow_.setConfig(flowConfig(s));
 }
 
 void InspectionPage::chooseLimit(int index) {
@@ -692,104 +672,139 @@ void InspectionPage::chooseLimit(int index) {
 }
 
 void InspectionPage::showScramble() {
-  if (phase_ != Phase::Ready) {
+  if (flow_.phase() != Phase::Ready) {
     return; // the attempt keeps its own scramble
   }
-  scrambleLabel_->setText(retry_ ? tr("Retry of #%1").arg(retry_->index + 1)
+  std::optional<std::size_t> retry = flow_.retry();
+  scrambleLabel_->setText(retry             ? tr("Retry of #%1").arg(*retry + 1)
                           : feed_.current() ? tr("Scramble ready")
                                             : tr("Generating scramble…"));
   showCube(false);
 }
 
 void InspectionPage::tick() {
-  std::int64_t elapsed = monotonicMs() - started_;
-  if (phase_ == Phase::Inspecting) {
-    int limit = session().limitSeconds;
-    std::int64_t limitMs = static_cast<std::int64_t>(limit) * 1000;
-    if (limit > 0 && elapsed >= limitMs) {
-      startExecution();
-      autoHiddenAt_ = monotonicMs();
-      return;
-    }
-    // With a limit, the seconds left, counted down as Timed mode's
-    // inspection is; without one, the seconds used.
-    std::int64_t seconds = elapsed / 1000;
-    std::int64_t shown = limit > 0 ? (limitMs - elapsed + 999) / 1000 : seconds;
+  InspectionFlow::Effects e = flow_.tick(monotonicMs());
+  if (e.startExecution) {
+    apply(e); // the limit hid the cube
+    return;
+  }
+  showDisplay();
+}
+
+void InspectionPage::showDisplay() {
+  std::int64_t now = monotonicMs();
+  switch (flow_.phase()) {
+  case Phase::Inspecting: {
+    InspectionFlow::Countdown c = flow_.countdown(now);
     QColor colour;
     QString call;
-    if (session().wca) {
-      if (seconds >= 12) {
-        colour = kBad;
-        call = tr("12 seconds!");
-      } else if (seconds >= 8) {
-        colour = kCall;
-        call = tr("8 seconds!");
-      }
-    } else if (limit > 0 && limit - seconds <= 3) {
+    switch (c.alert) {
+    case InspectionFlow::Alert::Twelve:
       colour = kBad;
+      call = tr("12 seconds!");
+      break;
+    case InspectionFlow::Alert::Eight:
+      colour = kCall;
+      call = tr("8 seconds!");
+      break;
+    case InspectionFlow::Alert::Ending:
+      colour = kBad;
+      break;
+    case InspectionFlow::Alert::None:
+      break;
     }
-    display_->showText(QString::number(shown), colour);
+    display_->showText(QString::number(c.shown), colour);
     if (!call.isEmpty()) {
       hintLabel_->setStyleSheet(QString("color: %1").arg(colour.name()));
       hintLabel_->setText(call);
     }
-    return;
+    break;
   }
-  if (phase_ == Phase::Counting) {
-    QString typed = entry_.isEmpty() ? QString("_") : entry_;
-    display_->showText(QString("%1  %2").arg(tr(axisName(axis_)), typed));
+  case Phase::Counting: {
+    int axis = flow_.axis();
+    QString typed = flow_.entry().empty() ? QString("_") : qs(flow_.entry());
+    display_->showText(QString("%1  %2").arg(tr(axisName(axis)), typed));
     hintLabel_->setStyleSheet({});
     hintLabel_->setText(
         tr("Type how many edges are bad for the %1 axis (%2), then Enter. "
            "Backspace corrects, Esc puts the scramble back. %3")
-            .arg(tr(axisName(axis_)), axisColours(hold_, axis_),
-                 secondsText(elapsed)));
-    return;
+            .arg(tr(axisName(axis)), axisColours(hold_, axis),
+                 secondsText(flow_.elapsed(now))));
+    break;
   }
-  if (phase_ == Phase::Executing) {
+  case Phase::Executing:
     display_->showText(QString::number(attempt_.count()),
                        palette().color(QPalette::PlaceholderText));
-  } else if (phase_ == Phase::Ready) {
+    break;
+  case Phase::Ready:
     display_->showText("–", palette().color(QPalette::PlaceholderText));
+    break;
+  case Phase::Result:
+    break; // the outcome, as shown when it came
+  }
+}
+
+void InspectionPage::apply(const InspectionFlow::Effects &e,
+                           std::optional<Move> move) {
+  if (e.waitScramble) {
+    emit message(tr("Wait for the scramble before starting"));
+  }
+  if (e.startInspection) {
+    startInspection();
+  }
+  if (e.startCounting) {
+    startCounting();
+  }
+  if (e.startExecution) {
+    startExecution();
+  }
+  if (e.finishPlan) {
+    finishPlan();
+  }
+  if (e.entryChanged) {
+    showDisplay();
+  }
+  if (e.needEntry) {
+    emit message(tr("Type the number of bad edges first"));
+  }
+  if (e.finishEdges) {
+    finishEdges();
+  }
+  if (e.rings) {
+    showRings();
+  }
+  if (e.cancel) {
+    showCancelled();
+  }
+  if (e.next) {
+    showNext();
+  }
+  if (e.turn != InspectionFlow::Turn::None && move) {
+    turn(e.turn, *move);
   }
 }
 
 // --- Plan ------------------------------------------------------------------
 
 void InspectionPage::startInspection() {
-  if (retry_) {
+  if (flow_.retry()) {
     GeneratedScramble again;
-    again.text = qs(retry_->original.scramble);
+    again.text = qs(retryOf_.scramble);
     scramble_ = again;
   } else {
-    const auto &current = feed_.current();
-    if (!current) {
-      emit message(tr("Wait for the scramble before starting"));
-      return;
-    }
-    scramble_ = *current;
+    scramble_ = *feed_.current(); // the flow waited for it
   }
   // Scrambled holding white on top and green in front, as in Move Count.
   attempt_.load(parseAlgOrEmpty(ss(scramble_->text)));
   cubeView_->clearMarks();
   cubeView_->setState(attempt_.cube());
   scrambleLabel_->setText(scramble_->text.toHtmlEscaped());
-  started_ = monotonicMs();
-  usedMs_ = 0;
-  setPhase(Phase::Inspecting);
+  showPhase();
 }
 
 void InspectionPage::startExecution() {
-  std::int64_t used = monotonicMs() - started_;
-  int limit = session().limitSeconds;
-  if (limit > 0) {
-    used =
-        std::min<std::int64_t>(used, static_cast<std::int64_t>(limit) * 1000);
-  }
-  usedMs_ = used;
-  autoHiddenAt_ = -1;
   attempt_.start();
-  setPhase(Phase::Executing);
+  showPhase();
 }
 
 void InspectionPage::finishPlan() {
@@ -808,7 +823,7 @@ void InspectionPage::finishPlan() {
   InspectionAttempt a;
   a.scramble = ss(scramble_->text);
   a.timestamp = unixNow();
-  a.ms = usedMs_;
+  a.ms = flow_.usedMs();
   a.moves = std::clamp(attempt_.count(), 0, kMaxMoveCount);
   a.dnf = !reached;
   a.solution = toString(attempt_.solution());
@@ -860,10 +875,11 @@ void InspectionPage::finishPlan() {
                    .arg(kBad.name(), tr("%1 wasn't solved as the cross is held")
                                          .arg(pairText)));
   }
-  if (retry_) {
-    const InspectionAttempt &was = retry_->original;
+  std::optional<std::size_t> retry = flow_.retry();
+  if (retry) {
+    const InspectionAttempt &was = retryOf_;
     head += "<br>" + tr("Retry of #%1 (not recorded); it was %2")
-                         .arg(retry_->index + 1)
+                         .arg(*retry + 1)
                          .arg(was.dnf ? QString("DNF(%1)").arg(was.moves)
                                       : QString::number(was.moves));
   }
@@ -882,8 +898,8 @@ void InspectionPage::finishPlan() {
       "</p>";
 
   std::size_t index = 0;
-  if (retry_) {
-    index = retry_->index;
+  if (retry) {
+    index = *retry;
   } else {
     session().attempts.push_back(a);
     index = session().attempts.size() - 1;
@@ -894,7 +910,8 @@ void InspectionPage::finishPlan() {
   shownMoves_ = a.dnf ? std::nullopt : std::optional<int>(a.moves);
   lookTurns_.clear();
   cubeView_->setState(end);
-  setPhase(Phase::Result);
+  flow_.planDone();
+  showPhase();
   display_->showText(a.dnf ? QString("DNF") : QString::number(a.moves),
                      a.dnf ? kBad : kGood);
   lastAnalysis_.reset();
@@ -940,7 +957,7 @@ void InspectionPage::showAnalysis() {
       }
     }
   }
-  if (phase_ != Phase::Result || !planning() || !scramble_) {
+  if (flow_.phase() != Phase::Result || !planning() || !scramble_) {
     return;
   }
   QString html = resultHead_;
@@ -1034,12 +1051,7 @@ void InspectionPage::backfillOptima() {
 // --- Edges -----------------------------------------------------------------
 
 void InspectionPage::startCounting() {
-  const auto &current = feed_.current();
-  if (!current) {
-    emit message(tr("Wait for the scramble before starting"));
-    return;
-  }
-  scramble_ = *current;
+  scramble_ = *feed_.current(); // the flow waited for it
   hold_ = scramble_->hold;
   // Scrambled holding white top and green front, then turned to the hold.
   FaceletCube f;
@@ -1050,35 +1062,7 @@ void InspectionPage::startCounting() {
   cubeView_->setState(attempt_.cube());
   scrambleLabel_->setText(scramble_->text.toHtmlEscaped() + "<br>" +
                           tr("Held %1").arg(holdHtml(hold_, settings_.scheme)));
-  answers_ = {-1, -1};
-  entry_.clear();
-  axis_ = asksAxis(session().axes, 0) ? 0 : 1;
-  started_ = monotonicMs();
-  setPhase(Phase::Counting);
-}
-
-void InspectionPage::typeDigit(int digit) {
-  QString nextDigits = entry_ == "0" ? QString() : entry_;
-  nextDigits += QChar('0' + digit);
-  if (nextDigits.size() <= 2 && nextDigits.toInt() <= kEdges) {
-    entry_ = nextDigits;
-  }
-  tick();
-}
-
-void InspectionPage::enterCount() {
-  if (entry_.isEmpty()) {
-    emit message(tr("Type the number of bad edges first"));
-    return;
-  }
-  answers_[static_cast<std::size_t>(axis_)] = entry_.toInt();
-  entry_.clear();
-  if (axis_ == 0 && asksAxis(session().axes, 1)) {
-    axis_ = 1;
-    tick();
-    return;
-  }
-  finishEdges();
+  showPhase();
 }
 
 void InspectionPage::finishEdges() {
@@ -1092,12 +1076,12 @@ void InspectionPage::finishEdges() {
   InspectionAttempt a;
   a.scramble = ss(scramble_->text);
   a.timestamp = unixNow();
-  a.ms = monotonicMs() - started_;
+  a.ms = flow_.elapsed(monotonicMs());
   a.hold = hold_;
   for (int axis = 0; axis < 2; ++axis) {
     if (asksAxis(session().axes, axis)) {
       auto i = static_cast<std::size_t>(axis);
-      a.answer[i] = answers_[i];
+      a.answer[i] = flow_.answers()[i];
       a.correct[i] = badEdgeCount(held, axis);
     }
   }
@@ -1107,19 +1091,12 @@ void InspectionPage::finishEdges() {
   feed_.advance(); // this scramble has been seen: the next one is new
 
   QStringList lines;
-  // Ring the first axis asked, or the first one that was wrong.
-  ringAxis_ = -1;
-  bool wrongRinged = false;
   for (int axis = 0; axis < 2; ++axis) {
     auto i = static_cast<std::size_t>(axis);
     if (a.correct[i] < 0) {
       continue;
     }
     bool right = a.answer[i] == a.correct[i];
-    if (ringAxis_ < 0 || (!right && !wrongRinged)) {
-      ringAxis_ = axis;
-      wrongRinged = !right;
-    }
     QString what =
         QString("%1 (%2)").arg(tr(axisName(axis)), axisColours(a.hold, axis));
     lines << (right ? QString("<b style='color:%1'>%2</b>")
@@ -1134,18 +1111,21 @@ void InspectionPage::finishEdges() {
   lines << tr("Time: %1").arg(secondsText(a.ms));
   resultHead_ = "<p style='font-size:large'>" + lines.join("<br>") + "</p>";
   resultLabel_->setText(resultHead_);
-  // Back to the hold it was shown in, with the bad edges ringed.
+  // Back to the hold it was shown in, with the bad edges ringed (those of
+  // the first axis asked, or the first one that was wrong).
   attempt_.restart();
   lookTurns_.clear();
   cubeView_->setState(attempt_.cube());
-  setPhase(Phase::Result);
+  flow_.edgesDone(a.correct);
+  showPhase();
   display_->showText(a.right() ? tr("Right") : tr("Wrong"),
                      a.right() ? kGood : kBad);
   showRings();
 }
 
 void InspectionPage::showRings() {
-  if (!scramble_ || ringAxis_ < 0) {
+  int ring = flow_.ringAxis();
+  if (!scramble_ || ring < 0) {
     cubeView_->clearMarks();
     return;
   }
@@ -1153,9 +1133,9 @@ void InspectionPage::showRings() {
   f.apply(parseAlgOrEmpty(ss(scramble_->text)));
   CubieCube held =
       solverState(CubieCube::fromFacelets(f).value_or(CubieCube{}), hold_);
-  std::array<bool, kEdges> bad = badEdges(held, ringAxis_);
+  std::array<bool, kEdges> bad = badEdges(held, ring);
   StickerMarks marks;
-  marks.ringColour = kRing[ringAxis_];
+  marks.ringColour = kRing[ring];
   for (std::size_t e = 0; e < kEdges; ++e) {
     if (bad[e]) {
       for (std::uint8_t facelet : kEdgeFacelets[e]) {
@@ -1170,7 +1150,7 @@ void InspectionPage::showRings() {
   cubeView_->setMarks(marks);
   hintLabel_->setText(
       tr("Ringed: the bad edges for the %1 axis (%2). %3")
-          .arg(tr(axisName(ringAxis_)), axisColours(hold_, ringAxis_),
+          .arg(tr(axisName(ring)), axisColours(hold_, ring),
                session().axes == EdgeAxes::Both
                    ? tr("Tab: the other axis. Space: next scramble.")
                    : tr("Space: next scramble.")));
@@ -1179,102 +1159,52 @@ void InspectionPage::showRings() {
 // --- attempts --------------------------------------------------------------
 
 bool InspectionPage::handleKey(QKeyEvent *e, bool press) {
+  using Key = InspectionFlow::Key;
   int key = e->key();
   std::optional<Move> move = settings_.keymap.lookup(e);
-  bool counting = phase_ == Phase::Counting;
-  bool digit = key >= Qt::Key_0 && key <= Qt::Key_9;
-  bool entryKey = counting && (digit || key == Qt::Key_Backspace ||
-                               key == Qt::Key_Return || key == Qt::Key_Enter);
-  if (entryKey && (e->modifiers() & (Qt::ControlModifier | Qt::AltModifier |
-                                     Qt::MetaModifier))) {
-    return false; // e.g. Ctrl+7 switches modes
+  InspectionFlow::KeyInput k;
+  if (key == Qt::Key_Space) {
+    k.key = Key::Space;
+  } else if (key == Qt::Key_Escape) {
+    k.key = Key::Escape;
+  } else if (key == Qt::Key_Tab) {
+    k.key = Key::Tab;
+  } else if (key >= Qt::Key_0 && key <= Qt::Key_9) {
+    k.key = Key::Digit;
+    k.digit = key - Qt::Key_0;
+  } else if (key == Qt::Key_Backspace) {
+    k.key = Key::Backspace;
+  } else if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+    k.key = Key::Enter;
   }
-  bool known = move || entryKey || key == Qt::Key_Space ||
-               key == Qt::Key_Escape ||
-               (key == Qt::Key_Tab && phase_ == Phase::Result);
-  if (!known) {
-    return false;
-  }
-  if (!press || (e->isAutoRepeat() && key != Qt::Key_Backspace)) {
-    return true;
-  }
-  if (entryKey) {
-    if (digit) {
-      typeDigit(key - Qt::Key_0);
-    } else if (key == Qt::Key_Backspace) {
-      entry_.chop(1);
-      tick();
-    } else {
-      enterCount();
-    }
-    return true;
-  }
-  switch (key) {
-  case Qt::Key_Space:
-    switch (phase_) {
-    case Phase::Ready:
-      if (planning()) {
-        startInspection();
-      } else {
-        startCounting();
-      }
-      break;
-    case Phase::Inspecting:
-      startExecution();
-      break;
-    case Phase::Executing:
-      if (autoHiddenAt_ >= 0 && monotonicMs() - autoHiddenAt_ < kHideGraceMs) {
-        break; // meant to hide the cube, which the limit just did
-      }
-      finishPlan();
-      break;
-    case Phase::Counting:
-      break;
-    case Phase::Result:
-      next();
-      break;
-    }
-    return true;
-  case Qt::Key_Escape:
-    if (isBusy()) {
-      cancel();
-    } else if (retry_) {
-      endRetry();
-    }
-    return true;
-  case Qt::Key_Tab:
-    if (!planning() && session().axes == EdgeAxes::Both && ringAxis_ >= 0) {
-      ringAxis_ = 1 - ringAxis_;
-      showRings();
-    }
-    return true;
-  default:
-    break;
-  }
-  if (move) {
-    turn(*move);
-  }
-  return true;
+  k.turn = move.has_value();
+  k.press = press;
+  k.autoRepeat = e->isAutoRepeat();
+  k.modifiers = (e->modifiers() & (Qt::ControlModifier | Qt::AltModifier |
+                                   Qt::MetaModifier)) != 0;
+  InspectionFlow::Effects effects =
+      flow_.key(k, monotonicMs(), feed_.current().has_value());
+  apply(effects, move);
+  return effects.used;
 }
 
-void InspectionPage::turn(Move m) {
-  switch (phase_) {
-  case Phase::Inspecting:
-  case Phase::Counting:
+void InspectionPage::turn(InspectionFlow::Turn how, Move m) {
+  switch (how) {
+  case InspectionFlow::Turn::Inspect:
     if (!attempt_.turn(m)) {
       emit message(tr("Only rotations while you look at the cube"));
       return;
     }
     cubeView_->animateMove(m);
     break;
-  case Phase::Executing:
+  case InspectionFlow::Turn::Hidden:
     attempt_.turn(m); // not shown: the cube is hidden
-    tick();
+    showDisplay();
     break;
-  case Phase::Result:
+  case InspectionFlow::Turn::Look:
     look(m);
     break;
-  case Phase::Ready:
+  case InspectionFlow::Turn::None:
     break;
   }
 }
@@ -1290,36 +1220,32 @@ void InspectionPage::look(Move m) {
   cubeView_->setMarks(movedMarks(cubeView_->marks(), m));
 }
 
-void InspectionPage::cancel() {
-  if (!isBusy()) {
-    return;
-  }
+void InspectionPage::showCancelled() {
   attempt_.restart();
   cubeView_->clearMarks();
-  entry_.clear();
-  setPhase(Phase::Ready);
+  showPhase();
   showScramble();
 }
 
-void InspectionPage::next() {
+void InspectionPage::showNext() {
   // The feed moved on when the attempt was recorded (a retry doesn't use
   // it), so its scramble is a new one.
-  retry_.reset();
   scramble_.reset();
   shownMoves_.reset();
   cubeView_->clearMarks();
-  setPhase(Phase::Ready);
+  showPhase();
   showScramble();
 }
 
 void InspectionPage::skip() {
-  if (isBusy()) {
+  InspectionFlow::Skip s = flow_.skip();
+  if (!s.done) {
     return;
   }
-  if (!retry_ && phase_ == Phase::Ready) {
+  if (s.advanceFeed) {
     feed_.advance(); // the scramble waiting is skipped
   }
-  next();
+  showNext();
 }
 
 void InspectionPage::startRetry(int index) {
@@ -1328,41 +1254,24 @@ void InspectionPage::startRetry(int index) {
       index >= static_cast<int>(attempts.size())) {
     return;
   }
-  Retry r;
-  r.index = static_cast<std::size_t>(index);
-  r.original = attempts[r.index];
-  retry_ = r;
+  auto i = static_cast<std::size_t>(index);
+  if (!flow_.startRetry(i)) {
+    return;
+  }
+  retryOf_ = attempts[i];
   scramble_.reset();
   shownMoves_.reset();
   cubeView_->clearMarks();
-  setPhase(Phase::Ready);
+  showPhase();
   showScramble();
 }
 
-void InspectionPage::endRetry() {
-  if (!retry_ || isBusy()) {
-    return;
-  }
-  next();
-}
-
 void InspectionPage::refreshSessionMenu() {
-  sessionMenu_->clear();
-  auto *group = new QActionGroup(sessionMenu_);
-  for (std::size_t i = 0; i < store_.sessions().size(); ++i) {
-    const InspectionSession &s = store_.sessions()[i];
-    QAction *a = sessionMenu_->addAction(
-        tr("%1 (%2)").arg(qs(s.name)).arg(s.attempts.size()), this,
-        [this, i] { selectSession(i); });
-    a->setCheckable(true);
-    a->setChecked(i == store_.currentIndex());
-    group->addAction(a);
+  std::vector<SessionPanel::MenuSession> list;
+  for (const InspectionSession &s : store_.sessions()) {
+    list.push_back({qs(s.name), s.attempts.size()});
   }
-  sessionMenu_->addSeparator();
-  sessionMenu_->addAction(tr("New session…"), this,
-                          &InspectionPage::addSession);
-  sessionMenu_->addAction(tr("Rename…"), this, &InspectionPage::renameSession);
-  sessionMenu_->addAction(tr("Delete…"), this, &InspectionPage::deleteSession);
+  panel_->fillSessionMenu(list, store_.currentIndex());
 }
 
 void InspectionPage::selectSession(std::size_t index) {
@@ -1370,13 +1279,13 @@ void InspectionPage::selectSession(std::size_t index) {
     return;
   }
   store_.setCurrentIndex(index);
-  sessionButton_->setText(tr("Session: %1").arg(qs(session().name)));
+  panel_->setSessionName(qs(session().name));
   showDrill();
-  retry_.reset();
+  flow_.next();
   shownMoves_.reset();
   scramble_.reset();
   cubeView_->clearMarks();
-  setPhase(Phase::Ready);
+  showPhase();
   showScramble();
   refreshAttempts();
   backfillOptima();
@@ -1386,20 +1295,18 @@ void InspectionPage::selectSession(std::size_t index) {
 void InspectionPage::refreshAttempts() {
   const auto &attempts = session().attempts;
   bool plan = planning();
-  table_->setRowCount(static_cast<int>(attempts.size()));
-  for (std::size_t i = 0; i < attempts.size(); ++i) {
+  std::vector<AttemptRow> rows;
+  rows.reserve(attempts.size());
+  for (std::size_t i = attempts.size(); i-- > 0;) {
     const InspectionAttempt &a = attempts[i];
-    int row = static_cast<int>(attempts.size() - 1 - i);
+    AttemptRow row;
+    row.index = static_cast<int>(i);
+    row.cells.resize(4);
     auto set = [&](int col, const QString &text, const QColor &colour = {}) {
-      auto *item = new QTableWidgetItem(text);
-      item->setData(Qt::UserRole, static_cast<int>(i));
-      if (col > 0) {
-        item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-      }
-      if (colour.isValid()) {
-        item->setForeground(colour);
-      }
-      table_->setItem(row, col, item);
+      AttemptCell &cell = row.cells[static_cast<std::size_t>(col)];
+      cell.text = text;
+      cell.colour = colour;
+      cell.alignRight = col > 0;
     };
     set(0, QString::number(i + 1));
     QStringList tip;
@@ -1442,9 +1349,12 @@ void InspectionPage::refreshAttempts() {
                  .arg(colourName(a.hold.top).toLower(),
                       colourName(a.hold.front).toLower());
     }
-    table_->item(row, 0)->setToolTip(tip.join("\n"));
-    table_->item(row, 1)->setToolTip(tip.join("\n"));
+    // The tooltip is on the number and the first value only.
+    row.cells[0].tip = tip.join("\n");
+    row.cells[1].tip = tip.join("\n");
+    rows.push_back(std::move(row));
   }
+  panel_->setRows(std::move(rows));
   if (plan) {
     showPlanStats();
   } else {
@@ -1457,25 +1367,19 @@ void InspectionPage::refreshAttempts() {
 void InspectionPage::showPlanStats() {
   const auto &attempts = session().attempts;
   std::vector<Solve> solves = planAsSolves(attempts);
-  SessionSummary sum = summarize(solves);
-  QString html =
-      "<table cellspacing='4' width='100%'><tr><th></th><th align='right'>" +
-      tr("current") + "</th><th align='right'>" + tr("best") + "</th></tr>";
-  auto row = [&](const QString &name, const QString &cur, const QString &best) {
-    html += QString("<tr><td>%1</td><td align='right'>%2</td><td "
-                    "align='right'><b>%3</b></td></tr>")
-                .arg(name, cur, best);
-  };
-  row(tr("single"),
-      solves.empty() ? QString("-")
-                     : movesText(effectiveTime(solves.back()), 0),
-      movesText(sum.best, 0));
-  row("mo3", movesText(currentMean(solves, 3)), movesText(bestMean(solves, 3)));
-  row("ao5", movesText(currentAverage(solves, 5)),
-      movesText(bestAverage(solves, 5)));
-  row("ao12", movesText(currentAverage(solves, 12)),
-      movesText(bestAverage(solves, 12)));
-  html += "</table>";
+  static constexpr std::string_view kStats[] = {"single", "mo3", "ao5", "ao12"};
+  SessionStats stats = sessionStats(solves, kStats);
+  const SessionSummary &sum = stats.summary;
+  // A single is a whole number of moves; the means and averages have two
+  // decimals.
+  QString html = statsTableHtml(
+      stats,
+      [this](const std::string &id) {
+        return id == "single" ? tr("single") : qs(id);
+      },
+      [](const std::string &id, StatValue v) {
+        return movesText(v, id == "single" ? 0 : 2);
+      });
   PlanSummary all = summarizePlan(attempts);
   html += tr("<p>Attempts: %1%2 &nbsp; Mean: %3</p>")
               .arg(attempts.size())
@@ -1559,7 +1463,7 @@ void InspectionPage::showPlanStats() {
                         r.summary);
   }
   breakdown(tr("By inspection time used"), byTime);
-  stats_->setText(html);
+  panel_->setStatsHtml(html);
 }
 
 void InspectionPage::showChart() {
@@ -1597,18 +1501,13 @@ void InspectionPage::showEdgesStats() {
       rightMs += a.ms;
     }
   }
-  auto time = [](StatValue v) { return QString::fromStdString(formatTime(v)); };
-  QString html =
-      "<table cellspacing='4' width='100%'><tr><th></th><th align='right'>" +
-      tr("current") + "</th><th align='right'>" + tr("best") + "</th></tr>";
-  auto row = [&](const QString &name, const QString &cur, const QString &best) {
-    html += QString("<tr><td>%1</td><td align='right'>%2</td><td "
-                    "align='right'><b>%3</b></td></tr>")
-                .arg(name, cur, best);
-  };
-  row("ao5", time(currentAverage(solves, 5)), time(bestAverage(solves, 5)));
-  row("ao12", time(currentAverage(solves, 12)), time(bestAverage(solves, 12)));
-  html += "</table>";
+  static constexpr std::string_view kStats[] = {"ao5", "ao12"};
+  QString html = statsTableHtml(
+      sessionStats(solves, kStats),
+      [](const std::string &id) { return qs(id); },
+      [](const std::string &, StatValue v) {
+        return QString::fromStdString(formatTime(v));
+      });
   if (attempts.empty()) {
     html += tr("<p>No attempts yet.</p>");
   } else {
@@ -1622,7 +1521,7 @@ void InspectionPage::showEdgesStats() {
   }
   html +=
       tr("<p style='color:gray'>A wrong count is a DNF in the averages.</p>");
-  stats_->setText(html);
+  panel_->setStatsHtml(html);
 }
 
 void InspectionPage::requestReview(int index) {
@@ -1645,73 +1544,51 @@ void InspectionPage::deleteAttempt(int index) {
   refreshAttempts();
 }
 
-void InspectionPage::showAttemptMenu(const QPoint &pos) {
-  auto *item = table_->itemAt(pos);
-  if (!item) {
-    return;
-  }
-  int index = item->data(Qt::UserRole).toInt();
-  auto &attempts = session().attempts;
+void InspectionPage::showAttemptMenu(int index, const QPoint &globalPos) {
+  const auto &attempts = session().attempts;
   if (index < 0 || index >= static_cast<int>(attempts.size())) {
     return;
   }
-  InspectionAttempt &a = attempts[static_cast<std::size_t>(index)];
-  QMenu menu(this);
-  QAction *review = nullptr;
+  const InspectionAttempt &a = attempts[static_cast<std::size_t>(index)];
+  ActionMenu menu(this);
   if (planning()) {
-    review = menu.addAction(tr("Review…"));
+    menu.add(tr("Review…"), [this, index] { requestReview(index); });
     menu.addSeparator();
   }
-  auto *comment = menu.addAction(tr("Comment…"));
-  auto *copy = menu.addAction(tr("Copy scramble"));
-  QAction *copySolution = nullptr;
-  if (planning() && !a.solution.empty()) {
-    copySolution = menu.addAction(tr("Copy solution"));
-  }
-  menu.addSeparator();
-  auto *del = menu.addAction(tr("Delete"));
-  QAction *chosen = menu.exec(table_->viewport()->mapToGlobal(pos));
-  if (!chosen) {
-    return;
-  }
-  if (chosen == review) {
-    requestReview(index);
-    return;
-  }
-  if (chosen == comment) {
-    bool ok = false;
-    QString text = QInputDialog::getText(this, tr("Comment"), tr("Comment:"),
-                                         QLineEdit::Normal, qs(a.comment), &ok);
-    if (!ok) {
+  AttemptMenuActions actions;
+  actions.comment = [this, index] {
+    auto &list = session().attempts;
+    if (index >= static_cast<int>(list.size())) {
       return;
     }
-    a.comment = ss(text);
-  } else if (chosen == copy) {
-    QApplication::clipboard()->setText(qs(a.scramble));
-    return;
-  } else if (copySolution && chosen == copySolution) {
-    QApplication::clipboard()->setText(qs(a.solution));
-    return;
-  } else if (chosen == del) {
-    deleteAttempt(index);
-    return;
+    InspectionAttempt &attempt = list[static_cast<std::size_t>(index)];
+    if (std::optional<QString> text =
+            askComment(this, tr("Comment:"), qs(attempt.comment))) {
+      attempt.comment = ss(*text);
+      save();
+      refreshAttempts();
+    }
+  };
+  actions.scramble = qs(a.scramble);
+  if (planning()) {
+    actions.solution = qs(a.solution); // none: no Copy solution
   }
-  save();
-  refreshAttempts();
+  actions.remove = [this, index] { deleteAttempt(index); };
+  addAttemptActions(menu, actions);
+  menu.run(globalPos);
 }
 
 void InspectionPage::addSession() {
   bool plan = planning();
   QString suggested =
       plan ? qs(std::string(stepName(session().step))) : tr("Bad edges");
-  bool ok = false;
-  QString name = QInputDialog::getText(this, tr("New session"), tr("Name:"),
-                                       QLineEdit::Normal, suggested, &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name =
+      askSessionName(this, tr("New session"), tr("Name:"), suggested);
+  if (!name) {
     return;
   }
   InspectionSession from = session();
-  InspectionSession &s = store_.addSession(ss(name.trimmed()));
+  InspectionSession &s = store_.addSession(ss(*name));
   s.drill = from.drill;
   s.step = from.step;
   s.axes = from.axes;
@@ -1721,24 +1598,18 @@ void InspectionPage::addSession() {
 }
 
 void InspectionPage::renameSession() {
-  bool ok = false;
-  QString name =
-      QInputDialog::getText(this, tr("Rename session"), tr("Name:"),
-                            QLineEdit::Normal, qs(session().name), &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name = askSessionName(this, tr("Rename session"),
+                                               tr("Name:"), qs(session().name));
+  if (!name) {
     return;
   }
-  session().name = ss(name.trimmed());
+  session().name = ss(*name);
   selectSession(store_.currentIndex());
 }
 
 void InspectionPage::deleteSession() {
-  auto answer =
-      QMessageBox::question(this, tr("Delete session"),
-                            tr("Delete session \"%1\" and its %2 attempts?")
-                                .arg(qs(session().name))
-                                .arg(session().attempts.size()));
-  if (answer != QMessageBox::Yes) {
+  if (!confirmDeleteSession(this, qs(session().name), session().attempts.size(),
+                            tr("attempts"))) {
     return;
   }
   store_.removeSession(store_.currentIndex());
@@ -1746,14 +1617,9 @@ void InspectionPage::deleteSession() {
 }
 
 void InspectionPage::save() {
-  // Written in the background from a copy, so that saving never holds up
-  // the next attempt.
-  writeInBackground(
-      store_.path(),
-      [copy = store_](QString *error) { return copy.save(error); }, this,
-      [this](const QString &error) {
-        emit message(tr("Could not save inspection sessions: %1").arg(error));
-      });
+  saveInBackground(store_, this, [this](const QString &error) {
+    emit message(tr("Could not save inspection sessions: %1").arg(error));
+  });
 }
 
 } // namespace vcube

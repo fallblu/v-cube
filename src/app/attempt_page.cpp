@@ -1,146 +1,110 @@
 #include "app/attempt_page.hpp"
 
-#include "io/data_file.hpp"
-
+#include "app/colours.hpp"
 #include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
-#include "train/solve_review.hpp"
-#include "train/step_solver.hpp"
+#include "io/data_file.hpp"
+#include "train/optimal_cache.hpp"
 
-#include <QActionGroup>
 #include <QApplication>
-#include <QClipboard>
 #include <QComboBox>
-#include <QDateTime>
 #include <QHBoxLayout>
-#include <QHeaderView>
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QLineEdit>
-#include <QMenu>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
-#include <QTableWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
-#include <QtConcurrent/QtConcurrentRun>
+
+#include <algorithm>
 
 namespace vcube {
 
 namespace {
 
-QPushButton *flatButton(const QString &text, QWidget *parent) {
-  auto *b = new QPushButton(text, parent);
-  b->setFocusPolicy(Qt::NoFocus);
-  return b;
-}
-
 QString movesText(StatValue v, int decimals = 2) {
   return QString::fromStdString(formatMoves(v, decimals));
 }
 
-QString dateText(std::int64_t unixSeconds) {
-  if (unixSeconds <= 0) {
-    return {};
+// The page's keys as the flow reads them.
+AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press, bool turn) {
+  using K = AttemptFlow::Key;
+  AttemptFlow::KeyEvent k;
+  k.press = press;
+  k.autoRepeat = e->isAutoRepeat();
+  k.modified = (e->modifiers() & (Qt::ControlModifier | Qt::AltModifier |
+                                  Qt::MetaModifier)) != 0;
+  Qt::KeyboardModifiers mods = e->modifiers() & ~Qt::KeypadModifier;
+  int key = e->key();
+  if (mods == Qt::AltModifier &&
+      (key == Qt::Key_3 || key == Qt::Key_C || key == Qt::Key_R)) {
+    k.key = key == Qt::Key_3   ? K::Dnf
+            : key == Qt::Key_C ? K::Comment
+                               : K::Review;
+  } else if (mods == Qt::ControlModifier &&
+             (key == Qt::Key_Z || key == Qt::Key_Right)) {
+    k.key = key == Qt::Key_Z ? K::Undo : K::Skip;
+  } else if (mods == Qt::NoModifier && key == Qt::Key_Delete) {
+    k.key = K::Delete;
+  } else if (turn) {
+    k.key = K::Turn;
+  } else if (key >= Qt::Key_0 && key <= Qt::Key_9) {
+    k.key = K::Digit;
+    k.digit = key - Qt::Key_0;
+  } else {
+    switch (key) {
+    case Qt::Key_Space:
+      k.key = K::Space;
+      break;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+      k.key = K::Enter;
+      break;
+    case Qt::Key_Escape:
+      k.key = K::Escape;
+      break;
+    case Qt::Key_Tab:
+      k.key = K::Tab;
+      break;
+    case Qt::Key_Backspace:
+      k.key = K::Backspace;
+      break;
+    case Qt::Key_Left:
+      k.key = K::Left;
+      break;
+    case Qt::Key_Right:
+      k.key = K::Right;
+      break;
+    default:
+      k.key = K::Other;
+      break;
+    }
   }
-  return QLocale().toString(QDateTime::fromSecsSinceEpoch(unixSeconds),
-                            QLocale::ShortFormat);
+  return k;
 }
-
-QStringList offeredTypes() {
-  QStringList out;
-  for (const auto &id : moveCountScrambleTypes()) {
-    out << qs(id);
-  }
-  return out;
-}
-
-// The number of digits a typed move count can have.
-constexpr int kMaxDigits = 3;
 
 } // namespace
 
 AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
-                         AlgLibrary &library, QWidget *parent)
+                         AlgLibrary &library, const QString &mode,
+                         bool moveCount, QWidget *parent)
     : ModePage(parent), settings_(settings), store_(store), library_(library),
-      moveCount_(store.mode() == SolveLog::MoveCount), feed_(library) {
-  const QString mode = moveCount_ ? "movecount" : "untimed";
-
+      feed_(library), moveCountFlow_(moveCount) {
   // --- left column: sessions, stats, attempts ---
-  auto *left = leftPanel_ = new QWidget(this);
-  auto *leftLayout = new QVBoxLayout(left);
-  leftLayout->setContentsMargins(0, 0, 0, 0);
-  sessionButton_ = new QToolButton(left);
-  sessionButton_->setFocusPolicy(Qt::NoFocus);
-  sessionButton_->setPopupMode(QToolButton::InstantPopup);
-  sessionButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
-  sessionButton_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  sessionButton_->setToolTip(
+  panel_ = new SessionPanel(this);
+  panel_->setMenuTip(
       tr("Switch, add, rename or delete sessions, or retry the worst solves"));
-  sessionMenu_ = new QMenu(sessionButton_);
-  sessionButton_->setMenu(sessionMenu_);
-  leftLayout->addWidget(sessionButton_);
-
-  stats_ = new QLabel(left);
-  stats_->setTextFormat(Qt::RichText);
-  stats_->setTextInteractionFlags(Qt::TextSelectableByMouse |
-                                  Qt::LinksAccessibleByMouse);
-  stats_->setFocusPolicy(Qt::NoFocus);
-  stats_->setToolTip(tr("Click a statistic to see its solves"));
-  leftLayout->addWidget(stats_);
-
-  // Move Count: #, Moves, Opt, ao5, ao12. Untimed: #, Moves, ao5, ao12,
-  // with the same columns used for #, Scramble, Date on a physical cube.
-  table_ = new QTableWidget(0, moveCount_ ? 5 : 4, left);
-  table_->verticalHeader()->setVisible(false);
-  table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-  table_->setSelectionBehavior(QAbstractItemView::SelectRows);
-  table_->setFocusPolicy(Qt::NoFocus);
-  table_->setContextMenuPolicy(Qt::CustomContextMenu);
-  leftLayout->addWidget(table_, 1);
-
-  auto *listRow = new QHBoxLayout;
-  deleteButton_ = flatButton(tr("Delete last"), left);
-  deleteButton_->setToolTip(tr("Delete the last solve (Delete)"));
-  undoButton_ = flatButton(tr("Undo delete"), left);
-  undoButton_->setToolTip(tr("Put back the solve last deleted (Ctrl+Z)"));
-  undoButton_->setVisible(false);
-  listRow->addWidget(deleteButton_);
-  listRow->addWidget(undoButton_);
-  listRow->addStretch();
-  leftLayout->addLayout(listRow);
+  panel_->setStatsClickable(true);
+  panel_->setDeleteRowVisible(true);
 
   // --- right column: scramble, cube or entry, chart ---
   auto *right = new QWidget(this);
-  auto *rightLayout = new QVBoxLayout(right);
-  rightLayout->setContentsMargins(0, 0, 0, 0);
+  rightLayout_ = new QVBoxLayout(right);
+  rightLayout_->setContentsMargins(0, 0, 0, 0);
   typeRow_ = new QWidget(right);
-  auto *typeRow = new FlowLayout(typeRow_);
-  typeRow->setContentsMargins(0, 0, 0, 0);
-  if (moveCount_) {
-    stepBox_ = new QComboBox(typeRow_);
-    stepBox_->setFocusPolicy(Qt::NoFocus);
-    for (SolveStep step : solveSteps()) {
-      stepBox_->addItem(qs(std::string(stepName(step))),
-                        static_cast<int>(step));
-    }
-    stepBox_->setToolTip(
-        tr("The step this session is for (fixed once the session has "
-           "solves). On the virtual cube a scramble counts only if the step "
-           "is done (on any colour) when you press Space."));
-    typeRow->addWidget(new QLabel(tr("Step:"), typeRow_));
-    typeRow->addWidget(stepBox_);
-    typeRow->addSpacing(12);
-    typeBox_ = new ScrambleTypeBox(library, typeRow_, offeredTypes());
-    typeBox_->setToolTip(
-        tr("What the scramble leaves solved: a full WCA scramble for EO, "
-           "EOLine, EO Cross, XEOCross or the cross, EOLine solved, EO Cross "
-           "solved for ZZ F2L, or the cross solved for CFOP F2L"));
-  } else {
-    typeBox_ = new ScrambleTypeBox(library, typeRow_);
-  }
+  typeLayout_ = new FlowLayout(typeRow_);
+  typeLayout_->setContentsMargins(0, 0, 0, 0);
   cubeBox_ = new QComboBox(typeRow_);
   cubeBox_->setFocusPolicy(Qt::NoFocus);
   cubeBox_->addItem(tr("Virtual cube"));
@@ -156,17 +120,7 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   skipButton_ = flatButton(tr("Skip scramble"), typeRow_);
   skipButton_->setToolTip(
       tr("Go on to the next scramble without solving this one (Ctrl+→)"));
-  typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
-  typeRow->addWidget(typeBox_, 1);
-  if (!moveCount_) {
-    algs_ = new ScrambleAlgs(library, "untimed/showAlgs", right);
-    typeRow->addWidget(algs_->button());
-  }
-  typeRow->addSpacing(12);
-  typeRow->addWidget(cubeBox_);
-  typeRow->addWidget(viewPicker_);
-  typeRow->addWidget(skipButton_);
-  rightLayout->addWidget(typeRow_);
+  rightLayout_->addWidget(typeRow_);
 
   auto *scrambleRow = new QHBoxLayout;
   scrambleLabel_ = new QLabel(right);
@@ -189,38 +143,23 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   net_ = new NetPreview(right);
   scrambleRow->addLayout(scrambleColumn, 1);
   scrambleRow->addWidget(net_);
-  rightLayout->addLayout(scrambleRow);
+  rightLayout_->addLayout(scrambleRow);
 
-  auto *centre = new QVBoxLayout;
-  stepLabel_ = new QLabel(right);
-  stepLabel_->setAlignment(Qt::AlignCenter);
-  QFont stepFont = stepLabel_->font();
-  stepFont.setPointSizeF(stepFont.pointSizeF() * 1.3);
-  stepFont.setBold(true);
-  stepLabel_->setFont(stepFont);
-  stepLabel_->setToolTip(tr("The session and the step it is for"));
-  stepLabel_->setVisible(moveCount_);
+  centre_ = new QVBoxLayout;
   display_ = new TimeDisplay(right);
   hintLabel_ = new QLabel(right);
   hintLabel_->setAlignment(Qt::AlignCenter);
   hintLabel_->setWordWrap(true);
   hintLabel_->setForegroundRole(QPalette::PlaceholderText);
-  auto *buttonRow = new QHBoxLayout;
-  recordButton_ = flatButton(tr("Record (Enter)"), right);
-  dnfButton_ = flatButton("DNF", right);
+  buttonRow_ = new QHBoxLayout;
   reviewButton_ = flatButton(tr("Review last"), right);
   reviewButton_->setToolTip(
       tr("Replay the last solve with its steps marked, see the optimal "
          "solutions and how the F2L pairs went (Alt+R; double-click any "
          "solve to review it)"));
-  recordButton_->setToolTip(tr("Record the move count for this scramble"));
-  dnfButton_->setToolTip(tr("Record this scramble as DNF, e.g. when the step "
-                            "went wrong (Alt+3)"));
-  buttonRow->addStretch();
-  buttonRow->addWidget(recordButton_);
-  buttonRow->addWidget(dnfButton_);
-  buttonRow->addWidget(reviewButton_);
-  buttonRow->addStretch();
+  buttonRow_->addStretch();
+  buttonRow_->addWidget(reviewButton_);
+  buttonRow_->addStretch();
   lastLabel_ = new QLabel(right);
   lastLabel_->setAlignment(Qt::AlignCenter);
   lastLabel_->setWordWrap(true);
@@ -228,48 +167,25 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   focusStats_->setAlignment(Qt::AlignCenter);
   focusStats_->setForegroundRole(QPalette::PlaceholderText);
   focusStats_->setVisible(false);
-  centre->addStretch(1);
-  centre->addWidget(stepLabel_);
-  centre->addWidget(cubeView_, 8);
-  centre->addWidget(display_);
-  centre->addWidget(hintLabel_);
-  centre->addLayout(buttonRow);
-  centre->addWidget(lastLabel_);
-  centre->addWidget(focusStats_);
-  if (algs_) {
-    centre->addWidget(algs_->label());
-  }
-  centre->addStretch(1);
-  rightLayout->addLayout(centre, 3);
+  centre_->addStretch(1);
+  centre_->addWidget(cubeView_, 8);
+  centre_->addWidget(display_);
+  centre_->addWidget(hintLabel_);
+  centre_->addLayout(buttonRow_);
+  centre_->addWidget(lastLabel_);
+  centre_->addWidget(focusStats_);
+  centre_->addStretch(1);
+  rightLayout_->addLayout(centre_, 3);
 
-  algPanel_ = new QWidget(right);
-  auto *algLayout = new QVBoxLayout(algPanel_);
-  algLayout->setContentsMargins(0, 0, 0, 0);
-  auto *algRow = new QHBoxLayout;
-  algEdit_ = new QLineEdit(algPanel_);
-  algEdit_->setFocusPolicy(Qt::ClickFocus);
-  algEdit_->setPlaceholderText(
-      tr("After a solve: type an alg and press Enter to apply it"));
-  algEdit_->installEventFilter(this);
-  auto *applyButton = flatButton(tr("Apply"), algPanel_);
-  algRow->addWidget(new QLabel(tr("Alg:"), algPanel_));
-  algRow->addWidget(algEdit_, 1);
-  algRow->addWidget(applyButton);
-  algLayout->addLayout(algRow);
-  algError_ = new QLabel(algPanel_);
-  algError_->setStyleSheet("color: #e66");
-  algError_->setVisible(false);
-  algLayout->addWidget(algError_);
-  rightLayout->addWidget(algPanel_);
-
-  chart_ = new TrendChart(right);
+  chart_ = panel_->chart();
+  chart_->setParent(right);
   chart_->setEmptyText(tr("Move counts will be charted here"));
   chart_->setMoveCounts(true);
   chart_->setSettingsKey(mode + "/chart");
-  rightLayout->addWidget(chart_, 1);
+  rightLayout_->addWidget(chart_, 1);
 
   auto *split = new QSplitter(this);
-  split->addWidget(left);
+  split->addWidget(panel_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);
   split->setStretchFactor(1, 1);
@@ -279,58 +195,13 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
 
   // --- wiring ---
   holdTimer_.setSingleShot(true);
-  connect(&holdTimer_, &QTimer::timeout, this, [this] {
-    if (hold_ == Hold::Holding) {
-      hold_ = Hold::Ready;
-      showHold();
-    }
-  });
+  holdTimer_.setTimerType(Qt::PreciseTimer);
+  connect(&holdTimer_, &QTimer::timeout, this, &AttemptPage::onHoldTimer);
   holdWatch_.setInterval(50);
-  connect(&holdWatch_, &QTimer::timeout, this, [this] {
-    if (QApplication::activePopupWidget() ||
-        QApplication::activeModalWidget()) {
-      cancelHold(); // the Space release goes to the popup
-    }
-  });
+  connect(&holdWatch_, &QTimer::timeout, this, &AttemptPage::onHoldTimer);
   connect(&feed_, &ScrambleFeed::currentChanged, this,
           &AttemptPage::showScramble);
   connect(skipButton_, &QPushButton::clicked, this, &AttemptPage::skip);
-  connect(typeBox_, &ScrambleTypeBox::typeChanged, this,
-          [this](const QString &type) {
-            if (session().scrambleType != ss(type)) {
-              session().scrambleType = ss(type);
-              save();
-            }
-            if (feed_.type() != type) {
-              setEntry({}); // the count was for the old scramble
-              history_.clear();
-              index_ = 0;
-            }
-            if (algs_) {
-              algs_->setType(type);
-            }
-            feed_.setType(type);
-          });
-  if (stepBox_) {
-    connect(stepBox_, &QComboBox::activated, this, [this](int index) {
-      auto step = static_cast<SolveStep>(stepBox_->itemData(index).toInt());
-      if (isBusy() || session().step == step) {
-        return;
-      }
-      if (!session().attempts.empty()) {
-        // Its attempts were checked and counted for the step they had.
-        stepBox_->setCurrentIndex(
-            stepBox_->findData(static_cast<int>(session().step)));
-        emit message(tr("This session has solves: start a new session for "
-                        "another step"));
-        return;
-      }
-      session().step = step;
-      save();
-      typeBox_->setCurrentType(qs(defaultScrambleType(step)));
-      selectSession(store_.currentIndex());
-    });
-  }
   connect(cubeBox_, &QComboBox::activated, this, [this](int index) {
     CubeKind kind = index == 0 ? CubeKind::Virtual : CubeKind::Physical;
     if (isBusy() || session().cube == kind) {
@@ -343,135 +214,137 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
       return;
     }
     session().cube = kind;
-    retry_.reset();
-    retryQueue_.clear();
+    flow_.resetRetry();
     save();
     showCubeKind();
-    showFreshScramble();
+    apply(flow_.freshScramble());
     refreshAttempts();
   });
-  connect(sessionMenu_, &QMenu::aboutToShow, this,
+  connect(panel_, &SessionPanel::menuAboutToShow, this,
           &AttemptPage::refreshSessionMenu);
-  connect(recordButton_, &QPushButton::clicked, this,
-          [this] { recordTyped(false); });
-  connect(dnfButton_, &QPushButton::clicked, this,
-          [this] { recordTyped(true); });
-  connect(deleteButton_, &QPushButton::clicked, this, [this] {
+  connect(panel_, &SessionPanel::sessionChosen, this,
+          &AttemptPage::selectSession);
+  connect(panel_, &SessionPanel::newSessionRequested, this,
+          &AttemptPage::addSession);
+  connect(panel_, &SessionPanel::renameSessionRequested, this,
+          &AttemptPage::renameSession);
+  connect(panel_, &SessionPanel::deleteSessionRequested, this,
+          &AttemptPage::deleteSession);
+  connect(panel_, &SessionPanel::deleteLastClicked, this, [this] {
     if (!session().attempts.empty()) {
       deleteAttempt(static_cast<int>(session().attempts.size()) - 1);
     }
   });
-  connect(undoButton_, &QPushButton::clicked, this, &AttemptPage::undoDelete);
-  connect(table_, &QTableWidget::customContextMenuRequested, this,
+  connect(panel_, &SessionPanel::undoClicked, this, &AttemptPage::undoDelete);
+  connect(panel_, &SessionPanel::attemptMenuRequested, this,
           &AttemptPage::showAttemptMenu);
-  connect(table_, &QTableWidget::itemDoubleClicked, this,
-          [this](QTableWidgetItem *item) {
-            int index = item->data(Qt::UserRole).toInt();
-            const auto &attempts = session().attempts;
-            if (index >= 0 && index < static_cast<int>(attempts.size()) &&
-                reviewable(attempts[static_cast<std::size_t>(index)])) {
-              review(index);
-            } else {
-              showDetails(index);
-            }
-          });
+  connect(panel_, &SessionPanel::attemptActivated, this, [this](int index) {
+    const auto &attempts = session().attempts;
+    if (index >= 0 && index < static_cast<int>(attempts.size()) &&
+        reviewable(attempts[static_cast<std::size_t>(index)])) {
+      review(index);
+    } else {
+      showDetails(index);
+    }
+  });
   connect(reviewButton_, &QPushButton::clicked, this,
           [this] { review(static_cast<int>(session().attempts.size()) - 1); });
-  connect(stats_, &QLabel::linkActivated, this, &AttemptPage::showStat);
-  connect(&optimalWatcher_, &QFutureWatcher<OptimalResults>::finished, this,
-          [this] {
-            // Results worked out for holds that have changed since are
-            // dropped.
-            if (optimalRoundRun_ == optimalRound_) {
-              for (const auto &[scramble, length] : optimalWatcher_.result()) {
-                optimal_[{std::get<0>(optimalFor_), scramble,
-                          std::get<2>(optimalFor_)}] = length;
-              }
-            }
-            refreshAttempts();
-          });
-  connect(
-      &eoWatcher_, &QFutureWatcher<std::optional<int>>::finished, this, [this] {
-        std::optional<int> best = eoWatcher_.result();
-        if (!best || isBusy() || retry_) {
-          return;
-        }
-        QString yours = eoYours_ ? QString::number(*eoYours_) : tr("not done");
-        QString line =
-            tr("EO Cross: yours %1, optimal %2").arg(yours).arg(*best);
-        QString was = lastLabel_->text();
-        lastLabel_->setText(was.isEmpty() ? line : was + " · " + line);
-      });
-  connect(algEdit_, &QLineEdit::returnPressed, this, &AttemptPage::applyAlg);
-  connect(applyButton, &QPushButton::clicked, this, &AttemptPage::applyAlg);
-  connect(algEdit_, &QLineEdit::textChanged, this,
-          [this] { algError_->setVisible(false); });
+  connect(panel_, &SessionPanel::statActivated, this, &AttemptPage::showStat);
+}
 
+AttemptPage::~AttemptPage() = default;
+
+void AttemptPage::setTypeBox(ScrambleTypeBox *box, QWidget *extra) {
+  typeBox_ = box;
+  typeLayout_->addWidget(new QLabel(tr("Scramble:"), typeRow_));
+  typeLayout_->addWidget(typeBox_, 1);
+  if (extra) {
+    typeLayout_->addWidget(extra);
+  }
+  typeLayout_->addSpacing(12);
+  typeLayout_->addWidget(cubeBox_);
+  typeLayout_->addWidget(viewPicker_);
+  typeLayout_->addWidget(skipButton_);
+  connect(typeBox_, &ScrambleTypeBox::typeChanged, this,
+          [this](const QString &type) {
+            if (session().scrambleType != ss(type)) {
+              session().scrambleType = ss(type);
+              save();
+            }
+            bool fresh = feed_.type() != type;
+            if (fresh) {
+              flow_.clearEntry(); // the count was for the old scramble
+              showEntry();
+              historyCleared();
+            }
+            scrambleTypeChanged(type, fresh);
+            feed_.setType(type);
+          });
+}
+
+void AttemptPage::start() {
   applySettings();
   selectSession(store_.currentIndex());
-  if (algs_) {
-    algs_->setType(typeBox_->currentType());
-  }
+  scrambleTypeChanged(typeBox_->currentType(), false);
   feed_.setType(typeBox_->currentType()); // if the type didn't change
 }
 
-AttemptPage::~AttemptPage() {
-  optimalWatcher_.waitForFinished();
-  eoWatcher_.waitForFinished();
+void AttemptPage::addBelowCentre(QWidget *w) {
+  rightLayout_->insertWidget(rightLayout_->indexOf(chart_), w);
 }
 
 bool AttemptPage::onVirtualCube() const {
   return store_.sessions()[store_.currentIndex()].cube == CubeKind::Virtual;
 }
 
-bool AttemptPage::scramblesOnly() const {
-  return !moveCount_ && !onVirtualCube();
-}
-
 const GeneratedScramble *AttemptPage::shownScramble() const {
-  if (retry_) {
-    return &retry_->scramble;
+  if (flow_.retry()) {
+    return &retryScramble_;
   }
-  if (!onVirtualCube() && index_ < history_.size()) {
-    return &history_[index_];
+  if (const GeneratedScramble *back = historyScramble()) {
+    return back;
   }
   const auto &current = feed_.current();
   return current ? &*current : nullptr;
 }
 
+void AttemptPage::configureFlow() {
+  flow_.setConfig({moveCountFlow_, onVirtualCube(),
+                   static_cast<std::int64_t>(settings_.holdMs),
+                   settings_.autoStop});
+}
+
 void AttemptPage::deactivated() {
-  cancelHold();
+  apply(flow_.dropHold());
   cubeView_->finishAnimations();
   returnFocus();
 }
+
+void AttemptPage::windowDeactivated() { apply(flow_.dropHold()); }
 
 void AttemptPage::setFocusMode(bool on) {
   focusMode_ = on;
   if (on) {
     returnFocus();
   }
-  leftPanel_->setVisible(!on);
+  panel_->setVisible(!on);
   typeRow_->setVisible(!on);
   // The hint shows the hold's progress in focus mode too.
-  hintLabel_->setVisible(!on || hold_ != Hold::None);
+  hintLabel_->setVisible(!on || flow_.isHolding());
   chart_->setVisible(!on && !scramblesOnly());
   focusStats_->setVisible(on && !scramblesOnly());
-  algPanel_->setVisible(!on && !moveCount_ && onVirtualCube());
+  focusModeChanged(on);
 }
 
 void AttemptPage::applySettings() {
+  configureFlow();
   net_->setScheme(settings_.scheme);
   CubeLook look = cubeView_->look();
   look.scheme = settings_.scheme;
   cubeView_->setLook(look);
   cubeView_->setAnimationMs(settings_.animationMs);
   feed_.setNeutrality(settings_.neutrality);
-  if (algs_) {
-    algs_->refresh();
-  }
-  // The holds may have changed: results on the way are stale.
-  ++optimalRound_;
-  optimal_.clear();
+  settingsApplied();
   refreshAttempts();
 }
 
@@ -480,139 +353,75 @@ void AttemptPage::refreshScrambleTypes(const QString &changedSet) {
   typeBox_->refresh(); // emits typeChanged if the type went away
   if (typeBox_->currentType() == before && !changedSet.isEmpty() &&
       before == "set:" + changedSet) {
-    history_.clear();
-    index_ = 0;
+    historyCleared();
     feed_.regenerate(); // the set's cases or ticks may have changed
   }
-  if (algs_) {
-    algs_->refresh();
-  }
-}
-
-bool AttemptPage::eventFilter(QObject *obj, QEvent *event) {
-  if (obj == algEdit_ && event->type() == QEvent::KeyPress &&
-      static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
-    returnFocus();
-    return true;
-  }
-  return ModePage::eventFilter(obj, event);
-}
-
-void AttemptPage::returnFocus() {
-  if (algEdit_->hasFocus()) {
-    algEdit_->clearFocus();
-  }
+  typesRefreshed();
 }
 
 void AttemptPage::showCubeKind() {
+  configureFlow(); // the flow is for the session's cube
   bool virt = onVirtualCube();
   cubeBox_->setCurrentIndex(virt ? 0 : 1);
   cubeView_->setVisible(virt);
   viewPicker_->setVisible(virt);
   net_->setVisible(!virt);
-  bool typed = moveCount_ && !virt; // the count is typed in
-  recordButton_->setVisible(typed);
-  dnfButton_->setVisible(typed);
-  display_->setVisible(moveCount_);
-  display_->setToolTip(typed ? tr("The move count you are typing")
-                             : tr("Moves so far (HTM)"));
-  algPanel_->setVisible(!moveCount_ && virt && typeRow_->isVisibleTo(this));
-  if (moveCount_) {
-    table_->setHorizontalHeaderLabels(
-        {"#", tr("Moves"), tr("Opt"), "ao5", "ao12"});
-  } else if (virt) {
-    table_->setHorizontalHeaderLabels({"#", tr("Moves"), "ao5", "ao12"});
-  } else {
-    table_->setHorizontalHeaderLabels({"#", tr("Scramble"), tr("Date"), ""});
-  }
-  table_->setColumnHidden(3, scramblesOnly());
-  auto *header = table_->horizontalHeader();
-  header->setSectionResizeMode(QHeaderView::Stretch);
-  header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-  if (scramblesOnly()) {
-    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-  }
+  showModeWidgets(virt);
   chart_->setVisible(!scramblesOnly() && !focusMode_);
   focusStats_->setVisible(focusMode_ && !scramblesOnly());
-  history_.clear();
-  index_ = 0;
-  entry_.clear();
+  historyCleared();
+  flow_.clearEntry();
 }
 
 void AttemptPage::showScramble() {
   const GeneratedScramble *shown = shownScramble();
-  if (algs_) {
-    algs_->setScramble(shown);
-  }
+  scrambleShown(shown);
   // A retry's scramble has no hold of its own.
   holdLabel_->setText(
-      !shown || retry_ || settings_.neutrality.isFixed()
+      !shown || flow_.retry() || settings_.neutrality.isFixed()
           ? QString()
           : tr("Hold: %1").arg(holdHtml(shown->hold, settings_.scheme)));
   if (!shown) {
     scrambleLabel_->setText(tr("Generating scramble…"));
     net_->setCube(std::nullopt);
   } else {
-    scrambleLabel_->setText(index_ < history_.size()
-                                ? tr("%1\n(done %2 back)")
-                                      .arg(shown->text)
-                                      .arg(history_.size() - index_)
-                                : shown->text);
+    scrambleLabel_->setText(scrambleText(*shown));
     net_->setScramble(shown->text);
   }
   if (onVirtualCube()) {
     // Shown as scrambled holding white on top and green in front.
     attempt_.load(shown ? parseAlgOrEmpty(ss(shown->text)) : Alg{});
     cubeView_->setState(attempt_.cube());
-    setPhase(Phase::Inspect);
   }
+  apply(flow_.scrambleShown());
   showEntry();
   showHint();
 }
 
-void AttemptPage::showFreshScramble() {
-  if (phase_ == Phase::Done) {
-    // The scramble shown was solved already.
-    setPhase(Phase::Inspect);
-    feed_.advance();
-  } else {
-    showScramble();
-  }
-}
-
 void AttemptPage::showHint() {
+  using Phase = AttemptFlow::Phase;
   QString text;
+  const auto &retry = flow_.retry();
   if (!onVirtualCube()) {
-    text = moveCount_
-               ? tr("Type the number of moves your solution took and press "
-                    "Enter. Backspace corrects, Esc clears.")
-               : tr("Solve the scramble, then press Space (or →) for the "
-                    "next one. Backspace (or ←) goes back.");
-  } else if (phase_ == Phase::Inspect) {
+    text = physicalHint();
+  } else if (flow_.phase() == Phase::Inspect) {
     text = tr("Turn the cube as a whole to look at it, then hold Space and "
               "release it to start.");
-    if (retry_) {
-      QString which =
-          tr("Retry of #%1 (not recorded). ").arg(retry_->index + 1);
-      if (retryCount_ > 1) {
+    if (retry) {
+      QString which = tr("Retry of #%1 (not recorded). ").arg(retry->index + 1);
+      if (flow_.retryCount() > 1) {
         which = tr("Retry %1 of %2, of #%3 (not recorded). ")
-                    .arg(retryCount_ - retryQueue_.size())
-                    .arg(retryCount_)
-                    .arg(retry_->index + 1);
+                    .arg(flow_.retryNumber())
+                    .arg(flow_.retryCount())
+                    .arg(retry->index + 1);
       }
       text =
           which + text + " " + tr("Skip scramble goes back to new scrambles.");
     }
-  } else if (phase_ == Phase::Solving) {
-    text = moveCount_ ? tr("Press Space when the step is done. Esc starts the "
-                           "scramble again.")
-           : settings_.autoStop
-               ? tr("The solve ends when the cube is solved (or on Space). "
-                    "Esc starts the scramble again.")
-               : tr("Press Space when the cube is solved. Esc starts the "
-                    "scramble again.");
-  } else if (retry_) {
-    text = retryQueue_.empty()
+  } else if (flow_.phase() == Phase::Solving) {
+    text = solvingHint();
+  } else if (retry) {
+    text = !flow_.retriesQueued()
                ? tr("The cube turns freely. Space: back to new scrambles. Esc: "
                     "reset the cube to solved.")
                : tr("The cube turns freely. Space: the next retry. Esc: reset "
@@ -624,24 +433,21 @@ void AttemptPage::showHint() {
   hintLabel_->setText(text);
 }
 
-void AttemptPage::setEntry(const QString &digits) {
-  entry_ = digits;
-  showEntry();
-}
-
 void AttemptPage::showEntry() {
+  using Phase = AttemptFlow::Phase;
   if (onVirtualCube()) {
     QColor muted = palette().color(QPalette::PlaceholderText);
-    if (phase_ == Phase::Solving) {
+    const auto &retry = flow_.retry();
+    if (flow_.phase() == Phase::Solving) {
       display_->showText(
           QString::number(attempt_.count(settings_.simplifiedCounts)));
-    } else if (retry_ && retry_->done) {
+    } else if (retry && retry->done) {
       // The retry's own result, not the last recorded one.
-      display_->showText(qs(formatAttempt(retry_->result)),
-                         retry_->result.dnf ? muted : QColor());
-    } else if (retry_) {
+      display_->showText(qs(formatAttempt(retry->result)),
+                         retry->result.dnf ? muted : QColor());
+    } else if (retry) {
       display_->showText("–", muted);
-    } else if (phase_ == Phase::Done || !session().attempts.empty()) {
+    } else if (flow_.phase() == Phase::Done || !session().attempts.empty()) {
       // The last result, until the next solve starts.
       const auto &attempts = session().attempts;
       display_->showText(
@@ -652,203 +458,198 @@ void AttemptPage::showEntry() {
     }
     return;
   }
-  if (entry_.isEmpty()) {
+  const TypedCount &entry = flow_.entry();
+  if (entry.empty()) {
     display_->showText("–", palette().color(QPalette::PlaceholderText));
   } else {
-    display_->showText(entry_);
+    display_->showText(qs(entry.text()));
   }
-  recordButton_->setEnabled(!entry_.isEmpty() && feed_.current());
-  dnfButton_->setEnabled(feed_.current().has_value());
+  entryShown();
 }
 
-void AttemptPage::setPhase(Phase p) {
-  cancelHold();
-  phase_ = p;
-  attempt_.setFree(p == Phase::Done);
-  algEdit_->setEnabled(p == Phase::Done);
-  if (p != Phase::Done) {
-    returnFocus();
-    algError_->setVisible(false);
-  }
+void AttemptPage::showPhase() {
+  bool done = flow_.phase() == AttemptFlow::Phase::Done;
+  attempt_.setFree(done);
+  phaseShown(done);
   updateControls();
   showHint();
 }
 
-bool AttemptPage::reviewable(const MoveCountAttempt &a) const {
-  return !a.solution.empty() || (moveCount_ && !a.scramble.empty());
-}
-
 void AttemptPage::updateControls() {
   bool busy = isBusy();
-  for (QWidget *w : std::initializer_list<QWidget *>{sessionButton_, typeBox_,
-                                                     cubeBox_, skipButton_}) {
+  for (QWidget *w : std::initializer_list<QWidget *>{
+           panel_->sessionButton(), typeBox_, cubeBox_, skipButton_}) {
     w->setEnabled(!busy);
   }
-  if (stepBox_) {
-    stepBox_->setEnabled(!busy);
-  }
-  deleteButton_->setEnabled(!busy && !session().attempts.empty());
-  undoButton_->setVisible(deleted_.has_value());
-  undoButton_->setEnabled(!busy);
+  controlsEnabled(!busy);
+  panel_->setDeleteEnabled(!busy && !session().attempts.empty());
+  panel_->setUndo(deleted_.has(), !busy);
   bool canReview =
       !session().attempts.empty() && reviewable(session().attempts.back());
   reviewButton_->setVisible(canReview);
   reviewButton_->setEnabled(!busy);
 }
 
-void AttemptPage::updateStepLabel() {
-  if (!stepBox_) {
+bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
+  std::optional<Move> move;
+  if (onVirtualCube()) {
+    move = settings_.keymap.lookup(e);
+  }
+  AttemptFlow::Effects fx =
+      flow_.key(flowKey(e, press, move.has_value()), monotonicMs(),
+                feed_.current().has_value());
+  if (fx.toggleAlgs) {
+    return toggleAlgs();
+  }
+  if (fx.turn) {
+    turn(*move);
+  }
+  apply(fx);
+  return fx.used;
+}
+
+void AttemptPage::apply(const AttemptFlow::Effects &e) {
+  using Notice = AttemptFlow::Notice;
+  using Action = AttemptFlow::Action;
+  switch (e.notice) {
+  case Notice::WaitToStart:
+    emit message(tr("Wait for the scramble before starting"));
+    break;
+  case Notice::WaitToRecord:
+    emit message(tr("Wait for the scramble before recording"));
+    break;
+  case Notice::TypeFirst:
+    emit message(tr("Type the move count first"));
+    break;
+  case Notice::None:
+    break;
+  }
+  if (e.holdStarted) {
+    holdTimer_.start(static_cast<int>(settings_.holdMs));
+    holdWatch_.start();
+  }
+  if (e.showHold) {
+    showHold();
+  }
+  int last = static_cast<int>(session().attempts.size()) - 1;
+  switch (e.action) {
+  case Action::Comment:
+    commentAttempt(last);
+    break;
+  case Action::Review:
+    review(last);
+    break;
+  case Action::Undo:
+    undoDelete();
+    break;
+  case Action::Delete:
+    if (last >= 0) {
+      deleteAttempt(last);
+    }
+    break;
+  case Action::None:
+    break;
+  }
+  if (e.restartCube) {
+    attempt_.restart();
+    cubeView_->setState(attempt_.cube());
+  }
+  if (e.solvedCube) {
+    attempt_.load(Alg{});
+    attempt_.setFree(true);
+    cubeView_->setState(attempt_.cube());
+  }
+  if (e.startSolve) {
+    attempt_.start();
+  }
+  if (e.endSolve) {
+    endSolve();
+  }
+  if (e.record) {
+    record(e.record->count, e.record->dnf, e.record->solution);
+  }
+  if (e.retryResult) {
+    showRetryResult();
+  }
+  if (e.phase) {
+    showPhase();
+  }
+  if (e.entryChanged) {
+    showEntry();
+  }
+  if (e.historyToEnd) {
+    historyToEnd();
+  }
+  if (e.forward) {
+    forward();
+  }
+  if (e.back) {
+    back();
+  }
+  if (e.nextScramble) {
+    feed_.advance(); // shows the next scramble
+  }
+  if (e.showScramble) {
+    showScramble();
+  }
+  if (e.retryNext) {
+    startRetry(*e.retryNext);
+  }
+  if (e.retryStarted && flow_.retry()) {
+    const AttemptFlow::Retry &r = *flow_.retry();
+    retryScramble_ = GeneratedScramble{};
+    retryScramble_.text = qs(r.original.scramble);
+    showScramble();
+    lastLabel_->setText(tr("Retry of #%1, which was %2")
+                            .arg(r.index + 1)
+                            .arg(qs(formatAttempt(r.original))));
+  }
+  if (e.retryEnded) {
+    refreshAttempts();
+  }
+  if (e.analyse && !session().attempts.empty()) {
+    solveRecorded(session().attempts.back());
+  }
+  if (e.notReached) {
+    emit message(notReachedText());
+  }
+}
+
+void AttemptPage::onHoldTimer() {
+  std::int64_t now = monotonicMs();
+  apply(flow_.tick(now, QApplication::activePopupWidget() ||
+                            QApplication::activeModalWidget()));
+  if (flow_.hold() == AttemptFlow::Hold::Holding && !holdTimer_.isActive()) {
+    holdTimer_.start(static_cast<int>(flow_.holdLeft(now)));
+  }
+}
+
+void AttemptPage::showHold() {
+  using H = AttemptFlow::Hold;
+  H hold = flow_.hold();
+  if (hold == H::None) {
+    holdTimer_.stop();
+    holdWatch_.stop();
+  }
+  if (focusMode_) {
+    hintLabel_->setVisible(hold != H::None);
+  }
+  if (hold == H::None) {
+    hintLabel_->setStyleSheet({});
+    showHint();
+    showEntry();
     return;
   }
-  stepBox_->setCurrentIndex(
-      stepBox_->findData(static_cast<int>(session().step)));
-  QString step = qs(std::string(stepName(session().step)));
-  QString name = qs(session().name);
-  // "Virtual ZZ F2L" names its step already.
-  stepLabel_->setText(name.contains(step, Qt::CaseInsensitive)
-                          ? name
-                          : tr("%1 (%2)").arg(name, step));
-}
-
-bool AttemptPage::handleActionKey(QKeyEvent *e, bool press) {
-  Qt::KeyboardModifiers mods = e->modifiers() & ~Qt::KeypadModifier;
-  int key = e->key();
-  int last = static_cast<int>(session().attempts.size()) - 1;
-  bool known = (mods == Qt::AltModifier &&
-                (key == Qt::Key_3 || key == Qt::Key_C || key == Qt::Key_R)) ||
-               (mods == Qt::ControlModifier &&
-                (key == Qt::Key_Z || key == Qt::Key_Right)) ||
-               (mods == Qt::NoModifier && key == Qt::Key_Delete);
-  if (!known) {
-    return false;
-  }
-  if (!press || e->isAutoRepeat() || isBusy() || hold_ != Hold::None) {
-    return true;
-  }
-  if (mods == Qt::AltModifier) {
-    if (key == Qt::Key_3) {
-      if (moveCount_ && !onVirtualCube()) {
-        recordTyped(true);
-      }
-    } else if (key == Qt::Key_C) {
-      commentAttempt(last);
-    } else {
-      review(last);
-    }
-  } else if (key == Qt::Key_Z) {
-    undoDelete();
-  } else if (key == Qt::Key_Right) {
-    skip();
-  } else if (last >= 0) {
-    deleteAttempt(last);
-  }
-  return true;
-}
-
-bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
-  int key = e->key();
-  if (handleActionKey(e, press)) {
-    return true;
-  }
-  if (onVirtualCube()) {
-    std::optional<Move> move = settings_.keymap.lookup(e);
-    bool enter = key == Qt::Key_Return || key == Qt::Key_Enter;
-    bool known = move || key == Qt::Key_Space || key == Qt::Key_Escape ||
-                 (key == Qt::Key_Tab && algs_) ||
-                 (enter && phase_ == Phase::Done);
-    if (!known) {
-      return false;
-    }
-    if (e->isAutoRepeat()) {
-      return true;
-    }
-    if (!press) {
-      if (key == Qt::Key_Space) {
-        releaseStart();
-      }
-      return true;
-    }
-    if (hold_ != Hold::None) {
-      // Holding Space to start: Esc lets go, other keys wait.
-      if (key == Qt::Key_Escape) {
-        cancelHold();
-      }
-      return true;
-    }
-    if (move) {
-      turn(*move);
-    } else if (key == Qt::Key_Tab) {
-      return algs_->toggle();
-    } else if (key == Qt::Key_Space || enter) {
-      if (phase_ == Phase::Inspect) {
-        pressStart();
-      } else if (phase_ == Phase::Solving) {
-        endSolve();
-      } else {
-        next();
-      }
-    } else if (phase_ == Phase::Done) { // Esc
-      attempt_.load(Alg{});
-      attempt_.setFree(true);
-      cubeView_->setState(attempt_.cube());
-    } else {
-      attempt_.restart();
-      cubeView_->setState(attempt_.cube());
-      setPhase(Phase::Inspect);
-      showEntry();
-    }
-    return true;
-  }
-
-  if (!moveCount_) {
-    // Untimed on a physical cube: scrambles only.
-    if (key == Qt::Key_Tab && press && algs_->toggle()) {
-      return true;
-    }
-    bool forward = key == Qt::Key_Space || key == Qt::Key_Right;
-    bool back = key == Qt::Key_Backspace || key == Qt::Key_Left;
-    if (!forward && !back) {
-      return false;
-    }
-    if (press && !e->isAutoRepeat()) {
-      if (forward) {
-        next();
-      } else {
-        previous();
-      }
-    }
-    return true;
-  }
-
-  // Move Count on a physical cube: the count is typed in.
-  bool digit = key >= Qt::Key_0 && key <= Qt::Key_9;
-  bool known = digit || key == Qt::Key_Backspace || key == Qt::Key_Return ||
-               key == Qt::Key_Enter || key == Qt::Key_Escape;
-  if (!known || (e->modifiers() &
-                 (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
-    return false;
-  }
-  if (!press) {
-    return true;
-  }
-  if (digit) {
-    if (!e->isAutoRepeat() && entry_.size() < kMaxDigits) {
-      // No leading zeros: "0" then "7" is 7.
-      QString nextDigits = entry_ == "0" ? QString() : entry_;
-      setEntry(nextDigits + QChar('0' + (key - Qt::Key_0)));
-    }
-  } else if (key == Qt::Key_Backspace) {
-    setEntry(entry_.left(entry_.size() - 1));
-  } else if (key == Qt::Key_Escape) {
-    setEntry({});
-  } else if (!e->isAutoRepeat()) { // Enter
-    recordTyped(false);
-  }
-  return true;
+  QColor colour =
+      hold == H::Ready ? statusColour(Status::Good) : statusColour(Status::Bad);
+  hintLabel_->setStyleSheet(QString("color: %1").arg(colour.name()));
+  hintLabel_->setText(hold == H::Ready ? tr("Release Space to start")
+                                       : tr("Keep holding Space…"));
+  holdShown(colour);
 }
 
 void AttemptPage::turn(Move m) {
-  if (!feed_.current() && !retry_) {
+  if (!feed_.current() && !flow_.retry()) {
     return; // no scramble on the cube yet
   }
   if (!attempt_.turn(m)) {
@@ -856,141 +657,31 @@ void AttemptPage::turn(Move m) {
     return;
   }
   cubeView_->animateMove(m);
-  if (phase_ == Phase::Solving) {
+  if (flow_.phase() == AttemptFlow::Phase::Solving) {
     showEntry();
-    // Untimed can end the solve as soon as the cube is solved.
-    if (!moveCount_ && settings_.autoStop && attempt_.cube().isSolved()) {
-      endSolve();
-    }
+    apply(flow_.turned(attempt_.cube().isSolved()));
   }
-}
-
-void AttemptPage::pressStart() {
-  if (!feed_.current() && !retry_) {
-    emit message(tr("Wait for the scramble before starting"));
-    return;
-  }
-  hold_ = Hold::Holding;
-  holdTimer_.start(static_cast<int>(settings_.holdMs));
-  holdWatch_.start();
-  showHold();
-}
-
-void AttemptPage::releaseStart() {
-  Hold was = hold_;
-  cancelHold();
-  if (was == Hold::Ready) {
-    startSolve();
-  }
-}
-
-void AttemptPage::cancelHold() {
-  if (hold_ == Hold::None) {
-    return;
-  }
-  hold_ = Hold::None;
-  holdTimer_.stop();
-  holdWatch_.stop();
-  showHold();
-}
-
-void AttemptPage::showHold() {
-  if (focusMode_) {
-    hintLabel_->setVisible(hold_ != Hold::None);
-  }
-  if (hold_ == Hold::None) {
-    hintLabel_->setStyleSheet({});
-    showHint();
-    showEntry();
-    return;
-  }
-  QColor colour = hold_ == Hold::Ready ? statusColour(Status::Good)
-                                       : statusColour(Status::Bad);
-  hintLabel_->setStyleSheet(QString("color: %1").arg(colour.name()));
-  hintLabel_->setText(hold_ == Hold::Ready ? tr("Release Space to start")
-                                           : tr("Keep holding Space…"));
-  if (moveCount_) {
-    display_->showText("0", colour);
-  }
-}
-
-void AttemptPage::startSolve() {
-  if (!feed_.current() && !retry_) {
-    emit message(tr("Wait for the scramble before starting"));
-    return;
-  }
-  attempt_.start();
-  setPhase(Phase::Solving);
-  showEntry();
 }
 
 void AttemptPage::endSolve() {
-  bool reached = moveCount_ ? stepReached(attempt_.cube(), session().step)
-                            : attempt_.cube().isSolved();
-  int count = attempt_.count(settings_.simplifiedCounts);
-  if (retry_) {
-    // Compared with the attempt it repeats, and not recorded.
-    const MoveCountAttempt &was = retry_->original;
-    retry_->result.moves = count;
-    retry_->result.dnf = !reached;
-    retry_->result.solution = toString(attempt_.solution());
-    QString result = !reached     ? tr("DNF (%1)").arg(count)
-                     : count == 1 ? tr("1 move")
-                                  : tr("%1 moves").arg(count);
-    QString text = tr("Retry of #%1: %2, was %3")
-                       .arg(retry_->index + 1)
-                       .arg(result, qs(formatAttempt(was)));
-    if (moveCount_ && hasOptimalSolver(session().step)) {
-      if (std::optional<int> best = heldDistance(
-              parseAlgOrEmpty(was.scramble), session().step, optimalHolds())) {
-        text += tr(", optimal %1").arg(*best);
-      }
-    }
-    lastLabel_->setText(text);
-    emit message(text);
-    retry_->done = true;
-    setPhase(Phase::Done);
-    showEntry();
-    showHint();
-    return;
-  }
-  record(count, !reached, toString(attempt_.solution()));
-  if (moveCount_) {
-    next(); // on to the next scramble
-  } else {
-    setPhase(Phase::Done);
-    showEntry();
-    analyseEoCross(session().attempts.back());
-  }
-  if (!reached) {
-    emit message(moveCount_
-                     ? tr("DNF: %1 wasn't done when you pressed Space")
-                           .arg(qs(std::string(stepName(session().step))))
-                     : tr("DNF: the cube wasn't solved when you pressed "
-                          "Space"));
-  }
+  apply(flow_.solveEnded(reached(attempt_.cube()),
+                         attempt_.count(settings_.simplifiedCounts),
+                         toString(attempt_.solution())));
 }
 
-void AttemptPage::analyseEoCross(const MoveCountAttempt &a) {
-  ParseResult scramble = parseAlg(a.scramble);
-  ParseResult moves = parseAlg(a.solution);
-  if (!scramble || !moves || eoWatcher_.isRunning()) {
-    return;
-  }
-  FaceletCube start;
-  start.apply(scramble.alg);
-  eoYours_.reset();
-  for (const StepMark &m : stepMarks(start, moves.alg, {SolveStep::EOCross},
-                                     settings_.simplifiedCounts)) {
-    eoYours_ = m.htm;
-  }
-  std::vector<vcube::Hold> holds =
-      settings_.optimalAnyHold
-          ? std::vector<vcube::Hold>(allHolds().begin(), allHolds().end())
-          : withBothEoAxes(settings_.neutrality.holds);
-  Alg alg = scramble.alg;
-  eoWatcher_.setFuture(QtConcurrent::run(
-      [alg, holds] { return heldDistance(alg, SolveStep::EOCross, holds); }));
+void AttemptPage::showRetryResult() {
+  const AttemptFlow::Retry &r = *flow_.retry();
+  // Compared with the attempt it repeats, and not recorded.
+  int count = r.result.moves;
+  QString result = r.result.dnf ? tr("DNF (%1)").arg(count)
+                   : count == 1 ? tr("1 move")
+                                : tr("%1 moves").arg(count);
+  QString text = tr("Retry of #%1: %2, was %3")
+                     .arg(r.index + 1)
+                     .arg(result, qs(formatAttempt(r.original)));
+  text += retryNote(r.original);
+  lastLabel_->setText(text);
+  emit message(text);
 }
 
 void AttemptPage::record(std::optional<int> count, bool dnf,
@@ -1004,7 +695,7 @@ void AttemptPage::record(std::optional<int> count, bool dnf,
   a.solution = solution;
   a.timestamp = unixNow();
   session().attempts.push_back(a);
-  deleted_.reset();
+  deleted_.forget();
   save();
   refreshAttempts();
   // A new best, as Timed marks it.
@@ -1023,95 +714,7 @@ void AttemptPage::record(std::optional<int> count, bool dnf,
   }
 }
 
-void AttemptPage::recordTyped(bool dnf) {
-  if (!feed_.current()) {
-    emit message(tr("Wait for the scramble before recording"));
-    return;
-  }
-  if (!dnf && entry_.isEmpty()) {
-    emit message(tr("Type the move count first"));
-    return;
-  }
-  record(entry_.toInt(), dnf);
-  entry_.clear();
-  next();
-}
-
-void AttemptPage::next() {
-  if (retry_) {
-    endRetry();
-    return;
-  }
-  if (scramblesOnly()) {
-    // Untimed on a physical cube: forward through the scrambles gone back
-    // to, then the scramble shown is done and kept.
-    if (index_ < history_.size()) {
-      ++index_;
-      showScramble();
-      return;
-    }
-    const auto &current = feed_.current();
-    if (!current) {
-      return;
-    }
-    record(std::nullopt, false);
-    history_.push_back(*current);
-    if (history_.size() > kHistory) {
-      history_.pop_front();
-    }
-    index_ = history_.size();
-  }
-  entry_.clear();
-  feed_.advance(); // shows the next scramble
-}
-
-void AttemptPage::previous() {
-  if (index_ > 0) {
-    --index_;
-    showScramble();
-  }
-}
-
-void AttemptPage::skip() {
-  if (isBusy()) {
-    return;
-  }
-  if (retry_) {
-    retryQueue_.clear(); // back to new scrambles
-    endRetry();
-    return;
-  }
-  entry_.clear();
-  index_ = history_.size();
-  setPhase(Phase::Inspect);
-  feed_.advance();
-}
-
-void AttemptPage::applyAlg() {
-  QString text = algEdit_->text().trimmed();
-  if (text.isEmpty() || phase_ != Phase::Done) {
-    returnFocus();
-    return;
-  }
-  ParseResult parsed = parseAlg(ss(text));
-  if (!parsed) {
-    algError_->setText(tr("Can't read this alg at character %1: %2")
-                           .arg(parsed.error->position + 1)
-                           .arg(qs(parsed.error->message)));
-    algError_->setVisible(true);
-    return; // keep the field focused to fix it
-  }
-  Alg applied;
-  for (Move m : parsed.alg) {
-    if (attempt_.turn(m)) {
-      applied.push_back(m);
-    }
-  }
-  cubeView_->animateSequence(applied);
-  algError_->setVisible(false);
-  algEdit_->clear();
-  returnFocus();
-}
+void AttemptPage::skip() { apply(flow_.skip()); }
 
 void AttemptPage::review(int index) {
   const auto &attempts = session().attempts;
@@ -1123,15 +726,9 @@ void AttemptPage::review(int index) {
     return;
   }
   ReviewedSolve solve;
-  solve.title = moveCount_ ? tr("%1 #%2")
-                                 .arg(qs(std::string(stepName(session().step))))
-                                 .arg(index + 1)
-                           : tr("Solve #%1").arg(index + 1);
+  describeReview(solve, index);
   solve.scramble = parseAlgOrEmpty(a.scramble);
   solve.solution = parseAlgOrEmpty(a.solution);
-  if (moveCount_) {
-    solve.step = session().step;
-  }
   solve.dnf = a.dnf;
   if (a.counted && !a.solution.empty()) {
     solve.recorded = a.moves;
@@ -1139,9 +736,7 @@ void AttemptPage::review(int index) {
   ReviewDialog dialog(solve, settings_, &library_, this);
   dialog.setRetryEnabled(onVirtualCube());
   connect(&dialog, &ReviewDialog::retryRequested, this, [this, index] {
-    retryQueue_.clear();
-    retryCount_ = 1;
-    startRetry(static_cast<std::size_t>(index));
+    apply(flow_.retryOne(static_cast<std::size_t>(index)));
   });
   dialog.exec();
 }
@@ -1156,12 +751,7 @@ void AttemptPage::showDetails(int index) {
   if (a.counted) {
     rows.append({tr("Moves"), qs(formatAttempt(a))});
   }
-  if (moveCount_) {
-    rows.append({tr("Step"), qs(std::string(stepName(session().step)))});
-    if (std::optional<int> best = optimalOf(a); best && *best >= 0) {
-      rows.append({tr("Optimal"), QString::number(*best)});
-    }
-  }
+  addDetails(rows, a);
   rows.append({tr("Date"), dateText(a.timestamp)});
   rows.append({"Scramble", qs(a.scramble)});
   if (!a.solution.empty()) {
@@ -1180,12 +770,9 @@ void AttemptPage::commentAttempt(int index) {
     return;
   }
   MoveCountAttempt &a = attempts[static_cast<std::size_t>(index)];
-  bool ok = false;
-  QString text = QInputDialog::getText(
-      this, tr("Comment"), tr("Comment on solve #%1:").arg(index + 1),
-      QLineEdit::Normal, qs(a.comment), &ok);
-  if (ok) {
-    a.comment = ss(text);
+  if (std::optional<QString> text = askComment(
+          this, tr("Comment on solve #%1:").arg(index + 1), qs(a.comment))) {
+    a.comment = ss(*text);
     save();
     refreshAttempts();
   }
@@ -1196,160 +783,36 @@ void AttemptPage::startRetry(std::size_t index) {
   if (isBusy() || index >= attempts.size() || !onVirtualCube()) {
     return;
   }
-  Retry r;
-  r.index = index;
-  r.feedSolved = retry_ ? retry_->feedSolved : phase_ == Phase::Done;
-  r.original = attempts[index];
-  r.scramble.text = qs(r.original.scramble);
-  retry_ = r;
-  setPhase(Phase::Inspect);
-  showScramble();
-  lastLabel_->setText(tr("Retry of #%1, which was %2")
-                          .arg(index + 1)
-                          .arg(qs(formatAttempt(r.original))));
-}
-
-void AttemptPage::endRetry() {
-  if (!retryQueue_.empty()) {
-    std::size_t nextIndex = retryQueue_.front();
-    retryQueue_.pop_front();
-    startRetry(nextIndex);
-    return;
-  }
-  bool feedSolved = retry_ && retry_->feedSolved;
-  retry_.reset();
-  retryCount_ = 0;
-  setPhase(Phase::Inspect);
-  if (feedSolved) {
-    feed_.advance(); // the scramble shown before was solved already
-  } else {
-    showScramble(); // the scramble that was shown before the retry
-  }
-  refreshAttempts();
+  apply(flow_.beginRetry(index, attempts[index]));
 }
 
 void AttemptPage::retryWorst() {
-  const auto &attempts = session().attempts;
   if (isBusy() || !onVirtualCube()) {
     return;
   }
   // DNFs first, then the most moves over the optimal (when known), then
   // the most moves.
-  struct Ranked {
-    std::size_t index;
-    bool dnf;
-    int over;
-    int moves;
-  };
-  std::vector<Ranked> ranked;
-  for (std::size_t i = 0; i < attempts.size(); ++i) {
-    const MoveCountAttempt &a = attempts[i];
-    if (!a.counted || a.scramble.empty()) {
-      continue;
-    }
-    std::optional<int> best = moveCount_ ? optimalOf(a) : std::nullopt;
-    int over = best && *best >= 0 ? a.moves - *best : 0;
-    ranked.push_back({i, a.dnf, over, a.moves});
-  }
-  std::stable_sort(ranked.begin(), ranked.end(),
-                   [](const Ranked &a, const Ranked &b) {
-                     if (a.dnf != b.dnf) {
-                       return a.dnf;
-                     }
-                     if (a.over != b.over) {
-                       return a.over > b.over;
-                     }
-                     return a.moves > b.moves;
-                   });
-  if (ranked.empty()) {
+  std::vector<std::size_t> worst =
+      worstAttempts(session().attempts, kWorst, optimalLookup());
+  if (worst.empty()) {
     emit message(tr("No solves to retry yet"));
     return;
   }
-  retryQueue_.clear();
-  for (std::size_t i = 0; i < std::min(kWorst, ranked.size()); ++i) {
-    retryQueue_.push_back(ranked[i].index);
-  }
-  retryCount_ = retryQueue_.size();
-  std::size_t first = retryQueue_.front();
-  retryQueue_.pop_front();
-  startRetry(first);
-}
-
-std::vector<vcube::Hold> AttemptPage::optimalHolds() const {
-  if (settings_.optimalAnyHold) {
-    return {allHolds().begin(), allHolds().end()};
-  }
-  return withBothEoAxes(settings_.neutrality.holds);
-}
-
-std::optional<int> AttemptPage::optimalOf(const MoveCountAttempt &a) const {
-  SolveStep step = store_.sessions()[store_.currentIndex()].step;
-  auto it = optimal_.find({step, a.scramble, settings_.optimalAnyHold});
-  if (it == optimal_.end()) {
-    return std::nullopt;
-  }
-  return it->second;
-}
-
-void AttemptPage::requestOptimal() {
-  if (!moveCount_ || optimalWatcher_.isRunning() ||
-      !hasOptimalSolver(session().step)) {
-    return;
-  }
-  SolveStep step = session().step;
-  bool anyHold = settings_.optimalAnyHold;
-  std::vector<std::string> missing;
-  for (const MoveCountAttempt &a : session().attempts) {
-    if (!a.scramble.empty() &&
-        !optimal_.contains({step, a.scramble, anyHold}) &&
-        std::find(missing.begin(), missing.end(), a.scramble) ==
-            missing.end()) {
-      missing.push_back(a.scramble);
-    }
-  }
-  if (missing.empty()) {
-    return;
-  }
-  optimalFor_ = {step, std::string(), anyHold};
-  optimalRoundRun_ = optimalRound_;
-  std::vector<vcube::Hold> holds = optimalHolds();
-  optimalWatcher_.setFuture(QtConcurrent::run([missing, step, holds] {
-    OptimalResults out;
-    for (const std::string &scramble : missing) {
-      ParseResult parsed = parseAlg(scramble);
-      std::optional<int> best =
-          parsed ? heldDistance(parsed.alg, step, holds) : std::nullopt;
-      // An unreadable scramble is remembered as -1 so it isn't tried again.
-      out.emplace_back(scramble, best.value_or(-1));
-    }
-    return out;
-  }));
+  apply(flow_.retryQueue(worst));
 }
 
 void AttemptPage::refreshSessionMenu() {
-  sessionMenu_->clear();
-  auto *group = new QActionGroup(sessionMenu_);
-  for (std::size_t i = 0; i < store_.sessions().size(); ++i) {
-    const MoveCountSession &s = store_.sessions()[i];
-    QAction *a = sessionMenu_->addAction(
-        tr("%1 (%2)").arg(qs(s.name)).arg(s.attempts.size()), this,
-        [this, i] { selectSession(i); });
-    a->setCheckable(true);
-    a->setChecked(i == store_.currentIndex());
-    group->addAction(a);
+  std::vector<SessionPanel::MenuSession> list;
+  for (const MoveCountSession &s : store_.sessions()) {
+    list.push_back({qs(s.name), s.attempts.size()});
   }
-  sessionMenu_->addSeparator();
-  sessionMenu_->addAction(tr("New session…"), this, &AttemptPage::addSession);
-  sessionMenu_->addAction(tr("Rename…"), this, &AttemptPage::renameSession);
-  sessionMenu_->addAction(tr("Delete…"), this, &AttemptPage::deleteSession);
+  panel_->fillSessionMenu(list, store_.currentIndex());
   if (onVirtualCube() && !scramblesOnly()) {
-    sessionMenu_->addSeparator();
-    QAction *worst = sessionMenu_->addAction(
-        tr("Retry the worst %1").arg(kWorst), this, &AttemptPage::retryWorst);
-    worst->setToolTip(moveCount_ ? tr("Retry the DNFs and the solves furthest "
-                                      "over the optimal, one after another")
-                                 : tr("Retry the DNFs and the longest solves, "
-                                      "one after another"));
+    QMenu *menu = panel_->menu();
+    menu->addSeparator();
+    QAction *worst = menu->addAction(tr("Retry the worst %1").arg(kWorst), this,
+                                     &AttemptPage::retryWorst);
+    worst->setToolTip(retryWorstTip());
     worst->setEnabled(!session().attempts.empty());
   }
 }
@@ -1359,18 +822,35 @@ void AttemptPage::selectSession(std::size_t index) {
     return;
   }
   if (index != store_.currentIndex()) {
-    deleted_.reset(); // undo is for the session it was deleted from
+    deleted_.forget(); // undo is for the session it was deleted from
   }
-  retry_.reset();
-  retryQueue_.clear();
+  flow_.resetRetry();
   store_.setCurrentIndex(index);
-  sessionButton_->setText(tr("Session: %1").arg(qs(session().name)));
-  updateStepLabel();
+  panel_->setSessionName(qs(session().name));
+  sessionShown();
   showCubeKind();
   typeBox_->setCurrentType(qs(session().scrambleType));
-  showFreshScramble(); // onto the session's cube
+  apply(flow_.freshScramble()); // onto the session's cube
   refreshAttempts();
   save();
+}
+
+QString AttemptPage::scrambleStatsHtml() const {
+  // No counts: how many scrambles were done, and when.
+  const auto &attempts = session().attempts;
+  std::int64_t today = localDayStart();
+  std::size_t todayCount = static_cast<std::size_t>(std::count_if(
+      attempts.begin(), attempts.end(),
+      [today](const MoveCountAttempt &a) { return a.timestamp >= today; }));
+  QString html = tr("<p>Solves: %1 &nbsp; Today: %2</p>")
+                     .arg(attempts.size())
+                     .arg(todayCount);
+  if (!attempts.empty()) {
+    html += tr("<p>First: %1<br>Last: %2</p>")
+                .arg(dateText(attempts.front().timestamp),
+                     dateText(attempts.back().timestamp));
+  }
+  return html;
 }
 
 void AttemptPage::refreshAttempts() {
@@ -1378,58 +858,28 @@ void AttemptPage::refreshAttempts() {
   std::vector<Solve> solves = attemptsAsSolves(attempts);
   auto ao5 = rollingAverages(solves, 5);
   auto ao12 = rollingAverages(solves, 12);
-  bool onlyScrambles = scramblesOnly();
-  table_->setRowCount(static_cast<int>(attempts.size()));
-  if (moveCount_) {
-    table_->setColumnHidden(2, !hasOptimalSolver(session().step));
-    if (QTableWidgetItem *opt = table_->horizontalHeaderItem(2)) {
-      opt->setToolTip(
-          settings_.optimalAnyHold
-              ? tr("The optimal move count for the scramble's step in any "
-                   "hold, as the step is checked")
-              : tr("The optimal move count for the scramble's step in the "
-                   "holds of your colour neutrality (either EO axis)"));
+  panel_->setColumns(columns());
+  // Each counted attempt's index in `solves`.
+  std::vector<std::optional<std::size_t>> counted(attempts.size());
+  for (std::size_t i = 0, c = 0; i < attempts.size(); ++i) {
+    if (attempts[i].counted) {
+      counted[i] = c++;
     }
   }
-  std::size_t counted = 0; // index into solves
-  for (std::size_t i = 0; i < attempts.size(); ++i) {
+  std::vector<AttemptRow> rows;
+  rows.reserve(attempts.size());
+  for (std::size_t i = attempts.size(); i-- > 0;) {
     const MoveCountAttempt &a = attempts[i];
-    int row = static_cast<int>(attempts.size() - 1 - i);
-    auto set = [&](int col, const QString &text) {
-      auto *item = new QTableWidgetItem(text);
-      item->setData(Qt::UserRole, static_cast<int>(i));
-      if (col > 0 && !(onlyScrambles && col == 1)) {
-        item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-      }
-      table_->setItem(row, col, item);
-    };
-    int col = 0;
+    AttemptRow row;
+    row.index = static_cast<int>(i);
     // A solve with a comment is marked.
-    set(col++, a.comment.empty() ? QString::number(i + 1)
-                                 : QString("%1 *").arg(i + 1));
-    if (onlyScrambles) {
-      set(col++, qs(a.scramble));
-      set(col++, dateText(a.timestamp));
-      set(col++, QString());
-    } else {
-      set(col++, qs(formatAttempt(a)));
-      if (moveCount_) {
-        std::optional<int> best = hasOptimalSolver(session().step)
-                                      ? optimalOf(a)
-                                      : std::optional<int>(-1);
-        set(col++, !best       ? QString("…")
-                   : *best < 0 ? QString("-")
-                               : QString::number(*best));
-      }
-      if (a.counted) {
-        set(col++, movesText(ao5[counted]));
-        set(col++, movesText(ao12[counted]));
-        ++counted;
-      } else {
-        set(col++, "-");
-        set(col++, "-");
-      }
-    }
+    AttemptCell number;
+    number.text =
+        a.comment.empty() ? QString::number(i + 1) : QString("%1 *").arg(i + 1);
+    number.alignRight = false;
+    row.cells.push_back(number);
+    addCells(row.cells, a, counted[i] ? movesText(ao5[*counted[i]]) : "-",
+             counted[i] ? movesText(ao12[*counted[i]]) : "-");
     QStringList tip;
     if (!a.comment.empty()) {
       tip << tr("Comment: %1").arg(qs(a.comment));
@@ -1439,84 +889,40 @@ void AttemptPage::refreshAttempts() {
     if (!a.solution.empty()) {
       tip << tr("Solution: %1").arg(qs(a.solution));
     }
-    for (int c = 0; c < table_->columnCount(); ++c) {
-      table_->item(row, c)->setToolTip(tip.join("\n"));
+    for (AttemptCell &cell : row.cells) {
+      cell.tip = tip.join("\n");
     }
+    rows.push_back(std::move(row));
   }
-  if (onlyScrambles) {
-    // No counts: how many scrambles were done, and when.
-    std::int64_t today = localDayStart();
-    std::size_t todayCount = static_cast<std::size_t>(std::count_if(
-        attempts.begin(), attempts.end(),
-        [today](const MoveCountAttempt &a) { return a.timestamp >= today; }));
-    QString html = tr("<p>Solves: %1 &nbsp; Today: %2</p>")
-                       .arg(attempts.size())
-                       .arg(todayCount);
-    if (!attempts.empty()) {
-      html += tr("<p>First: %1<br>Last: %2</p>")
-                  .arg(dateText(attempts.front().timestamp),
-                       dateText(attempts.back().timestamp));
-    }
-    stats_->setText(html);
+  panel_->setRows(std::move(rows));
+  if (scramblesOnly()) {
+    panel_->setStatsHtml(scrambleStatsHtml());
     chart_->setSolves({});
     lastLabel_->clear();
     updateControls();
     return;
   }
-  SessionSummary sum = summarize(solves);
-  QString html =
-      "<table cellspacing='4' width='100%'><tr><th></th><th align='right'>" +
-      tr("current") + "</th><th align='right'>" + tr("best") + "</th></tr>";
+  static constexpr std::string_view kStats[] = {"single", "mo3", "ao5", "ao12",
+                                                "ao100"};
+  SessionStats stats = sessionStats(solves, kStats);
+  const SessionSummary &sum = stats.summary;
   QString colour = palette().color(QPalette::WindowText).name();
-  auto link = [&colour](const QString &href, StatValue v, const QString &text) {
-    return v ? QString("<a href='%1' style='text-decoration:none; color:%3'>"
-                       "%2</a>")
-                   .arg(href, text, colour)
-             : text;
-  };
-  auto row = [&](const QString &name, const QString &id, StatValue cur,
-                 StatValue best, int decimals) {
-    html += QString("<tr><td>%1</td><td align='right'>%2</td><td "
-                    "align='right'><b>%3</b></td></tr>")
-                .arg(name, link("cur:" + id, cur, movesText(cur, decimals)),
-                     link("best:" + id, best, movesText(best, decimals)));
-  };
-  row(tr("single"), "single",
-      solves.empty() ? StatValue{} : StatValue{effectiveTime(solves.back())},
-      sum.best, 0);
-  row("mo3", "mo3", currentMean(solves, 3), bestMean(solves, 3), 2);
-  for (std::size_t n : {5u, 12u, 100u}) {
-    QString id = QString("ao%1").arg(n);
-    row(id, id, currentAverage(solves, n), bestAverage(solves, n), 2);
-  }
-  html += "</table>";
-  html += tr("<p>Solves: %1%2 &nbsp; Mean: %3</p>")
-              .arg(attempts.size())
-              .arg(sum.dnfs ? QString(" (%1 DNF)").arg(sum.dnfs) : QString())
-              .arg(link("mean:all", sum.mean, movesText(sum.mean)));
-  if (moveCount_ && hasOptimalSolver(session().step)) {
-    // How far over the optimal the counted, finished attempts were.
-    int over = 0, known = 0, optimal = 0;
-    for (const MoveCountAttempt &a : attempts) {
-      std::optional<int> best = optimalOf(a);
-      if (a.counted && !a.dnf && best && *best >= 0) {
-        over += a.moves - *best;
-        optimal += a.moves <= *best;
-        ++known;
-      }
-    }
-    if (known > 0) {
-      double mean = static_cast<double>(over) / known;
-      html += tr("<p>Over optimal: %1 on average; optimal %2 of %3</p>")
-                  .arg(QString("%1%2")
-                           .arg(mean >= 0 ? "+" : "")
-                           .arg(mean, 0, 'f', 2))
-                  .arg(optimal)
-                  .arg(known);
-    }
-    requestOptimal();
-  }
-  stats_->setText(html);
+  QString html = statsTableHtml(
+      stats,
+      [this](const std::string &id) {
+        return id == "single" ? tr("single") : qs(id);
+      },
+      [](const std::string &id, StatValue v) {
+        return movesText(v, id == "single" ? 0 : 2);
+      },
+      colour);
+  html +=
+      tr("<p>Solves: %1%2 &nbsp; Mean: %3</p>")
+          .arg(attempts.size())
+          .arg(sum.dnfs ? QString(" (%1 DNF)").arg(sum.dnfs) : QString())
+          .arg(statLinkHtml("mean:all", sum.mean, movesText(sum.mean), colour));
+  addStats(html);
+  panel_->setStatsHtml(html);
   focusStats_->setText(tr("ao5 %1 · ao12 %2 · best %3 · %4 solves")
                            .arg(movesText(currentAverage(solves, 5)),
                                 movesText(currentAverage(solves, 12)),
@@ -1524,7 +930,7 @@ void AttemptPage::refreshAttempts() {
                            .arg(attempts.size()));
   chart_->setSolves(solves);
   updateControls();
-  if (retry_) {
+  if (flow_.retry()) {
     return; // the label is the retry's
   }
   if (attempts.empty() || !attempts.back().counted) {
@@ -1541,10 +947,6 @@ void AttemptPage::refreshAttempts() {
 void AttemptPage::showStat(const QString &link) {
   const auto &attempts = session().attempts;
   std::vector<Solve> solves = attemptsAsSolves(attempts);
-  QStringList parts = link.split(':');
-  if (parts.size() != 2 || solves.empty()) {
-    return;
-  }
   // The counted attempts, by their numbers in the whole list.
   std::vector<std::size_t> numbers;
   for (std::size_t i = 0; i < attempts.size(); ++i) {
@@ -1556,68 +958,25 @@ void AttemptPage::showStat(const QString &link) {
     solves[i].scramble = attempts[numbers[i]].scramble;
     solves[i].comment = attempts[numbers[i]].comment;
   }
-  bool best = parts[0] == "best";
-  QString id = parts[1];
-  auto result = [&](std::size_t from) {
-    return [&, from](std::size_t i) {
-      return qs(formatAttempt(attempts[numbers[from + i]]));
-    };
+  StatLinkView view;
+  view.format = [](StatValue v) { return movesText(v); };
+  view.result = [&attempts, &numbers](std::size_t i) {
+    return qs(formatAttempt(attempts[numbers[i]]));
   };
-  if (id == "single") {
-    std::size_t at = solves.size() - 1;
-    if (best) {
-      for (std::size_t i = 0; i < solves.size(); ++i) {
-        if (effectiveTime(solves[i]) < effectiveTime(solves[at])) {
-          at = i;
-        }
-      }
-    }
-    showDetails(static_cast<int>(numbers[at]));
-    return;
-  }
-  if (parts[0] == "mean") {
-    showTextDialog(this, tr("Session mean"),
-                   statListing(tr("Mean of %1: %2")
-                                   .arg(solves.size())
-                                   .arg(movesText(summarize(solves).mean)),
-                               solves, 1, false, result(0)));
-    return;
-  }
-  bool mean = id == "mo3";
-  std::size_t n = mean ? 3 : id.mid(2).toULongLong();
-  if (n == 0 || solves.size() < n) {
-    return;
-  }
-  std::size_t from = solves.size() - n;
-  if (best) {
-    std::optional<std::size_t> at = bestAverageStart(solves, n, mean);
-    if (!at) {
-      return;
-    }
-    from = *at;
-  }
-  auto span = std::span<const Solve>(solves).subspan(from, n);
-  StatValue value = mean ? meanOf(span) : averageOf(span);
-  QString heading = (mean ? tr("Mean of %1: %2") : tr("Average of %1: %2"))
-                        .arg(n)
-                        .arg(movesText(value));
-  showTextDialog(
-      this, best ? tr("Best %1").arg(id) : tr("Current %1").arg(id),
-      statListing(heading, span, numbers[from] + 1, !mean, result(from)));
+  view.number = [&numbers](std::size_t i) { return numbers[i] + 1; };
+  view.details = [this, &numbers](std::size_t i) {
+    showDetails(static_cast<int>(numbers[i]));
+  };
+  openStatLink(this, link, solves, view);
 }
 
 void AttemptPage::deleteAttempt(int index) {
   auto &attempts = session().attempts;
-  if (isBusy() || index < 0 || index >= static_cast<int>(attempts.size())) {
+  if (isBusy() || index < 0 ||
+      !deleted_.erase(attempts, static_cast<std::size_t>(index))) {
     return;
   }
-  deleted_ = {static_cast<std::size_t>(index),
-              attempts[static_cast<std::size_t>(index)]};
-  attempts.erase(attempts.begin() + index);
-  if (retry_) {
-    // The attempts after it have moved up one.
-    retryQueue_.clear();
-  }
+  flow_.attemptDeleted();
   save();
   refreshAttempts();
   showEntry();
@@ -1625,163 +984,116 @@ void AttemptPage::deleteAttempt(int index) {
 }
 
 void AttemptPage::undoDelete() {
-  if (!deleted_ || isBusy()) {
+  if (!deleted_.has() || isBusy()) {
     return;
   }
-  auto &attempts = session().attempts;
-  auto at =
-      static_cast<std::ptrdiff_t>(std::min(deleted_->first, attempts.size()));
-  attempts.insert(attempts.begin() + at, deleted_->second);
-  emit message(tr("Put back solve #%1").arg(at + 1));
-  deleted_.reset();
+  std::optional<std::size_t> at = deleted_.restore(session().attempts);
+  emit message(tr("Put back solve #%1").arg(*at + 1));
   save();
   refreshAttempts();
   showEntry();
 }
 
-void AttemptPage::showAttemptMenu(const QPoint &pos) {
-  auto *item = table_->itemAt(pos);
-  if (!item || isBusy()) {
+void AttemptPage::showAttemptMenu(int index, const QPoint &globalPos) {
+  const auto &attempts = session().attempts;
+  if (isBusy() || index < 0 || index >= static_cast<int>(attempts.size())) {
     return; // nothing changes in the middle of a solve
   }
-  int index = item->data(Qt::UserRole).toInt();
-  auto &attempts = session().attempts;
-  if (index < 0 || index >= static_cast<int>(attempts.size())) {
-    return;
-  }
-  MoveCountAttempt &a = attempts[static_cast<std::size_t>(index)];
-  QMenu menu(this);
-  QAction *edit = nullptr;
-  QAction *dnf = nullptr;
+  const MoveCountAttempt &a = attempts[static_cast<std::size_t>(index)];
+  // Changes the attempt (if it is still there) and shows it.
+  auto change = [this,
+                 index](const std::function<void(MoveCountAttempt &)> &f) {
+    auto &list = session().attempts;
+    if (index >= static_cast<int>(list.size())) {
+      return;
+    }
+    f(list[static_cast<std::size_t>(index)]);
+    save();
+    refreshAttempts();
+    showEntry();
+  };
+  ActionMenu menu(this);
   if (a.counted) {
     // A virtual solve's count is its solution's.
     if (a.solution.empty()) {
-      edit = menu.addAction(tr("Edit move count…"));
+      int moves = a.moves;
+      menu.add(tr("Edit move count…"), [this, change, moves] {
+        bool ok = false;
+        int count =
+            QInputDialog::getInt(this, tr("Edit move count"), tr("Moves:"),
+                                 moves, 0, kMaxMoveCount, 1, &ok);
+        if (ok) {
+          change([count](MoveCountAttempt &x) { x.moves = count; });
+        }
+      });
     }
-    dnf = menu.addAction("DNF");
+    QAction *dnf = menu.add("DNF", [change] {
+      change([](MoveCountAttempt &x) { x.dnf = !x.dnf; });
+    });
     dnf->setCheckable(true);
     dnf->setChecked(a.dnf);
     menu.addSeparator();
   }
-  QAction *reviewAction = nullptr;
   if (reviewable(a)) {
-    reviewAction = menu.addAction(tr("Review…"));
+    QAction *reviewAction =
+        menu.add(tr("Review…"), [this, index] { review(index); });
     menu.setDefaultAction(reviewAction);
   }
-  auto *details = menu.addAction(tr("Details…"));
-  auto *comment = menu.addAction(tr("Comment…"));
-  auto *copy = menu.addAction(tr("Copy scramble"));
-  QAction *copySolution = nullptr;
-  if (!a.solution.empty()) {
-    copySolution = menu.addAction(tr("Copy solution"));
-  }
-  menu.addSeparator();
-  auto *del = menu.addAction(tr("Delete"));
-  QAction *chosen = menu.exec(table_->viewport()->mapToGlobal(pos));
-  if (!chosen || isBusy()) {
-    return;
-  }
-  if (chosen == reviewAction) {
-    review(index);
-    return;
-  }
-  if (chosen == details) {
-    showDetails(index);
-    return;
-  }
-  if (chosen == edit) {
-    bool ok = false;
-    int moves = QInputDialog::getInt(this, tr("Edit move count"), tr("Moves:"),
-                                     a.moves, 0, kMaxMoveCount, 1, &ok);
-    if (!ok) {
-      return;
-    }
-    a.moves = moves;
-  } else if (chosen == dnf) {
-    a.dnf = !a.dnf;
-  } else if (chosen == comment) {
-    commentAttempt(index);
-    return;
-  } else if (chosen == copy) {
-    QApplication::clipboard()->setText(qs(a.scramble));
-    return;
-  } else if (copySolution && chosen == copySolution) {
-    QApplication::clipboard()->setText(qs(a.solution));
-    return;
-  } else if (chosen == del) {
-    deleteAttempt(index);
-    return;
-  }
-  save();
-  refreshAttempts();
-  showEntry();
+  AttemptMenuActions common;
+  common.details = [this, index] { showDetails(index); };
+  common.comment = [this, index] { commentAttempt(index); };
+  common.scramble = qs(a.scramble);
+  common.solution = qs(a.solution);
+  common.remove = [this, index] { deleteAttempt(index); };
+  addAttemptActions(menu, common);
+  menu.run(globalPos, [this] { return !isBusy(); });
 }
 
 void AttemptPage::addSession() {
-  bool ok = false;
-  QString suggested = moveCount_
-                          ? qs(std::string(stepName(session().step)))
-                          : tr("Session %1").arg(store_.sessions().size() + 1);
-  QString name = QInputDialog::getText(
-      this, tr("New session"),
-      moveCount_ ? tr("Name (e.g. the step, such as EO Cross):") : tr("Name:"),
-      QLineEdit::Normal, suggested, &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name = askSessionName(
+      this, tr("New session"), newSessionLabel(), suggestedName());
+  if (!name) {
     return;
   }
-  SolveStep step = session().step;
-  CubeKind cube = session().cube;
-  // A session named after a step is for that step.
-  if (moveCount_) {
-    step = stepFromName(ss(name.trimmed())).value_or(step);
-  }
-  MoveCountSession &s = store_.addSession(ss(name.trimmed()));
-  s.scrambleType = moveCount_ && step != session().step
-                       ? defaultScrambleType(step)
-                       : ss(typeBox_->currentType());
-  s.step = step;
-  s.cube = cube;
+  // What the new session takes from the current one (which addSession()
+  // may move).
+  MoveCountSession was;
+  was.name = session().name;
+  was.scrambleType = session().scrambleType;
+  was.cube = session().cube;
+  was.step = session().step;
+  MoveCountSession &s = store_.addSession(ss(*name));
+  setUpSession(s, *name, was);
   selectSession(store_.currentIndex());
 }
 
 void AttemptPage::renameSession() {
-  bool ok = false;
-  QString name =
-      QInputDialog::getText(this, tr("Rename session"), tr("Name:"),
-                            QLineEdit::Normal, qs(session().name), &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name = askSessionName(this, tr("Rename session"),
+                                               tr("Name:"), qs(session().name));
+  if (!name) {
     return;
   }
   // Only the name changes: the scramble, a typed count and a retry stay.
-  session().name = ss(name.trimmed());
-  sessionButton_->setText(tr("Session: %1").arg(qs(session().name)));
-  updateStepLabel();
+  session().name = ss(*name);
+  panel_->setSessionName(qs(session().name));
+  sessionShown();
   save();
 }
 
 void AttemptPage::deleteSession() {
-  auto answer =
-      QMessageBox::question(this, tr("Delete session"),
-                            tr("Delete session \"%1\" and its %2 solves?")
-                                .arg(qs(session().name))
-                                .arg(session().attempts.size()));
-  if (answer != QMessageBox::Yes) {
+  if (!confirmDeleteSession(this, qs(session().name), session().attempts.size(),
+                            tr("solves"))) {
     return;
   }
   store_.removeSession(store_.currentIndex());
-  deleted_.reset();
+  deleted_.forget();
   selectSession(store_.currentIndex());
 }
 
 void AttemptPage::save() {
-  // Written in the background from a copy, so that saving never holds up
-  // the next attempt.
-  writeInBackground(
-      store_.path(),
-      [copy = store_](QString *error) { return copy.save(error); }, this,
-      [this](const QString &error) {
-        emit message(tr("Could not save sessions: %1").arg(error));
-      });
+  saveInBackground(store_, this, [this](const QString &error) {
+    emit message(tr("Could not save sessions: %1").arg(error));
+  });
 }
 
 } // namespace vcube

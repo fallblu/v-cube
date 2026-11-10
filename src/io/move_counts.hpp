@@ -2,7 +2,7 @@
 
 #include "train/move_count.hpp"
 
-#include "io/data_file.hpp"
+#include "io/session_store.hpp"
 
 #include <QJsonObject>
 #include <QString>
@@ -37,38 +37,21 @@ defaultMoveCountSessions(SolveLog mode = SolveLog::MoveCount);
 // The file format of each mode: "v-cube.movecount" or "v-cube.untimed".
 FileFormat moveCountFormat(SolveLog mode);
 
-// Move Count or Untimed mode's sessions, saved as one JSON file.
-class MoveCountStore {
+// Move Count or Untimed mode's sessions, saved as one JSON file. A new
+// file starts with defaultMoveCountSessions().
+class MoveCountStore : public SessionFileStore<MoveCountSession> {
 public:
   explicit MoveCountStore(QString path, SolveLog mode = SolveLog::MoveCount);
 
-  // A missing file gives the default sessions. A file that can't be read
-  // is set aside (see setAside()) and also gives the default sessions; if
-  // it can't be moved, nothing is saved over it.
-  bool load(QString *error = nullptr);
-  // Where load() moved an unreadable file, if it did.
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-  bool save(QString *error = nullptr) const;
-
   SolveLog mode() const { return mode_; }
-  std::vector<MoveCountSession> &sessions() { return sessions_; }
-  const std::vector<MoveCountSession> &sessions() const { return sessions_; }
-  std::size_t currentIndex() const { return current_; }
-  void setCurrentIndex(std::size_t i);
-  MoveCountSession &current() { return sessions_[current_]; }
 
-  MoveCountSession &addSession(const std::string &name);
-  // Removing the last session leaves one empty session.
-  void removeSession(std::size_t i);
-
-  QString path() const { return path_; }
+protected:
+  std::vector<MoveCountSession> defaults() const override;
+  QJsonObject toJson() const override;
+  void fromJson(const QJsonObject &o) override;
 
 private:
-  QString path_;
   SolveLog mode_;
-  std::vector<MoveCountSession> sessions_;
-  std::size_t current_ = 0;
-  DataFile file_;
 };
 
 // {"format": "v-cube.movecount", "version": 1, "current": 0, "sessions":

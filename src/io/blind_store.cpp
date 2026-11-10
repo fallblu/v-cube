@@ -67,62 +67,48 @@ std::vector<Solve> blindSolves(const BlindSession &session) {
 }
 
 BlindStore::BlindStore(QString path)
-    : path_(path), file_(std::move(path), kBlindFile) {}
+    : SessionFileStore(std::move(path), kBlindFile) {}
 
-bool BlindStore::load(QString *error) {
-  data_ = BlindData{};
-  QJsonObject o;
-  FileStatus status = file_.load(o, error);
-  if (status != FileStatus::Read) {
-    return status == FileStatus::Missing;
-  }
-  data_ = blindFromJson(o);
-  return true;
+BlindData BlindStore::data() const {
+  BlindData d;
+  d.sessions = sessions_;
+  d.current = current_;
+  d.quiz = quiz_;
+  d.setups = setups_;
+  d.traces = traces_;
+  return d;
 }
 
-bool BlindStore::save(QString *error) const {
-  return file_.save(blindToJson(data_), error);
+QJsonObject BlindStore::toJson() const { return blindToJson(data()); }
+
+void BlindStore::fromJson(const QJsonObject &o) {
+  BlindData d = blindFromJson(o);
+  assign(std::move(d.sessions), d.current);
+  quiz_ = d.quiz;
+  setups_ = d.setups;
+  traces_ = std::move(d.traces);
 }
 
-void BlindStore::setCurrentIndex(std::size_t i) {
-  if (i < data_.sessions.size()) {
-    data_.current = i;
-  }
-}
-
-BlindSession &BlindStore::addSession(const std::string &name) {
-  BlindSession s;
-  s.name = name;
-  data_.sessions.push_back(std::move(s));
-  data_.current = data_.sessions.size() - 1;
-  return data_.sessions.back();
-}
-
-void BlindStore::removeSession(std::size_t i) {
-  auto &sessions = data_.sessions;
-  if (i >= sessions.size()) {
-    return;
-  }
-  sessions.erase(sessions.begin() + static_cast<std::ptrdiff_t>(i));
-  if (sessions.empty()) {
-    sessions.push_back(BlindSession{});
-  }
-  data_.current = std::min(data_.current, sessions.size() - 1);
+void BlindStore::reset() {
+  SessionFileStore::reset();
+  quiz_ = {};
+  setups_ = {};
+  traces_.clear();
 }
 
 void BlindStore::addTrace(const TraceAttempt &t) {
-  auto &traces = data_.traces;
-  traces.push_back(t);
-  if (traces.size() > BlindData::kMaxTraces) {
-    traces.erase(traces.begin(),
-                 traces.begin() + static_cast<std::ptrdiff_t>(
-                                      traces.size() - BlindData::kMaxTraces));
+  traces_.push_back(t);
+  if (traces_.size() > BlindData::kMaxTraces) {
+    traces_.erase(traces_.begin(),
+                  traces_.begin() +
+                      static_cast<std::ptrdiff_t>(traces_.size() -
+                                                  BlindData::kMaxTraces));
   }
 }
 
 void BlindStore::removeTrace(std::size_t i) {
-  if (i < data_.traces.size()) {
-    data_.traces.erase(data_.traces.begin() + static_cast<std::ptrdiff_t>(i));
+  if (i < traces_.size()) {
+    traces_.erase(traces_.begin() + static_cast<std::ptrdiff_t>(i));
   }
 }
 

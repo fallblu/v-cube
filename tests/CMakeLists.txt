@@ -34,6 +34,10 @@ add_executable(vcube_tests
   test_data_file.cpp
   test_today.cpp
   test_backup.cpp
+  test_timed_flow.cpp
+  test_attempt_flow.cpp
+  test_inspection_flow.cpp
+  test_blind_flow.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)

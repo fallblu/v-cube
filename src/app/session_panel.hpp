@@ -1,0 +1,235 @@
+#pragma once
+
+#include "train/stats.hpp"
+
+#include <QAbstractTableModel>
+#include <QColor>
+#include <QMenu>
+#include <QString>
+#include <QWidget>
+
+#include <cstddef>
+#include <functional>
+#include <optional>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
+
+class QLabel;
+class QPushButton;
+class QTableView;
+class QToolButton;
+
+namespace vcube {
+
+class TrendChart;
+
+// A column of a session's attempt table.
+struct AttemptColumn {
+  QString id;    // names it in the hidden-columns setting
+  QString title; // the header
+  QString tip;   // the header's tooltip
+  // Sized to its contents; otherwise the columns share the width.
+  bool fit = false;
+  // Offered in the header's menu, to hide or show.
+  bool hideable = false;
+  // Shown at all (e.g. only for virtual-cube sessions); offered but
+  // disabled in the header's menu when it is hideable.
+  bool available = true;
+};
+
+// A cell of the attempt table.
+struct AttemptCell {
+  QString text;
+  QColor colour; // the text's, when valid
+  QString tip;
+  bool alignRight = true;
+};
+
+// A row of the attempt table: one attempt of the session, by its index.
+struct AttemptRow {
+  int index = 0;
+  std::vector<AttemptCell> cells;
+};
+
+// The attempt table's contents: rows of cells, each row for an attempt
+// (Qt::UserRole gives its index).
+class AttemptTableModel : public QAbstractTableModel {
+  Q_OBJECT
+public:
+  using QAbstractTableModel::QAbstractTableModel;
+
+  void setColumns(std::vector<AttemptColumn> columns);
+  void setRows(std::vector<AttemptRow> rows);
+  const std::vector<AttemptColumn> &columns() const { return columns_; }
+  // The attempt in a row, or -1.
+  int attemptAt(int row) const;
+
+  int rowCount(const QModelIndex &parent = {}) const override;
+  int columnCount(const QModelIndex &parent = {}) const override;
+  QVariant data(const QModelIndex &index, int role) const override;
+  QVariant headerData(int section, Qt::Orientation orientation,
+                      int role) const override;
+
+private:
+  std::vector<AttemptColumn> columns_;
+  std::vector<AttemptRow> rows_;
+};
+
+// The left column every session page has: the session button and its
+// menu, the statistics, the attempt table and (optionally) the delete and
+// undo buttons, with the trend chart of the session for the page to place.
+class SessionPanel : public QWidget {
+  Q_OBJECT
+public:
+  explicit SessionPanel(QWidget *parent = nullptr);
+
+  // --- the session menu ---
+  void setSessionName(const QString &name); // "Session: <name>"
+  void setMenuTip(const QString &tip);
+  QToolButton *sessionButton() const { return sessionButton_; }
+  // The menu is filled when it opens: the page answers menuAboutToShow()
+  // with fillSessionMenu() and may add its own actions to menu() after.
+  struct MenuSession {
+    QString name;
+    std::size_t count = 0;
+  };
+  void fillSessionMenu(const std::vector<MenuSession> &sessions,
+                       std::size_t current);
+  QMenu *menu() const { return menu_; }
+  // Enables or disables every action of the menu as it is.
+  void setMenuEnabled(bool on);
+
+  // --- the statistics ---
+  // Clickable statistics (a table of values linked to their solves, see
+  // statActivated()) don't wrap; the others do.
+  void setStatsClickable(bool on);
+  void setStatsHtml(const QString &html);
+  QLabel *statsLabel() const { return stats_; }
+
+  // --- the attempt table ---
+  void setColumns(std::vector<AttemptColumn> columns);
+  void setRows(std::vector<AttemptRow> rows);
+  // The last column takes the width left over.
+  void setStretchLast(bool on);
+  // Lets the header's context menu hide the hideable columns, kept under
+  // this QSettings key.
+  void setHiddenColumnsKey(const QString &key);
+  QTableView *table() const { return table_; }
+  AttemptTableModel *model() const { return model_; }
+
+  // --- the delete and undo buttons (hidden until shown) ---
+  void setDeleteRowVisible(bool on);
+  void setDeleteEnabled(bool on);
+  void setUndo(bool visible, bool enabled);
+
+  // The session's trend chart, for the page to lay out.
+  TrendChart *chart() const { return chart_; }
+
+signals:
+  void menuAboutToShow();
+  void sessionChosen(std::size_t index);
+  void newSessionRequested();
+  void renameSessionRequested();
+  void deleteSessionRequested();
+  void statActivated(const QString &link);
+  // An attempt double-clicked, or its context menu asked for.
+  void attemptActivated(int index);
+  void attemptMenuRequested(int index, const QPoint &globalPos);
+  void deleteLastClicked();
+  void undoClicked();
+
+private:
+  QToolButton *sessionButton_;
+  QMenu *menu_;
+  QLabel *stats_;
+  QTableView *table_;
+  AttemptTableModel *model_;
+  QWidget *deleteRow_;
+  QPushButton *deleteButton_;
+  QPushButton *undoButton_;
+  TrendChart *chart_;
+  QString hiddenKey_;
+
+  void applyColumns();
+  void showColumnMenu(const QPoint &pos);
+};
+
+// --- shared pieces of the session pages ------------------------------------
+
+// The statistics table: a row per line of `stats`, named by `label(id)`,
+// with the current and the best value as `format(id, value)`. With a
+// `linkColour`, each value links to "cur:<id>" or "best:<id>" (coloured as
+// the text, so it reads as before but can be clicked).
+QString statsTableHtml(
+    const SessionStats &stats,
+    const std::function<QString(const std::string &id)> &label,
+    const std::function<QString(const std::string &id, StatValue v)> &format,
+    const QString &linkColour = {});
+// A value linking to `href`, when there is a value and a colour.
+QString statLinkHtml(const QString &href, StatValue v, const QString &text,
+                     const QString &colour);
+
+// Opens what a statistics link stands for ("cur:ao5", "best:mo3",
+// "cur:single", "mean:all") over `solves`: a single solve with
+// `details(i)`, the others listed (as statListing() does) with their
+// results as `result(i)`, the values as `format(v)`, numbered from
+// `number(i)` (the number of solve i).
+struct StatLinkView {
+  std::int64_t unit = kWcaUnit;
+  std::function<QString(StatValue)> format;
+  std::function<QString(std::size_t)> result;
+  std::function<std::size_t(std::size_t)> number;
+  std::function<void(std::size_t)> details;
+};
+void openStatLink(QWidget *parent, const QString &link,
+                  std::span<const Solve> solves, const StatLinkView &view);
+
+// Asks for a session name: nullopt when cancelled or left empty, else the
+// name trimmed.
+std::optional<QString> askSessionName(QWidget *parent, const QString &title,
+                                      const QString &label,
+                                      const QString &suggested);
+// Asks whether to delete a session and its `count` attempts, which the
+// question calls `noun` ("solves", "attempts").
+bool confirmDeleteSession(QWidget *parent, const QString &name,
+                          std::size_t count, const QString &noun);
+// Asks for a comment: nullopt when cancelled.
+std::optional<QString> askComment(QWidget *parent, const QString &label,
+                                  const QString &comment);
+
+// A context menu whose actions run a function once the menu has closed,
+// as an action chosen from QMenu::exec() would be handled.
+class ActionMenu : public QMenu {
+  Q_OBJECT
+public:
+  using QMenu::QMenu;
+  QAction *add(const QString &text, std::function<void()> run);
+  // Shows the menu at `globalPos` and runs the chosen action's function,
+  // if `stillOk` (when given) still allows it then.
+  void run(const QPoint &globalPos, const std::function<bool()> &stillOk = {});
+
+private:
+  std::vector<std::pair<QAction *, std::function<void()>>> runs_;
+};
+
+// The common end of an attempt's context menu: Details, Comment, Copy
+// scramble, Copy solution (with a solution) and Delete; a missing
+// function leaves its action out.
+struct AttemptMenuActions {
+  std::function<void()> details;
+  std::function<void()> comment;
+  QString scramble;
+  QString solution;
+  std::function<void()> remove;
+  bool copyApart = false; // a separator before the copy actions
+};
+void addAttemptActions(ActionMenu &menu, const AttemptMenuActions &actions);
+
+// A date for the attempt lists: the locale's short format, or "" for none.
+QString dateText(std::int64_t unixSeconds);
+// A button that doesn't take the keyboard focus.
+QPushButton *flatButton(const QString &text, QWidget *parent);
+
+} // namespace vcube
