@@ -84,10 +84,10 @@ std::optional<CstimerImport> sessionsFromCstimer(const QJsonObject &o,
 std::optional<CstimerImport> sessionsFromCstimerFile(const QByteArray &bytes,
                                                      QString *error);
 // The sessions as a cstimer export. The text starts with "session1", as
-// cstimer's "import from other timers" expects (Export > Import file from
-// other timers), which adds the sessions to the ones there. (Its "import
-// from file" restores a backup instead, replacing everything.) Scramble
-// types are cstimer's where it has the same type, else 3x3 (333).
+// cstimer's "Import session(s) from other timers" expects to recognise its
+// own format; that adds the sessions to the ones there. (Its "Import from
+// file" restores a backup instead, replacing everything.) Scramble types
+// are cstimer's where it has the same type, else 3x3 (333).
 QByteArray sessionsToCstimer(const std::vector<Session> &sessions);
 // cstimer's scramble type for a v-cube one and back; scrambleTypeFromCstimer gives
 // nullopt for a type that isn't for a 3x3.
