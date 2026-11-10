@@ -215,18 +215,7 @@ std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step) {
   return out; // allHolds() is sorted
 }
 
-int htmCount(const Alg &alg) {
-  int n = 0;
-  for (Move m : alg) {
-    if (m.type == MoveType::M || m.type == MoveType::E ||
-        m.type == MoveType::S) {
-      n += 2;
-    } else if (!isRotation(m.type)) {
-      n += 1;
-    }
-  }
-  return n;
-}
+int htmCount(const Alg &alg) { return moveCount(alg); }
 
 void VirtualAttempt::load(const Alg &scramble) {
   FaceletCube start;
