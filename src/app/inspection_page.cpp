@@ -1374,7 +1374,7 @@ void InspectionPage::showPlanStats() {
   // decimals.
   QString html = statsTableHtml(
       stats,
-      [this](const std::string &id) {
+      [](const std::string &id) {
         return id == "single" ? tr("single") : qs(id);
       },
       [](const std::string &id, StatValue v) {

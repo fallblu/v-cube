@@ -906,7 +906,7 @@ void TimerPage::refreshSolves() {
   QString colour = palette().color(QPalette::WindowText).name();
   QString html = statsTableHtml(
       stats,
-      [this](const std::string &id) {
+      [](const std::string &id) {
         return id == "single" ? tr("time") : qs(id);
       },
       [d](const std::string &, StatValue v) { return statText(v, d); }, colour);

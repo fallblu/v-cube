@@ -364,7 +364,7 @@ void SolvesDrill::refreshLeft() {
   SessionStats stats = sessionStats(solves, kStats);
   QString html = statsTableHtml(
       stats,
-      [this](const std::string &id) {
+      [](const std::string &id) {
         return id == "single" ? tr("time") : qs(id);
       },
       [d](const std::string &, StatValue v) { return blindTimeText(v, d); });
