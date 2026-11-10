@@ -26,34 +26,6 @@ namespace vcube {
 
 namespace {
 
-const char *gradeName(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return "Again";
-  case Grade::Hard:
-    return "Hard";
-  case Grade::Good:
-    return "Good";
-  case Grade::Easy:
-    return "Easy";
-  }
-  return "";
-}
-
-QString gradeColour(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return "#d9453b";
-  case Grade::Hard:
-    return "#d98a1c";
-  case Grade::Good:
-    return "#2f9e55";
-  case Grade::Easy:
-    return "#3d7ee0";
-  }
-  return "#777777";
-}
-
 // Every reason a case went as it did, e.g. both a hint and leaving the
 // algs.
 QString reasonsText(const GradeWhy &w) {
@@ -94,41 +66,6 @@ QString reasonsText(const GradeWhy &w) {
 const StatusColour kLearning{Status::Warning};
 const StatusColour kLearned{Status::Good};
 const StatusColour kLeech{Status::Bad};
-
-// The moves as done, as rich text, with two quarter turns of a layer the
-// same way written as a half turn. The move at `mark` (an index into
-// `moves`) is highlighted and kept on its own.
-QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
-  struct Done {
-    Move move;
-    bool marked;
-  };
-  std::vector<Done> merged;
-  for (std::size_t i = 0; i < moves.size(); ++i) {
-    Move m = moves[i];
-    bool marked = mark == i;
-    if (!merged.empty() && !marked && !merged.back().marked &&
-        merged.back().move == m && m.amount != 2) {
-      merged.back().move.amount = 2;
-    } else {
-      merged.push_back({m, marked});
-    }
-  }
-  QStringList parts;
-  for (const Done &d : merged) {
-    QString text = qs(toString(d.move)).toHtmlEscaped();
-    parts << (d.marked ? "<b style='color:" + statusColour(Status::Bad).name() +
-                             "'><u>" + text + "</u></b>"
-                       : text);
-  }
-  return parts.join(' ');
-}
-
-constexpr Slot kAllSlots[] = {Slot::FR, Slot::FL, Slot::BL, Slot::BR};
-
-// Tries for an in-context state whose open pairs are all cases already
-// started in Learn, before taking any.
-constexpr int kContextTries = 40;
 
 // Choices in "which case is this?".
 constexpr std::size_t kQuizChoices = 6;
@@ -217,28 +154,19 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   connect(&queueMessageTimer_, &QTimer::timeout, this, &LearnPage::updateQueue);
 
   // --- right: the virtual cube above, what is said about it below ---
-  auto *top = new QWidget(this);
-  auto *topLayout = new QVBoxLayout(top);
-  topLayout->setContentsMargins(0, 0, 0, 0);
-  // Stays in focus mode.
-  headerLabel_ = new QLabel(top);
-  headerLabel_->setTextFormat(Qt::RichText);
-  headerLabel_->setAlignment(Qt::AlignCenter);
-  QFont hf = headerLabel_->font();
-  hf.setPointSize(hf.pointSize() + 2);
-  headerLabel_->setFont(hf);
-  topLayout->addWidget(headerLabel_);
-  cubeView_ = new CubeView(top);
-  cubeView_->setMinimumSize(200, 160);
-  optionsRow_ = new QWidget(top);
-  auto *options = new QHBoxLayout(optionsRow_);
-  options->setContentsMargins(0, 0, 0, 0);
-  options->addWidget(new QLabel(tr("View:"), optionsRow_));
-  viewBox_ = createViewSelector(cubeView_, "learn", optionsRow_);
+  stage_ = new CaseStage(this);
+  cubeView_ = stage_->cube;
+  statusLabel_ = stage_->status;
+  reveal_ = stage_->reveal;
+  gradeRow_ = stage_->gradeRow;
+  QWidget *optionsRow = stage_->optionsRow;
+  QHBoxLayout *options = stage_->optionsLayout;
+  options->addWidget(new QLabel(tr("View:"), optionsRow));
+  viewBox_ = createViewSelector(cubeView_, "learn", optionsRow);
   viewBox_->setToolTip(
       tr("How the virtual cube is shown, remembered for each alg set"));
   options->addWidget(viewBox_);
-  practiceBox_ = new QComboBox(optionsRow_);
+  practiceBox_ = new QComboBox(optionsRow);
   practiceBox_->setFocusPolicy(Qt::NoFocus);
   practiceBox_->addItem(tr("Solve"), "solve");
   practiceBox_->addItem(tr("Recognise"), "recognise");
@@ -250,13 +178,13 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
          "name the case among others of its group, not graded."));
   options->addWidget(practiceBox_);
   options->addStretch();
-  slotsSpin_ = new QSpinBox(optionsRow_);
+  slotsSpin_ = new QSpinBox(optionsRow);
   slotsSpin_->setRange(1, 4);
   slotsSpin_->setValue(2);
   slotsSpin_->setSuffix(tr(" open"));
   slotsSpin_->setFocusPolicy(Qt::NoFocus);
   slotsSpin_->setToolTip(tr("How many slots are open in context practice"));
-  contextButton_ = new QPushButton(tr("Practise in context"), optionsRow_);
+  contextButton_ = new QPushButton(tr("Practise in context"), optionsRow);
   contextButton_->setFocusPolicy(Qt::NoFocus);
   contextButton_->setToolTip(
       tr("Solve several pairs at once on a cube with EO Cross done and some "
@@ -264,61 +192,16 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
          "cheapest order. Not graded. Backspace returns to learning."));
   options->addWidget(slotsSpin_);
   options->addWidget(contextButton_);
-  listButton_ = new QPushButton(optionsRow_);
+  listButton_ = new QPushButton(optionsRow);
   listButton_->setFocusPolicy(Qt::NoFocus);
   listButton_->setToolTip(tr("Hide or show the case list (F9)"));
   options->addWidget(listButton_);
-  topLayout->addWidget(optionsRow_);
-  topLayout->addWidget(cubeView_, 1);
-
-  auto *bottom = new QWidget(this);
-  auto *bottomLayout = new QVBoxLayout(bottom);
-  bottomLayout->setContentsMargins(0, 0, 0, 0);
-  statusLabel_ = new QLabel(bottom);
-  statusLabel_->setAlignment(Qt::AlignCenter);
-  statusLabel_->setWordWrap(true);
-  guideLabel_ = new QLabel(bottom);
-  guideLabel_->setAlignment(Qt::AlignCenter);
-  guideLabel_->setWordWrap(true);
-  guideLabel_->setTextFormat(Qt::RichText);
-  QFont gf = guideLabel_->font();
-  gf.setPointSize(gf.pointSize() + 5);
-  guideLabel_->setFont(gf);
-  guideLabel_->setVisible(false);
-  bottomLayout->addWidget(guideLabel_);
-  bottomLayout->addWidget(statusLabel_);
-
-  // The outcome on one line, the grade buttons on the next.
-  gradeRow_ = new QWidget(bottom);
-  auto *gradeRows = new QVBoxLayout(gradeRow_);
-  gradeRows->setContentsMargins(0, 0, 0, 0);
-  auto *outcome = new QHBoxLayout;
-  gradeBadge_ = new QLabel(gradeRow_);
-  QFont bf = gradeBadge_->font();
-  bf.setPointSize(bf.pointSize() + 3);
-  bf.setBold(true);
-  gradeBadge_->setFont(bf);
-  gradeBadge_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  gradeLabel_ = new QLabel(gradeRow_);
-  gradeLabel_->setWordWrap(true);
-  outcome->addStretch();
-  outcome->addWidget(gradeBadge_);
-  outcome->addWidget(gradeLabel_);
-  outcome->addStretch();
-  gradeRows->addLayout(outcome);
-  auto *gradeLayout = new QHBoxLayout;
-  gradeRows->addLayout(gradeLayout);
-  gradeLayout->addStretch();
   for (int g = 0; g < 4; ++g) {
     auto grade = static_cast<Grade>(g + 1);
-    auto *b = new QPushButton(gradeRow_);
-    b->setFocusPolicy(Qt::NoFocus);
-    b->setCheckable(true);
+    QPushButton *b = stage_->gradeButtons[static_cast<std::size_t>(g)];
     b->setToolTip(tr("Grade the case %1 (key %2)")
                       .arg(tr(gradeName(grade)).toLower())
                       .arg(g + 1));
-    gradeButtons_[static_cast<std::size_t>(g)] = b;
-    gradeLayout->addWidget(b);
     connect(b, &QPushButton::clicked, this, [this, grade] {
       if (phase() == Phase::Recalled) {
         gradeRecognition(grade);
@@ -327,58 +210,18 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
       }
     });
   }
-  gradeLayout->addStretch();
-  // The row keeps its place while hidden, so that the cube doesn't change
-  // size from one phase to the next.
-  QSizePolicy keep = gradeRow_->sizePolicy();
-  keep.setRetainSizeWhenHidden(true);
-  gradeRow_->setSizePolicy(keep);
-  bottomLayout->addWidget(gradeRow_);
-
-  quizRow_ = new QWidget(bottom);
-  auto *quizLayout = new QHBoxLayout(quizRow_);
-  quizLayout->setContentsMargins(0, 0, 0, 0);
-  quizRow_->setVisible(false);
-  bottomLayout->addWidget(quizRow_);
-
-  reveal_ = new QLabel(bottom);
-  reveal_->setTextFormat(Qt::RichText);
-  reveal_->setWordWrap(true);
-  reveal_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-  reveal_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont rf = reveal_->font();
-  rf.setPointSize(rf.pointSize() + 3);
-  reveal_->setFont(rf);
-  auto *revealScroll = new QScrollArea(bottom);
-  revealScroll->setWidget(reveal_);
-  revealScroll->setWidgetResizable(true);
-  revealScroll->setFrameShape(QFrame::NoFrame);
-  revealScroll->setFocusPolicy(Qt::NoFocus);
-  bottomLayout->addWidget(revealScroll, 1);
-  familyRow_ = new QWidget(bottom);
-  new QHBoxLayout(familyRow_);
-  familyRow_->setVisible(false);
-  bottomLayout->addWidget(familyRow_);
-
-  // The cube and what is below it share the height as the splitter
-  // between them says, whatever is shown below.
-  auto *right = new QSplitter(Qt::Vertical, this);
-  right->setObjectName("learnRight");
-  right->addWidget(top);
-  right->addWidget(bottom);
-  right->setStretchFactor(0, 1);
-  right->setChildrenCollapsible(false);
-  right->setSizes({520, 260});
+  connect(stage_, &CaseStage::quizAnswered, this, &LearnPage::answerQuiz);
 
   split_ = new QSplitter(this);
   split_->addWidget(left_);
-  split_->addWidget(right);
+  split_->addWidget(stage_);
   split_->setStretchFactor(1, 1);
   left_->setMinimumWidth(300);
   split_->setSizes({400, 800});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split_);
   split_->restoreState(saved::learnSplitter().get());
+  QSplitter *right = stage_->splitter;
   right->restoreState(saved::learnRightSplitter().get());
   connect(split_, &QSplitter::splitterMoved, this,
           [this] { saved::learnSplitter().set(split_->saveState()); });
@@ -509,7 +352,7 @@ void LearnPage::activated() {
 void LearnPage::focusModeChanged() {
   CasePage::focusModeChanged();
   left_->setVisible(!focusMode() && !listHidden_);
-  optionsRow_->setVisible(!focusMode());
+  stage_->optionsRow->setVisible(!focusMode());
 }
 
 void LearnPage::toggleList() {
@@ -686,7 +529,7 @@ void LearnPage::updateHeader() {
             .arg(quiz.asked)
             .arg(secondsText(static_cast<double>(quiz.totalMs) / quiz.asked));
   }
-  headerLabel_->setText(html);
+  stage_->header->setText(html);
 }
 
 void LearnPage::updateSummary() {
@@ -1225,9 +1068,9 @@ void LearnPage::updateCardRows(const std::string &caseId) {
 void LearnPage::nextCase(bool early) {
   idleTimer_.stop();
   reveal_->clear();
-  familyRow_->setVisible(false);
+  stage_->hideFamily();
   gradeRow_->setVisible(false);
-  quizRow_->setVisible(false);
+  stage_->hideQuiz();
   // Nothing of the last case stays up, e.g. a walkthrough's moves.
   guide_.reset();
   attempt_.clear();
@@ -1451,7 +1294,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
     contextButton_->setText(tr("Practise in context"));
   }
   idleTimer_.stop();
-  quizRow_->setVisible(false);
+  stage_->hideQuiz();
   Hold hold = pickHold();
   Mirror world = pickWorld(caseId);
   // A reduction set's cases come up with the step's free pieces anywhere,
@@ -1469,7 +1312,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   linkNote_.clear();
   reveal_->clear();
   gradeRow_->setVisible(false);
-  familyRow_->setVisible(false);
+  stage_->hideFamily();
   cubeView_->setColourMap(colourMapOf(hold));
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);
@@ -1506,8 +1349,8 @@ void LearnPage::beginRecognition(const std::string &caseId) {
   attempt_.begin(caseId, false, false);
   reveal_->clear();
   gradeRow_->setVisible(false);
-  familyRow_->setVisible(false);
-  quizRow_->setVisible(false);
+  stage_->hideFamily();
+  stage_->hideQuiz();
   cubeView_->setColourMap(colourMapOf(hold));
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);
@@ -1548,7 +1391,7 @@ void LearnPage::nextQuiz() {
   showGuide();
   reveal_->clear();
   gradeRow_->setVisible(false);
-  familyRow_->setVisible(false);
+  stage_->hideFamily();
   const AlgSet *s = set();
   std::vector<std::string> ticked =
       s ? tickedEligible() : std::vector<std::string>{};
@@ -1561,7 +1404,7 @@ void LearnPage::nextQuiz() {
   }
   const std::vector<std::string> &from = started.size() >= 2 ? started : ticked;
   if (from.size() < 2) {
-    quizRow_->setVisible(false);
+    stage_->hideQuiz();
     cube_ = FaceletCube();
     cubeView_->setState(cube_);
     statusLabel_->setText(tr("The quiz needs two or more ticked cases with "
@@ -1614,22 +1457,12 @@ void LearnPage::nextQuiz() {
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);
 
-  auto *layout = static_cast<QHBoxLayout *>(quizRow_->layout());
-  while (QLayoutItem *item = layout->takeAt(0)) {
-    delete item->widget();
-    delete item;
+  QStringList names;
+  for (const auto &choice : quizChoices_) {
+    const AlgCase *c = s->findCase(choice);
+    names << (c ? qs(c->name) : QString());
   }
-  layout->addStretch();
-  for (std::size_t i = 0; i < quizChoices_.size(); ++i) {
-    const AlgCase *c = s->findCase(quizChoices_[i]);
-    auto *b = new QPushButton(
-        QString("%1 %2").arg(i + 1).arg(c ? qs(c->name) : QString()), quizRow_);
-    b->setFocusPolicy(Qt::NoFocus);
-    connect(b, &QPushButton::clicked, this, [this, i] { answerQuiz(i); });
-    layout->addWidget(b);
-  }
-  layout->addStretch();
-  quizRow_->setVisible(true);
+  stage_->setQuizChoices(names);
   clearCaseSelection();
   quizShownAtMs_ = monotonicMs();
   session_.setQuizChoices(quizChoices_.size());
@@ -1643,21 +1476,7 @@ void LearnPage::answerQuiz(std::size_t choice) {
   std::int64_t ms = monotonicMs() - quizShownAtMs_;
   bool right = choice == quizAnswer_;
   session_.answered(right, ms);
-  auto *layout = quizRow_->layout();
-  int button = 0;
-  for (int i = 0; i < layout->count(); ++i) {
-    auto *b = qobject_cast<QPushButton *>(layout->itemAt(i)->widget());
-    if (!b) {
-      continue;
-    }
-    auto k = static_cast<std::size_t>(button++);
-    if (k == quizAnswer_) {
-      b->setStyleSheet("background:#2f9e55; color:white; font-weight:bold");
-    } else if (k == choice) {
-      b->setStyleSheet("background:#d9453b; color:white");
-    }
-    b->setEnabled(k == quizAnswer_ || k == choice);
-  }
+  stage_->showQuizAnswer(quizAnswer_, choice);
   reveal_->setText(algsHtml(current_->caseId, current_->start));
   selectInTree(current_->caseId);
   setPhase(Phase::QuizDone);
@@ -1860,51 +1679,10 @@ void LearnPage::showGuide() {
   bool shown =
       guide_ && (phase() == Phase::Demo || (phase() == Phase::Solving &&
                                             (guide_->follow || guide_->next)));
-  guideLabel_->setVisible(shown);
-  if (!shown) {
-    guideLabel_->clear();
-    return;
-  }
-  const AlgGuide &g = *guide_;
-  const QString nextStyle = "color:" + statusColour(Status::Warning).name() +
-                            "; font-weight:bold; text-decoration:underline";
-  QString muted = palette().color(QPalette::PlaceholderText).name();
-  auto token = [&g](std::size_t i) {
-    return qs(toString(g.moves()[i])).toHtmlEscaped();
-  };
-  QString text;
-  if (phase() == Phase::Solving && !g.follow) {
-    // A learning-step hint: only the next move.
-    if (g.done()) {
-      text = tr("The alg is done.");
-    } else {
-      text = tr("Next move: %1")
-                 .arg("<span style='" + nextStyle + "'>" + token(g.at()) +
-                      "</span>");
-    }
-  } else {
-    QStringList parts;
-    for (std::size_t i = 0; i < g.moves().size(); ++i) {
-      QString t = token(i);
-      if (i < g.at()) {
-        parts << "<span style='color:" + muted + "'>" + t + "</span>";
-      } else if (i == g.at()) {
-        parts << "<span style='" + nextStyle + "'>" + t + "</span>";
-      } else {
-        parts << t;
-      }
-    }
-    text = parts.join(' ');
-  }
-  if (phase() == Phase::Solving && !g.matched()) {
-    text += "<br><span style='font-size:small; color:" + muted + "'>" +
-            (attempt_.follower().deviated()
-                 ? tr("That isn't the alg: Esc starts the case again.")
-                 : tr("Keep going: the cube is between two moves of the "
-                      "alg.")) +
-            "</span>";
-  }
-  guideLabel_->setText(text);
+  const bool solving = phase() == Phase::Solving;
+  stage_->showGuide(shown ? &*guide_ : nullptr,
+                    shown && solving && !guide_->follow, solving,
+                    attempt_.follower().deviated());
 }
 
 void LearnPage::resetCube() {
@@ -1941,7 +1719,7 @@ void LearnPage::setPhase(Phase p) {
   case Phase::ContextDone:
     showGuide();
     gradeRow_->setVisible(false);
-    familyRow_->setVisible(false);
+    stage_->hideFamily();
     showContextStatus();
     break;
   case Phase::Demo:
@@ -2211,12 +1989,7 @@ void LearnPage::turn(Move m) {
   cube_.apply(m);
   cubeView_->animateMove(m);
   if (phase() == Phase::Context && context_) {
-    context_->moves.push_back(m);
-    FaceletCube f = oriented(cube_);
-    auto c = CubieCube::fromFacelets(f);
-    if (c && eoCrossSolved(*c) &&
-        std::all_of(std::begin(kAllSlots), std::end(kAllSlots),
-                    [&](Slot slot) { return slotSolved(*c, slot); })) {
+    if (context_->turned(m, cube_)) {
       finishContext(false);
     }
     return;
@@ -2330,31 +2103,21 @@ void LearnPage::startContext() {
   if (!s || !pairSet_) {
     return;
   }
-  int count = slotsSpin_->value();
-  CubieCube state = randomPairState(count, rng_);
-  for (int i = 0; i < kContextTries; ++i) {
-    CubieCube candidate = i == 0 ? state : randomPairState(count, rng_);
-    std::vector<PairOption> options = pairOptions(candidate, s);
-    bool started = std::all_of(
-        options.begin(), options.end(), [this](const PairOption &o) {
-          return !o.caseId.empty() &&
-                 statusOf(cardOf(o.caseId)) != CaseStatus::Unstarted;
-        });
-    if (started) {
-      state = candidate;
-      break;
-    }
-  }
+  ContextPractice practice(
+      *s, slotsSpin_->value(), rng_, [this](const std::string &id) {
+        return statusOf(cardOf(id)) != CaseStatus::Unstarted;
+      });
   idleTimer_.stop();
   current_.reset();
   guide_.reset();
   attempt_.clear();
-  quizRow_->setVisible(false);
+  stage_->hideQuiz();
   gradeRow_->setVisible(false);
-  context_ = Context{state, pickHold(), {}, false};
+  practice.setHold(pickHold());
+  context_ = std::move(practice);
   contextButton_->setText(tr("Back to learning"));
   learnNextButton_->setEnabled(false);
-  cubeView_->setColourMap(colourMapOf(context_->hold));
+  cubeView_->setColourMap(colourMapOf(context_->hold()));
   CubeLook look = cubeView_->look();
   look.yaw = CubeLook{}.yaw;
   cubeView_->setLook(look);
@@ -2367,9 +2130,8 @@ void LearnPage::resetContext() {
   if (!context_) {
     return;
   }
-  context_->moves.clear();
-  context_->gaveUp = false;
-  cube_ = context_->start.toFacelets();
+  context_->reset();
+  cube_ = context_->start().toFacelets();
   cubeView_->setState(cube_);
   reveal_->clear();
   setPhase(Phase::Context);
@@ -2379,7 +2141,7 @@ void LearnPage::finishContext(bool gaveUp) {
   if (!context_) {
     return;
   }
-  context_->gaveUp = gaveUp;
+  context_->finish(gaveUp);
   setPhase(Phase::ContextDone);
   showContextResult();
 }
@@ -2396,24 +2158,8 @@ void LearnPage::showContextStatus() {
   if (!context_) {
     return;
   }
-  int open = 0;
-  for (Slot slot : kAllSlots) {
-    open += slotSolved(context_->start, slot) ? 0 : 1;
-  }
   statusLabel_->setStyleSheet({});
-  if (phase() == Phase::Context) {
-    statusLabel_->setText(
-        (open == 1 ? tr("In context: solve the open pair.")
-                   : tr("In context: solve the %1 open pairs in any order.")
-                         .arg(open)) +
-        " " +
-        tr("Tab shows the set's cheapest order, Esc starts again, "
-           "Shift+Space gives up, Backspace goes back to learning. Not "
-           "graded."));
-  } else {
-    statusLabel_->setText(tr("Space/Enter: another one. Esc: try this one "
-                             "again. Backspace: back to learning."));
-  }
+  statusLabel_->setText(context_->statusText(phase() != Phase::Context));
 }
 
 void LearnPage::showContextResult() {
@@ -2421,189 +2167,63 @@ void LearnPage::showContextResult() {
   if (!context_ || !s) {
     return;
   }
-  QString muted = palette().color(QPalette::PlaceholderText).name();
-  auto grey = [&](const QString &t) {
-    return "<span style='color:" + muted + "'>" + t + "</span>";
-  };
-  auto moves = [](int n) {
-    return n == 1 ? tr("1 move") : tr("%1 moves").arg(n);
-  };
-  QString html;
-  if (phase() == Phase::ContextDone) {
-    html +=
-        context_->gaveUp
-            ? "<p>" + tr("Gave up.") + "</p>"
-            : "<p><b>" +
-                  tr("Solved in %1.").arg(moves(htmCount(context_->moves))) +
-                  "</b></p>";
-    F2LBreakdown b =
-        f2lBreakdown(context_->start.toFacelets(), context_->moves, s);
-    for (const PairSegment &seg : b.segments) {
-      QStringList slotNames;
-      for (Slot slot : seg.solved) {
-        slotNames << qs(std::string(slotName(slot)));
-      }
-      QString line =
-          tr("%1: you %2").arg(slotNames.join(" + "), moves(seg.htm));
-      for (const PairOption &o : seg.options) {
-        if (seg.solved.size() == 1 && o.slot == seg.solved.front() &&
-            !o.caseId.empty()) {
-          line +=
-              " · " + tr("%1: %2 %3")
-                          .arg(qs(o.caseName).toHtmlEscaped(), moves(o.moves),
-                               grey(qs(o.alg).toHtmlEscaped()));
-        }
-      }
-      html += line + "<br>";
-    }
-  }
-  PairPlan plan = cheapestPairOrder(context_->start, *s);
-  if (!plan.steps.empty()) {
-    html += "<p>" + tr("The set's cheapest order, %1:").arg(moves(plan.moves));
-    for (const PairOption &o : plan.steps) {
-      html +=
-          "<br>" +
-          tr("%1 (%2): %3")
-              .arg(qs(std::string(slotName(o.slot))),
-                   qs(o.caseName).toHtmlEscaped(), qs(o.alg).toHtmlEscaped()) +
-          " " + grey(moves(o.moves));
-    }
-    if (!plan.complete) {
-      html += "<br>" + grey(tr("Some pairs have no case in the set."));
-    }
-    html += "</p>";
-  }
-  reveal_->setText(html);
+  reveal_->setText(
+      context_->resultHtml(*s, phase() == Phase::ContextDone,
+                           palette().color(QPalette::PlaceholderText).name()));
 }
 
 void LearnPage::showFamily() {
-  auto *layout = static_cast<QHBoxLayout *>(familyRow_->layout());
-  while (QLayoutItem *item = layout->takeAt(0)) {
-    delete item->widget();
-    delete item;
-  }
   const std::vector<std::string> *members =
       current_ ? families_.familyFor(current_->caseId) : nullptr;
   bool shown = byFamily() &&
                (phase() == Phase::Done || phase() == Phase::Recalled) &&
                members && members->size() > 1;
-  familyRow_->setVisible(shown);
   if (!shown) {
+    stage_->hideFamily();
     return;
   }
   const AlgSet *s = set();
-  QColor muted = palette().color(QPalette::PlaceholderText);
-  layout->addStretch();
+  std::vector<CaseStage::FamilyCase> cases;
   for (const auto &id : *members) {
     const CaseInfo *info = infoOf(id);
     const AlgCase *c = s ? s->findCase(id) : nullptr;
     if (!info || !c) {
       continue;
     }
-    bool done = id == current_->caseId;
-    auto *cell = new QWidget(familyRow_);
-    auto *cellLayout = new QVBoxLayout(cell);
-    cellLayout->setContentsMargins(6, 0, 6, 0);
-    auto *picture = new QLabel(cell);
-    picture->setPixmap(caseDiagram(id, info->state, 84,
-                                   colourMapOf(settings_.neutrality.main)));
-    picture->setAlignment(Qt::AlignCenter);
-    auto *text = new QLabel(cell);
-    text->setAlignment(Qt::AlignCenter);
-    text->setTextFormat(Qt::RichText);
-    QString alg = info->passing.empty() ? tr("no alg")
-                                        : qs(info->mainAlg).toHtmlEscaped();
-    text->setText(
-        QString("<b>%1</b><br><span style='color:%2'>%3</span>")
-            .arg(qs(c->name).toHtmlEscaped(),
-                 done ? statusColour(Status::Warning).name() : muted.name(),
-                 alg));
-    text->setToolTip(done ? tr("The case you just did")
-                          : tr("A mirror image of it"));
-    cellLayout->addWidget(picture);
-    cellLayout->addWidget(text);
-    layout->addWidget(cell);
+    cases.push_back({caseDiagram(id, info->state, 84,
+                                 colourMapOf(settings_.neutrality.main)),
+                     qs(c->name),
+                     info->passing.empty() ? tr("no alg")
+                                           : qs(info->mainAlg).toHtmlEscaped(),
+                     id == current_->caseId});
   }
-  layout->addStretch();
+  stage_->showFamily(cases);
 }
 
 QString LearnPage::chainHtml() {
   const AlgSet *s = set();
-  const std::vector<LearnLink> &links = attempt_.links();
-  if (!s || links.empty()) {
+  if (!s) {
     return {};
   }
-  auto nameOf = [s](const std::string &id) {
-    const AlgCase *c = s->findCase(id);
-    return c ? qs(c->name).toHtmlEscaped() : QString();
-  };
-  auto grey = [](const QString &t) {
-    return "<span style='color:gray'>" + t + "</span>";
-  };
-  const QString good =
-      "<span style='color:" + statusColour(Status::Good).name() + "'>✓</span>";
-  const QString bad =
-      "<span style='color:" + statusColour(Status::Bad).name() + "'>✗</span>";
-  const std::string &firstId = links.front().view.caseId;
-  const CaseGroup *group = s->groupOf(firstId);
-  QString html =
-      QString("<p style='font-size:large'><b>%1</b> <span "
-              "style='color:gray'>· %2</span></p>")
-          .arg(nameOf(firstId), group ? qs(group->name).toHtmlEscaped() : "");
-  for (const LearnLink &link : links) {
-    if (!link.over) {
-      continue;
-    }
-    QString line = (link.grade == Grade::Again ? bad : good) + " ";
-    if (&link != &links.front()) {
-      line += grey(nameOf(link.view.caseId) + ":") + " ";
-    }
-    if (link.algs.empty()) {
-      line += grey(tr("no alg"));
-    } else {
-      const ViewAlg &alg = link.algs.front();
-      line += "<b>" + qs(alg.text).toHtmlEscaped() + "</b>";
-      if (!alg.reducesTo.empty()) {
-        line += " " + grey("→ " + nameOf(alg.reducesTo));
-      }
-    }
-    QStringList notes;
-    if (link.gaveUp) {
-      notes << tr("gave up");
-    } else if (!link.setStep) {
-      QString to = link.solved ? tr("done") : nameOf(link.reached);
-      notes << tr("you: %1 → %2 (%3)")
-                   .arg(movesHtml(link.moves, std::nullopt), to,
-                        link.closer ? tr("closer") : tr("not closer"));
-    }
+  return linksHtml(*s, attempt_.links(), [this](const LearnLink &link) {
     switch (link.note) {
     case LearnLink::Note::None:
       break;
     case LearnLink::Note::AlreadyGraded:
-      notes << tr("already graded in this attempt");
-      break;
+      return tr("already graded in this attempt");
     case LearnLink::Note::Practice:
-      notes << tr("practice, so not graded");
-      break;
+      return tr("practice, so not graded");
     case LearnLink::Note::NotStarted:
-      notes << tr("not started yet, so not graded");
-      break;
+      return tr("not started yet, so not graded");
     case LearnLink::Note::NotDue:
-      notes << tr("not due yet, so unchanged");
-      break;
+      return tr("not due yet, so unchanged");
     case LearnLink::Note::Graded:
-      notes << tr("%1 (%2) → next %3")
-                   .arg(tr(gradeName(link.grade)), reasonsText(link.why),
-                        dueText(cardOf(link.view.caseId), link.notedAt,
-                                localDayEnd()));
-      break;
+      return tr("%1 (%2) → next %3")
+          .arg(tr(gradeName(link.grade)), reasonsText(link.why),
+               dueText(cardOf(link.view.caseId), link.notedAt, localDayEnd()));
     }
-    if (!notes.isEmpty()) {
-      line += "<br>" + grey(notes.join(" · "));
-    }
-    html += "<p>" + line + "</p>";
-  }
-  return html;
+    return QString();
+  });
 }
 
 void LearnPage::showReveal() {
@@ -2671,7 +2291,7 @@ void LearnPage::showGrade() {
   std::int64_t when = recalled ? unixNow() : attempt_.gradeTime();
   for (int g = 0; g < 4; ++g) {
     auto grade = static_cast<Grade>(g + 1);
-    QPushButton *b = gradeButtons_[static_cast<std::size_t>(g)];
+    QPushButton *b = stage_->gradeButtons[static_cast<std::size_t>(g)];
     b->setVisible(buttons);
     // What the grade would give, from the card as it was before.
     b->setText(QString("%1 %2 · %3")
@@ -2681,19 +2301,10 @@ void LearnPage::showGrade() {
                                                   when, settings_.srs))));
     b->setChecked(!attempt_.walkedThrough() && chosen == grade);
   }
-  auto badge = [this](const QString &text, const QString &colour) {
-    gradeBadge_->setText(text);
-    gradeBadge_->setStyleSheet(
-        QString("QLabel { background: %1; color: white; border-radius: 4px; "
-                "padding: 2px 10px; }")
-            .arg(colour));
-  };
   const QString grey = "#6b6f78";
-  // On one line beside the badge while it fits, wrapped after that.
-  auto detail = [this](const QString &text) {
-    gradeLabel_->setText(text);
-    gradeLabel_->setMinimumWidth(
-        std::min(gradeLabel_->fontMetrics().horizontalAdvance(text) + 8, 420));
+  auto outcome = [this](const QString &text, const QString &colour,
+                        const QString &detail) {
+    stage_->showOutcome(text, colour, detail);
   };
   QString why = whyText();
   const CaseProgress *card =
@@ -2701,35 +2312,33 @@ void LearnPage::showGrade() {
                                                : attempt_.gradedCard());
   QString next = dueText(card, unixNow(), localDayEnd());
   if (recalled) {
-    badge(tr(gradeName(chosen)), gradeColour(chosen));
-    detail(tr("%1. Grade yourself:").arg(why));
+    outcome(tr(gradeName(chosen)), gradeColour(chosen),
+            tr("%1. Grade yourself:").arg(why));
     return;
   }
   if (attempt_.gradeReplaced()) {
-    badge(tr("Changed"), grey);
-    detail(tr("from the case list → next %1").arg(next));
+    outcome(tr("Changed"), grey, tr("from the case list → next %1").arg(next));
     return;
   }
   if (current_->practice) {
-    badge(chosen == Grade::Again ? tr("Missed") : tr("Well done"),
-          chosen == Grade::Again ? gradeColour(Grade::Again) : grey);
-    detail(tr("Practice (%1), not graded; next review %2.").arg(why, next));
+    outcome(chosen == Grade::Again ? tr("Missed") : tr("Well done"),
+            chosen == Grade::Again ? gradeColour(Grade::Again) : grey,
+            tr("Practice (%1), not graded; next review %2.").arg(why, next));
     return;
   }
   if (attempt_.walkedThrough()) {
-    badge(tr("Walked through"), "#5a6b80");
-    detail(tr("Not graded: it comes back in %1 to do from "
-              "memory. 1-4 grade it now instead.")
-               .arg(next));
+    outcome(tr("Walked through"), "#5a6b80",
+            tr("Not graded: it comes back in %1 to do from "
+               "memory. 1-4 grade it now instead.")
+                .arg(next));
     return;
   }
   if (!attempt_.graded()) {
-    badge(tr(gradeName(chosen)), grey);
-    detail(tr("(%1), not graded").arg(why));
+    outcome(tr(gradeName(chosen)), grey, tr("(%1), not graded").arg(why));
     return;
   }
-  badge(tr(gradeName(chosen)), gradeColour(chosen));
-  detail(tr("%1 → next %2").arg(why, next));
+  outcome(tr(gradeName(chosen)), gradeColour(chosen),
+          tr("%1 → next %2").arg(why, next));
 }
 
 } // namespace vcube

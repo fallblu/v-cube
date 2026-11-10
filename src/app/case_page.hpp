@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/alg_html.hpp"
 #include "app/app_settings.hpp"
 #include "app/case_filter.hpp"
 #include "app/colours.hpp"
@@ -262,22 +263,6 @@ private:
   void fillGroupRows();
   void showCaseMenu(const QPoint &pos);
 };
-
-// The algs of a case that solve `state` (the case set up in its display
-// orientation, possibly with AUFs and free pieces scrambled), with the
-// AUFs they need, main alg first, as rich text under the case's name. For
-// Timed and Untimed, which have no case list.
-QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
-                     const CubieCube &state);
-
-// The algs of the case a cube shows in `world` as they are done from the
-// cube (mirrored for a mirrored view), main alg first, under the case's
-// name. A step that stops at another case names it.
-QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
-                     const CubieCube &state, Mirror world);
-// Every step from `state` to the end of a reduction set's step by the
-// set's main algs, under the first case's name.
-QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world);
 
 // When a case is due: "now", "10 min", "3 h" or "4 d", or "today" for a
 // review due before `dayEnd` (reviews are due all day).

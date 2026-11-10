@@ -1,6 +1,8 @@
 #pragma once
 
 #include "app/case_page.hpp"
+#include "app/case_stage.hpp"
+#include "app/context_practice.hpp"
 #include "app/cube_view.hpp"
 #include "train/alg_follow.hpp"
 #include "train/alg_guide.hpp"
@@ -94,13 +96,6 @@ private:
   // How reviews are done (the drop-down above the cube).
   enum class Practice { Solve, Recognise, Quiz };
 
-  struct Context {
-    CubieCube start; // in the solver's frame
-    Hold hold = kWcaHold;
-    Alg moves; // done since the start
-    bool gaveUp = false;
-  };
-
   struct Current {
     std::string caseId;
     CubieCube start;
@@ -133,27 +128,21 @@ private:
   QPushButton *learnNextButton_;
   QPushButton *unqueueButton_;
   QTimer queueMessageTimer_;
-  QWidget *optionsRow_;
+  // The cube and what is said about it; the page's own widgets on it.
+  CaseStage *stage_;
+  CubeView *cubeView_;
+  QLabel *statusLabel_;
+  QLabel *reveal_;
+  QWidget *gradeRow_;
   QComboBox *viewBox_;
   QComboBox *practiceBox_;
   QPushButton *listButton_;
-  QLabel *headerLabel_;
-  CubeView *cubeView_;
-  QLabel *statusLabel_;
-  QLabel *guideLabel_;
-  QLabel *reveal_;
-  QWidget *familyRow_; // after a case learned by family: all its members
-  QWidget *quizRow_;   // the quiz's answers
-  QWidget *gradeRow_;
-  QLabel *gradeBadge_; // the outcome, coloured
-  QLabel *gradeLabel_;
-  std::array<QPushButton *, 4> gradeButtons_{};
   QSplitter *split_;
   bool listHidden_ = false;
   QTimer idleTimer_; // with nothing due: looks again when a card falls due
 
   std::optional<AlgGuide> guide_;
-  std::optional<Context> context_;
+  std::optional<ContextPractice> context_;
   bool pairSet_ = false; // the set's cases are F2L pairs
   QSpinBox *slotsSpin_;
   QPushButton *contextButton_;

@@ -1,5 +1,6 @@
 # Everything but main(), so tools and tests can link the widgets.
 add_library(vcube_gui STATIC
+  alg_html.cpp
   app_data.cpp
   app_settings.cpp
   attempt_page.cpp
@@ -8,7 +9,9 @@ add_library(vcube_gui STATIC
   case_filter.cpp
   case_history_dialog.cpp
   case_page.cpp
+  case_stage.cpp
   colours.cpp
+  context_practice.cpp
   command_palette.cpp
   cube_painter.cpp
   cube_view.cpp
