@@ -1,5 +1,7 @@
 #include "app/inspection_page.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
@@ -1324,10 +1326,14 @@ void InspectionPage::deleteSession() {
 }
 
 void InspectionPage::save() {
-  QString error;
-  if (!store_.save(&error)) {
-    emit message(tr("Could not save inspection sessions: %1").arg(error));
-  }
+  // Written in the background from a copy, so that saving never holds up
+  // the next attempt.
+  writeInBackground(
+      store_.path(),
+      [copy = store_](QString *error) { return copy.save(error); }, this,
+      [this](const QString &error) {
+        emit message(tr("Could not save inspection sessions: %1").arg(error));
+      });
 }
 
 } // namespace vcube

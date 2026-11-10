@@ -1,5 +1,7 @@
 #include "app/blind_page.hpp"
 
+#include "io/data_file.hpp"
+
 #include "cube/cubie.hpp"
 
 #include <QActionGroup>
@@ -411,10 +413,14 @@ void BlindPage::applySettings() {
 }
 
 void BlindPage::save() {
-  QString error;
-  if (!store_.save(&error)) {
-    emit message(tr("Could not save blind data: %1").arg(error));
-  }
+  // Written in the background from a copy, so that saving never holds up
+  // the next attempt.
+  writeInBackground(
+      store_.path(),
+      [copy = store_](QString *error) { return copy.save(error); }, this,
+      [this](const QString &error) {
+        emit message(tr("Could not save blind data: %1").arg(error));
+      });
 }
 
 void BlindPage::selectDrill(Drill d) {

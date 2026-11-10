@@ -1,5 +1,7 @@
 #include "app/case_page.hpp"
 
+#include "io/data_file.hpp"
+
 #include "app/cube_painter.hpp"
 #include "app/widgets.hpp"
 
@@ -707,9 +709,14 @@ QPixmap CasePage::caseDiagram(const std::string &caseId, const CubieCube &state,
 }
 
 void CasePage::saveProgress() {
-  if (!library_.saveProgress(setId_)) {
-    emit message(tr("Could not save progress for %1").arg(qs(setId_)));
-  }
+  // Written in the background from a copy, so that saving never holds up
+  // the next attempt.
+  writeInBackground(library_.progressPath(setId_),
+                    library_.progressWriter(setId_), this,
+                    [this, id = qs(setId_)](const QString &error) {
+                      emit message(tr("Could not save progress for %1: %2")
+                                       .arg(id, error));
+                    });
 }
 
 } // namespace vcube

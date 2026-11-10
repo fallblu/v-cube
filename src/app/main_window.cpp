@@ -1,5 +1,7 @@
 #include "app/main_window.hpp"
 
+#include "io/data_file.hpp"
+
 #include "app/attempt_page.hpp"
 #include "app/blind_page.hpp"
 #include "app/drill_page.hpp"
@@ -373,6 +375,7 @@ void MainWindow::changeEvent(QEvent *e) {
 void MainWindow::closeEvent(QCloseEvent *e) {
   QSettings q;
   q.setValue("window/geometry", saveGeometry());
+  finishBackgroundWrites();
   QMainWindow::closeEvent(e);
 }
 

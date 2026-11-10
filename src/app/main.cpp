@@ -2,6 +2,7 @@
 #include "app/main_window.hpp"
 #include "app/platform.hpp"
 #include "cube/solver.hpp"
+#include "io/data_file.hpp"
 
 #include <QApplication>
 #include <QDir>
@@ -29,5 +30,7 @@ int main(int argc, char **argv) {
 
   vcube::MainWindow window(settings, dataDir);
   window.show();
-  return app.exec();
+  int result = app.exec();
+  vcube::finishBackgroundWrites(); // saves still being written
+  return result;
 }
