@@ -28,6 +28,19 @@ struct AppSettings {
   int holdMs = 300;
   bool inspection = false;
   int decimals = 2;
+  // Timed and Untimed on the virtual cube: the solve ends as soon as the
+  // cube is solved, without Space.
+  bool autoStop = true;
+  // Timed on the virtual cube with inspection: the cube is hidden until
+  // inspection starts, so it can't be studied before.
+  bool hideBeforeInspection = true;
+  // Solves (Timed, Untimed, Move Count)
+  // Move counts are taken after simplify(): U D U' counts as D, R x R' as
+  // nothing. Off: every turn as done counts.
+  bool simplifiedCounts = true;
+  // Move Count's Opt column: the optimum in any hold, as the step is
+  // checked; off: only in the holds of the colour neutrality.
+  bool optimalAnyHold = true;
 
   // Spaced repetition
   SrsConfig srs;

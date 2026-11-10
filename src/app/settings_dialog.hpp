@@ -35,6 +35,10 @@ private:
   QComboBox *holdBox_;
   QCheckBox *inspectionBox_;
   QSpinBox *decimalsSpin_;
+  QCheckBox *autoStopBox_;
+  QCheckBox *hideCubeBox_;
+  QCheckBox *simplifiedBox_;
+  QCheckBox *anyHoldBox_;
   QComboBox *mainTopBox_;
   QComboBox *mainFrontBox_;
   QComboBox *presetBox_;

@@ -92,7 +92,33 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   decimalsSpin_->setRange(1, 3);
   decimalsSpin_->setValue(settings_.decimals);
   tForm->addRow(tr("Decimal places:"), decimalsSpin_);
-  tabs->addTab(timer, tr("Timer"));
+  autoStopBox_ = new QCheckBox(
+      tr("Stop when the cube is solved (Timed and Untimed)"), timer);
+  autoStopBox_->setToolTip(
+      tr("Off: Space ends the solve, and a cube that isn't solved then is a "
+         "DNF"));
+  autoStopBox_->setChecked(settings_.autoStop);
+  tForm->addRow(tr("Virtual cube:"), autoStopBox_);
+  hideCubeBox_ = new QCheckBox(
+      tr("Hide the scrambled cube until inspection starts (Timed)"), timer);
+  hideCubeBox_->setChecked(settings_.hideBeforeInspection);
+  tForm->addRow(QString(), hideCubeBox_);
+  simplifiedBox_ = new QCheckBox(
+      tr("Count moves simplified (U D U' is 1 move, R x R' none)"), timer);
+  simplifiedBox_->setToolTip(
+      tr("Off: every turn counts as you did it. The solution is kept as "
+         "you did it either way."));
+  simplifiedBox_->setChecked(settings_.simplifiedCounts);
+  tForm->addRow(tr("Move counts:"), simplifiedBox_);
+  anyHoldBox_ = new QCheckBox(
+      tr("Move Count's Opt: the optimum in any hold, as the step is checked"),
+      timer);
+  anyHoldBox_->setToolTip(
+      tr("Off: the optimum in the holds of your colour neutrality (either EO "
+         "axis)"));
+  anyHoldBox_->setChecked(settings_.optimalAnyHold);
+  tForm->addRow(QString(), anyHoldBox_);
+  tabs->addTab(timer, tr("Solves"));
 
   // Keyboard
   auto *keys = new QWidget(tabs);
@@ -525,6 +551,10 @@ void SettingsDialog::accept() {
   settings_.holdMs = holdBox_->currentData().toInt();
   settings_.inspection = inspectionBox_->isChecked();
   settings_.decimals = decimalsSpin_->value();
+  settings_.autoStop = autoStopBox_->isChecked();
+  settings_.hideBeforeInspection = hideCubeBox_->isChecked();
+  settings_.simplifiedCounts = simplifiedBox_->isChecked();
+  settings_.optimalAnyHold = anyHoldBox_->isChecked();
   settings_.srs.newPerDay = newPerDaySpin_->value();
   settings_.srs.learningSteps = learn;
   settings_.srs.relearningSteps = relearn;
