@@ -440,13 +440,13 @@ std::vector<std::string> orderNewCases(const std::vector<NewCase> &cases,
   return out;
 }
 
-bool isDueNow(const SrsCard &card, std::int64_t now, std::int64_t dayStart,
+bool isDueNow(const SrsCard &card, std::int64_t now, std::int64_t dayEnd,
               const SrsConfig &config) {
   if (card.state == CardState::New || isQueued(card) || isHeld(card, now)) {
     return false;
   }
   if (card.state == CardState::Review) {
-    return isDue(card, now, config, dayStart + kSecondsPerDay);
+    return isDue(card, now, config, dayEnd);
   }
   return card.due <= now + config.learnAheadSeconds;
 }
@@ -522,7 +522,8 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
             c.state == CardState::Relearning) &&
            !isQueued(c) && !isHeld(c, now);
   };
-  const std::int64_t dayEnd = dayStart + kSecondsPerDay;
+  const std::int64_t dayEnd =
+      options.dayEnd != 0 ? options.dayEnd : dayStart + kSecondsPerDay;
   std::vector<std::string> queued;
   for (const auto &id : pool) {
     const auto *p = find(id);
@@ -572,9 +573,12 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
 
 LearnCounts learnCounts(const std::vector<std::string> &pool,
                         const SetProgress &progress, std::int64_t now,
-                        std::int64_t dayStart, const SrsConfig &config) {
+                        std::int64_t dayStart, const SrsConfig &config,
+                        std::int64_t dayEnd) {
   LearnCounts n;
-  const std::int64_t dayEnd = dayStart + kSecondsPerDay;
+  if (dayEnd == 0) {
+    dayEnd = dayStart + kSecondsPerDay;
+  }
   for (const auto &id : pool) {
     auto it = progress.find(id);
     if (it == progress.end()) {
@@ -606,7 +610,7 @@ LearnCounts learnCounts(const std::vector<std::string> &pool,
     } else {
       ++n.learning;
     }
-    n.due += isDueNow(c, now, dayStart, config) ? 1 : 0;
+    n.due += isDueNow(c, now, dayEnd, config) ? 1 : 0;
   }
   return n;
 }

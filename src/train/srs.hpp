@@ -235,6 +235,9 @@ struct LearnPickOptions {
   // first, so that cases learned together don't come up in the same
   // order every day.
   std::mt19937_64 *rng = nullptr;
+  // The start of the next local day (0: `dayStart` plus a day, which is
+  // off by an hour on the days clocks change).
+  std::int64_t dayEnd = 0;
 };
 
 // Due cards in their learning steps first, so that their short steps keep
@@ -265,12 +268,14 @@ struct LearnCounts {
   int againToday = 0;  // of which graded Again
   int dueTomorrow = 0; // reviews falling due tomorrow
 };
+// `dayEnd` as in LearnPickOptions.
 LearnCounts learnCounts(const std::vector<std::string> &pool,
                         const SetProgress &progress, std::int64_t now,
-                        std::int64_t dayStart, const SrsConfig &config);
+                        std::int64_t dayStart, const SrsConfig &config,
+                        std::int64_t dayEnd = 0);
 // Whether Learn would offer the card now (due and not held): learning
 // steps due now, reviews due today.
-bool isDueNow(const SrsCard &card, std::int64_t now, std::int64_t dayStart,
+bool isDueNow(const SrsCard &card, std::int64_t now, std::int64_t dayEnd,
               const SrsConfig &config);
 
 // One set's due cards, for reviewing across sets.
