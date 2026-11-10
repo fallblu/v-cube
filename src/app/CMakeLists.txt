@@ -10,7 +10,9 @@ add_library(vcube_gui STATIC
   colours.cpp
   cube_painter.cpp
   cube_view.cpp
+  drill_history_dialog.cpp
   drill_page.cpp
+  drill_settings.cpp
   inspection_page.cpp
   keymap.cpp
   learn_page.cpp

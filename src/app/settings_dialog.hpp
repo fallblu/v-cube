@@ -17,6 +17,8 @@ class QLabel;
 
 namespace vcube {
 
+class DrillSettingsTab;
+
 class SettingsDialog : public QDialog {
   Q_OBJECT
 public:
@@ -64,6 +66,7 @@ private:
   QSpinBox *learnAheadSpin_;
   QSpinBox *leechSpin_;
   QDoubleSpinBox *slowSpin_;
+  DrillSettingsTab *drillTab_;
 
   void refreshColours();
   QWidget *buildNeutralityTab(QWidget *parent);

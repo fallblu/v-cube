@@ -137,6 +137,7 @@ AppSettings AppSettings::load() {
   c.leechLapses = std::max(0, q.value("srs/leechLapses", c.leechLapses).toInt());
   s.slowRecognitionMs = std::max(
       100, q.value("srs/slowRecognitionMs", s.slowRecognitionMs).toInt());
+  s.drill.load(q);
   return s;
 }
 
@@ -176,6 +177,7 @@ void AppSettings::save() const {
   q.setValue("srs/learnAheadSeconds", qint64(srs.learnAheadSeconds));
   q.setValue("srs/leechLapses", srs.leechLapses);
   q.setValue("srs/slowRecognitionMs", slowRecognitionMs);
+  drill.save(q);
 }
 
 void applyTheme(QApplication &app, bool dark) {
