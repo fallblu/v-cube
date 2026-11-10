@@ -121,6 +121,8 @@ include(GNUInstallDirs)
 install(TARGETS vcube RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/LICENSE ${PROJECT_SOURCE_DIR}/README.md
   DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/v-cube)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/docs/
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/v-cube/docs)
 
 # Linux: a desktop entry and icons, so that the installed app (and the
 # AppImage built from the install tree) shows up in menus.
