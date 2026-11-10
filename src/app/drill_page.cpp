@@ -223,7 +223,7 @@ void DrillPage::applySettings() {
   cubeView_->setLook(look);
   cubeView_->setAnimationMs(settings_.animationMs);
   CasePage::applySettings();
-  if (current_ && phase_ == Phase::Revealed) {
+  if (current_ && (phase_ == Phase::Revealed || phase_ == Phase::Aided)) {
     showReveal();
     showResult();
   }
@@ -405,7 +405,8 @@ void DrillPage::setReloaded() {
   if (current_ && !eligible(current_->caseId)) {
     current_.reset();
     nextCase();
-  } else if (current_ && phase_ == Phase::Revealed) {
+  } else if (current_ &&
+             (phase_ == Phase::Revealed || phase_ == Phase::Aided)) {
     showReveal();
   } else if (!current_) {
     nextCase();
@@ -443,19 +444,61 @@ void DrillPage::setPhase(Phase p) {
   case Phase::Waiting:
     status = onVirtualCube()
                  ? tr("Turn the cube as a whole to look at the case, then "
-                      "hold Space and release to start.")
-                 : tr("Scramble, then hold Space and release to start.");
+                      "hold Space and release to start. Backspace gives the "
+                      "case up.")
+                 : tr("Scramble, then hold Space and release to start. "
+                      "Backspace gives the case up.");
     break;
   case Phase::Running:
     status = onVirtualCube()
-                 ? tr("Space stops the timer; Esc cancels the solve.")
-                 : tr("Any key stops the timer; Esc cancels the solve.");
+                 ? tr("Space stops the timer; Backspace gives the case up; "
+                      "Esc cancels the solve.")
+                 : tr("Any key stops the timer; Backspace gives the case up; "
+                      "Esc cancels the solve.");
     break;
   case Phase::Revealed:
-    status = onVirtualCube() ? tr("Space: next case. Backspace: DNF. Esc: try "
-                                  "the case again.")
-                             : tr("Space: next case. Backspace: wrong alg. "
-                                  "Esc: try the case again.");
+    if (failed_ && gaveUp_) {
+      status = tr("Look at the algs. Space: practise the case with them "
+                  "shown. Shift+Space: next case. Esc: try the case again.");
+    } else if (failed_) {
+      status = onVirtualCube()
+                   ? tr("Look at the algs. Space: practise the case with them "
+                        "shown. Backspace: not a DNF. Shift+Space: next case. "
+                        "Esc: try the case again.")
+                   : tr("Look at the algs. Space: practise the case with them "
+                        "shown. Backspace: not a wrong alg. Shift+Space: next "
+                        "case. Esc: try the case again.");
+    } else {
+      status = onVirtualCube() ? tr("Space: next case. Backspace: DNF. Esc: "
+                                    "try the case again.")
+                               : tr("Space: next case. Backspace: wrong alg. "
+                                    "Esc: try the case again.");
+    }
+    break;
+  case Phase::Aided:
+    if (!onVirtualCube()) {
+      status = tr("Practice, not timed or recorded: scramble again and solve "
+                  "the case with the algs. Space: now without them. "
+                  "Shift+Space: next case.");
+    } else if (practiceDone_) {
+      status = tr("Solved. Space: now without the algs. Esc: once more with "
+                  "them.");
+    } else {
+      status = tr("Practice, not timed or recorded: solve the case with the "
+                  "algs shown. Esc: reset. Shift+Space: next case.");
+    }
+    break;
+  case Phase::Unaided:
+    if (!onVirtualCube()) {
+      status = tr("Scramble again and solve the case without the algs. "
+                  "Space: solved, next case. Tab: show the algs again. "
+                  "Shift+Space: next case.");
+    } else if (practiceDone_) {
+      status = tr("Solved without help. Space: next case. Esc: once more.");
+    } else {
+      status = tr("Now solve the case without the algs. Tab: show them "
+                  "again. Esc: reset. Shift+Space: next case.");
+    }
     break;
   }
   statusLabel_->setText(status);
@@ -516,6 +559,8 @@ void DrillPage::retryCase() {
   current_->scramble.clear();
   failed_ = false;
   unfinished_ = false;
+  gaveUp_ = false;
+  practiceDone_ = false;
   reveal_->clear();
   setDiagram({});
   resultRow_->setVisible(false);
@@ -633,11 +678,18 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
       return key == Qt::Key_Space || move.has_value();
     }
     if (key == Qt::Key_Space || key == Qt::Key_Return || key == Qt::Key_Enter) {
-      nextCase();
+      // A DNF is practised before the next case, unless Shift skips that.
+      if (failed_ && !e->modifiers().testFlag(Qt::ShiftModifier)) {
+        startPractice(true);
+      } else {
+        nextCase();
+      }
       return true;
     }
     if (key == Qt::Key_Backspace) {
-      setWrong(!failed_);
+      if (!gaveUp_) { // a case given up has no time to go back to
+        setWrong(!failed_);
+      }
       return true;
     }
     if (key == Qt::Key_Escape) {
@@ -645,6 +697,9 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
       return true;
     }
     return move.has_value(); // the cube stays as the solve left it
+  case Phase::Aided:
+  case Phase::Unaided:
+    return handlePracticeKey(e, press, move);
   case Phase::Running:
     if (press && key == Qt::Key_Escape) {
       // Nothing is recorded; the same case is set up to try again.
@@ -656,6 +711,10 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
       setPhase(Phase::Waiting);
       statusLabel_->setText(tr("Solve cancelled; nothing was recorded. Hold "
                                "Space to try the case again."));
+      return true;
+    }
+    if (press && key == Qt::Key_Backspace) {
+      giveUp(now);
       return true;
     }
     if (virt) {
@@ -687,6 +746,12 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
     if (virt) {
       resetCube(); // back to the case as it was set up
       setPhase(Phase::Waiting);
+    }
+    return true;
+  }
+  if (key == Qt::Key_Backspace) {
+    if (press && current_) {
+      giveUp(now);
     }
     return true;
   }
@@ -749,13 +814,101 @@ void DrillPage::stopVirtual(std::int64_t now) {
   finish(r->timeMs, !stepDone());
 }
 
-void DrillPage::finish(std::int64_t timeMs, bool failed) {
+void DrillPage::giveUp(std::int64_t now) {
+  // The time of a failed attempt counts for nothing, so a case given up
+  // before the timer started is recorded with none.
+  std::int64_t timeMs = 0;
+  if (timer_.state() == SolveTimer::State::Running) {
+    timer_.pressStop(now);
+    if (auto r = timer_.takeResult()) {
+      timeMs = r->timeMs;
+    }
+  }
+  timer_.cancel();
+  cubeView_->finishAnimations();
+  finish(timeMs, true, true);
+}
+
+void DrillPage::startPractice(bool aided) {
+  if (!current_) {
+    return;
+  }
+  practiceDone_ = false;
+  resultRow_->setVisible(false);
+  if (onVirtualCube()) {
+    cubeView_->finishAnimations();
+    resetCube();
+    attempt_.start(); // every layer turns
+  }
+  if (aided) {
+    showReveal();
+  } else {
+    reveal_->clear();
+    setDiagram({});
+  }
+  setPhase(aided ? Phase::Aided : Phase::Unaided);
+}
+
+bool DrillPage::handlePracticeKey(QKeyEvent *e, bool press,
+                                  std::optional<Move> move) {
+  const bool virt = onVirtualCube();
+  const bool aided = phase_ == Phase::Aided;
+  int key = e->key();
+  const bool handled = key == Qt::Key_Space || key == Qt::Key_Return ||
+                       key == Qt::Key_Enter || key == Qt::Key_Tab ||
+                       key == Qt::Key_Backspace || key == Qt::Key_Escape ||
+                       move.has_value();
+  if (!press) {
+    return handled;
+  }
+  if (key == Qt::Key_Space || key == Qt::Key_Return || key == Qt::Key_Enter) {
+    if (e->modifiers().testFlag(Qt::ShiftModifier)) {
+      nextCase(); // the practice is skipped
+    } else if (virt && !practiceDone_) {
+      statusLabel_->setText(
+          aided ? tr("Solve the case with the algs shown first. Esc: reset. "
+                     "Shift+Space: next case.")
+                : tr("Solve the case without the algs first. Tab: show them "
+                     "again. Esc: reset. Shift+Space: next case."));
+    } else if (aided) {
+      startPractice(false);
+    } else {
+      nextCase();
+    }
+    return true;
+  }
+  if (key == Qt::Key_Tab || key == Qt::Key_Backspace) {
+    if (!aided) {
+      startPractice(true); // not solved without help yet
+    }
+    return true;
+  }
+  if (key == Qt::Key_Escape) {
+    if (virt) {
+      startPractice(aided);
+    }
+    return true;
+  }
+  if (move && virt && attempt_.turn(*move)) {
+    cubeView_->animateMove(*move);
+    followView();
+    bool done = stepDone();
+    if (done != practiceDone_) {
+      practiceDone_ = done;
+      setPhase(phase_);
+    }
+  }
+  return handled;
+}
+
+void DrillPage::finish(std::int64_t timeMs, bool failed, bool gaveUp) {
   if (!current_ || !set()) {
     return;
   }
   attemptMs_ = timeMs;
   failed_ = failed;
-  unfinished_ = failed;
+  unfinished_ = failed && !gaveUp;
+  gaveUp_ = gaveUp;
   progress()[current_->caseId].record(
       {unixNow(), timeMs, failed, attemptMode()});
   saveProgress();
@@ -780,6 +933,7 @@ void DrillPage::setWrong(bool wrong) {
     }
   }
   saveProgress();
+  setPhase(Phase::Revealed); // what Space does next depends on the DNF
   showResult();
   updateRow(current_->caseId);
 }
@@ -791,6 +945,7 @@ void DrillPage::showResult() {
   }
   resultRow_->setVisible(true);
   wrongButton_->setChecked(failed_);
+  wrongButton_->setVisible(!gaveUp_);
   const AlgSet *s = set();
   double target = s ? s->targetSeconds : 0.0;
   Solve shown;
@@ -800,10 +955,13 @@ void DrillPage::showResult() {
   if (!failed_ && target > 0) {
     colour = static_cast<double>(attemptMs_) <= target * 1000.0 ? kGood : kSlow;
   }
-  display_->showText(qs(formatSolve(shown, settings_.decimals)), colour);
+  display_->showText(
+      gaveUp_ ? tr("DNF") : qs(formatSolve(shown, settings_.decimals)), colour);
   QString text;
   if (!failed_) {
     text = tr("Target %1 s").arg(target, 0, 'f', 2);
+  } else if (gaveUp_) {
+    text = tr("Given up");
   } else if (!onVirtualCube()) {
     text = tr("Wrong alg");
   } else if (unfinished_) {

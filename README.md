@@ -145,6 +145,16 @@ choice are for a physical cube.
   - After each case you see your time, coloured green at or under the
     set's target time, and the algs with the AUFs this case needs.
     Backspace toggles DNF (virtual) or marks a wrong alg (physical).
+  - Backspace before or during the solve gives the case up, for a case
+    you have forgotten: it is recorded as a DNF.
+  - After a DNF you practise the same case, set up exactly as it was, with
+    no timer and nothing recorded. Look at the algs, then Space sets the
+    case up again to solve with the algs shown, and Space after that sets
+    it up once more with the algs hidden (Tab brings them back for another
+    go with them). Once you have solved it without help, Space moves on to
+    the next case. The virtual cube checks each practice solve and Esc
+    resets it; on a physical cube you scramble again and say when you are
+    done. Shift+Space skips the practice.
   - A set with mirrored cases has each case set up in a random one of its
     mirror images, and a set solved a step at a time is drilled from the
     case to the end of the step, with every step shown afterwards.

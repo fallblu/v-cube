@@ -28,6 +28,11 @@ namespace vcube {
 // After each case it shows the time and the algs with the AUFs the case
 // needs. Drill attempts feed the case statistics and never change the
 // spaced-repetition schedule.
+//
+// Backspace gives a case up before or during the solve, which is a DNF. A
+// DNF is followed by practice of the same case as it was set up, untimed
+// and unrecorded: once with the algs shown, then without them, and the
+// next case comes once it is solved without help.
 class DrillPage : public CasePage {
   Q_OBJECT
 public:
@@ -55,7 +60,14 @@ protected:
   void neutralityChanged() override;
 
 private:
-  enum class Phase { NoCase, Waiting, Running, Revealed };
+  enum class Phase {
+    NoCase,
+    Waiting,
+    Running,
+    Revealed,
+    Aided,   // after a DNF: the same case again with the algs shown
+    Unaided, // and then without them
+  };
   enum class Pool { Learned, Ticked, Learning };
 
   struct Current {
@@ -76,7 +88,9 @@ private:
   VirtualAttempt attempt_;
   std::int64_t attemptMs_ = 0;
   bool failed_ = false;
-  bool unfinished_ = false; // virtual: the step wasn't done at the stop
+  bool unfinished_ = false;   // virtual: the step wasn't done at the stop
+  bool gaveUp_ = false;       // the case was given up, so it stays a DNF
+  bool practiceDone_ = false; // virtual: the practice solve reached the end
 
   QComboBox *cubeBox_;
   QComboBox *poolBox_;
@@ -119,7 +133,16 @@ private:
   void stopVirtual(std::int64_t now);
   // Whether the virtual cube shows the current case's step done.
   bool stepDone();
-  void finish(std::int64_t timeMs, bool failed);
+  void finish(std::int64_t timeMs, bool failed, bool gaveUp = false);
+  // Gives the case up before or during the solve: a DNF.
+  void giveUp(std::int64_t now);
+  // After a DNF: sets the same case up again to solve with no timer and
+  // nothing recorded, with the algs shown (aided) or hidden.
+  void startPractice(bool aided);
+  bool handlePracticeKey(QKeyEvent *e, bool press, std::optional<Move> move);
+  bool inPractice() const {
+    return phase_ == Phase::Aided || phase_ == Phase::Unaided;
+  }
   void setWrong(bool wrong);
   void showResult();
   void showReveal();
