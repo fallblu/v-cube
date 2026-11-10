@@ -195,33 +195,57 @@ choice are for a physical cube.
     drilling OLL) are scrambled too, and there's a random U turn before
     and after.
   - On the virtual cube the case is set up on the cube, which only turns
-    as a whole until the timer starts (hold Space, release). Space stops
-    it, and the attempt is a DNF unless the cube then shows the step done:
-    solved for PLL, the last layer oriented for OLL, and so on.
+    as a whole until the timer starts: tap Space to arm it and the first
+    face turn starts it (Settings > Drill can have Space held and let go
+    instead; a turn made while it is held and green starts it too). The
+    timer stops by itself as soon as the cube shows the step done (solved
+    for PLL, the last layer oriented for OLL, and so on); Space stops it
+    before that, which is a DNF unless the step is done. A DNF says
+    whether you were an AUF off or how many pieces were wrong, and shows
+    your moves. Stopped before any face turn, the attempt is cancelled.
   - On a physical cube a real random-state scramble sets the case up, so
-    you can't tell the case from the scramble, and any key stops the
-    timer.
-  - Drill your learned cases (the default), all ticked cases, or the cases
-    you are still learning, in random order (never the same case twice
-    in a row), weighted order (slow and failed cases come up more) or list
-    order.
+    you can't tell the case from the scramble; hold Space and let go to
+    start, and any key but Shift, Ctrl or Alt stops the timer. Drill has
+    its own hold time (Settings > Drill).
+  - Choose what to drill apart from the ticks Learn shares: the ticked
+    cases, the cases the list shows (searched or filtered) or one group;
+    and of those, the ones learned in Learn (the default), all of them,
+    those being learned, those in Learn's queue, or the weakest few you
+    have drilled. The order is random (never the same case twice in a
+    row), weighted (slow and failed cases come up more, by the median of
+    each case's recent times so that one slow time can't take over),
+    list order (the list can be sorted) or a recap: every case once, then
+    a summary. A failed case comes back three cases later (Settings).
   - After each case you see your time, coloured green at or under the
-    set's target time, and the algs with the AUFs this case needs.
-    Backspace toggles DNF (virtual) or marks a wrong alg (physical).
-  - Backspace before or during the solve gives the case up, for a case
-    you have forgotten: it is recorded as a DNF.
-  - After a DNF you practise the same case, set up exactly as it was, with
-    no timer and nothing recorded. Look at the algs, then Space sets the
-    case up again to solve with the algs shown, and Space after that sets
-    it up once more with the algs hidden (Tab brings them back for another
-    go with them). Once you have solved it without help, Space moves on to
-    the next case. The virtual cube checks each practice solve and Esc
-    resets it; on a physical cube you scramble again and say when you are
-    done. Shift+Space skips the practice.
+    set's target time, and the case diagram and algs with the AUFs this
+    case needs. For a moment after the stop keys are ignored, so a second
+    press doesn't skip it. Space goes on to the next case; Backspace
+    toggles DNF (virtual) or marks a wrong alg (physical); Delete deletes
+    the attempt (one stopped by mistake, say).
+  - Shift+Space before or during the solve gives the case up, for a case
+    you have forgotten: it is recorded as a DNF. Given up before the timer
+    started, Delete takes it back and sets the case up again. (Settings
+    can have Backspace give up instead, as earlier versions did.)
+  - Tab practises the case, set up exactly as it was, with no timer and
+    nothing recorded: first with the algs shown, then (Tab, or by itself
+    once solved on the virtual cube) with them hidden, then the next case
+    once you solve it without help. Space goes on to the next case at any
+    point, and Backspace still toggles the DNF. The virtual cube checks
+    each practice solve and Esc resets it; on a physical cube you
+    scramble again. Settings can have Space practise after a DNF (Enter
+    then goes on), and practice wait for a key at each stage.
   - A set with mirrored cases has each case set up in a random one of its
     mirror images, and a set solved a step at a time is drilled from the
     case to the end of the step, with every step shown afterwards.
-  - Per-case recent average, best time and fail rate. On the virtual cube
+  - Per-case recent average, best time (kept for good, not only for the
+    attempts kept), fail rate and weakness (how often Weighted picks the
+    case), with each group's row showing its cases taken together. Click a
+    column's header to sort by it (again for the other way, a third time
+    for list order). Right-click a case for its drill history (a chart of
+    its last 100 attempts, and every attempt summed up by day as a table
+    and a chart) or to clear its drill times. A session panel counts the
+    attempts, mean, DNFs and new bests since the session started and
+    names the slowest cases. On the virtual cube
     each solved attempt also records its recognition time (from the case
     being set up to the first turn of a layer other than U or D) and its
     execution time, which Learn's Recog column and the "slow to recognise" filter
@@ -669,13 +693,17 @@ picks the plugin as usual.
 | Library | Ctrl+Shift+V / Ctrl+Shift+A / Ctrl+Shift+G | paste algs / new case from alg / new group |
 | Library | Ctrl+N / Alt+Enter / Ctrl+K | new set / set properties / check algs |
 | Library | Delete / F2 / Alt+Up, Alt+Down | delete, rename, move the selected cases or group (or the selected alg, in the alg list) |
-| Drill, Timed | hold Space, release | start (after the hold time, when the time turns green) |
-| Drill, Timed (physical) | any key | stop |
+| Drill (virtual) | tap Space, then turn | arm the timer; the first face turn starts it (or hold Space and let go, in Settings) |
+| Drill (physical), Timed | hold Space, release | start (after the hold time, when the time turns green) |
+| Drill, Timed (physical) | any key but a modifier | stop |
 | Drill, Timed | Esc | cancel |
-| Drill (virtual) | turning keys | rotations only before the timer starts, then any turn |
-| Drill (virtual) | Space | stop (DNF if the case's step isn't done) |
-| Drill, after a case | Space | next case |
+| Drill (virtual) | turning keys | rotations only before the timer starts, then any turn; the timer stops when the step is done |
+| Drill (virtual) | Space | stop early (DNF if the case's step isn't done) |
+| Drill | Shift+Space | give the case up (a DNF) |
+| Drill, after a case | Space / Enter | next case |
+| Drill, after a case | Tab | practise the case, with the algs, then without (Tab switches) |
 | Drill, after a case | Backspace | toggle DNF (virtual) or "wrong alg" (physical) |
+| Drill, after a case | Delete or Ctrl+Z | delete the attempt (take back a give-up before the timer started) |
 | Drill, after a case | Esc | try the case again |
 | Timed (virtual) | turning keys | rotations only before the timer starts, then any turn |
 | Timed (virtual) | Space | stop (DNF if the cube isn't solved); after a DNF, the next scramble |
