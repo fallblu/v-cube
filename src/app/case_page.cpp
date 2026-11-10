@@ -28,6 +28,31 @@ namespace vcube {
 namespace {
 
 constexpr int kCaseIdRole = Qt::UserRole;
+constexpr int kOrderRole = Qt::UserRole + 31; // place in list order
+
+// A row that sorts by its kSortRole numbers, or in list order.
+class SortItem : public QTreeWidgetItem {
+public:
+  using QTreeWidgetItem::QTreeWidgetItem;
+  bool operator<(const QTreeWidgetItem &other) const override {
+    int column = treeWidget() ? treeWidget()->sortColumn() : 0;
+    if (column > 0) {
+      QVariant va = data(column, CasePage::kSortRole);
+      QVariant vb = other.data(column, CasePage::kSortRole);
+      double a = va.isValid() ? va.toDouble() : -1;
+      double b = vb.isValid() ? vb.toDouble() : -1;
+      if (a != b) {
+        return a < b;
+      }
+      // Ties stay in list order either way round.
+      if (treeWidget()->header()->sortIndicatorOrder() ==
+          Qt::DescendingOrder) {
+        return data(0, kOrderRole).toInt() > other.data(0, kOrderRole).toInt();
+      }
+    }
+    return data(0, kOrderRole).toInt() < other.data(0, kOrderRole).toInt();
+  }
+};
 
 QComboBox *combo(QWidget *parent) {
   auto *c = new QComboBox(parent);
@@ -90,6 +115,8 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   tree_->header()->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(tree_->header(), &QHeaderView::customContextMenuRequested, this,
           &CasePage::showHeaderMenu);
+  connect(tree_->header(), &QHeaderView::sectionClicked, this,
+          &CasePage::sortClicked);
   filter_ = new CaseFilter(tree_, left_);
   leftLayout_->addWidget(filter_);
   leftLayout_->addWidget(tree_, 1);
@@ -195,6 +222,17 @@ void CasePage::init() {
     tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
   }
   applyHiddenColumns();
+  if (sortableColumns()) {
+    tree_->header()->setSectionsClickable(true);
+    QSettings q;
+    sortColumn_ = q.value(mode_ + "/sortColumn", -1).toInt();
+    if (sortColumn_ <= 0 || sortColumn_ >= tree_->columnCount()) {
+      sortColumn_ = -1;
+    }
+    sortOrder_ = q.value(mode_ + "/sortAscending", false).toBool()
+                     ? Qt::AscendingOrder
+                     : Qt::DescendingOrder;
+  }
   applySettings();
   populateSets();
   QSettings q;
@@ -227,6 +265,53 @@ void CasePage::showHeaderMenu(const QPoint &pos) {
     });
   }
   menu.exec(tree_->header()->viewport()->mapToGlobal(pos));
+}
+
+void CasePage::sortClicked(int column) {
+  if (!sortableColumns()) {
+    return;
+  }
+  if (column <= 0) {
+    sortColumn_ = -1;
+  } else if (column != sortColumn_) {
+    sortColumn_ = column;
+    sortOrder_ = Qt::DescendingOrder;
+  } else if (sortOrder_ == Qt::DescendingOrder) {
+    sortOrder_ = Qt::AscendingOrder;
+  } else {
+    sortColumn_ = -1;
+  }
+  QSettings q;
+  q.setValue(mode_ + "/sortColumn", sortColumn_);
+  q.setValue(mode_ + "/sortAscending", sortOrder_ == Qt::AscendingOrder);
+  applySort();
+  sortChanged();
+}
+
+void CasePage::applySort() {
+  if (!sortableColumns()) {
+    return;
+  }
+  QSignalBlocker block(tree_);
+  if (sortColumn_ < 0) {
+    tree_->sortItems(0, Qt::AscendingOrder); // list order
+    tree_->header()->setSortIndicatorShown(false);
+  } else {
+    tree_->sortItems(sortColumn_, sortOrder_);
+    tree_->header()->setSortIndicatorShown(true);
+  }
+}
+
+void CasePage::fillGroupRows() {
+  QSignalBlocker block(tree_);
+  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
+    QTreeWidgetItem *group = tree_->topLevelItem(g);
+    std::vector<std::string> ids;
+    for (int i = 0; i < group->childCount(); ++i) {
+      ids.push_back(ss(group->child(i)->data(0, kCaseIdRole).toString()));
+    }
+    fillGroupRow(group, ids);
+  }
 }
 
 void CasePage::applyHiddenColumns() {
@@ -289,6 +374,41 @@ Mirror CasePage::pickWorld(const std::string &caseId) {
   }
   std::uniform_int_distribution<std::size_t> pick(0, worlds.size() - 1);
   return worlds[pick(rng_)];
+}
+
+std::vector<std::string> CasePage::shownEligible() const {
+  std::vector<std::string> out;
+  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
+    auto *group = tree_->topLevelItem(g);
+    if (group->isHidden()) {
+      continue;
+    }
+    for (int i = 0; i < group->childCount(); ++i) {
+      std::string id = ss(group->child(i)->data(0, kCaseIdRole).toString());
+      if (!group->child(i)->isHidden() && eligible(id)) {
+        out.push_back(id);
+      }
+    }
+  }
+  return out;
+}
+
+std::vector<std::string>
+CasePage::groupEligible(const std::string &groupName) const {
+  std::vector<std::string> out;
+  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
+    auto *group = tree_->topLevelItem(g);
+    if (group->text(0) != qs(groupName)) {
+      continue;
+    }
+    for (int i = 0; i < group->childCount(); ++i) {
+      std::string id = ss(group->child(i)->data(0, kCaseIdRole).toString());
+      if (eligible(id)) {
+        out.push_back(id);
+      }
+    }
+  }
+  return out;
 }
 
 std::vector<std::string> CasePage::tickedEligible() const {
@@ -522,14 +642,17 @@ void CasePage::buildTree() {
   look.map = colourMapOf(settings_.neutrality.main);
   qreal dpr = devicePixelRatioF();
   QColor muted = palette().color(QPalette::PlaceholderText);
+  int order = 0;
   for (const auto &g : s->groups) {
-    auto *groupItem = new QTreeWidgetItem(tree_, {qs(g.name)});
+    auto *groupItem = new SortItem(tree_, QStringList{qs(g.name)});
+    groupItem->setData(0, kOrderRole, order++);
     groupItem->setFlags(groupItem->flags() | Qt::ItemIsUserCheckable |
                         Qt::ItemIsAutoTristate);
     const StepSpec &spec = s->specFor(g);
     for (const auto &c : g.cases) {
-      auto *item = new QTreeWidgetItem(groupItem, {qs(c.name)});
+      auto *item = new SortItem(groupItem, QStringList{qs(c.name)});
       item->setData(0, kCaseIdRole, qs(c.id));
+      item->setData(0, kOrderRole, order++);
       item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
       bool on = !unticked.contains(qs(c.id));
       item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
@@ -558,6 +681,8 @@ void CasePage::buildTree() {
     }
     groupItem->setExpanded(!collapsed.contains(qs(g.name)));
   }
+  fillGroupRows();
+  applySort();
   filter_->apply();
   tree_->verticalScrollBar()->setValue(scroll);
   updateSummary();
@@ -581,6 +706,8 @@ void CasePage::syncRows() {
       fillRow(item, ss(id));
     }
   }
+  fillGroupRows();
+  applySort();
   filter_->apply();
   updateSummary();
 }
@@ -629,6 +756,13 @@ void CasePage::updateRow(const std::string &caseId) {
   if (auto *item = itemFor(caseId)) {
     QSignalBlocker block(tree_);
     fillRow(item, caseId);
+    if (QTreeWidgetItem *group = item->parent()) {
+      std::vector<std::string> ids;
+      for (int i = 0; i < group->childCount(); ++i) {
+        ids.push_back(ss(group->child(i)->data(0, kCaseIdRole).toString()));
+      }
+      fillGroupRow(group, ids);
+    }
   }
   filter_->apply();
   updateSummary();
@@ -643,6 +777,8 @@ void CasePage::updateAllRows() {
               ss(group->child(i)->data(0, kCaseIdRole).toString()));
     }
   }
+  fillGroupRows();
+  applySort();
   filter_->apply();
   updateSummary();
 }

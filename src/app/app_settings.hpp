@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/colours.hpp"
+#include "app/drill_settings.hpp"
 #include "app/keymap.hpp"
 #include "train/srs.hpp"
 
@@ -58,6 +59,9 @@ struct AppSettings {
   SrsConfig srs;
   // A case whose mean recognition time is over this is slow to recognise.
   int slowRecognitionMs = 1500;
+
+  // Drill mode
+  DrillSettings drill;
 
   // Allowed ranges; values outside them are brought into range on load.
   static constexpr int kMaxAnimationMs = 500;

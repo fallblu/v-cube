@@ -42,20 +42,24 @@ constexpr std::array<Section, 9> kModeSections = {{
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Drill (timed)"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",
-         "<p>Hold <b>Space</b> until the time turns green, release to start. "
-         "<b>Esc</b> cancels. Virtual cube: until the timer starts only "
-         "rotations turn the cube; <b>Space</b> stops it, and a case whose "
-         "step isn't done then (solved for PLL, oriented for OLL, ...) is a "
-         "DNF. Physical cube: any key stops. <b>Backspace</b> before or "
-         "during the solve gives the case up (a DNF). After the case: "
-         "<b>Space</b> next case, <b>Backspace</b> toggles DNF (virtual) or "
-         "\"wrong alg\" (physical), <b>Esc</b> tries the case again.</p>"
-         "<p>After a DNF the algs are shown and <b>Space</b> starts practice "
-         "of the same case, untimed and unrecorded: first with the algs "
-         "shown, then (<b>Space</b>) without them, where <b>Tab</b> shows "
-         "them again. Once it is solved without help, <b>Space</b> moves on. "
-         "<b>Esc</b> resets the cube and <b>Shift+Space</b> skips to the "
-         "next case.</p>")},
+         "<p>Virtual cube: tap <b>Space</b> to arm the timer and the first "
+         "face turn starts it (or hold Space and let go, in Settings); until "
+         "then only rotations turn the cube. The timer stops when the step "
+         "is done (solved for PLL, oriented for OLL, ...); <b>Space</b> "
+         "stops it before, which is a DNF unless the step is done. Physical "
+         "cube: hold <b>Space</b> until the time turns green and let go; any "
+         "key but a modifier stops. <b>Esc</b> cancels. <b>Shift+Space</b> "
+         "before or during the solve gives the case up (a DNF; "
+         "<b>Delete</b> takes it back if the timer hadn't started).</p>"
+         "<p>After the case: <b>Space</b> next case, <b>Tab</b> practise "
+         "it, <b>Backspace</b> toggles DNF (virtual) or \"wrong alg\" "
+         "(physical), <b>Delete</b> deletes the attempt, <b>Esc</b> tries "
+         "the case again. Practice is untimed and unrecorded: first with the "
+         "algs shown, then without them (<b>Tab</b> switches; on the virtual "
+         "cube each stage goes on by itself once solved). <b>Space</b> goes "
+         "on to the next case and <b>Esc</b> resets the cube.</p>"
+         "<p>Click a column of the case list to sort by it; right-click a "
+         "case for its drill history or to clear its times.</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Library"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",

@@ -365,7 +365,27 @@ QJsonObject progressToJson(const SetProgress &p) {
       }
       attempts.append(row);
     }
-    cases[qs(id)] = QJsonObject{{"card", card}, {"attempts", attempts}};
+    QJsonObject caseObject{{"card", card}, {"attempts", attempts}};
+    // What is kept of the drill attempts that no longer are, per mode: the
+    // best time and [day, attempts, fails, sum, best] per day.
+    QJsonObject archive;
+    for (const auto &[mode, kept] : cp.archive) {
+      if (kept.empty()) {
+        continue;
+      }
+      QJsonArray days;
+      for (const DayRollup &d : kept.days) {
+        days.append(QJsonArray{static_cast<double>(d.day), d.count, d.fails,
+                               static_cast<double>(d.sumMs),
+                               static_cast<double>(d.bestMs)});
+      }
+      archive[attemptModeId(mode)] = QJsonObject{
+          {"best", static_cast<double>(kept.bestMs)}, {"days", days}};
+    }
+    if (!archive.isEmpty()) {
+      caseObject["drillArchive"] = archive;
+    }
+    cases[qs(id)] = caseObject;
   }
   return QJsonObject{{"format", kProgressFile.format},
                      {"version", kProgressFile.version},
@@ -408,6 +428,37 @@ SetProgress progressFromJson(const QJsonObject &o) {
       at.executionMs = static_cast<std::int64_t>(a.at(5).toDouble());
       at.recognitionOnly = a.at(6).toInt() != 0;
       cp.attempts.push_back(at);
+    }
+    // Older files have no archive.
+    QJsonObject archive = co.value("drillArchive").toObject();
+    for (auto mt = archive.begin(); mt != archive.end(); ++mt) {
+      AttemptMode mode = mt.key() == "vdrill"  ? AttemptMode::VirtualDrill
+                         : mt.key() == "drill" ? AttemptMode::PhysicalDrill
+                                               : AttemptMode::Learn;
+      if (mode == AttemptMode::Learn) {
+        continue;
+      }
+      QJsonObject ko = mt.value().toObject();
+      DrillArchive kept;
+      kept.bestMs = std::max<std::int64_t>(
+          0, static_cast<std::int64_t>(ko.value("best").toDouble()));
+      for (const auto &dv : ko.value("days").toArray()) {
+        QJsonArray d = dv.toArray();
+        DayRollup r{static_cast<std::int64_t>(d.at(0).toDouble()),
+                    std::max(0, d.at(1).toInt()), std::max(0, d.at(2).toInt()),
+                    static_cast<std::int64_t>(d.at(3).toDouble()),
+                    static_cast<std::int64_t>(d.at(4).toDouble())};
+        if (r.count > 0) {
+          r.fails = std::min(r.fails, r.count);
+          kept.days.push_back(r);
+        }
+      }
+      std::sort(
+          kept.days.begin(), kept.days.end(),
+          [](const DayRollup &a, const DayRollup &b) { return a.day < b.day; });
+      if (!kept.empty()) {
+        cp.archive[mode] = std::move(kept);
+      }
     }
     cp.card.suspended = card.value("suspended").toBool(false);
     cp.card.buriedUntil =

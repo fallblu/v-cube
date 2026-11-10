@@ -28,6 +28,15 @@ std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
 // from `free` pieces, up to U turns before and after.
 bool stepSolved(const CubieCube &cube, const PieceMask &free);
 
+// Why a cube (in standard orientation) isn't at a step's end state: the U
+// turn that would take it there (in quarters, 1..3; 0 when none would),
+// and how many places hold a piece the step leaves wrong.
+struct StepMiss {
+  int auf = 0;
+  int pieces = 0;
+};
+StepMiss stepMiss(const CubieCube &cube, const PieceMask &free);
+
 // The alg with its AUFs written in, e.g. "(U') R U R' U' (U2)". U turns
 // written at the start (or end) of the alg are joined with the AUF on that
 // side, so "(U2) R U R'" with a U before it reads "(U') R U R'".

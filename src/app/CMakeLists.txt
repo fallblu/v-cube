@@ -11,7 +11,9 @@ add_library(vcube_gui STATIC
   command_palette.cpp
   cube_painter.cpp
   cube_view.cpp
+  drill_history_dialog.cpp
   drill_page.cpp
+  drill_settings.cpp
   flow_layout.cpp
   help_text.cpp
   inspection_page.cpp

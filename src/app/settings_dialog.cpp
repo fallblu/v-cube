@@ -354,6 +354,9 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   learningScroll->setFrameShape(QFrame::NoFrame);
   tabs->addTab(learningScroll, tr("Learning"));
 
+  drillTab_ = new DrillSettingsTab(settings_.drill, tabs);
+  tabs->addTab(drillTab_, tr("Drill"));
+
   auto *buttons = new QDialogButtonBox(
       QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
   connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
@@ -722,6 +725,7 @@ void SettingsDialog::accept() {
   settings_.srs.leechLapses = leechSpin_->value();
   settings_.slowRecognitionMs =
       static_cast<int>(std::lround(slowSpin_->value() * 1000));
+  settings_.drill = drillTab_->result();
   QDialog::accept();
 }
 

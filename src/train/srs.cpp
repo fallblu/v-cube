@@ -1,7 +1,9 @@
 #include "train/srs.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <ctime>
 #include <limits>
 
 namespace vcube {
@@ -258,6 +260,54 @@ Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs) {
   return hinted || gaveUp || leftAlgs ? Grade::Again : Grade::Good;
 }
 
+std::int64_t localDayNumber(std::int64_t unixSeconds) {
+  auto t = static_cast<std::time_t>(unixSeconds);
+  std::tm tm{};
+#ifdef _WIN32
+  localtime_s(&tm, &t);
+#else
+  localtime_r(&t, &tm);
+#endif
+  using namespace std::chrono;
+  year_month_day ymd{year(tm.tm_year + 1900),
+                     month(static_cast<unsigned>(tm.tm_mon + 1)),
+                     day(static_cast<unsigned>(tm.tm_mday))};
+  return sys_days(ymd).time_since_epoch().count();
+}
+
+std::optional<double> DayRollup::meanMs() const {
+  if (good() <= 0) {
+    return std::nullopt;
+  }
+  return static_cast<double>(sumMs) / good();
+}
+
+namespace {
+
+bool isDrill(AttemptMode m) { return m != AttemptMode::Learn; }
+
+// Adds an attempt to the roll-ups (oldest first), on its day.
+void addToDays(std::vector<DayRollup> &days, const Attempt &a) {
+  std::int64_t day = localDayNumber(a.timestamp);
+  auto it = std::lower_bound(
+      days.begin(), days.end(), day,
+      [](const DayRollup &r, std::int64_t d) { return r.day < d; });
+  if (it == days.end() || it->day != day) {
+    it = days.insert(it, DayRollup{day, 0, 0, 0, 0});
+  }
+  ++it->count;
+  if (a.failed) {
+    ++it->fails;
+  } else {
+    it->sumMs += a.timeMs;
+    if (it->bestMs == 0 || a.timeMs < it->bestMs) {
+      it->bestMs = std::max<std::int64_t>(a.timeMs, 1);
+    }
+  }
+}
+
+} // namespace
+
 void CaseProgress::record(const Attempt &a) {
   attempts.push_back(a);
   std::size_t same = 0;
@@ -268,8 +318,66 @@ void CaseProgress::record(const Attempt &a) {
     auto oldest =
         std::find_if(attempts.begin(), attempts.end(),
                      [&a](const Attempt &x) { return x.mode == a.mode; });
+    if (isDrill(oldest->mode)) {
+      DrillArchive &kept = archive[oldest->mode];
+      if (!oldest->failed &&
+          (kept.bestMs == 0 || oldest->timeMs < kept.bestMs)) {
+        kept.bestMs = std::max<std::int64_t>(oldest->timeMs, 1);
+      }
+      addToDays(kept.days, *oldest);
+    }
     attempts.erase(oldest);
   }
+}
+
+std::optional<double> CaseProgress::recentMedian(AttemptMode mode,
+                                                 std::size_t n) const {
+  std::vector<std::int64_t> times;
+  for (auto it = attempts.rbegin(); it != attempts.rend() && times.size() < n;
+       ++it) {
+    if (it->mode == mode && !it->failed) {
+      times.push_back(it->timeMs);
+    }
+  }
+  if (times.empty()) {
+    return std::nullopt;
+  }
+  std::sort(times.begin(), times.end());
+  std::size_t mid = times.size() / 2;
+  if (times.size() % 2 == 1) {
+    return static_cast<double>(times[mid]);
+  }
+  return (static_cast<double>(times[mid - 1]) +
+          static_cast<double>(times[mid])) /
+         2.0;
+}
+
+std::vector<DayRollup> CaseProgress::days(AttemptMode mode) const {
+  std::vector<DayRollup> out;
+  if (auto it = archive.find(mode); it != archive.end()) {
+    out = it->second.days;
+  }
+  for (const Attempt &a : attempts) {
+    if (a.mode == mode) {
+      addToDays(out, a);
+    }
+  }
+  return out;
+}
+
+bool CaseProgress::removeLast(AttemptMode mode) {
+  for (auto it = attempts.rbegin(); it != attempts.rend(); ++it) {
+    if (it->mode == mode) {
+      attempts.erase(std::next(it).base());
+      return true;
+    }
+  }
+  return false;
+}
+
+void CaseProgress::clearDrill(AttemptMode mode) {
+  std::erase_if(attempts, [mode](const Attempt &a) { return a.mode == mode; });
+  archive.erase(mode);
 }
 
 std::optional<double> CaseProgress::recentMean(AttemptMode mode,
@@ -290,6 +398,10 @@ std::optional<double> CaseProgress::recentMean(AttemptMode mode,
 
 std::optional<std::int64_t> CaseProgress::best(AttemptMode mode) const {
   std::optional<std::int64_t> b;
+  if (auto it = archive.find(mode);
+      it != archive.end() && it->second.bestMs > 0) {
+    b = it->second.bestMs;
+  }
   for (const auto &a : attempts) {
     if (a.mode == mode && !a.failed && (!b || a.timeMs < *b)) {
       b = a.timeMs;
@@ -655,10 +767,67 @@ std::optional<std::size_t> pickSetToReview(const std::vector<SetDue> &sets,
   return pick(rng);
 }
 
+double drillReference(const std::vector<std::string> &pool,
+                      const SetProgress &progress, AttemptMode mode,
+                      double targetMs) {
+  if (targetMs > 0) {
+    return targetMs;
+  }
+  double total = 0;
+  int counted = 0;
+  for (const auto &id : pool) {
+    auto it = progress.find(id);
+    if (it == progress.end()) {
+      continue;
+    }
+    if (auto m = it->second.recentMean(mode)) {
+      total += *m;
+      ++counted;
+    }
+  }
+  return counted > 0 ? total / counted : 0.0;
+}
+
+std::optional<double> drillWeakness(const CaseProgress *p, AttemptMode mode,
+                                    double referenceMs) {
+  if (!p || p->drillCount(mode) == 0) {
+    return std::nullopt;
+  }
+  // The median, so that one slow time among good ones counts for little.
+  auto m = p->recentMedian(mode);
+  double ratio = (m && referenceMs > 0) ? *m / referenceMs : 1.5;
+  ratio = std::clamp(ratio, 0.5, 3.0);
+  return ratio * ratio * (1.0 + 3.0 * p->failRate(mode));
+}
+
+std::vector<std::string> weakestCases(const std::vector<std::string> &pool,
+                                      const SetProgress &progress,
+                                      AttemptMode mode, double targetMs,
+                                      std::size_t n) {
+  double reference = drillReference(pool, progress, mode, targetMs);
+  std::vector<std::pair<double, std::string>> weak;
+  for (const auto &id : pool) {
+    auto it = progress.find(id);
+    if (auto w = drillWeakness(it == progress.end() ? nullptr : &it->second,
+                               mode, reference)) {
+      weak.emplace_back(*w, id);
+    }
+  }
+  std::stable_sort(weak.begin(), weak.end(), [](const auto &a, const auto &b) {
+    return a.first > b.first;
+  });
+  std::vector<std::string> out;
+  for (std::size_t i = 0; i < weak.size() && i < n; ++i) {
+    out.push_back(weak[i].second);
+  }
+  return out;
+}
+
 void CasePicker::setMode(PickMode m) {
   if (m != mode_) {
     mode_ = m;
     orderPos_ = 0;
+    restartRecap();
   }
 }
 
@@ -666,8 +835,44 @@ void CasePicker::setPool(std::vector<std::string> caseIds) {
   if (caseIds == pool_) {
     return;
   }
+  // In order goes on with the first case still in the pool from where it
+  // was, rather than from the top.
+  std::size_t pos = 0;
+  for (std::size_t k = 0; k < pool_.size(); ++k) {
+    const std::string &id = pool_[(orderPos_ + k) % pool_.size()];
+    auto it = std::find(caseIds.begin(), caseIds.end(), id);
+    if (it != caseIds.end()) {
+      pos = static_cast<std::size_t>(it - caseIds.begin());
+      break;
+    }
+  }
+  orderPos_ = pos;
+  auto inPool = [&caseIds](const std::string &id) {
+    return std::find(caseIds.begin(), caseIds.end(), id) != caseIds.end();
+  };
+  std::erase_if(recapLeft_,
+                [&inPool](const std::string &id) { return !inPool(id); });
+  std::erase_if(requeued_,
+                [&inPool](const auto &r) { return !inPool(r.first); });
   pool_ = std::move(caseIds);
-  orderPos_ = 0;
+}
+
+void CasePicker::requeue(const std::string &caseId, int after) {
+  std::erase_if(requeued_,
+                [&caseId](const auto &r) { return r.first == caseId; });
+  if (after > 0) {
+    requeued_.emplace_back(caseId, after);
+  }
+}
+
+bool CasePicker::isRequeued(const std::string &caseId) const {
+  return std::any_of(requeued_.begin(), requeued_.end(),
+                     [&caseId](const auto &r) { return r.first == caseId; });
+}
+
+void CasePicker::restartRecap() {
+  recapLeft_.clear();
+  recapStarted_ = false;
 }
 
 std::optional<std::string> CasePicker::next(const SetProgress &progress,
@@ -679,51 +884,65 @@ std::optional<std::string> CasePicker::next(const SetProgress &progress,
     auto it = progress.find(id);
     return it == progress.end() ? nullptr : &it->second;
   };
+  const bool several = pool_.size() > 1;
+  if (mode_ == PickMode::Recap && !recapStarted_) {
+    recapLeft_ = pool_;
+    recapStarted_ = true;
+  }
+  const bool recapOver = mode_ == PickMode::Recap && recapLeft_.empty();
+  if (recapOver && requeued_.empty()) {
+    return std::nullopt;
+  }
+  // A requeued case whose wait is over comes first (at the end of a recap,
+  // whether it is over or not), but not two in a row, so that a run of
+  // failures doesn't hold up the other cases.
   std::string pick;
-  switch (mode_) {
-  case PickMode::Random: {
-    // Uniform over the pool without the last case.
-    auto last = std::find(pool_.begin(), pool_.end(), last_);
-    bool skip = pool_.size() > 1 && last != pool_.end();
-    std::uniform_int_distribution<std::size_t> dist(0, pool_.size() -
+  for (auto it = requeued_.begin(); it != requeued_.end(); ++it) {
+    if ((it->second <= 0 || recapOver) && (!lastRequeued_ || recapOver) &&
+        (it->first != last_ || !several)) {
+      pick = it->first;
+      requeued_.erase(it);
+      break;
+    }
+  }
+  if (pick.empty() && recapOver) {
+    // Only the last case is waiting: it comes even so.
+    pick = requeued_.front().first;
+    requeued_.erase(requeued_.begin());
+  }
+  for (auto &r : requeued_) {
+    r.second = std::max(0, r.second - 1);
+  }
+  lastRequeued_ = !pick.empty();
+  if (!pick.empty()) {
+    std::erase(recapLeft_, pick);
+    last_ = pick;
+    return pick;
+  }
+  // Uniform over `ids` without the last case.
+  auto uniform = [this, several, &rng](const std::vector<std::string> &ids) {
+    auto last = std::find(ids.begin(), ids.end(), last_);
+    bool skip = several && ids.size() > 1 && last != ids.end();
+    std::uniform_int_distribution<std::size_t> dist(0, ids.size() -
                                                            (skip ? 2 : 1));
     std::size_t i = dist(rng);
-    if (skip && i >= static_cast<std::size_t>(last - pool_.begin())) {
+    if (skip && i >= static_cast<std::size_t>(last - ids.begin())) {
       ++i;
     }
-    pick = pool_[i];
+    return ids[i];
+  };
+  switch (mode_) {
+  case PickMode::Random:
+    pick = uniform(pool_);
     break;
-  }
   case PickMode::Weighted: {
-    // Compare cases with the target time, or with the pool's overall mean
-    // when there is no target.
-    double reference = targetMs_;
-    if (reference <= 0) {
-      double total = 0;
-      int counted = 0;
-      for (const auto &id : pool_) {
-        if (const auto *p = find(id)) {
-          if (auto m = p->recentMean(attemptMode_)) {
-            total += *m;
-            ++counted;
-          }
-        }
-      }
-      reference = counted > 0 ? total / counted : 0.0;
-    }
+    double reference = drillReference(pool_, progress, attemptMode_, targetMs_);
     std::vector<double> weights;
     for (const auto &id : pool_) {
-      const auto *p = find(id);
-      double w = 2.0; // never drilled: favour it
-      if (p && p->drillCount(attemptMode_) > 0) {
-        auto m = p->recentMean(attemptMode_);
-        double ratio = (m && reference > 0) ? *m / reference : 1.5;
-        w = ratio * ratio * (1.0 + 3.0 * p->failRate(attemptMode_));
-      }
-      if (id == last_ && pool_.size() > 1) {
-        w *= 0.1;
-      }
-      weights.push_back(std::max(w, 0.05));
+      // Never drilled: favour it.
+      double w = drillWeakness(find(id), attemptMode_, reference).value_or(2.0);
+      // Never the same case twice in a row.
+      weights.push_back(id == last_ && several ? 0.0 : std::max(w, 0.05));
     }
     std::discrete_distribution<std::size_t> dist(weights.begin(),
                                                  weights.end());
@@ -732,7 +951,16 @@ std::optional<std::string> CasePicker::next(const SetProgress &progress,
   }
   case PickMode::InOrder:
     pick = pool_[orderPos_ % pool_.size()];
+    if (pick == last_ && several) {
+      // Just done (started from the list): on to the one after it.
+      orderPos_ = (orderPos_ + 1) % pool_.size();
+      pick = pool_[orderPos_];
+    }
     orderPos_ = (orderPos_ + 1) % pool_.size();
+    break;
+  case PickMode::Recap:
+    pick = uniform(recapLeft_);
+    std::erase(recapLeft_, pick);
     break;
   }
   last_ = pick;

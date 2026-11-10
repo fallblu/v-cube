@@ -45,6 +45,8 @@ public:
 
   // The set drop-down's entry for reviewing every set at once.
   static constexpr const char *kAcrossSetsId = "*across*";
+  // Where a row keeps a column's value to sort by (see sortableColumns()).
+  static constexpr int kSortRole = Qt::UserRole + 30;
 
 signals:
   void editCaseRequested(const QString &setId, const QString &caseId);
@@ -108,6 +110,11 @@ protected:
   Mirror pickWorld(const std::string &caseId);
   // Ticked cases that can be offered, in list order.
   std::vector<std::string> tickedEligible() const;
+  // Cases the list shows (search and status filter) that can be offered,
+  // ticked or not, in list order.
+  std::vector<std::string> shownEligible() const;
+  // A group's cases that can be offered, ticked or not, in list order.
+  std::vector<std::string> groupEligible(const std::string &groupName) const;
   int tickedCount() const;
   // Cases without a passing alg.
   int excludedCount() const;
@@ -166,6 +173,23 @@ protected:
   // Columns hidden until the header's menu shows them.
   virtual QStringList defaultHiddenColumns() const { return {}; }
   virtual void fillRow(QTreeWidgetItem *item, const std::string &caseId) = 0;
+  // A group's row, from its cases (e.g. their statistics taken together).
+  virtual void fillGroupRow(QTreeWidgetItem *item,
+                            const std::vector<std::string> &caseIds) {
+    (void)item;
+    (void)caseIds;
+  }
+  // The list can be sorted by the columns after "Case": a click on a
+  // column's header sorts by it (largest first, then smallest first, then
+  // in list order again, as a click on "Case" does). Cases sort within
+  // their groups, and groups by their own rows. fillRow() and
+  // fillGroupRow() give each column's value in kSortRole (a number; none
+  // sorts as -1).
+  virtual bool sortableColumns() const { return false; }
+  // Sorts the list again, e.g. after its values changed.
+  void applySort();
+  // The list was sorted another way from its header.
+  virtual void sortChanged() {}
   virtual void updateSummary() = 0;
   // A set was selected: start practising it.
   virtual void startSet() = 0;
@@ -225,6 +249,10 @@ private:
   // "Tick all" becomes "Tick shown" while the list is filtered.
   void filterChanged();
   ColourNeutrality neutrality_; // as last applied
+  int sortColumn_ = -1;         // -1: list order
+  Qt::SortOrder sortOrder_ = Qt::DescendingOrder;
+  void sortClicked(int column);
+  void fillGroupRows();
   void showCaseMenu(const QPoint &pos);
 };
 
