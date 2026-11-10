@@ -9,6 +9,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <string>
 #include <vector>
 
 namespace vcube {
@@ -79,8 +80,6 @@ public:
   // new case never inherits a deleted one's, and saves it if it changed.
   void forgetProgress(const std::string &setId,
                       const std::vector<std::string> &caseIds);
-
-  QString directory() const { return dir_; }
 
 private:
   QString dir_;

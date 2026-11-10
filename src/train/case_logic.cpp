@@ -630,12 +630,6 @@ CubieCube withRandomAufs(const AlgSet &set, const CubieCube &state, Rng &rng) {
   return s;
 }
 
-CubieCube drillState(const AlgSet &set, const CaseGroup &group,
-                     const AlgCase &c, Rng &rng) {
-  CubieCube rest = randomState(set.specFor(group).free, rng);
-  return withRandomAufs(set, rest * c.state, rng);
-}
-
 CubieCube stateSolvedBy(const Alg &alg) {
   // Done from the case, the alg leaves the cube solved but turned by its
   // net rotation (e.g. "x R U R' ..." ends with x applied), so its inverse

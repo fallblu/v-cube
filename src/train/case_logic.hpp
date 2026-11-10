@@ -4,9 +4,11 @@
 #include "train/algset.hpp"
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace vcube {
 
@@ -144,12 +146,6 @@ std::vector<CaseRef> matchCases(const AlgSet &set, const Alg &alg);
 // The case with the random U turns before and after it that the set asks
 // for, so that it is seen from any side, as Learn and Drill set it up.
 CubieCube withRandomAufs(const AlgSet &set, const CubieCube &state, Rng &rng);
-
-// A drill state for a case: random U turns around it (as the set asks) and
-// the step's free pieces scrambled, so that the case can't be told from
-// the scramble.
-CubieCube drillState(const AlgSet &set, const CaseGroup &group,
-                     const AlgCase &c, Rng &rng);
 
 // The cube state an alg solves (its inverse applied to a solved cube).
 CubieCube stateSolvedBy(const Alg &alg);

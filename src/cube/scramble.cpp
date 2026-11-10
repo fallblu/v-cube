@@ -151,10 +151,9 @@ Alg scrambleToState(const CubieCube &state) {
 const std::vector<ScrambleType> &scrambleTypes() {
   static const std::vector<ScrambleType> types = [] {
     std::vector<ScrambleType> t;
-    auto add = [&](std::string id, std::string name, PieceMask m, bool before,
-                   bool after) {
+    auto add = [&](std::string id, std::string name, PieceMask m, bool after) {
       m.normalize();
-      t.push_back({std::move(id), std::move(name), m, before, after});
+      t.push_back({std::move(id), std::move(name), m, after});
     };
     PieceMask ll = PieceMask{}.lastLayer(true, true, true);
     PieceMask cross = PieceMask::all();
@@ -181,29 +180,29 @@ const std::vector<ScrambleType> &scrambleTypes() {
     edgesOnly.ep.fill(true);
     edgesOnly.eo.fill(true);
 
-    add("333", "3x3 random state (WCA)", PieceMask::all(), false, false);
-    add("f2l", "F2L (cross solved)", cross, false, false);
-    add("xcross", "XCross solved (FR slot done)", xcross, false, false);
-    add("eoline", "EOLine solved", eoline, false, false);
-    add("eocross", "EOCross solved", eocross, false, false);
+    add("333", "3x3 random state (WCA)", PieceMask::all(), false);
+    add("f2l", "F2L (cross solved)", cross, false);
+    add("xcross", "XCross solved (FR slot done)", xcross, false);
+    add("eoline", "EOLine solved", eoline, false);
+    add("eocross", "EOCross solved", eocross, false);
     add("lsll", "Last slot + last layer",
         PieceMask{}
             .lastLayer(true, true, true)
             .corners({DFR}, true, true)
             .edges({FR}, true, true),
-        false, true);
-    add("ll", "Last layer", ll, false, true);
+        true);
+    add("ll", "Last layer", ll, true);
     add("zbll", "ZBLL (LL edges oriented)",
-        PieceMask{}.lastLayer(true, true, false), false, true);
+        PieceMask{}.lastLayer(true, true, false), true);
     add("cll", "LL corners only",
-        PieceMask{}.corners({URF, UFL, ULB, UBR}, true, true), false, false);
+        PieceMask{}.corners({URF, UFL, ULB, UBR}, true, true), false);
     add("ell", "LL edges only", PieceMask{}.edges({UR, UF, UL, UB}, true, true),
-        false, false);
-    add("pll", "PLL", PieceMask{}.lastLayer(true, false, false), false, true);
+        false);
+    add("pll", "PLL", PieceMask{}.lastLayer(true, false, false), true);
     add("epll", "EPLL (LL edges permuted)",
-        PieceMask{}.edges({UR, UF, UL, UB}, true, false), false, false);
-    add("corners", "Corners only (edges solved)", cornersOnly, false, false);
-    add("edges", "Edges only (corners solved)", edgesOnly, false, false);
+        PieceMask{}.edges({UR, UF, UL, UB}, true, false), false);
+    add("corners", "Corners only (edges solved)", cornersOnly, false);
+    add("edges", "Edges only (corners solved)", edgesOnly, false);
     return t;
   }();
   return types;
@@ -222,9 +221,6 @@ CubieCube randomStateOf(const ScrambleType &type, Rng &rng) {
   std::uniform_int_distribution<int> quarter(0, 3);
   for (int attempt = 0; attempt < 1000; ++attempt) {
     CubieCube s = randomState(type.mask, rng);
-    if (type.aufBefore) {
-      s = uTurn(quarter(rng)) * s;
-    }
     if (type.aufAfter) {
       s = s * uTurn(quarter(rng));
     }

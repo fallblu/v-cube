@@ -8,7 +8,6 @@
 #include <compare>
 #include <optional>
 #include <random>
-#include <string_view>
 #include <vector>
 
 namespace vcube {
@@ -68,9 +67,6 @@ std::optional<CubieCube> heldCubie(const FaceletCube &cube, Hold h);
 // X2Y means x2 and y (either of two opposite tops, any front), and so on.
 enum class Neutrality { Fixed, Y2, Y, X2, X2Y2, X2Y, Full };
 inline constexpr int kNeutralityCount = 7;
-
-// "fixed", "y2", "y", "x2", "x2y2", "x2y", "full".
-std::string_view neutralityName(Neutrality n);
 
 // The holds `n` allows starting from `main`, sorted.
 std::vector<Hold> neutralHolds(Hold main, Neutrality n);
