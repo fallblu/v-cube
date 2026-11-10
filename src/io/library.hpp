@@ -33,13 +33,17 @@ public:
   const std::vector<AlgSet> &sets() const { return sets_; }
   AlgSet *find(const std::string &id);
 
+  // Writes go through reportWrite(), so that a failure is seen whoever
+  // asked for it.
   bool save(const AlgSet &set, QString *error = nullptr);
   // Adds a new set and saves it, giving it a unique id if its id is taken.
   // nullptr (and nothing added) if it can't be saved.
   AlgSet *add(AlgSet set, QString *error = nullptr);
-  // Deletes a set's file and progress. false (and the set kept) if its file
-  // can't be deleted.
+  // Removes a set. Its file and progress are moved to dir/deleted (named
+  // with the date and time) rather than deleted, so they can be brought
+  // back by hand. false (and the set kept) if its file can't be moved.
   bool remove(const std::string &id, QString *error = nullptr);
+  QString deletedDirectory() const;
   // The file a set is saved to.
   QString pathFor(const std::string &id) const;
   // Whether a set uses `id` or its file name (ids are stored by file

@@ -1,7 +1,9 @@
 #include "io/library.hpp"
 
+#include "io/backup.hpp"
 #include "train/case_logic.hpp"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -246,7 +248,13 @@ AlgSet *AlgLibrary::find(const std::string &id) {
 bool AlgLibrary::save(const AlgSet &set, QString *error) {
   QDir().mkpath(dir_);
   QString path = pathFor(set.id);
-  if (!writeAlgSetFile(set, path, error)) {
+  QString why;
+  bool ok = writeAlgSetFile(set, path, &why);
+  reportWrite(path, ok, why);
+  if (error) {
+    *error = why;
+  }
+  if (!ok) {
     return false;
   }
   paths_[set.id] = path;
@@ -290,6 +298,10 @@ AlgSet *AlgLibrary::add(AlgSet set, QString *error) {
   return find(id);
 }
 
+QString AlgLibrary::deletedDirectory() const {
+  return QDir(dir_).filePath(kDeletedFolder);
+}
+
 bool AlgLibrary::remove(const std::string &id, QString *error) {
   auto it = std::find_if(sets_.begin(), sets_.end(),
                          [&](const AlgSet &s) { return s.id == id; });
@@ -300,20 +312,26 @@ bool AlgLibrary::remove(const std::string &id, QString *error) {
     return false;
   }
   finishBackgroundWrites(progressPathFor(id));
-  QFile file(pathFor(id));
-  if (file.exists() && !file.remove()) {
+  QDateTime now = QDateTime::currentDateTime();
+  QString why;
+  if (QFile::exists(pathFor(id)) &&
+      moveToDeleted(pathFor(id), deletedDirectory(), now, &why).isEmpty()) {
+    reportWrite(pathFor(id), false, why);
     if (error) {
-      *error = QString("could not delete %1: %2")
-                   .arg(QDir::toNativeSeparators(file.fileName()),
-                        file.errorString());
+      *error = why;
     }
     return false;
   }
-  QFile progressFile(progressPathFor(id));
-  if (progressFile.exists() && !progressFile.remove() && error) {
-    *error = QString("could not delete %1: %2")
-                 .arg(QDir::toNativeSeparators(progressFile.fileName()),
-                      progressFile.errorString());
+  if (QFile::exists(progressPathFor(id)) &&
+      moveToDeleted(progressPathFor(id),
+                    QDir(deletedDirectory()).filePath("progress"), now, &why)
+          .isEmpty()) {
+    // The set is gone; its progress stays where it was, and would come
+    // back with a set of the same id.
+    reportWrite(progressPathFor(id), false, why);
+    if (error) {
+      *error = why;
+    }
   }
   progress_.erase(id);
   progressKeptOff_.erase(id);
@@ -456,7 +474,13 @@ AlgLibrary::progressWriter(const std::string &setId) {
 }
 
 bool AlgLibrary::saveProgress(const std::string &setId, QString *error) {
-  return progressWriter(setId)(error);
+  QString why;
+  bool ok = progressWriter(setId)(&why);
+  reportWrite(progressPathFor(setId), ok, why);
+  if (error) {
+    *error = why;
+  }
+  return ok;
 }
 
 QString AlgLibrary::progressPath(const std::string &setId) const {

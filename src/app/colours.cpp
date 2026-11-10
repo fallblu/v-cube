@@ -1,6 +1,8 @@
 #include "app/colours.hpp"
 
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QPalette>
 
 #include <algorithm>
 
@@ -12,6 +14,20 @@ ColourScheme ColourScheme::standard() {
              QColor(0x1f, 0xa8, 0x4a), QColor(0xff, 0xd5, 0x00),
              QColor(0xff, 0x80, 0x1a), QColor(0x1e, 0x5c, 0xd6)};
   return s;
+}
+
+QColor statusColour(Status s) {
+  bool dark =
+      QGuiApplication::palette().color(QPalette::Window).lightness() < 128;
+  switch (s) {
+  case Status::Good:
+    return dark ? QColor(0x3d, 0xd6, 0x6b) : QColor(0x1a, 0x7f, 0x37);
+  case Status::Warning:
+    return dark ? QColor(0xff, 0xb0, 0x30) : QColor(0x9a, 0x5b, 0x00);
+  case Status::Bad:
+    return dark ? QColor(0xff, 0x55, 0x55) : QColor(0xc6, 0x28, 0x28);
+  }
+  return {};
 }
 
 QString colourName(int slot) {

@@ -131,6 +131,9 @@ namespace {
 
 thread_local bool tOnWriter = false;
 
+std::mutex gReporterMutex;
+WriteReporter gReporter;
+
 class Writer {
 public:
   static Writer &instance() {
@@ -213,11 +216,13 @@ private:
       runningPath_ = job.path;
       lock.unlock();
       QString error;
-      if (!job.write(&error) && job.onError) {
-        if (error.isEmpty()) {
-          error = QString("%1 couldn't be written")
-                      .arg(QDir::toNativeSeparators(job.path));
-        }
+      bool ok = job.write(&error);
+      if (!ok && error.isEmpty()) {
+        error = QString("%1 couldn't be written")
+                    .arg(QDir::toNativeSeparators(job.path));
+      }
+      reportWrite(job.path, ok, error);
+      if (!ok && job.onError) {
         if (QCoreApplication *app = QCoreApplication::instance()) {
           QMetaObject::invokeMethod(
               app,
@@ -250,6 +255,36 @@ void writeInBackground(const QString &path,
 
 void finishBackgroundWrites(const QString &path) {
   Writer::instance().wait(path);
+}
+
+void setWriteReporter(WriteReporter reporter) {
+  std::lock_guard lock(gReporterMutex);
+  gReporter = std::move(reporter);
+}
+
+void reportWrite(const QString &path, bool ok, const QString &error) {
+  QCoreApplication *app = QCoreApplication::instance();
+  if (!app) {
+    return;
+  }
+  QString why = ok ? QString() : error;
+  if (!ok && why.isEmpty()) {
+    why = QString("%1 couldn't be written").arg(QDir::toNativeSeparators(path));
+  }
+  // On the GUI thread: at once from there, queued from the writer.
+  QMetaObject::invokeMethod(
+      app,
+      [path, why] {
+        WriteReporter report;
+        {
+          std::lock_guard lock(gReporterMutex);
+          report = gReporter;
+        }
+        if (report) {
+          report(path, why);
+        }
+      },
+      Qt::AutoConnection);
 }
 
 } // namespace vcube

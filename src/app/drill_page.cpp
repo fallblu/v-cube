@@ -17,8 +17,8 @@ namespace vcube {
 
 namespace {
 
-const QColor kGood(0x3d, 0xd6, 0x6b);
-const QColor kSlow(0xff, 0xb0, 0x30);
+const StatusColour kGood{Status::Good};
+const StatusColour kSlow{Status::Warning};
 
 QString poolName(int i) {
   static const char *names[] = {"learned", "ticked", "learning"};
@@ -91,6 +91,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   QFont sf = scrambleLabel_->font();
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
+  markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(56);
   rightLayout->addWidget(scrambleLabel_);
 

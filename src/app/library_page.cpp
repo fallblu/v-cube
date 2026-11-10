@@ -39,8 +39,8 @@ namespace {
 constexpr int kCaseRole = Qt::UserRole;
 constexpr int kGroupRole = Qt::UserRole + 1;
 
-const QColor kPass(0x3d, 0xd6, 0x6b);
-const QColor kWarn(0xff, 0xb0, 0x30);
+const StatusColour kPass{Status::Good};
+const StatusColour kWarn{Status::Warning};
 const QColor kFail(0xe6, 0x66, 0x66);
 
 constexpr int kDiagramSize = 160;
@@ -473,7 +473,7 @@ void LibraryPage::buildActions() {
       action(tr("Set &properties…"), &LibraryPage::editProperties,
              QKeySequence(Qt::ALT | Qt::Key_Return));
   checkAction_ = action(tr("&Check algs…"), &LibraryPage::checkAlgs,
-                        QKeySequence(Qt::CTRL | Qt::Key_K));
+                        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K));
   importAction_ = action(tr("&Import set…"), &LibraryPage::importSetFile);
   exportAction_ = action(tr("&Export set…"), &LibraryPage::exportSetFile);
   restoreCasesAction_ =
@@ -1401,7 +1401,8 @@ void LibraryPage::deleteSet() {
                      "too.",
                      nullptr, static_cast<int>(progress.size()));
   }
-  text += "\n\n" + tr("Edit > Undo brings it back while v-cube is open.");
+  text += "\n\n" + tr("Edit > Undo brings it back while v-cube is open, and "
+                       "its files are kept in the alg sets' deleted folder.");
   if (s->builtin) {
     text += " " + tr("After that, Set > Restore a built-in set brings back "
                      "its cases, but not your algs.");

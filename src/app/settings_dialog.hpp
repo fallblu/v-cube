@@ -27,15 +27,23 @@ public:
 
   void accept() override;
 
+protected:
+  bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
   AppSettings settings_;
   QTabWidget *tabs_;
   QComboBox *themeBox_;
   QSpinBox *animationSpin_;
+  QSpinBox *scrambleFontSpin_;
+  QComboBox *hintTextBox_;
+  QComboBox *thumbnailBox_;
   std::array<QPushButton *, 6> colourButtons_{};
-  QComboBox *holdBox_;
+  QSpinBox *holdSpin_;
   QCheckBox *inspectionBox_;
+  QCheckBox *soundsBox_;
   QSpinBox *decimalsSpin_;
+  QSpinBox *timerFontSpin_;
   QCheckBox *autoStopBox_;
   QCheckBox *hideCubeBox_;
   QCheckBox *simplifiedBox_;

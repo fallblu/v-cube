@@ -1,5 +1,7 @@
 #include "app/paste_dialog.hpp"
 
+#include "app/colours.hpp"
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -25,8 +27,8 @@ QString counted(int n, const QString &one, const QString &many) {
   return QString("%1 %2").arg(n).arg(n == 1 ? one : many);
 }
 
-const QColor kPass(0x3d, 0xd6, 0x6b);
-const QColor kWarn(0xff, 0xb0, 0x30);
+const StatusColour kPass{Status::Good};
+const StatusColour kWarn{Status::Warning};
 const QColor kFail(0xe6, 0x66, 0x66);
 
 enum Column { LineColumn, AlgColumn, CaseColumn, ResultColumn, ColumnCount };

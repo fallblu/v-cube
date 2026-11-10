@@ -10,6 +10,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QKeySequenceEdit>
 #include <QLabel>
 #include <QLineEdit>
@@ -72,6 +73,39 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     refreshColours();
   });
   gForm->addRow(tr("Colour scheme (U R F D L B):"), colourRow);
+  scrambleFontSpin_ = new QSpinBox(general);
+  scrambleFontSpin_->setRange(AppSettings::kMinScrambleFontPt,
+                              AppSettings::kMaxScrambleFontPt);
+  scrambleFontSpin_->setSuffix(" pt");
+  scrambleFontSpin_->setValue(settings_.scrambleFontPt);
+  gForm->addRow(tr("Scramble text size:"), scrambleFontSpin_);
+  // A choice of a few sizes, keeping one set by hand in the file.
+  auto choice = [general](const std::vector<std::pair<QString, int>> &items,
+                          int value, const QString &custom) {
+    auto *box = new QComboBox(general);
+    for (const auto &[label, v] : items) {
+      box->addItem(label, v);
+    }
+    if (box->findData(value) < 0) {
+      box->addItem(custom.arg(value), value);
+    }
+    box->setCurrentIndex(box->findData(value));
+    return box;
+  };
+  hintTextBox_ = choice({{tr("Normal"), 100},
+                         {tr("Large"), 120},
+                         {tr("Larger"), 145},
+                         {tr("Largest"), 175}},
+                        settings_.hintTextPercent, tr("%1%"));
+  hintTextBox_->setToolTip(
+      tr("The size of the hints under the timer and cube, and of messages"));
+  gForm->addRow(tr("Hint and message text:"), hintTextBox_);
+  thumbnailBox_ =
+      choice({{tr("Small"), 38}, {tr("Medium"), 56}, {tr("Large"), 76}},
+             settings_.thumbnailSize, tr("%1 px"));
+  thumbnailBox_->setToolTip(
+      tr("The size of the case pictures in the Learn and Drill lists"));
+  gForm->addRow(tr("Case pictures:"), thumbnailBox_);
   tabs->addTab(general, tr("General"));
 
   tabs->addTab(buildNeutralityTab(tabs), tr("Colour neutrality"));
@@ -80,20 +114,34 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   // Timer
   auto *timer = new QWidget(tabs);
   auto *tForm = new QFormLayout(timer);
-  holdBox_ = new QComboBox(timer);
-  for (int ms : {0, 300, 550, 1000}) {
-    holdBox_->addItem(QString::number(ms / 1000.0, 'g', 3) + " s", ms);
-  }
-  holdBox_->setCurrentIndex(std::max(0, holdBox_->findData(settings_.holdMs)));
-  tForm->addRow(tr("Hold Space before starting:"), holdBox_);
+  holdSpin_ = new QSpinBox(timer);
+  holdSpin_->setRange(0, AppSettings::kMaxHoldMs);
+  holdSpin_->setSingleStep(50);
+  holdSpin_->setSuffix(" ms");
+  holdSpin_->setSpecialValueText(tr("None"));
+  holdSpin_->setValue(settings_.holdMs);
+  holdSpin_->setToolTip(tr("How long Space must be held before the timer "
+                           "can start (cstimer uses 300 ms, a Stackmat 550 "
+                           "ms)"));
+  tForm->addRow(tr("Hold Space before starting:"), holdSpin_);
   inspectionBox_ = new QCheckBox(
       tr("15 s WCA inspection (+2 after 15 s, DNF after 17 s)"), timer);
   inspectionBox_->setChecked(settings_.inspection);
   tForm->addRow(tr("Inspection:"), inspectionBox_);
+  soundsBox_ = new QCheckBox(
+      tr("Beep at 8 s and twice at 12 s, like a judge's calls"), timer);
+  soundsBox_->setChecked(settings_.inspectionSounds);
+  tForm->addRow(tr("Inspection calls:"), soundsBox_);
   decimalsSpin_ = new QSpinBox(timer);
   decimalsSpin_->setRange(1, 3);
   decimalsSpin_->setValue(settings_.decimals);
   tForm->addRow(tr("Decimal places:"), decimalsSpin_);
+  timerFontSpin_ = new QSpinBox(timer);
+  timerFontSpin_->setRange(AppSettings::kMinTimerFontPt,
+                           AppSettings::kMaxTimerFontPt);
+  timerFontSpin_->setSuffix(" pt");
+  timerFontSpin_->setValue(settings_.timerFontPt);
+  tForm->addRow(tr("Timer text size:"), timerFontSpin_);
   autoStopBox_ = new QCheckBox(
       tr("Stop when the cube is solved (Timed and Untimed)"), timer);
   autoStopBox_->setToolTip(
@@ -171,9 +219,9 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
           [this] { setBinding(true); });
   connect(addButton, &QPushButton::clicked, this,
           [this] { setBinding(false); });
-  // Enter changes the selected row, or adds a binding when none is.
-  connect(moveEdit_, &QLineEdit::returnPressed, this,
-          [this] { setBinding(selectedBinding() >= 0); });
+  // Enter changes the selected row, or adds a binding when none is, and
+  // must not go on to close the dialog (see eventFilter()).
+  moveEdit_->installEventFilter(this);
   connect(removeButton_, &QPushButton::clicked, this, [this] {
     int row = selectedBinding();
     if (row >= 0) {
@@ -579,13 +627,10 @@ void SettingsDialog::setBinding(bool changeSelected) {
   }
   QKeyCombination combo = seq[0];
   Qt::Key key = combo.key();
-  if (key == Qt::Key_Space || key == Qt::Key_Escape ||
-      key == Qt::Key_Backspace || key == Qt::Key_Tab || key == Qt::Key_Return ||
-      key == Qt::Key_Enter) {
+  if (QString why = Keymap::reservedReason(key); !why.isEmpty()) {
     QMessageBox::information(
         this, tr("Keyboard"),
-        tr("Space, Esc, Backspace, Tab and Enter are reserved for the "
-           "modes' own controls."));
+        tr("%1 can't turn the cube: %2").arg(Keymap::keyText(key, false), why));
     return;
   }
   if (combo.keyboardModifiers() &
@@ -629,6 +674,17 @@ void SettingsDialog::setBinding(bool changeSelected) {
   keyTable_->setCurrentCell(row, 0);
 }
 
+bool SettingsDialog::eventFilter(QObject *watched, QEvent *event) {
+  if (watched == moveEdit_ && event->type() == QEvent::KeyPress) {
+    auto *key = static_cast<QKeyEvent *>(event);
+    if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+      setBinding(selectedBinding() >= 0);
+      return true; // used here: the OK button doesn't see it
+    }
+  }
+  return QDialog::eventFilter(watched, event);
+}
+
 void SettingsDialog::accept() {
   auto learn = stepsFromText(learningEdit_->text());
   auto relearn = stepsFromText(relearningEdit_->text());
@@ -640,9 +696,14 @@ void SettingsDialog::accept() {
   }
   settings_.darkTheme = themeBox_->currentIndex() == 0;
   settings_.animationMs = animationSpin_->value();
-  settings_.holdMs = holdBox_->currentData().toInt();
+  settings_.scrambleFontPt = scrambleFontSpin_->value();
+  settings_.hintTextPercent = hintTextBox_->currentData().toInt();
+  settings_.thumbnailSize = thumbnailBox_->currentData().toInt();
+  settings_.holdMs = holdSpin_->value();
   settings_.inspection = inspectionBox_->isChecked();
+  settings_.inspectionSounds = soundsBox_->isChecked();
   settings_.decimals = decimalsSpin_->value();
+  settings_.timerFontPt = timerFontSpin_->value();
   settings_.autoStop = autoStopBox_->isChecked();
   settings_.hideBeforeInspection = hideCubeBox_->isChecked();
   settings_.simplifiedCounts = simplifiedBox_->isChecked();

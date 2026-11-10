@@ -11,7 +11,10 @@ modes train ZZ inspection planning and Old Pochmann blindfolded solving.
 ## Features
 
 The app has eight modes, listed in a sidebar in three groups (`Ctrl+1` to
-`Ctrl+8` switch between them):
+`Ctrl+8` switch between them), under a **Today** view (`Ctrl+0`): each alg
+set's reviews due and new cases left in Learn, your practice streak, and
+the solves and time spent in each mode today and over the last 7 days. The
+sidebar's Today and Learn buttons show how many reviews are due.
 
 | Group | Mode | What it's for |
 | --- | --- | --- |
@@ -561,13 +564,32 @@ choice are for a physical cube.
     its key or move, or **Add** one. A turning key may be held with Shift
     but not Ctrl or Alt.
 - **Full screen**: F11 (or View > Full screen) toggles full screen. The
-  window reopens at the size and place you left it, but never in full
-  screen or focus mode.
+  window reopens at the size and place you left it (moved back onto the
+  screen if the screen or its scaling changed), with the lists' widths and
+  the sidebar as you left them, but never in full screen or focus mode.
 - **Focus mode**: F10 (or View > Focus mode) hides the sidebar, menus,
   status bar and each mode's lists and options, leaving the scramble,
-  timer, cube and algs; messages show at the top of the window instead.
-  Right-click anywhere outside them to switch full screen or focus mode
-  with the mouse.
+  timer, cube and algs; messages, and the mode's name after `Ctrl+1`…`8`,
+  show at the top of the window instead. Right-click anywhere outside them
+  to switch full screen, focus mode or the sidebar with the mouse.
+  `Ctrl+B` (View > Sidebar) hides just the sidebar.
+- **Small windows**: the window can be as narrow as half a 1080p screen;
+  each mode's option row wraps onto a second line when it doesn't fit, and
+  the chart gives up its room before the cube does.
+- **Keyboard**: `F1` shows the keyboard controls in a panel beside the
+  page (the current mode's first; it can be undocked), and `Ctrl+K`
+  opens the command list: type part of any menu command or of a choice on
+  the page (alg set, session, scramble type, cube, view, ...) and press
+  Enter.
+- **Settings** (Edit > Settings, `Ctrl+,`): theme, turn speed, sticker
+  colours, the scramble's text size, the size of hints and messages, the
+  case pictures' size in Learn and Drill, the hold time before the timer
+  starts (any time up to 2 s), inspection with optional beeps at 8 s and
+  12 s, decimals, the timer's text size, turning keys (the digits, arrows,
+  function keys and the modes' own keys can't be bound) and the spaced
+  repetition steps.
+- **One copy at a time**: starting v-cube while it is running brings the
+  running window to the front, so two copies never save over each other.
 
 ## Building
 
@@ -626,7 +648,9 @@ Under WSL (detected from `WSL_DISTRO_NAME` or a kernel release that names
 Microsoft) the app uses Qt's X11 (`xcb`) platform plugin by default rather
 than Wayland. WSLg forwards every Wayland surface to Windows as a separate
 window, which leaves closed drop-downs and menus on screen and stops the
-window position from being restored. To pick another plugin, set
+window position from being restored. If the `xcb` plugin or its
+libraries are missing, it falls back to Wayland instead of failing to
+start. To pick another plugin, set
 `QT_QPA_PLATFORM` yourself; it always takes precedence:
 
 ```bash
@@ -643,9 +667,15 @@ picks the plugin as usual.
 | Where | Key | Action |
 | --- | --- | --- |
 | Anywhere | Ctrl+1 … Ctrl+8 | switch to Learn, Drill, Library, Timed, Untimed, Move Count, Inspection, Blind (not during a solve) |
+| Anywhere | Ctrl+0 | Today |
+| Anywhere | Ctrl+K | command list (menu commands and the page's choices) |
+| Anywhere | F1 | show or hide the keyboard controls |
 | Anywhere | F11 | toggle full screen |
 | Anywhere | F10 | toggle focus mode |
+| Anywhere | Ctrl+B | show or hide the sidebar |
+| Anywhere | Ctrl+, | settings |
 | Anywhere | Ctrl+Shift+N | colour neutrality settings |
+| Anywhere | Ctrl+Q | quit (asks first during a solve) |
 | Learn | turning keys | turn the virtual cube; solving the case finishes it |
 | Learn, walkthrough | → / ← / Home | step through the main alg / back / to the start |
 | Learn, walkthrough | Space / Enter | do the case with each next move shown |
@@ -667,7 +697,7 @@ picks the plugin as usual.
 | Learn, Drill, Library | search box: Enter / Esc | return the keys to the cube / clear the search |
 | Library | Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) | undo / redo |
 | Library | Ctrl+Shift+V / Ctrl+Shift+A / Ctrl+Shift+G | paste algs / new case from alg / new group |
-| Library | Ctrl+N / Alt+Enter / Ctrl+K | new set / set properties / check algs |
+| Library | Ctrl+N / Alt+Enter / Ctrl+Shift+K | new set / set properties / check algs |
 | Library | Delete / F2 / Alt+Up, Alt+Down | delete, rename, move the selected cases or group (or the selected alg, in the alg list) |
 | Drill, Timed | hold Space, release | start (after the hold time, when the time turns green) |
 | Drill, Timed (physical) | any key | stop |
@@ -760,6 +790,17 @@ alg set file with a problem in its cases (stickers no real cube has, e.g.
 from a typo in a hand-edited file, a missing or repeated case id, or an
 alg that isn't text) is left out, and the app names the problem when it
 starts.
+
+If a file can't be saved (a full disk, a folder that can't be written),
+a red banner says which and stays until a later save of that file works
+or you dismiss it.
+
+Each day the app first starts, it copies the data files into
+`backups/<date>/` in the data folder and keeps the last 14 days. Deleting
+an alg set moves its file and progress into `algsets/deleted/` (named with
+the date and time) instead of deleting them. **File > Export all data…**
+copies the data folder and the settings file into a new folder, e.g. to
+move to another computer.
 
 Settings are an INI file on every platform; Windows doesn't use the
 registry. Earlier versions kept them in `~/.config/v-cube/v-cube.conf`.

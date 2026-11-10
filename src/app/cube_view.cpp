@@ -52,25 +52,36 @@ void CubeView::setColourMap(const ColourMap &map) {
 
 void CubeView::setState(const FaceletCube &cube) {
   queue_.clear();
+  queuedTyped_.clear();
   progress_ = 0.0;
   frame_.stop();
   shown_ = cube;
   update();
 }
 
-void CubeView::animateMove(Move m) {
+void CubeView::animateMove(Move m) { enqueue(m, true); }
+
+void CubeView::animateSequence(const Alg &moves) {
+  for (Move m : moves) {
+    enqueue(m, false);
+  }
+}
+
+void CubeView::enqueue(Move m, bool typed) {
   if (animationMs_ <= 0 || mode_ != Mode::ThreeD) {
     // Finish anything pending, then jump.
     for (Move q : queue_) {
       shown_.apply(q);
     }
     queue_.clear();
+    queuedTyped_.clear();
     progress_ = 0.0;
     shown_.apply(m);
     update();
     return;
   }
   queue_.push_back(m);
+  queuedTyped_.push_back(typed);
   if (!frame_.isActive()) {
     lastFrame_ = clock_.elapsed();
     frame_.start();
@@ -82,15 +93,18 @@ void CubeView::advance() {
   double dt = static_cast<double>(now - lastFrame_);
   lastFrame_ = now;
   while (!queue_.empty() && dt > 0) {
-    // Half turns take a bit longer; a backlog speeds everything up so the
-    // view never lags far behind fast typing.
+    // Half turns take a bit longer; a backlog of typed moves speeds
+    // everything up so the view never lags far behind fast typing, while
+    // a sequence plays at the normal speed.
     double duration = animationMs_ * (queue_.front().amount == 2 ? 1.5 : 1.0);
-    duration /= static_cast<double>(std::min<std::size_t>(queue_.size(), 4));
+    auto typed = std::count(queuedTyped_.begin(), queuedTyped_.end(), true);
+    duration /= static_cast<double>(std::clamp<std::ptrdiff_t>(typed, 1, 4));
     double remaining = (1.0 - progress_) * duration;
     if (dt >= remaining) {
       dt -= remaining;
       shown_.apply(queue_.front());
       queue_.pop_front();
+      queuedTyped_.pop_front();
       progress_ = 0.0;
     } else {
       progress_ += dt / duration;
@@ -108,6 +122,7 @@ void CubeView::finishAnimations() {
     shown_.apply(q);
   }
   queue_.clear();
+  queuedTyped_.clear();
   progress_ = 0.0;
   frame_.stop();
   update();
