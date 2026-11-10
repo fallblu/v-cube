@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QTemporaryDir>
 
 #include <string>
@@ -414,9 +415,9 @@ TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
 TEST_CASE("sessions round-trip and convert to and from cstimer") {
   Session s;
   s.name = "Main";
-  s.solves.push_back({12340, Penalty::None, "R U", "nice", 1700000000, ""});
-  s.solves.push_back({9000, Penalty::Plus2, "F", "", 1700000100, "R U R'"});
-  s.solves.push_back({20000, Penalty::Dnf, "D", "", 1700000200, ""});
+  s.solves.push_back({12340, Penalty::None, "R U", "nice", 1700000000, "", {}});
+  s.solves.push_back({9000, Penalty::Plus2, "F", "", 1700000100, "R U R'", {}});
+  s.solves.push_back({20000, Penalty::Dnf, "D", "", 1700000200, "", {}});
   std::size_t current = 0;
   auto back = sessionsFromJson(sessionsToJson({s}, 0), &current);
   REQUIRE(back.size() == 1);
@@ -431,27 +432,70 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
       R"({"version": 1, "sessions": [{"name": "A", "solves": []}]})");
   CHECK(sessionsFromJson(old.object())[0].cube == CubeKind::Physical);
 
-  QJsonObject cs = sessionsToCstimer({s});
+  s.solves[1].moveTimes = {100, 250, 400};
+  back = sessionsFromJson(sessionsToJson({s}, 0));
+  CHECK(back[0].solves[1].moveTimes == std::vector<std::int64_t>{100, 250, 400});
+  CHECK(back[0].solves[0].moveTimes.empty());
+
+  s.scrambleType = "lsll";
+  s.solves[1].moves = "r U R'";
+  QByteArray cs = sessionsToCstimer({s});
+  // cstimer tells its own format from other timers' by this start.
+  CHECK(cs.startsWith("{\"session1\":"));
+  QJsonObject csObject = QJsonDocument::fromJson(cs).object();
+  QString sessionData = csObject.value("properties")
+                            .toObject()
+                            .value("sessionData")
+                            .toString();
+  CHECK(sessionData.contains("\"scrType\":\"lsll2\""));
+  QJsonArray solution =
+      csObject.value("session1").toArray().at(1).toArray().at(4).toArray();
+  CHECK(solution.at(0).toString() == "Rw@100 U@250 R'@400");
+  CHECK(solution.at(1).toString() == "333");
   QString error;
-  auto imported = sessionsFromCstimer(cs, &error);
+  auto imported = sessionsFromCstimerFile(cs, &error);
   REQUIRE(imported);
-  REQUIRE(imported->size() == 1);
-  CHECK((*imported)[0].name == "Main");
-  CHECK((*imported)[0].solves[0].timeMs == 12340);
-  CHECK((*imported)[0].solves[2].penalty == Penalty::Dnf);
+  REQUIRE(imported->sessions.size() == 1);
+  const Session &in = imported->sessions[0];
+  CHECK(in.name == "Main");
+  CHECK(in.scrambleType == "lsll");
+  CHECK(in.solves[0].timeMs == 12340);
+  CHECK(in.solves[2].penalty == Penalty::Dnf);
+  CHECK(in.solves[1].moves == "r U R'");
+  CHECK(in.solves[1].moveTimes == std::vector<std::int64_t>{100, 250, 400});
+
+  // A file cut off is reported as such, not as having no sessions.
+  CHECK_FALSE(sessionsFromCstimerFile(cs.left(cs.size() / 2), &error));
+  CHECK(error.contains("complete JSON"));
+  CHECK_FALSE(sessionsFromCstimerFile("{\"other\": 1}", &error));
+  CHECK(error.contains("no cstimer sessions"));
 
   // A cstimer export as it is written by cstimer itself.
   auto doc = QJsonDocument::fromJson(R"({
     "session1": [[[0, 10500], "R U F", "", 1700000000], [[2000, 9000], "U", "c", 1700000001]],
-    "session2": [[[-1, 30000], "D2", "", 1700000002, ["R U", "333"]]],
-    "properties": {"sessionData": "{\"1\":{\"name\":\"3x3\",\"opt\":{},\"rank\":2},\"2\":{\"name\":\"OH\",\"opt\":{\"scrType\":\"333oh\"},\"rank\":1}}"}
+    "session2": [[[-1, 30000], "D2", "", 1700000002, ["R@10 U@500", "333"]]],
+    "session3": [],
+    "session4": [[[0, 4000], "R U", "", 1700000003]],
+    "properties": {"sessionData": "{\"1\":{\"name\":\"3x3\",\"opt\":{},\"rank\":2},\"2\":{\"name\":\"OH\",\"opt\":{\"scrType\":\"333oh\"},\"rank\":1},\"3\":{\"name\":\"empty\",\"rank\":3},\"4\":{\"name\":\"2x2\",\"opt\":{\"scrType\":\"222so\"},\"rank\":4}}"}
   })");
   imported = sessionsFromCstimer(doc.object(), &error);
   REQUIRE(imported);
-  REQUIRE(imported->size() == 2);
-  CHECK((*imported)[0].name == "OH");
-  CHECK((*imported)[0].cube == CubeKind::Physical);
-  CHECK((*imported)[0].solves[0].penalty == Penalty::Dnf);
-  CHECK((*imported)[1].solves[1].penalty == Penalty::Plus2);
-  CHECK((*imported)[1].solves[1].comment == "c");
+  REQUIRE(imported->sessions.size() == 2);
+  CHECK(imported->emptySkipped == 1);
+  CHECK(imported->others == std::vector<std::string>{"2x2"});
+  const auto &list = imported->sessions;
+  CHECK(list[0].name == "OH");
+  CHECK(list[0].scrambleType == "333");
+  CHECK(list[0].cube == CubeKind::Physical);
+  CHECK(list[0].solves[0].penalty == Penalty::Dnf);
+  CHECK(list[0].solves[0].moves == "R U");
+  CHECK(list[0].solves[0].moveTimes == std::vector<std::int64_t>{10, 500});
+  CHECK(list[1].solves[1].penalty == Penalty::Plus2);
+  CHECK(list[1].solves[1].comment == "c");
+
+  CHECK(cstimerScrambleType("xcross") == "333");
+  CHECK(cstimerScrambleType("eoline") == "eoline");
+  CHECK(scrambleTypeFromCstimer("pyrso") == std::nullopt);
+  CHECK(scrambleTypeFromCstimer("zbll") == "zbll");
+  CHECK(scrambleTypeFromCstimer("roux") == "333");
 }
