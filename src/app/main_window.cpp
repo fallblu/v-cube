@@ -307,6 +307,13 @@ bool MainWindow::setMode(int mode) {
   }
   mode_ = mode;
   modeButtons_->button(mode)->setChecked(true);
+  // Only the page shown sets the window's minimum size: the stack would
+  // otherwise take the largest minimum of all of them.
+  for (ModePage *page : pages_) {
+    auto policy =
+        page == currentPage() ? QSizePolicy::Preferred : QSizePolicy::Ignored;
+    page->setSizePolicy(policy, policy);
+  }
   stack_->setCurrentWidget(currentPage());
   currentPage()->activated();
   QSettings().setValue("window/mode",

@@ -1,5 +1,7 @@
 #include "app/inspection_page.hpp"
 
+#include "app/flow_layout.hpp"
+
 #include "io/data_file.hpp"
 
 #include <QActionGroup>
@@ -138,7 +140,7 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
   optionsRow_ = new QWidget(right);
-  auto *options = new QHBoxLayout(optionsRow_);
+  auto *options = new FlowLayout(optionsRow_);
   options->setContentsMargins(0, 0, 0, 0);
   drillBox_ = flatBox(optionsRow_);
   drillBox_->addItem(tr("Plan a step"));

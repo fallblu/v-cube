@@ -1,5 +1,7 @@
 #include "app/blind_page.hpp"
 
+#include "app/flow_layout.hpp"
+
 #include "io/data_file.hpp"
 
 #include "cube/cubie.hpp"
@@ -144,7 +146,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
   optionsRow_ = new QWidget(right);
-  auto *options = new QHBoxLayout(optionsRow_);
+  auto *options = new FlowLayout(optionsRow_);
   options->setContentsMargins(0, 0, 0, 0);
   drillBox_ = comboBox({tr("Letter quiz"), tr("Memo tracing"),
                         tr("Setup moves"), tr("Blind solves")},

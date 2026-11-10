@@ -2,6 +2,7 @@
 
 #include "io/data_file.hpp"
 
+#include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
 #include "train/step_solver.hpp"
 
@@ -102,7 +103,7 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
   typeRow_ = new QWidget(right);
-  auto *typeRow = new QHBoxLayout(typeRow_);
+  auto *typeRow = new FlowLayout(typeRow_);
   typeRow->setContentsMargins(0, 0, 0, 0);
   if (moveCount_) {
     stepBox_ = new QComboBox(typeRow_);
@@ -860,11 +861,13 @@ void AttemptPage::applyAlg() {
     algError_->setVisible(true);
     return; // keep the field focused to fix it
   }
+  Alg applied;
   for (Move m : parsed.alg) {
     if (attempt_.turn(m)) {
-      cubeView_->animateMove(m);
+      applied.push_back(m);
     }
   }
+  cubeView_->animateSequence(applied);
   algError_->setVisible(false);
   algEdit_->clear();
   returnFocus();

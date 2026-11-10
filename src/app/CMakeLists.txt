@@ -10,6 +10,7 @@ add_library(vcube_gui STATIC
   cube_painter.cpp
   cube_view.cpp
   drill_page.cpp
+  flow_layout.cpp
   inspection_page.cpp
   keymap.cpp
   learn_page.cpp
