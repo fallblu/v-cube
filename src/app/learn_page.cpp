@@ -324,6 +324,9 @@ void LearnPage::updateSummary() {
       continue;
     }
     CaseStatus st = statusOf(cp);
+    if (st == CaseStatus::Unstarted) {
+      continue; // e.g. only drilled
+    }
     learning += st == CaseStatus::Learning;
     learned += st == CaseStatus::Learned;
     due += st == CaseStatus::Learned
