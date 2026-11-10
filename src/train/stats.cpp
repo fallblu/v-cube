@@ -31,21 +31,42 @@ std::int64_t effectiveTime(const Solve &s) {
   return s.timeMs;
 }
 
-StatValue averageOf(std::span<const Solve> solves) {
+std::int64_t statUnit(int decimals) {
+  return decimals >= 3 ? 1 : decimals == 2 ? 10 : decimals == 1 ? 100 : 1000;
+}
+
+namespace {
+
+// A time truncated to the unit, as the WCA truncates singles.
+std::int64_t truncated(std::int64_t t, std::int64_t unit) {
+  return t == kDnfTime ? t : t / unit * unit;
+}
+
+// The mean of times already truncated to the unit, rounded to the nearest
+// unit (halves up).
+std::int64_t roundedMean(std::int64_t sum, std::int64_t count,
+                         std::int64_t unit) {
+  std::int64_t units = sum / unit;
+  return (2 * units + count) / (2 * count) * unit;
+}
+
+std::size_t trimOf(std::size_t n) { return n == 3 ? 0 : (n + 19) / 20; }
+
+} // namespace
+
+StatValue averageOf(std::span<const Solve> solves, std::int64_t unit) {
   std::size_t n = solves.size();
   if (n < 3) {
     return std::nullopt;
   }
+  unit = std::max<std::int64_t>(unit, 1);
   std::vector<std::int64_t> t;
   t.reserve(n);
   for (const auto &s : solves) {
-    t.push_back(effectiveTime(s));
+    t.push_back(truncated(effectiveTime(s), unit));
   }
   std::sort(t.begin(), t.end());
-  std::size_t trim = (n + 19) / 20;
-  if (n == 3) {
-    trim = 0;
-  }
+  std::size_t trim = trimOf(n);
   // Anything DNF beyond the trimmed worst makes the average DNF.
   if (t[n - trim - 1] == kDnfTime) {
     return kDnfTime;
@@ -54,74 +75,119 @@ StatValue averageOf(std::span<const Solve> solves) {
   for (std::size_t i = trim; i < n - trim; ++i) {
     sum += t[i];
   }
-  auto count = static_cast<std::int64_t>(n - 2 * trim);
-  return (sum + count / 2) / count;
+  return roundedMean(sum, static_cast<std::int64_t>(n - 2 * trim), unit);
 }
 
-StatValue meanOf(std::span<const Solve> solves) {
+std::vector<std::size_t> trimmedIndices(std::span<const Solve> solves) {
+  std::size_t n = solves.size();
+  std::vector<std::size_t> order(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    order[i] = i;
+  }
+  if (n < 3) {
+    return {};
+  }
+  // Ties keep solve order, as cstimer brackets the first best and the last
+  // worst.
+  std::stable_sort(order.begin(), order.end(), [&](std::size_t a,
+                                                   std::size_t b) {
+    return effectiveTime(solves[a]) < effectiveTime(solves[b]);
+  });
+  std::size_t trim = trimOf(n);
+  std::vector<std::size_t> out(order.begin(),
+                               order.begin() + static_cast<std::ptrdiff_t>(trim));
+  out.insert(out.end(), order.end() - static_cast<std::ptrdiff_t>(trim),
+             order.end());
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+StatValue meanOf(std::span<const Solve> solves, std::int64_t unit) {
   if (solves.empty()) {
     return std::nullopt;
   }
+  unit = std::max<std::int64_t>(unit, 1);
   std::int64_t sum = 0;
   for (const auto &s : solves) {
     std::int64_t t = effectiveTime(s);
     if (t == kDnfTime) {
       return kDnfTime;
     }
-    sum += t;
+    sum += truncated(t, unit);
   }
-  auto count = static_cast<std::int64_t>(solves.size());
-  return (sum + count / 2) / count;
+  return roundedMean(sum, static_cast<std::int64_t>(solves.size()), unit);
 }
 
-StatValue currentAverage(std::span<const Solve> all, std::size_t n) {
+StatValue currentAverage(std::span<const Solve> all, std::size_t n,
+                         std::int64_t unit) {
   if (all.size() < n) {
     return std::nullopt;
   }
-  return averageOf(all.last(n));
+  return averageOf(all.last(n), unit);
 }
 
-StatValue currentMean(std::span<const Solve> all, std::size_t n) {
+StatValue currentMean(std::span<const Solve> all, std::size_t n,
+                      std::int64_t unit) {
   if (all.size() < n) {
     return std::nullopt;
   }
-  return meanOf(all.last(n));
+  return meanOf(all.last(n), unit);
 }
 
 namespace {
 
 template <typename F>
-StatValue bestRolling(std::span<const Solve> all, std::size_t n, F stat) {
+std::optional<std::size_t> bestRollingStart(std::span<const Solve> all,
+                                            std::size_t n, F stat) {
   StatValue best;
-  for (std::size_t end = n; end <= all.size(); ++end) {
+  std::optional<std::size_t> at;
+  for (std::size_t end = n; end <= all.size() && n > 0; ++end) {
     StatValue v = stat(all.subspan(end - n, n));
     if (v && (!best || *v < *best)) {
       best = v;
+      at = end - n;
     }
   }
-  return best;
+  return at;
 }
 
 } // namespace
 
-StatValue bestAverage(std::span<const Solve> all, std::size_t n) {
-  return bestRolling(all, n, averageOf);
+std::optional<std::size_t> bestAverageStart(std::span<const Solve> all,
+                                            std::size_t n, bool mean,
+                                            std::int64_t unit) {
+  return mean ? bestRollingStart(all, n,
+                                 [unit](std::span<const Solve> s) {
+                                   return meanOf(s, unit);
+                                 })
+              : bestRollingStart(all, n, [unit](std::span<const Solve> s) {
+                  return averageOf(s, unit);
+                });
 }
 
-StatValue bestMean(std::span<const Solve> all, std::size_t n) {
-  return bestRolling(all, n, meanOf);
+StatValue bestAverage(std::span<const Solve> all, std::size_t n,
+                      std::int64_t unit) {
+  auto at = bestAverageStart(all, n, false, unit);
+  return at ? averageOf(all.subspan(*at, n), unit) : StatValue{};
+}
+
+StatValue bestMean(std::span<const Solve> all, std::size_t n,
+                   std::int64_t unit) {
+  auto at = bestAverageStart(all, n, true, unit);
+  return at ? meanOf(all.subspan(*at, n), unit) : StatValue{};
 }
 
 std::vector<StatValue> rollingAverages(std::span<const Solve> all,
-                                       std::size_t n) {
+                                       std::size_t n, std::int64_t unit) {
   std::vector<StatValue> out(all.size());
   for (std::size_t end = n; end <= all.size(); ++end) {
-    out[end - 1] = averageOf(all.subspan(end - n, n));
+    out[end - 1] = averageOf(all.subspan(end - n, n), unit);
   }
   return out;
 }
 
-SessionSummary summarize(std::span<const Solve> all) {
+SessionSummary summarize(std::span<const Solve> all, std::int64_t unit) {
+  unit = std::max<std::int64_t>(unit, 1);
   SessionSummary s;
   std::int64_t sum = 0;
   int valid = 0;
@@ -133,7 +199,7 @@ SessionSummary summarize(std::span<const Solve> all) {
       continue;
     }
     ++valid;
-    sum += t;
+    sum += truncated(t, unit);
     if (!s.best || t < *s.best) {
       s.best = t;
     }
@@ -142,7 +208,7 @@ SessionSummary summarize(std::span<const Solve> all) {
     }
   }
   if (valid > 0) {
-    s.mean = (sum + valid / 2) / valid;
+    s.mean = roundedMean(sum, valid, unit);
   }
   return s;
 }
