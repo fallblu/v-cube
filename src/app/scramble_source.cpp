@@ -265,10 +265,15 @@ void ScrambleFeed::request() {
   pendingType_ = type_;
   pendingNeutrality_ = neutrality_;
   // An alg set's case pool is set up once, and again when the type or the
-  // ticked cases change.
+  // ticked cases change (compared through the unticked ones).
   std::optional<QStringList> ticked;
   if (type_.startsWith("set:")) {
-    ticked = tickedCases(ss(type_.mid(4)));
+    std::string id = ss(type_.mid(4));
+    for (const auto &s : library_.sets()) {
+      if (s.id == id) {
+        ticked = untickedCases(s);
+      }
+    }
   }
   if (!maker_ || makerType_ != type_ || makerTicked_ != ticked) {
     maker_ = scrambleStateMaker(library_, type_);
