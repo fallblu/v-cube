@@ -30,7 +30,12 @@ public:
   void setColourMap(const ColourMap &map);
 
   void setState(const FaceletCube &cube); // jumps, cancelling animations
+  // A move as it is typed: a backlog of these plays faster, so that the
+  // view keeps up with quick turning.
   void animateMove(Move m);
+  // Moves played one after another at the normal speed, e.g. an alg typed
+  // in and applied.
+  void animateSequence(const Alg &moves);
   const FaceletCube &displayedState() const { return shown_; }
 
   // Duration of one quarter turn; 0 turns animation off.
@@ -67,6 +72,7 @@ private:
   CubeLook look_;
   FaceletCube shown_;
   std::deque<Move> queue_;
+  std::deque<bool> queuedTyped_; // per queued move: from animateMove()
   double progress_ = 0.0;
   int animationMs_ = 110;
   Mode mode_ = Mode::ThreeD;
@@ -77,6 +83,7 @@ private:
   qint64 lastFrame_ = 0;
 
   void advance();
+  void enqueue(Move m, bool typed);
   QRectF drawArea() const;
   // marks_ moved back through the turns still to animate, onto the stickers
   // of the state shown now.

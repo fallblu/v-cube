@@ -328,9 +328,7 @@ void ReviewDialog::showPosition(std::size_t at) {
   if (at == at_ + 1) {
     cube_->animateMove(replay_[at_]);
   } else if (at + 1 == at_ && at < replay_.size()) {
-    for (Move m : invert(Alg{replay_[at]})) {
-      cube_->animateMove(m);
-    }
+    cube_->animateSequence(invert(Alg{replay_[at]}));
   } else if (at != at_) {
     FaceletCube f = start_;
     f.apply(Alg(replay_.begin(),
