@@ -5,6 +5,8 @@
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
 
+#include <algorithm>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <QDir>
@@ -155,8 +157,10 @@ TEST_CASE("progress from a newer version is kept and not saved over") {
   writeText(path, text);
   AlgLibrary lib(tmp.path(), kBuiltins);
   lib.load();
-  REQUIRE(lib.errors().size() == 1);
-  CHECK(lib.errors().front().contains("newer version"));
+  // A library with sets but no installed-builtins.json also reports that.
+  CHECK(std::ranges::count_if(lib.errors(), [](const QString &e) {
+          return e.contains("newer version");
+        }) == 1);
   lib.progress("pll")["T"].record({100, 1500, false});
   QString error;
   CHECK_FALSE(lib.saveProgress("pll", &error));
@@ -202,8 +206,10 @@ TEST_CASE("alg sets from a newer version are reported and left alone") {
   writeText(path, text);
   AlgLibrary lib(tmp.path(), kBuiltins);
   lib.load();
-  REQUIRE(lib.errors().size() == 1);
-  CHECK(lib.errors().front().contains("newer version"));
+  // A library with sets but no installed-builtins.json also reports that.
+  CHECK(std::ranges::count_if(lib.errors(), [](const QString &e) {
+          return e.contains("newer version");
+        }) == 1);
   CHECK(lib.idTaken("future"));
   CHECK(readText(path) == text);
 }
@@ -214,8 +220,10 @@ TEST_CASE("a cut-short alg set file is set aside") {
   writeText(path, R"({"format": "v-cube.algset", "version": 1, "id": "mi)");
   AlgLibrary lib(tmp.path(), kBuiltins);
   lib.load();
-  REQUIRE(lib.errors().size() == 1);
-  CHECK(lib.errors().front().contains("kept as"));
+  // A library with sets but no installed-builtins.json also reports that.
+  CHECK(std::ranges::count_if(lib.errors(), [](const QString &e) {
+          return e.contains("kept as");
+        }) == 1);
   CHECK_FALSE(QFile::exists(path));
   CHECK(filesStarting(tmp.path(), "mine.json.unreadable-").size() == 1);
 }
@@ -256,13 +264,13 @@ TEST_CASE("a set with a very long name gets a short id and saves") {
   set.name = std::string(300, 'n');
   set.id = lib.uniqueId(set.name);
   CHECK(set.id.size() <= 80);
-  std::string id = lib.add(set).id;
+  std::string id = lib.add(set)->id;
   QString error;
   CHECK(lib.save(*lib.find(id), &error));
   CHECK(error.isEmpty());
 
   set.id = std::string(300, 'i'); // e.g. from an imported file
-  std::string imported = lib.add(set).id;
+  std::string imported = lib.add(set)->id;
   CHECK(imported.size() <= 80);
   CHECK(QFile::exists(tmp.filePath(QString::fromStdString(imported) +
                                    ".json")));

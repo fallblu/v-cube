@@ -54,9 +54,17 @@ constexpr std::array<Section, 9> kModeSections = {{
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Library"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",
-         "<p>Edit alg sets, cases and algs with the mouse; "
-         "<b>Ctrl+K</b> reaches the set and other choices from the "
-         "keyboard.</p>")},
+         "<p>The <b>Set</b> and <b>Cases</b> menus hold every action, with "
+         "keys: <b>Ctrl+Z</b> / <b>Ctrl+Shift+Z</b> (or <b>Ctrl+Y</b>) undo "
+         "and redo any change, <b>Ctrl+Shift+V</b> pastes algs, "
+         "<b>Ctrl+Shift+A</b> makes a case from an alg, <b>Ctrl+Shift+G</b> a "
+         "new group, <b>Ctrl+N</b> a new set, <b>Alt+Enter</b> opens the set "
+         "properties and <b>Ctrl+Shift+K</b> checks the algs. <b>Delete</b>, "
+         "<b>F2</b> and <b>Alt+Up</b> / <b>Alt+Down</b> remove, rename and "
+         "move the selected cases or group, or the selected alg when the alg "
+         "list has the keys. Ctrl- or Shift-click selects several cases. In "
+         "the search box, <b>Enter</b> gives the keys back and <b>Esc</b> "
+         "clears it.</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Timed"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",
@@ -64,9 +72,14 @@ constexpr std::array<Section, 9> kModeSections = {{
          "With inspection on, tap Space to start inspecting first. "
          "<b>Esc</b> cancels. Physical cube: any key stops. Virtual cube: "
          "until the timer starts only rotations turn the cube; <b>Space</b> "
-         "stops it, and a cube that isn't solved then is a DNF.</p><p>Alg "
-         "set scrambles: <b>Tab</b> shows or hides the algs for the case the "
-         "scramble sets up. Nothing is graded.</p>")},
+         "stops it, and a cube that isn't solved then is a DNF; after a DNF "
+         "<b>Space</b> gives the next scramble.</p><p>After a solve: "
+         "<b>Alt+1</b> / <b>Alt+2</b> / <b>Alt+3</b> no penalty / toggle +2 "
+         "/ toggle DNF, <b>Delete</b> deletes the last solve and "
+         "<b>Ctrl+Z</b> puts it back, <b>Alt+C</b> comments on it and "
+         "<b>Alt+R</b> reviews it. <b>Ctrl+→</b> skips the scramble.</p>"
+         "<p>Alg set scrambles: <b>Tab</b> shows or hides the algs for the "
+         "case the scramble sets up. Nothing is graded.</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Untimed"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",
@@ -78,9 +91,11 @@ constexpr std::array<Section, 9> kModeSections = {{
          "it. In the alg field, <b>Enter</b> applies the alg and <b>Esc</b> "
          "returns the keyboard to the cube. Physical cube: <b>Space</b> or "
          "<b>→</b> keeps the scramble as done and shows the next, "
-         "<b>Backspace</b> or <b>←</b> goes back.</p><p>Alg set scrambles: "
-         "<b>Tab</b> shows or hides the algs for the case the scramble sets "
-         "up.</p>")},
+         "<b>Backspace</b> or <b>←</b> goes back.</p><p><b>Delete</b> "
+         "deletes the last solve and <b>Ctrl+Z</b> puts it back, "
+         "<b>Alt+C</b> / <b>Alt+R</b> comment on or review it, "
+         "<b>Ctrl+→</b> skips the scramble. Alg set scrambles: <b>Tab</b> "
+         "shows or hides the algs for the case the scramble sets up.</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Move Count"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",
@@ -90,8 +105,11 @@ constexpr std::array<Section, 9> kModeSections = {{
          "if not. <b>Esc</b> starts the scramble again. Physical cube: solve "
          "the step, then type the number of moves your solution took: "
          "<b>0–9</b> type the count, <b>Backspace</b> corrects it, <b>Esc</b> "
-         "clears it and <b>Enter</b> records it and shows the next scramble. "
-         "Double-click a solve to review it (<b>←</b>/<b>→</b>, "
+         "clears it and <b>Enter</b> records it and shows the next scramble; "
+         "<b>Alt+3</b> records it as DNF.</p><p><b>Delete</b> deletes the "
+         "last solve and <b>Ctrl+Z</b> puts it back, <b>Alt+C</b> / "
+         "<b>Alt+R</b> comment on or review it, <b>Ctrl+→</b> skips the "
+         "scramble. Double-click a solve to review it (<b>←</b>/<b>→</b>, "
          "<b>Home</b>/<b>End</b> step the replay).</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Inspection"),
      QT_TRANSLATE_NOOP(
@@ -99,9 +117,11 @@ constexpr std::array<Section, 9> kModeSections = {{
          "<p><b>Space</b> starts inspection (the cube only turns as a "
          "whole), <b>Space</b> again hides the cube to execute your plan with "
          "the turning keys, and <b>Space</b> reveals it; <b>Space</b> then "
-         "gives the next scramble. <b>Esc</b> puts the scramble back. Bad "
-         "edges: type the count with <b>0–9</b> (<b>Backspace</b> corrects) "
-         "and press <b>Enter</b>; afterwards <b>Tab</b> rings the other "
+         "gives the next scramble. <b>Esc</b> puts the scramble back (or ends "
+         "a retry). After an attempt, rotations turn the cube to look at it. "
+         "Bad edges: type the count with <b>0–9</b> (<b>Backspace</b> "
+         "corrects)"
+         " and press <b>Enter</b>; afterwards <b>Tab</b> rings the other "
          "axis's bad edges.</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Blind"),
      QT_TRANSLATE_NOOP(
@@ -111,7 +131,8 @@ constexpr std::array<Section, 9> kModeSections = {{
          "tracing: <b>Space</b> new scramble, <b>Enter</b> to type the edge "
          "letters, <b>Enter</b> for the corners and <b>Enter</b> to check. "
          "Setup moves: turn the cube until the ringed sticker reaches ◎; "
-         "<b>Esc</b> starts again, <b>Space</b> skips. Blind solves: "
+         "<b>Esc</b> starts again, <b>Space</b> skips (typed setups: "
+         "<b>Esc</b> outside the field gives the letter up). Blind solves: "
          "<b>Space</b> starts the memo, <b>Space</b> hides the cube for the "
          "execution and <b>Space</b> stops (physical cube: any key stops, "
          "<b>Backspace</b> toggles DNF); <b>Esc</b> cancels.</p>")},

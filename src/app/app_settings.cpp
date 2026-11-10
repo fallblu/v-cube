@@ -114,6 +114,13 @@ AppSettings AppSettings::load() {
   s.decimals = clamped("timer/decimals", s.decimals, 1, 3);
   s.timerFontPt =
       clamped("timer/fontPt", s.timerFontPt, kMinTimerFontPt, kMaxTimerFontPt);
+  s.autoStop = q.value("timer/autoStop", s.autoStop).toBool();
+  s.hideBeforeInspection =
+      q.value("timer/hideBeforeInspection", s.hideBeforeInspection).toBool();
+  s.simplifiedCounts =
+      q.value("solves/simplifiedCounts", s.simplifiedCounts).toBool();
+  s.optimalAnyHold =
+      q.value("solves/optimalAnyHold", s.optimalAnyHold).toBool();
   s.srs.newPerDay = clamped("srs/newPerDay", s.srs.newPerDay, 0, 100);
   if (q.contains("srs/learningSteps")) {
     auto steps = stepsFromText(q.value("srs/learningSteps").toString());
@@ -154,6 +161,10 @@ void AppSettings::save() const {
   q.setValue("timer/inspectionSounds", inspectionSounds);
   q.setValue("timer/decimals", decimals);
   q.setValue("timer/fontPt", timerFontPt);
+  q.setValue("timer/autoStop", autoStop);
+  q.setValue("timer/hideBeforeInspection", hideBeforeInspection);
+  q.setValue("solves/simplifiedCounts", simplifiedCounts);
+  q.setValue("solves/optimalAnyHold", optimalAnyHold);
   q.setValue("srs/newPerDay", srs.newPerDay);
   q.setValue("srs/learningSteps", stepsToText(srs.learningSteps));
   q.setValue("srs/relearningSteps", stepsToText(srs.relearningSteps));

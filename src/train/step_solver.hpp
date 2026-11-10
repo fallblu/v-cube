@@ -11,19 +11,22 @@
 
 namespace vcube {
 
-// Optimal solutions for the inspection steps of ZZ: EO, EO+1, EO+2 and EO
-// Cross. ZZ F2L is far too long to solve optimally, so it has no solver.
+// Optimal solutions for the inspection steps of ZZ: EO, EO+1, EO+2, EOLine
+// and EO Cross, and for CFOP's cross. XEOCross and the F2L are far too long
+// to solve optimally here, so they have no solver.
 //
 // A step is solved in the solver's frame, as stepReached() checks it held
 // one way: the cross on D and the edges oriented for the F/B axis (they can
 // be solved without F or B quarter turns). EO+1 and EO+2 need any one or
-// two of the four cross edges (DF, DR, DB, DL) solved as well.
+// two of the four cross edges (DF, DR, DB, DL) solved as well, EOLine the
+// DF and DB edges.
 //
 // IDA* over the 18 face turns (no slice, wide or rotation moves), with
 // pruning tables on the edge orientation and the cross edges, built on
 // first use and shared by all threads.
 
-// Whether the step has an optimal solver (all but ZZ F2L).
+// Whether the step has an optimal solver (all but XEOCross, ZZ F2L and CFOP
+// F2L).
 bool hasOptimalSolver(SolveStep step);
 
 // The optimal solutions of a step: every face-turn solution of the
@@ -56,10 +59,11 @@ struct HeldOptimum {
 
 // The optimum for each of `holds`, for a scramble applied holding white
 // top and green front. Holds that pose the same problem for the step are
-// solved once, under the first of them in `holds`: for EO+1, EO+2 and EO
-// Cross a hold and the same hold turned y2 (same cross, same EO axis); for
-// EO every hold with the same front-back axis. Sorted by length, then in
-// the order of `holds`. Empty for ZZ F2L.
+// solved once, under the first of them in `holds`: for EO+1, EO+2, EOLine
+// and EO Cross a hold and the same hold turned y2 (same cross, same EO
+// axis); for EO every hold with the same front-back axis; for the cross
+// every hold with the same top. Sorted by length, then in the order of
+// `holds`. Empty for the steps without a solver.
 std::vector<HeldOptimum> solveStepHeld(const Alg &scramble, SolveStep step,
                                        const std::vector<Hold> &holds,
                                        int maxSolutions = 8);
@@ -71,10 +75,28 @@ std::vector<HeldOptimum> solveStepHeld(const Alg &scramble, SolveStep step,
 std::optional<int> heldDistance(const Alg &scramble, SolveStep step,
                                 const std::vector<Hold> &holds);
 
+// Up to `max` of `solutions` (by index) that aren't trivial variants of
+// one another: none is the same moves as another in a different order.
+// Solutions that turn a set of faces no solution picked before turns come
+// first, in their order (so after "R U' F", "B L D" comes before "R U F"),
+// then the others in their order fill up what is left.
+std::vector<std::size_t> distinctSolutions(const std::vector<Alg> &solutions,
+                                           std::size_t max);
+
 // The holds of a colour neutrality with both EO axes allowed: each hold and
 // the same hold turned a quarter (y), so that the front-back axis may be
 // either of the two around the top colour. Sorted, without repeats.
 std::vector<Hold> withBothEoAxes(const std::vector<Hold> &holds);
+
+// The shortest solution of one F2L pair (the slot of `corner` and `edge`,
+// e.g. DFR and FR) from a ZZ F2L state in the solver's frame (EO Cross
+// done), in <R, U, L> so that EO stays, keeping the cross and the slots in
+// `keep` (by their corner and edge) solved. nullopt if there is none
+// within `maxDepth` moves, or the state isn't a ZZ F2L state.
+std::optional<Alg>
+solvePairRul(const CubieCube &state, Corner corner, Edge edge,
+             const std::vector<std::pair<Corner, Edge>> &keep,
+             int maxDepth = 14);
 
 // Edge orientation of a cube in the solver's frame, for one axis: 0 the
 // F/B axis (ZZ's EO as held), 1 the R/L axis, 2 the U/D axis. An edge is

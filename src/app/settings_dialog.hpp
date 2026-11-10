@@ -43,6 +43,10 @@ private:
   QCheckBox *soundsBox_;
   QSpinBox *decimalsSpin_;
   QSpinBox *timerFontSpin_;
+  QCheckBox *autoStopBox_;
+  QCheckBox *hideCubeBox_;
+  QCheckBox *simplifiedBox_;
+  QCheckBox *anyHoldBox_;
   QComboBox *mainTopBox_;
   QComboBox *mainFrontBox_;
   QComboBox *presetBox_;

@@ -94,7 +94,7 @@ bool InspectionAttempt::right() const {
 
 const std::vector<SolveStep> &planSteps() {
   static const std::vector<SolveStep> steps = {
-      SolveStep::EO, SolveStep::EOPlus1, SolveStep::EOPlus2,
+      SolveStep::EO, SolveStep::EOLine, SolveStep::EOPlus1, SolveStep::EOPlus2,
       SolveStep::EOCross};
   return steps;
 }
@@ -140,6 +140,136 @@ std::vector<Solve> edgesAsSolves(std::span<const InspectionAttempt> attempts) {
     out.push_back(s);
   }
   return out;
+}
+
+std::vector<Solve>
+overOptimalAsSolves(std::span<const InspectionAttempt> attempts) {
+  std::vector<Solve> out;
+  for (const auto &a : attempts) {
+    if (!a.optimal) {
+      continue;
+    }
+    Solve s;
+    s.timeMs = static_cast<std::int64_t>(std::max(0, a.moves - *a.optimal)) *
+               kMoveUnit;
+    s.penalty = a.dnf ? Penalty::Dnf : Penalty::None;
+    out.push_back(s);
+  }
+  return out;
+}
+
+std::vector<Solve>
+optimalRateAsSolves(std::span<const InspectionAttempt> attempts,
+                    std::size_t window) {
+  window = std::max<std::size_t>(1, window);
+  std::vector<bool> optimal;
+  std::vector<Solve> out;
+  for (const auto &a : attempts) {
+    if (!a.optimal) {
+      continue;
+    }
+    optimal.push_back(!a.dnf && a.moves <= *a.optimal);
+    std::size_t n = std::min(window, optimal.size());
+    auto hits = std::count(optimal.end() - static_cast<std::ptrdiff_t>(n),
+                           optimal.end(), true);
+    Solve s;
+    // Thousandths of a percent.
+    s.timeMs =
+        static_cast<std::int64_t>(hits) * 100000 / static_cast<std::int64_t>(n);
+    out.push_back(s);
+  }
+  return out;
+}
+
+void PlanSummary::add(const InspectionAttempt &a) {
+  ++attempts;
+  inspectionMs += a.ms;
+  if (a.dnf) {
+    ++dnfs;
+  } else if (a.optimal) {
+    ++compared;
+    over += std::max(0, a.moves - *a.optimal);
+    atOptimal += a.moves <= *a.optimal ? 1 : 0;
+  }
+}
+
+std::optional<double> PlanSummary::meanOver() const {
+  if (compared == 0) {
+    return std::nullopt;
+  }
+  return static_cast<double>(over) / compared;
+}
+
+std::optional<double> PlanSummary::optimalRate() const {
+  if (compared == 0) {
+    return std::nullopt;
+  }
+  return static_cast<double>(atOptimal) / compared;
+}
+
+PlanSummary summarizePlan(std::span<const InspectionAttempt> attempts) {
+  PlanSummary out;
+  for (const auto &a : attempts) {
+    out.add(a);
+  }
+  return out;
+}
+
+std::vector<std::pair<int, PlanSummary>>
+planByOptimal(std::span<const InspectionAttempt> attempts) {
+  std::vector<std::pair<int, PlanSummary>> out;
+  for (const auto &a : attempts) {
+    if (!a.optimal) {
+      continue;
+    }
+    auto it = std::lower_bound(
+        out.begin(), out.end(), *a.optimal,
+        [](const auto &entry, int length) { return entry.first < length; });
+    if (it == out.end() || it->first != *a.optimal) {
+      it = out.insert(it, {*a.optimal, PlanSummary{}});
+    }
+    it->second.add(a);
+  }
+  return out;
+}
+
+std::vector<InspectionRange>
+planByInspection(std::span<const InspectionAttempt> attempts) {
+  std::vector<InspectionRange> ranges;
+  for (std::size_t i = 0; i < kInspectionRanges.size(); ++i) {
+    InspectionRange r;
+    r.from = kInspectionRanges[i];
+    r.to = i + 1 < kInspectionRanges.size() ? kInspectionRanges[i + 1] : -1;
+    ranges.push_back(r);
+  }
+  for (const auto &a : attempts) {
+    for (auto it = ranges.rbegin(); it != ranges.rend(); ++it) {
+      if (a.ms >= static_cast<std::int64_t>(it->from) * 1000) {
+        it->summary.add(a);
+        break;
+      }
+    }
+  }
+  std::erase_if(
+      ranges, [](const InspectionRange &r) { return r.summary.attempts == 0; });
+  return ranges;
+}
+
+std::string slotId(Slot s) {
+  std::string id(slotName(s));
+  for (char &c : id) {
+    c = static_cast<char>(c - 'A' + 'a');
+  }
+  return id;
+}
+
+std::optional<Slot> slotFromId(std::string_view id) {
+  for (Slot s : {Slot::FR, Slot::FL, Slot::BL, Slot::BR}) {
+    if (slotId(s) == id) {
+      return s;
+    }
+  }
+  return std::nullopt;
 }
 
 InspectionStore::InspectionStore(QString path)
@@ -212,6 +342,15 @@ QJsonObject inspectionToJson(const std::vector<InspectionSession> &sessions,
         if (a.optimal) {
           o["optimal"] = *a.optimal;
         }
+        if (a.solvedIn) {
+          o["hold"] = holdText(*a.solvedIn);
+        }
+        if (a.pairSolved) {
+          o["pair"] = *a.pairSolved;
+          if (a.pairMoves > 0) {
+            o["pairMoves"] = a.pairMoves;
+          }
+        }
       } else {
         o["hold"] = holdText(a.hold);
         const char *keys[2][2] = {{"fb", "fbCorrect"}, {"rl", "rlCorrect"}};
@@ -234,6 +373,9 @@ QJsonObject inspectionToJson(const std::vector<InspectionSession> &sessions,
                    {"attempts", attempts}};
     if (plan) {
       so["step"] = qs(std::string(stepId(s.step)));
+      if (s.pair && s.step == SolveStep::EOCross) {
+        so["pair"] = qs(slotId(*s.pair));
+      }
       if (s.limitSeconds > 0) {
         so["limit"] = s.limitSeconds;
         if (s.wca) {
@@ -266,6 +408,9 @@ std::vector<InspectionSession> inspectionFromJson(const QJsonObject &o,
         axesFromId(ss(so.value("axes").toString())).value_or(EdgeAxes::Both);
     s.limitSeconds = std::clamp(so.value("limit").toInt(0), 0, 3600);
     s.wca = s.limitSeconds == 15 && so.value("wca").toBool(false);
+    if (s.step == SolveStep::EOCross) {
+      s.pair = slotFromId(ss(so.value("pair").toString()));
+    }
     bool plan = s.drill == InspectionDrill::Plan;
     for (const auto &av : so.value("attempts").toArray()) {
       QJsonObject ao = av.toObject();
@@ -281,6 +426,14 @@ std::vector<InspectionSession> inspectionFromJson(const QJsonObject &o,
         a.solution = ss(ao.value("solution").toString());
         if (ao.contains("optimal")) {
           a.optimal = std::clamp(ao.value("optimal").toInt(), 0, 99);
+        }
+        if (ao.contains("hold")) {
+          a.solvedIn = holdFrom(ao.value("hold").toString());
+        }
+        if (ao.contains("pair")) {
+          a.pairSolved = ao.value("pair").toBool(false);
+          a.pairMoves =
+              std::clamp(ao.value("pairMoves").toInt(), 0, kMaxMoveCount);
         }
       } else {
         a.hold = holdFrom(ao.value("hold").toString());

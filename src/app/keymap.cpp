@@ -106,13 +106,15 @@ QString Keymap::reservedReason(int key) {
   case Qt::Key_Space:
   case Qt::Key_Escape:
   case Qt::Key_Backspace:
+  case Qt::Key_Delete:
   case Qt::Key_Tab:
   case Qt::Key_Backtab:
   case Qt::Key_Return:
   case Qt::Key_Enter:
     return QCoreApplication::translate(
         "vcube::Keymap",
-        "Space, Esc, Backspace, Tab and Enter are the modes' own controls.");
+        "Space, Esc, Backspace, Delete, Tab and Enter are the modes' own "
+        "controls.");
   case Qt::Key_Left:
   case Qt::Key_Right:
   case Qt::Key_Up:

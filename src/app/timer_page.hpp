@@ -8,8 +8,13 @@
 #include "io/library.hpp"
 #include "io/sessions.hpp"
 #include "train/move_count.hpp"
+#include "train/solve_review.hpp"
 
+#include <QFutureWatcher>
 #include <QTimer>
+
+#include <map>
+#include <optional>
 
 class QComboBox;
 class QLabel;
@@ -22,16 +27,21 @@ namespace vcube {
 
 // Timed mode, a cstimer-like timer: scrambles, a space-bar timer with
 // optional inspection, sessions, statistics and a trend chart. Each
-// session is for the virtual cube or a physical one. On a physical cube
-// the scramble has a preview net and any key stops the timer. On the
-// virtual cube the scrambled cube can only be turned as a whole until the
-// timer starts; Space stops it, and a cube that isn't solved then is a
-// DNF. Each virtual solve keeps its solution.
+// session is for the virtual cube or a physical one, fixed once it has
+// solves. On a physical cube the scramble has a preview net and any key
+// stops the timer. On the virtual cube the scrambled cube can only be
+// turned as a whole until the timer starts (with inspection on, it can be
+// hidden until inspection starts); the timer stops when the cube is solved
+// (or on Space, as a DNF when it isn't). A DNF leaves the cube as it was
+// until Space. Each virtual solve keeps its solution and when each move
+// was turned, which give its step splits (cross, pairs, last layer) and a
+// review.
 class TimerPage : public ModePage {
   Q_OBJECT
 public:
   TimerPage(AppSettings &settings, SessionStore &store, AlgLibrary &library,
             QWidget *parent = nullptr);
+  ~TimerPage() override;
 
   bool handleKey(QKeyEvent *e, bool press) override;
   void applySettings() override;
@@ -46,6 +56,8 @@ public:
   void refreshScrambleTypes(const QString &changedSet = {});
 
 private:
+  using SplitResults = std::vector<std::pair<std::string, SolveSplits>>;
+
   AppSettings &settings_;
   SessionStore &store_;
   AlgLibrary &library_;
@@ -55,6 +67,19 @@ private:
   ScrambleFeed feed_;
   ScrambleAlgs *algs_;
   VirtualAttempt attempt_;
+  // A virtual solve ended as a DNF: the cube stays as it was left (it can
+  // be turned as a whole) until Space brings the next scramble.
+  bool finished_ = false;
+  // The last solve deleted, and where it was, to undo.
+  std::optional<std::pair<std::size_t, Solve>> deleted_;
+  // Step splits of virtual solves, by splitKey(), worked out off the GUI
+  // thread.
+  std::map<std::string, SolveSplits> splits_;
+  QFutureWatcher<SplitResults> splitsWatcher_;
+  // After a virtual solve: the optimal EO Cross of its scramble.
+  QFutureWatcher<std::optional<int>> eoWatcher_;
+  std::optional<int> eoYours_; // the solve's own EO Cross count
+  bool focusMode_ = false;
 
   QWidget *leftPanel_;
   QWidget *typeRow_;
@@ -64,24 +89,34 @@ private:
   QComboBox *cubeBox_;
   QWidget *viewPicker_;
   QLabel *scrambleLabel_;
+  QLabel *holdLabel_;
   NetPreview *net_;
   CubeView *cubeView_;
   TimeDisplay *display_;
   QLabel *statusLabel_;
+  QLabel *focusStats_;
   QTableWidget *table_;
   QLabel *stats_;
   TrendChart *chart_;
   QPushButton *plus2Button_;
   QPushButton *dnfButton_;
+  QPushButton *reviewButton_;
   QPushButton *deleteButton_;
+  QPushButton *undoButton_;
   QPushButton *nextButton_;
   bool controlsLocked_ = false;
 
   Session &session() { return store_.current(); }
   bool onVirtualCube() const;
+  // The virtual cube is hidden until inspection starts.
+  bool cubeHidden() const;
   // Shows the cube, view and preview the session's cube needs.
   void showCubeKind();
   void showScramble();
+  // The cube as it is, or blank while it is hidden.
+  void showCube();
+  // The last solve's result, or 0.00 with none.
+  void showLastResult();
   // Stops a virtual solve: the time if the cube is solved, else DNF.
   void stopVirtual(std::int64_t now);
   void onTick();
@@ -89,19 +124,36 @@ private:
   // solve or inspection runs, and unlocks them after.
   void updateControls();
   void recordSolve(std::int64_t timeMs, Penalty penalty,
-                   const std::string &solution = {});
+                   const std::string &solution = {},
+                   std::vector<std::int64_t> times = {});
+  // The keys for the last solve and the scramble when no solve runs.
+  bool handleActionKey(QKeyEvent *e);
+  void nextScramble();
   void refreshSessionMenu();
   void selectSession(std::size_t index);
   void refreshSolves();
   void setLastPenalty(Penalty p);
   void deleteSolve(int index);
+  void undoDelete();
+  void commentSolve(int index);
+  void review(int index);
+  void showDetails(int index);
   void showSolveMenu(const QPoint &pos);
+  void showColumnMenu(const QPoint &pos);
+  // The solves behind a statistic, from a link in the statistics.
+  void showStat(const QString &link);
   void addSession();
   void renameSession();
   void deleteSession();
   void importCstimer();
   void exportCstimer();
   void save();
+
+  static std::string splitKey(const Solve &s);
+  const SolveSplits *splitsOf(const Solve &s) const;
+  void requestSplits();
+  // Works out the optimal EO Cross of the solve just done.
+  void analyseEoCross(const Solve &s);
 };
 
 } // namespace vcube

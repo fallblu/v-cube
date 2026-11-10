@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <tuple>
 
 namespace vcube {
 
@@ -74,12 +75,17 @@ struct StepInfo {
   std::string_view name;
 };
 
-constexpr std::array<StepInfo, 5> kSteps = {{
+// By enum value.
+constexpr std::array<StepInfo, 9> kSteps = {{
     {SolveStep::EO, "eo", "EO"},
     {SolveStep::EOPlus1, "eo+1", "EO+1"},
     {SolveStep::EOPlus2, "eo+2", "EO+2"},
     {SolveStep::EOCross, "eocross", "EO Cross"},
     {SolveStep::ZZF2L, "zzf2l", "ZZ F2L"},
+    {SolveStep::EOLine, "eoline", "EOLine"},
+    {SolveStep::Cross, "cross", "Cross"},
+    {SolveStep::XEOCross, "xeocross", "XEOCross"},
+    {SolveStep::CFOPF2L, "cfopf2l", "CFOP F2L"},
 }};
 
 const StepInfo &info(SolveStep step) {
@@ -126,11 +132,21 @@ bool cornerSolved(const CubieCube &c, Corner k) {
   return c.cp[k] == k && c.co[k] == 0;
 }
 
+int solvedSlots(const CubieCube &c) {
+  int n = 0;
+  n += cornerSolved(c, DFR) && edgeSolved(c, FR);
+  n += cornerSolved(c, DLF) && edgeSolved(c, FL);
+  n += cornerSolved(c, DBL) && edgeSolved(c, BL);
+  n += cornerSolved(c, DRB) && edgeSolved(c, BR);
+  return n;
+}
+
 // The step done with the cube held as it is (cross on D, EO for F/B).
 bool reachedAsHeld(const CubieCube &c, SolveStep step) {
   // Kociemba's edge orientation is the ZZ one: F and B quarter turns flip
   // edges, the other turns don't.
-  if (std::any_of(c.eo.begin(), c.eo.end(), [](auto o) { return o != 0; })) {
+  if (stepNeedsEo(step) &&
+      std::any_of(c.eo.begin(), c.eo.end(), [](auto o) { return o != 0; })) {
     return false;
   }
   int cross = 0;
@@ -144,12 +160,16 @@ bool reachedAsHeld(const CubieCube &c, SolveStep step) {
     return cross >= 1;
   case SolveStep::EOPlus2:
     return cross >= 2;
+  case SolveStep::EOLine:
+    return edgeSolved(c, DF) && edgeSolved(c, DB);
   case SolveStep::EOCross:
+  case SolveStep::Cross:
     return cross == 4;
+  case SolveStep::XEOCross:
+    return cross == 4 && solvedSlots(c) >= 1;
   case SolveStep::ZZF2L:
-    return cross == 4 && cornerSolved(c, DFR) && cornerSolved(c, DLF) &&
-           cornerSolved(c, DBL) && cornerSolved(c, DRB) && edgeSolved(c, FR) &&
-           edgeSolved(c, FL) && edgeSolved(c, BL) && edgeSolved(c, BR);
+  case SolveStep::CFOPF2L:
+    return cross == 4 && solvedSlots(c) == 4;
   }
   return false;
 }
@@ -157,14 +177,22 @@ bool reachedAsHeld(const CubieCube &c, SolveStep step) {
 } // namespace
 
 const std::vector<SolveStep> &solveSteps() {
-  static const std::vector<SolveStep> steps = [] {
-    std::vector<SolveStep> out;
-    for (const auto &s : kSteps) {
-      out.push_back(s.step);
-    }
-    return out;
-  }();
+  static const std::vector<SolveStep> steps = {
+      SolveStep::EO,      SolveStep::EOPlus1,  SolveStep::EOPlus2,
+      SolveStep::EOLine,  SolveStep::EOCross,  SolveStep::XEOCross,
+      SolveStep::ZZF2L,   SolveStep::Cross,    SolveStep::CFOPF2L};
   return steps;
+}
+
+const std::vector<SolveStep> &allSteps() {
+  static const std::vector<SolveStep> steps = {
+      SolveStep::EO,      SolveStep::EOLine,  SolveStep::EOPlus1,
+      SolveStep::EOPlus2, SolveStep::EOCross, SolveStep::ZZF2L};
+  return steps;
+}
+
+bool stepNeedsEo(SolveStep step) {
+  return step != SolveStep::Cross && step != SolveStep::CFOPF2L;
 }
 
 std::string_view stepId(SolveStep step) { return info(step).id; }
@@ -182,16 +210,18 @@ std::optional<SolveStep> stepFromId(std::string_view id) {
 
 std::optional<SolveStep> stepFromName(std::string_view name) {
   std::string key = squashed(name);
-  for (const auto &s : kSteps) {
-    if (squashed(s.name) == key) {
-      return s.step;
+  for (SolveStep step : solveSteps()) {
+    if (squashed(info(step).name) == key) {
+      return step;
     }
   }
   return std::nullopt;
 }
 
 std::string defaultScrambleType(SolveStep step) {
-  return step == SolveStep::ZZF2L ? "eocross" : "333";
+  return step == SolveStep::ZZF2L     ? "eocross"
+         : step == SolveStep::CFOPF2L ? "f2l"
+                                      : "333";
 }
 
 bool stepReached(const FaceletCube &cube, SolveStep step) {
@@ -215,17 +245,35 @@ std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step) {
   return out; // allHolds() is sorted
 }
 
-int htmCount(const Alg &alg) {
-  int n = 0;
-  for (Move m : alg) {
-    if (m.type == MoveType::M || m.type == MoveType::E ||
-        m.type == MoveType::S) {
-      n += 2;
-    } else if (!isRotation(m.type)) {
-      n += 1;
+StepProgress stepProgress(const FaceletCube &cube) {
+  StepProgress best;
+  bool found = false;
+  for (Hold h : allHolds()) {
+    std::optional<CubieCube> c = heldCubie(cube, h);
+    if (!c) {
+      continue;
+    }
+    StepProgress p;
+    p.badEdges = static_cast<int>(std::count_if(c->eo.begin(), c->eo.end(),
+                                                [](auto o) { return o != 0; }));
+    for (Edge e : {DF, DR, DB, DL}) {
+      p.crossEdges += edgeSolved(*c, e) ? 1 : 0;
+    }
+    p.line = edgeSolved(*c, DF) && edgeSolved(*c, DB);
+    auto rank = [](const StepProgress &x) {
+      return std::tuple(-x.badEdges, x.crossEdges, x.line);
+    };
+    if (!found || rank(best) < rank(p)) {
+      best = p;
+      found = true;
     }
   }
-  return n;
+  return best;
+}
+
+int htmCount(const Alg &alg) { return moveCount(alg); }
+int solutionHtm(const Alg &solution, bool simplified) {
+  return htmCount(simplified ? simplify(solution) : solution);
 }
 
 void VirtualAttempt::load(const Alg &scramble) {
@@ -242,17 +290,45 @@ void VirtualAttempt::load(const FaceletCube &start) {
 void VirtualAttempt::restart() {
   cube_ = start_;
   moves_.clear();
+  times_.clear();
   started_ = false;
   free_ = false;
 }
 
-bool VirtualAttempt::turn(Move m) {
+bool VirtualAttempt::turn(Move m) { return turn(m, startMs_); }
+
+bool VirtualAttempt::turn(Move m, std::int64_t nowMs) {
   if (!started_ && !free_ && !isRotation(m.type)) {
     return false;
   }
   cube_.apply(m);
   moves_.push_back(m);
+  times_.push_back(started_ ? std::max<std::int64_t>(0, nowMs - startMs_) : 0);
   return true;
+}
+
+std::vector<std::int64_t> VirtualAttempt::solutionTimes() const {
+  // Joined as solution() joins the moves.
+  Alg out;
+  std::vector<std::int64_t> times;
+  for (std::size_t i = 0; i < moves_.size(); ++i) {
+    Move m = moves_[i];
+    std::int64_t t = i < times_.size() ? times_[i] : 0;
+    if (!out.empty() && out.back().type == m.type) {
+      int q = (out.back().amount + m.amount) % 4;
+      if (q == 0) {
+        out.pop_back();
+        times.pop_back();
+      } else {
+        out.back() = Move{m.type, static_cast<std::uint8_t>(q), 0};
+        times.back() = t;
+      }
+    } else {
+      out.push_back(Move{m.type, m.amount, 0});
+      times.push_back(t);
+    }
+  }
+  return times;
 }
 
 Alg VirtualAttempt::solution() const {

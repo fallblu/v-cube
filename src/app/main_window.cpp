@@ -222,6 +222,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
                 }(),
                 s);
             ReviewDialog dialog(solve, settings_, &library_, this);
+            dialog.setRetryEnabled(true);
+            connect(&dialog, &ReviewDialog::retryRequested, inspectionPage_,
+                    [this, index] { inspectionPage_->startRetry(index); });
             dialog.exec();
           });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
@@ -782,6 +785,14 @@ void MainWindow::buildMenus() {
   // The shortcuts must keep working while focus mode hides the menu bar.
   for (QAction *menu : menuBar()->actions()) {
     addActions(menu->menu()->actions());
+  }
+
+  // Library's own menus and Undo, shown only in Library mode; their keys
+  // stay with the page (they would act on it from other modes).
+  QAction *first = edit->actions().value(0);
+  edit->insertActions(first, libraryPage_->editActions());
+  for (QMenu *menu : libraryPage_->menus()) {
+    menuBar()->insertMenu(view->menuAction(), menu);
   }
 }
 

@@ -19,12 +19,14 @@ class QLabel;
 class QLineEdit;
 class QMenu;
 class QPushButton;
+class QTabBar;
 class QTableWidget;
 class QToolButton;
 
 namespace vcube {
 
-// Blind mode: blindfolded solving with Old Pochmann, in four drills.
+// Blind mode: blindfolded solving with Old Pochmann, in four drills, each
+// on a tab of its own (the tabs stay in focus mode too).
 //
 // - Letter quiz: a sticker of the solved cube is ringed and its letter
 //   typed, or a letter is shown and its sticker clicked on the net.
@@ -40,7 +42,8 @@ namespace vcube {
 // The letters belong to the stickers as the cube is held for blind (the
 // blind hold, white top and green front unless changed), and the cube is
 // shown in that hold. The quiz and setup drills weigh the next letter
-// towards the slow and missed ones.
+// towards the slow and missed ones. Their clocks, and a trace's, stop
+// while the page or the window is away.
 class BlindPage : public ModePage {
   Q_OBJECT
 public:
@@ -58,6 +61,7 @@ public:
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
+  void changeEvent(QEvent *event) override;
 
 private:
   enum class Drill { Quiz, Tracing, Setups, Solves };
@@ -93,6 +97,12 @@ private:
   std::optional<Item> last_; // not asked twice in a row
   QString typed_;
   QTimer nextTimer_; // on to the next letter after a right answer
+  // Until when a Space doesn't give up the letter shown (it was meant for
+  // the one before, which moved on by itself).
+  std::int64_t graceUntil_ = 0;
+  // monotonicMs() when the page or the window went away, while a letter's
+  // or a trace's clock was running; its clock is moved on by the time away.
+  std::optional<std::int64_t> awayAt_;
   // Setup moves on the cube: the cube turned from solved, and each
   // sticker's starting facelet at every facelet (to follow the target).
   FaceletCube setupCube_;
@@ -104,12 +114,19 @@ private:
   FaceletCube heldStart_; // the scramble as held for blind (solver frame)
   CubieCube heldCubie_;
   FaceletCube traceCube_; // turned as a whole while tracing
+  // The scramble traced or solved: the feed moves on as soon as one is
+  // shown, so that no scramble is seen twice.
+  std::optional<GeneratedScramble> used_;
   VirtualAttempt attempt_;
   std::int64_t startMs_ = 0;  // monotonic, when memo (or tracing) began
   std::int64_t memoMs_ = 0;   // memo time of a blind solve
   bool waitingTrace_ = false; // tracing starts when the scramble is ready
+  // The physical solve just recorded (session, timestamp), which Backspace
+  // toggles DNF on while it is still the last one.
+  std::optional<std::pair<std::size_t, std::int64_t>> justRecorded_;
   QTimer tick_;
 
+  QTabBar *drillTabs_;
   QWidget *leftPanel_;
   QToolButton *sessionButton_;
   QMenu *sessionMenu_;
@@ -117,7 +134,6 @@ private:
   QTableWidget *table_;
   QPushButton *resetStatsButton_;
   QWidget *optionsRow_;
-  QComboBox *drillBox_;
   QComboBox *piecesBox_;
   QComboBox *directionBox_;
   QComboBox *setupModeBox_;
@@ -157,6 +173,13 @@ private:
   void showHint();
   void refreshLeft();
   void save();
+  // The page or the window went away, or came back: running clocks stop.
+  void pause();
+  void resume();
+  // Done: turns the cube shown as a whole, marks and all.
+  void look(Move m);
+  // stickerText(), HTML-escaped for rich text.
+  QString stickerHtml(BldPiece kind, int sticker) const;
 
   // Letter quiz and setup moves.
   // A sticker for the drill, weighted towards slow and missed ones.
@@ -176,6 +199,8 @@ private:
   void startTracing();
   void focusTrace();
   void checkTrace();
+  void giveUpTrace();
+  void showTraceMenu(const QPoint &pos);
 
   // Blind solves.
   void showScramble();

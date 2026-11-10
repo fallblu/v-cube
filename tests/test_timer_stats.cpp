@@ -33,9 +33,59 @@ TEST_CASE("trimmed averages follow WCA rules") {
   CHECK(meanOf(solves({1000, -2000, 3000})) == kDnfTime);
   CHECK_FALSE(currentAverage(a, 12));
   auto twelve = solves({10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 1000});
-  CHECK(averageOf(twelve) == 65); // drops 10 and 1000
+  CHECK(averageOf(twelve) == 70); // drops 10 and 1000: 0.065 rounds up
+  CHECK(averageOf(twelve, 1) == 65);
   CHECK(bestAverage(solves({5000, 1000, 1000, 1000, 1000, 1000, 9000}), 5) ==
         1000);
+}
+
+TEST_CASE("averages are rounded to hundredths as the WCA rounds them") {
+  // mo3 of 1.00, 1.00, 1.02 is 1.0067: 1.01, not the truncated 1.00.
+  auto three = solves({1000, 1000, 1020});
+  CHECK(meanOf(three) == 1010);
+  CHECK(formatTime(meanOf(three)) == "1.01");
+  // Singles are truncated first: 1.009 counts as 1.00.
+  CHECK(meanOf(solves({1009, 1009, 1009})) == 1000);
+  CHECK(meanOf(solves({1009, 1009, 1009}), 1) == 1009);
+  // ao5 of 10.00, 10.01, 10.00, 9.00, 15.00: (10.00 + 10.01 + 10.00) / 3.
+  CHECK(averageOf(solves({10000, 10010, 10000, 9000, 15000})) == 10000);
+  CHECK(averageOf(solves({10000, 10010, 10010, 9000, 15000})) == 10010);
+  CHECK(statUnit(1) == 100);
+  CHECK(statUnit(2) == 10);
+  CHECK(statUnit(3) == 1);
+  CHECK(meanOf(solves({1000, 1000, 1050}), statUnit(1)) == 1000);
+  CHECK(summarize(three).mean == 1010);
+}
+
+TEST_CASE("the solves an average drops and the best average's start") {
+  auto a = solves({10000, 12000, 11000, 9000, 15000});
+  CHECK(trimmedIndices(a) == std::vector<std::size_t>{3, 4});
+  CHECK(trimmedIndices(solves({1, 2, 3})).empty());
+  auto seven = solves({5000, 1000, 1000, 1000, 1000, 1000, 9000});
+  CHECK(bestAverageStart(seven, 5) == std::optional<std::size_t>(0));
+  CHECK(bestAverageStart(solves({9000, 5000, 1000, 1000, 1000, 1000}), 4) ==
+        std::optional<std::size_t>(1));
+  CHECK_FALSE(bestAverageStart(seven, 12));
+}
+
+TEST_CASE("a solve that beats every earlier value is a new best") {
+  auto a = solves({10000, 11000, 12000, 13000, 14000});
+  CHECK(newBests(a).empty());
+  a.push_back(solves({5000})[0]);
+  std::vector<NewBest> bests = newBests(a);
+  REQUIRE(bests.size() == 2);
+  CHECK(bests[0].name == "single");
+  CHECK(bests[0].value == 5000);
+  CHECK(bests[1].name == "mo3");
+  CHECK(bests[1].value == 10670); // 13, 14, 5; the ao5 is 12 again
+  a.push_back(solves({4000})[0]);
+  bests = newBests(a);
+  REQUIRE(bests.size() == 3);
+  CHECK(bests[2].name == "ao5");
+  CHECK(bests[2].value == 10000); // 12, 13 and 5; 4 and 14 dropped
+  a.push_back(solves({-5000})[0]);
+  CHECK(newBests(a).empty());
+  CHECK(newBests(solves({1000})).empty());
 }
 
 TEST_CASE("times format like cstimer") {
@@ -45,7 +95,7 @@ TEST_CASE("times format like cstimer") {
   CHECK(formatTime(kDnfTime) == "DNF");
   CHECK(formatTime(std::nullopt) == "-");
   CHECK(formatTime(999, 3) == "0.999");
-  Solve plus{10000, Penalty::Plus2, {}, {}, 0, {}};
+  Solve plus{10000, Penalty::Plus2, {}, {}, 0, {}, {}};
   CHECK(formatSolve(plus) == "12.00+");
 }
 

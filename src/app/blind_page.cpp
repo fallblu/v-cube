@@ -21,7 +21,9 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QSplitter>
+#include <QTabBar>
 #include <QTableWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -61,7 +63,12 @@ QString timeText(StatValue ms, int decimals = 2) {
   return QString::fromStdString(formatTime(ms, decimals));
 }
 
-QString lowered(const QString &s) { return s.trimmed().toLower(); }
+// A typed or scheme letter as letters are compared (see foldLetter()).
+QString lowered(const QString &s) { return qs(foldLetter(ss(s.trimmed()))); }
+
+// A Space this soon after the quiz moved on by itself was meant for the
+// letter before.
+constexpr std::int64_t kSpaceGraceMs = 500;
 
 const StatusColour kRight{Status::Good};
 const StatusColour kWrong{Status::Bad};
@@ -148,10 +155,6 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   optionsRow_ = new QWidget(right);
   auto *options = new FlowLayout(optionsRow_);
   options->setContentsMargins(0, 0, 0, 0);
-  drillBox_ = comboBox({tr("Letter quiz"), tr("Memo tracing"),
-                        tr("Setup moves"), tr("Blind solves")},
-                       optionsRow_);
-  drillBox_->setToolTip(tr("What to practise"));
   piecesBox_ = comboBox({tr("Edges"), tr("Corners"), tr("Both")}, optionsRow_);
   piecesBox_->setToolTip(tr("The pieces whose letters are asked"));
   directionBox_ =
@@ -178,8 +181,6 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   schemeButton_->setToolTip(
       tr("Change the letters, the setup moves and the hold you solve blind "
          "in"));
-  options->addWidget(labelled(tr("Drill:"), drillBox_, optionsRow_));
-  options->addSpacing(12);
   options->addWidget(labelled(tr("Pieces:"), piecesBox_, optionsRow_));
   options->addWidget(labelled(tr("Ask:"), directionBox_, optionsRow_));
   options->addWidget(labelled(tr("Setups:"), setupModeBox_, optionsRow_));
@@ -211,6 +212,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   pf.setPointSizeF(pf.pointSizeF() * 1.3);
   promptLabel_->setFont(pf);
   display_ = new TimeDisplay(right);
+  display_->setTextFormat(Qt::PlainText); // letters may hold < or &
   hintLabel_ = new QLabel(right);
   hintLabel_->setAlignment(Qt::AlignCenter);
   hintLabel_->setWordWrap(true);
@@ -272,12 +274,31 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   split->setStretchFactor(0, 0);
   split->setStretchFactor(1, 1);
   split->setSizes({300, 800});
-  auto *layout = new QHBoxLayout(this);
-  layout->addWidget(split);
+  // The drills, always in view (in focus mode too): the left column and the
+  // options belong to the one picked.
+  drillTabs_ = new QTabBar(this);
+  drillTabs_->setFocusPolicy(Qt::NoFocus);
+  drillTabs_->setExpanding(false);
+  for (const QString &name : {tr("Letter quiz"), tr("Memo tracing"),
+                              tr("Setup moves"), tr("Blind solves")}) {
+    drillTabs_->addTab(name);
+  }
+  drillTabs_->setTabToolTip(0, tr("Name the letter of a sticker, or find the "
+                                  "sticker of a letter"));
+  drillTabs_->setTabToolTip(
+      1, tr("Type the memo of a scrambled cube, checked by doing it"));
+  drillTabs_->setTabToolTip(2, tr("Bring a letter's sticker to the swap spot"));
+  drillTabs_->setTabToolTip(3, tr("Memo, then solve blind, in sessions"));
+  auto *layout = new QVBoxLayout(this);
+  layout->addWidget(drillTabs_);
+  layout->addWidget(split, 1);
 
   // --- wiring ---
   nextTimer_.setSingleShot(true);
-  connect(&nextTimer_, &QTimer::timeout, this, &BlindPage::nextItem);
+  connect(&nextTimer_, &QTimer::timeout, this, [this] {
+    nextItem();
+    graceUntil_ = monotonicMs() + kSpaceGraceMs;
+  });
   connect(&tick_, &QTimer::timeout, this, &BlindPage::onTick);
   connect(&feed_, &ScrambleFeed::currentChanged, this, [this] {
     if (waitingTrace_ && feed_.current()) {
@@ -286,10 +307,17 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
       showScramble();
     }
   });
-  connect(drillBox_, &QComboBox::activated, this, [this](int index) {
-    if (!isBusy()) {
-      selectDrill(static_cast<Drill>(index));
+  connect(drillTabs_, &QTabBar::currentChanged, this, [this](int index) {
+    if (index < 0 || static_cast<Drill>(index) == drill_) {
+      return;
     }
+    if (isBusy()) {
+      QSignalBlocker block(drillTabs_);
+      drillTabs_->setCurrentIndex(static_cast<int>(drill_));
+      emit message(tr("Finish or cancel the solve (Esc) first"));
+      return;
+    }
+    selectDrill(static_cast<Drill>(index));
   });
   auto optionChanged = [this] {
     QSettings q;
@@ -319,7 +347,13 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   connect(sessionMenu_, &QMenu::aboutToShow, this,
           &BlindPage::refreshSessionMenu);
   connect(table_, &QTableWidget::customContextMenuRequested, this,
-          &BlindPage::showAttemptMenu);
+          [this](const QPoint &pos) {
+            if (drill_ == Drill::Tracing) {
+              showTraceMenu(pos);
+            } else {
+              showAttemptMenu(pos);
+            }
+          });
   connect(resetStatsButton_, &QPushButton::clicked, this, [this] {
     bool setups = drill_ == Drill::Setups;
     auto answer = QMessageBox::question(
@@ -340,6 +374,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   applySettings();
   int saved = QSettings().value("blind/drill", 0).toInt();
   selectDrill(static_cast<Drill>(std::clamp(saved, 0, 3)));
+  pause(); // until the page is shown
 }
 
 // --- common
@@ -372,18 +407,24 @@ QString BlindPage::stickerText(BldPiece kind, int sticker) const {
                            qs(bldStickerName(kind, sticker)));
 }
 
+QString BlindPage::stickerHtml(BldPiece kind, int sticker) const {
+  return stickerText(kind, sticker).toHtmlEscaped();
+}
+
 bool BlindPage::isBusy() const {
   return drill_ == Drill::Solves &&
          (phase_ == Phase::Memo || phase_ == Phase::Executing);
 }
 
 void BlindPage::activated() {
+  resume();
   if ((drill_ == Drill::Quiz || drill_ == Drill::Setups) && !item_) {
     nextItem();
   }
 }
 
 void BlindPage::deactivated() {
+  pause();
   nextTimer_.stop();
   cubeView_->finishAnimations();
   if (isBusy()) {
@@ -396,7 +437,51 @@ void BlindPage::deactivated() {
 
 void BlindPage::windowDeactivated() {
   // Nothing is held down here, so a running solve keeps going: a long
-  // blind solve shouldn't be lost to a window losing the keyboard.
+  // blind solve shouldn't be lost to a window losing the keyboard. A
+  // letter's or a trace's clock stops until the window is back.
+  pause();
+}
+
+void BlindPage::changeEvent(QEvent *event) {
+  if (event->type() == QEvent::ActivationChange && isActiveWindow() &&
+      isVisible()) {
+    resume();
+  }
+  ModePage::changeEvent(event);
+}
+
+void BlindPage::pause() {
+  bool letter = (drill_ == Drill::Quiz || drill_ == Drill::Setups) && item_ &&
+                !item_->answered;
+  bool tracing = drill_ == Drill::Tracing && phase_ == Phase::Memo;
+  if (!awayAt_ && (letter || tracing)) {
+    awayAt_ = monotonicMs();
+  }
+}
+
+void BlindPage::resume() {
+  if (!awayAt_) {
+    return;
+  }
+  std::int64_t now = monotonicMs();
+  std::int64_t away = now - *awayAt_;
+  awayAt_.reset();
+  if (item_) {
+    // A letter shown while away (e.g. moved on to by itself) starts now.
+    item_->shownAt = std::min(now, item_->shownAt + away);
+  }
+  if (drill_ == Drill::Tracing && phase_ == Phase::Memo) {
+    startMs_ += away;
+  }
+}
+
+void BlindPage::look(Move m) {
+  if (!isRotation(m.type)) {
+    emit message(tr("Only rotations: turn the cube as a whole to look at it"));
+    return;
+  }
+  cubeView_->animateMove(m);
+  cubeView_->setMarks(movedMarks(cubeView_->marks(), m));
 }
 
 void BlindPage::setFocusMode(bool on) {
@@ -412,6 +497,7 @@ void BlindPage::applySettings() {
   cubeView_->setLook(look);
   cubeView_->setColourMap(colourMapOf(scheme_.hold));
   cubeView_->setAnimationMs(settings_.animationMs);
+  display_->setDecimals(settings_.decimals);
   refreshLeft();
 }
 
@@ -434,10 +520,15 @@ void BlindPage::selectDrill(Drill d) {
   drill_ = d;
   QSettings q;
   q.setValue("blind/drill", static_cast<int>(d));
-  drillBox_->setCurrentIndex(static_cast<int>(d));
+  {
+    QSignalBlocker block(drillTabs_);
+    drillTabs_->setCurrentIndex(static_cast<int>(d));
+  }
   nextTimer_.stop();
   tick_.stop();
   waitingTrace_ = false;
+  awayAt_.reset();
+  justRecorded_.reset();
   item_.reset();
   typed_.clear();
   phase_ = Phase::Ready;
@@ -518,7 +609,7 @@ void BlindPage::applyView() {
 void BlindPage::updateControls() {
   bool busy = isBusy();
   for (QWidget *w : std::initializer_list<QWidget *>{
-           drillBox_, sessionButton_, cubeBox_, schemeButton_, viewBox_}) {
+           drillTabs_, sessionButton_, cubeBox_, schemeButton_, viewBox_}) {
     w->setEnabled(!busy);
   }
   // The time only changes during a solve or a trace, so the display is
@@ -553,14 +644,16 @@ void BlindPage::showHint() {
       text = tr("Turn the cube to bring the ringed sticker to ◎ without "
                 "moving the buffer. Esc starts again, Space skips.");
     } else {
-      text = tr("Type the setup and press Enter. Space skips.");
+      text = tr("Type the setup and press Enter. Esc leaves the field; Esc "
+                "again gives the letter up.");
     }
     break;
   case Drill::Tracing:
     text = phase_ == Phase::Ready
                ? tr("Space: a new scramble, and the timer starts.")
            : phase_ == Phase::Done
-               ? tr("Space: next scramble.")
+               ? tr("Space: next scramble. Rotations turn the cube to look "
+                    "at it.")
                : tr("Turn the cube as a whole to look at it. Enter: type "
                     "the letters (Enter after the edges, Enter again to "
                     "check; Esc returns the keys to the cube). Esc: give "
@@ -582,7 +675,8 @@ void BlindPage::showHint() {
              : phase_ == Phase::Executing
                  ? tr("Turn the hidden cube. Space stops the timer. Esc "
                       "cancels.")
-                 : tr("Space: next scramble.");
+                 : tr("Space: next scramble. Rotations turn the cube to look "
+                      "at it.");
     }
     break;
   }
@@ -647,6 +741,9 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
       return true;
     }
     if (space) {
+      if (monotonicMs() < graceUntil_) {
+        return true; // meant for the letter before, which moved on
+      }
       finishItem(false, tr("Given up."));
       return true;
     }
@@ -707,12 +804,16 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
       }
       return true;
     }
-    if (space) {
-      skipItem();
-    } else if (!setupsOnCube()) {
-      if (enter) {
+    if (!setupsOnCube()) {
+      // Typed: the keys belong to the field; one pressed outside it goes
+      // back to it, and Esc there gives the letter up.
+      if (key == Qt::Key_Escape) {
+        skipItem();
+      } else if (space || enter) {
         setupEdit_->setFocus();
       }
+    } else if (space) {
+      skipItem();
     } else if (key == Qt::Key_Escape) {
       resetSetupCube();
     } else if (move) {
@@ -732,22 +833,15 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
     }
     if (phase_ == Phase::Ready || phase_ == Phase::Done) {
       if (space) {
-        if (phase_ == Phase::Done) {
-          feed_.advance();
-        }
-        startTracing();
+        startTracing(); // the feed moved on when the last one was shown
+      } else if (move && phase_ == Phase::Done) {
+        look(*move);
       }
       return true;
     }
     // Tracing.
     if (key == Qt::Key_Escape) {
-      phase_ = Phase::Ready;
-      cubeView_->clearMarks();
-      display_->showText("–", palette().color(QPalette::PlaceholderText));
-      resultLabel_->setText(tr("Scramble given up; nothing was recorded."));
-      applyView();
-      updateControls();
-      showHint();
+      giveUpTrace();
       return true;
     }
     if (enter || key == Qt::Key_Tab) {
@@ -795,7 +889,11 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
         cancelSolve();
       }
     } else if (key == Qt::Key_Backspace) {
-      if (phase_ == Phase::Done && !session().attempts.empty()) {
+      // Only the solve just recorded, while it is still the last one.
+      const auto &attempts = session().attempts;
+      if (phase_ == Phase::Done && justRecorded_ &&
+          justRecorded_->first == store_.currentIndex() && !attempts.empty() &&
+          attempts.back().timestamp == justRecorded_->second) {
         BlindAttempt &a = session().attempts.back();
         a.dnf = !a.dnf;
         display_->showTime(a.timeMs, a.dnf ? Penalty::Dnf : Penalty::None);
@@ -843,6 +941,8 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
     } else {
       emit message(tr("Only rotations during the memo"));
     }
+  } else if (phase_ == Phase::Done) {
+    look(*move);
   }
   return true;
 }
@@ -863,6 +963,7 @@ void BlindPage::refreshLeft() {
     return item;
   };
 
+  int d = settings_.decimals;
   if (drill_ == Drill::Quiz || drill_ == Drill::Setups) {
     bool setups = drill_ == Drill::Setups;
     const LetterStats &stats =
@@ -905,7 +1006,7 @@ void BlindPage::refreshLeft() {
         acc->setForeground(kWrong);
       }
       cell(row, 4,
-           s.meanMs() ? timeText(static_cast<std::int64_t>(*s.meanMs()))
+           s.meanMs() ? timeText(static_cast<std::int64_t>(*s.meanMs()), d)
                       : QString("-"),
            sticker);
       if (s.attempts == 0) {
@@ -924,7 +1025,7 @@ void BlindPage::refreshLeft() {
             .arg(attempts ? QString(" (%1%)").arg(
                                 std::lround(100.0 * correct / attempts))
                           : QString())
-            .arg(correct ? timeText(correctMs / correct) : QString("-")));
+            .arg(correct ? timeText(correctMs / correct, d) : QString("-")));
     return;
   }
 
@@ -952,7 +1053,7 @@ void BlindPage::refreshLeft() {
       const TraceAttempt &t = traces[i];
       int row = static_cast<int>(r);
       cell(row, 0, QString::number(i + 1), static_cast<int>(i));
-      cell(row, 1, timeText(t.timeMs), static_cast<int>(i));
+      cell(row, 1, timeText(t.timeMs, d), static_cast<int>(i));
       cell(row, 2, t.edgesRight ? "✓" : "✗", static_cast<int>(i))
           ->setForeground(t.edgesRight ? kRight : kWrong);
       cell(row, 3, t.cornersRight ? "✓" : "✗", static_cast<int>(i))
@@ -967,8 +1068,8 @@ void BlindPage::refreshLeft() {
                        "right): %5 &nbsp; Best: %6</p>")
                         .arg(n)
                         .arg(pct(edges), pct(corners), pct(both),
-                             both ? timeText(bothMs / both) : QString("-"),
-                             timeText(best)));
+                             both ? timeText(bothMs / both, d) : QString("-"),
+                             timeText(best, d)));
     return;
   }
 
@@ -978,7 +1079,6 @@ void BlindPage::refreshLeft() {
   table_->setColumnCount(3);
   table_->setHorizontalHeaderLabels({"#", tr("Time"), tr("Memo")});
   table_->setRowCount(static_cast<int>(attempts.size()));
-  int d = settings_.decimals;
   int successes = 0;
   std::int64_t memoTotal = 0;
   for (std::size_t i = 0; i < attempts.size(); ++i) {
@@ -1103,6 +1203,9 @@ void BlindPage::nextItem() {
   }
   item_ = pickItem(drill_ == Drill::Setups);
   last_ = item_;
+  if (!awayAt_ && (!isVisible() || !isActiveWindow())) {
+    awayAt_ = monotonicMs(); // shown while away: its clock starts on return
+  }
   showItem();
 }
 
@@ -1131,7 +1234,7 @@ void BlindPage::showItem() {
   } else {
     promptLabel_->setText(
         tr("Set up %1 %2: bring it to %3 (◎)")
-            .arg(kind, stickerText(it.kind, it.sticker),
+            .arg(kind, stickerHtml(it.kind, it.sticker),
                  qs(bldStickerName(it.kind, op::swapSpot(it.kind)))));
     display_->showText(letterOf(it.kind, it.sticker));
     resetSetupCube();
@@ -1151,10 +1254,10 @@ void BlindPage::answerLetter(const QString &text) {
   QString right = letterOf(item_->kind, item_->sticker);
   bool ok = lowered(text) == lowered(right);
   finishItem(ok,
-             ok ? tr("Right: %1.").arg(stickerText(item_->kind, item_->sticker))
+             ok ? tr("Right: %1.").arg(stickerHtml(item_->kind, item_->sticker))
                 : tr("“%1” is wrong: it's %2.")
                       .arg(text.toHtmlEscaped(),
-                           stickerText(item_->kind, item_->sticker)));
+                           stickerHtml(item_->kind, item_->sticker)));
 }
 
 void BlindPage::answerSticker(int facelet) {
@@ -1164,12 +1267,12 @@ void BlindPage::answerSticker(int facelet) {
   std::optional<int> clicked = bldSticker(item_->kind, facelet);
   if (clicked && *clicked == item_->sticker) {
     finishItem(true,
-               tr("Right: %1.").arg(stickerText(item_->kind, item_->sticker)));
+               tr("Right: %1.").arg(stickerHtml(item_->kind, item_->sticker)));
     return;
   }
   QString what;
   if (clicked) {
-    what = tr("that's %1").arg(stickerText(item_->kind, *clicked));
+    what = tr("that's %1").arg(stickerHtml(item_->kind, *clicked));
   } else {
     BldPiece other =
         item_->kind == BldPiece::Edge ? BldPiece::Corner : BldPiece::Edge;
@@ -1179,7 +1282,7 @@ void BlindPage::answerSticker(int facelet) {
                : tr("that's a centre");
   }
   finishItem(false, tr("Wrong, %1. %2 is ringed.")
-                        .arg(what, stickerText(item_->kind, item_->sticker)));
+                        .arg(what, stickerHtml(item_->kind, item_->sticker)));
 }
 
 void BlindPage::finishItem(bool right, const QString &feedback) {
@@ -1210,8 +1313,9 @@ void BlindPage::finishItem(bool right, const QString &feedback) {
                            : letterOf(item_->kind, item_->sticker),
                        colour);
   } else {
-    display_->showText(
-        right ? timeText(ms) : letterOf(item_->kind, item_->sticker), colour);
+    display_->showText(right ? timeText(ms, settings_.decimals)
+                             : letterOf(item_->kind, item_->sticker),
+                       colour);
     setupEdit_->clearFocus();
   }
   resultLabel_->setText(
@@ -1300,6 +1404,14 @@ void BlindPage::checkTypedSetup() {
     return;
   }
   std::string text = cleanAlgText(ss(setupEdit_->text()));
+  if (text.empty()) {
+    // Not an answer: nothing is recorded.
+    resultLabel_->setText(
+        QString("<p style='color:%1'>%2</p>")
+            .arg(kWrong.name(), tr("Type the setup first (Esc outside the "
+                                   "field gives the letter up)")));
+    return;
+  }
   ParseResult parsed = parseAlg(text);
   if (!parsed) {
     resultLabel_->setText(
@@ -1345,7 +1457,9 @@ void BlindPage::startTracing() {
   }
   waitingTrace_ = false;
   phase_ = Phase::Memo;
-  CubieCube scrambled = cubieOf(parseAlgOrEmpty(ss(current->text)));
+  used_ = *current;
+  feed_.advance(); // seen now, so never traced or solved again
+  CubieCube scrambled = cubieOf(parseAlgOrEmpty(ss(used_->text)));
   heldCubie_ = solverState(scrambled, scheme_.hold);
   heldStart_ = heldCubie_.toFacelets();
   traceCube_ = heldStart_;
@@ -1362,6 +1476,34 @@ void BlindPage::startTracing() {
   showHint();
 }
 
+void BlindPage::giveUpTrace() {
+  phase_ = Phase::Ready;
+  cubeView_->clearMarks();
+  display_->showText("–", palette().color(QPalette::PlaceholderText));
+  resultLabel_->setText(tr("Scramble given up; nothing was recorded."));
+  applyView();
+  updateControls();
+  showHint();
+}
+
+void BlindPage::showTraceMenu(const QPoint &pos) {
+  auto *item = table_->itemAt(pos);
+  if (!item) {
+    return;
+  }
+  auto index = static_cast<std::size_t>(item->data(Qt::UserRole).toInt());
+  if (index >= store_.data().traces.size()) {
+    return;
+  }
+  QMenu menu(this);
+  auto *del = menu.addAction(tr("Delete"));
+  if (menu.exec(table_->viewport()->mapToGlobal(pos)) == del) {
+    store_.removeTrace(index);
+    save();
+    refreshLeft();
+  }
+}
+
 void BlindPage::focusTrace() {
   if (phase_ != Phase::Memo) {
     return;
@@ -1374,6 +1516,31 @@ void BlindPage::focusTrace() {
 
 void BlindPage::checkTrace() {
   if (drill_ != Drill::Tracing || phase_ != Phase::Memo) {
+    return;
+  }
+  // Letters that can't be read are a typing slip, not a wrong memo: they
+  // are shown, and nothing is graded until they are fixed.
+  QStringList slips;
+  QLineEdit *slipEdit = nullptr;
+  for (BldPiece kind : kKinds) {
+    QLineEdit *edit = kind == BldPiece::Edge ? edgesEdit_ : cornersEdit_;
+    LetterScheme::Parsed parsed = scheme_.letters.parse(kind, ss(edit->text()));
+    if (parsed.errorAt) {
+      slips << tr("%1: can't read “%2” at character %3.")
+                   .arg(pieceName(kind), edit->text().toHtmlEscaped())
+                   .arg(*parsed.errorAt + 1);
+      if (!slipEdit) {
+        slipEdit = edit;
+      }
+    }
+  }
+  if (slipEdit) {
+    resultLabel_->setText(
+        QString("<p style='color:%1'>%2</p>")
+            .arg(kWrong.name(),
+                 slips.join("<br>") + "<br>" +
+                     tr("Fix the letters and press Enter to check.")));
+    slipEdit->setFocus();
     return;
   }
   std::int64_t ms = monotonicMs() - startMs_;
@@ -1468,7 +1635,8 @@ void BlindPage::checkTrace() {
   store_.addTrace({ms, right[0], right[1], unixNow()});
   save();
   refreshLeft();
-  display_->showText(timeText(ms), right[0] && right[1] ? kRight : kWrong);
+  display_->showText(timeText(ms, settings_.decimals),
+                     right[0] && right[1] ? kRight : kWrong);
   // Back to the way it was held, with the stickers that were due ringed.
   phase_ = Phase::Done;
   edgesEdit_->clearFocus();
@@ -1493,7 +1661,9 @@ void BlindPage::showScramble() {
   if (drill_ != Drill::Solves) {
     return;
   }
-  const auto &current = feed_.current();
+  // The solve's own while it lasts and after; the feed's next when ready.
+  const std::optional<GeneratedScramble> &current =
+      phase_ == Phase::Ready ? feed_.current() : used_;
   if (!current) {
     scrambleLabel_->setText(tr("Generating scramble…"));
     net_->setCube(std::nullopt);
@@ -1514,8 +1684,11 @@ void BlindPage::startMemo() {
     return;
   }
   showScramble();
-  resultLabel_->clear();
+  used_ = feed_.current();
   phase_ = Phase::Memo;
+  feed_.advance(); // seen now: cancelled or not, the next solve is new
+  justRecorded_.reset();
+  resultLabel_->clear();
   startMs_ = monotonicMs();
   memoMs_ = 0;
   applyView();
@@ -1595,11 +1768,9 @@ void BlindPage::cancelSolve() {
   promptLabel_->clear();
   updateControls();
   display_->showTime(0);
-  resultLabel_->setText(tr("Solve cancelled; nothing was recorded."));
-  if (onVirtualCube()) {
-    attempt_.restart();
-    cubeView_->setState(attempt_.cube());
-  }
+  resultLabel_->setText(tr("Solve cancelled; nothing was recorded. The "
+                           "next scramble is a new one."));
+  showScramble(); // the memo was seen: on to the feed's next one
   applyView();
   showHint();
 }
@@ -1610,10 +1781,11 @@ void BlindPage::recordSolve(std::int64_t timeMs, std::int64_t memoMs, bool dnf,
   a.timeMs = timeMs;
   a.memoMs = std::min(memoMs, timeMs);
   a.dnf = dnf;
-  a.scramble = feed_.current() ? ss(feed_.current()->text) : std::string();
+  a.scramble = used_ ? ss(used_->text) : std::string();
   a.solution = solution;
   a.timestamp = unixNow();
   session().attempts.push_back(a);
+  justRecorded_ = {store_.currentIndex(), a.timestamp};
   display_->showTime(timeMs, dnf ? Penalty::Dnf : Penalty::None);
   save();
   refreshLeft();
@@ -1621,9 +1793,11 @@ void BlindPage::recordSolve(std::int64_t timeMs, std::int64_t memoMs, bool dnf,
 
 void BlindPage::next() {
   phase_ = Phase::Ready;
+  justRecorded_.reset();
   resultLabel_->clear();
   promptLabel_->clear();
-  feed_.advance(); // shows the next scramble
+  cubeView_->clearMarks();
+  showScramble(); // the feed moved on when the memo started
   applyView();
   showHint();
 }

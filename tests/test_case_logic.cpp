@@ -42,6 +42,24 @@ TEST_CASE("free-piece specs round-trip through text") {
   CHECK_FALSE(parseFree("LL:q"));
 }
 
+TEST_CASE("a free spec that contradicts itself is widened as drills do") {
+  // The last-layer edges trade places, so if UF may be left flipped, any of
+  // them may: the edge that ends up in UF can be any of the four.
+  bool widened = false;
+  auto m = parseFree("LLE:p UF:o", &widened);
+  REQUIRE(m);
+  CHECK(widened);
+  CHECK(freeToString(*m) == "LLE:po");
+  // A drill state of that mask passes the check of an alg that solves it.
+  Rng rng(7);
+  for (int i = 0; i < 50; ++i) {
+    CubieCube s = randomState(*m, rng);
+    CHECK(withinMask(s, *m));
+  }
+  parseFree("LL:p", &widened);
+  CHECK_FALSE(widened);
+}
+
 TEST_CASE("algs are fitted with the AUFs they need") {
   CubieCube tperm =
       stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"));
@@ -220,6 +238,151 @@ TEST_CASE("pasted algs are matched with the set's AUF settings") {
   CHECK(report.added == 1);
   CHECK(set.findCase("b")->algs.size() == 1);
   CHECK(set.findCase("a")->algs.empty());
+}
+
+TEST_CASE("a pasted alg goes to the case its line names") {
+  // Two cases that the same alg solves: the line's name decides.
+  AlgSet set = ollLikeSet();
+  AlgCase copy = set.groups[0].cases[0];
+  copy.id = "sune-2";
+  copy.name = "Sune 2";
+  set.groups[0].cases.push_back(copy);
+  auto plan = planPaste(set,
+                        readPaste("Sune 2: R U R' U R U2 R'\n"
+                                  "R U R' U R U2 R'\n"
+                                  "T: R U R' U R U2 R'\n"
+                                  "t: F R U R' U' F'\n"),
+                        true, 0);
+  REQUIRE(plan.results.size() == 4);
+  CHECK(plan.results[0].outcome == PasteOutcome::Added);
+  CHECK(plan.results[0].caseId == "sune-2");
+  // No name and two cases: reported, not filed.
+  CHECK(plan.results[1].outcome == PasteOutcome::Ambiguous);
+  CHECK(plan.results[1].candidates ==
+        std::vector<std::string>{"sune", "sune-2"});
+  // Named T but it solves the Sunes: reported, not filed.
+  CHECK(plan.results[2].outcome == PasteOutcome::Mismatch);
+  CHECK(plan.results[2].candidates.size() == 2);
+  // Named t (by id) but solves no case: no stray case is made for it.
+  CHECK(plan.results[3].outcome == PasteOutcome::Unmatched);
+  CHECK(plan.report.added == 1);
+  CHECK(plan.report.ambiguous.size() == 2);
+  CHECK(plan.set.caseCount() == 3);
+  CHECK(plan.set.findCase("sune")->algs.empty());
+  CHECK(plan.set.findCase("sune-2")->algs.size() == 1);
+  // A chosen case skips the matching.
+  auto items = readPaste("R U R' U R U2 R'\n");
+  items[0].caseId = "sune";
+  plan = planPaste(set, items, false, 0);
+  CHECK(plan.results[0].outcome == PasteOutcome::Added);
+  CHECK(plan.set.findCase("sune")->algs.size() == 1);
+}
+
+TEST_CASE("a pasted alg goes to the named case it solves when names repeat") {
+  // Groups for different slots may use the same case names.
+  AlgSet set = ollLikeSet();
+  set.groups[0].cases[1].name = "Sune";
+  auto plan =
+      planPaste(set, readPaste("Sune: R U R' U' R' F R F'\n"), false, 0);
+  CHECK(plan.results[0].outcome == PasteOutcome::Added);
+  CHECK(plan.results[0].caseId == "t");
+}
+
+TEST_CASE("pasted spreadsheet rows are name, then algs") {
+  auto items = readPaste("Sune\tR U R' U R U2 R'\ty2 L U L' U L U2 L'\n"
+                         "\"T\"\t\"R U R' U' R' F R F'\"\n"
+                         "R U R' U R U2 R'\t\n");
+  REQUIRE(items.size() == 4);
+  CHECK(items[0].name == "Sune");
+  CHECK(items[0].line == 1);
+  CHECK(items[1].alg == "y2 L U L' U L U2 L'");
+  CHECK(items[2].name == "T");
+  CHECK(items[2].alg == "R U R' U' R' F R F'");
+  // A single column is an ordinary line.
+  CHECK(items[3].name.empty());
+  CHECK(items[3].line == 3);
+  AlgSet set = ollLikeSet();
+  auto report = importAlgs(set, "Sune\tR U R' U R U2 R'\n", false);
+  CHECK(report.added == 1);
+}
+
+TEST_CASE("pasted new cases go to the chosen group") {
+  AlgSet set = ollLikeSet();
+  set.groups.push_back({"Other", std::nullopt, {}});
+  auto plan = planPaste(set,
+                        readPaste("Line: F R U R' U' F'\n"
+                                  "Line: U F R U R' U' F'\n"),
+                        true, 0);
+  CHECK(plan.results[0].outcome == PasteOutcome::NewCase);
+  CHECK(plan.set.groups[0].cases.size() == 3);
+  CHECK(plan.set.groups[1].cases.empty());
+  // The second line names the case the first one made.
+  CHECK(plan.results[1].caseId == plan.results[0].caseId);
+  CHECK(plan.results[1].outcome == PasteOutcome::Added);
+}
+
+namespace {
+
+std::vector<std::vector<std::string>> idsOf(const AlgSet &set) {
+  std::vector<std::vector<std::string>> out;
+  for (const auto &g : set.groups) {
+    auto &ids = out.emplace_back();
+    for (const auto &c : g.cases) {
+      ids.push_back(c.id);
+    }
+  }
+  return out;
+}
+
+AlgSet lettersSet() {
+  AlgSet set;
+  for (const char *name : {"one", "two"}) {
+    set.groups.push_back({name, std::nullopt, {}});
+  }
+  for (const char *id : {"a", "b", "c"}) {
+    set.groups[0].cases.push_back({id, id, {}, {}});
+  }
+  for (const char *id : {"d", "e"}) {
+    set.groups[1].cases.push_back({id, id, {}, {}});
+  }
+  return set;
+}
+
+using Ids = std::vector<std::vector<std::string>>;
+
+} // namespace
+
+TEST_CASE("cases move between groups and keep their order") {
+  AlgSet set = lettersSet();
+  CHECK(moveCases(set, {"c", "a"}, 1, "e"));
+  CHECK(idsOf(set) == Ids{{"b"}, {"d", "a", "c", "e"}});
+  CHECK(moveCases(set, {"d"}, 0));
+  CHECK(idsOf(set) == Ids{{"b", "d"}, {"a", "c", "e"}});
+  // Before a case that moves too: before the next one that stays.
+  CHECK_FALSE(moveCases(set, {"a", "c"}, 1, "a"));
+  CHECK(idsOf(set) == Ids{{"b", "d"}, {"a", "c", "e"}});
+  CHECK_FALSE(moveCases(set, {"a"}, 1, "c"));
+  CHECK_FALSE(moveCases(set, {"a"}, 5));
+}
+
+TEST_CASE("cases shift up and down across groups") {
+  AlgSet set = lettersSet();
+  CHECK(shiftCases(set, {"b", "c"}, -1));
+  CHECK(idsOf(set) == Ids{{"b", "c", "a"}, {"d", "e"}});
+  CHECK_FALSE(shiftCases(set, {"b", "c"}, -1)); // already at the top
+  CHECK(shiftCases(set, {"d"}, -1));
+  CHECK(idsOf(set) == Ids{{"b", "c", "a", "d"}, {"e"}});
+  CHECK(shiftCases(set, {"a", "d"}, 1));
+  CHECK(idsOf(set) == Ids{{"b", "c"}, {"a", "d", "e"}});
+  CHECK(shiftCases(set, {"d", "e"}, 1) == false);
+}
+
+TEST_CASE("groups are reordered") {
+  AlgSet set = lettersSet();
+  CHECK(moveGroup(set, 1, 0));
+  CHECK(set.groups[0].name == "two");
+  CHECK_FALSE(moveGroup(set, 0, 0));
+  CHECK_FALSE(moveGroup(set, 0, 2));
 }
 
 TEST_CASE("masked facelets hide what the step ignores") {

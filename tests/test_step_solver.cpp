@@ -9,17 +9,23 @@ using namespace vcube;
 
 namespace {
 
+// Each takes at least as many moves as the one before.
+const std::vector<SolveStep> kOrdered = {SolveStep::EO, SolveStep::EOPlus1,
+                                         SolveStep::EOPlus2, SolveStep::EOLine,
+                                         SolveStep::EOCross};
 const std::vector<SolveStep> kSolvable = {
-    SolveStep::EO, SolveStep::EOPlus1, SolveStep::EOPlus2, SolveStep::EOCross};
+    SolveStep::EO,     SolveStep::EOPlus1, SolveStep::EOPlus2,
+    SolveStep::EOLine, SolveStep::EOCross, SolveStep::Cross};
 
 // The step done held as the solver sees it (no rotations allowed).
 bool doneAsHeld(const CubieCube &c, SolveStep step) {
-  if (std::any_of(c.eo.begin(), c.eo.end(), [](auto o) { return o != 0; })) {
+  if (stepNeedsEo(step) &&
+      std::any_of(c.eo.begin(), c.eo.end(), [](auto o) { return o != 0; })) {
     return false;
   }
   int cross = 0;
   for (Edge e : {DF, DR, DB, DL}) {
-    cross += c.ep[e] == e ? 1 : 0;
+    cross += c.ep[e] == e && c.eo[e] == 0 ? 1 : 0;
   }
   switch (step) {
   case SolveStep::EO:
@@ -28,9 +34,14 @@ bool doneAsHeld(const CubieCube &c, SolveStep step) {
     return cross >= 1;
   case SolveStep::EOPlus2:
     return cross >= 2;
+  case SolveStep::EOLine:
+    return c.ep[DF] == DF && c.ep[DB] == DB;
   case SolveStep::EOCross:
+  case SolveStep::Cross:
     return cross == 4;
   case SolveStep::ZZF2L:
+  case SolveStep::XEOCross:
+  case SolveStep::CFOPF2L:
     break;
   }
   return false;
@@ -73,7 +84,58 @@ TEST_CASE("a solved cube has every step done", "[step]") {
   CHECK_FALSE(solveStep(CubieCube{}, SolveStep::ZZF2L));
   CHECK_FALSE(stepDistance(CubieCube{}, SolveStep::ZZF2L));
   CHECK_FALSE(hasOptimalSolver(SolveStep::ZZF2L));
+  CHECK_FALSE(hasOptimalSolver(SolveStep::XEOCross));
+  CHECK_FALSE(hasOptimalSolver(SolveStep::CFOPF2L));
   CHECK(hasOptimalSolver(SolveStep::EOCross));
+  CHECK(hasOptimalSolver(SolveStep::EOLine));
+  CHECK(hasOptimalSolver(SolveStep::Cross));
+}
+
+TEST_CASE("the cross alone ignores edge orientation", "[step]") {
+  // F flips edges but leaves the cross a turn away; F2 doesn't flip.
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F")), SolveStep::Cross) == 1);
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F U F'")), SolveStep::Cross) ==
+        0);
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F U F'")), SolveStep::EOCross) >
+        0);
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("R")), SolveStep::EOLine) == 0);
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F")), SolveStep::EOLine) == 1);
+  Rng rng(5);
+  for (int n = 0; n < 6; ++n) {
+    CubieCube c = randomState(PieceMask::all(), rng);
+    auto cross = stepDistance(c, SolveStep::Cross);
+    REQUIRE(cross);
+    CHECK(*cross <= 8); // the cross is at most 8 moves
+    CHECK(*cross <= *stepDistance(c, SolveStep::EOCross));
+  }
+}
+
+TEST_CASE("one F2L pair is solved in <R, U, L>", "[step]") {
+  // The FR pair out with R U R', the rest solved.
+  CubieCube c = cubieOf(parseAlgOrEmpty("R U R'"));
+  auto alg = solvePairRul(c, DFR, FR, {{DLF, FL}, {DBL, BL}, {DRB, BR}});
+  REQUIRE(alg);
+  CHECK(alg->size() == 3);
+  CubieCube done = c;
+  done.apply(*alg);
+  CHECK(done.isSolved());
+  // A longer one: the solution keeps the other slots.
+  Alg setup = parseAlgOrEmpty("R U' R' U R U R' U2 R U2 R'");
+  CubieCube s = cubieOf(setup);
+  auto two = solvePairRul(s, DFR, FR, {{DLF, FL}, {DBL, BL}, {DRB, BR}});
+  REQUIRE(two);
+  CubieCube after = s;
+  after.apply(*two);
+  CHECK(after.cp[DFR] == DFR);
+  CHECK(after.co[DFR] == 0);
+  CHECK(after.ep[FR] == FR);
+  CHECK(after.ep[BL] == BL);
+  CHECK(after.ep[FL] == FL);
+  CHECK(after.cp[DRB] == DRB);
+  CHECK(after.ep[DR] == DR);
+  CHECK(after.ep[DL] == DL);
+  // Not a ZZ F2L state.
+  CHECK_FALSE(solvePairRul(cubieOf(parseAlgOrEmpty("F")), DFR, FR, {}));
 }
 
 TEST_CASE("short scrambles are undone at most as long", "[step]") {
@@ -98,7 +160,7 @@ TEST_CASE("random states are solved optimally and in order", "[step]") {
   for (int n = 0; n < 6; ++n) {
     CubieCube c = randomState(PieceMask::all(), rng);
     std::optional<int> previous;
-    for (SolveStep step : kSolvable) {
+    for (SolveStep step : kOrdered) {
       auto o = solveStep(c, step, 4);
       REQUIRE(o);
       checkOptimum(c, step, *o);
@@ -109,6 +171,9 @@ TEST_CASE("random states are solved optimally and in order", "[step]") {
       }
       previous = o->length;
     }
+    auto cross = solveStep(c, SolveStep::Cross, 4);
+    REQUIRE(cross);
+    checkOptimum(c, SolveStep::Cross, *cross);
     CHECK(stepDistance(c, SolveStep::EO) <= 7);
     CHECK(stepDistance(c, SolveStep::EOCross) <= 11);
   }
@@ -203,4 +268,32 @@ TEST_CASE("bad edges are counted for each axis by position", "[step]") {
   CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("U D2 R2 L' F2 B")), 1) == 4);
   CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("U R2 D' F2 L2 B2")), 1) == 0);
   CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("R L F2 B2 U2 D2")), 2) == 0);
+}
+
+TEST_CASE("distinct solutions leave out reorderings and prefer new faces",
+          "[step]") {
+  auto algs = [](std::initializer_list<const char *> texts) {
+    std::vector<Alg> out;
+    for (const char *t : texts) {
+      out.push_back(parseAlgOrEmpty(t));
+    }
+    return out;
+  };
+  // "U F R" is "F U R" reordered; "F' U R" turns the same faces as "F U R".
+  std::vector<Alg> list = algs({"F U R", "U F R", "F' U R", "B L D"});
+  CHECK(distinctSolutions(list, 3) == std::vector<std::size_t>{0, 3, 2});
+  CHECK(distinctSolutions(list, 2) == std::vector<std::size_t>{0, 3});
+  CHECK(distinctSolutions(list, 1) == std::vector<std::size_t>{0});
+  CHECK(distinctSolutions({}, 3).empty());
+  // Only reorderings: one is kept.
+  CHECK(distinctSolutions(algs({"R U", "U R"}), 3) ==
+        std::vector<std::size_t>{0});
+}
+
+TEST_CASE("EOLine is solved optimally with DF and DB", "[step]") {
+  // R2 L2 keeps both line edges; F2 and F move DF.
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("R2 L2")), SolveStep::EOLine) ==
+        0);
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F2")), SolveStep::EOLine) == 1);
+  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F")), SolveStep::EOLine) == 1);
 }
