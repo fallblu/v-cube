@@ -1,0 +1,4 @@
+# LeakSanitizer suppressions for the VCUBE_SANITIZE test runs.
+# Qt keeps a collator per thread for QCollator::defaultCompare and never
+# frees the main thread's.
+leak:QCollator::defaultCompare
