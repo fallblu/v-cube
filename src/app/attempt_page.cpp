@@ -2,6 +2,7 @@
 
 #include "io/data_file.hpp"
 
+#include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
 #include "train/solve_review.hpp"
 #include "train/step_solver.hpp"
@@ -116,7 +117,7 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
   typeRow_ = new QWidget(right);
-  auto *typeRow = new QHBoxLayout(typeRow_);
+  auto *typeRow = new FlowLayout(typeRow_);
   typeRow->setContentsMargins(0, 0, 0, 0);
   if (moveCount_) {
     stepBox_ = new QComboBox(typeRow_);
@@ -175,6 +176,7 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   QFont sf = scrambleLabel_->font();
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
+  markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(60);
   holdLabel_ = new QLabel(right);
   holdLabel_->setAlignment(Qt::AlignCenter);
@@ -904,8 +906,8 @@ void AttemptPage::showHold() {
     showEntry();
     return;
   }
-  QColor colour = hold_ == Hold::Ready ? QColor(0x3d, 0xd6, 0x6b)
-                                       : QColor(0xff, 0x55, 0x55);
+  QColor colour = hold_ == Hold::Ready ? statusColour(Status::Good)
+                                       : statusColour(Status::Bad);
   hintLabel_->setStyleSheet(QString("color: %1").arg(colour.name()));
   hintLabel_->setText(hold_ == Hold::Ready ? tr("Release Space to start")
                                            : tr("Keep holding Space…"));
@@ -1103,11 +1105,13 @@ void AttemptPage::applyAlg() {
     algError_->setVisible(true);
     return; // keep the field focused to fix it
   }
+  Alg applied;
   for (Move m : parsed.alg) {
     if (attempt_.turn(m)) {
-      cubeView_->animateMove(m);
+      applied.push_back(m);
     }
   }
+  cubeView_->animateSequence(applied);
   algError_->setVisible(false);
   algEdit_->clear();
   returnFocus();

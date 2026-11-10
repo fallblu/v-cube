@@ -4,6 +4,7 @@
 #include "cube/hold.hpp"
 #include "cube/move.hpp"
 
+#include <QBrush>
 #include <QColor>
 #include <QString>
 
@@ -35,6 +36,21 @@ inline constexpr ColourMap kIdentityColourMap{0, 1, 2, 3, 4, 5};
 
 // The colours shown with the cube held as `h`.
 inline ColourMap colourMapOf(Hold h) { return holdColours(h); }
+
+// The colours of good, warning and bad results and timer states, in shades
+// that read well on the current theme's background (lighter on the dark
+// theme, darker on the light one).
+enum class Status { Good, Warning, Bad };
+QColor statusColour(Status s);
+
+// A status colour that follows the theme wherever it is used as a colour,
+// a brush or a name for rich text: `const StatusColour kGood{Status::Good}`.
+struct StatusColour {
+  Status status;
+  operator QColor() const { return statusColour(status); }
+  operator QBrush() const { return statusColour(status); }
+  QString name() const { return statusColour(status).name(); }
+};
 
 // "White", "Red", ... for a colour slot.
 QString colourName(int slot);

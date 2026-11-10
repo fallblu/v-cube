@@ -23,8 +23,8 @@ namespace vcube {
 
 namespace {
 
-const QColor kGood(0x3d, 0xd6, 0x6b);
-const QColor kSlow(0xff, 0xb0, 0x30);
+const StatusColour kGood{Status::Good};
+const StatusColour kSlow{Status::Warning};
 
 // Keys are ignored this long after the timer stops, so that a second key
 // meant for the stop doesn't skip the result.
@@ -160,6 +160,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   QFont sf = scrambleLabel_->font();
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
+  markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(56);
   rightLayout->addWidget(scrambleLabel_);
 

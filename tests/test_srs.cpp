@@ -499,7 +499,7 @@ TEST_CASE("drill bests and daily roll-ups outlive the attempts kept") {
   CHECK_FALSE(cp.best(AttemptMode::PhysicalDrill));
   auto days = cp.days(AttemptMode::VirtualDrill);
   REQUIRE(days.size() == 2);
-  CHECK(days[0].day == localDay(day0));
+  CHECK(days[0].day == localDayNumber(day0));
   CHECK(days[0].count == 2);
   CHECK(days[0].fails == 1);
   CHECK(*days[0].meanMs() == 900);
@@ -524,8 +524,8 @@ TEST_CASE("drill bests and daily roll-ups outlive the attempts kept") {
 
 TEST_CASE("local days follow the calendar") {
   const std::int64_t t = 1'700'000'000;
-  CHECK(localDay(t + kSecondsPerDay) == localDay(t) + 1);
-  CHECK(localDay(t) > 19000);
+  CHECK(localDayNumber(t + kSecondsPerDay) == localDayNumber(t) + 1);
+  CHECK(localDayNumber(t) > 19000);
 }
 
 TEST_CASE("a drill session counts attempts, DNFs, new bests and the slowest") {

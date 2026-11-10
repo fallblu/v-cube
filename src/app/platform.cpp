@@ -25,7 +25,9 @@ bool runningUnderWsl() {
 
 void selectQtPlatform() {
   if (runningUnderWsl() && qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
-    qputenv("QT_QPA_PLATFORM", "xcb");
+    // Falls back to Wayland when the xcb plugin (or its libraries) is
+    // missing, rather than failing to start.
+    qputenv("QT_QPA_PLATFORM", "xcb;wayland");
   }
 }
 

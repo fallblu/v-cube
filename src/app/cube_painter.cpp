@@ -227,10 +227,34 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
     turnMatrix.rotate(static_cast<float>(angle), axisVector(turnAxis));
   }
 
-  double radius = 1.5 * std::sqrt(3.0);
-  double fit = std::min(area.width(), area.height()) / 2.0;
-  double scale = fit / (radius * kEyeDistance / (kEyeDistance - radius)) * 0.98;
-  QPointF centre = area.center();
+  // Fit the cube's outline as seen (its eight corners, projected), not a
+  // sphere around it, so that it fills the area. A layer mid-turn may
+  // reach a little past it.
+  double left = 0, right = 0, top = 0, bottom = 0;
+  bool firstCorner = true;
+  for (float cx : {-1.5f, 1.5f}) {
+    for (float cy : {-1.5f, 1.5f}) {
+      for (float cz : {-1.5f, 1.5f}) {
+        QVector3D v = view.map(QVector3D(cx, cy, cz));
+        double k = kEyeDistance / (kEyeDistance - v.z());
+        double px = v.x() * k, py = -v.y() * k;
+        if (firstCorner) {
+          left = right = px;
+          top = bottom = py;
+          firstCorner = false;
+        }
+        left = std::min(left, px);
+        right = std::max(right, px);
+        top = std::min(top, py);
+        bottom = std::max(bottom, py);
+      }
+    }
+  }
+  double scale =
+      std::min(area.width() / (right - left), area.height() / (bottom - top)) *
+      0.95;
+  QPointF centre = area.center() - QPointF((left + right) / 2.0 * scale,
+                                           (top + bottom) / 2.0 * scale);
   QVector3D eye(0, 0, static_cast<float>(kEyeDistance));
   QVector3D light = QVector3D(-0.35f, 0.85f, 0.55f).normalized();
 

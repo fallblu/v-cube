@@ -343,8 +343,8 @@ void BldSchemeDialog::fillRow(BldPiece kind, int sticker) {
                                                moveCount(parseAlgOrEmpty(own))))
                                          : problem,
                        false);
-    check->setForeground(problem.isEmpty() ? QColor(0x3d, 0xd6, 0x6b)
-                                           : QColor(0xee, 0x66, 0x66));
+    check->setForeground(problem.isEmpty() ? statusColour(Status::Good)
+                                           : statusColour(Status::Bad));
     check->setToolTip(problem.isEmpty()
                           ? QString()
                           : tr("Until it is fixed, the computed setup %1 is "

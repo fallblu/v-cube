@@ -260,7 +260,7 @@ Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs) {
   return hinted || gaveUp || leftAlgs ? Grade::Again : Grade::Good;
 }
 
-std::int64_t localDay(std::int64_t unixSeconds) {
+std::int64_t localDayNumber(std::int64_t unixSeconds) {
   auto t = static_cast<std::time_t>(unixSeconds);
   std::tm tm{};
 #ifdef _WIN32
@@ -288,7 +288,7 @@ bool isDrill(AttemptMode m) { return m != AttemptMode::Learn; }
 
 // Adds an attempt to the roll-ups (oldest first), on its day.
 void addToDays(std::vector<DayRollup> &days, const Attempt &a) {
-  std::int64_t day = localDay(a.timestamp);
+  std::int64_t day = localDayNumber(a.timestamp);
   auto it = std::lower_bound(
       days.begin(), days.end(), day,
       [](const DayRollup &r, std::int64_t d) { return r.day < d; });

@@ -9,7 +9,8 @@ namespace vcube {
 bool runningUnderWsl();
 
 // Call before constructing QApplication. Under WSL, picks the X11 (xcb)
-// platform plugin unless QT_QPA_PLATFORM is already set: WSLg forwards each
+// platform plugin, falling back to Wayland when xcb can't be loaded, unless
+// QT_QPA_PLATFORM is already set: WSLg forwards each
 // Wayland surface, popups included, as a separate Windows window, which
 // leaves stale popups behind and loses the window position.
 void selectQtPlatform();

@@ -504,9 +504,7 @@ void ReviewDialog::showPosition(std::size_t at) {
   if (at == at_ + 1) {
     cube_->animateMove(replay_[at_]);
   } else if (at + 1 == at_ && at < replay_.size()) {
-    for (Move m : invert(Alg{replay_[at]})) {
-      cube_->animateMove(m);
-    }
+    cube_->animateSequence(invert(Alg{replay_[at]}));
   } else if (at != at_) {
     FaceletCube f = start_;
     f.apply(Alg(replay_.begin(),
@@ -544,14 +542,16 @@ void ReviewDialog::showMoves() {
       }
     }
     if (!steps.isEmpty()) {
-      parts << "<span style='color:#3dd66b'>| " + steps.join(", ") + "</span>";
+      parts << "<span style='color:" + statusColour(Status::Good).name() +
+                   "'>| " + steps.join(", ") + "</span>";
     }
   };
   for (std::size_t i = 0; i < replay_.size(); ++i) {
     markAt(i);
     QString t = escaped(toString(replay_[i]));
     if (i + 1 == at_) {
-      t = "<span style='color:#ffb030; font-weight:bold'>" + t + "</span>";
+      t = "<span style='color:" + statusColour(Status::Warning).name() +
+          "; font-weight:bold'>" + t + "</span>";
     } else if (i >= at_) {
       t = muted(t);
     }

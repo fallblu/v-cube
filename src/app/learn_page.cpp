@@ -54,9 +54,9 @@ QString gradeColour(Grade g) {
   return "#777777";
 }
 
-const QColor kLearning(0xff, 0xb0, 0x30);
-const QColor kLearned(0x3d, 0xd6, 0x6b);
-const QColor kLeech(0xff, 0x55, 0x55);
+const StatusColour kLearning{Status::Warning};
+const StatusColour kLearned{Status::Good};
+const StatusColour kLeech{Status::Bad};
 
 // The moves as done, as rich text, with two quarter turns of a layer the
 // same way written as a half turn. The move at `mark` (an index into
@@ -80,7 +80,8 @@ QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
   QStringList parts;
   for (const Done &d : merged) {
     QString text = qs(toString(d.move)).toHtmlEscaped();
-    parts << (d.marked ? "<b style='color:#ff5555'><u>" + text + "</u></b>"
+    parts << (d.marked ? "<b style='color:" + statusColour(Status::Bad).name() +
+                             "'><u>" + text + "</u></b>"
                        : text);
   }
   return parts.join(' ');
@@ -1691,7 +1692,8 @@ void LearnPage::answerQuiz(std::size_t choice) {
       (right ? tr("Right, in %1 s.").arg(secondsText(static_cast<double>(ms)))
              : tr("It was %1.").arg(c ? qs(c->name) : QString())) +
       " " + tr("Space/Enter: another one."));
-  statusLabel_->setStyleSheet(right ? QString() : QString("color: #ffb030"));
+  statusLabel_->setStyleSheet(right ? QString()
+                                    : "color: " + kLearning.name());
   updateHeader();
 }
 
@@ -1955,8 +1957,8 @@ void LearnPage::showGuide() {
     return;
   }
   const Guide &g = *guide_;
-  static const QString nextStyle =
-      "color:#ffb030; font-weight:bold; text-decoration:underline";
+  const QString nextStyle = "color:" + statusColour(Status::Warning).name() +
+                            "; font-weight:bold; text-decoration:underline";
   QString muted = palette().color(QPalette::PlaceholderText).name();
   QString text;
   if (phase_ == Phase::Solving && !g.follow) {
@@ -2075,7 +2077,7 @@ void LearnPage::setPhase(Phase p) {
 }
 
 void LearnPage::showSolvingStatus() {
-  static const QString warning = "color: #ffb030";
+  const QString warning = "color: " + statusColour(Status::Warning).name();
   std::string id = linkCase();
   bool later = links_.size() > 1;
   QString keys =
@@ -2791,9 +2793,11 @@ void LearnPage::showFamily() {
     text->setTextFormat(Qt::RichText);
     QString alg = info->passing.empty() ? tr("no alg")
                                         : qs(info->mainAlg).toHtmlEscaped();
-    text->setText(QString("<b>%1</b><br><span style='color:%2'>%3</span>")
-                      .arg(qs(c->name).toHtmlEscaped(),
-                           done ? QString("#ffb030") : muted.name(), alg));
+    text->setText(
+        QString("<b>%1</b><br><span style='color:%2'>%3</span>")
+            .arg(qs(c->name).toHtmlEscaped(),
+                 done ? statusColour(Status::Warning).name() : muted.name(),
+                 alg));
     text->setToolTip(done ? tr("The case you just did")
                           : tr("A mirror image of it"));
     cellLayout->addWidget(picture);
@@ -2815,8 +2819,10 @@ QString LearnPage::chainHtml() {
   auto grey = [](const QString &t) {
     return "<span style='color:gray'>" + t + "</span>";
   };
-  static const QString good = "<span style='color:#3dd66b'>✓</span>";
-  static const QString bad = "<span style='color:#ff5555'>✗</span>";
+  const QString good =
+      "<span style='color:" + statusColour(Status::Good).name() + "'>✓</span>";
+  const QString bad =
+      "<span style='color:" + statusColour(Status::Bad).name() + "'>✗</span>";
   const std::string &firstId = links_.front().view.caseId;
   const CaseGroup *group = s->groupOf(firstId);
   QString html =

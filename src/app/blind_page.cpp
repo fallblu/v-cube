@@ -1,5 +1,7 @@
 #include "app/blind_page.hpp"
 
+#include "app/flow_layout.hpp"
+
 #include "io/data_file.hpp"
 
 #include "cube/cubie.hpp"
@@ -68,8 +70,8 @@ QString lowered(const QString &s) { return qs(foldLetter(ss(s.trimmed()))); }
 // letter before.
 constexpr std::int64_t kSpaceGraceMs = 500;
 
-const QColor kRight(0x3d, 0xd6, 0x6b);
-const QColor kWrong(0xff, 0x55, 0x55);
+const StatusColour kRight{Status::Good};
+const StatusColour kWrong{Status::Bad};
 
 constexpr std::array<BldPiece, 2> kKinds = {BldPiece::Edge, BldPiece::Corner};
 
@@ -151,7 +153,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
   optionsRow_ = new QWidget(right);
-  auto *options = new QHBoxLayout(optionsRow_);
+  auto *options = new FlowLayout(optionsRow_);
   options->setContentsMargins(0, 0, 0, 0);
   piecesBox_ = comboBox({tr("Edges"), tr("Corners"), tr("Both")}, optionsRow_);
   piecesBox_->setToolTip(tr("The pieces whose letters are asked"));
@@ -196,6 +198,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   QFont sf = scrambleLabel_->font();
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
+  markScrambleLabel(scrambleLabel_);
   net_ = new NetPreview(right);
   scrambleRow->addWidget(scrambleLabel_, 1);
   scrambleRow->addWidget(net_);
@@ -1384,8 +1387,9 @@ void BlindPage::turnSetup(Move m) {
   int swap = bldFacelet(item_->kind, op::swapSpot(item_->kind));
   if (whereIs(setupIds_, bldFacelet(item_->kind, item_->sticker)) == swap) {
     resultLabel_->setText(
-        QString("<p style='color:#ffb030'>%1</p>")
-            .arg(tr("It's at the swap spot, but this setup %1. Esc starts "
+        QString("<p style='color:%1'>%2</p>")
+            .arg(statusColour(Status::Warning).name(),
+                 tr("It's at the swap spot, but this setup %1. Esc starts "
                     "again.")
                      .arg(setupProblem(item_->kind, item_->sticker,
                                        toString(setupMoves_))
@@ -1563,7 +1567,8 @@ void BlindPage::checkTrace() {
       for (std::size_t i = 0; i < parsed.stickers.size(); ++i) {
         QString l = letterOf(kind, parsed.stickers[i]).toHtmlEscaped();
         if (check.firstWrong == i) {
-          l = "<span style='color:#ff5555'><u>" + l + "</u></span>";
+          l = "<span style='color:" + kWrong.name() + "'><u>" + l +
+              "</u></span>";
         }
         pair += l;
         if (i % 2 == 1) {

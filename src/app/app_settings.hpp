@@ -27,10 +27,20 @@ struct AppSettings {
   // mode (scrambles are always applied white top, green front).
   ColourNeutrality neutrality;
 
+  // Text sizes: the scramble (points), the hints and status messages (per
+  // cent of the normal text) and the case thumbnails in Learn and Drill
+  // (pixels).
+  int scrambleFontPt = 17;
+  int hintTextPercent = 120;
+  int thumbnailSize = 38;
+
   // Timer
   int holdMs = 300;
   bool inspection = false;
+  // A beep at 8 s and two at 12 s of inspection, like a judge's calls.
+  bool inspectionSounds = false;
   int decimals = 2;
+  int timerFontPt = 54;
   // Timed and Untimed on the virtual cube: the solve ends as soon as the
   // cube is solved, without Space.
   bool autoStop = true;
@@ -53,10 +63,20 @@ struct AppSettings {
   // Drill mode
   DrillSettings drill;
 
+  // Allowed ranges; values outside them are brought into range on load.
+  static constexpr int kMaxAnimationMs = 500;
+  static constexpr int kMaxHoldMs = 2000;
+  static constexpr int kMinScrambleFontPt = 9, kMaxScrambleFontPt = 40;
+  static constexpr int kMinTimerFontPt = 20, kMaxTimerFontPt = 150;
+  static constexpr int kMinHintPercent = 80, kMaxHintPercent = 200;
+  static constexpr int kMinThumbnail = 32, kMaxThumbnail = 96;
+
   static AppSettings load();
   void save() const;
 };
 
+// Sets the application style and a dark or a light palette (an explicit
+// one either way, so that "Light" stays light on a dark desktop).
 void applyTheme(QApplication &app, bool dark);
 
 // Settings key for a per-alg-set choice shared by Learn, Drill and the

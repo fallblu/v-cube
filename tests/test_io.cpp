@@ -249,6 +249,10 @@ TEST_CASE("library installs built-ins once and saves changes") {
   AlgLibrary lib(tmp.path(), kBuiltins);
   lib.load();
   CHECK(lib.sets().size() == 3); // removed built-in stays removed
+  // Its file was moved aside, not deleted.
+  CHECK(QDir(lib.deletedDirectory())
+            .entryList({"2look-pll.*.json"}, QDir::Files)
+            .size() == 1);
   CHECK(lib.find("pll")->findCase("T")->algs.size() == 1);
   CHECK(lib.progress("pll")["T"].attempts.size() == 1);
   REQUIRE(lib.restoreBuiltin("pll"));

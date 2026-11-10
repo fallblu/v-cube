@@ -124,12 +124,12 @@ struct Attempt {
 };
 
 // The local calendar day of a Unix time, as days since 1970-01-01.
-std::int64_t localDay(std::int64_t unixSeconds);
+std::int64_t localDayNumber(std::int64_t unixSeconds);
 
 // One day's drill attempts of a case in one mode: how many, how many
 // failed, and the sum and best of the times of those that didn't.
 struct DayRollup {
-  std::int64_t day = 0; // localDay()
+  std::int64_t day = 0; // localDayNumber()
   int count = 0;
   int fails = 0;
   std::int64_t sumMs = 0;  // of the good attempts

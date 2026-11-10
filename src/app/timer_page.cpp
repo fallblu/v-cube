@@ -181,6 +181,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   QFont sf = scrambleLabel_->font();
   sf.setPointSize(17);
   scrambleLabel_->setFont(sf);
+  markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(60);
   holdLabel_ = new QLabel(right);
   holdLabel_->setAlignment(Qt::AlignCenter);

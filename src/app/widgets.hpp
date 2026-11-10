@@ -35,10 +35,19 @@ private:
 
   int decimals_ = 2;
   QColor colour_;
+  std::int64_t lastInspection_ = -1; // for the 8 s and 12 s calls
   std::optional<Shown> beforeHold_; // during a hold: what it replaced
   void show(const QString &text, const QColor &colour);
   void setColour(const QColor &c);
 };
+
+// Sizes from the settings: the scramble text of the pages (each label
+// passed to markScrambleLabel()) and every TimeDisplay follow
+// setDisplayFontSizes(), now and when they change.
+void markScrambleLabel(QLabel *label);
+void setDisplayFontSizes(int scramblePt, int timerPt);
+// Runs `call` with 8 or 12 when a timer's inspection passes 8 s or 12 s.
+void setInspectionCallHandler(std::function<void(int seconds)> call);
 
 // A state to scramble to, in the solver's frame, and the alg set case it
 // sets up (if any).
