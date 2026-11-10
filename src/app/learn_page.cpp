@@ -54,6 +54,43 @@ QString gradeColour(Grade g) {
   return "#777777";
 }
 
+// Every reason a case went as it did, e.g. both a hint and leaving the
+// algs.
+QString reasonsText(const GradeWhy &w) {
+  QStringList reasons;
+  if (w.gaveUp) {
+    reasons << LearnPage::tr("gave up");
+  } else if (w.miss != GradeWhy::Miss::None) {
+    reasons << (w.miss == GradeWhy::Miss::NotCloser
+                    ? LearnPage::tr("the step didn't get closer")
+                : w.miss == GradeWhy::Miss::StartedOver
+                    ? LearnPage::tr("started over")
+                    : LearnPage::tr("left the algs"));
+  }
+  if (w.hint) {
+    reasons << LearnPage::tr("used a hint");
+  } else if (w.nextHint) {
+    reasons << LearnPage::tr("used the next-move hint");
+  }
+  if (reasons.isEmpty()) {
+    switch (w.kept) {
+    case GradeWhy::Kept::WalkedThrough:
+      reasons << LearnPage::tr("walked through");
+      break;
+    case GradeWhy::Kept::FromMemory:
+      reasons << LearnPage::tr("solved from memory");
+      break;
+    case GradeWhy::Kept::SetStep:
+      reasons << LearnPage::tr("the set's step");
+      break;
+    case GradeWhy::Kept::AnotherStep:
+      reasons << LearnPage::tr("another step that gets closer");
+      break;
+    }
+  }
+  return reasons.join(LearnPage::tr(" and "));
+}
+
 const StatusColour kLearning{Status::Warning};
 const StatusColour kLearned{Status::Good};
 const StatusColour kLeech{Status::Bad};
@@ -95,23 +132,6 @@ constexpr int kContextTries = 40;
 
 // Choices in "which case is this?".
 constexpr std::size_t kQuizChoices = 6;
-
-// The cube with its orientation removed, so that states reached holding
-// the cube differently compare equal.
-FaceletCube oriented(FaceletCube f) {
-  f.normalizeOrientation();
-  return f;
-}
-
-// The cubes are held the same way.
-bool sameCentres(const FaceletCube &a, const FaceletCube &b) {
-  for (int face = 0; face < 6; ++face) {
-    if (a[face * 9 + 4] != b[face * 9 + 4]) {
-      return false;
-    }
-  }
-  return true;
-}
 
 struct OrderName {
   NewOrder order;
@@ -300,7 +320,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
     gradeButtons_[static_cast<std::size_t>(g)] = b;
     gradeLayout->addWidget(b);
     connect(b, &QPushButton::clicked, this, [this, grade] {
-      if (phase_ == Phase::Recalled) {
+      if (phase() == Phase::Recalled) {
         gradeRecognition(grade);
       } else {
         regrade(grade);
@@ -372,7 +392,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
 
   idleTimer_.setSingleShot(true);
   connect(&idleTimer_, &QTimer::timeout, this, [this] {
-    if (phase_ == Phase::NoCase && isVisible()) {
+    if (phase() == Phase::NoCase && isVisible()) {
       nextCase();
     }
   });
@@ -384,7 +404,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   connect(orderBox_, &QComboBox::activated, this, [this] {
     saved::learnOrder(setId_).set(orderBox_->currentData().toString());
     updateQueue();
-    if (phase_ == Phase::NoCase) {
+    if (phase() == Phase::NoCase) {
       nextCase();
     }
   });
@@ -394,10 +414,11 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
       return; // applies when back to learning
     }
     // A case begun is finished first; anything else gives way.
-    bool begun = phase_ == Phase::Demo ||
-                 (phase_ == Phase::Solving &&
-                  (links_.size() > 1 || !follower_.moves().empty() || hinted_ ||
-                   nextHinted_));
+    bool begun =
+        phase() == Phase::Demo ||
+        (phase() == Phase::Solving &&
+         (attempt_.links().size() > 1 || !attempt_.follower().moves().empty() ||
+          attempt_.hinted() || attempt_.nextHinted()));
     if (!begun) {
       nextCase();
     }
@@ -471,7 +492,7 @@ void LearnPage::applySettings() {
   cubeView_->setAnimationMs(settings_.animationMs);
   CasePage::applySettings();
   // The limits and steps may have changed what is due.
-  if (phase_ == Phase::NoCase && set() && isVisible()) {
+  if (phase() == Phase::NoCase && set() && isVisible()) {
     nextCase();
   } else if (set()) {
     updateSummary();
@@ -480,7 +501,7 @@ void LearnPage::applySettings() {
 
 void LearnPage::activated() {
   CasePage::activated();
-  if (phase_ == Phase::NoCase && !context_) {
+  if (phase() == Phase::NoCase && !context_) {
     nextCase(); // something may have fallen due meanwhile
   }
 }
@@ -656,13 +677,14 @@ void LearnPage::updateHeader() {
     html = "<span style='color:" + muted + "'>" +
            tr("All sets").toHtmlEscaped() + ":</span> " + html;
   }
-  if (practice() == Practice::Quiz && quizAsked_ > 0) {
+  const LearnSession::QuizScore &quiz = session_.quizScore();
+  if (practice() == Practice::Quiz && quiz.asked > 0) {
     html +=
         " &nbsp;·&nbsp; " +
         tr("Quiz %1/%2, mean %3 s")
-            .arg(quizRight_)
-            .arg(quizAsked_)
-            .arg(secondsText(static_cast<double>(quizTotalMs_) / quizAsked_));
+            .arg(quiz.right)
+            .arg(quiz.asked)
+            .arg(secondsText(static_cast<double>(quiz.totalMs) / quiz.asked));
   }
   headerLabel_->setText(html);
 }
@@ -737,9 +759,10 @@ void LearnPage::extendCaseMenu(QMenu &menu,
       apply(progress()[card]);
     }
     saveProgress();
-    if (current_ && phase_ == Phase::Done &&
-        std::find(cards.begin(), cards.end(), gradedCard_) != cards.end()) {
-      gradeReplaced_ = true; // 1-4 would undo the change
+    if (current_ && phase() == Phase::Done &&
+        std::find(cards.begin(), cards.end(), attempt_.gradedCard()) !=
+            cards.end()) {
+      attempt_.replaceGrade(); // 1-4 would undo the change
       showGrade();
     }
     if (caseIds.size() > 1) {
@@ -747,7 +770,7 @@ void LearnPage::extendCaseMenu(QMenu &menu,
     } else {
       updateCardRows(caseIds.front());
     }
-    if (phase_ == Phase::NoCase) {
+    if (phase() == Phase::NoCase) {
       nextCase();
     }
   };
@@ -784,7 +807,7 @@ void LearnPage::extendCaseMenu(QMenu &menu,
                    }
                    saveProgress();
                    updateAllRows();
-                   if (phase_ == Phase::NoCase) {
+                   if (phase() == Phase::NoCase) {
                      nextCase();
                    }
                  })
@@ -961,7 +984,7 @@ void LearnPage::unqueueHead() {
   saveProgress();
   updateCardRows(queue.front());
   if (current_ && cardId(current_->caseId) == queue.front() &&
-      current_->isNew && phase_ == Phase::Demo) {
+      current_->isNew && phase() == Phase::Demo) {
     nextCase();
   }
 }
@@ -991,7 +1014,7 @@ void LearnPage::learnNext() {
   } else {
     showQueueMessage(tr("Every ticked case with an alg is started already"));
   }
-  if (phase_ == Phase::NoCase) {
+  if (phase() == Phase::NoCase) {
     nextCase();
   }
 }
@@ -1041,7 +1064,7 @@ void LearnPage::startSet() {
   adoptSet();
   current_.reset();
   last_.clear();
-  undoOpen_ = false;
+  undo_.close();
   nextCase();
 }
 
@@ -1051,7 +1074,7 @@ void LearnPage::setReloaded() {
   contextButton_->setVisible(pairSet_);
   if (context_) {
     if (pairSet_) {
-      if (phase_ == Phase::ContextDone) {
+      if (phase() == Phase::ContextDone) {
         showContextResult();
       }
       return;
@@ -1059,27 +1082,28 @@ void LearnPage::setReloaded() {
     leaveContext();
     return;
   }
-  if (phase_ == Phase::Quiz || phase_ == Phase::QuizDone) {
+  if (phase() == Phase::Quiz || phase() == Phase::QuizDone) {
     if (!current_ || !eligible(current_->caseId)) {
       nextCase();
     }
     return;
   }
-  if (current_ && phase_ == Phase::Demo && eligible(current_->caseId)) {
+  if (current_ && phase() == Phase::Demo && eligible(current_->caseId)) {
     begin(current_->caseId, current_->isNew, current_->practice);
     return;
   }
   if (current_ && !eligible(current_->caseId)) {
     current_.reset();
     nextCase();
-  } else if (current_ && (phase_ == Phase::Done || phase_ == Phase::Recalled)) {
-    if (phase_ == Phase::Recalled) {
+  } else if (current_ &&
+             (phase() == Phase::Done || phase() == Phase::Recalled)) {
+    if (phase() == Phase::Recalled) {
       refreshLink();
     }
     showReveal();
-  } else if (current_ && phase_ == Phase::Recognise) {
+  } else if (current_ && phase() == Phase::Recognise) {
     refreshLink();
-  } else if (current_ && phase_ == Phase::Solving) {
+  } else if (current_ && phase() == Phase::Solving) {
     if (eligible(linkCase())) {
       refreshLink();
       showSolvingStatus();
@@ -1092,7 +1116,7 @@ void LearnPage::setReloaded() {
 }
 
 void LearnPage::ticksChanged() {
-  if (phase_ == Phase::NoCase) {
+  if (phase() == Phase::NoCase) {
     nextCase();
   }
 }
@@ -1206,7 +1230,7 @@ void LearnPage::nextCase(bool early) {
   quizRow_->setVisible(false);
   // Nothing of the last case stays up, e.g. a walkthrough's moves.
   guide_.reset();
-  links_.clear();
+  attempt_.clear();
   showGuide();
   if (practice() == Practice::Quiz && !acrossSets()) {
     nextQuiz();
@@ -1440,18 +1464,9 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   CubieCube start = setUp(caseId, world, s->reduction || reviewed);
   current_ = Current{caseId, start, hold, isNew, practice, world};
   last_ = cardId(caseId);
-  gaveUp_ = false;
-  leftAlgs_ = false;
-  gradeReplaced_ = false;
-  walkedThrough_ = false;
-  graded_ = false;
-  undoOpen_ = false;
-  gradedCard_.clear();
-  attemptTime_ = 0;
-  gradedCards_.clear();
-  why_.clear();
+  undo_.close();
+  attempt_.begin(caseId, isNew, practice);
   linkNote_.clear();
-  links_.clear();
   reveal_->clear();
   gradeRow_->setVisible(false);
   familyRow_->setVisible(false);
@@ -1465,9 +1480,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   // A guided set walks through a case the first time it comes up.
   Phase p =
       guide_ && !practice && firstSight(caseId) ? Phase::Demo : Phase::Solving;
-  shownAtMs_ = monotonicMs();
-  recognitionMs_ = 0;
-  recognitionSpoiled_ = p == Phase::Demo;
+  attempt_.startTiming(monotonicMs(), p == Phase::Demo);
   setPhase(p);
   if (p == Phase::Demo) {
     selectInTree(caseId);
@@ -1489,13 +1502,8 @@ void LearnPage::beginRecognition(const std::string &caseId) {
   CubieCube start = setUp(caseId, world, true);
   current_ = Current{caseId, start, hold, false, false, world};
   last_ = cardId(caseId);
-  gaveUp_ = false;
-  leftAlgs_ = false;
-  gradeReplaced_ = false;
-  walkedThrough_ = false;
-  undoOpen_ = false;
-  gradedCards_.clear();
-  links_.clear();
+  undo_.close();
+  attempt_.begin(caseId, false, false);
   reveal_->clear();
   gradeRow_->setVisible(false);
   familyRow_->setVisible(false);
@@ -1507,25 +1515,15 @@ void LearnPage::beginRecognition(const std::string &caseId) {
                 .value_or(CaseView{caseId, false, 0}));
   guide_.reset();
   clearCaseSelection();
-  shownAtMs_ = monotonicMs();
-  recognitionMs_ = 0;
+  attempt_.startTiming(monotonicMs());
   setPhase(Phase::Recognise);
 }
 
 void LearnPage::recalled(bool knew) {
-  if (phase_ != Phase::Recognise || !current_) {
+  if (phase() != Phase::Recognise || !current_) {
     return;
   }
-  recognitionMs_ =
-      knew ? std::max<std::int64_t>(1, monotonicMs() - shownAtMs_) : 0;
-  gradedCard_ = cardId(current_->caseId);
-  const CaseProgress *cp = progressOf(gradedCard_);
-  cardBefore_ = cp ? cp->card : SrsCard{};
-  gradeTime_ = unixNow();
-  grade_ = autoGrade_ = knew ? Grade::Good : Grade::Again;
-  why_ = knew ? tr("recalled in %1 s")
-                    .arg(secondsText(static_cast<double>(recognitionMs_)))
-              : tr("not recalled");
+  attempt_.recalled(knew, monotonicMs(), unixNow(), grading());
   setPhase(Phase::Recalled);
   showReveal();
   selectInTree(current_->caseId);
@@ -1533,30 +1531,19 @@ void LearnPage::recalled(bool knew) {
 }
 
 void LearnPage::gradeRecognition(Grade grade) {
-  if (phase_ != Phase::Recalled || !current_ || gradedCard_.empty()) {
+  if (phase() != Phase::Recalled || !current_ ||
+      attempt_.gradedCard().empty()) {
     return;
   }
-  std::int64_t now = unixNow();
-  CaseProgress &cp = progress()[gradedCard_];
-  Undo u;
-  u.setId = setId_;
-  u.caseId = current_->caseId;
-  u.recognition = true;
-  u.cards.push_back({gradedCard_, cp.card, now});
-  Attempt a{now, 0, grade == Grade::Again, AttemptMode::Learn};
-  a.recognitionMs = recognitionMs_;
-  a.recognitionOnly = true;
-  cp.record(a);
-  review(cp.card, grade, now, settings_.srs, &rng_);
+  attempt_.gradeRecognition(grade, unixNow(), grading());
   saveProgress();
-  pushUndo(std::move(u));
   updateCardRows(current_->caseId);
   nextCase();
 }
 
 void LearnPage::nextQuiz() {
   current_.reset();
-  links_.clear();
+  attempt_.clear();
   guide_.reset();
   showGuide();
   reveal_->clear();
@@ -1644,19 +1631,18 @@ void LearnPage::nextQuiz() {
   layout->addStretch();
   quizRow_->setVisible(true);
   clearCaseSelection();
-  shownAtMs_ = monotonicMs();
+  quizShownAtMs_ = monotonicMs();
+  session_.setQuizChoices(quizChoices_.size());
   setPhase(Phase::Quiz);
 }
 
 void LearnPage::answerQuiz(std::size_t choice) {
-  if (phase_ != Phase::Quiz || !current_ || choice >= quizChoices_.size()) {
+  if (phase() != Phase::Quiz || !current_ || choice >= quizChoices_.size()) {
     return;
   }
-  std::int64_t ms = monotonicMs() - shownAtMs_;
+  std::int64_t ms = monotonicMs() - quizShownAtMs_;
   bool right = choice == quizAnswer_;
-  ++quizAsked_;
-  quizRight_ += right ? 1 : 0;
-  quizTotalMs_ += ms;
+  session_.answered(right, ms);
   auto *layout = quizRow_->layout();
   int button = 0;
   for (int i = 0; i < layout->count(); ++i) {
@@ -1686,40 +1672,18 @@ void LearnPage::answerQuiz(std::size_t choice) {
 
 // --- undo --------------------------------------------------------------------
 
-void LearnPage::pushUndo(Undo entry) {
-  undo_.push_back(std::move(entry));
-  while (undo_.size() > kUndoDepth) {
-    undo_.pop_front();
-  }
-}
-
 void LearnPage::undoLast() {
-  if (undo_.empty()) {
+  std::optional<LearnUndo> popped = undo_.pop();
+  if (!popped) {
     emit message(tr("Nothing to take back"));
     return;
   }
-  Undo u = std::move(undo_.back());
-  undo_.pop_back();
-  undoOpen_ = false;
+  LearnUndo u = std::move(*popped);
   if (!library_.find(u.setId)) {
     emit message(tr("The set of that grade is gone"));
     return;
   }
-  SetProgress &p = library_.progress(u.setId);
-  // Latest first, so that a card graded twice in the attempt ends up as it
-  // was at the start.
-  for (auto c = u.cards.rbegin(); c != u.cards.rend(); ++c) {
-    CaseProgress &cp = p[c->cardId];
-    cp.card = c->before;
-    if (c->attempt != 0) {
-      for (auto a = cp.attempts.rbegin(); a != cp.attempts.rend(); ++a) {
-        if (a->mode == AttemptMode::Learn && a->timestamp == c->attempt) {
-          cp.attempts.erase(std::next(a).base());
-          break;
-        }
-      }
-    }
-  }
+  takeBack(library_.progress(u.setId), u);
   if (!library_.saveProgress(u.setId)) {
     emit message(tr("Could not save progress for %1").arg(qs(u.setId)));
   }
@@ -1736,7 +1700,7 @@ void LearnPage::undoLast() {
   emit message(
       tr("Took back the grade of %1").arg(c ? qs(c->name) : QString()));
   if (context_ || !eligible(u.caseId)) {
-    if (phase_ == Phase::NoCase) {
+    if (phase() == Phase::NoCase) {
       nextCase();
     }
     return;
@@ -1755,9 +1719,23 @@ bool LearnPage::chained() {
 }
 
 std::string LearnPage::linkCase() const {
-  return !links_.empty() ? links_.back().view.caseId
-         : current_      ? current_->caseId
-                         : std::string();
+  return attempt_.hasLinks() ? attempt_.lastLink()->view.caseId
+         : current_          ? current_->caseId
+                             : std::string();
+}
+
+LearnGrading LearnPage::grading() {
+  LearnGrading g;
+  g.progress = &progress();
+  g.undo = &undo_;
+  g.srs = &settings_.srs;
+  g.rng = &rng_;
+  g.setId = setId_;
+  g.chained = chained();
+  g.dayEnd = localDayEnd();
+  g.cardId = [this](const std::string &id) { return cardId(id); };
+  g.stepsFrom = [this](const std::string &id) { return stepsFrom(id); };
+  return g;
 }
 
 PieceMask LearnPage::linkFree() {
@@ -1770,15 +1748,11 @@ PieceMask LearnPage::linkFree() {
 }
 
 void LearnPage::startLink(const CaseView &view) {
-  Link link;
-  link.view = view;
-  link.start = cube_;
-  link.state =
-      CubieCube::fromFacelets(oriented(cube_)).value_or(current_->start);
-  links_.push_back(std::move(link));
-  hinted_ = false;
-  nextHinted_ = false;
-  if (links_.size() > 1) {
+  attempt_.startLink(
+      view, cube_,
+      CubieCube::fromFacelets(oriented(cube_)).value_or(current_->start));
+  const std::size_t links = attempt_.links().size();
+  if (links > 1) {
     reveal_->clear(); // a hint for the last case isn't this one's
   }
   // In 3D, a mirrored case is looked at from its slot's corner, so that
@@ -1787,40 +1761,35 @@ void LearnPage::startLink(const CaseView &view) {
   // the group's own corner (the front right), as its algs are.
   CubeLook look = cubeView_->look();
   double yaw = yawFor(view.caseId, view.mirrored ? current_->world : Mirror{});
-  viewMoved_ = links_.size() > 1 && look.yaw != yaw && !view.mirrored;
+  viewMoved_ = links > 1 && look.yaw != yaw && !view.mirrored;
   if (look.yaw != yaw) {
     look.yaw = yaw;
     cubeView_->finishAnimations();
     cubeView_->setLook(look);
   }
-  follower_ = AlgFollower(cube_, {});
   guide_.reset();
   refreshLink();
   // A case passed on the way that was never learned has its step shown.
-  if (links_.size() > 1 && guide_ && firstSight(view.caseId)) {
+  if (links > 1 && guide_ && firstSight(view.caseId)) {
     guide_->follow = true;
   }
 }
 
 void LearnPage::refreshLink() {
   const AlgSet *s = set();
-  if (links_.empty() || !s || !current_) {
+  const LearnLink *link = attempt_.lastLink();
+  if (!link || !s || !current_) {
     return;
   }
-  Link &link = links_.back();
-  const AlgCase *c = s->findCase(link.view.caseId);
-  const CaseGroup *g = s->groupOf(link.view.caseId);
-  const CaseInfo *info = infoOf(link.view.caseId);
-  link.algs.clear();
+  const AlgCase *c = s->findCase(link->view.caseId);
+  const CaseGroup *g = s->groupOf(link->view.caseId);
+  const CaseInfo *info = infoOf(link->view.caseId);
+  std::vector<ViewAlg> algs;
   if (c && g && info) {
-    link.algs = algsFor(*s, *g, *c, info->analysis, link.view, link.state,
-                        current_->world);
+    algs = algsFor(*s, *g, *c, info->analysis, link->view, link->state,
+                   current_->world);
   }
-  std::vector<Alg> algs;
-  for (const ViewAlg &alg : link.algs) {
-    algs.push_back(parseAlgOrEmpty(alg.text));
-  }
-  follower_.setAlgs(std::move(algs));
+  attempt_.setLinkAlgs(std::move(algs));
   bool follow = guide_ && guide_->follow;
   buildGuide();
   if (guide_ && follow) {
@@ -1848,41 +1817,23 @@ bool LearnPage::inLearningSteps(const std::string &caseId) {
 
 void LearnPage::buildGuide() {
   guide_.reset();
-  if (!current_ || !guided() || links_.empty() || links_.back().algs.empty()) {
+  const LearnLink *link = attempt_.lastLink();
+  if (!current_ || !guided() || !link || link->algs.empty()) {
     return;
   }
-  const Link &link = links_.back();
-  Guide guide;
-  guide.moves = parseAlgOrEmpty(link.algs.front().text);
-  if (guide.moves.empty()) {
-    return;
+  AlgGuide guide(parseAlgOrEmpty(link->algs.front().text), link->start);
+  if (!guide.empty()) {
+    guide_ = std::move(guide);
   }
-  FaceletCube f = link.start;
-  guide.states.push_back(oriented(f));
-  guide.held.push_back(f);
-  for (Move m : guide.moves) {
-    guide.tokens << qs(toString(m));
-    f.apply(m);
-    guide.states.push_back(oriented(f));
-    guide.held.push_back(f);
-  }
-  guide_ = std::move(guide);
 }
 
 void LearnPage::stepDemo(int delta) {
-  if (!guide_ || phase_ != Phase::Demo) {
+  if (!guide_ || phase() != Phase::Demo) {
     return;
   }
-  Guide &g = *guide_;
-  if (delta > 0 && g.at < g.moves.size()) {
-    Move m = g.moves[g.at++];
+  for (Move m : guide_->step(delta)) {
     cube_.apply(m);
     cubeView_->animateMove(m);
-  } else if (delta < 0 && g.at > 0) {
-    for (Move m : invert(Alg{g.moves[--g.at]})) {
-      cube_.apply(m);
-      cubeView_->animateMove(m);
-    }
   }
   showGuide();
 }
@@ -1893,79 +1844,51 @@ void LearnPage::startFollowing() {
     return;
   }
   resetCube();
-  follower_.restart();
-  guide_->at = 0;
-  guide_->matched = true;
+  attempt_.restartCase();
+  guide_->restart();
   guide_->follow = true;
   setPhase(Phase::Solving);
 }
 
 void LearnPage::trackGuide() {
-  if (!guide_) {
-    return;
+  if (guide_) {
+    guide_->track(cube_);
   }
-  Guide &g = *guide_;
-  FaceletCube now = oriented(cube_);
-  // Forward from where it was first, so that a state the alg passes twice
-  // counts as the later one.
-  std::optional<std::size_t> found;
-  for (std::size_t k = g.at; k < g.states.size() && !found; ++k) {
-    if (g.states[k] == now) {
-      found = k;
-    }
-  }
-  for (std::size_t k = 0; k < g.at && !found; ++k) {
-    if (g.states[k] == now) {
-      found = k;
-    }
-  }
-  g.matched = found.has_value();
-  if (!found) {
-    return;
-  }
-  // A rotation leaves the state as it was: it is done once the cube isn't
-  // held as before it any more (as after it, or some other way when the
-  // cube was turned differently from the start).
-  std::size_t k = *found;
-  while (
-      k < g.moves.size() && isRotation(g.moves[k].type) &&
-      (sameCentres(cube_, g.held[k + 1]) || !sameCentres(cube_, g.held[k]))) {
-    ++k;
-  }
-  g.at = k;
 }
 
 void LearnPage::showGuide() {
-  bool shown = guide_ &&
-               (phase_ == Phase::Demo ||
-                (phase_ == Phase::Solving && (guide_->follow || guide_->next)));
+  bool shown =
+      guide_ && (phase() == Phase::Demo || (phase() == Phase::Solving &&
+                                            (guide_->follow || guide_->next)));
   guideLabel_->setVisible(shown);
   if (!shown) {
     guideLabel_->clear();
     return;
   }
-  const Guide &g = *guide_;
+  const AlgGuide &g = *guide_;
   const QString nextStyle = "color:" + statusColour(Status::Warning).name() +
                             "; font-weight:bold; text-decoration:underline";
   QString muted = palette().color(QPalette::PlaceholderText).name();
+  auto token = [&g](std::size_t i) {
+    return qs(toString(g.moves()[i])).toHtmlEscaped();
+  };
   QString text;
-  if (phase_ == Phase::Solving && !g.follow) {
+  if (phase() == Phase::Solving && !g.follow) {
     // A learning-step hint: only the next move.
-    if (g.at >= g.moves.size()) {
+    if (g.done()) {
       text = tr("The alg is done.");
     } else {
       text = tr("Next move: %1")
-                 .arg("<span style='" + nextStyle + "'>" +
-                      g.tokens[static_cast<qsizetype>(g.at)].toHtmlEscaped() +
+                 .arg("<span style='" + nextStyle + "'>" + token(g.at()) +
                       "</span>");
     }
   } else {
     QStringList parts;
-    for (std::size_t i = 0; i < g.moves.size(); ++i) {
-      QString t = g.tokens[static_cast<qsizetype>(i)].toHtmlEscaped();
-      if (i < g.at) {
+    for (std::size_t i = 0; i < g.moves().size(); ++i) {
+      QString t = token(i);
+      if (i < g.at()) {
         parts << "<span style='color:" + muted + "'>" + t + "</span>";
-      } else if (i == g.at) {
+      } else if (i == g.at()) {
         parts << "<span style='" + nextStyle + "'>" + t + "</span>";
       } else {
         parts << t;
@@ -1973,9 +1896,9 @@ void LearnPage::showGuide() {
     }
     text = parts.join(' ');
   }
-  if (phase_ == Phase::Solving && !g.matched) {
+  if (phase() == Phase::Solving && !g.matched()) {
     text += "<br><span style='font-size:small; color:" + muted + "'>" +
-            (follower_.deviated()
+            (attempt_.follower().deviated()
                  ? tr("That isn't the alg: Esc starts the case again.")
                  : tr("Keep going: the cube is between two moves of the "
                       "alg.")) +
@@ -1990,11 +1913,12 @@ void LearnPage::resetCube() {
   }
   // While a case is being solved: back to where it came up. Afterwards:
   // back to the start of the attempt, seen as the first case was.
-  bool solving = phase_ == Phase::Solving || phase_ == Phase::Demo;
-  cube_ = solving && !links_.empty() ? links_.back().start
-                                     : current_->start.toFacelets();
-  if (!solving && !links_.empty()) {
-    const CaseView &first = links_.front().view;
+  bool solving = phase() == Phase::Solving || phase() == Phase::Demo;
+  const std::vector<LearnLink> &links = attempt_.links();
+  cube_ = solving && !links.empty() ? links.back().start
+                                    : current_->start.toFacelets();
+  if (!solving && !links.empty()) {
+    const CaseView &first = links.front().view;
     CubeLook look = cubeView_->look();
     double yaw =
         yawFor(first.caseId, first.mirrored ? current_->world : Mirror{});
@@ -2008,7 +1932,7 @@ void LearnPage::resetCube() {
 }
 
 void LearnPage::setPhase(Phase p) {
-  phase_ = p;
+  session_.setPhase(p);
   statusLabel_->setStyleSheet({});
   switch (p) {
   case Phase::NoCase:
@@ -2067,17 +1991,18 @@ void LearnPage::setPhase(Phase p) {
 void LearnPage::showSolvingStatus() {
   const QString warning = "color: " + statusColour(Status::Warning).name();
   std::string id = linkCase();
-  bool later = links_.size() > 1;
+  bool later = attempt_.links().size() > 1;
+  const AlgFollower &follower = attempt_.follower();
   QString keys =
-      guide_ && !guide_->follow && !guide_->next && !hinted_ && current_ &&
-              inLearningSteps(id)
+      guide_ && !guide_->follow && !guide_->next && !attempt_.hinted() &&
+              current_ && inLearningSteps(id)
           ? tr("Tab shows the next move, Shift+Space gives up, Esc resets.")
           : tr("Tab shows the algs, Shift+Space gives up, Esc resets.");
   QString note = later && !linkNote_.isEmpty() ? linkNote_ + " " : QString();
-  if (follower_.deviated() && !chained()) {
+  if (follower.deviated() && !chained()) {
     bool practice = current_ && current_->practice;
     QString what =
-        follower_.startedOver()
+        follower.startedOver()
             ? (practice ? tr("Started over.")
                         : tr("Started over, so the case will be graded "
                              "Again."))
@@ -2113,214 +2038,179 @@ void LearnPage::showSolvingStatus() {
 }
 
 bool LearnPage::handleKey(QKeyEvent *e, bool press) {
-  int key = e->key();
+  LearnSession::Step step = session_.key(sessionKey(e, press));
+  perform(step);
+  return step.handled;
+}
+
+LearnSession::KeyEvent LearnPage::sessionKey(const QKeyEvent *e,
+                                             bool press) const {
+  using Key = LearnSession::Key;
+  LearnSession::KeyEvent k;
+  k.press = press;
+  k.shift = e->modifiers().testFlag(Qt::ShiftModifier);
   const bool ctrl = e->modifiers().testFlag(Qt::ControlModifier);
-  const bool shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  if (key == Qt::Key_Z && ctrl) {
-    if (press) {
-      undoLast();
-    }
-    return true;
-  }
-  if (key == Qt::Key_F9) {
-    if (press) {
-      toggleList();
-    }
-    return true;
-  }
-  if (!press) {
-    return key == Qt::Key_Space;
-  }
-  bool next =
-      key == Qt::Key_Space || key == Qt::Key_Return || key == Qt::Key_Enter;
-  // Recognition and the quiz: the cube only turns as a whole (and U and
-  // D), to look at the case from another side.
-  auto look = [this, e] {
-    if (auto m = settings_.keymap.lookup(e)) {
-      if (isRotation(m->type) || udTurn(cube_, *m)) {
-        cube_.apply(*m);
-        cubeView_->animateMove(*m);
-      }
-      return true;
-    }
-    return false;
-  };
-  switch (phase_) {
-  case Phase::NoCase:
-    if (next) {
-      // Checks again, and takes a learning case early if nothing is due.
-      nextCase(true);
-      return true;
-    }
-    return false;
-  case Phase::Context:
-    if (key == Qt::Key_Tab) {
-      // The set's cheapest order as a hint; nothing is graded anyway.
-      showContextResult();
-      return true;
-    }
-    if (key == Qt::Key_Space) {
-      if (shift) {
-        finishContext(true);
-      }
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      resetContext();
-      return true;
-    }
-    if (key == Qt::Key_Backspace) {
-      leaveContext();
-      return true;
+  const int key = e->key();
+  switch (key) {
+  case Qt::Key_Space:
+    k.key = Key::Space;
+    break;
+  case Qt::Key_Return:
+  case Qt::Key_Enter:
+    k.key = Key::Enter;
+    break;
+  case Qt::Key_Tab:
+    k.key = Key::Tab;
+    break;
+  case Qt::Key_Backspace:
+    k.key = Key::Backspace;
+    break;
+  case Qt::Key_Escape:
+    k.key = Key::Escape;
+    break;
+  case Qt::Key_Left:
+    k.key = Key::Left;
+    break;
+  case Qt::Key_Right:
+    k.key = Key::Right;
+    break;
+  case Qt::Key_Home:
+    k.key = Key::Home;
+    break;
+  case Qt::Key_F9:
+    k.key = Key::List;
+    break;
+  case Qt::Key_Z:
+    k.key = ctrl ? Key::Undo : Key::Other;
+    break;
+  default:
+    if (key >= Qt::Key_1 && key <= Qt::Key_9) {
+      k.key = Key::Digit;
+      k.digit = key - Qt::Key_0;
     }
     break;
-  case Phase::ContextDone:
-    if (next) {
-      startContext();
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      resetContext();
-      return true;
-    }
-    if (key == Qt::Key_Backspace) {
-      leaveContext();
-      return true;
+  }
+  k.move = settings_.keymap.lookup(e);
+  return k;
+}
+
+void LearnPage::perform(const LearnSession::Step &step) {
+  using A = LearnSession::Action;
+  switch (step.action) {
+  case A::None:
+    break;
+  case A::Undo:
+    undoLast();
+    break;
+  case A::ToggleList:
+    toggleList();
+    break;
+  case A::NextEarly:
+    // Checks again, and takes a learning case early if nothing is due.
+    nextCase(true);
+    break;
+  case A::NextCase:
+    nextCase();
+    break;
+  case A::Turn:
+    turn(*step.move);
+    break;
+  case A::Look:
+    if (isRotation(step.move->type) || udTurn(cube_, *step.move)) {
+      cube_.apply(*step.move);
+      cubeView_->animateMove(*step.move);
     }
     break;
-  case Phase::Demo:
-    if (key == Qt::Key_Right) {
-      stepDemo(1);
-    } else if (key == Qt::Key_Left) {
-      stepDemo(-1);
-    } else if (key == Qt::Key_Home || key == Qt::Key_Escape) {
-      resetCube();
-      guide_->at = 0;
+  case A::ResetCube:
+    resetCube();
+    break;
+  case A::DemoStep:
+    stepDemo(step.step);
+    break;
+  case A::DemoRestart:
+    resetCube();
+    if (guide_) {
+      guide_->restart();
+    }
+    showGuide();
+    break;
+  case A::StartFollowing:
+    startFollowing();
+    break;
+  case A::Hint:
+    solvingHint();
+    break;
+  case A::GiveUp:
+    attempt_.giveUp();
+    endLink(false, std::nullopt);
+    finish();
+    resetCube(); // so the alg can be tried
+    break;
+  case A::ResetCase:
+    resetCube();
+    attempt_.restartCase();
+    if (guide_) {
+      guide_->restart();
       showGuide();
-    } else if (next) {
-      startFollowing();
-    } else {
-      // The turning keys wait for the try, so that the demo stays in step.
-      return settings_.keymap.lookup(e).has_value() || key == Qt::Key_Tab;
     }
-    return true;
-  case Phase::Solving:
-    if (key == Qt::Key_Tab) {
-      if (!follower_.begun()) {
-        recognitionSpoiled_ = true; // the algs were seen first
-      }
-      if (guide_ && !guide_->follow && !guide_->next && !hinted_ && current_ &&
-          inLearningSteps(linkCase())) {
-        // In the learning steps the first hint is the next move only.
-        nextHinted_ = true;
-        guide_->next = true;
-        trackGuide();
-        showGuide();
-        showSolvingStatus();
-        return true;
-      }
-      hinted_ = true;
-      showReveal();
-      if (links_.size() == 1 && current_) {
-        selectInTree(current_->caseId);
-      }
-      return true;
-    }
-    if (key == Qt::Key_Space) {
-      // Space alone goes on to the next case once this one is done, so a
-      // double tap mustn't give up the next one too.
-      if (shift) {
-        gaveUp_ = true;
-        endLink(false, std::nullopt);
-        finish();
-        resetCube(); // so the alg can be tried
-      }
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      resetCube();
-      follower_.restart();
-      if (guide_) {
-        guide_->at = 0;
-        guide_->matched = true;
-        showGuide();
-      }
-      showSolvingStatus();
-      return true;
-    }
+    showSolvingStatus();
     break;
-  case Phase::Done:
-    if (key == Qt::Key_Space && shift) {
-      return true; // Shift still held from giving up: keep the reveal up
-    }
-    if (next) {
-      nextCase();
-      return true;
-    }
-    if (key >= Qt::Key_1 && key <= Qt::Key_4) {
-      regrade(static_cast<Grade>(key - Qt::Key_1 + 1));
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      resetCube();
-      return true;
-    }
+  case A::Regrade:
+    regrade(*step.grade);
     break;
-  case Phase::Recognise:
-    if (key == Qt::Key_Space) {
-      recalled(!shift);
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      resetCube();
-      return true;
-    }
-    return look();
-  case Phase::Recalled:
-    if (key >= Qt::Key_1 && key <= Qt::Key_4) {
-      gradeRecognition(static_cast<Grade>(key - Qt::Key_1 + 1));
-      return true;
-    }
-    if (next) {
-      if (!shift) {
-        gradeRecognition(grade_);
-      }
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      resetCube();
-      return true;
-    }
-    return look();
-  case Phase::Quiz:
-    if (key >= Qt::Key_1 &&
-        key < Qt::Key_1 + static_cast<int>(quizChoices_.size())) {
-      answerQuiz(static_cast<std::size_t>(key - Qt::Key_1));
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      resetCube();
-      return true;
-    }
-    return look();
-  case Phase::QuizDone:
-    if (next) {
-      nextQuiz();
-      return true;
-    }
-    return look();
+  case A::Recalled:
+    recalled(step.knew);
+    break;
+  case A::GradeRecognition:
+    gradeRecognition(step.grade.value_or(attempt_.grade()));
+    break;
+  case A::Answer:
+    answerQuiz(step.choice);
+    break;
+  case A::NextQuiz:
+    nextQuiz();
+    break;
+  case A::ContextHint:
+    // The set's cheapest order as a hint; nothing is graded anyway.
+    showContextResult();
+    break;
+  case A::ContextGiveUp:
+    finishContext(true);
+    break;
+  case A::ContextReset:
+    resetContext();
+    break;
+  case A::ContextLeave:
+    leaveContext();
+    break;
+  case A::ContextNext:
+    startContext();
+    break;
   }
-  if (auto m = settings_.keymap.lookup(e)) {
-    turn(*m);
-    return true;
+}
+
+void LearnPage::solvingHint() {
+  if (guide_ && !guide_->follow && !guide_->next && !attempt_.hinted() &&
+      current_ && inLearningSteps(linkCase())) {
+    // In the learning steps the first hint is the next move only.
+    attempt_.nextMoveHint();
+    guide_->next = true;
+    trackGuide();
+    showGuide();
+    showSolvingStatus();
+    return;
   }
-  return false;
+  attempt_.hint();
+  showReveal();
+  if (attempt_.links().size() == 1 && current_) {
+    selectInTree(current_->caseId);
+  }
 }
 
 void LearnPage::turn(Move m) {
   cube_.apply(m);
   cubeView_->animateMove(m);
-  if (phase_ == Phase::Context && context_) {
+  if (phase() == Phase::Context && context_) {
     context_->moves.push_back(m);
     FaceletCube f = oriented(cube_);
     auto c = CubieCube::fromFacelets(f);
@@ -2331,20 +2221,14 @@ void LearnPage::turn(Move m) {
     }
     return;
   }
-  if (phase_ == Phase::ContextDone) {
+  if (phase() == Phase::ContextDone) {
     return; // turning freely after the pairs
   }
-  if (phase_ != Phase::Solving || !current_) {
+  if (phase() != Phase::Solving || !current_) {
     return; // untimed practice after the case
   }
-  bool wasOff = follower_.deviated();
-  bool wasBegun = follower_.begun();
-  follower_.move(m);
-  // Recognition ends at the first turn of a layer off the U-D axis.
-  if (!wasBegun && follower_.begun() && links_.size() == 1 &&
-      recognitionMs_ == 0) {
-    recognitionMs_ = std::max<std::int64_t>(1, monotonicMs() - shownAtMs_);
-  }
+  bool wasOff = attempt_.follower().deviated();
+  attempt_.turned(m, monotonicMs());
   if (guide_) {
     trackGuide();
     showGuide();
@@ -2366,8 +2250,9 @@ void LearnPage::turn(Move m) {
   // A step of a reduction set is over when the cube shows a case again:
   // at the end of one of the case's algs, or wherever other moves get to
   // (an alg may pass through other cases on its way).
-  if (chained() && follower_.begun() &&
-      (follower_.finished() || follower_.leftAt())) {
+  const AlgFollower &follower = attempt_.follower();
+  if (chained() && follower.begun() &&
+      (follower.finished() || follower.leftAt())) {
     if (auto next = seenCase(*s, *c, current_->world);
         next && eligible(next->caseId)) {
       endLink(false, next);
@@ -2377,7 +2262,7 @@ void LearnPage::turn(Move m) {
       return;
     }
   }
-  if (follower_.deviated() != wasOff) {
+  if (follower.deviated() != wasOff) {
     showSolvingStatus();
   }
 }
@@ -2391,145 +2276,29 @@ void LearnPage::turnUpright() {
 }
 
 void LearnPage::endLink(bool solved, const std::optional<CaseView> &next) {
-  if (links_.empty() || !current_ || !set()) {
+  if (!attempt_.hasLinks() || !current_ || !set()) {
     return;
   }
-  Link &link = links_.back();
-  const std::string id = link.view.caseId;
-  const bool first = links_.size() == 1;
-  link.over = true;
-  link.solved = solved;
-  link.reached = next ? next->caseId : std::string();
-  link.gaveUp = gaveUp_;
-  link.moves = follower_.moves();
-  link.setStep = !follower_.leftAt();
-  bool wrong = false;
+  const std::string id = attempt_.lastLink()->view.caseId;
+  bool changed = attempt_.endLink(
+      solved, next ? std::optional<std::string>(next->caseId) : std::nullopt,
+      guide_ && guide_->follow, unixNow(), monotonicMs(), grading());
   if (chained()) {
-    // Any step counts that leaves fewer steps to go than there were.
-    int before = stepsFrom(id);
-    int left = solved ? 0 : next ? stepsFrom(next->caseId) : before;
-    link.closer = !gaveUp_ && left < before;
-    wrong = !link.closer;
+    const LearnLink &link = *attempt_.lastLink();
+    const int left = link.stepsLeft;
     linkNote_ =
-        gaveUp_ ? QString()
+        link.gaveUp ? QString()
         : link.closer
             ? (left == 1 ? tr("Closer: 1 step left.")
                          : tr("Closer: %1 steps left.").arg(left))
             : (left == 1
                    ? tr("That didn't get closer: 1 step left.")
                    : tr("That didn't get closer: %1 steps left.").arg(left));
-  } else {
-    wrong = !gaveUp_ && !follower_.onAlg();
   }
-  link.grade = learnGrade(hinted_, gaveUp_, wrong);
-  if (link.grade == Grade::Good && nextHinted_) {
-    link.grade = Grade::Hard;
+  if (changed) {
+    saveProgress();
+    updateCardRows(id);
   }
-  // Every reason the case went as it did, e.g. both a hint and leaving
-  // the algs.
-  QStringList reasons;
-  if (gaveUp_) {
-    reasons << tr("gave up");
-  } else if (wrong) {
-    reasons << (chained()                 ? tr("the step didn't get closer")
-                : follower_.startedOver() ? tr("started over")
-                                          : tr("left the algs"));
-  }
-  if (hinted_) {
-    reasons << tr("used a hint");
-  } else if (nextHinted_) {
-    reasons << tr("used the next-move hint");
-  }
-  if (reasons.isEmpty()) {
-    reasons << (guide_ && guide_->follow ? tr("walked through")
-                : !chained()             ? tr("solved from memory")
-                : link.setStep           ? tr("the set's step")
-                                         : tr("another step that gets closer"));
-  }
-  QString why = reasons.join(tr(" and "));
-  std::int64_t now = unixNow();
-  const CaseProgress *card = cardOf(id);
-  bool record = false;
-  if (first) {
-    leftAlgs_ = wrong && !chained();
-    grade_ = link.grade;
-    autoGrade_ = link.grade;
-    why_ = why;
-    gradeTime_ = now;
-    gradedCard_ = cardId(id);
-    if (!current_->practice && guide_ && guide_->follow && firstSight(id)) {
-      // A walkthrough isn't recall: the case is introduced and comes back
-      // at its first learning step to be done from memory.
-      CaseProgress &cp = progress()[gradedCard_];
-      cardBefore_ = cp.card;
-      Undo u;
-      u.setId = setId_;
-      u.caseId = current_->caseId;
-      u.isNew = current_->isNew;
-      u.cards.push_back({gradedCard_, cp.card, 0});
-      pushUndo(std::move(u));
-      undoOpen_ = true;
-      gradedCards_.push_back(gradedCard_);
-      introduce(cp.card, now, settings_.srs);
-      walkedThrough_ = true;
-      graded_ = true;
-      saveProgress();
-      updateCardRows(id);
-      return;
-    }
-    record = !current_->practice;
-  } else if (std::find(gradedCards_.begin(), gradedCards_.end(), cardId(id)) !=
-             gradedCards_.end()) {
-    link.note = tr("already graded in this attempt");
-  } else if (current_->practice) {
-    link.note = tr("practice, so not graded");
-  } else if (!card || card->card.introduced == 0) {
-    link.note = tr("not started yet, so not graded");
-  } else if (isDue(card->card, now, settings_.srs, localDayEnd()) ||
-             link.grade == Grade::Again) {
-    // A case passed on the way is graded when it is due, and counts as
-    // forgotten whenever its step is missed.
-    record = true;
-  } else {
-    link.note = tr("not due yet, so unchanged");
-  }
-  if (!record) {
-    return;
-  }
-  CaseProgress &cp = progress()[cardId(id)];
-  if (first) {
-    cardBefore_ = cp.card;
-    attemptTime_ = now;
-    Undo u;
-    u.setId = setId_;
-    u.caseId = current_->caseId;
-    u.isNew = current_->isNew;
-    u.cards.push_back({cardId(id), cp.card, now});
-    pushUndo(std::move(u));
-    undoOpen_ = true;
-    graded_ = true;
-  } else if (undoOpen_ && !undo_.empty()) {
-    undo_.back().cards.push_back({cardId(id), cp.card, now});
-  }
-  gradedCards_.push_back(cardId(id));
-  Attempt attempt{now, 0, link.grade == Grade::Again, AttemptMode::Learn};
-  // Only a case recognised rightly (its alg kept to) has a recognition
-  // time worth keeping.
-  if (first && recognitionMs_ > 0 && !recognitionSpoiled_ &&
-      link.grade != Grade::Again) {
-    attempt.recognitionMs = recognitionMs_;
-    attempt.executionMs =
-        std::max<std::int64_t>(0, monotonicMs() - shownAtMs_ - recognitionMs_);
-  }
-  cp.record(attempt);
-  review(cp.card, link.grade, now, settings_.srs, &rng_);
-  saveProgress();
-  if (!first) {
-    link.note = tr("%1 (%2) → next %3")
-                    .arg(tr(gradeName(link.grade)), why,
-                         dueText(cardOf(id), now, localDayEnd()));
-  }
-  updateCardRows(id);
 }
 
 void LearnPage::finish() {
@@ -2543,45 +2312,11 @@ void LearnPage::finish() {
 }
 
 void LearnPage::regrade(Grade grade) {
-  if (phase_ != Phase::Done || !current_ || current_->practice ||
-      gradeReplaced_ || !graded_ || gradedCard_.empty()) {
+  if (phase() != Phase::Done || !current_ ||
+      !attempt_.regrade(grade, unixNow(), grading())) {
     showGrade();
     return;
   }
-  grade_ = grade;
-  if (!links_.empty()) {
-    links_.front().grade = grade;
-  }
-  // The card the grade went to, even if learning by family was turned on
-  // or off since.
-  CaseProgress &cp = progress()[gradedCard_];
-  cp.card = cardBefore_;
-  std::int64_t now = unixNow();
-  if (attemptTime_ == 0) {
-    // A walkthrough graded by hand: now it is an attempt.
-    attemptTime_ = now;
-    cp.record({now, 0, grade == Grade::Again, AttemptMode::Learn});
-    if (undoOpen_ && !undo_.empty()) {
-      for (auto &c : undo_.back().cards) {
-        if (c.cardId == gradedCard_ && c.attempt == 0) {
-          c.attempt = now;
-        }
-      }
-    }
-  } else {
-    for (auto a = cp.attempts.rbegin(); a != cp.attempts.rend(); ++a) {
-      if (a->mode == AttemptMode::Learn && a->timestamp == attemptTime_) {
-        a->failed = grade == Grade::Again;
-        break;
-      }
-    }
-  }
-  if (walkedThrough_) {
-    walkedThrough_ = false;
-    why_ = tr("graded by hand");
-    autoGrade_ = grade;
-  }
-  review(cp.card, grade_, now, settings_.srs, &rng_);
   saveProgress();
   showGrade();
   if (chained()) {
@@ -2613,7 +2348,7 @@ void LearnPage::startContext() {
   idleTimer_.stop();
   current_.reset();
   guide_.reset();
-  links_.clear();
+  attempt_.clear();
   quizRow_->setVisible(false);
   gradeRow_->setVisible(false);
   context_ = Context{state, pickHold(), {}, false};
@@ -2666,7 +2401,7 @@ void LearnPage::showContextStatus() {
     open += slotSolved(context_->start, slot) ? 0 : 1;
   }
   statusLabel_->setStyleSheet({});
-  if (phase_ == Phase::Context) {
+  if (phase() == Phase::Context) {
     statusLabel_->setText(
         (open == 1 ? tr("In context: solve the open pair.")
                    : tr("In context: solve the %1 open pairs in any order.")
@@ -2694,7 +2429,7 @@ void LearnPage::showContextResult() {
     return n == 1 ? tr("1 move") : tr("%1 moves").arg(n);
   };
   QString html;
-  if (phase_ == Phase::ContextDone) {
+  if (phase() == Phase::ContextDone) {
     html +=
         context_->gaveUp
             ? "<p>" + tr("Gave up.") + "</p>"
@@ -2750,7 +2485,7 @@ void LearnPage::showFamily() {
   const std::vector<std::string> *members =
       current_ ? families_.familyFor(current_->caseId) : nullptr;
   bool shown = byFamily() &&
-               (phase_ == Phase::Done || phase_ == Phase::Recalled) &&
+               (phase() == Phase::Done || phase() == Phase::Recalled) &&
                members && members->size() > 1;
   familyRow_->setVisible(shown);
   if (!shown) {
@@ -2794,7 +2529,8 @@ void LearnPage::showFamily() {
 
 QString LearnPage::chainHtml() {
   const AlgSet *s = set();
-  if (!s || links_.empty()) {
+  const std::vector<LearnLink> &links = attempt_.links();
+  if (!s || links.empty()) {
     return {};
   }
   auto nameOf = [s](const std::string &id) {
@@ -2808,18 +2544,18 @@ QString LearnPage::chainHtml() {
       "<span style='color:" + statusColour(Status::Good).name() + "'>✓</span>";
   const QString bad =
       "<span style='color:" + statusColour(Status::Bad).name() + "'>✗</span>";
-  const std::string &firstId = links_.front().view.caseId;
+  const std::string &firstId = links.front().view.caseId;
   const CaseGroup *group = s->groupOf(firstId);
   QString html =
       QString("<p style='font-size:large'><b>%1</b> <span "
               "style='color:gray'>· %2</span></p>")
           .arg(nameOf(firstId), group ? qs(group->name).toHtmlEscaped() : "");
-  for (const Link &link : links_) {
+  for (const LearnLink &link : links) {
     if (!link.over) {
       continue;
     }
     QString line = (link.grade == Grade::Again ? bad : good) + " ";
-    if (&link != &links_.front()) {
+    if (&link != &links.front()) {
       line += grey(nameOf(link.view.caseId) + ":") + " ";
     }
     if (link.algs.empty()) {
@@ -2840,8 +2576,27 @@ QString LearnPage::chainHtml() {
                    .arg(movesHtml(link.moves, std::nullopt), to,
                         link.closer ? tr("closer") : tr("not closer"));
     }
-    if (!link.note.isEmpty()) {
-      notes << link.note;
+    switch (link.note) {
+    case LearnLink::Note::None:
+      break;
+    case LearnLink::Note::AlreadyGraded:
+      notes << tr("already graded in this attempt");
+      break;
+    case LearnLink::Note::Practice:
+      notes << tr("practice, so not graded");
+      break;
+    case LearnLink::Note::NotStarted:
+      notes << tr("not started yet, so not graded");
+      break;
+    case LearnLink::Note::NotDue:
+      notes << tr("not due yet, so unchanged");
+      break;
+    case LearnLink::Note::Graded:
+      notes << tr("%1 (%2) → next %3")
+                   .arg(tr(gradeName(link.grade)), reasonsText(link.why),
+                        dueText(cardOf(link.view.caseId), link.notedAt,
+                                localDayEnd()));
+      break;
     }
     if (!notes.isEmpty()) {
       line += "<br>" + grey(notes.join(" · "));
@@ -2857,29 +2612,30 @@ void LearnPage::showReveal() {
   if (!current_ || !s) {
     return;
   }
-  if (phase_ == Phase::Recalled) {
+  if (phase() == Phase::Recalled) {
     // Every step in a set solved a step at a time.
     reveal_->setText(
         algsHtml(current_->caseId, current_->start, current_->world));
     return;
   }
-  if (links_.empty()) {
+  if (!attempt_.hasLinks()) {
     return;
   }
-  if (phase_ == Phase::Done && chained()) {
+  if (phase() == Phase::Done && chained()) {
     reveal_->setText(chainHtml());
     return;
   }
   // The case being solved (a hint), or the case that was solved.
-  const Link &link = links_.back();
+  const LearnLink &link = *attempt_.lastLink();
   QString html = viewAlgsHtml(*s, link.view, link.state, current_->world);
-  if (phase_ == Phase::Done && leftAlgs_) {
-    QString moves = movesHtml(follower_.moves(), follower_.leftAt());
+  const AlgFollower &follower = attempt_.follower();
+  if (phase() == Phase::Done && attempt_.leftAlgs()) {
+    QString moves = movesHtml(follower.moves(), follower.leftAt());
     html += "<p style='color:gray'>" +
-            (follower_.startedOver()
+            (follower.startedOver()
                  ? tr("Your moves after starting over: %1").arg(moves)
                  : tr("Your moves: %1").arg(moves));
-    if (follower_.leftAt()) {
+    if (follower.leftAt()) {
       html += "<br>" + tr("The marked move is where you left the algs.");
     }
     html += "</p>";
@@ -2887,17 +2643,32 @@ void LearnPage::showReveal() {
   reveal_->setText(html);
 }
 
+QString LearnPage::whyText() const {
+  if (attempt_.byHand() || attempt_.grade() != attempt_.autoGrade()) {
+    return tr("graded by hand");
+  }
+  if (phase() == Phase::Recalled) {
+    std::int64_t ms = attempt_.recognitionMs();
+    return ms > 0 ? tr("recalled in %1 s")
+                        .arg(secondsText(static_cast<double>(ms)))
+                  : tr("not recalled");
+  }
+  return reasonsText(attempt_.why());
+}
+
 void LearnPage::showGrade() {
-  bool shown = (phase_ == Phase::Done || phase_ == Phase::Recalled) && current_;
+  bool shown =
+      (phase() == Phase::Done || phase() == Phase::Recalled) && current_;
   if (!shown) {
     gradeRow_->setVisible(false);
     return;
   }
   gradeRow_->setVisible(true);
-  bool recalled = phase_ == Phase::Recalled;
-  bool buttons =
-      recalled || (!current_->practice && !gradeReplaced_ && graded_);
-  std::int64_t when = recalled ? unixNow() : gradeTime_;
+  const Grade chosen = attempt_.grade();
+  bool recalled = phase() == Phase::Recalled;
+  bool buttons = recalled || (!current_->practice &&
+                              !attempt_.gradeReplaced() && attempt_.graded());
+  std::int64_t when = recalled ? unixNow() : attempt_.gradeTime();
   for (int g = 0; g < 4; ++g) {
     auto grade = static_cast<Grade>(g + 1);
     QPushButton *b = gradeButtons_[static_cast<std::size_t>(g)];
@@ -2906,9 +2677,9 @@ void LearnPage::showGrade() {
     b->setText(QString("%1 %2 · %3")
                    .arg(g + 1)
                    .arg(tr(gradeName(grade)))
-                   .arg(intervalText(
-                       nextInterval(cardBefore_, grade, when, settings_.srs))));
-    b->setChecked(!walkedThrough_ && grade_ == grade);
+                   .arg(intervalText(nextInterval(attempt_.cardBefore(), grade,
+                                                  when, settings_.srs))));
+    b->setChecked(!attempt_.walkedThrough() && chosen == grade);
   }
   auto badge = [this](const QString &text, const QString &colour) {
     gradeBadge_->setText(text);
@@ -2924,39 +2695,40 @@ void LearnPage::showGrade() {
     gradeLabel_->setMinimumWidth(
         std::min(gradeLabel_->fontMetrics().horizontalAdvance(text) + 8, 420));
   };
-  QString why = grade_ != autoGrade_ ? tr("graded by hand") : why_;
+  QString why = whyText();
   const CaseProgress *card =
-      progressOf(gradedCard_.empty() ? cardId(current_->caseId) : gradedCard_);
+      progressOf(attempt_.gradedCard().empty() ? cardId(current_->caseId)
+                                               : attempt_.gradedCard());
   QString next = dueText(card, unixNow(), localDayEnd());
   if (recalled) {
-    badge(tr(gradeName(grade_)), gradeColour(grade_));
+    badge(tr(gradeName(chosen)), gradeColour(chosen));
     detail(tr("%1. Grade yourself:").arg(why));
     return;
   }
-  if (gradeReplaced_) {
+  if (attempt_.gradeReplaced()) {
     badge(tr("Changed"), grey);
     detail(tr("from the case list → next %1").arg(next));
     return;
   }
   if (current_->practice) {
-    badge(grade_ == Grade::Again ? tr("Missed") : tr("Well done"),
-          grade_ == Grade::Again ? gradeColour(Grade::Again) : grey);
+    badge(chosen == Grade::Again ? tr("Missed") : tr("Well done"),
+          chosen == Grade::Again ? gradeColour(Grade::Again) : grey);
     detail(tr("Practice (%1), not graded; next review %2.").arg(why, next));
     return;
   }
-  if (walkedThrough_) {
+  if (attempt_.walkedThrough()) {
     badge(tr("Walked through"), "#5a6b80");
     detail(tr("Not graded: it comes back in %1 to do from "
               "memory. 1-4 grade it now instead.")
                .arg(next));
     return;
   }
-  if (!graded_) {
-    badge(tr(gradeName(grade_)), grey);
+  if (!attempt_.graded()) {
+    badge(tr(gradeName(chosen)), grey);
     detail(tr("(%1), not graded").arg(why));
     return;
   }
-  badge(tr(gradeName(grade_)), gradeColour(grade_));
+  badge(tr(gradeName(chosen)), gradeColour(chosen));
   detail(tr("%1 → next %2").arg(why, next));
 }
 
