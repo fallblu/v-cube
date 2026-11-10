@@ -19,6 +19,7 @@ struct DrillSettings {
   bool tapToArm = true;
   // How long Space is held before the timer can start (ms).
   int holdMs = 300;
+  static constexpr int kMaxHoldMs = 2000;
   // Shift+Space gives a case up; off: Backspace does, as in earlier
   // versions (when it also toggles the DNF afterwards).
   bool shiftSpaceGivesUp = true;
@@ -47,7 +48,7 @@ private:
   DrillSettings settings_;
   QCheckBox *autoStopBox_;
   QComboBox *startBox_;
-  QComboBox *holdBox_;
+  QSpinBox *holdSpin_;
   QComboBox *giveUpBox_;
   QComboBox *afterDnfBox_;
   QCheckBox *autoAdvanceBox_;

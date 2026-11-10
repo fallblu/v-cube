@@ -15,7 +15,8 @@ void DrillSettings::load(const QSettings &q) {
   DrillSettings d;
   autoStop = q.value("drill/autoStop", d.autoStop).toBool();
   tapToArm = q.value("drill/tapToArm", d.tapToArm).toBool();
-  holdMs = std::clamp(q.value("drill/holdMs", d.holdMs).toInt(), 0, 2000);
+  holdMs =
+      std::clamp(q.value("drill/holdMs", d.holdMs).toInt(), 0, kMaxHoldMs);
   shiftSpaceGivesUp =
       q.value("drill/shiftSpaceGivesUp", d.shiftSpaceGivesUp).toBool();
   practiseAfterDnf =
@@ -57,20 +58,16 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
          "cube then shows the step done"));
   autoStopBox_->setChecked(settings_.autoStop);
   form->addRow(tr("Timer stop:"), autoStopBox_);
-  holdBox_ = new QComboBox(this);
-  for (int ms : {0, 150, 300, 550, 1000}) {
-    holdBox_->addItem(QString::number(ms / 1000.0, 'g', 3) + " s", ms);
-  }
-  int hold = holdBox_->findData(settings_.holdMs);
-  if (hold < 0) {
-    holdBox_->addItem(QString::number(settings_.holdMs / 1000.0, 'g', 3) + " s",
-                      settings_.holdMs);
-    hold = holdBox_->count() - 1;
-  }
-  holdBox_->setCurrentIndex(hold);
-  holdBox_->setToolTip(tr("Drill's own hold time, for a physical cube and "
-                          "for holding Space on the virtual cube"));
-  form->addRow(tr("Hold Space before starting:"), holdBox_);
+  holdSpin_ = new QSpinBox(this);
+  holdSpin_->setRange(0, DrillSettings::kMaxHoldMs);
+  holdSpin_->setSingleStep(50);
+  holdSpin_->setSuffix(" ms");
+  holdSpin_->setSpecialValueText(tr("None"));
+  holdSpin_->setValue(settings_.holdMs);
+  holdSpin_->setToolTip(tr("Drill's own hold time (apart from the Solves "
+                           "tab's), for a physical cube and for holding "
+                           "Space on the virtual cube"));
+  form->addRow(tr("Hold Space before starting:"), holdSpin_);
   giveUpBox_ = new QComboBox(this);
   giveUpBox_->addItem(tr("Shift+Space (Backspace then only toggles the DNF)"),
                       true);
@@ -118,7 +115,7 @@ DrillSettings DrillSettingsTab::result() const {
   DrillSettings d = settings_;
   d.autoStop = autoStopBox_->isChecked();
   d.tapToArm = startBox_->currentData().toBool();
-  d.holdMs = holdBox_->currentData().toInt();
+  d.holdMs = holdSpin_->value();
   d.shiftSpaceGivesUp = giveUpBox_->currentData().toBool();
   d.practiseAfterDnf = afterDnfBox_->currentData().toBool();
   d.autoAdvance = autoAdvanceBox_->isChecked();
