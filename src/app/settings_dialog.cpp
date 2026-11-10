@@ -4,6 +4,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -14,6 +15,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -202,6 +204,91 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   relearningEdit_ =
       new QLineEdit(stepsToText(settings_.srs.relearningSteps), learning);
   lForm->addRow(tr("Relearning steps (after a miss):"), relearningEdit_);
+  const SrsConfig &srs = settings_.srs;
+  auto days = [learning](double value) {
+    auto *spin = new QDoubleSpinBox(learning);
+    spin->setRange(1, 365);
+    spin->setDecimals(1);
+    spin->setSuffix(tr(" d"));
+    spin->setValue(value);
+    return spin;
+  };
+  graduatingSpin_ = days(srs.graduatingDays);
+  graduatingSpin_->setToolTip(
+      tr("The first review interval of a case that finishes its learning "
+         "steps"));
+  lForm->addRow(tr("Graduating interval:"), graduatingSpin_);
+  easySpin_ = days(srs.easyDays);
+  easySpin_->setToolTip(tr("The first review interval of a new case graded "
+                           "Easy, and of a case marked as learned"));
+  lForm->addRow(tr("Easy interval:"), easySpin_);
+  lapseSpin_ = new QSpinBox(learning);
+  lapseSpin_->setRange(0, 100);
+  lapseSpin_->setSuffix(" %");
+  lapseSpin_->setValue(static_cast<int>(std::lround(srs.lapseFactor * 100)));
+  lapseSpin_->setToolTip(tr("How much of its interval a forgotten case keeps "
+                            "once it is relearned (earlier versions: 50 %)"));
+  lForm->addRow(tr("Interval kept after a miss:"), lapseSpin_);
+  easeRecoverySpin_ = new QDoubleSpinBox(learning);
+  easeRecoverySpin_->setRange(0, 0.3);
+  easeRecoverySpin_->setSingleStep(0.05);
+  easeRecoverySpin_->setDecimals(2);
+  easeRecoverySpin_->setSpecialValueText(tr("Off"));
+  easeRecoverySpin_->setValue(srs.easeRecovery);
+  easeRecoverySpin_->setToolTip(
+      tr("A Good review raises a case's ease by this much, up to where it "
+         "started, so that a case once missed can be spaced out as far "
+         "again (Off: as in earlier versions, only Easy raises it)"));
+  lForm->addRow(tr("Ease regained per Good review:"), easeRecoverySpin_);
+  lateBox_ =
+      new QCheckBox(tr("A late review counts part of the delay"), learning);
+  lateBox_->setChecked(srs.creditLateReviews);
+  lateBox_->setToolTip(tr("A case reviewed days after it was due and still "
+                          "remembered gets a longer interval, as in Anki"));
+  lForm->addRow(tr("Late reviews:"), lateBox_);
+  hardBox_ =
+      new QCheckBox(tr("Hard moves on to the next learning step"), learning);
+  hardBox_->setChecked(srs.hardAdvancesSteps);
+  hardBox_->setToolTip(tr("Otherwise Hard (the next-move hint) repeats the "
+                          "step, as in earlier versions. Hard never "
+                          "finishes the steps."));
+  lForm->addRow(tr("Hard:"), hardBox_);
+  maxLearningSpin_ = new QSpinBox(learning);
+  maxLearningSpin_->setRange(0, 50);
+  maxLearningSpin_->setSpecialValueText(tr("No limit"));
+  maxLearningSpin_->setValue(srs.maxLearning);
+  maxLearningSpin_->setToolTip(
+      tr("New cases wait while this many are in their learning steps, so "
+         "that walkthroughs don't come back to back"));
+  lForm->addRow(tr("New cases learning at once:"), maxLearningSpin_);
+  learnAheadSpin_ = new QSpinBox(learning);
+  learnAheadSpin_->setRange(0, 60);
+  learnAheadSpin_->setSuffix(tr(" min"));
+  learnAheadSpin_->setSpecialValueText(tr("Off"));
+  learnAheadSpin_->setValue(static_cast<int>(srs.learnAheadSeconds / 60));
+  learnAheadSpin_->setToolTip(
+      tr("With nothing else to do, cases due this soon in their learning "
+         "steps come up early (earlier versions: 20 min). Space on the idle "
+         "screen always takes the next one early."));
+  lForm->addRow(tr("Learn ahead:"), learnAheadSpin_);
+  leechSpin_ = new QSpinBox(learning);
+  leechSpin_->setRange(0, 50);
+  leechSpin_->setSpecialValueText(tr("Off"));
+  leechSpin_->setSuffix(tr(" misses"));
+  leechSpin_->setValue(srs.leechLapses);
+  leechSpin_->setToolTip(tr("A case forgotten this many times is flagged as "
+                            "a leech in the case list"));
+  lForm->addRow(tr("Leech after:"), leechSpin_);
+  slowSpin_ = new QDoubleSpinBox(learning);
+  slowSpin_->setRange(0.1, 30);
+  slowSpin_->setDecimals(1);
+  slowSpin_->setSingleStep(0.1);
+  slowSpin_->setSuffix(" s");
+  slowSpin_->setValue(settings_.slowRecognitionMs / 1000.0);
+  slowSpin_->setToolTip(
+      tr("Cases whose mean recognition time (from the case being set up to "
+         "your first turn off U and D) is longer are slow to recognise"));
+  lForm->addRow(tr("Slow to recognise over:"), slowSpin_);
   auto *learningNote = new QLabel(
       tr("Learn mode grades each case by correctness: solved from memory "
          "with one of its algs is Good, while using Tab to see the algs, "
@@ -212,7 +299,12 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
       learning);
   learningNote->setWordWrap(true);
   lForm->addRow(learningNote);
-  tabs->addTab(learning, tr("Learning"));
+  // The form is longer than the dialog on small screens.
+  auto *learningScroll = new QScrollArea(tabs);
+  learningScroll->setWidget(learning);
+  learningScroll->setWidgetResizable(true);
+  learningScroll->setFrameShape(QFrame::NoFrame);
+  tabs->addTab(learningScroll, tr("Learning"));
 
   auto *buttons = new QDialogButtonBox(
       QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -558,6 +650,17 @@ void SettingsDialog::accept() {
   settings_.srs.newPerDay = newPerDaySpin_->value();
   settings_.srs.learningSteps = learn;
   settings_.srs.relearningSteps = relearn;
+  settings_.srs.graduatingDays = graduatingSpin_->value();
+  settings_.srs.easyDays = easySpin_->value();
+  settings_.srs.lapseFactor = lapseSpin_->value() / 100.0;
+  settings_.srs.easeRecovery = easeRecoverySpin_->value();
+  settings_.srs.creditLateReviews = lateBox_->isChecked();
+  settings_.srs.hardAdvancesSteps = hardBox_->isChecked();
+  settings_.srs.maxLearning = maxLearningSpin_->value();
+  settings_.srs.learnAheadSeconds = learnAheadSpin_->value() * 60;
+  settings_.srs.leechLapses = leechSpin_->value();
+  settings_.slowRecognitionMs =
+      static_cast<int>(std::lround(slowSpin_->value() * 1000));
   QDialog::accept();
 }
 

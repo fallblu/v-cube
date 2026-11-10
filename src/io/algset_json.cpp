@@ -344,11 +344,26 @@ QJsonObject progressToJson(const SetProgress &p) {
     if (c.marked) {
       card["marked"] = true;
     }
+    if (c.suspended) {
+      card["suspended"] = true;
+    }
+    if (c.buriedUntil != 0) {
+      card["buriedUntil"] = static_cast<double>(c.buriedUntil);
+    }
     QJsonArray attempts;
     for (const auto &a : cp.attempts) {
-      attempts.append(QJsonArray{static_cast<double>(a.timestamp),
-                                 static_cast<double>(a.timeMs),
-                                 a.failed ? 1 : 0, attemptModeId(a.mode)});
+      QJsonArray row{static_cast<double>(a.timestamp),
+                     static_cast<double>(a.timeMs), a.failed ? 1 : 0,
+                     attemptModeId(a.mode)};
+      // Recognition and execution times, when measured, follow.
+      if (a.recognitionMs != 0 || a.executionMs != 0 || a.recognitionOnly) {
+        row.append(static_cast<double>(a.recognitionMs));
+        row.append(static_cast<double>(a.executionMs));
+      }
+      if (a.recognitionOnly) {
+        row.append(1);
+      }
+      attempts.append(row);
     }
     cases[qs(id)] = QJsonObject{{"card", card}, {"attempts", attempts}};
   }
@@ -382,13 +397,21 @@ SetProgress progressFromJson(const QJsonObject &o) {
       // written before virtual drills existed have only "drill": their
       // attempts were all timed on a physical cube.
       QString mode = a.at(3).toString();
-      cp.attempts.push_back({static_cast<std::int64_t>(a.at(0).toDouble()),
-                             static_cast<std::int64_t>(a.at(1).toDouble()),
-                             a.at(2).toInt() != 0,
-                             mode == "learn"    ? AttemptMode::Learn
-                             : mode == "vdrill" ? AttemptMode::VirtualDrill
-                                                : AttemptMode::PhysicalDrill});
+      Attempt at{static_cast<std::int64_t>(a.at(0).toDouble()),
+                 static_cast<std::int64_t>(a.at(1).toDouble()),
+                 a.at(2).toInt() != 0,
+                 mode == "learn"    ? AttemptMode::Learn
+                 : mode == "vdrill" ? AttemptMode::VirtualDrill
+                                    : AttemptMode::PhysicalDrill};
+      // Older files have no recognition times.
+      at.recognitionMs = static_cast<std::int64_t>(a.at(4).toDouble());
+      at.executionMs = static_cast<std::int64_t>(a.at(5).toDouble());
+      at.recognitionOnly = a.at(6).toInt() != 0;
+      cp.attempts.push_back(at);
     }
+    cp.card.suspended = card.value("suspended").toBool(false);
+    cp.card.buriedUntil =
+        static_cast<std::int64_t>(card.value("buriedUntil").toDouble());
     if (card.contains("introduced")) {
       cp.card.introduced =
           static_cast<std::int64_t>(card.value("introduced").toDouble());

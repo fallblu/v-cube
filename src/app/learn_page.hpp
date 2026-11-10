@@ -5,10 +5,14 @@
 #include "train/alg_follow.hpp"
 #include "train/solve_review.hpp"
 
+#include <QTimer>
+
 #include <array>
+#include <deque>
 
 class QPushButton;
 class QSpinBox;
+class QSplitter;
 
 namespace vcube {
 
@@ -17,7 +21,18 @@ namespace vcube {
 // Tab; solving the case with one of its algs and without a hint grades it
 // Good, while a hint, giving up or leaving the algs (see AlgFollower)
 // grades it Again. Cards in their learning steps come first, then reviews
-// due today, then new cases from the learn queue.
+// due today (in a random order), then new cases from the learn queue, in
+// the order chosen for the set, while few enough cards are in their
+// learning steps. A guided set's walkthrough of a new case isn't graded:
+// the case comes back at its first learning step to be done from memory.
+//
+// Each attempt records the recognition time (from the case being set up
+// to the first turn of a layer off the U-D axis) and the execution time
+// after it. "Recognise" reviews only show the case: Space once its alg is
+// recalled, then the algs are shown and the review is graded by hand.
+// "Which case?" is an ungraded quiz: name the case among others of its
+// group. Reviews can also be done across every set at once ("All sets" in
+// the set drop-down), interleaved. Ctrl+Z takes back the last grades.
 //
 // In a reduction set (see reduction.hpp) a case's card asks for its next
 // step only: any step that leaves fewer steps to go is Good. The cube then
@@ -38,10 +53,14 @@ public:
   void setFocusMode(bool on) override;
 
 protected:
-  // Enter in the "Start learning" count starts learning and Esc leaves it,
-  // so that the keys go back to the cube either way.
+  // Enter in the "Start learning" count starts learning when a number was
+  // typed, and any other key leaves the field, so that the keys go back to
+  // the cube either way.
   bool eventFilter(QObject *watched, QEvent *event) override;
   QStringList columns() const override;
+  QStringList defaultHiddenColumns() const override {
+    return {tr("Lapses"), tr("Ease")};
+  }
   std::vector<CaseStatusFilter> statusFilters() override;
   void fillRow(QTreeWidgetItem *item, const std::string &caseId) override;
   void updateSummary() override;
@@ -49,16 +68,35 @@ protected:
   void setReloaded() override;
   void startCase(const std::string &caseId) override;
   QString startCaseLabel(const std::string &caseId) override;
-  void extendCaseMenu(QMenu &menu, const std::string &caseId) override;
+  void extendCaseMenu(QMenu &menu,
+                      const std::vector<std::string> &caseIds) override;
   void ticksChanged() override;
   void neutralityChanged() override;
+  bool offersAcrossSets() const override { return true; }
+  QString setItemText(const AlgSet &set) override;
+  QString acrossItemText() override;
 
 private:
   // Demo: guided learning's walkthrough of a new case, stepped with the
   // arrow keys before the case is tried.
   // Context and ContextDone: in-context practice of a set of F2L pairs,
   // with several slots open at once (not graded).
-  enum class Phase { NoCase, Demo, Solving, Done, Context, ContextDone };
+  // Recognise and Recalled: a recognition review, before and after Space.
+  // Quiz and QuizDone: "which case is this?".
+  enum class Phase {
+    NoCase,
+    Demo,
+    Solving,
+    Done,
+    Context,
+    ContextDone,
+    Recognise,
+    Recalled,
+    Quiz,
+    QuizDone,
+  };
+  // How reviews are done (the drop-down above the cube).
+  enum class Practice { Solve, Recognise, Quiz };
 
   struct Context {
     CubieCube start; // in the solver's frame
@@ -108,6 +146,23 @@ private:
     Alg moves;
   };
 
+  // What a graded attempt changed, so that Ctrl+Z can take it back.
+  struct Undo {
+    std::string setId;
+    std::string caseId; // the case that came up
+    bool isNew = false;
+    bool recognition = false; // a recognition review
+    // Each card as it was before, and the Learn attempt recorded for it
+    // (its timestamp, or 0).
+    struct Card {
+      std::string cardId;
+      SrsCard before;
+      std::int64_t attempt = 0;
+    };
+    std::vector<Card> cards;
+  };
+  static constexpr std::size_t kUndoDepth = 10;
+
   Phase phase_ = Phase::NoCase;
   std::optional<Current> current_;
   std::vector<Link> links_; // the last one is being solved
@@ -125,21 +180,56 @@ private:
   bool leftAlgs_ = false;
   SrsCard cardBefore_;           // to change the grade afterwards
   std::int64_t attemptTime_ = 0; // the attempt the grade was recorded with
+  std::int64_t gradeTime_ = 0;   // when the first case was graded
+  std::string gradedCard_;       // the card the first case's grade went to
   bool gradeReplaced_ = false;   // the case list changed the card since
+  bool walkedThrough_ = false;   // the first case was a walkthrough
+  bool graded_ = false;          // the first case's card was changed
   Grade grade_ = Grade::Good;
   Grade autoGrade_ = Grade::Good; // the grade the attempt earned
+  std::deque<Undo> undo_;
+  bool undoOpen_ = false; // undo_.back() is this attempt's
+
+  // Recognition timing (monotonic ms): when the case came up to be solved
+  // or recognised, and how long until its first turn off U and D (0: not
+  // yet). Not measured once the algs were shown first.
+  std::int64_t shownAtMs_ = 0;
+  std::int64_t recognitionMs_ = 0;
+  bool recognitionSpoiled_ = false;
+
+  // "Which case?": the choices, the right one, and the session's score.
+  std::vector<std::string> quizChoices_;
+  std::size_t quizAnswer_ = 0;
+  int quizRight_ = 0, quizAsked_ = 0;
+  std::int64_t quizTotalMs_ = 0;
 
   QSpinBox *learnCount_;
+  bool countTyped_ = false; // a number was typed into the count
+  QPushButton *learnButton_;
+  QComboBox *orderBox_;
+  QLabel *queueLabel_;
+  QPushButton *learnNextButton_;
+  QPushButton *unqueueButton_;
+  QTimer queueMessageTimer_;
   QWidget *optionsRow_;
   QComboBox *viewBox_;
+  QComboBox *practiceBox_;
+  QPushButton *listButton_;
+  QLabel *headerLabel_;
   CubeView *cubeView_;
   QLabel *statusLabel_;
   QLabel *guideLabel_;
   QLabel *reveal_;
   QWidget *familyRow_; // after a case learned by family: all its members
+  QWidget *quizRow_;   // the quiz's answers
   QWidget *gradeRow_;
+  QLabel *gradeBadge_; // the outcome, coloured
   QLabel *gradeLabel_;
   std::array<QPushButton *, 4> gradeButtons_{};
+  QSplitter *split_;
+  bool listHidden_ = false;
+  bool focusMode_ = false;
+  QTimer idleTimer_; // with nothing due: looks again when a card falls due
 
   std::optional<Guide> guide_;
   std::optional<Context> context_;
@@ -147,8 +237,15 @@ private:
   QSpinBox *slotsSpin_;
   QPushButton *contextButton_;
 
-  // The cases to learn (one per family when learning by family).
+  // The cases to learn (one per family when learning by family), in the
+  // set's order for new cases.
   std::vector<std::string> pool() const;
+  NewOrder newOrder() const;
+  // The case's attempts: its own, and its family's Learn attempts when the
+  // family shares a card.
+  std::vector<Attempt> attemptsOf(const std::string &caseId);
+  // Turns of the main alg, for "shortest alg first".
+  int algMoves(const std::string &caseId) const;
   // A random ticked case of a family to set up for its card.
   std::string pickMember(const std::string &card);
   // Updates the rows of every case sharing the case's card.
@@ -191,8 +288,17 @@ private:
   void refreshLink();
   // Each case of a reduction set's attempt, with its step and how it went.
   QString chainHtml();
-  void nextCase();
+  // The next case: `early` takes a learning card before it is due when
+  // nothing else is.
+  void nextCase(bool early = false);
+  // Across sets: the next due case of any set, switching the list to its
+  // set; false when nothing is due anywhere.
+  bool nextAcrossSets();
+  // Nothing to do: says why, and when to look again.
+  void showIdle(const LearnPick &pick);
   void begin(const std::string &caseId, bool isNew, bool practice = false);
+  // Sets the case up on the cube in a hold, world and AUF picked for it.
+  CubieCube setUp(const std::string &caseId, Mirror world, bool scramble);
   // A learned case that isn't due yet, which "Learn this case now" only
   // practises.
   bool notDue(const std::string &caseId);
@@ -211,9 +317,37 @@ private:
   void setPhase(Phase p);
   void showSolvingStatus();
   void learnNext();
+  // Shows a message under the learn queue for a few seconds.
+  void showQueueMessage(const QString &text);
+  void updateQueue();
+  // Introduces the next queued case now, whatever the limits.
+  void learnQueueHead();
+  void unqueueHead();
+  // The queued cases in the order they will be introduced.
+  std::vector<std::string> queueOrder();
   // Shows the cube the way it was last shown for this set; a set seen for
   // the first time keeps the view in use.
   void applySetView();
+  // What starting a set or showing it across sets needs.
+  void adoptSet();
+  Practice practice() const;
+  // A recognition review of a learned case.
+  void beginRecognition(const std::string &caseId);
+  void recalled(bool knew);
+  void gradeRecognition(Grade grade);
+  // "Which case?".
+  void nextQuiz();
+  void answerQuiz(std::size_t choice);
+  // Records the first case's grade, keeping what Ctrl+Z needs.
+  void pushUndo(Undo entry);
+  void undoLast();
+  // The case list on or off (F9), apart from focus mode.
+  void toggleList();
+  void updateHeader();
+  // The interval a grade gives, for the buttons: "1 min", "4 d".
+  static QString intervalText(std::int64_t seconds);
+  // "tomorrow", "Wed 12 Nov" or "in 4 min".
+  QString whenText(std::int64_t due);
 };
 
 } // namespace vcube

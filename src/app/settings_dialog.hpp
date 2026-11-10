@@ -6,6 +6,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QDoubleSpinBox;
 class QKeySequenceEdit;
 class QLineEdit;
 class QPushButton;
@@ -53,6 +54,16 @@ private:
   QSpinBox *newPerDaySpin_;
   QLineEdit *learningEdit_;
   QLineEdit *relearningEdit_;
+  QDoubleSpinBox *graduatingSpin_;
+  QDoubleSpinBox *easySpin_;
+  QSpinBox *lapseSpin_;
+  QDoubleSpinBox *easeRecoverySpin_;
+  QCheckBox *lateBox_;
+  QCheckBox *hardBox_;
+  QSpinBox *maxLearningSpin_;
+  QSpinBox *learnAheadSpin_;
+  QSpinBox *leechSpin_;
+  QDoubleSpinBox *slowSpin_;
 
   void refreshColours();
   QWidget *buildNeutralityTab(QWidget *parent);

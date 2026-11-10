@@ -87,6 +87,10 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   tree_->setIndentation(14);
   tree_->setFocusPolicy(Qt::NoFocus);
   tree_->setContextMenuPolicy(Qt::CustomContextMenu);
+  tree_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  tree_->header()->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(tree_->header(), &QHeaderView::customContextMenuRequested, this,
+          &CasePage::showHeaderMenu);
   filter_ = new CaseFilter(tree_, left_);
   leftLayout_->addWidget(filter_);
   leftLayout_->addWidget(tree_, 1);
@@ -105,8 +109,14 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   summary_->setWordWrap(true);
   leftLayout_->addWidget(summary_);
 
-  connect(setBox_, &QComboBox::activated, this,
-          [this](int i) { selectSet(ss(setBox_->itemData(i).toString())); });
+  connect(setBox_, &QComboBox::activated, this, [this](int i) {
+    std::string id = ss(setBox_->itemData(i).toString());
+    if (id == kAcrossSetsId) {
+      selectAcrossSets();
+    } else {
+      selectSet(id);
+    }
+  });
   connect(tree_, &QTreeWidget::itemChanged, this,
           [this](QTreeWidgetItem *, int column) {
             if (column == 0) {
@@ -119,7 +129,7 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
           [this](QTreeWidgetItem *item) {
             QVariant id = item->data(0, kCaseIdRole);
             if (!id.isNull() && eligible(ss(id.toString()))) {
-              startCase(ss(id.toString()));
+              startCaseFromList(ss(id.toString()));
             }
           });
   connect(tickAllButton_, &QPushButton::clicked, this,
@@ -185,13 +195,48 @@ void CasePage::init() {
   for (int c = 1; c < headers.size(); ++c) {
     tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
   }
+  applyHiddenColumns();
   applySettings();
   populateSets();
   QSettings q;
   QString last = q.value(mode_ + "/set", q.value("trainer/set")).toString();
+  if (last == kAcrossSetsId && offersAcrossSets()) {
+    setId_ = ss(q.value(mode_ + "/shownSet").toString());
+    selectAcrossSets();
+    return;
+  }
   selectSet(last.isEmpty() && !library_.sets().empty()
                 ? library_.sets().front().id
                 : ss(last));
+}
+
+void CasePage::showHeaderMenu(const QPoint &pos) {
+  QMenu menu(this);
+  for (int c = 1; c < tree_->columnCount(); ++c) {
+    QAction *a = menu.addAction(tree_->headerItem()->text(c));
+    a->setCheckable(true);
+    a->setChecked(!tree_->isColumnHidden(c));
+    connect(a, &QAction::toggled, this, [this, c](bool on) {
+      tree_->setColumnHidden(c, !on);
+      QStringList hidden;
+      for (int k = 1; k < tree_->columnCount(); ++k) {
+        if (tree_->isColumnHidden(k)) {
+          hidden << tree_->headerItem()->text(k);
+        }
+      }
+      QSettings().setValue(mode_ + "/hiddenColumns", hidden);
+    });
+  }
+  menu.exec(tree_->header()->viewport()->mapToGlobal(pos));
+}
+
+void CasePage::applyHiddenColumns() {
+  QStringList hidden = QSettings()
+                           .value(mode_ + "/hiddenColumns", defaultHiddenColumns())
+                           .toStringList();
+  for (int c = 1; c < tree_->columnCount(); ++c) {
+    tree_->setColumnHidden(c, hidden.contains(tree_->headerItem()->text(c)));
+  }
 }
 
 // --- set and cases ----------------------------------------------------------
@@ -309,12 +354,30 @@ void CasePage::deactivated() { filter_->release(); }
 
 void CasePage::setFocusMode(bool on) { left_->setVisible(!on); }
 
+QString CasePage::setItemText(const AlgSet &s) {
+  return QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount());
+}
+
 void CasePage::populateSets() {
   QSignalBlocker block(setBox_);
   setBox_->clear();
+  if (offersAcrossSets()) {
+    setBox_->addItem(acrossItemText(), QString(kAcrossSetsId));
+    setBox_->insertSeparator(1);
+  }
   for (const auto &s : library_.sets()) {
-    setBox_->addItem(QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount()),
-                     qs(s.id));
+    setBox_->addItem(setItemText(s), qs(s.id));
+  }
+}
+
+void CasePage::refreshSetLabels() {
+  for (int i = 0; i < setBox_->count(); ++i) {
+    std::string id = ss(setBox_->itemData(i).toString());
+    if (id == kAcrossSetsId) {
+      setBox_->setItemText(i, acrossItemText());
+    } else if (const AlgSet *s = library_.find(id)) {
+      setBox_->setItemText(i, setItemText(*s));
+    }
   }
 }
 
@@ -323,12 +386,19 @@ void CasePage::reloadSets() {
     reloadPending_ = true;
     return;
   }
+  infoCache_.clear();
   populateSets();
   std::string id = setId_;
   if (!library_.find(id)) {
     id = library_.sets().empty() ? std::string() : library_.sets().front().id;
   }
-  if (id == setId_ && set()) {
+  if (acrossSets_) {
+    setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
+    setId_ = id;
+    computeInfo();
+    buildTree();
+    setReloaded();
+  } else if (id == setId_ && set()) {
     setBox_->setCurrentIndex(setBox_->findData(qs(id)));
     computeInfo();
     buildTree();
@@ -339,6 +409,10 @@ void CasePage::reloadSets() {
 }
 
 void CasePage::selectSet(const std::string &id) {
+  acrossSets_ = false;
+  if (id != setId_) {
+    filter_->clearSearch(); // another set's cases
+  }
   setId_ = id;
   if (!library_.find(id) && !library_.sets().empty()) {
     setId_ = library_.sets().front().id;
@@ -350,7 +424,51 @@ void CasePage::selectSet(const std::string &id) {
   startSet();
 }
 
-void CasePage::computeInfo() {
+void CasePage::selectAcrossSets() {
+  acrossSets_ = true;
+  if (!library_.find(setId_)) {
+    setId_ = library_.sets().empty() ? std::string() : library_.sets().front().id;
+  }
+  QSettings().setValue(mode_ + "/set", QString(kAcrossSetsId));
+  setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
+  computeInfo(true);
+  buildTree();
+  startSet();
+}
+
+void CasePage::showSet(const std::string &id) {
+  if (id == setId_ || !library_.find(id)) {
+    return;
+  }
+  filter_->clearSearch();
+  setId_ = id;
+  QSettings().setValue(mode_ + "/shownSet", qs(setId_));
+  computeInfo(true);
+  buildTree();
+}
+
+void CasePage::releaseKeys() {
+  filter_->release();
+  if (QWidget *focus = QApplication::focusWidget();
+      focus && isAncestorOf(focus)) {
+    focus->clearFocus();
+  }
+}
+
+void CasePage::startCaseFromList(const std::string &id) {
+  releaseKeys();
+  startCase(id);
+}
+
+void CasePage::computeInfo(bool cached) {
+  if (cached) {
+    if (auto it = infoCache_.find(setId_); it != infoCache_.end()) {
+      info_ = it->second.info;
+      families_ = it->second.families;
+      steps_ = it->second.steps;
+      return;
+    }
+  }
   info_.clear();
   families_ = {};
   steps_.clear();
@@ -376,6 +494,7 @@ void CasePage::computeInfo() {
   if (s->reduction) {
     steps_ = stepsLeft(*s);
   }
+  infoCache_[setId_] = InfoCache{info_, families_, steps_};
 }
 
 void CasePage::buildTree() {
@@ -419,6 +538,11 @@ void CasePage::buildTree() {
           maskedFacelets(info ? info->state : c.state, spec.mask, spec.free);
       item->setIcon(0, QIcon(cube_painter::cachedDiagram(masked, spec.view,
                                                          kThumb, look, dpr)));
+      QStringList algs;
+      for (const auto &a : c.algs) {
+        algs << qs(a);
+      }
+      item->setData(0, CaseFilter::kSearchRole, algs.join('\n'));
       if (eligible(c.id)) {
         item->setToolTip(0, qs(info->mainAlg));
       } else {
@@ -494,6 +618,12 @@ void CasePage::selectInTree(const std::string &caseId) {
   }
 }
 
+void CasePage::clearCaseSelection() {
+  QSignalBlocker block(tree_);
+  tree_->clearSelection();
+  tree_->setCurrentItem(nullptr);
+}
+
 void CasePage::updateRow(const std::string &caseId) {
   if (auto *item = itemFor(caseId)) {
     QSignalBlocker block(tree_);
@@ -531,20 +661,61 @@ void CasePage::saveTicks() {
 
 void CasePage::showCaseMenu(const QPoint &pos) {
   QTreeWidgetItem *item = tree_->itemAt(pos);
-  if (!item || item->data(0, kCaseIdRole).isNull()) {
+  if (!item || !set()) {
     return;
   }
-  std::string id = ss(item->data(0, kCaseIdRole).toString());
-  const AlgCase *c = set() ? set()->findCase(id) : nullptr;
-  if (!c) {
+  // The cases of a group's row, or of every selected row when the row
+  // right-clicked is one of them.
+  std::vector<std::string> ids;
+  auto add = [&ids](const QTreeWidgetItem *it) {
+    if (it->isHidden()) {
+      return;
+    }
+    if (it->data(0, kCaseIdRole).isNull()) {
+      for (int i = 0; i < it->childCount(); ++i) {
+        if (!it->child(i)->isHidden()) {
+          std::string id = ss(it->child(i)->data(0, kCaseIdRole).toString());
+          if (std::find(ids.begin(), ids.end(), id) == ids.end()) {
+            ids.push_back(id);
+          }
+        }
+      }
+      return;
+    }
+    std::string id = ss(it->data(0, kCaseIdRole).toString());
+    if (std::find(ids.begin(), ids.end(), id) == ids.end()) {
+      ids.push_back(id);
+    }
+  };
+  if (item->isSelected() && tree_->selectedItems().size() > 1) {
+    for (const QTreeWidgetItem *it : tree_->selectedItems()) {
+      add(it);
+    }
+  } else {
+    add(item);
+  }
+  if (ids.empty()) {
     return;
   }
   QMenu menu(this);
-  QAction *now =
-      menu.addAction(startCaseLabel(id), this, [this, id] { startCase(id); });
+  if (ids.size() > 1) {
+    menu.addSection(tr("%1 cases").arg(ids.size()));
+    extendCaseMenu(menu, ids);
+    if (menu.actions().size() > 1) { // more than the section
+      menu.exec(tree_->viewport()->mapToGlobal(pos));
+    }
+    return;
+  }
+  std::string id = ids.front();
+  const AlgCase *c = set()->findCase(id);
+  if (!c) {
+    return;
+  }
+  QAction *now = menu.addAction(startCaseLabel(id), this,
+                                [this, id] { startCaseFromList(id); });
   now->setEnabled(eligible(id));
   menu.addSeparator();
-  extendCaseMenu(menu, id);
+  extendCaseMenu(menu, ids);
   menu.addSeparator();
   menu.addAction(tr("Edit algs in Library…"), this,
                  [this, id] { emit editCaseRequested(qs(setId_), qs(id)); });
