@@ -4,6 +4,8 @@
 
 #include <QDialog>
 
+#include <array>
+
 class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;

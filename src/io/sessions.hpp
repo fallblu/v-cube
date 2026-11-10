@@ -4,6 +4,7 @@
 
 #include "io/data_file.hpp"
 
+#include <QByteArray>
 #include <QJsonObject>
 #include <QString>
 

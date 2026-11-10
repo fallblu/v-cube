@@ -6,12 +6,18 @@
 #include "train/stats.hpp"
 #include "train/timer.hpp"
 
+#include <QColor>
 #include <QFuture>
 #include <QLabel>
+#include <QRectF>
+#include <QSize>
 #include <QWidget>
 
+#include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace vcube {
 

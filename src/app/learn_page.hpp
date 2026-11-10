@@ -5,10 +5,15 @@
 #include "train/alg_follow.hpp"
 #include "train/solve_review.hpp"
 
+#include <QStringList>
 #include <QTimer>
 
 #include <array>
+#include <cstdint>
 #include <deque>
+#include <optional>
+#include <string>
+#include <vector>
 
 class QPushButton;
 class QSpinBox;

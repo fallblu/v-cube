@@ -4,6 +4,8 @@
 
 #include <QString>
 
+#include <vector>
+
 class QWidget;
 
 namespace vcube {

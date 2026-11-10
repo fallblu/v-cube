@@ -13,8 +13,12 @@
 #include <QFutureWatcher>
 #include <QTimer>
 
+#include <cstdint>
 #include <map>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 class QComboBox;
 class QLabel;

@@ -6,6 +6,7 @@
 #include <QDialog>
 
 #include <map>
+#include <string>
 #include <vector>
 
 class QCheckBox;

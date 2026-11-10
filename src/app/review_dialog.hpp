@@ -8,7 +8,9 @@
 
 #include <QDialog>
 #include <QFutureWatcher>
+#include <QList>
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <span>

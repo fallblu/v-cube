@@ -14,7 +14,11 @@
 
 #include <deque>
 #include <map>
+#include <optional>
+#include <string>
 #include <tuple>
+#include <utility>
+#include <vector>
 
 class QComboBox;
 class QLabel;

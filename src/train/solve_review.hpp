@@ -7,6 +7,7 @@
 #include "train/algset.hpp"
 #include "train/move_count.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>

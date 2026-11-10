@@ -13,7 +13,10 @@
 #include <QFutureWatcher>
 #include <QTimer>
 
+#include <array>
+#include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 class QComboBox;

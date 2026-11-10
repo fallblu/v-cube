@@ -9,6 +9,7 @@
 #include <array>
 #include <optional>
 #include <string>
+#include <utility>
 
 class QComboBox;
 class QLabel;

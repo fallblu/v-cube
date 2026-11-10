@@ -6,11 +6,14 @@
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
 
+#include <QList>
 #include <QTreeWidget>
 #include <QVariantMap>
 
 #include <map>
 #include <optional>
+#include <string>
+#include <vector>
 
 class QAction;
 class QFormLayout;

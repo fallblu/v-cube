@@ -3,6 +3,7 @@
 #include "cube/cubie.hpp"
 #include "cube/scramble.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
