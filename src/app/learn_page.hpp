@@ -293,7 +293,7 @@ private:
   void nextCase(bool early = false);
   // Across sets: the next due case of any set, switching the list to its
   // set; false when nothing is due anywhere.
-  bool nextAcrossSets(bool early);
+  bool nextAcrossSets();
   // Nothing to do: says why, and when to look again.
   void showIdle(const LearnPick &pick);
   void begin(const std::string &caseId, bool isNew, bool practice = false);

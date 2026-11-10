@@ -1222,7 +1222,8 @@ void LearnPage::nextCase(bool early) {
     nextQuiz();
     return;
   }
-  if (acrossSets() && nextAcrossSets(early)) {
+  // Across sets, the shown set's learning cases can still come early.
+  if (acrossSets() && nextAcrossSets()) {
     return;
   }
   if (!set()) {
@@ -1253,7 +1254,7 @@ void LearnPage::nextCase(bool early) {
   }
 }
 
-bool LearnPage::nextAcrossSets(bool early) {
+bool LearnPage::nextAcrossSets() {
   std::int64_t now = unixNow();
   std::int64_t dayEnd = localDayEnd();
   std::vector<SetDue> due;
@@ -1295,7 +1296,6 @@ bool LearnPage::nextAcrossSets(bool early) {
     }
     due[*i].due = 0;
   }
-  (void)early; // the shown set's learning cards, early, as for one set
   return false;
 }
 
