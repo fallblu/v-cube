@@ -463,6 +463,14 @@ void MainWindow::buildMenus() {
   for (QAction *menu : menuBar()->actions()) {
     addActions(menu->menu()->actions());
   }
+
+  // Library's own menus and Undo, shown only in Library mode; their keys
+  // stay with the page (they would act on it from other modes).
+  QAction *first = edit->actions().value(0);
+  edit->insertActions(first, libraryPage_->editActions());
+  for (QMenu *menu : libraryPage_->menus()) {
+    menuBar()->insertMenu(view->menuAction(), menu);
+  }
 }
 
 void MainWindow::openDataFolder() {
@@ -583,6 +591,15 @@ void MainWindow::showControls() {
       "them again. Once it is solved without help, <b>Space</b> moves on. "
       "<b>Esc</b> resets the cube and <b>Shift+Space</b> skips to the next "
       "case.</p>"
+      "<h3>Library</h3>"
+      "<p>The <b>Set</b> and <b>Cases</b> menus hold every action, with "
+      "keys: <b>Ctrl+Z</b> / <b>Ctrl+Shift+Z</b> undo and redo any change, "
+      "<b>Ctrl+Shift+V</b> pastes algs, <b>Ctrl+Shift+A</b> makes a case "
+      "from an alg, <b>Ctrl+N</b> a new set, <b>Alt+Enter</b> opens the set "
+      "properties and <b>Ctrl+K</b> checks the algs. <b>Delete</b>, "
+      "<b>F2</b> and <b>Alt+Up</b> / <b>Alt+Down</b> remove, rename and "
+      "move the selected cases or group, or the selected alg when the alg "
+      "list has the keys. Ctrl- or Shift-click selects several cases.</p>"
       "<h3>Timed</h3>"
       "<p>Hold <b>Space</b> until the time turns green, release to start. "
       "With inspection on, tap Space to start inspecting first. <b>Esc</b> "
