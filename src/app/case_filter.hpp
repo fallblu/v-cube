@@ -15,8 +15,9 @@ namespace vcube {
 // A search box and a status choice over a case list whose top-level items
 // are groups and whose children are cases. Cases that don't match are
 // hidden, and so are groups left without any. A group's name matches all
-// its cases, so "BL" finds every case in a "BL" group. Enter in the search
-// box gives the keys back, Esc clears it too.
+// its cases, so "BL" finds every case in a "BL" group, and so does any
+// text a case item holds in kSearchRole (such as its algs). Enter in the
+// search box gives the keys back, Esc clears it too.
 class CaseFilter : public QWidget {
   Q_OBJECT
 public:
@@ -26,6 +27,8 @@ public:
     QString name;
     Test test;
   };
+  // Column 0 data of a case item: more text the search matches.
+  static constexpr int kSearchRole = Qt::UserRole + 20;
 
   CaseFilter(QTreeWidget *tree, QWidget *parent);
   // The choices after "All cases".
@@ -36,6 +39,8 @@ public:
   bool isActive() const;
   // Gives the keys back, e.g. when the page is left.
   void release();
+  // Empties the search box (e.g. for another set), keeping the status.
+  void clearSearch();
 
 signals:
   // The search or status changed (and was applied).

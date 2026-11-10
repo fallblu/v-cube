@@ -1,5 +1,7 @@
 #include "app/drill_page.hpp"
 
+#include "train/alg_follow.hpp"
+
 #include <QComboBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -294,6 +296,13 @@ std::vector<CasePage::CaseStatusFilter> DrillPage::statusFilters() {
          return mean && s && s->targetSeconds > 0 &&
                 *mean > s->targetSeconds * 1000.0;
        }},
+      {tr("Slow to recognise"),
+       [this](const std::string &id) {
+         const CaseProgress *cp = progressOf(id);
+         std::optional<double> mean =
+             cp ? cp->recognitionMean() : std::nullopt;
+         return mean && *mean > settings_.slowRecognitionMs;
+       }},
   };
 }
 
@@ -523,6 +532,10 @@ void DrillPage::nextCase() {
     QString text;
     if (!s) {
       text = tr("No alg set selected.");
+    } else if (tickedEligible().empty() && tickedCount() > 0 &&
+               excludedCount() > 0) {
+      text = tr("None of the ticked cases has an alg that solves it yet. "
+                "Add algs in Library mode, e.g. with Paste algs.");
     } else if (tickedEligible().empty()) {
       text = tr("Tick some cases that have algs to drill them.");
     } else if (poolChoice() == Pool::Learned) {
@@ -565,7 +578,11 @@ void DrillPage::retryCase() {
   setDiagram({});
   resultRow_->setVisible(false);
   display_->showTime(0);
-  selectInTree(current_->caseId);
+  // The list names the case only once it is revealed.
+  clearCaseSelection();
+  shownAtMs_ = monotonicMs();
+  firstTurnMs_ = 0;
+  timingValid_ = true;
   if (onVirtualCube()) {
     ++scrambleRequest_; // a physical scramble still on its way is dropped
     scrambleLabel_->clear();
@@ -708,6 +725,7 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
       if (virt) {
         resetCube();
       }
+      timingValid_ = false; // the case was seen before this try
       setPhase(Phase::Waiting);
       statusLabel_->setText(tr("Solve cancelled; nothing was recorded. Hold "
                                "Space to try the case again."));
@@ -721,6 +739,12 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
       // Only Space stops the timer; the turning keys turn the cube.
       if (press && key == Qt::Key_Space) {
         stopVirtual(now);
+      } else if (press && move && firstTurnMs_ == 0 &&
+                 !udTurn(attempt_.cube(), *move) && attempt_.turn(*move)) {
+        // The first turn of a layer off the U-D axis ends recognition.
+        firstTurnMs_ = now;
+        cubeView_->animateMove(*move);
+        followView();
       } else if (press && move && attempt_.turn(*move)) {
         cubeView_->animateMove(*move);
         followView();
@@ -781,6 +805,7 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
       if (virt) {
         attempt_.start();
       }
+      startMs_ = now;
       setPhase(Phase::Running);
     }
   }
@@ -909,9 +934,18 @@ void DrillPage::finish(std::int64_t timeMs, bool failed, bool gaveUp) {
   failed_ = failed;
   unfinished_ = failed && !gaveUp;
   gaveUp_ = gaveUp;
-  progress()[current_->caseId].record(
-      {unixNow(), timeMs, failed, attemptMode()});
+  Attempt a{unixNow(), timeMs, failed, attemptMode()};
+  // On the virtual cube: recognition from the case being set up to the
+  // first turn off U and D, execution from there to the stop; only for a
+  // case solved, which was recognised rightly.
+  if (onVirtualCube() && timingValid_ && firstTurnMs_ > 0 && !failed) {
+    a.recognitionMs = std::max<std::int64_t>(1, firstTurnMs_ - shownAtMs_);
+    a.executionMs =
+        std::max<std::int64_t>(0, timeMs - (firstTurnMs_ - startMs_));
+  }
+  progress()[current_->caseId].record(a);
   saveProgress();
+  selectInTree(current_->caseId);
   setPhase(Phase::Revealed);
   showReveal();
   showResult();
