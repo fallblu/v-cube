@@ -241,6 +241,9 @@ private:
   // set's order for new cases.
   std::vector<std::string> pool() const;
   NewOrder newOrder() const;
+  // The case's attempts: its own, and its family's Learn attempts when the
+  // family shares a card.
+  std::vector<Attempt> attemptsOf(const std::string &caseId);
   // Turns of the main alg, for "shortest alg first".
   int algMoves(const std::string &caseId) const;
   // A random ticked case of a family to set up for its card.

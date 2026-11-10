@@ -320,6 +320,31 @@ std::size_t CaseProgress::drillCount(AttemptMode mode) const {
 }
 
 std::optional<double> CaseProgress::recognitionMean(std::size_t n) const {
+  return vcube::recognitionMean(attempts, n);
+}
+
+std::vector<Attempt> caseAttempts(const CaseProgress *own,
+                                  const CaseProgress *familyCard) {
+  std::vector<Attempt> out;
+  if (own) {
+    out = own->attempts;
+  }
+  if (familyCard) {
+    for (const Attempt &a : familyCard->attempts) {
+      if (a.mode == AttemptMode::Learn) {
+        out.push_back(a);
+      }
+    }
+    std::stable_sort(out.begin(), out.end(),
+                     [](const Attempt &a, const Attempt &b) {
+                       return a.timestamp < b.timestamp;
+                     });
+  }
+  return out;
+}
+
+std::optional<double> recognitionMean(const std::vector<Attempt> &attempts,
+                                      std::size_t n) {
   double sum = 0;
   std::size_t count = 0;
   for (auto it = attempts.rbegin(); it != attempts.rend() && count < n; ++it) {

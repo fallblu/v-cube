@@ -141,6 +141,15 @@ struct CaseProgress {
   std::optional<double> recognitionMean(std::size_t n = 5) const;
 };
 
+// A case's attempts when it may share its card with its mirror family:
+// its own attempts and, from `familyCard` (null when the case has its own
+// card), the family's Learn attempts, oldest first.
+std::vector<Attempt> caseAttempts(const CaseProgress *own,
+                                  const CaseProgress *familyCard);
+// Mean recognition time of the last n attempts that measured it, in ms.
+std::optional<double> recognitionMean(const std::vector<Attempt> &attempts,
+                                      std::size_t n = 5);
+
 // Learning status shown in the case list.
 enum class CaseStatus : std::uint8_t { Unstarted, Learning, Learned };
 CaseStatus statusOf(const CaseProgress *p);

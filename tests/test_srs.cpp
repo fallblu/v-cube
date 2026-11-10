@@ -592,6 +592,28 @@ TEST_CASE("leeches, recognition means and counts") {
   CHECK(n.dueTomorrow == 1);
 }
 
+TEST_CASE("a family card's learn attempts count for each of its cases") {
+  CaseProgress own;
+  Attempt drill{10, 3000, false, AttemptMode::VirtualDrill};
+  drill.recognitionMs = 1000;
+  own.record(drill);
+  own.record({30, 0, false, AttemptMode::Learn}); // before families
+  CaseProgress family;
+  Attempt learn{20, 0, false, AttemptMode::Learn};
+  learn.recognitionMs = 3000;
+  family.record(learn);
+  family.record({25, 2000, false, AttemptMode::PhysicalDrill}); // not its
+  std::vector<Attempt> all = caseAttempts(&own, &family);
+  REQUIRE(all.size() == 3);
+  CHECK(all[0].timestamp == 10);
+  CHECK(all[1].timestamp == 20);
+  CHECK(all[2].timestamp == 30);
+  CHECK(*recognitionMean(all) == 2000.0);
+  CHECK(caseAttempts(&own, nullptr).size() == 2);
+  CHECK(caseAttempts(nullptr, &family).size() == 1);
+  CHECK(caseAttempts(nullptr, nullptr).empty());
+}
+
 TEST_CASE("reviews across sets are interleaved by what is due") {
   std::mt19937_64 rng(1);
   CHECK_FALSE(pickSetToReview({}, rng));

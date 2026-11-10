@@ -1,14 +1,12 @@
 #include "app/learn_page.hpp"
 
+#include "app/case_history_dialog.hpp"
 #include "app/widgets.hpp"
 
 #include <QComboBox>
 #include <QDateTime>
-#include <QDialog>
-#include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
-#include <QHeaderView>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
@@ -18,7 +16,6 @@
 #include <QSettings>
 #include <QSpinBox>
 #include <QSplitter>
-#include <QTableWidget>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -549,9 +546,7 @@ std::vector<CasePage::CaseStatusFilter> LearnPage::statusFilters() {
        }},
       {tr("Slow to recognise"),
        [this](const std::string &id) {
-         const CaseProgress *cp = progressOf(id);
-         std::optional<double> mean =
-             cp ? cp->recognitionMean() : std::nullopt;
+         std::optional<double> mean = recognitionMean(attemptsOf(id));
          return mean && *mean > settings_.slowRecognitionMs;
        }},
   };
@@ -605,9 +600,7 @@ void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
   item->setText(2, cp && !isQueued(cp->card)
                        ? dueText(cp, now, localDayEnd())
                        : QString("-"));
-  // Recognition goes with each case (its own attempts), not its family.
-  const CaseProgress *own = progressOf(caseId);
-  std::optional<double> recog = own ? own->recognitionMean() : std::nullopt;
+  std::optional<double> recog = recognitionMean(attemptsOf(caseId));
   item->setText(3, secondsText(recog));
   item->setForeground(3, recog && *recog > settings_.slowRecognitionMs
                              ? kLearning
@@ -730,13 +723,21 @@ QString LearnPage::acrossItemText() {
 
 void LearnPage::extendCaseMenu(QMenu &menu,
                                const std::vector<std::string> &caseIds) {
-  // The cards of the cases (a family's once).
+  // The cards of the cases (a family's once); for several cases, only of
+  // those that can be learned.
   std::vector<std::string> cards;
   for (const auto &id : caseIds) {
+    if (caseIds.size() > 1 && !eligible(id)) {
+      continue;
+    }
     std::string card = cardId(id);
     if (std::find(cards.begin(), cards.end(), card) == cards.end()) {
       cards.push_back(card);
     }
+  }
+  if (cards.empty()) {
+    menu.addAction(tr("None of these cases has an alg yet"))->setEnabled(false);
+    return;
   }
   auto change = [this, cards, caseIds](auto &&apply) {
     for (const auto &card : cards) {
@@ -854,113 +855,18 @@ void LearnPage::extendCaseMenu(QMenu &menu,
     menu.addAction(tr("History…"), this, [this, id] {
       const AlgSet *s = set();
       const AlgCase *c = s ? s->findCase(id) : nullptr;
-      if (!c) {
-        return;
+      if (c) {
+        showCaseHistory(this, qs(c->name), cardOf(id), attemptsOf(id),
+                        byFamily() && cardId(id) != id, settings_.srs);
       }
-      QDialog dialog(this);
-      dialog.setWindowTitle(tr("History of %1").arg(qs(c->name)));
-      auto *layout = new QVBoxLayout(&dialog);
-      const CaseProgress *card = cardOf(id);
-      const CaseProgress *own = progressOf(id);
-      auto date = [](std::int64_t t) {
-        return t <= 1 ? QString("-")
-                      : QDateTime::fromSecsSinceEpoch(t).toString(
-                            "yyyy-MM-dd hh:mm");
-      };
-      QString info;
-      if (card && card->card.state != CardState::New) {
-        const SrsCard &k = card->card;
-        static const char *states[] = {"new", "learning", "in review",
-                                       "relearning"};
-        info = tr("<p><b>%1</b>, %2. Introduced %3%4. Reviews %5, "
-                  "lapses %6, ease %7%, interval %8 d, due %9.</p>")
-                   .arg(qs(c->name).toHtmlEscaped(),
-                        tr(states[static_cast<int>(k.state)]),
-                        date(k.introduced),
-                        k.marked ? tr(" (marked as learned)") : QString())
-                   .arg(k.reps)
-                   .arg(k.lapses)
-                   .arg(std::lround(k.ease * 100))
-                   .arg(k.intervalDays, 0, 'f', 1)
-                   .arg(k.state == CardState::Review ? date(k.due)
-                                                     : dueText(card, unixNow(),
-                                                               localDayEnd()));
-        if (isLeech(k, settings_.srs)) {
-          info += "<p style='color:#ff5555'>" +
-                  tr("A leech: forgotten %1 times. A different alg, a "
-                     "mnemonic for its recognition or suspending it for a "
-                     "while may help.")
-                      .arg(k.lapses)
-                      .toHtmlEscaped() +
-                  "</p>";
-        }
-        if (byFamily()) {
-          info += "<p>" +
-                  tr("The card is shared by the case's family; the attempts "
-                     "below are this case's.")
-                      .toHtmlEscaped() +
-                  "</p>";
-        }
-      } else {
-        info = "<p>" + tr("Not started in Learn.").toHtmlEscaped() + "</p>";
-      }
-      auto *label = new QLabel(info, &dialog);
-      label->setWordWrap(true);
-      layout->addWidget(label);
-      auto *table = new QTableWidget(&dialog);
-      table->setColumnCount(5);
-      table->setHorizontalHeaderLabels(
-          {tr("When"), tr("Mode"), tr("Result"), tr("Recognition"),
-           tr("Execution / time")});
-      table->verticalHeader()->setVisible(false);
-      table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-      table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-      std::vector<Attempt> attempts;
-      if (own) {
-        attempts = own->attempts;
-      }
-      if (card && card != own) {
-        for (const Attempt &a : card->attempts) {
-          if (a.mode == AttemptMode::Learn) {
-            attempts.push_back(a);
-          }
-        }
-      }
-      std::sort(attempts.begin(), attempts.end(),
-                [](const Attempt &a, const Attempt &b) {
-                  return a.timestamp > b.timestamp;
-                });
-      table->setRowCount(static_cast<int>(attempts.size()));
-      for (int r = 0; r < static_cast<int>(attempts.size()); ++r) {
-        const Attempt &a = attempts[static_cast<std::size_t>(r)];
-        QString mode = a.mode == AttemptMode::Learn
-                           ? (a.recognitionOnly ? tr("Recognise") : tr("Learn"))
-                       : a.mode == AttemptMode::VirtualDrill
-                           ? tr("Drill (virtual)")
-                           : tr("Drill (physical)");
-        QString result = a.mode == AttemptMode::Learn
-                             ? (a.failed ? tr("Again") : tr("passed"))
-                             : (a.failed ? tr("DNF") : tr("ok"));
-        std::int64_t exec =
-            a.mode == AttemptMode::Learn ? a.executionMs : a.timeMs;
-        QStringList cells = {
-            date(a.timestamp), mode, result,
-            a.recognitionMs > 0
-                ? secondsText(static_cast<double>(a.recognitionMs))
-                : QString("-"),
-            exec > 0 ? secondsText(static_cast<double>(exec)) : QString("-")};
-        for (int col = 0; col < 5; ++col) {
-          table->setItem(r, col, new QTableWidgetItem(cells[col]));
-        }
-      }
-      layout->addWidget(table, 1);
-      auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-      connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-      layout->addWidget(buttons);
-      dialog.resize(640, 480);
-      dialog.exec();
     });
   }
+}
+
+std::vector<Attempt> LearnPage::attemptsOf(const std::string &caseId) {
+  const CaseProgress *own = progressOf(caseId);
+  const CaseProgress *card = cardOf(caseId);
+  return caseAttempts(own, card != own ? card : nullptr);
 }
 
 // --- the learn queue -------------------------------------------------------
@@ -1806,6 +1712,10 @@ void LearnPage::undoLast() {
   Undo u = std::move(undo_.back());
   undo_.pop_back();
   undoOpen_ = false;
+  if (!library_.find(u.setId)) {
+    emit message(tr("The set of that grade is gone"));
+    return;
+  }
   SetProgress &p = library_.progress(u.setId);
   // Latest first, so that a card graded twice in the attempt ends up as it
   // was at the start.
@@ -3018,41 +2928,47 @@ void LearnPage::showGrade() {
             .arg(colour));
   };
   const QString grey = "#6b6f78";
+  // On one line beside the badge while it fits, wrapped after that.
+  auto detail = [this](const QString &text) {
+    gradeLabel_->setText(text);
+    gradeLabel_->setMinimumWidth(
+        std::min(gradeLabel_->fontMetrics().horizontalAdvance(text) + 8, 420));
+  };
   QString why = grade_ != autoGrade_ ? tr("graded by hand") : why_;
   const CaseProgress *card =
       progressOf(gradedCard_.empty() ? cardId(current_->caseId) : gradedCard_);
   QString next = dueText(card, unixNow(), localDayEnd());
   if (recalled) {
     badge(tr(gradeName(grade_)), gradeColour(grade_));
-    gradeLabel_->setText(tr("%1. Grade yourself:").arg(why));
+    detail(tr("%1. Grade yourself:").arg(why));
     return;
   }
   if (gradeReplaced_) {
     badge(tr("Changed"), grey);
-    gradeLabel_->setText(tr("from the case list → next %1").arg(next));
+    detail(tr("from the case list → next %1").arg(next));
     return;
   }
   if (current_->practice) {
     badge(grade_ == Grade::Again ? tr("Missed") : tr("Well done"),
           grade_ == Grade::Again ? gradeColour(Grade::Again) : grey);
-    gradeLabel_->setText(
+    detail(
         tr("Practice (%1), not graded; next review %2.").arg(why, next));
     return;
   }
   if (walkedThrough_) {
     badge(tr("Walked through"), "#5a6b80");
-    gradeLabel_->setText(tr("Not graded: it comes back in %1 to do from "
+    detail(tr("Not graded: it comes back in %1 to do from "
                             "memory. 1-4 grade it now instead.")
                              .arg(next));
     return;
   }
   if (!graded_) {
     badge(tr(gradeName(grade_)), grey);
-    gradeLabel_->setText(tr("(%1), not graded").arg(why));
+    detail(tr("(%1), not graded").arg(why));
     return;
   }
   badge(tr(gradeName(grade_)), gradeColour(grade_));
-  gradeLabel_->setText(tr("%1 → next %2").arg(why, next));
+  detail(tr("%1 → next %2").arg(why, next));
 }
 
 } // namespace vcube

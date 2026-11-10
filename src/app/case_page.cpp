@@ -699,7 +699,9 @@ void CasePage::showCaseMenu(const QPoint &pos) {
   if (ids.size() > 1) {
     menu.addSection(tr("%1 cases").arg(ids.size()));
     extendCaseMenu(menu, ids);
-    menu.exec(tree_->viewport()->mapToGlobal(pos));
+    if (menu.actions().size() > 1) { // more than the section
+      menu.exec(tree_->viewport()->mapToGlobal(pos));
+    }
     return;
   }
   std::string id = ids.front();
