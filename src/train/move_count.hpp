@@ -88,12 +88,8 @@ struct StepProgress {
 };
 StepProgress stepProgress(const FaceletCube &cube);
 
-// Moves in HTM, as moveCount() counts them (the same count as the Library
-// shows): every turn of an outer layer (a face or a wide turn) is one move, a
-// slice turn is two, and rotations are free.
-int htmCount(const Alg &alg);
-// A solution's move count (HTM). Simplified, the turns that cancel or join
-// across turns of the parallel layers and rotations about the same axis
+// A solution's move count (HTM, htmCount()). Simplified, the turns that cancel
+// or join across turns of the parallel layers and rotations about the same axis
 // are taken out first (simplify()): U D U' counts as D, R x R' as nothing.
 // Otherwise every turn counts as it was done.
 int solutionHtm(const Alg &solution, bool simplified = true);

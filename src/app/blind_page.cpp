@@ -1375,7 +1375,7 @@ void BlindPage::turnSetup(Move m) {
   if (op::isValidSetup(item_->kind, item_->sticker, setupMoves_)) {
     std::optional<Alg> scheme = scheme_.setup(item_->kind, item_->sticker);
     Alg done = simplify(setupMoves_);
-    int moves = moveCount(done);
+    int moves = htmCount(done);
     finishItem(
         true,
         tr("Set up in %1: %2. The setup in your scheme: %3")

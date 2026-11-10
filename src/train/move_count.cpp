@@ -271,7 +271,6 @@ StepProgress stepProgress(const FaceletCube &cube) {
   return best;
 }
 
-int htmCount(const Alg &alg) { return moveCount(alg); }
 int solutionHtm(const Alg &solution, bool simplified) {
   return htmCount(simplified ? simplify(solution) : solution);
 }
