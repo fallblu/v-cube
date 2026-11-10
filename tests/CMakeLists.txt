@@ -60,3 +60,32 @@ if(VCUBE_SANITIZE AND NOT MSVC)
 else()
   catch_discover_tests(vcube_tests)
 endif()
+
+# The app's pages, driven through the main window on the offscreen
+# platform (the test sets it, and its own temporary settings and data
+# folders, itself).
+if(TARGET vcube_gui)
+  find_package(Qt6 REQUIRED COMPONENTS Test)
+  add_executable(vcube_gui_tests test_gui.cpp)
+  target_link_libraries(vcube_gui_tests PRIVATE vcube_gui Qt6::Test
+    vcube_warnings)
+  set_target_properties(vcube_gui_tests PROPERTIES AUTOMOC ON)
+  if(WIN32)
+    # Qt's libraries are copied next to the test, away from its plugins.
+    target_compile_definitions(vcube_gui_tests PRIVATE
+      VCUBE_QT_PLUGIN_DIR="${QT6_INSTALL_PREFIX}/${QT6_INSTALL_PLUGINS}")
+    add_custom_command(TARGET vcube_gui_tests POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_RUNTIME_DLLS:vcube_gui_tests>
+        $<TARGET_FILE_DIR:vcube_gui_tests>
+      COMMAND_EXPAND_LISTS)
+  endif()
+  add_test(NAME gui COMMAND vcube_gui_tests)
+  set(gui_test_env "QT_QPA_PLATFORM=offscreen")
+  if(VCUBE_SANITIZE AND NOT MSVC)
+    list(APPEND gui_test_env
+      "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp")
+  endif()
+  set_tests_properties(gui PROPERTIES ENVIRONMENT "${gui_test_env}"
+    TIMEOUT 120)
+endif()
