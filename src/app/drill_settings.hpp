@@ -35,6 +35,9 @@ struct DrillSettings {
 
   void load(const QSettings &q);
   void save(QSettings &q) const;
+
+  friend bool operator==(const DrillSettings &,
+                         const DrillSettings &) = default;
 };
 
 // The Drill tab of the Settings dialog.

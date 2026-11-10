@@ -65,14 +65,19 @@ public:
             QWidget *parent = nullptr);
 
   bool handleKey(QKeyEvent *e, bool press) override;
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
+           SettingsPart::Thumbnails | SettingsPart::Timer | SettingsPart::Srs |
+           SettingsPart::Drill;
+  }
   void applySettings() override;
   bool isBusy() const override;
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;
-  void setFocusMode(bool on) override;
 
 protected:
+  void focusModeChanged() override;
   QStringList columns() const override;
   std::vector<CaseStatusFilter> statusFilters() override;
   void fillRow(QTreeWidgetItem *item, const std::string &caseId) override;

@@ -53,11 +53,18 @@ public:
   ~AttemptPage() override;
 
   bool handleKey(QKeyEvent *e, bool press) override;
+  // A typed move count: Backspace and Esc go on as they are held.
+  bool acceptsAutoRepeat(const QKeyEvent *e) const override;
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
+           SettingsPart::Timer | SettingsPart::Counts;
+  }
   void applySettings() override;
-  bool isBusy() const override { return phase_ == Phase::Solving; }
+  bool isBusy() const override {
+    return phase_ == Phase::Solving || hold_ != Hold::None;
+  }
   void deactivated() override;
   void windowDeactivated() override { cancelHold(); }
-  void setFocusMode(bool on) override;
   // The alg sets changed (Untimed offers alg set scrambles); an alg set
   // scramble is made again only when its own set (`changedSet`) changed.
   void refreshScrambleTypes(const QString &changedSet = {});
@@ -67,6 +74,7 @@ public:
   static constexpr std::size_t kWorst = 5;
 
 protected:
+  void focusModeChanged() override;
   bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
@@ -124,7 +132,6 @@ private:
   // Untimed, virtual: the optimal EO Cross after a solve.
   QFutureWatcher<std::optional<int>> eoWatcher_;
   std::optional<int> eoYours_;
-  bool focusMode_ = false;
 
   QWidget *leftPanel_;
   QWidget *typeRow_;

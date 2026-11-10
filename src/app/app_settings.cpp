@@ -160,6 +160,37 @@ AppSettings AppSettings::load() {
   return s;
 }
 
+SettingsParts changedParts(const AppSettings &a, const AppSettings &b) {
+  SettingsParts parts;
+  auto mark = [&parts](bool changed, SettingsPart part) {
+    if (changed) {
+      parts |= part;
+    }
+  };
+  mark(a.darkTheme != b.darkTheme, SettingsPart::Theme);
+  mark(!(a.scheme == b.scheme) || a.animationMs != b.animationMs,
+       SettingsPart::Cube);
+  mark(!(a.keymap == b.keymap), SettingsPart::Keys);
+  mark(a.neutrality != b.neutrality, SettingsPart::Neutrality);
+  mark(a.scrambleFontPt != b.scrambleFontPt ||
+           a.hintTextPercent != b.hintTextPercent ||
+           a.timerFontPt != b.timerFontPt,
+       SettingsPart::Text);
+  mark(a.thumbnailSize != b.thumbnailSize, SettingsPart::Thumbnails);
+  mark(a.holdMs != b.holdMs || a.inspection != b.inspection ||
+           a.inspectionSounds != b.inspectionSounds ||
+           a.decimals != b.decimals || a.autoStop != b.autoStop ||
+           a.hideBeforeInspection != b.hideBeforeInspection,
+       SettingsPart::Timer);
+  mark(a.simplifiedCounts != b.simplifiedCounts ||
+           a.optimalAnyHold != b.optimalAnyHold,
+       SettingsPart::Counts);
+  mark(!(a.srs == b.srs) || a.slowRecognitionMs != b.slowRecognitionMs,
+       SettingsPart::Srs);
+  mark(!(a.drill == b.drill), SettingsPart::Drill);
+  return parts;
+}
+
 void AppSettings::save() const {
   QSettings q;
   q.setValue("ui/darkTheme", darkTheme);

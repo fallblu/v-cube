@@ -52,12 +52,16 @@ public:
             QWidget *parent = nullptr);
 
   bool handleKey(QKeyEvent *e, bool press) override;
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
+           SettingsPart::Thumbnails | SettingsPart::Srs;
+  }
   void applySettings() override;
   void activated() override;
   void deactivated() override;
-  void setFocusMode(bool on) override;
 
 protected:
+  void focusModeChanged() override;
   // Enter in the "Start learning" count starts learning when a number was
   // typed, and any other key leaves the field, so that the keys go back to
   // the cube either way.
@@ -233,7 +237,6 @@ private:
   std::array<QPushButton *, 4> gradeButtons_{};
   QSplitter *split_;
   bool listHidden_ = false;
-  bool focusMode_ = false;
   QTimer idleTimer_; // with nothing due: looks again when a card falls due
 
   std::optional<Guide> guide_;

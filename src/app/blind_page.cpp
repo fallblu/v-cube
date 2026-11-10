@@ -484,7 +484,8 @@ void BlindPage::look(Move m) {
   cubeView_->setMarks(movedMarks(cubeView_->marks(), m));
 }
 
-void BlindPage::setFocusMode(bool on) {
+void BlindPage::focusModeChanged() {
+  const bool on = focusMode();
   leftPanel_->setVisible(!on);
   optionsRow_->setVisible(!on);
   chart_->setVisible(!on && drill_ == Drill::Solves);
@@ -557,7 +558,7 @@ void BlindPage::selectDrill(Drill d) {
   cubeBox_->setVisible(d == Drill::Solves);
   sessionButton_->setVisible(d == Drill::Solves);
   resetStatsButton_->setVisible(letters);
-  chart_->setVisible(d == Drill::Solves && optionsRow_->isVisibleTo(this));
+  chart_->setVisible(d == Drill::Solves && !focusMode());
   traceRow_->setVisible(d == Drill::Tracing);
   setupRow_->setVisible(d == Drill::Setups && !setupsOnCube());
   bool physical = d == Drill::Solves && !onVirtualCube();
@@ -726,7 +727,7 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
     if (!known) {
       return false;
     }
-    if (!press || e->isAutoRepeat()) {
+    if (!press) {
       return true;
     }
     if (!item_) {
@@ -784,7 +785,7 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
     if (!known) {
       return false;
     }
-    if (!press || e->isAutoRepeat()) {
+    if (!press) {
       return true;
     }
     if (!item_) {
@@ -828,7 +829,7 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
     if (!known) {
       return false;
     }
-    if (!press || e->isAutoRepeat()) {
+    if (!press) {
       return true;
     }
     if (phase_ == Phase::Ready || phase_ == Phase::Done) {
@@ -867,7 +868,7 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
   if (!onVirtualCube()) {
     if (phase_ == Phase::Executing) {
       // Any key stops the timer, except Esc, which cancels.
-      if (!press || e->isAutoRepeat()) {
+      if (!press) {
         return true;
       }
       if (key == Qt::Key_Escape) {
@@ -881,7 +882,7 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
     if (!known) {
       return false;
     }
-    if (!press || e->isAutoRepeat()) {
+    if (!press) {
       return true;
     }
     if (key == Qt::Key_Escape) {
@@ -914,7 +915,7 @@ bool BlindPage::handleKey(QKeyEvent *e, bool press) {
   if (!known) {
     return false;
   }
-  if (!press || e->isAutoRepeat()) {
+  if (!press) {
     return true;
   }
   if (key == Qt::Key_Escape) {

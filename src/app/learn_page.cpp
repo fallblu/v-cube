@@ -440,7 +440,7 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
       learnCount_->clearFocus();
       if (typed) {
         learnNext();
-      } else {
+      } else if (!ke->isAutoRepeat()) {
         handleKey(ke, true);
       }
       return true;
@@ -459,9 +459,11 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
         key == Qt::Key_Right || key == Qt::Key_Home || key == Qt::Key_End) {
       return false;
     }
-    // Any other key is meant for the cube.
+    // Any other key is meant for the cube (once, if held down).
     learnCount_->clearFocus();
-    handleKey(ke, true);
+    if (!ke->isAutoRepeat()) {
+      handleKey(ke, true);
+    }
     return true;
   }
   return CasePage::eventFilter(watched, event);
@@ -488,17 +490,16 @@ void LearnPage::activated() {
   }
 }
 
-void LearnPage::setFocusMode(bool on) {
-  focusMode_ = on;
-  CasePage::setFocusMode(on);
-  left_->setVisible(!on && !listHidden_);
-  optionsRow_->setVisible(!on);
+void LearnPage::focusModeChanged() {
+  CasePage::focusModeChanged();
+  left_->setVisible(!focusMode() && !listHidden_);
+  optionsRow_->setVisible(!focusMode());
 }
 
 void LearnPage::toggleList() {
   listHidden_ = !listHidden_;
   QSettings().setValue("learn/listHidden", listHidden_);
-  left_->setVisible(!listHidden_ && !focusMode_);
+  left_->setVisible(!listHidden_ && !focusMode());
   listButton_->setText(listHidden_ ? tr("Show list") : tr("Hide list"));
 }
 
@@ -2125,19 +2126,16 @@ bool LearnPage::handleKey(QKeyEvent *e, bool press) {
   const bool ctrl = e->modifiers().testFlag(Qt::ControlModifier);
   const bool shift = e->modifiers().testFlag(Qt::ShiftModifier);
   if (key == Qt::Key_Z && ctrl) {
-    if (press && !e->isAutoRepeat()) {
+    if (press) {
       undoLast();
     }
     return true;
   }
   if (key == Qt::Key_F9) {
-    if (press && !e->isAutoRepeat()) {
+    if (press) {
       toggleList();
     }
     return true;
-  }
-  if (e->isAutoRepeat()) {
-    return key == Qt::Key_Space;
   }
   if (!press) {
     return key == Qt::Key_Space;

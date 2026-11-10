@@ -43,6 +43,8 @@ struct SrsConfig {
   std::int64_t learnAheadSeconds = 0;
   // A case forgotten this many times is a leech (0: never).
   int leechLapses = 6;
+
+  friend bool operator==(const SrsConfig &, const SrsConfig &) = default;
 };
 
 struct SrsCard {

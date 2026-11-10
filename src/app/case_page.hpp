@@ -48,7 +48,6 @@ public:
   void applySettings() override;
   void activated() override;
   void deactivated() override;
-  void setFocusMode(bool on) override;
 
   // The set drop-down's entry for reviewing every set at once.
   static constexpr const char *kAcrossSetsId = "*across*";
@@ -59,6 +58,7 @@ signals:
   void editCaseRequested(const QString &setId, const QString &caseId);
 
 protected:
+  void focusModeChanged() override;
   // `mode` names the page in settings keys ("learn", "drill").
   CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
            QWidget *parent);

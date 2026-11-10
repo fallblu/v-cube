@@ -488,7 +488,8 @@ void InspectionPage::deactivated() {
 
 void InspectionPage::windowDeactivated() { cancel(); }
 
-void InspectionPage::setFocusMode(bool on) {
+void InspectionPage::focusModeChanged() {
+  const bool on = focusMode();
   leftPanel_->setVisible(!on);
   optionsRow_->setVisible(!on);
   chart_->setVisible(!on);
@@ -619,7 +620,7 @@ void InspectionPage::showDrill() {
     }
   }
   pairBox_->setCurrentIndex(pairIndex);
-  chartBox_->setVisible(plan && optionsRow_->isVisibleTo(this));
+  chartBox_->setVisible(plan && !focusMode());
   auto stepIt = std::find(planSteps().begin(), planSteps().end(), s.step);
   stepBox_->setCurrentIndex(static_cast<int>(
       stepIt == planSteps().end()
@@ -1195,7 +1196,7 @@ bool InspectionPage::handleKey(QKeyEvent *e, bool press) {
   if (!known) {
     return false;
   }
-  if (!press || (e->isAutoRepeat() && key != Qt::Key_Backspace)) {
+  if (!press) {
     return true;
   }
   if (entryKey) {

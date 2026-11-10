@@ -53,11 +53,17 @@ public:
                  QWidget *parent = nullptr);
 
   bool handleKey(QKeyEvent *e, bool press) override;
+  // Backspace goes on deleting typed digits as it is held.
+  bool acceptsAutoRepeat(const QKeyEvent *e) const override {
+    return e->key() == Qt::Key_Backspace;
+  }
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality;
+  }
   void applySettings() override;
   bool isBusy() const override;
   void deactivated() override;
   void windowDeactivated() override;
-  void setFocusMode(bool on) override;
 
   // Plans Plan attempt `index` of the session again, not recorded.
   void startRetry(int index);
@@ -67,6 +73,9 @@ signals:
   // step (a SolveStep) and the attempt's index in the session.
   void reviewRequested(const QString &scramble, const QString &solution,
                        int step, int index);
+
+protected:
+  void focusModeChanged() override;
 
 private:
   // Ready: the cube hidden until Space. Plan: Inspecting (the cube shown,

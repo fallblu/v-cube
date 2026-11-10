@@ -6,6 +6,7 @@
 #include "train/srs.hpp"
 
 #include <QApplication>
+#include <QFlags>
 #include <QStringList>
 
 #include <cstdint>
@@ -79,6 +80,29 @@ struct AppSettings {
   static AppSettings load();
   void save() const;
 };
+
+// The parts of AppSettings, so that a change tells only the pages that
+// use the part changed (see ModePage::settingsUsed()).
+enum class SettingsPart : unsigned {
+  Theme = 1 << 0,      // darkTheme
+  Cube = 1 << 1,       // scheme, animationMs
+  Keys = 1 << 2,       // keymap
+  Neutrality = 1 << 3, // neutrality
+  Text = 1 << 4,       // scrambleFontPt, hintTextPercent, timerFontPt
+  Thumbnails = 1 << 5, // thumbnailSize
+  // holdMs, inspection, inspectionSounds, decimals, autoStop,
+  // hideBeforeInspection
+  Timer = 1 << 6,
+  Counts = 1 << 7, // simplifiedCounts, optimalAnyHold
+  Srs = 1 << 8,    // srs, slowRecognitionMs
+  Drill = 1 << 9,  // drill
+  All = (1 << 10) - 1,
+};
+Q_DECLARE_FLAGS(SettingsParts, SettingsPart)
+Q_DECLARE_OPERATORS_FOR_FLAGS(SettingsParts)
+
+// The parts that differ between two settings.
+SettingsParts changedParts(const AppSettings &a, const AppSettings &b);
 
 // Sets the application style and a dark or a light palette (an explicit
 // one either way, so that "Light" stays light on a dark desktop).

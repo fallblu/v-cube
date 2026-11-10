@@ -387,7 +387,7 @@ void TimerPage::showCubeKind() {
   bool virt = onVirtualCube();
   cubeBox_->setCurrentIndex(virt ? 0 : 1);
   cubeView_->setVisible(virt);
-  viewPicker_->setVisible(virt && !focusMode_);
+  viewPicker_->setVisible(virt && !focusMode());
   net_->setVisible(!virt);
   QStringList hidden = hiddenColumns();
   const QStringList names = {"#",   "time",  "ao5", "ao12", "moves",
@@ -460,8 +460,8 @@ void TimerPage::updateControls() {
   controlsLocked_ = busy;
 }
 
-void TimerPage::setFocusMode(bool on) {
-  focusMode_ = on;
+void TimerPage::focusModeChanged() {
+  const bool on = focusMode();
   leftPanel_->setVisible(!on);
   typeRow_->setVisible(!on);
   chart_->setVisible(!on);
@@ -605,9 +605,6 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
   bool virt = onVirtualCube();
   std::optional<Move> move =
       virt ? settings_.keymap.lookup(e) : std::optional<Move>();
-  if (e->isAutoRepeat()) {
-    return e->key() == Qt::Key_Space || move.has_value();
-  }
   std::int64_t now = monotonicMs();
   using S = SolveTimer::State;
   // Back to the scramble as it was dealt, e.g. after a cancelled solve.

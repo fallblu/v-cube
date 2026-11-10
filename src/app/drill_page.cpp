@@ -295,7 +295,7 @@ AttemptMode DrillPage::attemptMode() const {
 void DrillPage::showCubeKind() {
   bool virt = onVirtualCube();
   cubeView_->setVisible(virt);
-  viewRow_->setVisible(virt && left_->isVisibleTo(this));
+  viewRow_->setVisible(virt && !focusMode());
   scrambleLabel_->setVisible(!virt);
   wrongButton_->setText(virt ? tr("DNF (Backspace)")
                              : tr("Wrong alg (Backspace)"));
@@ -304,9 +304,9 @@ void DrillPage::showCubeKind() {
            : tr("Mark the attempt as failed: the wrong alg was done"));
 }
 
-void DrillPage::setFocusMode(bool on) {
-  CasePage::setFocusMode(on);
-  viewRow_->setVisible(!on && onVirtualCube());
+void DrillPage::focusModeChanged() {
+  CasePage::focusModeChanged();
+  viewRow_->setVisible(!focusMode() && onVirtualCube());
 }
 
 QStringList DrillPage::columns() const {
@@ -1140,9 +1140,6 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
   std::optional<Move> move =
       virt ? settings_.keymap.lookup(e) : std::optional<Move>();
   int key = e->key();
-  if (e->isAutoRepeat()) {
-    return key == Qt::Key_Space || move.has_value();
-  }
   // A modifier alone does nothing, and never stops the timer.
   if (isModifierKey(key)) {
     return phase_ == Phase::Running;

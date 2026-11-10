@@ -39,6 +39,7 @@ public:
 
   void activated() override;
   void deactivated() override;
+  SettingsParts settingsUsed() const override { return SettingsPart::Srs; }
   void applySettings() override;
 
 signals:

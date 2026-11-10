@@ -74,6 +74,9 @@ public:
               QWidget *parent = nullptr);
 
   void selectCase(const QString &setId, const QString &caseId);
+  SettingsParts settingsUsed() const override {
+    return SettingsPart::Cube | SettingsPart::Neutrality;
+  }
   void applySettings() override;
   void importSetFile();
   void exportSetFile();

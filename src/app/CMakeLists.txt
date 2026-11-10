@@ -1,5 +1,6 @@
 # Everything but main(), so tools and tests can link the widgets.
 add_library(vcube_gui STATIC
+  app_data.cpp
   app_settings.cpp
   attempt_page.cpp
   blind_page.cpp
@@ -15,14 +16,17 @@ add_library(vcube_gui STATIC
   drill_page.cpp
   drill_settings.cpp
   flow_layout.cpp
+  help_panel.cpp
   help_text.cpp
   inspection_page.cpp
+  key_router.cpp
   keymap.cpp
   learn_page.cpp
   library_page.cpp
   paste_dialog.cpp
   main_window.cpp
   mode_page.hpp
+  mode_table.cpp
   platform.cpp
   review_dialog.cpp
   scramble_source.cpp
@@ -32,6 +36,7 @@ add_library(vcube_gui STATIC
   sounds.cpp
   timer_page.cpp
   today_page.cpp
+  ui_state.cpp
   widgets.cpp
 )
 target_include_directories(vcube_gui PUBLIC ${PROJECT_SOURCE_DIR}/src)

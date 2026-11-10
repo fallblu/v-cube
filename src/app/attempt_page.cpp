@@ -445,8 +445,8 @@ void AttemptPage::deactivated() {
   returnFocus();
 }
 
-void AttemptPage::setFocusMode(bool on) {
-  focusMode_ = on;
+void AttemptPage::focusModeChanged() {
+  const bool on = focusMode();
   if (on) {
     returnFocus();
   }
@@ -516,7 +516,7 @@ void AttemptPage::showCubeKind() {
   display_->setVisible(moveCount_);
   display_->setToolTip(typed ? tr("The move count you are typing")
                              : tr("Moves so far (HTM)"));
-  algPanel_->setVisible(!moveCount_ && virt && typeRow_->isVisibleTo(this));
+  algPanel_->setVisible(!moveCount_ && virt && !focusMode());
   if (moveCount_) {
     table_->setHorizontalHeaderLabels(
         {"#", tr("Moves"), tr("Opt"), "ao5", "ao12"});
@@ -532,8 +532,8 @@ void AttemptPage::showCubeKind() {
   if (scramblesOnly()) {
     header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
   }
-  chart_->setVisible(!scramblesOnly() && !focusMode_);
-  focusStats_->setVisible(focusMode_ && !scramblesOnly());
+  chart_->setVisible(!scramblesOnly() && !focusMode());
+  focusStats_->setVisible(focusMode() && !scramblesOnly());
   history_.clear();
   index_ = 0;
   entry_.clear();
@@ -722,7 +722,7 @@ bool AttemptPage::handleActionKey(QKeyEvent *e, bool press) {
   if (!known) {
     return false;
   }
-  if (!press || e->isAutoRepeat() || isBusy() || hold_ != Hold::None) {
+  if (!press || isBusy()) {
     return true;
   }
   if (mods == Qt::AltModifier) {
@@ -745,6 +745,11 @@ bool AttemptPage::handleActionKey(QKeyEvent *e, bool press) {
   return true;
 }
 
+bool AttemptPage::acceptsAutoRepeat(const QKeyEvent *e) const {
+  return !onVirtualCube() &&
+         (e->key() == Qt::Key_Backspace || e->key() == Qt::Key_Escape);
+}
+
 bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
   int key = e->key();
   if (handleActionKey(e, press)) {
@@ -758,9 +763,6 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
                  (enter && phase_ == Phase::Done);
     if (!known) {
       return false;
-    }
-    if (e->isAutoRepeat()) {
-      return true;
     }
     if (!press) {
       if (key == Qt::Key_Space) {
@@ -810,7 +812,7 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
     if (!forward && !back) {
       return false;
     }
-    if (press && !e->isAutoRepeat()) {
+    if (press) {
       if (forward) {
         next();
       } else {
@@ -832,7 +834,7 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
     return true;
   }
   if (digit) {
-    if (!e->isAutoRepeat() && entry_.size() < kMaxDigits) {
+    if (entry_.size() < kMaxDigits) {
       // No leading zeros: "0" then "7" is 7.
       QString nextDigits = entry_ == "0" ? QString() : entry_;
       setEntry(nextDigits + QChar('0' + (key - Qt::Key_0)));
@@ -841,7 +843,7 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
     setEntry(entry_.left(entry_.size() - 1));
   } else if (key == Qt::Key_Escape) {
     setEntry({});
-  } else if (!e->isAutoRepeat()) { // Enter
+  } else { // Enter
     recordTyped(false);
   }
   return true;
@@ -895,7 +897,7 @@ void AttemptPage::cancelHold() {
 }
 
 void AttemptPage::showHold() {
-  if (focusMode_) {
+  if (focusMode()) {
     hintLabel_->setVisible(hold_ != Hold::None);
   }
   if (hold_ == Hold::None) {
