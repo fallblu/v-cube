@@ -1,5 +1,7 @@
 #include "cube/solver.hpp"
 
+#include "cube/coord.hpp"
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -11,13 +13,17 @@ namespace vcube {
 
 namespace {
 
-constexpr int kTwist = 2187;      // 3^7
-constexpr int kFlip = 2048;       // 2^11
+using coord::flipOf;
+using coord::kFlip;
+using coord::kMoves;
+using coord::kTwist;
+using coord::setTwist;
+using coord::twistOf;
+
 constexpr int kSlice = 495;       // C(12, 4)
 constexpr int kSolvedSlice = 494; // slice edges in positions FR..BR
 constexpr int kPerm8 = 40320;     // 8!
 constexpr int kPerm4 = 24;        // 4!
-constexpr int kMoves = 18;        // face * 3 + (amount - 1)
 
 // The ten moves of phase 2: U, U2, U', R2, F2, D, D2, D', L2, B2.
 constexpr std::array<int, 10> kPhase2Moves = {0, 1, 2, 4, 7, 9, 10, 11, 13, 16};
@@ -73,42 +79,6 @@ template <std::size_t N> std::array<int, N> unrankPermutation(int rank) {
 }
 
 // --- coordinates ----------------------------------------------------------
-
-int twistOf(const CubieCube &c) {
-  int t = 0;
-  for (std::size_t i = 0; i < 7; ++i) {
-    t = t * 3 + c.co[i];
-  }
-  return t;
-}
-
-void setTwist(CubieCube &c, int t) {
-  int sum = 0;
-  for (std::size_t i = 7; i-- > 0;) {
-    c.co[i] = static_cast<std::uint8_t>(t % 3);
-    sum += c.co[i];
-    t /= 3;
-  }
-  c.co[7] = static_cast<std::uint8_t>((3 - sum % 3) % 3);
-}
-
-int flipOf(const CubieCube &c) {
-  int f = 0;
-  for (std::size_t i = 0; i < 11; ++i) {
-    f = f * 2 + c.eo[i];
-  }
-  return f;
-}
-
-void setFlip(CubieCube &c, int f) {
-  int sum = 0;
-  for (std::size_t i = 11; i-- > 0;) {
-    c.eo[i] = static_cast<std::uint8_t>(f % 2);
-    sum += c.eo[i];
-    f /= 2;
-  }
-  c.eo[11] = static_cast<std::uint8_t>(sum % 2);
-}
 
 // Which 4 positions hold the slice edges (FR, FL, BL, BR), as a
 // combination index.
@@ -201,20 +171,16 @@ struct Tables {
   std::vector<std::int8_t> twistSlicePrune, flipSlicePrune;
   std::vector<std::int8_t> cornerSlicePrune, edgeSlicePrune;
 
-  Tables() {
-    for (int f = 0; f < 6; ++f) {
-      CubieCube c;
-      for (int a = 0; a < 3; ++a) {
-        c = c * faceTurnCubie(static_cast<Face>(f));
-        moveCubes[static_cast<std::size_t>(f * 3 + a)] = c;
-      }
-    }
-    twistMove = buildMove(kTwist, setTwist, twistOf, allMoves());
-    flipMove = buildMove(kFlip, setFlip, flipOf, allMoves());
-    sliceMove = buildMove(kSlice, setSlice, sliceOf, allMoves());
-    cornerPermMove = buildMove(kPerm8, setCornerPerm, cornerPermOf, phase2());
-    udEdgePermMove = buildMove(kPerm8, setUdEdgePerm, udEdgePermOf, phase2());
-    slicePermMove = buildMove(kPerm4, setSlicePerm, slicePermOf, phase2());
+  Tables() : moveCubes(coord::moveCubies()) {
+    using coord::buildMoveTable;
+    twistMove = buildMoveTable(kTwist, setTwist, twistOf, allMoves());
+    flipMove = coord::flipMoveTable();
+    sliceMove = buildMoveTable(kSlice, setSlice, sliceOf, allMoves());
+    cornerPermMove =
+        buildMoveTable(kPerm8, setCornerPerm, cornerPermOf, phase2());
+    udEdgePermMove =
+        buildMoveTable(kPerm8, setUdEdgePerm, udEdgePermOf, phase2());
+    slicePermMove = buildMoveTable(kPerm4, setSlicePerm, slicePermOf, phase2());
 
     twistSlicePrune = buildPrune(kTwist, kSlice, twistMove, sliceMove,
                                  0 * kSlice + kSolvedSlice, allMoves());
@@ -235,23 +201,6 @@ struct Tables {
   }
   static std::vector<int> phase2() {
     return {kPhase2Moves.begin(), kPhase2Moves.end()};
-  }
-
-  template <typename Set, typename Get>
-  std::vector<std::uint16_t> buildMove(int size, Set set, Get get,
-                                       const std::vector<int> &moves) const {
-    std::vector<std::uint16_t> table(static_cast<std::size_t>(size * kMoves),
-                                     0);
-    for (int i = 0; i < size; ++i) {
-      CubieCube c;
-      set(c, i);
-      for (int m : moves) {
-        CubieCube n = c * moveCubes[static_cast<std::size_t>(m)];
-        table[static_cast<std::size_t>(i * kMoves + m)] =
-            static_cast<std::uint16_t>(get(n));
-      }
-    }
-    return table;
   }
 
   // Breadth-first distances over the product of two coordinates.
@@ -372,14 +321,6 @@ private:
     return timedOut_;
   }
 
-  static bool skipFace(int face, int prevFace) {
-    if (prevFace < 0) {
-      return false;
-    }
-    // Same face, or the opposite face in the non-canonical order.
-    return face == prevFace || (face % 3 == prevFace % 3 && face < prevFace);
-  }
-
   int prune1(int twist, int flip, int slice) const {
     return std::max(
         t_.twistSlicePrune[static_cast<std::size_t>(twist * kSlice + slice)],
@@ -414,7 +355,7 @@ private:
       return false;
     }
     for (int face = 0; face < 6; ++face) {
-      if (skipFace(face, prevFace)) {
+      if (coord::skipFace(face, prevFace)) {
         continue;
       }
       for (int a = 0; a < 3; ++a) {
@@ -454,8 +395,7 @@ private:
         result_.clear();
         for (int i = 0; i < depth1 + d2; ++i) {
           int m = moves_[static_cast<std::size_t>(i)];
-          result_.push_back({static_cast<MoveType>(m / 3),
-                             static_cast<std::uint8_t>(m % 3 + 1)});
+          result_.push_back(coord::moveOf(m));
         }
         if (!anytime_) {
           return true;
@@ -480,7 +420,7 @@ private:
     }
     for (int m : kPhase2Moves) {
       int face = m / 3;
-      if (skipFace(face, prevFace)) {
+      if (coord::skipFace(face, prevFace)) {
         continue;
       }
       auto mi = static_cast<std::size_t>(m);

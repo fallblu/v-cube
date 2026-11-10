@@ -1,5 +1,6 @@
 #include "train/step_solver.hpp"
 
+#include "cube/coord.hpp"
 #include "cube/facelet.hpp"
 
 #include <algorithm>
@@ -14,8 +15,8 @@ namespace vcube {
 
 namespace {
 
-constexpr int kFlips = 2048; // 2^11: the twelfth edge's flip follows
-constexpr int kMoves = 18;   // face * 3 + (amount - 1)
+using coord::kFlip;
+using coord::kMoves;
 constexpr int kPositions = kEdges;
 constexpr std::uint8_t kUnseen = 0xff;
 
@@ -24,24 +25,6 @@ constexpr std::array<int, 4> kCross = {DF, DR, DB, DL};
 // The six pairs of cross edges, as indices into kCross.
 constexpr std::array<std::array<int, 2>, 6> kPairs = {
     {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}}};
-
-int flipOf(const CubieCube &c) {
-  int f = 0;
-  for (std::size_t i = 0; i < 11; ++i) {
-    f = f * 2 + c.eo[i];
-  }
-  return f;
-}
-
-void setFlip(CubieCube &c, int f) {
-  int sum = 0;
-  for (std::size_t i = 11; i-- > 0;) {
-    c.eo[i] = static_cast<std::uint8_t>(f % 2);
-    sum += c.eo[i];
-    f /= 2;
-  }
-  c.eo[11] = static_cast<std::uint8_t>(sum % 2);
-}
 
 struct Tables {
   // flipMove[flip * kMoves + move], posMove[position * kMoves + move]: the
@@ -109,15 +92,6 @@ std::vector<std::uint8_t> crossDistances(const Tables &t) {
   return dist;
 }
 
-CubieCube moveCubie(int move) {
-  CubieCube c;
-  const CubieCube &turn = faceTurnCubie(static_cast<Face>(move / 3));
-  for (int i = 0; i <= move % 3; ++i) {
-    c = c * turn;
-  }
-  return c;
-}
-
 // Distances from the solved state for EO plus the given cross edges (by
 // kCross index), by breadth-first search over (flip, positions).
 std::vector<std::uint8_t> distances(const Tables &t,
@@ -126,7 +100,7 @@ std::vector<std::uint8_t> distances(const Tables &t,
   for (std::size_t i = 0; i < edges.size(); ++i) {
     posCount *= kPositions;
   }
-  std::vector<std::uint8_t> dist(kFlips * posCount, kUnseen);
+  std::vector<std::uint8_t> dist(kFlip * posCount, kUnseen);
   auto encode = [&](int flip, std::span<const int> pos) {
     std::size_t idx = static_cast<std::size_t>(flip);
     for (int p : pos) {
@@ -171,20 +145,8 @@ std::vector<std::uint8_t> distances(const Tables &t,
 
 Tables buildTables() {
   Tables t;
-  std::array<CubieCube, kMoves> moves{};
-  for (int m = 0; m < kMoves; ++m) {
-    moves[static_cast<std::size_t>(m)] = moveCubie(m);
-  }
-  t.flipMove.resize(kFlips * kMoves);
-  for (int f = 0; f < kFlips; ++f) {
-    CubieCube c;
-    setFlip(c, f);
-    for (int m = 0; m < kMoves; ++m) {
-      t.flipMove[static_cast<std::size_t>(f * kMoves + m)] =
-          static_cast<std::uint16_t>(
-              flipOf(c * moves[static_cast<std::size_t>(m)]));
-    }
-  }
+  const std::array<CubieCube, kMoves> moves = coord::moveCubies();
+  t.flipMove = coord::flipMoveTable();
   // After a move, the piece at position j is at the position i that the
   // move fills from j.
   t.posMove.resize(kPositions * kMoves);
@@ -224,7 +186,7 @@ struct State {
 
 State stateOf(const CubieCube &c) {
   State s;
-  s.flip = flipOf(c);
+  s.flip = coord::flipOf(c);
   for (std::size_t e = 0; e < kCross.size(); ++e) {
     for (std::size_t i = 0; i < kEdges; ++i) {
       if (c.ep[i] == kCross[e]) {
@@ -333,15 +295,14 @@ private:
       }
       Alg alg;
       for (int m : path_) {
-        alg.push_back(Move{static_cast<MoveType>(m / 3),
-                           static_cast<std::uint8_t>(m % 3 + 1), 0});
+        alg.push_back(coord::moveOf(m));
       }
       found_.push_back(std::move(alg));
       return false;
     }
     for (int face = 0; face < 6; ++face) {
       // Never the same face twice, and opposite faces in one order only.
-      if (face == lastFace || (lastFace >= 3 && face == lastFace - 3)) {
+      if (coord::skipFace(face, lastFace)) {
         continue;
       }
       for (int a = 0; a < 3; ++a) {
@@ -472,8 +433,9 @@ PairTables buildPairTables() {
   PairTables t;
   t.cornerMove.resize(24 * kMoves);
   t.edgeMove.resize(24 * kMoves);
+  const std::array<CubieCube, kMoves> moves = coord::moveCubies();
   for (int m = 0; m < kMoves; ++m) {
-    CubieCube mc = moveCubie(m);
+    const CubieCube &mc = moves[static_cast<std::size_t>(m)];
     for (std::size_t i = 0; i < kCorners; ++i) {
       for (int twist = 0; twist < 3; ++twist) {
         int from = mc.cp[i] * 3 + twist;
@@ -567,8 +529,7 @@ public:
       if (dfs(start, depth, -1)) {
         Alg alg;
         for (int m : path_) {
-          alg.push_back(Move{static_cast<MoveType>(m / 3),
-                             static_cast<std::uint8_t>(m % 3 + 1), 0});
+          alg.push_back(coord::moveOf(m));
         }
         return alg;
       }
@@ -611,7 +572,7 @@ private:
     for (int m : kRulMoves) {
       int face = m / 3;
       // Never the same face twice, and R before L only (they commute).
-      if (face == lastFace || (lastFace >= 3 && face == lastFace - 3)) {
+      if (coord::skipFace(face, lastFace)) {
         continue;
       }
       Node next;
@@ -643,15 +604,9 @@ private:
 std::optional<Alg>
 solvePairRul(const CubieCube &state, Corner corner, Edge edge,
              const std::vector<std::pair<Corner, Edge>> &keep, int maxDepth) {
-  // A ZZ F2L state: every edge oriented and the cross solved.
-  if (std::any_of(state.eo.begin(), state.eo.end(),
-                  [](auto o) { return o != 0; })) {
+  // A ZZ F2L state: EO Cross done.
+  if (!stepDoneAsHeld(state, SolveStep::EOCross)) {
     return std::nullopt;
-  }
-  for (int e : kCross) {
-    if (state.ep[static_cast<std::size_t>(e)] != e) {
-      return std::nullopt;
-    }
   }
   auto slotOf = [](Corner c, Edge e) -> std::optional<std::size_t> {
     for (std::size_t s = 0; s < 4; ++s) {

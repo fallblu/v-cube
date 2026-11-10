@@ -650,11 +650,11 @@ int unsolvedCount(const CubieCube &cube, BldPiece kind) {
   int n = 0;
   if (kind == BldPiece::Edge) {
     for (std::size_t i = 0; i < kEdges; ++i) {
-      n += cube.ep[i] != static_cast<std::uint8_t>(i) || cube.eo[i] != 0;
+      n += !edgeSolved(cube, static_cast<Edge>(i));
     }
   } else {
     for (std::size_t i = 0; i < kCorners; ++i) {
-      n += cube.cp[i] != static_cast<std::uint8_t>(i) || cube.co[i] != 0;
+      n += !cornerSolved(cube, static_cast<Corner>(i));
     }
   }
   return n;

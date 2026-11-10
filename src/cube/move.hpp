@@ -106,6 +106,6 @@ Alg simplify(const Alg &alg);
 // Number of moves in HTM, the one count used everywhere: a turn of an outer
 // layer (a face or a wide turn) is one move, a slice turn (M, E, S) is two
 // and rotations are free.
-int moveCount(const Alg &alg);
+int htmCount(const Alg &alg);
 
 } // namespace vcube
