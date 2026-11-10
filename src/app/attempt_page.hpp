@@ -4,35 +4,37 @@
 #include "app/cube_view.hpp"
 #include "app/mode_page.hpp"
 #include "app/scramble_source.hpp"
+#include "app/session_panel.hpp"
 #include "app/widgets.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
+#include "train/attempt_flow.hpp"
 #include "train/move_count.hpp"
+#include "train/session_edit.hpp"
 
-#include <QFutureWatcher>
 #include <QTimer>
 
-#include <deque>
-#include <map>
+#include <cstddef>
+#include <functional>
 #include <optional>
 #include <string>
-#include <tuple>
-#include <utility>
 #include <vector>
 
 class QComboBox;
+class QHBoxLayout;
 class QLabel;
-class QLineEdit;
-class QMenu;
 class QPushButton;
-class QTableWidget;
-class QToolButton;
+class QVBoxLayout;
 
 namespace vcube {
 
-// Untimed and Move Count mode: solves with no timer, kept in sessions with
-// their move counts. Each session is for the virtual cube or a physical
-// one (and in Move Count for one step), fixed once it has solves.
+class FlowLayout;
+struct ReviewedSolve;
+
+// What Untimed and Move Count mode share (UntimedPage, MoveCountPage):
+// solves with no timer, kept in sessions with their move counts. Each
+// session is for the virtual cube or a physical one (and in Move Count for
+// one step), fixed once it has solves.
 //
 // On the virtual cube the scrambled cube can only be turned as a whole
 // until Space starts the solve, and Space ends it (Untimed can end it when
@@ -40,7 +42,9 @@ namespace vcube {
 // DNF when the cube isn't where it should be: solved in Untimed, the
 // session's step done (EO, EO Cross, ...) in Move Count. Move Count goes
 // straight on to the next scramble; Untimed leaves the cube to turn freely
-// (and apply algs to) until Space or Enter asks for the next one.
+// (and apply algs to) until Space or Enter asks for the next one. The
+// states and what each key does are AttemptFlow's; the page does what it
+// says.
 //
 // On a physical cube Move Count has the count typed in for each scramble,
 // and Untimed shows scrambles (Space for the next, Backspace to go back)
@@ -48,185 +52,206 @@ namespace vcube {
 class AttemptPage : public ModePage {
   Q_OBJECT
 public:
-  AttemptPage(AppSettings &settings, MoveCountStore &store, AlgLibrary &library,
-              QWidget *parent = nullptr);
   ~AttemptPage() override;
 
   bool handleKey(QKeyEvent *e, bool press) override;
   void applySettings() override;
-  bool isBusy() const override { return phase_ == Phase::Solving; }
+  bool isBusy() const override { return flow_.isBusy(); }
   void deactivated() override;
-  void windowDeactivated() override { cancelHold(); }
+  void windowDeactivated() override;
   void setFocusMode(bool on) override;
   // The alg sets changed (Untimed offers alg set scrambles); an alg set
   // scramble is made again only when its own set (`changedSet`) changed.
   void refreshScrambleTypes(const QString &changedSet = {});
 
-  static constexpr std::size_t kHistory = 100;
   // How many of the worst solves "Retry the worst" queues.
   static constexpr std::size_t kWorst = 5;
 
 protected:
-  bool eventFilter(QObject *obj, QEvent *event) override;
+  // `moveCount`: the flow is Move Count's (see AttemptFlow::Config);
+  // `mode` names the page's settings ("untimed", "movecount"). The
+  // subclass adds its own widgets, sets the scramble type box with
+  // setTypeBox() and then calls start().
+  AttemptPage(AppSettings &settings, MoveCountStore &store, AlgLibrary &library,
+              const QString &mode, bool moveCount, QWidget *parent);
 
-private:
-  // On the virtual cube: looking at the scramble (rotations only), solving,
-  // and (Untimed) turning freely after the solve.
-  enum class Phase { Inspect, Solving, Done };
-  // Space held to start a solve on the virtual cube: as in Timed mode, it
-  // must be held for the hold time (Ready) before releasing it starts.
-  enum class Hold { None, Holding, Ready };
-  // Optimal lengths by step, scramble and which holds (true: any hold).
-  using OptimalKey = std::tuple<SolveStep, std::string, bool>;
-  using OptimalResults = std::vector<std::pair<std::string, int>>;
+  // --- for the subclass to build the page ---
+  // Adds "Scramble:", the type box (and `extra` after it, if any), the
+  // cube box, the view picker and Skip to the type row.
+  void setTypeBox(ScrambleTypeBox *box, QWidget *extra = nullptr);
+  // Shows the session and scramble and starts the feed.
+  void start();
+  FlowLayout *typeLayout() const { return typeLayout_; }
+  QWidget *typeRow() const { return typeRow_; }
+  QVBoxLayout *centre() const { return centre_; }
+  QHBoxLayout *buttonRow() const { return buttonRow_; }
+  // Adds a widget below the cube, above the chart.
+  void addBelowCentre(QWidget *w);
+
+  // --- what the subclasses differ in ---
+  // The widgets the session's cube needs (beyond the cube, view and net).
+  virtual void showModeWidgets(bool virtualCube) = 0;
+  virtual std::vector<AttemptColumn> columns() const = 0;
+  // The cells after # of an attempt's row, with its rolling averages.
+  virtual void addCells(std::vector<AttemptCell> &cells,
+                        const MoveCountAttempt &a, const QString &ao5,
+                        const QString &ao12) const = 0;
+  // More statistics below the table of them.
+  virtual void addStats(QString &html) { (void)html; }
+  virtual QString physicalHint() const = 0;
+  virtual QString solvingHint() const = 0;
+  // The cube shows what the solve was for (solved, or the step done).
+  virtual bool reached(const FaceletCube &cube) const = 0;
+  virtual QString notReachedText() const = 0;
+  // What a retry's result line adds about the attempt it repeats.
+  virtual QString retryNote(const MoveCountAttempt &was) const {
+    (void)was;
+    return {};
+  }
+  virtual QString retryWorstTip() const = 0;
+  virtual bool reviewable(const MoveCountAttempt &a) const {
+    return !a.solution.empty();
+  }
+  virtual void describeReview(ReviewedSolve &solve, int index) const = 0;
+  virtual void addDetails(QList<QPair<QString, QString>> &rows,
+                          const MoveCountAttempt &a) const {
+    (void)rows;
+    (void)a;
+  }
+  // The optimal length of an attempt, for "Retry the worst": none by
+  // default.
+  virtual std::function<std::optional<int>(const MoveCountAttempt &)>
+  optimalLookup() const {
+    return {};
+  }
+  // A new session: the name suggested and the dialog's label, and the
+  // session set up from the one that was current (`was`).
+  virtual QString suggestedName() const = 0;
+  virtual QString newSessionLabel() const = 0;
+  virtual void setUpSession(MoveCountSession &s, const QString &name,
+                            const MoveCountSession &was) = 0;
+  // Untimed on a physical cube keeps only scrambles.
+  virtual bool scramblesOnly() const { return false; }
+  // The scramble gone back to, if any, and how it reads.
+  virtual const GeneratedScramble *historyScramble() const { return nullptr; }
+  virtual QString scrambleText(const GeneratedScramble &s) const {
+    return s.text;
+  }
+  // Hooks around what the base does.
+  virtual void sessionShown() {}
+  virtual void settingsApplied() {}
+  virtual void typesRefreshed() {}
+  virtual void scrambleTypeChanged(const QString &type, bool fresh) {
+    (void)type;
+    (void)fresh;
+  }
+  virtual void scrambleShown(const GeneratedScramble *shown) { (void)shown; }
+  virtual void phaseShown(bool done) { (void)done; }
+  virtual void holdShown(const QColor &colour) { (void)colour; }
+  virtual void entryShown() {}
+  virtual void controlsEnabled(bool on) { (void)on; }
+  virtual void focusModeChanged(bool on) { (void)on; }
+  virtual void returnFocus() {}
+  // Tab: shows or hides the algs; false when they aren't offered.
+  virtual bool toggleAlgs() { return false; }
+  // An attempt was recorded from a solve on the virtual cube.
+  virtual void solveRecorded(const MoveCountAttempt &a) { (void)a; }
+  // Scrambles only: forward (keeping the scramble shown as done), back,
+  // and on to the new scramble.
+  virtual void forward() {}
+  virtual void back() {}
+  virtual void historyToEnd() {}
+  virtual void historyCleared() {}
+
+  // --- for the subclasses ---
+  MoveCountSession &session() { return store_.current(); }
+  const MoveCountSession &session() const { return store_.current(); }
+  bool onVirtualCube() const;
+  bool focusMode() const { return focusMode_; }
+  // The scramble shown: a retry's, one gone back to, or the feed's.
+  const GeneratedScramble *shownScramble() const;
+  // Does what the flow said.
+  void apply(const AttemptFlow::Effects &e);
+  // Records the current scramble with `count` (nullopt: not counted), and
+  // the solution done on the virtual cube.
+  void record(std::optional<int> count, bool dnf,
+              const std::string &solution = {});
+  void showScramble();
+  void showEntry();
+  void updateControls();
+  void refreshAttempts();
+  void selectSession(std::size_t index);
+  void save();
 
   AppSettings &settings_;
   MoveCountStore &store_;
   AlgLibrary &library_;
-  const bool moveCount_; // Move Count, not Untimed
   ScrambleFeed feed_;
-  ScrambleAlgs *algs_ = nullptr; // Untimed only
+  AttemptFlow flow_;
   VirtualAttempt attempt_;
-  Phase phase_ = Phase::Inspect;
-  Hold hold_ = Hold::None;
+
+  SessionPanel *panel_;
+  ScrambleTypeBox *typeBox_ = nullptr;
+  CubeView *cubeView_;
+  TimeDisplay *display_;
+  QLabel *lastLabel_;
+  TrendChart *chart_;
+
+private:
+  const bool moveCountFlow_; // the flow's configuration only
   QTimer holdTimer_;
   // While Space is held: a popup or dialog taking the release lets go.
   QTimer holdWatch_;
-  QString entry_; // Move Count, physical: the digits typed
-  // Untimed, physical: the scrambles done, to go back to; history_[index_]
-  // is shown while going back, the feed's scramble when index_ is at the
-  // end.
-  std::deque<GeneratedScramble> history_;
-  std::size_t index_ = 0;
-  // A recorded scramble solved again from its review: not recorded, and
-  // compared with the attempt it repeats.
-  struct Retry {
-    std::size_t index = 0; // of the attempt
-    MoveCountAttempt original;
-    GeneratedScramble scramble;
-    bool done = false;       // solved; Space goes back to the scrambles
-    bool feedSolved = false; // the scramble shown before was solved
-    MoveCountAttempt result; // the retry's own, once done
-  };
-  std::optional<Retry> retry_;
-  // "Retry the worst": the attempts still to retry after this one.
-  std::deque<std::size_t> retryQueue_;
-  std::size_t retryCount_ = 0; // retries in the queue at the start
-  // The last attempt deleted, and where it was, to undo.
-  std::optional<std::pair<std::size_t, MoveCountAttempt>> deleted_;
-  // Move Count: optimal lengths of attempts' scrambles for the session's
-  // step, worked out off the GUI thread.
-  std::map<OptimalKey, int> optimal_;
-  QFutureWatcher<OptimalResults> optimalWatcher_;
-  OptimalKey optimalFor_;   // what the watcher works on (scramble empty)
-  int optimalRound_ = 0;    // bumped when the results so far are stale
-  int optimalRoundRun_ = 0; // ...and the round the watcher works for
-  // Untimed, virtual: the optimal EO Cross after a solve.
-  QFutureWatcher<std::optional<int>> eoWatcher_;
-  std::optional<int> eoYours_;
+  // The scramble of the attempt being retried.
+  GeneratedScramble retryScramble_;
+  DeletedAttempt<MoveCountAttempt> deleted_;
   bool focusMode_ = false;
 
-  QWidget *leftPanel_;
   QWidget *typeRow_;
-  QToolButton *sessionButton_;
-  QMenu *sessionMenu_;
-  QComboBox *stepBox_ = nullptr; // Move Count only
-  ScrambleTypeBox *typeBox_;
+  FlowLayout *typeLayout_;
+  QVBoxLayout *rightLayout_;
+  QVBoxLayout *centre_;
+  QHBoxLayout *buttonRow_;
   QComboBox *cubeBox_;
   QWidget *viewPicker_;
   QPushButton *skipButton_;
   QLabel *scrambleLabel_;
   QLabel *holdLabel_;
   NetPreview *net_;
-  CubeView *cubeView_;
-  QLabel *stepLabel_;
-  TimeDisplay *display_;
   QLabel *hintLabel_;
-  QLabel *lastLabel_;
   QLabel *focusStats_;
-  QTableWidget *table_;
-  QLabel *stats_;
-  TrendChart *chart_;
-  QPushButton *recordButton_;
-  QPushButton *dnfButton_;
-  QPushButton *deleteButton_;
-  QPushButton *undoButton_;
   QPushButton *reviewButton_;
-  QWidget *algPanel_; // Untimed only
-  QLineEdit *algEdit_;
-  QLabel *algError_;
 
-  MoveCountSession &session() { return store_.current(); }
-  bool onVirtualCube() const;
-  // Untimed on a physical cube: only scrambles are kept.
-  bool scramblesOnly() const;
-  // The scramble shown: the feed's, or one gone back to.
-  const GeneratedScramble *shownScramble() const;
-
+  void configureFlow();
   // Shows the widgets the session's cube and mode need.
   void showCubeKind();
-  void showScramble();
-  // Shows the scramble, or the next one if the one shown was solved.
-  void showFreshScramble();
   void showHint();
-  void showEntry();
-  void setEntry(const QString &digits);
-  void setPhase(Phase p);
-  // Locks what would change the scramble or session during a solve.
-  void updateControls();
-  void updateStepLabel();
-
-  void turn(Move m);
-  // Space pressed or released before the solve.
-  void pressStart();
-  void releaseStart();
-  void cancelHold();
+  // Shows the phase the flow is in: what the cube allows, and the hint.
+  void showPhase();
   // Shows how far the hold is: red until it may be released, then green.
   void showHold();
-  void startSolve();
+  void onHoldTimer();
+  void turn(Move m);
+  // Judges the cube at the end of a solve.
   void endSolve();
-  // Records the current scramble with `count` (nullopt: not counted), and
-  // the solution done on the virtual cube.
-  void record(std::optional<int> count, bool dnf,
-              const std::string &solution = {});
-  void recordTyped(bool dnf); // Move Count, physical
-  void next();                // on to the next scramble
-  void previous();            // Untimed, physical: back one scramble
-  void skip();
-  void applyAlg();
-  void returnFocus();
-  // The keys for the last solve and the scramble.
-  bool handleActionKey(QKeyEvent *e, bool press);
-
-  // Opens the review of an attempt done on the virtual cube.
-  void review(int index);
-  bool reviewable(const MoveCountAttempt &a) const;
-  void showDetails(int index);
-  void commentAttempt(int index);
+  void showRetryResult();
   void startRetry(std::size_t index);
-  void endRetry();
   // Queues the worst solves of the session to retry one after another.
   void retryWorst();
-  // The holds the Opt column is for, and whether that is every hold.
-  std::vector<vcube::Hold> optimalHolds() const;
-  // Works out the optimal lengths the attempt list is missing.
-  void requestOptimal();
-  // nullopt while it is being worked out, -1 if it can't be.
-  std::optional<int> optimalOf(const MoveCountAttempt &a) const;
-  // Works out the optimal EO Cross of the Untimed solve just done.
-  void analyseEoCross(const MoveCountAttempt &a);
+  void skip();
 
+  void review(int index);
+  void showDetails(int index);
+  void commentAttempt(int index);
   void refreshSessionMenu();
-  void selectSession(std::size_t index);
-  void refreshAttempts();
   void showStat(const QString &link);
   void deleteAttempt(int index);
   void undoDelete();
-  void showAttemptMenu(const QPoint &pos);
+  void showAttemptMenu(int index, const QPoint &globalPos);
   void addSession();
   void renameSession();
   void deleteSession();
-  void save();
+  QString scrambleStatsHtml() const;
 };
 
 } // namespace vcube

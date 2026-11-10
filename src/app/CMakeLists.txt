@@ -22,6 +22,7 @@ add_library(vcube_gui STATIC
   library_page.cpp
   paste_dialog.cpp
   main_window.cpp
+  move_count_page.cpp
   mode_page.hpp
   platform.cpp
   review_dialog.cpp
@@ -33,6 +34,7 @@ add_library(vcube_gui STATIC
   sounds.cpp
   timer_page.cpp
   today_page.cpp
+  untimed_page.cpp
   widgets.cpp
 )
 target_include_directories(vcube_gui PUBLIC ${PROJECT_SOURCE_DIR}/src)

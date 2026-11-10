@@ -3,7 +3,6 @@
 #include "io/backup.hpp"
 #include "io/data_file.hpp"
 
-#include "app/attempt_page.hpp"
 #include "app/blind_page.hpp"
 #include "app/command_palette.hpp"
 #include "app/drill_page.hpp"
@@ -11,12 +10,14 @@
 #include "app/inspection_page.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
+#include "app/move_count_page.hpp"
 #include "app/platform.hpp"
 #include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/sounds.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
+#include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
 
 #include <QAbstractSpinBox>
@@ -179,8 +180,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   drillPage_ = new DrillPage(settings_, library_, stack_);
   libraryPage_ = new LibraryPage(settings_, library_, stack_);
   timedPage_ = new TimerPage(settings_, sessions_, library_, stack_);
-  untimedPage_ = new AttemptPage(settings_, untimed_, library_, stack_);
-  moveCountPage_ = new AttemptPage(settings_, moveCounts_, library_, stack_);
+  untimedPage_ = new UntimedPage(settings_, untimed_, library_, stack_);
+  moveCountPage_ = new MoveCountPage(settings_, moveCounts_, library_, stack_);
   inspectionPage_ = new InspectionPage(settings_, dataDir_, stack_);
   blindPage_ = new BlindPage(settings_, dataDir_, stack_);
   todayPage_ = new TodayPage(settings_, library_, sessions_, untimed_,
