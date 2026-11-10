@@ -33,6 +33,8 @@ struct AppSettings {
 
   // Spaced repetition
   SrsConfig srs;
+  // A case whose mean recognition time is over this is slow to recognise.
+  int slowRecognitionMs = 1500;
 
   static AppSettings load();
   void save() const;
