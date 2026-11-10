@@ -174,7 +174,7 @@ std::string freeToString(const PieceMask &m) {
   return out;
 }
 
-std::optional<PieceMask> parseFree(std::string_view text) {
+std::optional<PieceMask> parseFree(std::string_view text, bool *widened) {
   PieceMask m;
   std::istringstream in{std::string(text)};
   std::string token;
@@ -205,6 +205,11 @@ std::optional<PieceMask> parseFree(std::string_view text) {
       m.ep[e] = m.ep[e] || perm;
       m.eo[e] = m.eo[e] || ori;
     }
+  }
+  PieceMask written = m;
+  m.normalize();
+  if (widened) {
+    *widened = !(m == written);
   }
   return m;
 }

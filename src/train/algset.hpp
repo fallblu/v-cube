@@ -118,7 +118,12 @@ struct AlgSet {
 // edges), F2L, ALL or a single position name (URF, FR, ...), and <flags>
 // is any of p (permutation free) and o (orientation free). Empty = none.
 std::string freeToString(const PieceMask &m);
-std::optional<PieceMask> parseFree(std::string_view text);
+// The mask is normalised (PieceMask::normalize()): pieces whose places are
+// free trade places, so if one of them may also be left twisted or flipped,
+// all of them may. Checks and drill scrambles then agree on what is free.
+// `widened`, if given, is set when that freed more than the text says.
+std::optional<PieceMask> parseFree(std::string_view text,
+                                   bool *widened = nullptr);
 
 std::string_view stickerModeName(StickerMode m);
 std::optional<StickerMode> parseStickerMode(std::string_view s);

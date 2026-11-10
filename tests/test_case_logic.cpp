@@ -42,6 +42,24 @@ TEST_CASE("free-piece specs round-trip through text") {
   CHECK_FALSE(parseFree("LL:q"));
 }
 
+TEST_CASE("a free spec that contradicts itself is widened as drills do") {
+  // The last-layer edges trade places, so if UF may be left flipped, any of
+  // them may: the edge that ends up in UF can be any of the four.
+  bool widened = false;
+  auto m = parseFree("LLE:p UF:o", &widened);
+  REQUIRE(m);
+  CHECK(widened);
+  CHECK(freeToString(*m) == "LLE:po");
+  // A drill state of that mask passes the check of an alg that solves it.
+  Rng rng(7);
+  for (int i = 0; i < 50; ++i) {
+    CubieCube s = randomState(*m, rng);
+    CHECK(withinMask(s, *m));
+  }
+  parseFree("LL:p", &widened);
+  CHECK_FALSE(widened);
+}
+
 TEST_CASE("algs are fitted with the AUFs they need") {
   CubieCube tperm =
       stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"));
