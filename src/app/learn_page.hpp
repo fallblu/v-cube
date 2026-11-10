@@ -16,8 +16,8 @@ namespace vcube {
 // is set up on the cube and solved from memory. The algs stay hidden until
 // Tab; solving the case with one of its algs and without a hint grades it
 // Good, while a hint, giving up or leaving the algs (see AlgFollower)
-// grades it Again. Due reviews come first, then cards in their learning
-// steps, then new cases from the learn queue.
+// grades it Again. Cards in their learning steps come first, then reviews
+// due today, then new cases from the learn queue.
 //
 // In a reduction set (see reduction.hpp) a case's card asks for its next
 // step only: any step that leaves fewer steps to go is Good. The cube then
