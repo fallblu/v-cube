@@ -321,6 +321,70 @@ TEST_CASE("pasted new cases go to the chosen group") {
   CHECK(plan.results[1].outcome == PasteOutcome::Added);
 }
 
+namespace {
+
+std::vector<std::vector<std::string>> idsOf(const AlgSet &set) {
+  std::vector<std::vector<std::string>> out;
+  for (const auto &g : set.groups) {
+    auto &ids = out.emplace_back();
+    for (const auto &c : g.cases) {
+      ids.push_back(c.id);
+    }
+  }
+  return out;
+}
+
+AlgSet lettersSet() {
+  AlgSet set;
+  for (const char *name : {"one", "two"}) {
+    set.groups.push_back({name, std::nullopt, {}});
+  }
+  for (const char *id : {"a", "b", "c"}) {
+    set.groups[0].cases.push_back({id, id, {}, {}});
+  }
+  for (const char *id : {"d", "e"}) {
+    set.groups[1].cases.push_back({id, id, {}, {}});
+  }
+  return set;
+}
+
+using Ids = std::vector<std::vector<std::string>>;
+
+} // namespace
+
+TEST_CASE("cases move between groups and keep their order") {
+  AlgSet set = lettersSet();
+  CHECK(moveCases(set, {"c", "a"}, 1, "e"));
+  CHECK(idsOf(set) == Ids{{"b"}, {"d", "a", "c", "e"}});
+  CHECK(moveCases(set, {"d"}, 0));
+  CHECK(idsOf(set) == Ids{{"b", "d"}, {"a", "c", "e"}});
+  // Before a case that moves too: before the next one that stays.
+  CHECK_FALSE(moveCases(set, {"a", "c"}, 1, "a"));
+  CHECK(idsOf(set) == Ids{{"b", "d"}, {"a", "c", "e"}});
+  CHECK_FALSE(moveCases(set, {"a"}, 1, "c"));
+  CHECK_FALSE(moveCases(set, {"a"}, 5));
+}
+
+TEST_CASE("cases shift up and down across groups") {
+  AlgSet set = lettersSet();
+  CHECK(shiftCases(set, {"b", "c"}, -1));
+  CHECK(idsOf(set) == Ids{{"b", "c", "a"}, {"d", "e"}});
+  CHECK_FALSE(shiftCases(set, {"b", "c"}, -1)); // already at the top
+  CHECK(shiftCases(set, {"d"}, -1));
+  CHECK(idsOf(set) == Ids{{"b", "c", "a", "d"}, {"e"}});
+  CHECK(shiftCases(set, {"a", "d"}, 1));
+  CHECK(idsOf(set) == Ids{{"b", "c"}, {"a", "d", "e"}});
+  CHECK(shiftCases(set, {"d", "e"}, 1) == false);
+}
+
+TEST_CASE("groups are reordered") {
+  AlgSet set = lettersSet();
+  CHECK(moveGroup(set, 1, 0));
+  CHECK(set.groups[0].name == "two");
+  CHECK_FALSE(moveGroup(set, 0, 0));
+  CHECK_FALSE(moveGroup(set, 0, 2));
+}
+
 TEST_CASE("masked facelets hide what the step ignores") {
   CubieCube s = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
   DiagramMask oll{StickerMode::Orientation, StickerMode::Orientation,

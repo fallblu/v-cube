@@ -108,6 +108,144 @@ std::string AlgSet::uniqueCaseId(std::string_view base) const {
   }
 }
 
+namespace {
+
+struct Place {
+  std::size_t group = 0;
+  std::size_t index = 0;
+};
+
+std::optional<Place> placeOf(const AlgSet &set, std::string_view id) {
+  for (std::size_t g = 0; g < set.groups.size(); ++g) {
+    const auto &cases = set.groups[g].cases;
+    for (std::size_t i = 0; i < cases.size(); ++i) {
+      if (cases[i].id == id) {
+        return Place{g, i};
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+// The order of the cases, to tell whether anything moved.
+std::vector<std::vector<std::string>> caseOrder(const AlgSet &set) {
+  std::vector<std::vector<std::string>> out;
+  for (const auto &g : set.groups) {
+    auto &ids = out.emplace_back();
+    for (const auto &c : g.cases) {
+      ids.push_back(c.id);
+    }
+  }
+  return out;
+}
+
+} // namespace
+
+bool moveCases(AlgSet &set, const std::vector<std::string> &ids,
+               std::size_t group, std::string_view before) {
+  if (group >= set.groups.size()) {
+    return false;
+  }
+  auto order = caseOrder(set);
+  auto moving = [&ids](const AlgCase &c) {
+    return std::find(ids.begin(), ids.end(), c.id) != ids.end();
+  };
+  // Insert before the first case from `before` on that stays.
+  std::string anchor;
+  if (!before.empty()) {
+    const auto &cases = set.groups[group].cases;
+    auto it = std::find_if(cases.begin(), cases.end(),
+                           [&](const AlgCase &c) { return c.id == before; });
+    for (; it != cases.end(); ++it) {
+      if (!moving(*it)) {
+        anchor = it->id;
+        break;
+      }
+    }
+  }
+  std::vector<AlgCase> moved;
+  for (auto &g : set.groups) {
+    std::vector<AlgCase> kept;
+    for (auto &c : g.cases) {
+      (moving(c) ? moved : kept).push_back(std::move(c));
+    }
+    g.cases = std::move(kept);
+  }
+  auto &cases = set.groups[group].cases;
+  auto at = std::find_if(cases.begin(), cases.end(),
+                         [&](const AlgCase &c) { return c.id == anchor; });
+  cases.insert(at, std::make_move_iterator(moved.begin()),
+               std::make_move_iterator(moved.end()));
+  return caseOrder(set) != order;
+}
+
+bool shiftCases(AlgSet &set, const std::vector<std::string> &ids,
+                int direction) {
+  auto order = caseOrder(set);
+  // In set order, the first to move first.
+  std::vector<std::string> todo;
+  for (const auto &g : order) {
+    for (const auto &id : g) {
+      if (std::find(ids.begin(), ids.end(), id) != ids.end()) {
+        todo.push_back(id);
+      }
+    }
+  }
+  if (direction > 0) {
+    std::reverse(todo.begin(), todo.end());
+  }
+  std::vector<std::string> blocked;
+  auto isBlocked = [&blocked](const std::string &id) {
+    return std::find(blocked.begin(), blocked.end(), id) != blocked.end();
+  };
+  for (const std::string &id : todo) {
+    Place p = *placeOf(set, id);
+    auto &cases = set.groups[p.group].cases;
+    if (direction < 0) {
+      if (p.index > 0) {
+        if (isBlocked(cases[p.index - 1].id)) {
+          blocked.push_back(id);
+        } else {
+          std::swap(cases[p.index], cases[p.index - 1]);
+        }
+      } else if (p.group > 0) {
+        AlgCase c = std::move(cases[p.index]);
+        cases.erase(cases.begin());
+        set.groups[p.group - 1].cases.push_back(std::move(c));
+      } else {
+        blocked.push_back(id);
+      }
+    } else {
+      if (p.index + 1 < cases.size()) {
+        if (isBlocked(cases[p.index + 1].id)) {
+          blocked.push_back(id);
+        } else {
+          std::swap(cases[p.index], cases[p.index + 1]);
+        }
+      } else if (p.group + 1 < set.groups.size()) {
+        AlgCase c = std::move(cases[p.index]);
+        cases.pop_back();
+        auto &next = set.groups[p.group + 1].cases;
+        next.insert(next.begin(), std::move(c));
+      } else {
+        blocked.push_back(id);
+      }
+    }
+  }
+  return caseOrder(set) != order;
+}
+
+bool moveGroup(AlgSet &set, std::size_t from, std::size_t to) {
+  if (from >= set.groups.size() || to >= set.groups.size() || from == to) {
+    return false;
+  }
+  CaseGroup g = std::move(set.groups[from]);
+  set.groups.erase(set.groups.begin() + static_cast<std::ptrdiff_t>(from));
+  set.groups.insert(set.groups.begin() + static_cast<std::ptrdiff_t>(to),
+                    std::move(g));
+  return true;
+}
+
 std::string freeToString(const PieceMask &m) {
   // Greedily describe whole named groups first, then single positions.
   std::array<std::uint8_t, kCorners> cornerLeft{};

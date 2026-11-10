@@ -113,6 +113,21 @@ struct AlgSet {
   std::string uniqueCaseId(std::string_view base) const;
 };
 
+// Moves the cases `ids` (kept in set order) into group `group`, before the
+// case `before`, or at the group's end if `before` is empty or not in that
+// group. Returns false if nothing moved.
+bool moveCases(AlgSet &set, const std::vector<std::string> &ids,
+               std::size_t group, std::string_view before = {});
+// Moves the cases one place up (`direction` < 0) or down, past the next
+// case that isn't moving; at the edge of their group they go to the end of
+// the group before it (or the start of the one after). Returns false if
+// nothing moved.
+bool shiftCases(AlgSet &set, const std::vector<std::string> &ids,
+                int direction);
+// Moves group `from` to place `to` of the new order. Returns false if
+// nothing moved.
+bool moveGroup(AlgSet &set, std::size_t from, std::size_t to);
+
 // Text form of a PieceMask used in alg-set files: space-separated tokens
 // "<pieces>:<flags>", where <pieces> is LL, LLC (LL corners), LLE (LL
 // edges), F2L, ALL or a single position name (URF, FR, ...), and <flags>
