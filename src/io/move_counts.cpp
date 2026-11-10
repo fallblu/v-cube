@@ -12,6 +12,12 @@
 
 namespace vcube {
 
+FileFormat moveCountFormat(SolveLog mode) {
+  return mode == SolveLog::MoveCount
+             ? FileFormat{"v-cube.movecount", 1, false, "Move Count file"}
+             : FileFormat{"v-cube.untimed", 1, false, "Untimed file"};
+}
+
 std::vector<MoveCountSession> defaultMoveCountSessions(SolveLog mode) {
   if (mode == SolveLog::Untimed) {
     return {MoveCountSession{}};
@@ -28,28 +34,18 @@ std::vector<MoveCountSession> defaultMoveCountSessions(SolveLog mode) {
 }
 
 MoveCountStore::MoveCountStore(QString path, SolveLog mode)
-    : path_(std::move(path)), mode_(mode),
-      sessions_(defaultMoveCountSessions(mode)) {}
+    : path_(path), mode_(mode), sessions_(defaultMoveCountSessions(mode)),
+      file_(std::move(path), moveCountFormat(mode)) {}
 
 bool MoveCountStore::load(QString *error) {
-  QFile f(path_);
-  if (!f.exists()) {
-    sessions_ = defaultMoveCountSessions(mode_);
-    current_ = 0;
-    return true;
+  sessions_ = defaultMoveCountSessions(mode_);
+  current_ = 0;
+  QJsonObject o;
+  FileStatus status = file_.load(o, error);
+  if (status != FileStatus::Read) {
+    return status == FileStatus::Missing;
   }
-  if (!f.open(QIODevice::ReadOnly)) {
-    return unreadable(error, f.errorString());
-  }
-  QJsonParseError pe;
-  auto doc = QJsonDocument::fromJson(f.readAll(), &pe);
-  f.close();
-  if (pe.error != QJsonParseError::NoError || !doc.isObject()) {
-    return unreadable(error, pe.error != QJsonParseError::NoError
-                                 ? pe.errorString()
-                                 : QString("not a move count file"));
-  }
-  sessions_ = moveCountsFromJson(doc.object(), &current_, mode_);
+  sessions_ = moveCountsFromJson(o, &current_, mode_);
   if (sessions_.empty()) {
     sessions_.push_back(MoveCountSession{});
   }
@@ -57,31 +53,8 @@ bool MoveCountStore::load(QString *error) {
   return true;
 }
 
-bool MoveCountStore::unreadable(QString *error, const QString &why) {
-  if (error) {
-    *error = why;
-  }
-  sessions_ = defaultMoveCountSessions(mode_);
-  current_ = 0;
-  setAside_ = setAside(path_);
-  keepOff_ = setAside_.isEmpty();
-  return false;
-}
-
 bool MoveCountStore::save(QString *error) const {
-  if (keepOff_) {
-    if (error) {
-      *error =
-          QString("%1 couldn't be read, so it isn't saved over").arg(path_);
-    }
-    return false;
-  }
-  QDir().mkpath(QFileInfo(path_).absolutePath());
-  return writeFileAtomically(
-      path_,
-      QJsonDocument(moveCountsToJson(sessions_, current_, mode_))
-          .toJson(QJsonDocument::Compact),
-      error);
+  return file_.save(moveCountsToJson(sessions_, current_, mode_), error);
 }
 
 void MoveCountStore::setCurrentIndex(std::size_t i) {
@@ -140,8 +113,7 @@ QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,
     }
     arr.append(so);
   }
-  return QJsonObject{{"format", mode == SolveLog::MoveCount ? "v-cube.movecount"
-                                                            : "v-cube.untimed"},
+  return QJsonObject{{"format", moveCountFormat(mode).format},
                      {"version", 1},
                      {"current", static_cast<int>(current)},
                      {"sessions", arr}};

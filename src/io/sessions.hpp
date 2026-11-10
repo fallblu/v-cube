@@ -2,6 +2,8 @@
 
 #include "train/stats.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QJsonObject>
 #include <QString>
 
@@ -29,7 +31,7 @@ public:
   bool load(QString *error = nullptr);
   bool save(QString *error = nullptr) const;
   // Where load() moved an unreadable file, if it did.
-  const QString &setAsidePath() const { return setAside_; }
+  const QString &setAsidePath() const { return file_.setAsidePath(); }
 
   std::vector<Session> &sessions() { return sessions_; }
   const std::vector<Session> &sessions() const { return sessions_; }
@@ -46,16 +48,14 @@ private:
   QString path_;
   std::vector<Session> sessions_{Session{}};
   std::size_t current_ = 0;
-  QString setAside_;
-  bool keepOff_ = false; // the unreadable file is still there
-
-  bool unreadable(QString *error, const QString &why);
+  DataFile file_;
 };
 
-// {"version": 1, "current": 0, "sessions": [{"name": ..., "scrambleType":
-// ..., "cube": "virtual", "solves": [[ms, penalty, scramble, comment,
-// unixSeconds, moves?], ...]}]}. A session without "cube" was saved before
-// sessions had one, when the timer was for physical cubes only.
+// {"format": "v-cube.sessions", "version": 1, "current": 0, "sessions":
+// [{"name": ..., "scrambleType": ..., "cube": "virtual", "solves": [[ms,
+// penalty, scramble, comment, unixSeconds, moves?], ...]}]}. Files from
+// before "format" was written have none. A session without "cube" was saved
+// before sessions had one, when the timer was for physical cubes only.
 QJsonObject sessionsToJson(const std::vector<Session> &sessions,
                            std::size_t current);
 std::vector<Session> sessionsFromJson(const QJsonObject &o,

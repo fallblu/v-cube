@@ -5,6 +5,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <map>
 #include <set>
 #include <vector>
@@ -45,9 +46,15 @@ public:
   QStringList builtinIds() const;
 
   // A set's progress, read the first time it is asked for. A progress file
-  // that can't be read is set aside (see setAside()) and noted in errors().
+  // that can't be read is set aside (see setAside()) and noted in errors();
+  // one that can't be moved aside, or was written by a newer version of
+  // v-cube, is noted and never saved over.
   SetProgress &progress(const std::string &setId);
-  bool saveProgress(const std::string &setId);
+  bool saveProgress(const std::string &setId, QString *error = nullptr);
+  // A function that writes the set's progress as it is now (a copy), from
+  // any thread, e.g. for writeInBackground() to progressPath().
+  std::function<bool(QString *)> progressWriter(const std::string &setId);
+  QString progressPath(const std::string &setId) const;
   // Drops the progress of cases that were deleted or are new, so that a
   // new case never inherits a deleted one's, and saves it if it changed.
   void forgetProgress(const std::string &setId,

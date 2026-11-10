@@ -14,6 +14,24 @@ namespace {
 
 constexpr auto kInstalledFile = "installed-builtins.json";
 
+// Ids made for new sets are cut to this many characters, so that their
+// file names stay well within what file systems allow.
+constexpr qsizetype kMaxNewId = 80;
+
+// Why an alg-set file wasn't loaded; one that can't be read is set aside.
+QString unreadableSetMessage(const QString &path, const QString &error,
+                             FileStatus status) {
+  QString file = QFileInfo(path).fileName();
+  if (status != FileStatus::Unreadable) {
+    return QString("%1: %2").arg(file, error);
+  }
+  QString kept = setAside(path);
+  return kept.isEmpty()
+             ? QString("%1 couldn't be read (%2) or moved aside").arg(file, error)
+             : QString("%1 couldn't be read (%2), so it was kept as %3")
+                   .arg(file, error, QFileInfo(kept).fileName());
+}
+
 QString sanitizeId(const std::string &id) {
   QString s = qs(id).toLower();
   QString out;
@@ -104,9 +122,10 @@ void AlgLibrary::load() {
       continue;
     }
     QString error;
-    auto set = readAlgSetFile(dir.filePath(file), &error);
+    FileStatus status = FileStatus::Read;
+    auto set = readAlgSetFile(dir.filePath(file), &error, &status);
     if (!set) {
-      errors_ << QString("%1: %2").arg(file, error);
+      errors_ << unreadableSetMessage(dir.filePath(file), error, status);
       continue;
     }
     sets_.push_back(std::move(*set));
@@ -153,7 +172,7 @@ bool AlgLibrary::idTaken(const std::string &id) const {
 }
 
 std::string AlgLibrary::uniqueId(const std::string &base) const {
-  std::string b = ss(sanitizeId(base));
+  std::string b = ss(sanitizeId(base).left(kMaxNewId));
   if (!idTaken(b)) {
     return b;
   }
@@ -166,7 +185,8 @@ std::string AlgLibrary::uniqueId(const std::string &base) const {
 }
 
 AlgSet &AlgLibrary::add(AlgSet set) {
-  if (set.id.empty() || idTaken(set.id)) {
+  if (set.id.empty() || idTaken(set.id) ||
+      sanitizeId(set.id).size() > kMaxNewId) {
     set.id = uniqueId(set.id.empty() ? set.name : set.id);
   }
   sets_.push_back(std::move(set));
@@ -180,6 +200,7 @@ bool AlgLibrary::remove(const std::string &id) {
   if (it == sets_.end()) {
     return false;
   }
+  finishBackgroundWrites(progressPathFor(id));
   QFile::remove(pathFor(id));
   QFile::remove(progressPathFor(id));
   progress_.erase(id);
@@ -234,27 +255,28 @@ SetProgress &AlgLibrary::progress(const std::string &setId) {
   }
   SetProgress p;
   QString path = progressPathFor(setId);
-  QFile f(path);
-  if (f.open(QIODevice::ReadOnly)) {
-    QJsonParseError pe;
-    auto doc = QJsonDocument::fromJson(f.readAll(), &pe);
-    f.close();
-    if (pe.error == QJsonParseError::NoError && doc.isObject()) {
-      p = progressFromJson(doc.object());
-    } else {
-      QString kept = setAside(path);
-      if (kept.isEmpty()) {
-        progressKeptOff_.insert(setId);
-      }
-      errors_ << (kept.isEmpty()
-                      ? QString("progress/%1 couldn't be read or moved aside")
-                            .arg(QFileInfo(path).fileName())
-                      : QString("progress/%1 couldn't be read, so it was "
-                                "kept as %2 and the set's progress starts "
-                                "afresh")
-                            .arg(QFileInfo(path).fileName(),
-                                 QFileInfo(kept).fileName()));
+  QString file = QFileInfo(path).fileName();
+  FileRead r = readProgressFile(path);
+  if (r.status == FileStatus::Read) {
+    p = progressFromJson(r.object);
+  } else if (r.status == FileStatus::Newer) {
+    progressKeptOff_.insert(setId);
+    errors_ << QString("progress/%1 can't be used (%2), so it is left as it "
+                       "is and the set's progress isn't saved")
+                   .arg(file, r.error);
+  } else if (r.status == FileStatus::Unreadable) {
+    QString kept = setAside(path);
+    if (kept.isEmpty()) {
+      progressKeptOff_.insert(setId);
     }
+    errors_ << (kept.isEmpty()
+                    ? QString("progress/%1 couldn't be read (%2) or moved "
+                              "aside, so the set's progress isn't saved")
+                          .arg(file, r.error)
+                    : QString("progress/%1 couldn't be read (%2), so it was "
+                              "kept as %3 and the set's progress starts "
+                              "afresh")
+                          .arg(file, r.error, QFileInfo(kept).fileName()));
   }
   return progress_[setId] = std::move(p);
 }
@@ -271,16 +293,35 @@ void AlgLibrary::forgetProgress(const std::string &setId,
   }
 }
 
-bool AlgLibrary::saveProgress(const std::string &setId) {
+std::function<bool(QString *)>
+AlgLibrary::progressWriter(const std::string &setId) {
+  QString path = progressPathFor(setId);
   if (progressKeptOff_.contains(setId)) {
-    return false; // never save over a file that couldn't be read
+    // Never save over a file that couldn't be used.
+    return [path](QString *error) {
+      if (error) {
+        *error = QString("%1 couldn't be used, so it isn't saved over")
+                     .arg(QDir::toNativeSeparators(path));
+      }
+      return false;
+    };
   }
-  QDir().mkpath(QDir(dir_).filePath("progress"));
-  QString error;
-  return writeFileAtomically(progressPathFor(setId),
-                             QJsonDocument(progressToJson(progress(setId)))
-                                 .toJson(QJsonDocument::Compact),
-                             &error);
+  return [path, progress = progress(setId),
+          dir = QDir(dir_).filePath("progress")](QString *error) {
+    QDir().mkpath(dir);
+    return writeFileAtomically(path,
+                               QJsonDocument(progressToJson(progress))
+                                   .toJson(QJsonDocument::Compact),
+                               error);
+  };
+}
+
+bool AlgLibrary::saveProgress(const std::string &setId, QString *error) {
+  return progressWriter(setId)(error);
+}
+
+QString AlgLibrary::progressPath(const std::string &setId) const {
+  return progressPathFor(setId);
 }
 
 } // namespace vcube

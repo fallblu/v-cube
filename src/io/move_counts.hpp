@@ -2,6 +2,8 @@
 
 #include "train/move_count.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QJsonObject>
 #include <QString>
 
@@ -32,6 +34,9 @@ enum class SolveLog { MoveCount, Untimed };
 std::vector<MoveCountSession>
 defaultMoveCountSessions(SolveLog mode = SolveLog::MoveCount);
 
+// The file format of each mode: "v-cube.movecount" or "v-cube.untimed".
+FileFormat moveCountFormat(SolveLog mode);
+
 // Move Count or Untimed mode's sessions, saved as one JSON file.
 class MoveCountStore {
 public:
@@ -42,7 +47,7 @@ public:
   // it can't be moved, nothing is saved over it.
   bool load(QString *error = nullptr);
   // Where load() moved an unreadable file, if it did.
-  const QString &setAsidePath() const { return setAside_; }
+  const QString &setAsidePath() const { return file_.setAsidePath(); }
   bool save(QString *error = nullptr) const;
 
   SolveLog mode() const { return mode_; }
@@ -63,10 +68,7 @@ private:
   SolveLog mode_;
   std::vector<MoveCountSession> sessions_;
   std::size_t current_ = 0;
-  QString setAside_;
-  bool keepOff_ = false; // the unreadable file is still there
-
-  bool unreadable(QString *error, const QString &why);
+  DataFile file_;
 };
 
 // {"format": "v-cube.movecount", "version": 1, "current": 0, "sessions":

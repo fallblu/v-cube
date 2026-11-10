@@ -3,6 +3,8 @@
 #include "train/algset.hpp"
 #include "train/srs.hpp"
 
+#include "io/data_file.hpp"
+
 #include <QJsonObject>
 #include <QString>
 
@@ -14,16 +16,24 @@ inline QString qs(const std::string &s) { return QString::fromStdString(s); }
 inline std::string ss(const QString &s) { return s.toStdString(); }
 
 // Alg-set files ("format": "v-cube.algset", version 1). Case states are
-// 54-character facelet strings (URFDLB order).
+// 54-character facelet strings (URFDLB order). A set is refused if a case
+// has no id or the id of another case, an alg isn't text, or the target
+// time isn't a positive number.
 std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error);
 QJsonObject algSetToJson(const AlgSet &set);
 
-std::optional<AlgSet> readAlgSetFile(const QString &path, QString *error);
+// `status` tells a file that couldn't be read or isn't an alg set
+// (Unreadable) from one with a problem in its contents (Read).
+std::optional<AlgSet> readAlgSetFile(const QString &path, QString *error,
+                                     FileStatus *status = nullptr);
 bool writeAlgSetFile(const AlgSet &set, const QString &path, QString *error);
 
-// Per-set drill progress: SRS card and recent attempts per case.
+// Per-set drill progress: SRS card and recent attempts per case
+// ("format": "v-cube.progress", version 1; files from before the format was
+// written have none). readProgressFile() reads and checks a file.
 QJsonObject progressToJson(const SetProgress &p);
 SetProgress progressFromJson(const QJsonObject &o);
+FileRead readProgressFile(const QString &path);
 
 // Writes `data` to `path` atomically (via a temporary file).
 bool writeFileAtomically(const QString &path, const QByteArray &data,

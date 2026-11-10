@@ -12,6 +12,12 @@
 
 namespace vcube {
 
+namespace {
+
+constexpr FileFormat kBlindFile{"v-cube.blind", 1, false, "blind file"};
+
+} // namespace
+
 void LetterStat::record(bool right, std::int64_t ms) {
   ++attempts;
   if (right) {
@@ -60,52 +66,22 @@ std::vector<Solve> blindSolves(const BlindSession &session) {
   return out;
 }
 
-BlindStore::BlindStore(QString path) : path_(std::move(path)) {}
+BlindStore::BlindStore(QString path)
+    : path_(path), file_(std::move(path), kBlindFile) {}
 
 bool BlindStore::load(QString *error) {
-  QFile f(path_);
-  if (!f.exists()) {
-    data_ = BlindData{};
-    return true;
+  data_ = BlindData{};
+  QJsonObject o;
+  FileStatus status = file_.load(o, error);
+  if (status != FileStatus::Read) {
+    return status == FileStatus::Missing;
   }
-  if (!f.open(QIODevice::ReadOnly)) {
-    return unreadable(error, f.errorString());
-  }
-  QJsonParseError pe;
-  auto doc = QJsonDocument::fromJson(f.readAll(), &pe);
-  f.close();
-  if (pe.error != QJsonParseError::NoError || !doc.isObject() ||
-      doc.object().value("format").toString() != "v-cube.blind") {
-    return unreadable(error, pe.error != QJsonParseError::NoError
-                                 ? pe.errorString()
-                                 : QString("not a blind file"));
-  }
-  data_ = blindFromJson(doc.object());
+  data_ = blindFromJson(o);
   return true;
 }
 
-bool BlindStore::unreadable(QString *error, const QString &why) {
-  if (error) {
-    *error = why;
-  }
-  data_ = BlindData{};
-  setAside_ = setAside(path_);
-  keepOff_ = setAside_.isEmpty();
-  return false;
-}
-
 bool BlindStore::save(QString *error) const {
-  if (keepOff_) {
-    if (error) {
-      *error =
-          QString("%1 couldn't be read, so it isn't saved over").arg(path_);
-    }
-    return false;
-  }
-  QDir().mkpath(QFileInfo(path_).absolutePath());
-  return writeFileAtomically(
-      path_, QJsonDocument(blindToJson(data_)).toJson(QJsonDocument::Compact),
-      error);
+  return file_.save(blindToJson(data_), error);
 }
 
 void BlindStore::setCurrentIndex(std::size_t i) {
@@ -223,7 +199,7 @@ QJsonObject blindToJson(const BlindData &data) {
     }
     traces.append(o);
   }
-  return QJsonObject{{"format", "v-cube.blind"},
+  return QJsonObject{{"format", kBlindFile.format},
                      {"version", 1},
                      {"current", static_cast<int>(data.current)},
                      {"sessions", sessions},

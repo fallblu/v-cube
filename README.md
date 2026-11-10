@@ -567,9 +567,12 @@ ticked) builds the cases. If you change a set's step settings later,
 
 A file that can't be read (e.g. cut short by a crash) is never saved
 over: it is renamed to `<name>.unreadable-<date>-<time>` next to where it
-was, the app says so when it starts, and that data starts afresh. An alg
-set file with a case whose stickers no real cube has (e.g. from a typo in
-a hand-edited file) is left out, and the app names the case when it
+was, the app says so when it starts, and that data starts afresh. A file
+written by a newer version of v-cube is left as it is and never saved
+over; the app says so, and that data starts afresh until you update. An
+alg set file with a problem in its cases (stickers no real cube has, e.g.
+from a typo in a hand-edited file, a missing or repeated case id, or an
+alg that isn't text) is left out, and the app names the problem when it
 starts.
 
 Settings are an INI file on every platform; Windows doesn't use the

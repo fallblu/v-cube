@@ -89,8 +89,8 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   if (!store_.load(&error)) {
     QString kept =
         store_.setAsidePath().isEmpty()
-            ? tr("It couldn't be moved aside either, so nothing will be saved "
-                 "over it.")
+            ? tr("It is left where it is, and nothing will be saved over "
+                 "it.")
             : tr("It was kept as %1.")
                   .arg(QDir::toNativeSeparators(store_.setAsidePath()));
     QMessageBox::warning(this, "v-cube",
