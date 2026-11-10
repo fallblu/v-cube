@@ -2,6 +2,7 @@ add_library(vcube_train
   alg_follow.cpp
   algset.cpp
   bld.cpp
+  blind_flow.cpp
   case_logic.cpp
   drill_session.cpp
   families.cpp
