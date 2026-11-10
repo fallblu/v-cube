@@ -29,35 +29,42 @@ struct MoveCountAttempt {
   bool counted = true; // false: no move count (an Untimed physical solve)
 };
 
-// The steps of a ZZ solve that can be checked on the virtual cube. EO+1 and
-// EO+2 are EO with any one or two cross edges solved, EOLine EO with the
-// DF and DB edges solved. EOLine comes last only to keep the stored values
-// of the others; it is planned in Inspection mode but isn't a Move Count
-// step.
+// The steps Move Count can check on the virtual cube. EO+1 and EO+2 are EO
+// with any one or two cross edges solved, EOLine EO with the two cross
+// edges on the EO axis (DF and DB as held), XEOCross EO Cross with any one
+// F2L slot solved. Cross and CFOP F2L don't need the edges oriented.
+// (The values are kept as they were saved; new steps go at the end.)
 enum class SolveStep : std::uint8_t {
   EO,
   EOPlus1,
   EOPlus2,
   EOCross,
   ZZF2L,
-  EOLine
+  EOLine,
+  Cross,
+  XEOCross,
+  CFOPF2L,
 };
-// The steps Move Count offers: EO, EO+1, EO+2, EO Cross and ZZ F2L.
+// Every step, in the order they are offered: EO, EO+1, EO+2, EOLine, EO
+// Cross, XEOCross, ZZ F2L, Cross, CFOP F2L.
 const std::vector<SolveStep> &solveSteps();
-// Every step in the order a solve does them: EO, EOLine, EO+1, EO+2, EO
-// Cross, ZZ F2L.
+// The ZZ steps in the order a solve does them: EO, EOLine, EO+1, EO+2, EO
+// Cross, ZZ F2L (the steps Inspection can plan, and ZZ F2L).
 const std::vector<SolveStep> &allSteps();
-// "eo", "eo+1", "eo+2", "eocross", "zzf2l", "eoline".
+// "eo", "eo+1", "eo+2", "eoline", "eocross", "xeocross", "zzf2l", "cross",
+// "cfopf2l".
 std::string_view stepId(SolveStep step);
-// "EO", "EO+1", "EO+2", "EO Cross", "ZZ F2L", "EOLine".
+// "EO", "EO+1", "EO+2", "EOLine", "EO Cross", "XEOCross", "ZZ F2L",
+// "Cross", "CFOP F2L".
 std::string_view stepName(SolveStep step);
-// Any step, by its id.
+// Whether the step needs every edge oriented (all but Cross and CFOP F2L).
+bool stepNeedsEo(SolveStep step);
 std::optional<SolveStep> stepFromId(std::string_view id);
 // The Move Count step a session name such as "EO Cross" or "zz f2l" is
 // named after.
 std::optional<SolveStep> stepFromName(std::string_view name);
 // The scramble type a step is practised from: EO Cross solved for ZZ F2L,
-// a WCA scramble for the rest.
+// the cross solved for CFOP F2L, a WCA scramble for the rest.
 std::string defaultScrambleType(SolveStep step);
 
 // Whether the cube shows `step` done, held in any of the 24 ways: the
@@ -85,6 +92,11 @@ StepProgress stepProgress(const FaceletCube &cube);
 // shows): every turn of an outer layer (a face or a wide turn) is one move, a
 // slice turn is two, and rotations are free.
 int htmCount(const Alg &alg);
+// A solution's move count (HTM). Simplified, the turns that cancel or join
+// across turns of the parallel layers and rotations about the same axis
+// are taken out first (simplify()): U D U' counts as D, R x R' as nothing.
+// Otherwise every turn counts as it was done.
+int solutionHtm(const Alg &solution, bool simplified = true);
 
 // One attempt on the virtual cube: the scrambled cube can only be turned
 // as a whole (to look at it) until the solve starts, and every move from
@@ -111,12 +123,23 @@ public:
   const FaceletCube &cube() const { return cube_; }
   const Alg &moves() const { return moves_; }
   Alg solution() const;
-  int count() const { return htmCount(solution()); }
+  int count(bool simplified = true) const {
+    return solutionHtm(solution(), simplified);
+  }
+  // Milliseconds from start() to each move of solution(): a joined move
+  // has the time of its last turn. Moves before start() have 0.
+  std::vector<std::int64_t> solutionTimes() const;
+  // Times are taken from this clock (ms); set before the solve.
+  void setClock(std::int64_t startMs) { startMs_ = startMs; }
+  // Turns the cube at `nowMs` on the clock given to setClock().
+  bool turn(Move m, std::int64_t nowMs);
 
 private:
   FaceletCube start_;
   FaceletCube cube_;
   Alg moves_;
+  std::vector<std::int64_t> times_; // ms after startMs_, per move
+  std::int64_t startMs_ = 0;
   bool started_ = false;
   bool free_ = false;
 };
@@ -125,8 +148,8 @@ private:
 inline constexpr int kMaxMoveCount = 999;
 
 // The scramble types Move Count mode offers, by id: a full WCA scramble
-// (for EO, EOLine, EO Cross or cross), EOLine solved, EO Cross solved (ZZ
-// F2L) and cross solved (CFOP F2L).
+// (for EO, EOLine, EO Cross, XEOCross or the cross), EOLine solved, EO
+// Cross solved (ZZ F2L) and cross solved (CFOP F2L).
 const std::vector<std::string> &moveCountScrambleTypes();
 bool isMoveCountScrambleType(const std::string &id);
 

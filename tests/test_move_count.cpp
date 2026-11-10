@@ -29,7 +29,7 @@ TEST_CASE("move count statistics use WCA averages in thousandths of a move") {
   REQUIRE(s.size() == 5);
   CHECK(averageOf(s) == 8000); // drops 6 and 12
   CHECK(meanOf(std::span(s).first(3)) == 8000);
-  CHECK(currentMean(s, 3) == 8667); // (8 + 6 + 12) / 3
+  CHECK(currentMean(s, 3) == 8670); // (8 + 6 + 12) / 3, in hundredths
   CHECK(formatMoves(currentMean(s, 3)) == "8.67");
   CHECK(formatMoves(currentMean(s, 3), 1) == "8.7");
   CHECK(formatMoves(currentMean(s, 3), 0) == "9");
@@ -98,30 +98,31 @@ TEST_CASE("the move count store starts with a virtual session per step") {
   QString path = dir.filePath("movecounts.json");
   MoveCountStore store(path);
   REQUIRE(store.load());
-  REQUIRE(store.sessions().size() == 5);
-  for (std::size_t i = 0; i < 5; ++i) {
+  const std::size_t steps = solveSteps().size();
+  REQUIRE(store.sessions().size() == steps);
+  for (std::size_t i = 0; i < steps; ++i) {
     const MoveCountSession &s = store.sessions()[i];
     CHECK(s.step == solveSteps()[i]);
     CHECK(s.name == stepName(s.step));
     CHECK(s.cube == CubeKind::Virtual);
     CHECK(s.scrambleType == defaultScrambleType(s.step));
   }
-  CHECK(store.sessions()[4].scrambleType == "eocross");
+  CHECK(defaultScrambleType(SolveStep::ZZF2L) == "eocross");
 
   store.setCurrentIndex(2);
   store.current().attempts.push_back({14, false, "F2 U", "", 1, "", true});
-  store.addSession("EOLine").scrambleType = "333";
-  CHECK(store.currentIndex() == 5);
+  store.addSession("Mine").scrambleType = "333";
+  CHECK(store.currentIndex() == steps);
   REQUIRE(store.save());
 
   MoveCountStore again(path);
   REQUIRE(again.load());
-  REQUIRE(again.sessions().size() == 6);
-  CHECK(again.currentIndex() == 5);
+  REQUIRE(again.sessions().size() == steps + 1);
+  CHECK(again.currentIndex() == steps);
   CHECK(again.sessions()[2].attempts.size() == 1);
   CHECK(again.sessions()[2].attempts[0].moves == 14);
 
-  for (int i = 0; i < 6; ++i) {
+  for (std::size_t i = 0; i < steps + 1; ++i) {
     again.removeSession(0);
   }
   REQUIRE(again.sessions().size() == 1); // never empty
@@ -146,21 +147,79 @@ FaceletCube after(std::string_view moves) {
 } // namespace
 
 TEST_CASE("move count steps are named and found by name") {
-  CHECK(solveSteps().size() == 5);
+  CHECK(solveSteps().size() == 9);
   for (SolveStep s : solveSteps()) {
     CHECK(stepFromId(stepId(s)) == s);
     CHECK(stepFromName(stepName(s)) == s);
   }
   CHECK(stepFromName("eo cross") == SolveStep::EOCross);
   CHECK(stepFromName("ZZ-F2L") == SolveStep::ZZF2L);
-  // EOLine is an Inspection step only: found by id, not by a session name.
-  CHECK(stepFromName("EOLine") == std::nullopt);
-  CHECK(stepFromId("eoline") == SolveStep::EOLine);
-  CHECK(stepName(SolveStep::EOLine) == "EOLine");
-  CHECK(allSteps().size() == 6);
-  CHECK(allSteps()[1] == SolveStep::EOLine);
+  CHECK(stepFromName("EO Line") == SolveStep::EOLine);
+  CHECK(stepFromName("CFOP F2L") == SolveStep::CFOPF2L);
+  CHECK(stepFromName("EO Block") == std::nullopt);
+  // The ids of the first steps are as they were saved.
+  CHECK(stepId(SolveStep::ZZF2L) == "zzf2l");
+  CHECK(static_cast<int>(SolveStep::ZZF2L) == 4);
   CHECK(defaultScrambleType(SolveStep::ZZF2L) == "eocross");
+  CHECK(defaultScrambleType(SolveStep::CFOPF2L) == "f2l");
   CHECK(defaultScrambleType(SolveStep::EO) == "333");
+  CHECK(stepNeedsEo(SolveStep::XEOCross));
+  CHECK_FALSE(stepNeedsEo(SolveStep::Cross));
+}
+
+TEST_CASE("EOLine, the cross, XEOCross and CFOP F2L are checked") {
+  CHECK(stepReached(after(""), SolveStep::EOLine));
+  CHECK(stepReached(after("R"), SolveStep::EOLine)); // DF and DB stay
+  CHECK(stepReached(after("R"), SolveStep::XEOCross)); // orange bottom
+  CHECK(stepReached(after("R U R'"), SolveStep::XEOCross));
+  CHECK_FALSE(stepReached(after("R U R'"), SolveStep::ZZF2L));
+  CHECK(stepReached(after("R U R' U R U2 R'"), SolveStep::CFOPF2L));
+  // Two flipped last layer edges: the cross and the F2L are done, but no
+  // EO on either axis around them.
+  CubieCube c;
+  c.eo[UR] = 1;
+  c.eo[UF] = 1;
+  FaceletCube flipped = c.toFacelets();
+  CHECK(stepReached(flipped, SolveStep::Cross));
+  CHECK(stepReached(flipped, SolveStep::CFOPF2L));
+  CHECK_FALSE(stepReached(flipped, SolveStep::EOCross));
+  CHECK_FALSE(stepReached(flipped, SolveStep::ZZF2L));
+  CHECK_FALSE(stepReached(flipped, SolveStep::EOLine));
+}
+
+TEST_CASE("simplified move counts take out cancelling turns") {
+  CHECK(solutionHtm(parseAlgOrEmpty("U D U'")) == 1);
+  CHECK(solutionHtm(parseAlgOrEmpty("U D U'"), false) == 3);
+  CHECK(solutionHtm(parseAlgOrEmpty("R x R'")) == 0);
+  CHECK(solutionHtm(parseAlgOrEmpty("R x R'"), false) == 2);
+  CHECK(solutionHtm(parseAlgOrEmpty("R y R'")) == 2);
+  CHECK(solutionHtm(parseAlgOrEmpty("M2 R")) == 3);
+  VirtualAttempt a;
+  a.load(parseAlgOrEmpty("U D U'"));
+  a.start();
+  for (Move m : parseAlgOrEmpty("U D' U'")) {
+    CHECK(a.turn(m));
+  }
+  CHECK(a.cube().isSolved());
+  CHECK(toString(a.solution()) == "U D' U'"); // kept as done
+  CHECK(a.count() == 1);
+  CHECK(a.count(false) == 3);
+}
+
+TEST_CASE("a virtual attempt keeps when each move was turned") {
+  VirtualAttempt a;
+  a.load(parseAlgOrEmpty("R U"));
+  a.setClock(1000);
+  CHECK(a.turn(parseAlgOrEmpty("y").front(), 1200)); // before the start: 0
+  CHECK(a.turn(parseAlgOrEmpty("y'").front(), 1300));
+  a.start();
+  // A joined move has the time of its last turn.
+  for (auto [m, t] : std::vector<std::pair<const char *, int>>{
+           {"U", 1500}, {"U", 1600}, {"R", 1700}, {"R'", 1800}, {"R'", 1900}}) {
+    CHECK(a.turn(parseAlgOrEmpty(m).front(), t));
+  }
+  CHECK(toString(a.solution()) == "U2 R'");
+  CHECK(a.solutionTimes() == std::vector<std::int64_t>{600, 900});
 }
 
 TEST_CASE("EO is edges solvable without F or B quarter turns, on any axis") {

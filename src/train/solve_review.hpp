@@ -33,12 +33,17 @@ struct StepMark {
   Hold hold;
 };
 
-// The steps of `steps` (Move Count's, solveSteps(), unless given) the
-// solve did at some point, in that order, each at the first move after
-// which stepReached() holds (0 when the start already has it).
+// The steps of solveSteps() the solve did at some point, in that order,
+// each at the first move after which stepReached() holds (0 when the
+// start already has it). Their HTM is solutionHtm() of the moves by then,
+// simplified or not, as the solve's move count is taken.
 std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
-                                const std::vector<SolveStep> &steps);
-std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution);
+                                bool simplified = true);
+// The same for some of the steps only (in the order given), which is
+// quicker.
+std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
+                                const std::vector<SolveStep> &steps,
+                                bool simplified = true);
 
 // F2L slots in the solver's frame (cross on D), by their corner and edge.
 enum class Slot : std::uint8_t { FR, FL, BL, BR };
@@ -66,8 +71,10 @@ struct PairOption {
 // one per unsolved slot, in Slot order. A case matches when its pair's
 // corner and edge are where the state has them, up to a U turn before the
 // alg, and one of its passing algs, done from the state, solves the slot
-// and keeps EO Cross and every slot that was solved. Without a reference
-// set, or for a pair no case matches, the option has no case.
+// and keeps EO Cross and every slot that was solved. A set with mirrors
+// also matches its cases in each mirror image, with the algs mirrored (a
+// set written for the front-right slot covers the other three). Without a
+// reference set, or for a pair no case matches, the option has no case.
 std::vector<PairOption> pairOptions(const CubieCube &state,
                                     const AlgSet *reference);
 
@@ -88,15 +95,69 @@ struct PairSegment {
 // A solve's F2L split into pairs. From the first move after which EO Cross
 // is done (held in the hold of that StepMark), a segment ends each time
 // more slots are solved, with EO Cross done, than at any point before.
+// Without `eo` the same is done from the cross alone (CFOP), and the
+// options have no case unless the edges happen to be oriented.
 struct F2LBreakdown {
-  bool found = false;      // the solve reached EO Cross
+  bool found = false;      // the solve reached EO Cross (or the cross)
   std::size_t eoCross = 0; // moves done when it did
   Hold hold;               // the hold the slots are seen in
   std::vector<PairSegment> segments;
   bool complete = false; // every slot was solved in the end
 };
 F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
-                          const AlgSet *reference);
+                          const AlgSet *reference, bool eo = true,
+                          bool simplified = true);
+
+// The shortest <R, U, L> solution of a slot's pair from a ZZ F2L state (in
+// the solver's frame) that keeps EO Cross and the slots solved there; see
+// solvePairRul(). nullopt if none is found within `maxDepth` moves.
+std::optional<Alg> optimalPair(const CubieCube &state, Slot slot,
+                               int maxDepth = 14);
+
+// The phases of a whole solve, for step splits: the cross (EO Cross when
+// EO Cross was done before the F2L, as in ZZ, else the cross, as in CFOP),
+// each F2L pair, and the last layer. A phase runs from the end of the one
+// before (the solve's start for the first) to the move that finished it;
+// the last layer runs to the end of the solve.
+struct SolvePhase {
+  enum class Kind : std::uint8_t { Cross, Pair, LastLayer };
+  Kind kind = Kind::Cross;
+  std::string name;       // "EO Cross", "Cross", "FR", "FR + FL", "LL"
+  std::size_t begin = 0;  // moves of the solution done when it began
+  std::size_t end = 0;    // ...and when it ended
+  int htm = 0;            // its moves (solutionHtm of [begin, end))
+  std::int64_t ms = 0;    // how long it took
+  std::int64_t endMs = 0; // when it ended, from the start of the solve
+};
+struct SolveSplits {
+  bool zz = false; // EO Cross came first
+  std::vector<SolvePhase> phases;
+  // The sums by kind; nullopt when a kind wasn't reached (the F2L counts
+  // only when it was finished).
+  std::optional<std::int64_t> crossMs, f2lMs, llMs;
+  int crossHtm = 0, f2lHtm = 0, llHtm = 0;
+};
+// `times` are milliseconds from the start of the solve to each move of the
+// solution (as VirtualAttempt::solutionTimes() keeps them), and `totalMs`
+// the solve's time. Without times (a solve saved before they were kept,
+// or with a different number of times than moves) the phases have no
+// times.
+SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
+                        const std::vector<std::int64_t> &times,
+                        std::int64_t totalMs, bool simplified = true);
+
+// Moves per second, or 0 without time.
+double tps(int htm, std::int64_t ms);
+
+// A reconstruction of a solve as text, e.g. for a forum post or
+// alg.cubing.net: the scramble, then the solution a phase per line with
+// the phase's name, moves and (with times) time after "//".
+std::string reconstruction(const Alg &scramble, const Alg &solution,
+                           const SolveSplits &splits);
+// The solve on alg.cubing.net, its moves commented with the phases.
+std::string reconstructionUrl(const Alg &scramble, const Alg &solution,
+                              const SolveSplits &splits,
+                              const std::string &title);
 
 // The pairs of a ZZ F2L state solved with a reference set's algs in the
 // order that takes the fewest moves (every order of the unsolved slots is

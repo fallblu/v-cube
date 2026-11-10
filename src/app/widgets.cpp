@@ -1,11 +1,17 @@
 #include "app/widgets.hpp"
 
 #include "cube/solver.hpp"
+#include "train/move_count.hpp"
 
+#include <QContextMenuEvent>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QSettings>
+#include <QToolTip>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
@@ -147,6 +153,7 @@ generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
 TrendChart::TrendChart(QWidget *parent)
     : QWidget(parent), emptyText_(tr("Times will be charted here")) {
   setMinimumHeight(110);
+  setMouseTracking(true);
 }
 
 void TrendChart::setEmptyText(const QString &text) {
@@ -154,33 +161,101 @@ void TrendChart::setEmptyText(const QString &text) {
   update();
 }
 
+void TrendChart::setMoveCounts(bool on) {
+  moves_ = on;
+  update();
+}
+
+void TrendChart::setSettingsKey(const QString &key) {
+  settingsKey_ = key;
+  QSettings q;
+  last_ = std::max(0, q.value(key + "/last", 0).toInt());
+  showSeries_ = q.value(key + "/series", false).toBool();
+  update();
+}
+
 void TrendChart::setSolves(const std::vector<Solve> &solves) {
   solves_ = solves;
+  hover_ = -1;
   update();
+}
+
+void TrendChart::setSeries(std::vector<Series> series) {
+  series_ = std::move(series);
+  update();
+}
+
+std::size_t TrendChart::first() const {
+  std::size_t n = solves_.size();
+  auto last = static_cast<std::size_t>(last_);
+  return last > 0 && n > last ? n - last : 0;
+}
+
+QRectF TrendChart::area() const {
+  return QRectF(rect()).adjusted(44, 10, -10, -20);
+}
+
+QString TrendChart::valueText(StatValue v) const {
+  return QString::fromStdString(moves_ ? formatMoves(v, v && *v % 1000 == 0
+                                                            ? 0
+                                                            : 2)
+                                       : formatTime(v));
+}
+
+double niceTickStep(double lo, double hi, int ticks, double minStep) {
+  double range = std::max(hi - lo, 1e-9);
+  double raw = range / std::max(ticks, 1);
+  double power = std::pow(10.0, std::floor(std::log10(raw)));
+  double step = power;
+  for (double m : {1.0, 2.0, 5.0, 10.0}) {
+    step = m * power;
+    if (step >= raw) {
+      break;
+    }
+  }
+  return std::max(step, minStep);
 }
 
 void TrendChart::paintEvent(QPaintEvent *) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
-  QRectF area = QRectF(rect()).adjusted(44, 10, -10, -20);
+  QRectF area = this->area();
   QColor axis = palette().color(QPalette::PlaceholderText);
   p.setPen(axis);
-  if (solves_.size() < 2) {
+  std::size_t from = first();
+  std::size_t n = solves_.size() - from;
+  if (solves_.size() < 2 || n < 2) {
     p.drawText(rect(), Qt::AlignCenter, emptyText_);
     return;
   }
+  bool splits = showSeries_ && !series_.empty();
   std::vector<double> times;
   double lo = 1e18, hi = 0;
-  for (const auto &s : solves_) {
-    std::int64_t t = effectiveTime(s);
-    double v = t == kDnfTime ? std::nan("") : static_cast<double>(t) / 1000.0;
-    times.push_back(v);
+  auto see = [&](double v) {
     if (!std::isnan(v)) {
       lo = std::min(lo, v);
       hi = std::max(hi, v);
     }
+  };
+  for (std::size_t i = from; i < solves_.size(); ++i) {
+    std::int64_t t = effectiveTime(solves_[i]);
+    double v = t == kDnfTime ? std::nan("") : static_cast<double>(t) / 1000.0;
+    times.push_back(v);
+    see(v);
   }
-  if (hi <= 0) {
+  if (splits) {
+    for (const Series &s : series_) {
+      for (std::size_t i = from; i < s.values.size(); ++i) {
+        if (s.values[i] && *s.values[i] != kDnfTime) {
+          see(static_cast<double>(*s.values[i]) / 1000.0);
+        }
+      }
+    }
+  }
+  if (hi <= 0 && lo > hi) {
+    p.drawText(rect(), Qt::AlignCenter,
+               moves_ ? tr("Every attempt here is a DNF")
+                      : tr("Every solve here is a DNF"));
     return;
   }
   // Clip extreme outliers so the interesting range stays readable.
@@ -190,13 +265,17 @@ void TrendChart::paintEvent(QPaintEvent *) {
       sorted.push_back(v);
     }
   }
-  std::sort(sorted.begin(), sorted.end());
-  hi = std::min(hi, sorted[sorted.size() * 95 / 100] * 1.15);
-  lo = std::max(0.0, lo - (hi - lo) * 0.05);
-  if (hi - lo < 0.5) {
-    hi = lo + 0.5;
+  if (!sorted.empty()) {
+    std::sort(sorted.begin(), sorted.end());
+    hi = std::min(hi, sorted[sorted.size() * 95 / 100] * 1.15);
   }
-  std::size_t n = times.size();
+  double minStep = moves_ ? 1.0 : 0.0;
+  double step = niceTickStep(lo, hi, 4, minStep);
+  lo = std::max(0.0, std::floor(lo / step) * step);
+  hi = std::ceil(hi / step) * step;
+  if (hi <= lo) {
+    hi = lo + step;
+  }
   auto px = [&](std::size_t i) {
     return area.left() +
            area.width() * static_cast<double>(i) / static_cast<double>(n - 1);
@@ -204,25 +283,26 @@ void TrendChart::paintEvent(QPaintEvent *) {
   auto py = [&](double v) {
     return area.bottom() - area.height() * (std::min(v, hi) - lo) / (hi - lo);
   };
-  // Grid with labels.
+  // Grid with labels, on round values.
+  int decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
   p.setPen(QPen(axis, 0.5, Qt::DotLine));
-  for (int k = 0; k <= 4; ++k) {
-    double v = lo + (hi - lo) * k / 4.0;
+  for (double v = lo; v <= hi + step / 2; v += step) {
     double y = py(v);
     p.drawLine(QPointF(area.left(), y), QPointF(area.right(), y));
     p.drawText(QRectF(0, y - 8, 40, 16), Qt::AlignRight | Qt::AlignVCenter,
-               QString::number(v, 'f', 1));
+               QString::number(v, 'f', decimals));
   }
   auto drawSeries = [&](const std::vector<StatValue> &vals, const QColor &c,
                         double width) {
     QPainterPath path;
     bool started = false;
     for (std::size_t i = 0; i < n; ++i) {
-      if (!vals[i] || *vals[i] == kDnfTime) {
+      std::size_t at = from + i;
+      if (at >= vals.size() || !vals[at] || *vals[at] == kDnfTime) {
         started = false;
         continue;
       }
-      QPointF pt(px(i), py(static_cast<double>(*vals[i]) / 1000.0));
+      QPointF pt(px(i), py(static_cast<double>(*vals[at]) / 1000.0));
       if (started) {
         path.lineTo(pt);
       } else {
@@ -235,7 +315,7 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.drawPath(path);
   };
   QColor single = palette().color(QPalette::WindowText);
-  single.setAlpha(110);
+  single.setAlpha(splits ? 60 : 110);
   p.setPen(Qt::NoPen);
   p.setBrush(single);
   for (std::size_t i = 0; i < n; ++i) {
@@ -243,14 +323,120 @@ void TrendChart::paintEvent(QPaintEvent *) {
       p.drawEllipse(QPointF(px(i), py(times[i])), 2.2, 2.2);
     }
   }
-  drawSeries(rollingAverages(solves_, 5), QColor(0x3d, 0x8e, 0xf0), 1.8);
-  drawSeries(rollingAverages(solves_, 12), QColor(0xff, 0x8a, 0x3d), 1.8);
-  p.setPen(QColor(0x3d, 0x8e, 0xf0));
-  p.drawText(QPointF(area.left() + 4, height() - 5), "ao5");
-  p.setPen(QColor(0xff, 0x8a, 0x3d));
-  p.drawText(QPointF(area.left() + 40, height() - 5), "ao12");
-  p.setPen(single);
-  p.drawText(QPointF(area.left() + 84, height() - 5), tr("single"));
+  std::vector<std::pair<QString, QColor>> legend;
+  if (splits) {
+    for (const Series &s : series_) {
+      drawSeries(s.values, s.colour, 1.6);
+      legend.emplace_back(s.name, s.colour);
+    }
+  } else {
+    drawSeries(rollingAverages(solves_, 5), QColor(0x3d, 0x8e, 0xf0), 1.8);
+    drawSeries(rollingAverages(solves_, 12), QColor(0xff, 0x8a, 0x3d), 1.8);
+    legend = {{"ao5", QColor(0x3d, 0x8e, 0xf0)},
+              {"ao12", QColor(0xff, 0x8a, 0x3d)}};
+  }
+  legend.emplace_back(tr("single"), single);
+  double x = area.left() + 4;
+  for (const auto &[name, colour] : legend) {
+    p.setPen(colour);
+    p.drawText(QPointF(x, height() - 5), name);
+    x += p.fontMetrics().horizontalAdvance(name) + 14;
+  }
+  if (from > 0 || last_ > 0) {
+    p.setPen(axis);
+    p.drawText(QRectF(area.left(), height() - 18, area.width(), 16),
+               Qt::AlignRight | Qt::AlignVCenter,
+               tr("last %1 of %2").arg(n).arg(solves_.size()));
+  }
+  // The solve under the mouse.
+  if (hover_ >= 0 && static_cast<std::size_t>(hover_) >= from &&
+      static_cast<std::size_t>(hover_) < solves_.size()) {
+    double hx = px(static_cast<std::size_t>(hover_) - from);
+    p.setPen(QPen(axis, 0.8));
+    p.drawLine(QPointF(hx, area.top()), QPointF(hx, area.bottom()));
+  }
+}
+
+void TrendChart::mouseMoveEvent(QMouseEvent *e) {
+  std::size_t from = first();
+  std::size_t n = solves_.size() - from;
+  QRectF a = area();
+  if (n < 2 || a.width() <= 0) {
+    return;
+  }
+  double t = (e->position().x() - a.left()) / a.width();
+  auto i = static_cast<std::size_t>(std::clamp(
+      std::lround(t * static_cast<double>(n - 1)), 0L,
+      static_cast<long>(n - 1)));
+  std::size_t at = from + i;
+  if (static_cast<int>(at) != hover_) {
+    hover_ = static_cast<int>(at);
+    update();
+  }
+  const Solve &s = solves_[at];
+  QStringList lines;
+  lines << tr("#%1: %2")
+               .arg(at + 1)
+               .arg(moves_ ? valueText(effectiveTime(s))
+                           : QString::fromStdString(formatSolve(s)));
+  if (showSeries_ && !series_.empty()) {
+    for (const Series &sr : series_) {
+      if (at < sr.values.size() && sr.values[at]) {
+        lines << QString("%1: %2").arg(sr.name, valueText(sr.values[at]));
+      }
+    }
+  } else {
+    auto ao5 = rollingAverages(std::span(solves_).first(at + 1), 5);
+    auto ao12 = rollingAverages(std::span(solves_).first(at + 1), 12);
+    if (ao5.back()) {
+      lines << QString("ao5: %1").arg(valueText(ao5.back()));
+    }
+    if (ao12.back()) {
+      lines << QString("ao12: %1").arg(valueText(ao12.back()));
+    }
+  }
+  QToolTip::showText(e->globalPosition().toPoint(), lines.join("\n"), this);
+}
+
+void TrendChart::leaveEvent(QEvent *e) {
+  hover_ = -1;
+  update();
+  QWidget::leaveEvent(e);
+}
+
+void TrendChart::contextMenuEvent(QContextMenuEvent *e) {
+  QMenu menu(this);
+  for (int n : {0, 12, 50, 100, 500}) {
+    QAction *a = menu.addAction(n == 0 ? tr("Chart every solve")
+                                       : tr("Chart the last %1").arg(n));
+    a->setCheckable(true);
+    a->setChecked(last_ == n);
+    connect(a, &QAction::triggered, this, [this, n] {
+      last_ = n;
+      if (!settingsKey_.isEmpty()) {
+        QSettings().setValue(settingsKey_ + "/last", n);
+      }
+      update();
+    });
+  }
+  if (!series_.empty()) {
+    menu.addSeparator();
+    QStringList names;
+    for (const Series &s : series_) {
+      names << s.name;
+    }
+    QAction *a = menu.addAction(tr("Show %1").arg(names.join(" / ")));
+    a->setCheckable(true);
+    a->setChecked(showSeries_);
+    connect(a, &QAction::toggled, this, [this](bool on) {
+      showSeries_ = on;
+      if (!settingsKey_.isEmpty()) {
+        QSettings().setValue(settingsKey_ + "/series", on);
+      }
+      update();
+    });
+  }
+  menu.exec(e->globalPos());
 }
 
 } // namespace vcube

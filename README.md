@@ -20,7 +20,7 @@ The app has eight modes, listed in a sidebar in three groups (`Ctrl+1` to
 | Algs | **Library** | Creating and editing alg sets |
 | Solves | **Timed** | Timed solves, with sessions and statistics |
 | Solves | **Untimed** | Solves with no timer, with their move counts |
-| Solves | **Move Count** | Move-efficiency practice for one step (EO, EO+1, EO+2, EO Cross, ZZ F2L) |
+| Solves | **Move Count** | Move-efficiency practice for one step (EO to ZZ F2L, the cross, CFOP F2L) |
 | Practice | **Inspection** | Planning EO to EO Cross (or EOLine) in inspection and executing it blind, and counting bad edges |
 | Practice | **Blind** | Old Pochmann blindfolded solving: letters, memo tracing, setup moves and blind solves |
 
@@ -259,38 +259,71 @@ choice are for a physical cube.
   face early. Space ends the solve. Each solve keeps its scramble and its
   solution, the moves as you did them with turns of the same layer joined
   (R R is R2, R R' nothing), and its move count in HTM (a slice turn counts
-  two, rotations nothing). Hover over a solve to see them, or right-click
-  it to copy either.
+  two, rotations nothing). Counts are simplified by default: turns that
+  cancel across a turn of the opposite layer or a rotation about the same
+  axis don't count (U D U' is one move, R x R' none); Settings > Solves
+  turns this off to count every turn as done. Hover over a solve to see
+  its date, scramble and solution, right-click it to copy either or open
+  **Details…**, and a solve with a comment is marked `*`. A session's cube
+  (and Move Count step) is fixed once it has solves: start a new session
+  for another. **Delete last** (Delete) sits under the list, and Ctrl+Z
+  puts the last deleted solve back. Click a statistic to see its solves
+  (brackets mark the ones an average drops); a new best single, mo3 or
+  average is announced after the solve. Averages are rounded to the
+  shown decimals as the WCA does (singles truncated first). The chart's
+  right-click menu charts the last 12 to 500 solves; hover over it for a
+  solve's values.
 - **Timed**: hold Space to start (the hold time is configurable).
   - Physical cube: a small net next to the scramble shows the scrambled
     cube, white on top and green in front, and any key stops the timer.
   - Virtual cube: the scrambled cube is shown, rotations only, until the
-    timer starts. Space stops it; if the cube isn't solved then, the solve
-    is a DNF. Esc cancels the solve and puts the scramble back.
-  - Optional WCA inspection, with +2 and DNF applied automatically.
+    timer starts. The timer stops when the cube is solved (Settings >
+    Solves can leave that to Space). Space stops it too; if the cube isn't
+    solved then, the solve is a DNF, and the cube stays as you left it to
+    look at until Space (or Esc) brings the next scramble. Esc during a
+    solve cancels it and puts the scramble back. Each move's time is kept,
+    which gives the **Moves**, **TPS**, **Cross**, **F2L** and **LL**
+    columns (EO Cross for a ZZ solve; right-click the header to choose
+    columns) and, from the chart's menu, cross/F2L/LL lines. After a solve
+    its EO Cross count is shown with the optimal. **Review last** (Alt+R,
+    or double-click a solve) opens the review.
+  - Optional WCA inspection, with +2 and DNF applied automatically. On
+    the virtual cube the scrambled cube is hidden until inspection starts
+    (a setting).
+  - With colour neutrality, the hold a scramble was made for is shown
+    under it (in Untimed and Move Count too).
   - Sessions, with ao5/ao12/ao100, mo3, best, mean, +2/DNF/comments per
     solve, and a trend chart. The session menu switches, adds, renames and
-    deletes sessions, and imports and exports cstimer sessions (imported
-    sessions are for a physical cube).
+    deletes sessions, and imports and exports cstimer sessions. Imported
+    sessions are for a physical cube; empty sessions and sessions for
+    other puzzles are left out, and virtual and smart cube solutions come
+    with their move times. The export keeps cstimer's scramble types and
+    solutions; import it in cstimer with **Import session(s) from other
+    timers**, which adds the sessions to yours (cstimer's "Import from
+    file" would replace all your data).
 - **Untimed**: solves with no timer.
   - Virtual cube: hold Space until the hint turns green and release it to
-    start the solve, as in Timed; Space ends it, and a cube that isn't
-    solved then is a DNF. No move count is shown during or after the
-    solve, but it is kept with the solve. After the solve the cube turns freely, and
-    the alg field applies a typed alg with animation; Esc resets the cube
-    to solved, and Space gives the next scramble. During a solve Esc puts
-    the scramble back.
+    start the solve, as in Timed; it ends when the cube is solved (or on
+    Space, as a DNF if it isn't). No move count is shown during the solve;
+    afterwards "Last: N moves" shows it, with your EO Cross count and the
+    optimal. After the solve the cube turns freely, and the alg field
+    applies a typed alg with animation; Esc resets the cube to solved, and
+    Space or Enter gives the next scramble. During a solve Esc puts the
+    scramble back.
   - Physical cube: large scramble text with a net preview. Space or →
     keeps the scramble as done and shows the next, Backspace or ← goes back
     through the last 100 (and → forward again). Done scrambles are listed
-    in the session; right-click one to copy it.
+    in the session with their dates, and the statistics count them (in
+    all and today); right-click one to copy it.
   - Sessions show mo3, ao5/ao12/ao100, best and mean over the move counts
     of virtual solves, and a trend chart.
 - **Move Count**: practise move efficiency for one step at a time, with no
   timer. Each session is for one step: EO, EO+1 or EO+2 (EO with any one
-  or two cross edges), EO Cross or ZZ F2L (the first two layers with every
-  edge oriented). New installs start with one virtual-cube session per
-  step.
+  or two cross edges), EOLine (EO with the two cross edges on the EO
+  axis), EO Cross, XEOCross (EO Cross and any one F2L pair), ZZ F2L (the
+  first two layers with every edge oriented), Cross, or CFOP F2L (the
+  first two layers, edges in any orientation). New installs start with
+  one virtual-cube session per step.
   - Virtual cube: hold Space until the count turns green and release it
     to start the solve, as in Timed; Space ends it. The move count
     is recorded if the step is done, and DNF if not, and the next scramble
@@ -308,24 +341,31 @@ choice are for a physical cube.
     count edits it, toggles DNF, adds a comment or copies its scramble or
     solution.
   - The **Opt** column has each scramble's optimal move count for the
-    session's step (EO to EO Cross) in the holds of your colour neutrality,
-    either EO axis allowed, and the statistics add the mean moves over
-    optimal and how often you were optimal.
+    session's step (EO to EO Cross, and the cross) in any hold, as the step
+    is checked (Settings > Solves can limit it to the holds of your colour
+    neutrality, either EO axis allowed), and the statistics add the mean
+    moves over optimal and how often you were optimal.
   - **Review** (double-click a solve, right-click > Review…, or **Review
     last**): replays the solve on a cube of its own (←/→, Home/End or the
     slider) with the moves where EO, EO+1, EO+2, EO Cross and ZZ F2L were
     first done marked, and how many moves each took and in which hold. For
-    EO to EO Cross it lists the optimal solutions in your holds and over
-    every colour and axis ("show" plays one). For a ZZ F2L (or Untimed)
-    solve it splits the F2L into pairs and compares each with an alg set of
-    F2L pair cases (your ZZ F2L set; any set whose cases each solve one
-    slot's pair): the case the pair was, your moves against your alg, the
-    cheapest pair at that point, and the set's cheapest order overall.
-    Untimed solves can be reviewed too.
+    EO to EO Cross and the cross it lists the optimal solutions in your
+    holds and over every colour and axis ("show" plays one). For a ZZ F2L
+    (or whole) solve it splits the F2L into pairs and compares each with an
+    alg set of F2L pair cases (your ZZ F2L set; any set whose cases each
+    solve one slot's pair, with its mirrors covering the other slots): the
+    case the pair was, your moves against your alg and against the optimal
+    <R, U, L> pair, the cheapest pair at that point, and the set's cheapest
+    order overall. Untimed and Timed solves can be reviewed too; a whole
+    solve also gets its splits (cross, each pair, last layer: moves, and
+    time and TPS for a timed solve). **Copy reconstruction** copies the
+    solve a step per line, and **alg.cubing.net** opens it there.
   - **Retry this scramble** (in the review, virtual cube) puts the scramble
     back on the cube to solve again. The retry isn't recorded; you see its
     count against the original and the optimal, and Space (or Skip
-    scramble) goes back to new scrambles.
+    scramble) goes back to new scrambles. **Retry the worst 5** (session
+    menu, Untimed and Move Count on the virtual cube) retries the DNFs and
+    the solves furthest over the optimal (or longest) one after another.
   - Each session keeps its own scramble type. Choosing a step picks a
     WCA scramble, or EO Cross solved for ZZ F2L. Only the scramble types
     that suit these steps are offered: WCA random state (for EO, EOLine,
@@ -569,18 +609,23 @@ picks the plugin as usual.
 | Drill, after a case | Backspace | toggle DNF (virtual) or "wrong alg" (physical) |
 | Drill, after a case | Esc | try the case again |
 | Timed (virtual) | turning keys | rotations only before the timer starts, then any turn |
-| Timed (virtual) | Space | stop (DNF if the cube isn't solved) |
+| Timed (virtual) | Space | stop (DNF if the cube isn't solved); after a DNF, the next scramble |
+| Timed, after a solve | Alt+1 / Alt+2 / Alt+3 | no penalty / toggle +2 / toggle DNF on the last solve |
+| Timed, Untimed, Move Count | Delete / Ctrl+Z | delete the last solve / put the last deleted solve back |
+| Timed, Untimed, Move Count | Ctrl+→ | skip the scramble |
+| Timed, Untimed, Move Count | Alt+C / Alt+R | comment on / review the last solve |
 | Untimed, Move Count (virtual) | turning keys | rotations only before the solve starts, then any turn |
 | Untimed, Move Count (virtual) | hold Space, release | start the solve (after the hold time, when it turns green) |
 | Untimed, Move Count (virtual) | Space | end the solve (DNF if not solved, or the step not done) |
 | Untimed, Move Count (virtual) | Esc | put the scramble back |
-| Untimed (virtual), after a solve | Space / Esc | next scramble / reset the cube to solved |
+| Untimed (virtual), after a solve | Space or Enter / Esc | next scramble / reset the cube to solved |
 | Untimed (virtual), alg field | Enter / Esc | apply the alg / return the keys to the cube |
 | Untimed (physical) | Space / → | keep the scramble as done and show the next |
 | Untimed (physical) | Backspace / ← | previous scramble |
 | Move Count (physical) | 0-9 | type the move count |
 | Move Count (physical) | Backspace / Esc | correct / clear the move count |
 | Move Count (physical) | Enter | record the move count and show the next scramble |
+| Move Count (physical) | Alt+3 | record the scramble as DNF |
 | Timed, Untimed | Tab | show or hide the algs for an alg set scramble's case |
 | Review | ← / → / Home / End | step the replay back / forward / to the scramble / to the end |
 | Inspection | Space | start inspection / hide the cube / reveal it / next scramble |
@@ -687,7 +732,7 @@ are also set up in, of `"left-right"`, `"front-back"` and `"both"`):
 | Directory | Contents |
 | --- | --- |
 | `src/cube` | Pure C++ engine. Notation parser (groups, commutators, conjugates; invert, mirror, simplify); a facelet model built from 3D geometry that handles slices, wide moves and rotations; a cubie model; Kociemba's two-phase solver (tables built in under a second); random-state and subset scramblers. |
-| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics (also over move counts), Move Count step checks and virtual-cube attempts, optimal EO to EO Cross solving (IDA*), solve review (step marks, F2L pair breakdown against pair-case sets), mirror families, mirror worlds and step-at-a-time (reduction) sets, Old Pochmann tracing and setups, SRS scheduler, Learn and Drill case picking. |
+| `src/train` | Pure C++ training logic. Alg sets, AUF-aware alg-to-case matching and verification, display orientation, drill states, paste import, timer state machine, WCA statistics (also over move counts), Move Count step checks and virtual-cube attempts, optimal EO to EO Cross and cross solving and <R, U, L> pairs (IDA*), solve review (step marks, step splits, F2L pair breakdown against pair-case sets, reconstructions), mirror families, mirror worlds and step-at-a-time (reduction) sets, Old Pochmann tracing and setups, SRS scheduler, Learn and Drill case picking. |
 | `src/io` | Qt Core persistence. JSON alg sets, the user library, progress, timer, move count, inspection and blind sessions, and cstimer conversion. |
 | `src/app` | Qt Widgets UI. Cube renderer, the eight mode pages, the solve review, the shared scramble source and settings. |
 | `tests` | Catch2 tests for the engine, training logic and storage. They also check that every built-in case is distinct and that standard algs are matched to the right cases. |

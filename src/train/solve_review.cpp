@@ -2,10 +2,13 @@
 
 #include "train/case_logic.hpp"
 #include "train/families.hpp"
+#include "train/step_solver.hpp"
 
 #include <algorithm>
 #include <array>
 #include <climits>
+#include <cctype>
+#include <cstdio>
 #include <functional>
 #include <map>
 #include <memory>
@@ -101,6 +104,10 @@ std::size_t fingerprint(const AlgSet &set) {
   std::string blob = set.id;
   blob += set.aufBefore ? '1' : '0';
   blob += set.aufAfter ? '1' : '0';
+  for (Mirror m : set.mirrors) {
+    blob += m.leftRight ? 'l' : '-';
+    blob += m.frontBack ? 'f' : '-';
+  }
   for (const auto &g : set.groups) {
     blob += '\x1d';
     blob += freeToString(set.specFor(g).free);
@@ -125,26 +132,35 @@ std::size_t fingerprint(const AlgSet &set) {
 
 std::shared_ptr<const PairIndex> buildIndex(const AlgSet &set) {
   auto index = std::make_shared<PairIndex>();
-  for (const auto &g : set.groups) {
-    const PieceMask &free = set.specFor(g).free;
-    for (const auto &c : g.cases) {
-      auto slot = pairSlot(casePieces(c.state, free));
-      if (!slot) {
-        continue;
-      }
-      PairCase pc{c.id, c.name, {}};
-      for (const auto &text : c.algs) {
-        AlgCheck check =
-            checkAlg(c.state, text, free, set.aufBefore, set.aufAfter);
-        if (check.passes()) {
-          pc.algs.push_back({text, parseAlgOrEmpty(text), check.fit->before});
+  // The cases as written, then each mirror image of them, so that a set
+  // written for one slot covers the slots its mirrors are for.
+  for (Mirror world : set.worlds()) {
+    for (const auto &g : set.groups) {
+      const PieceMask written = set.specFor(g).free;
+      for (const auto &c : g.cases) {
+        CubieCube state = world.none() ? c.state : mirrorState(c.state, world);
+        PieceMask free = world.none() ? written : mirrorMask(written, world);
+        auto slot = pairSlot(casePieces(state, free));
+        if (!slot) {
+          continue;
         }
+        PairCase pc{c.id, c.name, {}};
+        for (const auto &original : c.algs) {
+          std::string text =
+              world.none() ? original : mirrorAlgText(original, world);
+          AlgCheck check =
+              checkAlg(state, text, free, set.aufBefore, set.aufAfter);
+          if (check.passes()) {
+            pc.algs.push_back(
+                {text, parseAlgOrEmpty(text), check.fit->before});
+          }
+        }
+        if (pc.algs.empty()) {
+          continue;
+        }
+        index->byKey[pairKey(*slot, state)].push_back(index->cases.size());
+        index->cases.push_back(std::move(pc));
       }
-      if (pc.algs.empty()) {
-        continue;
-      }
-      index->byKey[pairKey(*slot, c.state)].push_back(index->cases.size());
-      index->cases.push_back(std::move(pc));
     }
   }
   return index;
@@ -239,16 +255,20 @@ PairOption bestOption(const CubieCube &state, Slot slot,
 
 } // namespace
 
-std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution) {
-  return stepMarks(start, solution, solveSteps());
+std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
+                                bool simplified) {
+  return stepMarks(start, solution, solveSteps(), simplified);
 }
 
 std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
-                                const std::vector<SolveStep> &steps) {
+                                const std::vector<SolveStep> &steps,
+                                bool simplified) {
   std::vector<std::optional<StepMark>> found(steps.size());
   FaceletCube f = start;
-  int htm = 0;
   for (std::size_t k = 0; k <= solution.size(); ++k) {
+    int htm = solutionHtm(
+        Alg(solution.begin(), solution.begin() + static_cast<std::ptrdiff_t>(k)),
+        simplified);
     bool all = true;
     for (std::size_t i = 0; i < steps.size(); ++i) {
       if (found[i]) {
@@ -265,7 +285,6 @@ std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
       break;
     }
     f.apply(solution[k]);
-    htm += htmCount(Alg{solution[k]});
   }
   std::vector<StepMark> out;
   for (const auto &m : found) {
@@ -366,12 +385,18 @@ bool isPairSet(const AlgSet &set) {
 }
 
 F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
-                          const AlgSet *reference) {
+                          const AlgSet *reference, bool eo, bool simplified) {
   F2LBreakdown out;
   FaceletCube f = start;
   std::size_t k = 0;
+  SolveStep crossStep = eo ? SolveStep::EOCross : SolveStep::Cross;
+  auto crossDone = [eo](const CubieCube &c) {
+    return eo ? eoCrossSolved(c)
+              : edgeSolved(c, DF) && edgeSolved(c, DR) && edgeSolved(c, DB) &&
+                    edgeSolved(c, DL);
+  };
   for (;; ++k) {
-    std::vector<Hold> holds = stepReachedHolds(f, SolveStep::EOCross);
+    std::vector<Hold> holds = stepReachedHolds(f, crossStep);
     if (!holds.empty()) {
       out.found = true;
       out.eoCross = k;
@@ -411,7 +436,7 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
   for (; k < solution.size(); ++k) {
     f.apply(solution[k]);
     auto c = stateAt(f);
-    bool cross = c && eoCrossSolved(*c);
+    bool cross = c && crossDone(*c);
     std::array<bool, kSlots> now =
         cross ? solvedSlots(*c) : std::array<bool, kSlots>{};
     allSolved = cross && count(now) == kSlots;
@@ -421,9 +446,10 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
     PairSegment seg;
     seg.begin = segmentBegin;
     seg.end = k + 1;
-    seg.htm = htmCount(
+    seg.htm = solutionHtm(
         Alg(solution.begin() + static_cast<std::ptrdiff_t>(segmentBegin),
-            solution.begin() + static_cast<std::ptrdiff_t>(k + 1)));
+            solution.begin() + static_cast<std::ptrdiff_t>(k + 1)),
+        simplified);
     for (Slot s : kAllSlots) {
       auto i = static_cast<std::size_t>(s);
       if (now[i] && !before[i]) {
@@ -439,6 +465,206 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
   }
   out.complete = allSolved;
   return out;
+}
+
+std::optional<Alg> optimalPair(const CubieCube &state, Slot slot,
+                               int maxDepth) {
+  std::vector<std::pair<Corner, Edge>> keep;
+  for (Slot s : kAllSlots) {
+    if (s != slot && slotSolved(state, s)) {
+      keep.emplace_back(slotCorner(s), slotEdge(s));
+    }
+  }
+  return solvePairRul(state, slotCorner(slot), slotEdge(slot), keep,
+                      maxDepth);
+}
+
+double tps(int htm, std::int64_t ms) {
+  return ms > 0 ? htm * 1000.0 / static_cast<double>(ms) : 0.0;
+}
+
+SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
+                        const std::vector<std::int64_t> &times,
+                        std::int64_t totalMs, bool simplified) {
+  SolveSplits out;
+  bool timed = times.size() == solution.size();
+  auto timeAt = [&](std::size_t moves) -> std::int64_t {
+    // When the move that made `moves` moves done was turned.
+    if (!timed || moves == 0) {
+      return 0;
+    }
+    return times[moves - 1];
+  };
+  auto htmOf = [&](std::size_t begin, std::size_t end) {
+    return solutionHtm(
+        Alg(solution.begin() + static_cast<std::ptrdiff_t>(begin),
+            solution.begin() + static_cast<std::ptrdiff_t>(end)),
+        simplified);
+  };
+  std::vector<StepMark> marks = stepMarks(
+      start, solution, {SolveStep::EOCross, SolveStep::CFOPF2L}, simplified);
+  auto markOf = [&](SolveStep step) -> std::optional<std::size_t> {
+    for (const StepMark &m : marks) {
+      if (m.step == step) {
+        return m.moves;
+      }
+    }
+    return std::nullopt;
+  };
+  std::optional<std::size_t> eoCross = markOf(SolveStep::EOCross);
+  std::optional<std::size_t> f2l = markOf(SolveStep::CFOPF2L);
+  out.zz = eoCross && (!f2l || *eoCross < *f2l);
+  F2LBreakdown b = f2lBreakdown(start, solution, nullptr, out.zz, simplified);
+  if (!b.found) {
+    return out;
+  }
+  auto add = [&](SolvePhase::Kind kind, std::string name, std::size_t begin,
+                 std::size_t end, std::int64_t beginMs, std::int64_t endMs) {
+    SolvePhase p;
+    p.kind = kind;
+    p.name = std::move(name);
+    p.begin = begin;
+    p.end = end;
+    p.htm = htmOf(begin, end);
+    p.endMs = timed ? endMs : 0;
+    p.ms = timed ? std::max<std::int64_t>(0, endMs - beginMs) : 0;
+    out.phases.push_back(std::move(p));
+  };
+  add(SolvePhase::Kind::Cross, out.zz ? "EO Cross" : "Cross", 0, b.eoCross, 0,
+      timeAt(b.eoCross));
+  std::size_t at = b.eoCross;
+  for (const PairSegment &seg : b.segments) {
+    std::string name;
+    for (Slot s : seg.solved) {
+      name += (name.empty() ? "" : " + ") + std::string(slotName(s));
+    }
+    add(SolvePhase::Kind::Pair, name, at, seg.end, timeAt(at),
+        timeAt(seg.end));
+    at = seg.end;
+  }
+  // The last layer, once the F2L was finished.
+  if (f2l && b.complete) {
+    add(SolvePhase::Kind::LastLayer, "LL", at, solution.size(), timeAt(at),
+        std::max(totalMs, timeAt(solution.size())));
+  }
+  bool f2lDone = false;
+  std::int64_t f2lMs = 0;
+  for (const SolvePhase &p : out.phases) {
+    switch (p.kind) {
+    case SolvePhase::Kind::Cross:
+      out.crossHtm = p.htm;
+      if (timed) {
+        out.crossMs = p.ms;
+      }
+      break;
+    case SolvePhase::Kind::Pair:
+      out.f2lHtm += p.htm;
+      f2lMs += p.ms;
+      break;
+    case SolvePhase::Kind::LastLayer:
+      f2lDone = true;
+      out.llHtm = p.htm;
+      if (timed) {
+        out.llMs = p.ms;
+      }
+      break;
+    }
+  }
+  if (timed && f2lDone) {
+    out.f2lMs = f2lMs;
+  }
+  return out;
+}
+
+namespace {
+
+std::string seconds(std::int64_t ms) {
+  char buf[32];
+  std::snprintf(buf, sizeof buf, "%.2f", static_cast<double>(ms) / 1000.0);
+  return buf;
+}
+
+std::string phaseMoves(const Alg &solution, std::size_t begin,
+                       std::size_t end) {
+  return toString(Alg(solution.begin() + static_cast<std::ptrdiff_t>(begin),
+                      solution.begin() + static_cast<std::ptrdiff_t>(end)));
+}
+
+// Each line of the reconstruction after the scramble: the moves and the
+// comment.
+std::vector<std::pair<std::string, std::string>>
+reconstructionLines(const Alg &solution, const SolveSplits &splits) {
+  std::vector<std::pair<std::string, std::string>> lines;
+  std::size_t at = 0;
+  for (const SolvePhase &p : splits.phases) {
+    if (p.begin > at) {
+      lines.emplace_back(phaseMoves(solution, at, p.begin), "");
+    }
+    std::string comment = p.name;
+    if (p.kind == SolvePhase::Kind::Pair) {
+      comment = "Pair: " + comment;
+    }
+    comment += " (" + std::to_string(p.htm) + (p.htm == 1 ? " move" : " moves");
+    if (p.ms > 0) {
+      comment += ", " + seconds(p.ms) + " s";
+    }
+    comment += ")";
+    lines.emplace_back(phaseMoves(solution, p.begin, p.end), comment);
+    at = p.end;
+  }
+  if (at < solution.size()) {
+    lines.emplace_back(phaseMoves(solution, at, solution.size()), "");
+  }
+  return lines;
+}
+
+std::string urlEncoded(const std::string &text) {
+  std::string out;
+  for (char ch : text) {
+    auto c = static_cast<unsigned char>(ch);
+    if (std::isalnum(c) || c == '-' || c == '.' || c == '_') {
+      out += static_cast<char>(c);
+    } else if (c == ' ') {
+      out += '_';
+    } else if (c == '\'') {
+      out += '-';
+    } else {
+      char buf[4];
+      std::snprintf(buf, sizeof buf, "%%%02X", c);
+      out += buf;
+    }
+  }
+  return out;
+}
+
+} // namespace
+
+std::string reconstruction(const Alg &scramble, const Alg &solution,
+                           const SolveSplits &splits) {
+  std::string out = toString(scramble) + " // scramble\n";
+  for (const auto &[moves, comment] : reconstructionLines(solution, splits)) {
+    out += moves;
+    if (!comment.empty()) {
+      out += (moves.empty() ? "// " : " // ") + comment;
+    }
+    out += "\n";
+  }
+  return out;
+}
+
+std::string reconstructionUrl(const Alg &scramble, const Alg &solution,
+                              const SolveSplits &splits,
+                              const std::string &title) {
+  std::string alg;
+  for (const auto &[moves, comment] : reconstructionLines(solution, splits)) {
+    alg += moves;
+    if (!comment.empty()) {
+      alg += " // " + comment;
+    }
+    alg += "\n";
+  }
+  return "https://alg.cubing.net/?setup=" + urlEncoded(toString(scramble)) +
+         "&alg=" + urlEncoded(alg) + "&title=" + urlEncoded(title);
 }
 
 PairPlan cheapestPairOrder(const CubieCube &state, const AlgSet &reference) {
