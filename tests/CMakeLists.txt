@@ -1,7 +1,6 @@
-# Windows has no system Catch2 to find, so it always uses the fetched copy.
-if(NOT WIN32)
-  find_package(Catch2 3 QUIET)
-endif()
+# An installed Catch2 (a distribution package, vcpkg, or CMAKE_PREFIX_PATH)
+# if there is one, on every platform; otherwise a fetched copy.
+find_package(Catch2 3 QUIET)
 if(NOT Catch2_FOUND)
   include(FetchContent)
   FetchContent_Declare(Catch2
