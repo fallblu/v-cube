@@ -741,8 +741,9 @@ void LibraryPage::deleteSet() {
   }
   auto answer = QMessageBox::question(
       this, tr("Delete alg set"),
-      tr("Delete \"%1\", its algs and your drill progress for it? This can't "
-         "be undone.%2")
+      tr("Delete \"%1\", its algs and your progress for it? Its files are "
+         "moved to the alg sets' deleted folder, where they can be brought "
+         "back by hand.%2")
           .arg(qs(s->name))
           .arg(s->builtin ? tr("\n\nBuilt-in sets don't come back by "
                                "themselves; export it "
@@ -751,7 +752,12 @@ void LibraryPage::deleteSet() {
   if (answer != QMessageBox::Yes) {
     return;
   }
-  library_.remove(setId_);
+  if (QString error; !library_.remove(setId_, &error)) {
+    QMessageBox::warning(
+        this, tr("Delete alg set"),
+        tr("Could not delete \"%1\": %2").arg(qs(s->name), error));
+    return;
+  }
   setId_ = library_.sets().empty() ? std::string() : library_.sets().front().id;
   refreshSetList();
   loadSet();
