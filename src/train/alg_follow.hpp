@@ -44,8 +44,11 @@ AlgOpening algOpening(const Alg &alg);
 //     one turn the other way (R');
 //   - a wide or slice turn as the turns it is made of (r as R M');
 //   - turns of opposite faces in either order (R L' as L' R);
-//   - leaving out a U turn at the end, or adding one after the alg, which
-//     only lines up the last layer.
+//   - any U turns once only U turns are left of the alg (its last U turns
+//     with the AUF after them, done separately or turned too far and
+//     back), and leaving out a U turn at the end: they only line up the
+//     last layer;
+//   - passing through a state the alg passes through twice.
 // Anything else, such as a wrong turn, even one that is undone, leaves the
 // algs. So does starting over after the alg was begun.
 class AlgFollower {
@@ -89,6 +92,10 @@ private:
     // The last state that turns on that axis alone lead to from states[i]:
     // another way of doing those turns has to stay within them.
     std::vector<std::size_t> runEnd;
+    // The first state from which the alg only turns the U layer: from
+    // there any U turns may be done, which line up the last layer however
+    // the alg's last U turns and the AUF after it are done.
+    std::size_t tail = 0;
     std::size_t at = 0;   // the last state reached
     int transit = 0;      // cost of the moves done since then
     int transitAxis = -1; // and their axis

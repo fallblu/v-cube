@@ -263,6 +263,10 @@ void AlgFollower::layOutPaths() {
         bool layer = !isRotation(a.type);
         if (layer) {
           p.axis.push_back(heldAxis(f, a.type));
+          std::optional<UdTurn> ud = udTurn(f, a);
+          if (!ud || ud->d != 0) {
+            p.tail = p.states.size(); // the state this turn leads to
+          }
         }
         f.apply(a);
         cost += algCost(a);
@@ -320,6 +324,27 @@ void AlgFollower::step(std::size_t i) {
     if (auf && p.transit == 0 && p.at + 1 == p.states.size()) {
       continue; // the alg is done; U turns only line up the last layer
     }
+    if (p.at >= p.tail) {
+      // Only U turns are left of the alg: however they are done (the alg's
+      // last U turn and then the AUF, or a U turn too far and back), the
+      // states they reach are the alg's when the cube gets there.
+      if (!auf) {
+        p.alive = false;
+        p.leftAt = i;
+        continue;
+      }
+      auto tail = p.states.begin() + static_cast<std::ptrdiff_t>(p.tail);
+      auto found = std::find(tail, p.states.end(), now);
+      if (found != p.states.end()) {
+        p.at = static_cast<std::size_t>(found - p.states.begin());
+        p.transit = 0;
+      } else {
+        p.transitAxis = axis;
+        p.transit = cost;
+      }
+      p.lostAt.reset();
+      continue;
+    }
     // Another way of doing the alg's next turns only turns layers on the
     // same axis as they do until it catches up with the alg.
     if (p.transit == 0) {
@@ -340,14 +365,16 @@ void AlgFollower::step(std::size_t i) {
     auto begin = p.states.begin();
     auto at = begin + static_cast<std::ptrdiff_t>(p.at);
     auto runEnd = begin + static_cast<std::ptrdiff_t>(p.runEnd[p.at]) + 1;
+    // A state ahead comes first: an alg may pass through a state twice,
+    // as (R U R') (R U2 R') does.
     auto ahead = std::find(at + 1, runEnd, now);
-    if (std::find(begin, at + 1, now) != at + 1) {
-      p.alive = false; // back where it already was: a turn was undone
-    } else if (ahead != runEnd) {
+    if (ahead != runEnd) {
       auto j = static_cast<std::size_t>(ahead - begin);
       p.alive = p.transit <= p.cost[j] - p.cost[p.at];
       p.at = j;
       p.transit = 0;
+    } else if (std::find(begin, at + 1, now) != at + 1) {
+      p.alive = false; // back where it already was: a turn was undone
     } else {
       // Between two states of the alg: left once more has been turned than
       // the alg's turns on this axis need.

@@ -281,3 +281,60 @@ TEST_CASE("a free D corner shows its D sticker in orientation diagrams",
   f = maskedFacelets(c, mask, {});
   CHECK(f[kCornerFacelets[URF][0]] == kMaskedColour);
 }
+
+TEST_CASE("the algs a case is set up with follow however the AUF is done",
+          "[reduction]") {
+  // An alg ending in a U turn, which joins the AUF after it.
+  const std::string written = "R U R' U' R' F R2 U' R' U' R U R' F' U";
+  AlgSet set;
+  set.id = "pll";
+  CaseGroup g{"Cases", std::nullopt, {}};
+  g.cases.push_back(makeCase("t", written, written));
+  set.groups.push_back(g);
+  const CaseGroup &group = set.groups[0];
+  const AlgCase &c = group.cases[0];
+  CaseAnalysis analysis = analyzeCase(set, group, c);
+  auto follow = [&](const CubieCube &cube, const std::string &moves) {
+    INFO(moves);
+    std::optional<CaseView> view = seenCase(set, cube);
+    REQUIRE(view);
+    std::vector<Alg> algs;
+    for (const ViewAlg &a : algsFor(set, group, c, analysis, *view, cube, {})) {
+      algs.push_back(parseAlgOrEmpty(a.text));
+    }
+    REQUIRE_FALSE(algs.empty());
+    AlgFollower f(cube.toFacelets(), algs);
+    for (Move m : parseAlgOrEmpty(moves)) {
+      f.move(m);
+    }
+    CHECK_FALSE(f.deviated());
+    CHECK(f.finished());
+    CHECK(stepSolved(done(cube, moves), {}));
+  };
+  for (int before = 0; before < 4; ++before) {
+    for (int after = 0; after < 4; ++after) {
+      std::string pre = aufText(before);
+      std::string post = aufText(after);
+      CubieCube cube =
+          stateSolvedBy(parseAlgOrEmpty(pre + " " + written + " " + post));
+      // The alg as it is learned, then the AUF.
+      follow(cube, pre + " " + written + " " + post);
+      // The AUF turned too far and put right.
+      follow(cube, pre + " " + written + " " + post + " U U'");
+      follow(cube, pre + " " + written + " " + aufText(after + 1) + " U'");
+    }
+  }
+  // Another layer once only U turns are left still leaves the alg.
+  CubieCube cube = stateSolvedBy(parseAlgOrEmpty(written + " U"));
+  std::optional<CaseView> view = seenCase(set, cube);
+  REQUIRE(view);
+  std::vector<Alg> algs;
+  for (const ViewAlg &a : algsFor(set, group, c, analysis, *view, cube, {})) {
+    algs.push_back(parseAlgOrEmpty(a.text));
+  }
+  AlgFollower f(cube.toFacelets(), algs);
+  for (Move m : parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F' U D")) {
+    f.move(m);
+  }
+  CHECK(f.deviated());
+}
