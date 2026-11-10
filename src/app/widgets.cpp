@@ -251,10 +251,8 @@ QRectF TrendChart::area() const {
 }
 
 QString TrendChart::valueText(StatValue v) const {
-  return QString::fromStdString(moves_ ? formatMoves(v, v && *v % 1000 == 0
-                                                            ? 0
-                                                            : 2)
-                                       : formatTime(v));
+  return QString::fromStdString(
+      moves_ ? formatMoves(v, v && *v % 1000 == 0 ? 0 : 2) : formatTime(v));
 }
 
 double niceTickStep(double lo, double hi, int ticks, double minStep) {
@@ -423,9 +421,9 @@ void TrendChart::mouseMoveEvent(QMouseEvent *e) {
     return;
   }
   double t = (e->position().x() - a.left()) / a.width();
-  auto i = static_cast<std::size_t>(std::clamp(
-      std::lround(t * static_cast<double>(n - 1)), 0L,
-      static_cast<long>(n - 1)));
+  auto i = static_cast<std::size_t>(
+      std::clamp(std::lround(t * static_cast<double>(n - 1)), 0L,
+                 static_cast<long>(n - 1)));
   std::size_t at = from + i;
   if (static_cast<int>(at) != hover_) {
     hover_ = static_cast<int>(at);
@@ -433,10 +431,9 @@ void TrendChart::mouseMoveEvent(QMouseEvent *e) {
   }
   const Solve &s = solves_[at];
   QStringList lines;
-  lines << tr("#%1: %2")
-               .arg(at + 1)
-               .arg(moves_ ? valueText(effectiveTime(s))
-                           : QString::fromStdString(formatSolve(s)));
+  lines << tr("#%1: %2").arg(at + 1).arg(
+      moves_ ? valueText(effectiveTime(s))
+             : QString::fromStdString(formatSolve(s)));
   if (showSeries_ && !series_.empty()) {
     for (const Series &sr : series_) {
       if (at < sr.values.size() && sr.values[at]) {

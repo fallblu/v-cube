@@ -15,8 +15,7 @@ void DrillSettings::load(const QSettings &q) {
   DrillSettings d;
   autoStop = q.value("drill/autoStop", d.autoStop).toBool();
   tapToArm = q.value("drill/tapToArm", d.tapToArm).toBool();
-  holdMs =
-      std::clamp(q.value("drill/holdMs", d.holdMs).toInt(), 0, kMaxHoldMs);
+  holdMs = std::clamp(q.value("drill/holdMs", d.holdMs).toInt(), 0, kMaxHoldMs);
   shiftSpaceGivesUp =
       q.value("drill/shiftSpaceGivesUp", d.shiftSpaceGivesUp).toBool();
   practiseAfterDnf =

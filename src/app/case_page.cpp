@@ -45,8 +45,7 @@ public:
         return a < b;
       }
       // Ties stay in list order either way round.
-      if (treeWidget()->header()->sortIndicatorOrder() ==
-          Qt::DescendingOrder) {
+      if (treeWidget()->header()->sortIndicatorOrder() == Qt::DescendingOrder) {
         return data(0, kOrderRole).toInt() > other.data(0, kOrderRole).toInt();
       }
     }
@@ -315,9 +314,10 @@ void CasePage::fillGroupRows() {
 }
 
 void CasePage::applyHiddenColumns() {
-  QStringList hidden = QSettings()
-                           .value(mode_ + "/hiddenColumns", defaultHiddenColumns())
-                           .toStringList();
+  QStringList hidden =
+      QSettings()
+          .value(mode_ + "/hiddenColumns", defaultHiddenColumns())
+          .toStringList();
   for (int c = 1; c < tree_->columnCount(); ++c) {
     tree_->setColumnHidden(c, hidden.contains(tree_->headerItem()->text(c)));
   }
@@ -547,7 +547,8 @@ void CasePage::selectSet(const std::string &id) {
 void CasePage::selectAcrossSets() {
   acrossSets_ = true;
   if (!library_.find(setId_)) {
-    setId_ = library_.sets().empty() ? std::string() : library_.sets().front().id;
+    setId_ =
+        library_.sets().empty() ? std::string() : library_.sets().front().id;
   }
   QSettings().setValue(mode_ + "/set", QString(kAcrossSetsId));
   setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
@@ -1034,12 +1035,11 @@ QPixmap CasePage::caseDiagram(const std::string &caseId, const CubieCube &state,
 void CasePage::saveProgress() {
   // Written in the background from a copy, so that saving never holds up
   // the next attempt.
-  writeInBackground(library_.progressPath(setId_),
-                    library_.progressWriter(setId_), this,
-                    [this, id = qs(setId_)](const QString &error) {
-                      emit message(tr("Could not save progress for %1: %2")
-                                       .arg(id, error));
-                    });
+  writeInBackground(
+      library_.progressPath(setId_), library_.progressWriter(setId_), this,
+      [this, id = qs(setId_)](const QString &error) {
+        emit message(tr("Could not save progress for %1: %2").arg(id, error));
+      });
 }
 
 } // namespace vcube

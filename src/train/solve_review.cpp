@@ -6,8 +6,8 @@
 
 #include <algorithm>
 #include <array>
-#include <climits>
 #include <cctype>
+#include <climits>
 #include <cstdio>
 #include <functional>
 #include <map>
@@ -151,8 +151,7 @@ std::shared_ptr<const PairIndex> buildIndex(const AlgSet &set) {
           AlgCheck check =
               checkAlg(state, text, free, set.aufBefore, set.aufAfter);
           if (check.passes()) {
-            pc.algs.push_back(
-                {text, parseAlgOrEmpty(text), check.fit->before});
+            pc.algs.push_back({text, parseAlgOrEmpty(text), check.fit->before});
           }
         }
         if (pc.algs.empty()) {
@@ -266,9 +265,10 @@ std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
   std::vector<std::optional<StepMark>> found(steps.size());
   FaceletCube f = start;
   for (std::size_t k = 0; k <= solution.size(); ++k) {
-    int htm = solutionHtm(
-        Alg(solution.begin(), solution.begin() + static_cast<std::ptrdiff_t>(k)),
-        simplified);
+    int htm =
+        solutionHtm(Alg(solution.begin(),
+                        solution.begin() + static_cast<std::ptrdiff_t>(k)),
+                    simplified);
     bool all = true;
     for (std::size_t i = 0; i < steps.size(); ++i) {
       if (found[i]) {
@@ -475,8 +475,7 @@ std::optional<Alg> optimalPair(const CubieCube &state, Slot slot,
       keep.emplace_back(slotCorner(s), slotEdge(s));
     }
   }
-  return solvePairRul(state, slotCorner(slot), slotEdge(slot), keep,
-                      maxDepth);
+  return solvePairRul(state, slotCorner(slot), slotEdge(slot), keep, maxDepth);
 }
 
 double tps(int htm, std::int64_t ms) {
@@ -538,8 +537,7 @@ SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
     for (Slot s : seg.solved) {
       name += (name.empty() ? "" : " + ") + std::string(slotName(s));
     }
-    add(SolvePhase::Kind::Pair, name, at, seg.end, timeAt(at),
-        timeAt(seg.end));
+    add(SolvePhase::Kind::Pair, name, at, seg.end, timeAt(at), timeAt(seg.end));
     at = seg.end;
   }
   // The last layer, once the F2L was finished.

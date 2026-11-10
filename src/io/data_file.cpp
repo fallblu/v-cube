@@ -226,8 +226,7 @@ private:
         if (QCoreApplication *app = QCoreApplication::instance()) {
           QMetaObject::invokeMethod(
               app,
-              [context = job.context, onError = std::move(job.onError),
-               error] {
+              [context = job.context, onError = std::move(job.onError), error] {
                 if (context) {
                   onError(error);
                 }

@@ -88,8 +88,8 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   start_.apply(solve_.scramble);
   marks_ = stepMarks(start_, solve_.solution, settings_.simplifiedCounts);
   if (!solve_.step) {
-    splits_ = solveSplits(start_, solve_.solution, solve_.times,
-                          solve_.totalMs, settings_.simplifiedCounts);
+    splits_ = solveSplits(start_, solve_.solution, solve_.times, solve_.totalMs,
+                          settings_.simplifiedCounts);
   }
   // Name each step's hold from the neutrality's holds when one has it.
   std::vector<Hold> neutral = withBothEoAxes(settings_.neutrality.holds);
@@ -440,8 +440,8 @@ void ReviewDialog::showSplits() {
     splitsLabel_->setText(muted(tr("The solve never had a cross done.")));
     return;
   }
-  bool timed = solve_.times.size() == solve_.solution.size() &&
-               !solve_.times.empty();
+  bool timed =
+      solve_.times.size() == solve_.solution.size() && !solve_.times.empty();
   QString html = "<table cellspacing='4'><tr><th align='left'>" + tr("Step") +
                  "</th><th align='right'>" + tr("Moves") + "</th>";
   if (timed) {
@@ -455,8 +455,7 @@ void ReviewDialog::showSplits() {
     html += "<tr><td>" + b + name.toHtmlEscaped() + e +
             "</td><td align='right'>" + QString::number(htm) + "</td>";
     if (timed) {
-      html += "<td align='right'>" +
-              (ms ? secondsText(*ms) : QString("-")) +
+      html += "<td align='right'>" + (ms ? secondsText(*ms) : QString("-")) +
               "</td><td align='right'>" +
               (ms && *ms > 0 ? QString::number(tps(htm, *ms), 'f', 2)
                              : QString("-")) +
@@ -519,11 +518,10 @@ void ReviewDialog::showPosition(std::size_t at) {
                       .arg(replayName_)
                       .arg(at)
                       .arg(replay_.size())
-                      .arg(solutionHtm(
-                          Alg(replay_.begin(),
-                              replay_.begin() +
-                                  static_cast<std::ptrdiff_t>(at)),
-                          settings_.simplifiedCounts));
+                      .arg(solutionHtm(Alg(replay_.begin(),
+                                           replay_.begin() +
+                                               static_cast<std::ptrdiff_t>(at)),
+                                       settings_.simplifiedCounts));
   positionLabel_->setText(where);
   showMoves();
 }
@@ -782,8 +780,7 @@ void ReviewDialog::showPairs() {
                     .arg(muted(escaped(toString(best))))
                     .arg(n)
                     .arg(tr("show")) +
-                (over > 0 ? " " + muted(tr("(you +%1)").arg(over))
-                          : QString());
+                (over > 0 ? " " + muted(tr("(you +%1)").arg(over)) : QString());
       }
     }
     if (cheapest && cheapest != done &&
@@ -890,9 +887,8 @@ void showSolveDetails(QWidget *parent, const QString &title,
       row->addWidget(label, 1);
       auto *copy = new QPushButton(QObject::tr("Copy"), &dialog);
       copy->setAutoDefault(false);
-      QObject::connect(copy, &QPushButton::clicked, &dialog, [value] {
-        QApplication::clipboard()->setText(value);
-      });
+      QObject::connect(copy, &QPushButton::clicked, &dialog,
+                       [value] { QApplication::clipboard()->setText(value); });
       row->addWidget(copy, 0, Qt::AlignTop);
       form->addRow(name + ":", row);
     } else {
@@ -902,11 +898,10 @@ void showSolveDetails(QWidget *parent, const QString &title,
   layout->addLayout(form);
   auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
   if (review) {
-    QPushButton *b =
-        buttons->addButton(QObject::tr("Review…"), QDialogButtonBox::ActionRole);
-    QObject::connect(b, &QPushButton::clicked, &dialog, [&dialog] {
-      dialog.done(2);
-    });
+    QPushButton *b = buttons->addButton(QObject::tr("Review…"),
+                                        QDialogButtonBox::ActionRole);
+    QObject::connect(b, &QPushButton::clicked, &dialog,
+                     [&dialog] { dialog.done(2); });
   }
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog,
                    &QDialog::reject);

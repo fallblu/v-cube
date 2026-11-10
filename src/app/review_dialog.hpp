@@ -124,8 +124,7 @@ void showSolveDetails(QWidget *parent, const QString &title,
 
 // Plain text in a dialog with a Copy button, e.g. the solves of an
 // average.
-void showTextDialog(QWidget *parent, const QString &title,
-                    const QString &text);
+void showTextDialog(QWidget *parent, const QString &title, const QString &text);
 
 // The solves of a statistic as cstimer lists them: "ao5: 12.34", then a
 // line per solve with its number, its result (in brackets when the

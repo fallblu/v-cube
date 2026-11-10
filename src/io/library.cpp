@@ -31,7 +31,8 @@ QString unreadableSetMessage(const QString &path, const QString &error,
   }
   QString kept = setAside(path);
   return kept.isEmpty()
-             ? QString("%1 couldn't be read (%2) or moved aside").arg(file, error)
+             ? QString("%1 couldn't be read (%2) or moved aside")
+                   .arg(file, error)
              : QString("%1 couldn't be read (%2), so it was kept as %3")
                    .arg(file, error, QFileInfo(kept).fileName());
 }
@@ -67,8 +68,7 @@ const std::vector<AlgSet> &AlgLibrary::shipped() const {
     for (const QString &file :
          QDir(builtinDir_).entryList({"*.json"}, QDir::Files, QDir::Name)) {
       QString error;
-      if (auto set =
-              readAlgSetFile(QDir(builtinDir_).filePath(file), &error)) {
+      if (auto set = readAlgSetFile(QDir(builtinDir_).filePath(file), &error)) {
         set->builtin = true;
         shipped_->push_back(std::move(*set));
       }
@@ -191,9 +191,8 @@ void AlgLibrary::load() {
       errors_ << unreadableSetMessage(dir.filePath(file), error, status);
       continue;
     }
-    auto same = std::find_if(sets_.begin(), sets_.end(), [&](const AlgSet &s) {
-      return s.id == set->id;
-    });
+    auto same = std::find_if(sets_.begin(), sets_.end(),
+                             [&](const AlgSet &s) { return s.id == set->id; });
     if (same != sets_.end()) {
       // Two files of one set, such as a copy made in a file manager: keep
       // the one named for the id, so that edits never go over it from the
@@ -466,10 +465,10 @@ AlgLibrary::progressWriter(const std::string &setId) {
   return [path, progress = progress(setId),
           dir = QDir(dir_).filePath("progress")](QString *error) {
     QDir().mkpath(dir);
-    return writeFileAtomically(path,
-                               QJsonDocument(progressToJson(progress))
-                                   .toJson(QJsonDocument::Compact),
-                               error);
+    return writeFileAtomically(
+        path,
+        QJsonDocument(progressToJson(progress)).toJson(QJsonDocument::Compact),
+        error);
   };
 }
 

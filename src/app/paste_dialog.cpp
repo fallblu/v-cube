@@ -123,7 +123,8 @@ PasteDialog::PasteDialog(const AlgSet &set, int group, const QString &text,
 
   auto *buttons = new QDialogButtonBox(this);
   backButton_ = buttons->addButton(tr("< Back"), QDialogButtonBox::ActionRole);
-  checkButton_ = buttons->addButton(tr("Check >"), QDialogButtonBox::ActionRole);
+  checkButton_ =
+      buttons->addButton(tr("Check >"), QDialogButtonBox::ActionRole);
   applyButton_ = buttons->addButton(tr("Apply"), QDialogButtonBox::AcceptRole);
   buttons->addButton(QDialogButtonBox::Cancel);
   layout->addWidget(buttons);
@@ -179,7 +180,7 @@ void PasteDialog::replan() {
   QStringList parts;
   if (r.added) {
     parts << (r.added == 1 ? tr("1 alg goes to its case")
-                          : tr("%1 algs go to their cases").arg(r.added));
+                           : tr("%1 algs go to their cases").arg(r.added));
   }
   if (r.created) {
     parts << counted(r.created, tr("new case"), tr("new cases"));
@@ -189,8 +190,8 @@ void PasteDialog::replan() {
   }
   int left = static_cast<int>(r.unmatched.size() + r.ambiguous.size() +
                               r.invalid.size());
-  QString text = parts.isEmpty() ? tr("Nothing to add.")
-                                 : parts.join(", ") + ".";
+  QString text =
+      parts.isEmpty() ? tr("Nothing to add.") : parts.join(", ") + ".";
   if (left > 0) {
     text += " " + tr("<b>%1 won't be added</b> as they stand: edit the alg "
                      "(double-click it) or choose its case.")
@@ -262,8 +263,8 @@ void PasteDialog::fillTable() {
     resultItem->setToolTip(result);
     table_->setItem(row, ResultColumn, resultItem);
 
-    bool choosable = r.outcome != PasteOutcome::Invalid &&
-                     (open || !item.caseId.empty());
+    bool choosable =
+        r.outcome != PasteOutcome::Invalid && (open || !item.caseId.empty());
     if (!choosable) {
       const AlgCase *c = plan_.set.findCase(r.caseId);
       auto *caseItem = new QTableWidgetItem(c ? qs(c->name) : QString());
@@ -320,9 +321,8 @@ void PasteDialog::chooseCase(int row, int index) {
       return;
     }
     bool ok = false;
-    QString name = QInputDialog::getItem(this, tr("Choose a case"),
-                                         tr("Add the alg to:"), names, 0,
-                                         false, &ok);
+    QString name = QInputDialog::getItem(
+        this, tr("Choose a case"), tr("Add the alg to:"), names, 0, false, &ok);
     if (!ok) { // back to what it was
       QMetaObject::invokeMethod(this, &PasteDialog::replan,
                                 Qt::QueuedConnection);

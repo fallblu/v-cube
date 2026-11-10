@@ -700,8 +700,8 @@ std::string unquoted(std::string s) {
   return s;
 }
 
-void addPiecesOf(std::vector<PasteItem> &out, int line,
-                 const std::string &name, const std::string &text) {
+void addPiecesOf(std::vector<PasteItem> &out, int line, const std::string &name,
+                 const std::string &text) {
   for (const std::string &piece : split(text, '/')) {
     std::string alg = cleanAlgText(piece);
     if (!alg.empty()) {
@@ -875,8 +875,8 @@ PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
     CaseGroup &group =
         work.groups[std::min(newCaseGroup, work.groups.size() - 1)];
     AlgCase c;
-    c.name = item.name.empty() ? "Case " + std::to_string(newCaseNumber)
-                               : item.name;
+    c.name =
+        item.name.empty() ? "Case " + std::to_string(newCaseNumber) : item.name;
     c.id = work.uniqueCaseId(item.name.empty() ? std::to_string(newCaseNumber)
                                                : item.name);
     ++newCaseNumber;

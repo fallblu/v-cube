@@ -89,13 +89,13 @@ std::vector<std::size_t> trimmedIndices(std::span<const Solve> solves) {
   }
   // Ties keep solve order, as cstimer brackets the first best and the last
   // worst.
-  std::stable_sort(order.begin(), order.end(), [&](std::size_t a,
-                                                   std::size_t b) {
-    return effectiveTime(solves[a]) < effectiveTime(solves[b]);
-  });
+  std::stable_sort(order.begin(), order.end(),
+                   [&](std::size_t a, std::size_t b) {
+                     return effectiveTime(solves[a]) < effectiveTime(solves[b]);
+                   });
   std::size_t trim = trimOf(n);
-  std::vector<std::size_t> out(order.begin(),
-                               order.begin() + static_cast<std::ptrdiff_t>(trim));
+  std::vector<std::size_t> out(
+      order.begin(), order.begin() + static_cast<std::ptrdiff_t>(trim));
   out.insert(out.end(), order.end() - static_cast<std::ptrdiff_t>(trim),
              order.end());
   std::sort(out.begin(), out.end());
@@ -206,8 +206,7 @@ std::vector<NewBest> newBests(std::span<const Solve> all, std::int64_t unit) {
     }
   }
   std::int64_t last = effectiveTime(all.back());
-  check("single", last == kDnfTime ? StatValue{} : StatValue{last},
-        bestSingle);
+  check("single", last == kDnfTime ? StatValue{} : StatValue{last}, bestSingle);
   check("mo3", currentMean(all, 3, unit), bestMean(before, 3, unit));
   for (std::size_t n : {5u, 12u, 100u}) {
     check("ao" + std::to_string(n), currentAverage(all, n, unit),

@@ -169,7 +169,7 @@ TEST_CASE("move count steps are named and found by name") {
 
 TEST_CASE("EOLine, the cross, XEOCross and CFOP F2L are checked") {
   CHECK(stepReached(after(""), SolveStep::EOLine));
-  CHECK(stepReached(after("R"), SolveStep::EOLine)); // DF and DB stay
+  CHECK(stepReached(after("R"), SolveStep::EOLine));   // DF and DB stay
   CHECK(stepReached(after("R"), SolveStep::XEOCross)); // orange bottom
   CHECK(stepReached(after("R U R'"), SolveStep::XEOCross));
   CHECK_FALSE(stepReached(after("R U R'"), SolveStep::ZZF2L));

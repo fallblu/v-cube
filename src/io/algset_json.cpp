@@ -33,8 +33,7 @@ const char *attemptModeId(AttemptMode m) {
 
 constexpr FileFormat kAlgSetFile{"v-cube.algset", 1, false, "alg set"};
 // Progress files were written without a "format" at first.
-constexpr FileFormat kProgressFile{"v-cube.progress", 1, true,
-                                   "progress file"};
+constexpr FileFormat kProgressFile{"v-cube.progress", 1, true, "progress file"};
 
 bool fail(QString *error, const QString &why) {
   if (error) {
@@ -178,8 +177,8 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
       c.id = ss(co.value("id").toString());
       c.name = ss(co.value("name").toString());
       if (c.id.empty()) {
-        fail(error, QString("a case in group \"%1\" has no id")
-                        .arg(qs(g.name)));
+        fail(error,
+             QString("a case in group \"%1\" has no id").arg(qs(g.name)));
         return std::nullopt;
       }
       if (!caseIds.insert(c.id).second) {
@@ -474,9 +473,9 @@ SetProgress progressFromJson(const QJsonObject &o) {
       auto first = std::find_if(
           cp.attempts.begin(), cp.attempts.end(),
           [](const Attempt &a) { return a.mode == AttemptMode::Learn; });
-      cp.card.introduced =
-          first != cp.attempts.end() ? std::max<std::int64_t>(first->timestamp, 1)
-                                     : 1;
+      cp.card.introduced = first != cp.attempts.end()
+                               ? std::max<std::int64_t>(first->timestamp, 1)
+                               : 1;
     } else if (cp.card.state == CardState::Review) {
       cp.card.introduced = 1;
       cp.card.marked = true;

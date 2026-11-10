@@ -114,7 +114,8 @@ QString drillText(const CaseProgress &p, AttemptMode mode) {
   if (n == 0) {
     return {};
   }
-  QString text = counted(static_cast<int>(n), QObject::tr("drill"), QObject::tr("drills"));
+  QString text =
+      counted(static_cast<int>(n), QObject::tr("drill"), QObject::tr("drills"));
   if (auto best = p.best(mode)) {
     text += QObject::tr(", best %1 s")
                 .arg(static_cast<double>(*best) / 1000.0, 0, 'f', 2);
@@ -129,8 +130,7 @@ QString drillText(const CaseProgress &p, AttemptMode mode) {
 // change is already done when the command is pushed.
 class SetEditCommand : public QUndoCommand {
 public:
-  SetEditCommand(LibraryPage *page, const QString &text,
-                 LibraryPage::Edit edit)
+  SetEditCommand(LibraryPage *page, const QString &text, LibraryPage::Edit edit)
       : QUndoCommand(text), page_(page), edit_(std::move(edit)) {}
 
   void undo() override { page_->applyEdit(edit_, true, text()); }
@@ -275,9 +275,9 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   middleLayout->addWidget(caseTree_, 1);
   auto *caseButtons = new QHBoxLayout;
   auto *newCaseButton = new QPushButton(tr("New case…"), middle);
-  newCaseButton->setToolTip(tr("Make a case from an alg that solves it (%1)")
-                                .arg(newCaseAction_->shortcut().toString(
-                                    QKeySequence::NativeText)));
+  newCaseButton->setToolTip(
+      tr("Make a case from an alg that solves it (%1)")
+          .arg(newCaseAction_->shortcut().toString(QKeySequence::NativeText)));
   auto *pasteButton = new QPushButton(tr("Paste algs…"), middle);
   pasteButton->setToolTip(
       tr("Paste a list of algs; each is filed under the case its line names "
@@ -384,8 +384,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
           });
   connect(caseTree_, &QTreeWidget::itemSelectionChanged, this,
           &LibraryPage::updateActions);
-  connect(caseTree_, &CaseTreeWidget::dropped, this,
-          &LibraryPage::dropOnTree);
+  connect(caseTree_, &CaseTreeWidget::dropped, this, &LibraryPage::dropOnTree);
   connect(pasteButton, &QPushButton::clicked, this, &LibraryPage::pasteAlgs);
   connect(newCaseButton, &QPushButton::clicked, this,
           &LibraryPage::newCaseFromAlg);
@@ -441,8 +440,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
 // --- actions and menus -----------------------------------------------------
 
 void LibraryPage::buildActions() {
-  auto action = [this](const QString &text, auto slot,
-                       QKeySequence key = {}) {
+  auto action = [this](const QString &text, auto slot, QKeySequence key = {}) {
     auto *a = new QAction(text, this);
     a->setShortcut(key);
     // The page is hidden in other modes, and so the keys work only here.
@@ -524,8 +522,7 @@ void LibraryPage::buildActions() {
   caseMenu_->addSeparator();
   caseMenu_->addAction(renameAction_);
   moveToMenu_ = caseMenu_->addMenu(tr("&Move to group"));
-  connect(moveToMenu_, &QMenu::aboutToShow, this,
-          &LibraryPage::fillMoveToMenu);
+  connect(moveToMenu_, &QMenu::aboutToShow, this, &LibraryPage::fillMoveToMenu);
   caseMenu_->addAction(moveUpAction_);
   caseMenu_->addAction(moveDownAction_);
   caseMenu_->addSeparator();
@@ -560,8 +557,8 @@ void LibraryPage::updateActions() {
   propertiesAction_->setEnabled(s);
   checkAction_->setEnabled(s);
   exportAction_->setEnabled(s);
-  restoreCasesAction_->setEnabled(
-      s && library_.builtinIds().contains(qs(s->id)));
+  restoreCasesAction_->setEnabled(s &&
+                                  library_.builtinIds().contains(qs(s->id)));
   newGroupAction_->setEnabled(s);
   newCaseAction_->setEnabled(s);
   pasteAction_->setEnabled(s);
@@ -835,8 +832,7 @@ void LibraryPage::refreshAfter(
     QSignalBlocker block(caseTree_);
     for (int gi = 0; gi < caseTree_->topLevelItemCount(); ++gi) {
       QTreeWidgetItem *groupItem = caseTree_->topLevelItem(gi);
-      auto g =
-          static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt());
+      auto g = static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt());
       if (g >= s->groups.size()) {
         continue;
       }
@@ -908,10 +904,10 @@ void LibraryPage::fillCaseItem(QTreeWidgetItem *item, const AlgSet &s,
   QColor normal = palette().color(QPalette::Text);
   item->setText(0, qs(c.name));
   item->setData(0, kCaseRole, qs(c.id));
-  item->setIcon(0, QIcon(cube_painter::cachedDiagram(
-                       maskedFacelets(a ? a->display : c.state, spec.mask,
-                                      spec.free),
-                       spec.view, 40, look(), devicePixelRatioF())));
+  item->setIcon(
+      0, QIcon(cube_painter::cachedDiagram(
+             maskedFacelets(a ? a->display : c.state, spec.mask, spec.free),
+             spec.view, 40, look(), devicePixelRatioF())));
   item->setText(1, QString::number(c.algs.size()));
   int failing = a ? a->failing() : 0;
   if (c.algs.empty()) {
@@ -1089,8 +1085,8 @@ void LibraryPage::loadCase() {
                   .arg(steps.join("  ·  "))
             : tr("Its steps don't reach the end: %1").arg(steps.join("  ·  ")));
   } else if (a && a->main) {
-    caseSummary_->setText(tr("Shown as the main alg starts: %1")
-                              .arg(qs(a->mainAlg)));
+    caseSummary_->setText(
+        tr("Shown as the main alg starts: %1").arg(qs(a->mainAlg)));
   } else {
     caseSummary_->setText(c->algs.empty() ? tr("No algs yet.")
                                           : tr("No alg solves this case yet."));
@@ -1186,9 +1182,9 @@ void LibraryPage::warnIfFailing(std::size_t index) {
       a->checks[index].passes()) {
     return;
   }
-  emit message(tr("Kept \"%1\", but it doesn't pass: %2")
-                   .arg(qs(c->algs[index]),
-                        qs(describeCheck(a->checks[index]))));
+  emit message(
+      tr("Kept \"%1\", but it doesn't pass: %2")
+          .arg(qs(c->algs[index]), qs(describeCheck(a->checks[index]))));
 }
 
 void LibraryPage::showAlgMenu(const QPoint &pos) {
@@ -1393,16 +1389,15 @@ void LibraryPage::deleteSet() {
       algs += static_cast<int>(c.algs.size());
     }
   }
-  QString text =
-      tr("Delete \"%1\" and its %2?")
-          .arg(qs(s->name), counted(algs, tr("alg"), tr("algs")));
+  QString text = tr("Delete \"%1\" and its %2?")
+                     .arg(qs(s->name), counted(algs, tr("alg"), tr("algs")));
   if (!progress.empty()) {
     text += " " + tr("Your Learn and Drill progress on %n of its cases goes "
                      "too.",
                      nullptr, static_cast<int>(progress.size()));
   }
   text += "\n\n" + tr("Edit > Undo brings it back while v-cube is open, and "
-                       "its files are kept in the alg sets' deleted folder.");
+                      "its files are kept in the alg sets' deleted folder.");
   if (s->builtin) {
     text += " " + tr("After that, Set > Restore a built-in set brings back "
                      "its cases, but not your algs.");
@@ -1411,8 +1406,14 @@ void LibraryPage::deleteSet() {
       QMessageBox::Yes) {
     return;
   }
-  Edit edit{s->id, *s,     std::nullopt, {}, std::move(progress),
-            readSetSettings(s->id), caseId_, {}};
+  Edit edit{s->id,
+            *s,
+            std::nullopt,
+            {},
+            std::move(progress),
+            readSetSettings(s->id),
+            caseId_,
+            {}};
   QString error;
   if (!library_.remove(edit.setId, &error)) {
     QMessageBox::warning(this, tr("Delete alg set"),
@@ -1735,14 +1736,15 @@ void LibraryPage::deleteSelected() {
     what = groups.size() == 1
                ? tr("group \"%1\"").arg(qs(s->groups[groups.front()].name))
                : tr("%1 groups").arg(groups.size());
-    what += " " + tr("with %1").arg(counted(static_cast<int>(ids.size()), tr("case"),
-                                           tr("cases")));
+    what += " " + tr("with %1").arg(counted(static_cast<int>(ids.size()),
+                                            tr("case"), tr("cases")));
   } else {
     what = ids.size() == 1
                ? tr("case \"%1\"").arg(qs(s->findCase(ids.front())->name))
                : tr("%1 cases").arg(ids.size());
   }
-  QString text = tr("Delete %1 and %2?").arg(what, counted(algs, tr("alg"), tr("algs")));
+  QString text =
+      tr("Delete %1 and %2?").arg(what, counted(algs, tr("alg"), tr("algs")));
   if (withProgress > 0) {
     text += " " + tr("Your Learn and Drill progress on %n of the cases goes "
                      "too.",
@@ -1772,8 +1774,7 @@ void LibraryPage::deleteSelected() {
 
 void LibraryPage::moveSelected(int direction) {
   if (algList_->hasFocus() && algList_->currentItem()) {
-    moveAlg(algList_->indexOfTopLevelItem(algList_->currentItem()),
-            direction);
+    moveAlg(algList_->indexOfTopLevelItem(algList_->currentItem()), direction);
     return;
   }
   AlgSet *s = set();
@@ -1840,10 +1841,9 @@ void LibraryPage::dropOnTree(QTreeWidgetItem *target, int position) {
       const auto &list = s->groups[group].cases;
       if (!targetCase.empty()) {
         // Above a case: before it; on or below it: after it.
-        auto it = std::find_if(list.begin(), list.end(),
-                               [&](const AlgCase &c) {
-                                 return c.id == targetCase;
-                               });
+        auto it = std::find_if(list.begin(), list.end(), [&](const AlgCase &c) {
+          return c.id == targetCase;
+        });
         if (where != CaseTreeWidget::DropAbove && it != list.end()) {
           ++it;
         }
@@ -1905,9 +1905,9 @@ void LibraryPage::newCaseFromAlg() {
     AlgCase &existing = s->groups[ref->group].cases[ref->index];
     if (std::find(existing.algs.begin(), existing.algs.end(), alg) !=
         existing.algs.end()) {
-      QMessageBox::information(this, tr("New case"),
-                               tr("The case \"%1\" already has that alg.")
-                                   .arg(qs(existing.name)));
+      QMessageBox::information(
+          this, tr("New case"),
+          tr("The case \"%1\" already has that alg.").arg(qs(existing.name)));
       return;
     }
     auto answer =
@@ -2044,8 +2044,7 @@ void LibraryPage::moveAlg(int row, int direction) {
   auto pending = begin();
   std::swap(c->algs[static_cast<std::size_t>(row)],
             c->algs[static_cast<std::size_t>(to)]);
-  if (commit(tr("Reorder algs"), *pending,
-             std::vector<std::string>{caseId_})) {
+  if (commit(tr("Reorder algs"), *pending, std::vector<std::string>{caseId_})) {
     algList_->setCurrentItem(algList_->topLevelItem(to));
   }
 }

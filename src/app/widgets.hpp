@@ -42,7 +42,7 @@ private:
   int decimals_ = 2;
   QColor colour_;
   std::int64_t lastInspection_ = -1; // for the 8 s and 12 s calls
-  std::optional<Shown> beforeHold_; // during a hold: what it replaced
+  std::optional<Shown> beforeHold_;  // during a hold: what it replaced
   void show(const QString &text, const QColor &colour);
   void setColour(const QColor &c);
 };
