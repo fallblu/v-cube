@@ -66,6 +66,9 @@ generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
 
 // Times and rolling averages of a session, drawn with QPainter. Values
 // are charted in thousandths (seconds for times, moves for move counts).
+// Hovering shows a solve's value; the context menu picks how many of the
+// last solves are charted and, when the chart has extra series (such as
+// step splits), whether those are drawn instead of the averages.
 class TrendChart : public QWidget {
   Q_OBJECT
 public:
@@ -73,15 +76,45 @@ public:
   void setSolves(const std::vector<Solve> &solves);
   // Shown until there are two values to chart.
   void setEmptyText(const QString &text);
+  // The values are move counts: the axis is in whole moves.
+  void setMoveCounts(bool on);
+  // Where the choices from the context menu are kept (QSettings).
+  void setSettingsKey(const QString &key);
+  // Lines that can be drawn instead of the averages, one value per solve
+  // (nullopt where a solve has none), e.g. the time of each solve's cross.
+  struct Series {
+    QString name;
+    QColor colour;
+    std::vector<StatValue> values;
+  };
+  void setSeries(std::vector<Series> series);
   QSize sizeHint() const override { return {400, 160}; }
 
 protected:
   void paintEvent(QPaintEvent *) override;
+  void mouseMoveEvent(QMouseEvent *e) override;
+  void leaveEvent(QEvent *e) override;
+  void contextMenuEvent(QContextMenuEvent *e) override;
 
 private:
   std::vector<Solve> solves_;
+  std::vector<Series> series_;
   QString emptyText_;
+  QString settingsKey_;
+  bool moves_ = false;
+  int last_ = 0;            // solves charted: the last n, 0 for all
+  bool showSeries_ = false; // the extra series instead of the averages
+  int hover_ = -1;          // index into solves_
+
+  // The first solve charted.
+  std::size_t first() const;
+  QRectF area() const;
+  QString valueText(StatValue v) const;
 };
+
+// The tick step for an axis from `lo` to `hi` with about `ticks` ticks: 1,
+// 2 or 5 times a power of ten, at least `minStep`.
+double niceTickStep(double lo, double hi, int ticks = 4, double minStep = 0);
 
 // Monotonic milliseconds since the app started.
 std::int64_t monotonicMs();
