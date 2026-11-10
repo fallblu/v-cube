@@ -68,6 +68,26 @@ TEST_CASE("the solves an average drops and the best average's start") {
   CHECK_FALSE(bestAverageStart(seven, 12));
 }
 
+TEST_CASE("a solve that beats every earlier value is a new best") {
+  auto a = solves({10000, 11000, 12000, 13000, 14000});
+  CHECK(newBests(a).empty());
+  a.push_back(solves({5000})[0]);
+  std::vector<NewBest> bests = newBests(a);
+  REQUIRE(bests.size() == 2);
+  CHECK(bests[0].name == "single");
+  CHECK(bests[0].value == 5000);
+  CHECK(bests[1].name == "mo3");
+  CHECK(bests[1].value == 10670); // 13, 14, 5; the ao5 is 12 again
+  a.push_back(solves({4000})[0]);
+  bests = newBests(a);
+  REQUIRE(bests.size() == 3);
+  CHECK(bests[2].name == "ao5");
+  CHECK(bests[2].value == 10000); // 12, 13 and 5; 4 and 14 dropped
+  a.push_back(solves({-5000})[0]);
+  CHECK(newBests(a).empty());
+  CHECK(newBests(solves({1000})).empty());
+}
+
 TEST_CASE("times format like cstimer") {
   CHECK(formatTime(12345) == "12.34");
   CHECK(formatTime(62345) == "1:02.34");

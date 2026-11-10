@@ -80,6 +80,17 @@ std::optional<std::size_t> bestAverageStart(std::span<const Solve> all,
 // into `solves`): none for 3 solves, else ceil(n/20) of each.
 std::vector<std::size_t> trimmedIndices(std::span<const Solve> solves);
 
+// The statistics the last solve set a new best for: "single", "mo3",
+// "ao5", "ao12" and "ao100", each when it is better than every earlier
+// value of the same statistic (a first value isn't a new best). DNF is
+// never one.
+struct NewBest {
+  std::string name;
+  std::int64_t value = 0;
+};
+std::vector<NewBest> newBests(std::span<const Solve> all,
+                              std::int64_t unit = kWcaUnit);
+
 struct SessionSummary {
   int count = 0;
   int dnfs = 0;

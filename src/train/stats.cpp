@@ -186,6 +186,36 @@ std::vector<StatValue> rollingAverages(std::span<const Solve> all,
   return out;
 }
 
+std::vector<NewBest> newBests(std::span<const Solve> all, std::int64_t unit) {
+  std::vector<NewBest> out;
+  if (all.size() < 2) {
+    return out;
+  }
+  std::span<const Solve> before = all.first(all.size() - 1);
+  auto check = [&](const std::string &name, StatValue now, StatValue was) {
+    if (now && *now != kDnfTime && was && *now < *was) {
+      out.push_back({name, *now});
+    }
+  };
+  // A single: better than every earlier single (DNFs don't count).
+  StatValue bestSingle;
+  for (const Solve &s : before) {
+    std::int64_t t = effectiveTime(s);
+    if (t != kDnfTime && (!bestSingle || t < *bestSingle)) {
+      bestSingle = t;
+    }
+  }
+  std::int64_t last = effectiveTime(all.back());
+  check("single", last == kDnfTime ? StatValue{} : StatValue{last},
+        bestSingle);
+  check("mo3", currentMean(all, 3, unit), bestMean(before, 3, unit));
+  for (std::size_t n : {5u, 12u, 100u}) {
+    check("ao" + std::to_string(n), currentAverage(all, n, unit),
+          bestAverage(before, n, unit));
+  }
+  return out;
+}
+
 SessionSummary summarize(std::span<const Solve> all, std::int64_t unit) {
   unit = std::max<std::int64_t>(unit, 1);
   SessionSummary s;
