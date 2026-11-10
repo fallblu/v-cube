@@ -302,4 +302,85 @@ std::string formatSolve(const Solve &s, int decimals) {
   return formatTime(s.timeMs, decimals);
 }
 
+std::optional<StatId> parseStatId(std::string_view id) {
+  if (id == "single") {
+    return StatId{};
+  }
+  if (id.size() < 3 || (!id.starts_with("mo") && !id.starts_with("ao"))) {
+    return std::nullopt;
+  }
+  std::size_t n = 0;
+  for (char c : id.substr(2)) {
+    if (c < '0' || c > '9' || n > 100000) {
+      return std::nullopt;
+    }
+    n = n * 10 + static_cast<std::size_t>(c - '0');
+  }
+  if (n == 0) {
+    return std::nullopt;
+  }
+  return StatId{id[0] == 'm' ? StatId::Kind::Mean : StatId::Kind::Average, n};
+}
+
+std::optional<StatSpan> statSpan(std::span<const Solve> all, StatId id,
+                                 bool best, std::int64_t unit) {
+  if (all.empty()) {
+    return std::nullopt;
+  }
+  if (id.kind == StatId::Kind::Single) {
+    std::size_t at = all.size() - 1;
+    if (best) {
+      for (std::size_t i = 0; i < all.size(); ++i) {
+        if (effectiveTime(all[i]) < effectiveTime(all[at])) {
+          at = i;
+        }
+      }
+    }
+    return StatSpan{at, 1};
+  }
+  if (id.n == 0 || all.size() < id.n) {
+    return std::nullopt;
+  }
+  if (!best) {
+    return StatSpan{all.size() - id.n, id.n};
+  }
+  std::optional<std::size_t> at =
+      bestAverageStart(all, id.n, id.kind == StatId::Kind::Mean, unit);
+  if (!at) {
+    return std::nullopt;
+  }
+  return StatSpan{*at, id.n};
+}
+
+SessionStats sessionStats(std::span<const Solve> all,
+                          std::span<const std::string_view> ids,
+                          std::int64_t unit) {
+  SessionStats out;
+  out.summary = summarize(all, unit);
+  for (std::string_view name : ids) {
+    StatLine line;
+    line.id = std::string(name);
+    if (std::optional<StatId> id = parseStatId(name)) {
+      switch (id->kind) {
+      case StatId::Kind::Single:
+        if (!all.empty()) {
+          line.current = effectiveTime(all.back());
+        }
+        line.best = out.summary.best;
+        break;
+      case StatId::Kind::Mean:
+        line.current = currentMean(all, id->n, unit);
+        line.best = bestMean(all, id->n, unit);
+        break;
+      case StatId::Kind::Average:
+        line.current = currentAverage(all, id->n, unit);
+        line.best = bestAverage(all, id->n, unit);
+        break;
+      }
+    }
+    out.lines.push_back(std::move(line));
+  }
+  return out;
+}
+
 } // namespace vcube

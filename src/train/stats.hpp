@@ -101,6 +101,43 @@ struct SessionSummary {
 SessionSummary summarize(std::span<const Solve> all,
                          std::int64_t unit = kWcaUnit);
 
+// A statistic of a session by its name: "single" (a solve), "moN" (the
+// mean of N) or "aoN" (the average of N), e.g. "mo3" or "ao12".
+struct StatId {
+  enum class Kind : std::uint8_t { Single, Mean, Average };
+  Kind kind = Kind::Single;
+  std::size_t n = 1;
+};
+// nullopt for any other text (or N of 0).
+std::optional<StatId> parseStatId(std::string_view id);
+
+// The solves behind a statistic: `count` solves from index `from`.
+struct StatSpan {
+  std::size_t from = 0;
+  std::size_t count = 0;
+};
+// The current one (the last solve, or the last N) or the best one (the
+// first best solve, or the start of the best rolling mean or average);
+// nullopt when there are too few solves.
+std::optional<StatSpan> statSpan(std::span<const Solve> all, StatId id,
+                                 bool best, std::int64_t unit = kWcaUnit);
+
+// One statistic's current and best values.
+struct StatLine {
+  std::string id;
+  StatValue current;
+  StatValue best;
+};
+// What a session's statistics panel shows: the statistics named in `ids`
+// (see parseStatId(); an unknown name gives no values) and the summary.
+struct SessionStats {
+  std::vector<StatLine> lines;
+  SessionSummary summary;
+};
+SessionStats sessionStats(std::span<const Solve> all,
+                          std::span<const std::string_view> ids,
+                          std::int64_t unit = kWcaUnit);
+
 // "12.34", "1:02.34", "1:01:02.34", or "DNF"; nullopt prints "-".
 std::string formatTime(StatValue ms, int decimals = 2);
 // Like formatTime, with "+" for +2 and "DNF(12.34)".

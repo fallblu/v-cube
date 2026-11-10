@@ -9,6 +9,7 @@ add_library(vcube_train
   reduction.cpp
   solve_review.cpp
   stats.cpp
+  timed_flow.cpp
   timer.cpp
   srs.cpp
   today.cpp
