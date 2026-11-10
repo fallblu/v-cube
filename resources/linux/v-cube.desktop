@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=v-cube
+GenericName=Cube Trainer
+Comment=3x3 alg trainer, scrambler and timer with a virtual cube
+Exec=v-cube
+Icon=v-cube
+Terminal=false
+Categories=Game;PuzzleGame;
+Keywords=rubik;cube;speedcubing;timer;algorithm;
+StartupWMClass=v-cube

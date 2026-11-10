@@ -60,9 +60,24 @@ add_custom_target(vcube_version
   COMMENT "Checking the version"
   VERBATIM)
 
+# The version at configure time, for package names and the version
+# resource of the .exe.
+include(${PROJECT_SOURCE_DIR}/cmake/Version.cmake)
+vcube_describe_version(VCUBE_VERSION_FULL ${PROJECT_SOURCE_DIR}
+  ${PROJECT_VERSION})
+message(STATUS "v-cube version: ${VCUBE_VERSION_FULL}")
+
 if(WIN32)
-  # The icon of the .exe in Explorer and the taskbar.
-  set(vcube_rc ${PROJECT_SOURCE_DIR}/resources/icons/v-cube.rc)
+  # The icon and version of the .exe in Explorer and the taskbar.
+  set(VCUBE_ICO ${PROJECT_SOURCE_DIR}/resources/icons/v-cube.ico)
+  set(rc_version "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
+  if(VCUBE_VERSION_FULL MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
+    set(rc_version "${CMAKE_MATCH_1},${CMAKE_MATCH_2},${CMAKE_MATCH_3},0")
+  endif()
+  set(VCUBE_RC_VERSION ${rc_version})
+  set(vcube_rc ${CMAKE_CURRENT_BINARY_DIR}/generated/v-cube.rc)
+  configure_file(${PROJECT_SOURCE_DIR}/resources/icons/v-cube.rc.in
+    ${vcube_rc} @ONLY)
 endif()
 qt_add_executable(vcube main.cpp ${vcube_rc})
 qt_add_resources(vcube resources
@@ -80,7 +95,22 @@ add_dependencies(vcube vcube_version)
 target_include_directories(vcube PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(vcube PRIVATE vcube_gui vcube_warnings)
 set_target_properties(vcube PROPERTIES OUTPUT_NAME v-cube WIN32_EXECUTABLE ON)
-install(TARGETS vcube RUNTIME DESTINATION bin)
+include(GNUInstallDirs)
+install(TARGETS vcube RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES ${PROJECT_SOURCE_DIR}/LICENSE ${PROJECT_SOURCE_DIR}/README.md
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/v-cube)
+
+# Linux: a desktop entry and icons, so that the installed app (and the
+# AppImage built from the install tree) shows up in menus.
+if(UNIX AND NOT APPLE)
+  install(FILES ${PROJECT_SOURCE_DIR}/resources/linux/v-cube.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+  install(FILES ${PROJECT_SOURCE_DIR}/resources/icons/v-cube.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+  install(FILES ${PROJECT_SOURCE_DIR}/resources/icons/v-cube-256.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+    RENAME v-cube.png)
+endif()
 
 # Windows: `cmake --install` produces a self-contained folder with the Qt
 # DLLs and plugins (windeployqt) and the MSVC runtime.
@@ -93,3 +123,21 @@ if(WIN32)
   set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION bin)
   include(InstallRequiredSystemLibraries)
 endif()
+
+# `cpack` packs the install tree: on Windows a zip of the self-contained
+# folder, elsewhere a tarball (the Linux AppImage is made with linuxdeploy,
+# see .github/workflows/release.yml).
+set(CPACK_PACKAGE_NAME v-cube)
+set(CPACK_PACKAGE_VENDOR v-cube)
+set(CPACK_PACKAGE_VERSION ${VCUBE_VERSION_FULL})
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
+set(CPACK_RESOURCE_FILE_LICENSE ${PROJECT_SOURCE_DIR}/LICENSE)
+if(WIN32)
+  set(CPACK_GENERATOR ZIP)
+  set(CPACK_PACKAGE_FILE_NAME v-cube-${VCUBE_VERSION_FULL}-windows-x64)
+else()
+  set(CPACK_GENERATOR TGZ)
+  set(CPACK_PACKAGE_FILE_NAME
+    v-cube-${VCUBE_VERSION_FULL}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR})
+endif()
+include(CPack)

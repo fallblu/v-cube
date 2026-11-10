@@ -20,6 +20,9 @@ int main(int argc, char **argv) {
   QApplication::setOrganizationName("v-cube");
   QApplication::setApplicationName("v-cube");
   QApplication::setApplicationVersion(VCUBE_VERSION);
+  // Matches the installed v-cube.desktop, so that Wayland shells show its
+  // icon and name for the window.
+  QGuiApplication::setDesktopFileName("v-cube");
   QIcon icon(":/icons/v-cube.svg");
   icon.addFile(":/icons/v-cube-256.png"); // without the SVG plugin
   QApplication::setWindowIcon(icon);
