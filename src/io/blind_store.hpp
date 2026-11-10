@@ -21,6 +21,11 @@ struct LetterStat {
   int correct = 0;
   std::int64_t correctMs = 0; // total time of the right answers
 
+  // An answer counts for at most this long, so that one left on screen
+  // while away doesn't swamp the letter's mean.
+  static constexpr std::int64_t kMaxMs = 30000;
+
+  // Records an answer, its time capped at kMaxMs.
   void record(bool right, std::int64_t ms);
   // Share of right answers (0..1); nullopt before the first attempt.
   std::optional<double> accuracy() const;
@@ -112,6 +117,8 @@ public:
   // Removing the last session leaves one empty session.
   void removeSession(std::size_t i);
   void addTrace(const TraceAttempt &t);
+  // Forgets trace `i` (oldest first); nothing for one that isn't there.
+  void removeTrace(std::size_t i);
 
   QString path() const { return path_; }
 
@@ -134,7 +141,8 @@ private:
 //  "tracing": [{"time": 61200, "edges": true, "corners": false,
 //               "timestamp": ...}]}
 // Stickers are named by their Speffz letter (A-X), whatever the user's
-// lettering, and only stickers with attempts are written. "dnf",
+// lettering, and only stickers with attempts are written; a total time
+// over kMaxMs per right answer (from before the cap) is read as the cap. "dnf",
 // "solution" and "comment" are left out when false or empty, and
 // "edges"/"corners" of a trace when false. A session without "cube" is for
 // the virtual cube.

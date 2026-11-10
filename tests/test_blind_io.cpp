@@ -72,6 +72,23 @@ TEST_CASE("letter statistics", "[blind]") {
   CHECK(s.correct == 2);
   CHECK(*s.accuracy() > 0.66);
   CHECK(*s.meanMs() == 1500.0);
+  // A right answer counts for at most the cap.
+  LetterStat slow;
+  slow.record(true, 10 * 60 * 1000);
+  CHECK(slow.correctMs == LetterStat::kMaxMs);
+}
+
+TEST_CASE("letter times from before the cap are read capped", "[blind]") {
+  // Letter M (12) with a 9:06 mean over two right answers.
+  QJsonObject stats{
+      {"edges",
+       QJsonObject{
+           {"M", QJsonObject{{"attempts", 3}, {"correct", 2}, {"ms", 1092000}}},
+           {"A", QJsonObject{{"attempts", 1}, {"correct", 1}, {"ms", 1200}}}}}};
+  QJsonObject o{{"format", "v-cube.blind"}, {"version", 1}, {"quiz", stats}};
+  BlindData d = blindFromJson(o);
+  CHECK(d.quiz.of(BldPiece::Edge, 12).correctMs == 2 * LetterStat::kMaxMs);
+  CHECK(d.quiz.of(BldPiece::Edge, 0).correctMs == 1200);
 }
 
 TEST_CASE("blind sessions as solves", "[blind]") {

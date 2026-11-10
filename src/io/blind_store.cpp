@@ -16,7 +16,7 @@ void LetterStat::record(bool right, std::int64_t ms) {
   ++attempts;
   if (right) {
     ++correct;
-    correctMs += std::max<std::int64_t>(0, ms);
+    correctMs += std::clamp<std::int64_t>(ms, 0, kMaxMs);
   }
 }
 
@@ -144,6 +144,12 @@ void BlindStore::addTrace(const TraceAttempt &t) {
   }
 }
 
+void BlindStore::removeTrace(std::size_t i) {
+  if (i < data_.traces.size()) {
+    data_.traces.erase(data_.traces.begin() + static_cast<std::ptrdiff_t>(i));
+  }
+}
+
 namespace {
 
 QString speffzKey(int sticker) { return QString(QChar('A' + sticker)); }
@@ -168,8 +174,9 @@ void statsFromJson(const QJsonObject &o,
     LetterStat &s = list[static_cast<std::size_t>(i)];
     s.attempts = std::max(0, so.value("attempts").toInt());
     s.correct = std::clamp(so.value("correct").toInt(), 0, s.attempts);
-    s.correctMs = std::max<std::int64_t>(
-        0, static_cast<std::int64_t>(so.value("ms").toDouble()));
+    s.correctMs = std::clamp<std::int64_t>(
+        static_cast<std::int64_t>(so.value("ms").toDouble()), 0,
+        s.correct * LetterStat::kMaxMs);
   }
 }
 
