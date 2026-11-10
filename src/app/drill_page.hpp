@@ -98,6 +98,10 @@ protected:
 private:
   using Phase = DrillFlow::Phase;
   enum class Pool { Learned, All, Learning, Queue, Weakest };
+  // The scope drop-down's values: the ticked cases, those shown, a group.
+  static inline const QString kScopeTicked = "ticked";
+  static inline const QString kScopeShown = "shown";
+  static inline const QString kScopeGroup = "group:";
 
   struct Current {
     std::string caseId;
