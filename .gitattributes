@@ -1,0 +1,11 @@
+# Text files are stored and checked out with LF on every platform, so that
+# WSL and Windows checkouts of the same tree don't differ.
+* text=auto eol=lf
+
+# Windows scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.ico binary
