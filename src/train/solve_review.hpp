@@ -39,6 +39,11 @@ struct StepMark {
 // simplified or not, as the solve's move count is taken.
 std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
                                 bool simplified = true);
+// The same for some of the steps only (in the order given), which is
+// quicker.
+std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
+                                const std::vector<SolveStep> &steps,
+                                bool simplified = true);
 
 // F2L slots in the solver's frame (cross on D), by their corner and edge.
 enum class Slot : std::uint8_t { FR, FL, BL, BR };

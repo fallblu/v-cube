@@ -257,7 +257,12 @@ PairOption bestOption(const CubieCube &state, Slot slot,
 
 std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
                                 bool simplified) {
-  const auto &steps = solveSteps();
+  return stepMarks(start, solution, solveSteps(), simplified);
+}
+
+std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
+                                const std::vector<SolveStep> &steps,
+                                bool simplified) {
   std::vector<std::optional<StepMark>> found(steps.size());
   FaceletCube f = start;
   for (std::size_t k = 0; k <= solution.size(); ++k) {
@@ -496,7 +501,8 @@ SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
             solution.begin() + static_cast<std::ptrdiff_t>(end)),
         simplified);
   };
-  std::vector<StepMark> marks = stepMarks(start, solution, simplified);
+  std::vector<StepMark> marks = stepMarks(
+      start, solution, {SolveStep::EOCross, SolveStep::CFOPF2L}, simplified);
   auto markOf = [&](SolveStep step) -> std::optional<std::size_t> {
     for (const StepMark &m : marks) {
       if (m.step == step) {
