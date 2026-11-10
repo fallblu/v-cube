@@ -34,7 +34,7 @@ include(cmake/ProjectOptions.cmake)
 
 # Qt Core is needed for storage; the GUI parts only for the app.
 if(VCUBE_BUILD_APP)
-  find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
+  find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Concurrent Network)
 else()
   find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
 endif()

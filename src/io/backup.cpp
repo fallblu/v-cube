@@ -29,7 +29,8 @@ bool copyTree(const QString &from, const QString &to, QString *error) {
     QString rel = source.relativeFilePath(path);
     QStringList parts = rel.split('/');
     parts.removeLast();
-    if (parts.contains(kBackupsFolder) || parts.contains(kDeletedFolder)) {
+    if (parts.contains(kBackupsFolder) || parts.contains(kDeletedFolder) ||
+        rel.endsWith(".lock")) {
       continue;
     }
     QString dest = QDir(to).filePath(rel);
