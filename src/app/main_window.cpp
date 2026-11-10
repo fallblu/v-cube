@@ -170,6 +170,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
                 }(),
                 s);
             ReviewDialog dialog(solve, settings_, &library_, this);
+            dialog.setRetryEnabled(true);
+            connect(&dialog, &ReviewDialog::retryRequested, inspectionPage_,
+                    [this, index] { inspectionPage_->startRetry(index); });
             dialog.exec();
           });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
@@ -616,7 +619,8 @@ void MainWindow::showControls() {
       "<p><b>Space</b> starts inspection (the cube only turns as a whole), "
       "<b>Space</b> again hides the cube to execute your plan with the "
       "turning keys, and <b>Space</b> reveals it; <b>Space</b> then gives "
-      "the next scramble. <b>Esc</b> puts the scramble back. Bad edges: type "
+      "the next scramble. <b>Esc</b> puts the scramble back. After an "
+      "attempt, rotations turn the cube to look at it. Bad edges: type "
       "the count with <b>0–9</b> (<b>Backspace</b> corrects) and press "
       "<b>Enter</b>; afterwards <b>Tab</b> rings the other axis's bad "
       "edges.</p>"
@@ -626,7 +630,8 @@ void MainWindow::showControls() {
       "tracing: <b>Space</b> new scramble, <b>Enter</b> to type the edge "
       "letters, <b>Enter</b> for the corners and <b>Enter</b> to check. "
       "Setup moves: turn the cube until the ringed sticker reaches ◎; "
-      "<b>Esc</b> starts again, <b>Space</b> skips. Blind solves: "
+      "<b>Esc</b> starts again, <b>Space</b> skips (typed setups: "
+      "<b>Esc</b> outside the field gives the letter up). Blind solves: "
       "<b>Space</b> starts the memo, <b>Space</b> hides the cube for the "
       "execution and <b>Space</b> stops (physical cube: any key stops, "
       "<b>Backspace</b> toggles DNF); <b>Esc</b> cancels.</p>"

@@ -137,6 +137,24 @@ TEST_CASE("letters are parsed and formatted in pairs", "[bld]") {
   CHECK(multi.sticker(BldPiece::Edge, "C") == std::nullopt);
   auto problems = multi.problems(BldPiece::Edge);
   CHECK(problems == std::vector<std::string>{"", "C"});
+  // Letters fold as the scheme compares them: A-Z only.
+  CHECK(foldLetter("Ch") == "ch");
+  CHECK(foldLetter("\xC3\x89") == "\xC3\x89"); // É stays as it is
+}
+
+TEST_CASE("a setup in use is the user's own only when it does the job",
+          "[bld]") {
+  // Edge C (UF): the computed setup, an own one that works, one that can't
+  // be read and one that moves the buffer.
+  auto computed = op::defaultSetup(BldPiece::Edge, 2);
+  REQUIRE(computed);
+  CHECK(op::setupInUse(BldPiece::Edge, 2, "") == computed);
+  Alg own = parseAlgOrEmpty("M2 D L2");
+  REQUIRE(op::isValidSetup(BldPiece::Edge, 2, own));
+  CHECK(op::setupInUse(BldPiece::Edge, 2, "M2 D L2") == own);
+  CHECK(op::setupInUse(BldPiece::Edge, 2, "R Q") == computed);
+  CHECK(op::setupInUse(BldPiece::Edge, 2, "U'") == computed);
+  CHECK(op::setupInUse(BldPiece::Edge, 1, "") == std::nullopt);
 }
 
 TEST_CASE("the swap algs swap the buffer with the swap spot", "[bld]") {

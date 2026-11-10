@@ -359,14 +359,6 @@ bool sameLetter(std::string_view a, std::string_view b) {
                     [](char x, char y) { return lower(x) == lower(y); });
 }
 
-std::string lowered(std::string_view s) {
-  std::string out(s);
-  for (char &c : out) {
-    c = lower(c);
-  }
-  return out;
-}
-
 bool isSeparator(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',' ||
          c == '-' || c == ';';
@@ -384,6 +376,14 @@ std::size_t codePoints(std::string_view text, std::size_t bytes) {
 }
 
 } // namespace
+
+std::string foldLetter(std::string_view letter) {
+  std::string out(letter);
+  for (char &c : out) {
+    c = lower(c);
+  }
+  return out;
+}
 
 LetterScheme LetterScheme::speffz() {
   LetterScheme s;
@@ -426,7 +426,7 @@ std::vector<std::string> LetterScheme::problems(BldPiece kind) const {
     const std::string &l = letter(kind, s);
     if (l.empty()) {
       empty = true;
-    } else if (++uses[lowered(l)] == 2) {
+    } else if (++uses[foldLetter(l)] == 2) {
       out.push_back(l);
     }
   }
@@ -572,6 +572,20 @@ bool isValidSetup(BldPiece kind, int sticker, const Alg &setup) {
     return kept(BldPiece::Corner, URF) && kept(BldPiece::Corner, UBR);
   }
   return kept(BldPiece::Edge, UL) && kept(BldPiece::Edge, UB);
+}
+
+std::optional<Alg> setupInUse(BldPiece kind, int sticker,
+                              std::string_view own) {
+  if (!isTarget(kind, sticker)) {
+    return std::nullopt;
+  }
+  if (!own.empty()) {
+    if (ParseResult parsed = parseAlg(own);
+        parsed && isValidSetup(kind, sticker, parsed.alg)) {
+      return parsed.alg;
+    }
+  }
+  return defaultSetup(kind, sticker);
 }
 
 Alg execution(const std::vector<int> &edges, const std::vector<int> &corners,

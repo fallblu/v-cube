@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <tuple>
 
 namespace vcube {
 
@@ -74,12 +75,14 @@ struct StepInfo {
   std::string_view name;
 };
 
-constexpr std::array<StepInfo, 5> kSteps = {{
+// By enum value.
+constexpr std::array<StepInfo, 6> kSteps = {{
     {SolveStep::EO, "eo", "EO"},
     {SolveStep::EOPlus1, "eo+1", "EO+1"},
     {SolveStep::EOPlus2, "eo+2", "EO+2"},
     {SolveStep::EOCross, "eocross", "EO Cross"},
     {SolveStep::ZZF2L, "zzf2l", "ZZ F2L"},
+    {SolveStep::EOLine, "eoline", "EOLine"},
 }};
 
 const StepInfo &info(SolveStep step) {
@@ -140,6 +143,8 @@ bool reachedAsHeld(const CubieCube &c, SolveStep step) {
   switch (step) {
   case SolveStep::EO:
     return true;
+  case SolveStep::EOLine:
+    return edgeSolved(c, DF) && edgeSolved(c, DB);
   case SolveStep::EOPlus1:
     return cross >= 1;
   case SolveStep::EOPlus2:
@@ -157,13 +162,16 @@ bool reachedAsHeld(const CubieCube &c, SolveStep step) {
 } // namespace
 
 const std::vector<SolveStep> &solveSteps() {
-  static const std::vector<SolveStep> steps = [] {
-    std::vector<SolveStep> out;
-    for (const auto &s : kSteps) {
-      out.push_back(s.step);
-    }
-    return out;
-  }();
+  static const std::vector<SolveStep> steps = {
+      SolveStep::EO, SolveStep::EOPlus1, SolveStep::EOPlus2, SolveStep::EOCross,
+      SolveStep::ZZF2L};
+  return steps;
+}
+
+const std::vector<SolveStep> &allSteps() {
+  static const std::vector<SolveStep> steps = {
+      SolveStep::EO,      SolveStep::EOLine,  SolveStep::EOPlus1,
+      SolveStep::EOPlus2, SolveStep::EOCross, SolveStep::ZZF2L};
   return steps;
 }
 
@@ -182,9 +190,9 @@ std::optional<SolveStep> stepFromId(std::string_view id) {
 
 std::optional<SolveStep> stepFromName(std::string_view name) {
   std::string key = squashed(name);
-  for (const auto &s : kSteps) {
-    if (squashed(s.name) == key) {
-      return s.step;
+  for (SolveStep step : solveSteps()) {
+    if (squashed(info(step).name) == key) {
+      return step;
     }
   }
   return std::nullopt;
@@ -213,6 +221,32 @@ std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step) {
     }
   }
   return out; // allHolds() is sorted
+}
+
+StepProgress stepProgress(const FaceletCube &cube) {
+  StepProgress best;
+  bool found = false;
+  for (Hold h : allHolds()) {
+    std::optional<CubieCube> c = heldCubie(cube, h);
+    if (!c) {
+      continue;
+    }
+    StepProgress p;
+    p.badEdges = static_cast<int>(std::count_if(c->eo.begin(), c->eo.end(),
+                                                [](auto o) { return o != 0; }));
+    for (Edge e : {DF, DR, DB, DL}) {
+      p.crossEdges += edgeSolved(*c, e) ? 1 : 0;
+    }
+    p.line = edgeSolved(*c, DF) && edgeSolved(*c, DB);
+    auto rank = [](const StepProgress &x) {
+      return std::tuple(-x.badEdges, x.crossEdges, x.line);
+    };
+    if (!found || rank(best) < rank(p)) {
+      best = p;
+      found = true;
+    }
+  }
+  return best;
 }
 
 int htmCount(const Alg &alg) {

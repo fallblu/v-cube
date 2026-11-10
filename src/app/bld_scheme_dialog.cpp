@@ -111,16 +111,7 @@ std::string &BlindScheme::ownSetup(BldPiece kind, int sticker) {
 }
 
 std::optional<Alg> BlindScheme::setup(BldPiece kind, int sticker) const {
-  if (!op::isTarget(kind, sticker)) {
-    return std::nullopt;
-  }
-  const std::string &own = ownSetup(kind, sticker);
-  if (!own.empty()) {
-    if (ParseResult parsed = parseAlg(own)) {
-      return parsed.alg;
-    }
-  }
-  return op::defaultSetup(kind, sticker);
+  return op::setupInUse(kind, sticker, ownSetup(kind, sticker));
 }
 
 std::array<Alg, kBldStickers> BlindScheme::setups(BldPiece kind) const {
@@ -187,6 +178,9 @@ BldSchemeDialog::BldSchemeDialog(const BlindScheme &scheme,
   topBox_->setToolTip(tr("The colour on top while you solve blind; the "
                          "letters belong to the stickers as held this way"));
   frontBox_->setToolTip(tr("The colour in front while you solve blind"));
+  // Only a click picks a colour: typed letters never change the hold.
+  topBox_->setFocusPolicy(Qt::ClickFocus);
+  frontBox_->setFocusPolicy(Qt::ClickFocus);
   holdError_ = new QLabel(this);
   holdError_->setStyleSheet("color: #e66");
   holdRow->addWidget(new QLabel(tr("Blind hold:"), this));
@@ -288,6 +282,8 @@ BldSchemeDialog::BldSchemeDialog(const BlindScheme &scheme,
 
   fillTables();
   holdChanged();
+  // The keyboard starts on the letters, not on the blind hold.
+  tables_[0]->setFocus();
   resize(980, 640);
 }
 
@@ -394,6 +390,9 @@ void BldSchemeDialog::selectSticker(BldPiece kind, int sticker) {
   tabs_->setCurrentWidget(table(kind));
   table(kind)->setCurrentCell(sticker, LetterCol);
   table(kind)->scrollToItem(table(kind)->item(sticker, LetterCol));
+  // Typing now edits the sticker's letter, rather than going to whatever
+  // had the keyboard (such as the blind hold's colours).
+  table(kind)->setFocus();
   selected_ = {kind, sticker};
   showNet();
 }

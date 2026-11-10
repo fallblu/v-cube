@@ -46,6 +46,10 @@ std::string bldStickerName(BldPiece kind, int sticker);
 // clockwise (as its facelets do in kCornerFacelets).
 std::vector<int> pieceStickers(BldPiece kind, int sticker);
 
+// A letter as letters are compared everywhere (the quiz, the scheme's
+// checks and typed memos): A-Z lower-cased, everything else as it is.
+std::string foldLetter(std::string_view letter);
+
 // A lettering scheme: one letter (or short label) per sticker.
 struct LetterScheme {
   std::array<std::string, kBldStickers> edges;
@@ -55,8 +59,8 @@ struct LetterScheme {
 
   const std::string &letter(BldPiece kind, int sticker) const;
   std::string &letter(BldPiece kind, int sticker);
-  // The sticker with this letter (ignoring case); nullopt if no sticker or
-  // more than one has it.
+  // The sticker with this letter (ignoring case, as foldLetter() does);
+  // nullopt if no sticker or more than one has it.
   std::optional<int> sticker(BldPiece kind, std::string_view letter) const;
   // Letters that are empty or shared by two stickers of a type.
   std::vector<std::string> problems(BldPiece kind) const;
@@ -107,6 +111,11 @@ std::optional<Alg> defaultSetup(BldPiece kind, int sticker);
 // corners; corners: the UL and UB edges) where they were and as they were,
 // so that setup, swap alg, undo swaps the buffer with that sticker.
 bool isValidSetup(BldPiece kind, int sticker, const Alg &setup);
+
+// The setup used for a sticker: the user's own (`own`, as typed) when it
+// can be read and is a valid setup, else defaultSetup(); nullopt for a
+// sticker of the buffer piece.
+std::optional<Alg> setupInUse(BldPiece kind, int sticker, std::string_view own);
 
 // The full execution of a memo: each edge target as setup, T-perm, undo;
 // the parity alg after an odd number of edge targets; then each corner

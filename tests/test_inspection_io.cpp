@@ -250,3 +250,100 @@ TEST_CASE("inspection attempts become statistics", "[inspection]") {
   CHECK_FALSE(asksAxis(EdgeAxes::FB, 1));
   CHECK(asksAxis(EdgeAxes::RL, 1));
 }
+
+TEST_CASE("plan attempts keep their hold and tracked pair", "[inspection]") {
+  InspectionSession s = planSession();
+  s.step = SolveStep::EOCross;
+  s.pair = Slot::BL;
+  s.attempts[0].solvedIn = Hold{3, 4};
+  s.attempts[0].pairSolved = true;
+  s.attempts[0].pairMoves = 9;
+  s.attempts[1].pairSolved = false;
+  InspectionSession line = planSession();
+  line.step = SolveStep::EOLine;
+  line.pair = Slot::FR; // only for EO Cross
+  QJsonObject o = inspectionToJson({s, line}, 0);
+  auto sessions = o.value("sessions").toArray();
+  CHECK(sessions[0].toObject().value("pair").toString() == "bl");
+  CHECK_FALSE(sessions[1].toObject().contains("pair"));
+  CHECK(sessions[1].toObject().value("step").toString() == "eoline");
+  QJsonObject first =
+      sessions[0].toObject().value("attempts").toArray()[0].toObject();
+  CHECK(first.value("hold").toString() == "34");
+  CHECK(first.value("pairMoves").toInt() == 9);
+
+  auto back = inspectionFromJson(o);
+  REQUIRE(back.size() == 2);
+  CHECK(back[0].pair == Slot::BL);
+  CHECK(back[0].attempts[0].solvedIn == Hold{3, 4});
+  CHECK(back[0].attempts[0].pairSolved == true);
+  CHECK(back[0].attempts[0].pairMoves == 9);
+  CHECK(back[0].attempts[1].pairSolved == false);
+  CHECK_FALSE(back[0].attempts[1].solvedIn);
+  CHECK(back[1].step == SolveStep::EOLine);
+  CHECK_FALSE(back[1].pair);
+  CHECK_FALSE(back[1].attempts[0].pairSolved);
+  CHECK(slotFromId("fr") == Slot::FR);
+  CHECK(slotFromId("FR") == std::nullopt);
+}
+
+namespace {
+InspectionAttempt planned(int moves, std::optional<int> optimal,
+                          std::int64_t ms, bool dnf = false) {
+  InspectionAttempt a;
+  a.moves = moves;
+  a.optimal = optimal;
+  a.ms = ms;
+  a.dnf = dnf;
+  return a;
+}
+} // namespace
+
+TEST_CASE("plan attempts are charted against optimal", "[inspection]") {
+  std::vector<InspectionAttempt> list = {
+      planned(7, 6, 9000), planned(6, 6, 14000), planned(5, std::nullopt, 3000),
+      planned(4, 7, 15000, true), planned(8, 8, 2000)};
+  auto over = overOptimalAsSolves(list);
+  REQUIRE(over.size() == 4); // the one without an optimum is left out
+  CHECK(over[0].timeMs == 1 * kMoveUnit);
+  CHECK(over[1].timeMs == 0);
+  CHECK(over[2].penalty == Penalty::Dnf);
+  CHECK(over[3].timeMs == 0);
+
+  auto rate = optimalRateAsSolves(list, 2);
+  REQUIRE(rate.size() == 4);
+  CHECK(rate[0].timeMs == 0);     // 0 of 1
+  CHECK(rate[1].timeMs == 50000); // 1 of 2: 50.000 %
+  CHECK(rate[2].timeMs == 50000); // optimal, then a DNF
+  CHECK(rate[3].timeMs == 50000); // a DNF, then optimal
+  CHECK(rate[0].penalty == Penalty::None);
+
+  PlanSummary all = summarizePlan(list);
+  CHECK(all.attempts == 5);
+  CHECK(all.dnfs == 1);
+  CHECK(all.compared == 3);
+  CHECK(all.atOptimal == 2);
+  CHECK(*all.meanOver() > 0.33);
+  CHECK(*all.optimalRate() > 0.66);
+  CHECK_FALSE(PlanSummary{}.meanOver());
+
+  auto byOptimal = planByOptimal(list);
+  REQUIRE(byOptimal.size() == 3);
+  CHECK(byOptimal[0].first == 6);
+  CHECK(byOptimal[0].second.attempts == 2);
+  CHECK(byOptimal[1].first == 7);
+  CHECK(byOptimal[1].second.dnfs == 1);
+  CHECK(byOptimal[2].first == 8);
+
+  auto byTime = planByInspection(list);
+  // 2 and 3 s, 9 s, 14 s, 15 s.
+  REQUIRE(byTime.size() == 4);
+  CHECK(byTime[0].from == 0);
+  CHECK(byTime[0].to == 5);
+  CHECK(byTime[0].summary.attempts == 2);
+  CHECK(byTime[1].from == 8);
+  CHECK(byTime[2].from == 12);
+  CHECK(byTime[3].from == 15);
+  CHECK(byTime[3].to == 20);
+  CHECK(byTime[3].summary.dnfs == 1);
+}

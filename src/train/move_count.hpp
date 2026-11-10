@@ -29,16 +29,32 @@ struct MoveCountAttempt {
   bool counted = true; // false: no move count (an Untimed physical solve)
 };
 
-// The steps Move Count can check on the virtual cube. EO+1 and EO+2 are EO
-// with any one or two cross edges solved.
-enum class SolveStep : std::uint8_t { EO, EOPlus1, EOPlus2, EOCross, ZZF2L };
+// The steps of a ZZ solve that can be checked on the virtual cube. EO+1 and
+// EO+2 are EO with any one or two cross edges solved, EOLine EO with the
+// DF and DB edges solved. EOLine comes last only to keep the stored values
+// of the others; it is planned in Inspection mode but isn't a Move Count
+// step.
+enum class SolveStep : std::uint8_t {
+  EO,
+  EOPlus1,
+  EOPlus2,
+  EOCross,
+  ZZF2L,
+  EOLine
+};
+// The steps Move Count offers: EO, EO+1, EO+2, EO Cross and ZZ F2L.
 const std::vector<SolveStep> &solveSteps();
-// "eo", "eo+1", "eo+2", "eocross", "zzf2l".
+// Every step in the order a solve does them: EO, EOLine, EO+1, EO+2, EO
+// Cross, ZZ F2L.
+const std::vector<SolveStep> &allSteps();
+// "eo", "eo+1", "eo+2", "eocross", "zzf2l", "eoline".
 std::string_view stepId(SolveStep step);
-// "EO", "EO+1", "EO+2", "EO Cross", "ZZ F2L".
+// "EO", "EO+1", "EO+2", "EO Cross", "ZZ F2L", "EOLine".
 std::string_view stepName(SolveStep step);
+// Any step, by its id.
 std::optional<SolveStep> stepFromId(std::string_view id);
-// The step a session name such as "EO Cross" or "zz f2l" is named after.
+// The Move Count step a session name such as "EO Cross" or "zz f2l" is
+// named after.
 std::optional<SolveStep> stepFromName(std::string_view name);
 // The scramble type a step is practised from: EO Cross solved for ZZ F2L,
 // a WCA scramble for the rest.
@@ -52,6 +68,18 @@ bool stepReached(const FaceletCube &cube, SolveStep step);
 // The holds in which the cube shows `step` done (cross on the bottom, EO
 // for the front-back axis), sorted; empty if none.
 std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step);
+
+// How far a cube got towards the inspection steps, in the hold that got
+// furthest: the fewest edges left bad for its front-back axis, then the
+// most cross edges solved (DF, DR, DB, DL as held), then the line (DF and
+// DB) solved.
+struct StepProgress {
+  int badEdges = 12;
+  int crossEdges = 0;
+  bool line = false;
+  friend bool operator==(const StepProgress &, const StepProgress &) = default;
+};
+StepProgress stepProgress(const FaceletCube &cube);
 
 // Moves in HTM: every turn of an outer layer (a face or a wide turn) is
 // one move, a slice turn is two, and rotations are free.

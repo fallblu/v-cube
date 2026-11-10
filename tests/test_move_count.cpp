@@ -153,7 +153,12 @@ TEST_CASE("move count steps are named and found by name") {
   }
   CHECK(stepFromName("eo cross") == SolveStep::EOCross);
   CHECK(stepFromName("ZZ-F2L") == SolveStep::ZZF2L);
+  // EOLine is an Inspection step only: found by id, not by a session name.
   CHECK(stepFromName("EOLine") == std::nullopt);
+  CHECK(stepFromId("eoline") == SolveStep::EOLine);
+  CHECK(stepName(SolveStep::EOLine) == "EOLine");
+  CHECK(allSteps().size() == 6);
+  CHECK(allSteps()[1] == SolveStep::EOLine);
   CHECK(defaultScrambleType(SolveStep::ZZF2L) == "eocross");
   CHECK(defaultScrambleType(SolveStep::EO) == "333");
 }
@@ -185,6 +190,25 @@ TEST_CASE("EO+1, EO+2 and EO Cross need that many cross edges") {
   CHECK(stepReached(after("R U R' U R U2 R'"), SolveStep::ZZF2L));
   // A U-layer edge flipped (an F turn sends edges up flipped): not.
   CHECK_FALSE(stepReached(after("F R U R' U' F'"), SolveStep::ZZF2L));
+}
+
+TEST_CASE("EOLine is EO with the DF and DB edges solved") {
+  CHECK(stepReached(after("R L"), SolveStep::EOLine));
+  // R2 moves DR but not DF or DB.
+  CHECK(stepReached(after("R2"), SolveStep::EOLine));
+  // F2 B2 moves DF and DB, but UL and DL make a line held with L down.
+  CHECK(stepReached(after("F2 B2"), SolveStep::EOLine));
+  CHECK_FALSE(stepReached(after("F R U"), SolveStep::EOLine));
+}
+
+TEST_CASE("step progress is the furthest hold's") {
+  CHECK(stepProgress(after("")) == StepProgress{0, 4, true});
+  // R L: EO and the line on D, DR and DL off.
+  CHECK(stepProgress(after("R L")) == StepProgress{0, 2, true});
+  // F R U flips edges for every axis; some hold is still best.
+  StepProgress p = stepProgress(after("F R U"));
+  CHECK(p.badEdges > 0);
+  CHECK(p.badEdges < 12);
 }
 
 TEST_CASE("HTM counts slices twice and rotations not at all") {

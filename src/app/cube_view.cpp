@@ -5,6 +5,8 @@
 #include <QPainter>
 #include <QSettings>
 
+#include <algorithm>
+
 namespace vcube {
 
 CubeView::CubeView(QWidget *parent) : QWidget(parent) {
@@ -157,6 +159,28 @@ StickerMarks CubeView::shownMarks() const {
   }
   for (int i = 0; i < kFaceletCount; ++i) {
     out.labels[where[i]] = marks_.labels[static_cast<std::size_t>(i)];
+  }
+  return out;
+}
+
+StickerMarks movedMarks(const StickerMarks &marks, Move m) {
+  // where[i]: the facelet the sticker now at i was at before the move.
+  FaceletCube::Stickers ids{};
+  for (int i = 0; i < kFaceletCount; ++i) {
+    ids[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(i);
+  }
+  FaceletCube where(ids);
+  where.apply(m);
+  StickerMarks out;
+  out.ringColour = marks.ringColour;
+  for (int i = 0; i < kFaceletCount; ++i) {
+    int from = where[i];
+    if (std::find(marks.rings.begin(), marks.rings.end(), from) !=
+        marks.rings.end()) {
+      out.rings.push_back(i);
+    }
+    out.labels[static_cast<std::size_t>(i)] =
+        marks.labels[static_cast<std::size_t>(from)];
   }
   return out;
 }
