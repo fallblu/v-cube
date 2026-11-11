@@ -738,8 +738,11 @@ double CasePage::yawFor(const std::string &caseId, Mirror world) {
     }
   }
   bool left = corner == 1 || corner == 2, back = corner >= 2;
+  // A left-right mirror is followed round to the other side. A front-back
+  // one is not: a back slot is done with the cube held as usual (R U R'
+  // becomes R' U' R), and seen from behind the R face would be on the left
+  // and the U layer upside down from the case's diagram.
   left = left != world.leftRight;
-  back = back != world.frontBack;
   DiagramView seen = kViews[back ? (left ? 2 : 3) : (left ? 1 : 0)];
   return cube_painter::yawFor(seen, CubeLook{}.yaw);
 }

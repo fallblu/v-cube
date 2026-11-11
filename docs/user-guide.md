@@ -218,8 +218,9 @@ keep their place.
     Keys 1-4 change the grade of the case that came up.
 - **Mirrored cases**: a set written for one F2L slot is also set up for the
   others. Each case then comes up as written or in one of the chosen mirror
-  images (left-right, front-back or both), with the cube seen from that
-  slot's corner and the algs mirrored to match: `R U R'` is `L' U' L`
+  images (left-right, front-back or both), with the 3D cube seen from the
+  front corner on that slot's side (a back slot is done from the front, as
+  you hold the cube) and the algs mirrored to match: `R U R'` is `L' U' L`
   left-right, `R' U' R` front-back and `L U L'` both ways. A case that
   doesn't depend on the slot, such as an OCLL with the F2L whole, is never
   mirrored: it comes up as written and keeps its algs. When a mirrored step
@@ -685,11 +686,11 @@ scramble is set up for one of them, picked at random.
 
 ## The virtual cube
 
-- Choose the view in each mode: animated 3D, a flat view of the U and F
-  faces with the adjacent L and R stickers (as in Alg-Trainer), an unfolded
-  net, or hidden. Learn remembers the view for each alg set, and its 3D
-  view (and Drill's) looks from the corner the case's diagrams are drawn
-  from (e.g. front left for left-slot F2L cases).
+- Choose the view in each mode: a flat view of the U and F faces with the
+  adjacent L and R stickers (as in Alg-Trainer, and the default), animated
+  3D, an unfolded net, or hidden. Learn remembers the view for each alg
+  set, and its 3D view (and Drill's) looks from the corner the case's
+  diagrams are drawn from (e.g. front left for left-slot F2L cases).
 - It is turned from the keyboard with cstimer's face keys (Shift for wide
   moves), which you can remap in Settings > Keyboard; see
   [keys.md](keys.md#turning-keys).

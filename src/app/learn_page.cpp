@@ -1082,8 +1082,8 @@ void LearnPage::startLink(const CaseView &view) {
   if (links > 1) {
     reveal_->clear(); // a hint for the last case isn't this one's
   }
-  // In 3D, a mirrored case is looked at from its slot's corner, so that
-  // e.g. a back-left slot can be seen. A case whose algs are done as
+  // In 3D, a mirrored case is looked at from its slot's side (from the
+  // front, as a back slot is done). A case whose algs are done as
   // written, such as an OCLL a mirrored step stops at, is looked at from
   // the group's own corner (the front right), as its algs are.
   CubeLook look = cubeView_->look();

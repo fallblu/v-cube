@@ -52,6 +52,21 @@
 
 namespace vcube {
 
+namespace {
+
+// Swallows every tooltip in the app, so nothing pops up beside the mouse.
+class NoToolTips : public QObject {
+public:
+  using QObject::QObject;
+
+protected:
+  bool eventFilter(QObject *, QEvent *e) override {
+    return e->type() == QEvent::ToolTip;
+  }
+};
+
+} // namespace
+
 MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     : QMainWindow(parent), settings_(settings), data_(std::move(dataDir)) {
   setWindowTitle("v-cube");
@@ -166,6 +181,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   resizeDocks({help_}, {340}, Qt::Horizontal);
   help_->hide();
   buildMenus();
+  qApp->installEventFilter(new NoToolTips(this));
   qApp->installEventFilter(
       new KeyRouter(this, [this] { return currentPage(); }, this));
 

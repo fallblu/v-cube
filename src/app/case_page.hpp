@@ -153,8 +153,9 @@ protected:
   void releaseKeys();
 
   // The yaw to look at a case's group from in 3D: the corner its diagrams
-  // are drawn from, mirrored with the world, so that e.g. a back-left F2L
-  // slot can be seen.
+  // are drawn from (so that e.g. a back-left F2L slot can be seen), moved
+  // to the other side in a left-right mirror world. A front-back mirror
+  // keeps it, as a back slot is done from the front.
   double yawFor(const std::string &caseId, Mirror world);
 
   // The hold for the next case, picked from the colour neutrality.

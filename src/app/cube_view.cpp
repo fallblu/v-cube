@@ -255,11 +255,10 @@ QComboBox *createViewSelector(CubeView *view, const QString &mode,
                               QWidget *parent) {
   auto *box = new QComboBox(parent);
   box->setFocusPolicy(Qt::NoFocus);
-  box->setToolTip(QObject::tr("How the virtual cube is shown"));
   using Mode = CubeView::Mode;
   const std::pair<Mode, QString> items[] = {
-      {Mode::ThreeD, QObject::tr("3D")},
       {Mode::Flat, QObject::tr("Flat")},
+      {Mode::ThreeD, QObject::tr("3D")},
       {Mode::Net, QObject::tr("Net")},
       {Mode::Hidden, QObject::tr("Hidden")},
   };
@@ -267,12 +266,12 @@ QComboBox *createViewSelector(CubeView *view, const QString &mode,
     box->addItem(label, CubeView::modeName(m));
   }
   Stored<QString> stored = saved::cubeViewMode(mode);
-  Mode savedMode = CubeView::modeFromName(stored.get()).value_or(Mode::ThreeD);
+  Mode savedMode = CubeView::modeFromName(stored.get()).value_or(Mode::Flat);
   box->setCurrentIndex(box->findData(CubeView::modeName(savedMode)));
   view->setMode(savedMode);
   QObject::connect(box, &QComboBox::activated, view, [view, box, stored] {
     QString name = box->currentData().toString();
-    view->setMode(CubeView::modeFromName(name).value_or(Mode::ThreeD));
+    view->setMode(CubeView::modeFromName(name).value_or(Mode::Flat));
     stored.set(name);
   });
   return box;

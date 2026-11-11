@@ -78,7 +78,7 @@ private:
   std::deque<bool> queuedTyped_; // per queued move: from animateMove()
   double progress_ = 0.0;
   int animationMs_ = 110;
-  Mode mode_ = Mode::ThreeD;
+  Mode mode_ = Mode::Flat;
   QString hiddenText_;
   StickerMarks marks_;
   QTimer frame_;

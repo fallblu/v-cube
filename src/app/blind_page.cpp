@@ -309,7 +309,7 @@ void BlindPage::selectDrill(Drill d) {
 void BlindPage::applyView() {
   CubeView::Mode chosen =
       CubeView::modeFromName(viewBox_->currentData().toString())
-          .value_or(CubeView::Mode::ThreeD);
+          .value_or(CubeView::Mode::Flat);
   CubeView::Mode mode = chosen;
   BlindDrill::View view = current()->view();
   if (view.kind == BlindDrill::View::Kind::Net) {

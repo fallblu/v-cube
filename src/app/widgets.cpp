@@ -14,7 +14,6 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QToolTip>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
@@ -409,25 +408,26 @@ void TrendChart::paintEvent(QPaintEvent *) {
     double hx = px(static_cast<std::size_t>(hover_) - from);
     p.setPen(QPen(axis, 0.8));
     p.drawLine(QPointF(hx, area.top()), QPointF(hx, area.bottom()));
+    // Its details, in the corner of the chart away from the mouse.
+    QString text = hoverText(static_cast<std::size_t>(hover_));
+    QRectF box = p.fontMetrics().boundingRect(QRect(0, 0, 400, 400), 0, text)
+                     .toRectF()
+                     .adjusted(-6, -4, 6, 4);
+    bool right = hx < area.center().x();
+    box.moveTopLeft(QPointF(
+        right ? area.right() - box.width() - 4 : area.left() + 4,
+        area.top() + 4));
+    QColor back = palette().color(QPalette::Base);
+    back.setAlpha(220);
+    p.setPen(QPen(axis, 0.8));
+    p.setBrush(back);
+    p.drawRoundedRect(box, 4, 4);
+    p.setPen(palette().color(QPalette::Text));
+    p.drawText(box.adjusted(6, 4, -6, -4), Qt::AlignLeft | Qt::AlignTop, text);
   }
 }
 
-void TrendChart::mouseMoveEvent(QMouseEvent *e) {
-  std::size_t from = first();
-  std::size_t n = solves_.size() - from;
-  QRectF a = area();
-  if (n < 2 || a.width() <= 0) {
-    return;
-  }
-  double t = (e->position().x() - a.left()) / a.width();
-  auto i = static_cast<std::size_t>(
-      std::clamp(std::lround(t * static_cast<double>(n - 1)), 0L,
-                 static_cast<long>(n - 1)));
-  std::size_t at = from + i;
-  if (static_cast<int>(at) != hover_) {
-    hover_ = static_cast<int>(at);
-    update();
-  }
+QString TrendChart::hoverText(std::size_t at) const {
   const Solve &s = solves_[at];
   QStringList lines;
   lines << tr("#%1: %2").arg(at + 1).arg(
@@ -449,7 +449,25 @@ void TrendChart::mouseMoveEvent(QMouseEvent *e) {
       lines << QString("ao12: %1").arg(valueText(ao12.back()));
     }
   }
-  QToolTip::showText(e->globalPosition().toPoint(), lines.join("\n"), this);
+  return lines.join("\n");
+}
+
+void TrendChart::mouseMoveEvent(QMouseEvent *e) {
+  std::size_t from = first();
+  std::size_t n = solves_.size() - from;
+  QRectF a = area();
+  if (n < 2 || a.width() <= 0) {
+    return;
+  }
+  double t = (e->position().x() - a.left()) / a.width();
+  auto i = static_cast<std::size_t>(
+      std::clamp(std::lround(t * static_cast<double>(n - 1)), 0L,
+                 static_cast<long>(n - 1)));
+  std::size_t at = from + i;
+  if (static_cast<int>(at) != hover_) {
+    hover_ = static_cast<int>(at);
+    update();
+  }
 }
 
 void TrendChart::leaveEvent(QEvent *e) {
