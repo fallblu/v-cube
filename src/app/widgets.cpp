@@ -410,13 +410,14 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.drawLine(QPointF(hx, area.top()), QPointF(hx, area.bottom()));
     // Its details, in the corner of the chart away from the mouse.
     QString text = hoverText(static_cast<std::size_t>(hover_));
-    QRectF box = p.fontMetrics().boundingRect(QRect(0, 0, 400, 400), 0, text)
+    QRectF box = p.fontMetrics()
+                     .boundingRect(QRect(0, 0, 400, 400), 0, text)
                      .toRectF()
                      .adjusted(-6, -4, 6, 4);
     bool right = hx < area.center().x();
-    box.moveTopLeft(QPointF(
-        right ? area.right() - box.width() - 4 : area.left() + 4,
-        area.top() + 4));
+    box.moveTopLeft(
+        QPointF(right ? area.right() - box.width() - 4 : area.left() + 4,
+                area.top() + 4));
     QColor back = palette().color(QPalette::Base);
     back.setAlpha(220);
     p.setPen(QPen(axis, 0.8));
