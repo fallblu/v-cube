@@ -60,6 +60,8 @@ struct MoveSet {
 struct MoveSetPreset {
   std::string name; // e.g. "<R, U>" or a user's own name
   MoveSet set;
+  friend bool operator==(const MoveSetPreset &,
+                         const MoveSetPreset &) = default;
 };
 
 // The presets v-cube ships with: the common generators for last-layer and

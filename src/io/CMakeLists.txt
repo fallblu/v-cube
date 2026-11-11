@@ -1,5 +1,6 @@
 add_library(vcube_io
   algset_json.cpp
+  alglab_store.cpp
   backup.cpp
   blind_store.cpp
   data_file.cpp
