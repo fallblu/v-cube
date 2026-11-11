@@ -439,8 +439,7 @@ solves (brackets mark the ones an average drops); a new best single, mo3 or
 average is announced after the solve. Averages are rounded to the shown
 decimals as the WCA does (singles truncated first). The chart's
 right-click menu charts the last 12 to 500 solves; hover over it for a
-solve's values. With colour neutrality, the hold a scramble was made for is
-shown under it.
+solve's values.
 
 ### Timed
 

@@ -1060,8 +1060,7 @@ void InspectionPage::startCounting() {
   attempt_.load(f);
   cubeView_->clearMarks();
   cubeView_->setState(attempt_.cube());
-  scrambleLabel_->setText(scramble_->text.toHtmlEscaped() + "<br>" +
-                          tr("Held %1").arg(holdHtml(hold_, settings_.scheme)));
+  scrambleLabel_->setText(scramble_->text.toHtmlEscaped());
   showPhase();
 }
 
@@ -1345,9 +1344,6 @@ void InspectionPage::refreshAttempts() {
         }
       }
       set(3, QString::fromStdString(formatTime(a.ms)));
-      tip << tr("Held %1 top, %2 front")
-                 .arg(colourName(a.hold.top).toLower(),
-                      colourName(a.hold.front).toLower());
     }
     // The tooltip is on the number and the first value only.
     row.cells[0].tip = tip.join("\n");
