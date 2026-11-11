@@ -1,5 +1,7 @@
 #pragma once
 
+#include "io/alglab_store.hpp"
+
 #include "app/app_settings.hpp"
 #include "app/cube_painter.hpp"
 #include "app/library_editor.hpp"
@@ -79,6 +81,10 @@ public:
   // named `text`, the case selected; false if it couldn't be saved.
   bool setCaseAlgs(const QString &setId, const QString &caseId,
                    std::vector<std::string> algs, const QString &text);
+  // Alg Lab's times, shown beside each alg (none until set).
+  void setLab(const AlgLabStore *lab) { lab_ = lab; }
+  // Shows the algs again (Alg Lab's times changed, say).
+  void refreshAlgs() { refreshAlgList(); }
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Neutrality;
   }
@@ -97,12 +103,15 @@ signals:
   // The library changed: `setId` names the set whose contents changed, or
   // is empty when sets were added, removed or renamed.
   void setsChanged(const QString &setId);
+  // "Open in Alg Lab" on a case's alg.
+  void algLabRequested(const QString &setId, const QString &caseId);
 
 private:
   using Edit = LibraryEditor::Edit;
 
   AppSettings &settings_;
   AlgLibrary &library_;
+  const AlgLabStore *lab_ = nullptr;
   QUndoStack *undo_;
   // The selected set and case, the edits and the checks of each set.
   LibraryEditor editor_;

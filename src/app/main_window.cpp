@@ -113,6 +113,13 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
             algLabPage_->reloadSets();
             updateBadges();
           });
+  libraryPage_->setLab(&data_.lab);
+  connect(libraryPage_, &LibraryPage::algLabRequested, this,
+          [this](const QString &setId, const QString &caseId) {
+            if (setMode(AppMode::AlgLab)) {
+              algLabPage_->selectCase(setId, caseId);
+            }
+          });
   algLabPage_->setAlgEditor([this](const QString &setId, const QString &caseId,
                                    std::vector<std::string> algs,
                                    const QString &text) {

@@ -35,6 +35,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QTabWidget>
@@ -390,6 +391,12 @@ void GuiTest::algLabTimesEachAlg() {
   QVERIFY(toSession);
   toSession->click();
   tabs->setCurrentIndex(1);
+  // No warm-up reps, so that every time counts.
+  for (QSpinBox *box : lab->findChildren<QSpinBox *>()) {
+    if (box->prefix().startsWith("warm-up")) {
+      box->setValue(0);
+    }
+  }
   QTest::keyClick(window_.get(), Qt::Key_Space); // starts the session
   holdSpace();
   QVERIFY(lab->isBusy());
@@ -451,6 +458,16 @@ void GuiTest::algLabTimesEachAlg() {
   QVERIFY(!v.dnf);
   QVERIFY(!v.deviated);
   QVERIFY(!v.moves.empty());
+
+  // Library shows the times beside the set's alg.
+  auto *library = page<LibraryPage>();
+  QVERIFY(switchTo(AppMode::Library, library));
+  library->selectCase("pll", "T");
+  auto *algs = library->findChild<AlgListWidget *>();
+  QVERIFY(algs);
+  QVERIFY(algs->topLevelItemCount() >= 1);
+  // Interleaved, each alg was timed once: the set's on one of the cubes.
+  QVERIFY(algs->topLevelItem(0)->text(2).contains("mean of 1"));
 }
 
 void GuiTest::timedPhysicalSolve() {
