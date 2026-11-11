@@ -974,6 +974,25 @@ void LibraryPage::selectCase(const QString &setId, const QString &caseId) {
   newAlgEdit_->setFocus();
 }
 
+bool LibraryPage::setCaseAlgs(const QString &setId, const QString &caseId,
+                              std::vector<std::string> algs,
+                              const QString &text) {
+  selectCase(setId, caseId);
+  AlgCase *c = currentCase();
+  if (!c || editor_.setId != ss(setId) || c->id != ss(caseId)) {
+    return false;
+  }
+  if (algs == c->algs) {
+    return true;
+  }
+  auto pending = editor_.begin();
+  if (!pending) {
+    return false;
+  }
+  c->algs = std::move(algs);
+  return editor_.commit(text, *pending, std::vector<std::string>{c->id});
+}
+
 // --- selection ---------------------------------------------------------------
 
 std::vector<std::string> LibraryPage::selectedCases() const {

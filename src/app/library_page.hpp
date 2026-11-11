@@ -75,6 +75,10 @@ public:
               QWidget *parent = nullptr);
 
   void selectCase(const QString &setId, const QString &caseId);
+  // Sets a case's algs for another mode (Alg Lab), as one undoable edit
+  // named `text`, the case selected; false if it couldn't be saved.
+  bool setCaseAlgs(const QString &setId, const QString &caseId,
+                   std::vector<std::string> algs, const QString &text);
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Neutrality;
   }

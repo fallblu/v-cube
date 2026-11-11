@@ -27,6 +27,7 @@ class TimerPage;
 class UntimedPage;
 class MoveCountPage;
 class InspectionPage;
+class AlgLabPage;
 class BlindPage;
 class TodayPage;
 class HelpPanel;
@@ -70,6 +71,7 @@ private:
   MoveCountPage *moveCountPage_;
   InspectionPage *inspectionPage_;
   BlindPage *blindPage_;
+  AlgLabPage *algLabPage_;
   TodayPage *todayPage_;
   int mode_ = -1;
   // Data files that couldn't be written, with the reason, for the banner.
