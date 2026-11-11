@@ -16,6 +16,7 @@ anyone who wants to back them up, move them, or edit an alg set by hand.
 | Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
 | Inspection sessions | `~/.local/share/v-cube/inspection.json` | `%LOCALAPPDATA%\v-cube\inspection.json` |
 | Blind sessions and drill statistics | `~/.local/share/v-cube/blind.json` | `%LOCALAPPDATA%\v-cube\blind.json` |
+| Alg Lab (lab cases, candidates, test sessions, times, profiles) | `~/.local/share/v-cube/alglab.json` | `%LOCALAPPDATA%\v-cube\alglab.json` |
 | Daily backups | `~/.local/share/v-cube/backups/` | `%LOCALAPPDATA%\v-cube\backups\` |
 | Settings (theme, colours, keys, per-set and per-mode choices) | `~/.config/v-cube/v-cube.ini` | `%APPDATA%\v-cube\v-cube.ini` |
 
@@ -89,6 +90,7 @@ Every data file is a JSON object that starts with a `format` and a
 | Move Count sessions | `v-cube.movecount` | no |
 | Inspection sessions | `v-cube.inspection` | no |
 | Blind | `v-cube.blind` | no |
+| Alg Lab | `v-cube.alglab` | no |
 
 Every format is at version 1. A file whose `format` is another v-cube
 format, or not a v-cube format, can't be read. `version` may be left out
@@ -428,6 +430,62 @@ and a Bad edges session for both axes.
 
 The lettering, your own setups and the blind hold are in the settings file
 under `[blind]`.
+
+## Alg Lab
+
+`alglab.json` (`"v-cube.alglab"`):
+
+```json
+{
+  "format": "v-cube.alglab", "version": 1, "current": 0,
+  "sessions": [{"id": "3fa2c41b09de", "name": "Session 1",
+                "cube": "physical", "order": "interleaved", "reps": 12,
+                "warmup": 1, "trim": 0, "randomAuf": false,
+                "entries": [{"case": "set:pll/T",
+                             "alg": "R U R' U' R' F R2 U' R' U' R U R' F'"}]}],
+  "cases": [{"id": "1", "name": "Sune", "setup": "R U2 R' U' R U' R'",
+             "free": "LL:p", "aufBefore": true, "aufAfter": true}],
+  "candidates": [{"case": "lab:1",
+                  "algs": [{"alg": "R U R' U R U2 R'",
+                            "source": "generated", "added": 1762800000}]}],
+  "attempts": [{"case": "set:pll/T", "alg": "...", "cube": "virtual",
+                "time": 1830, "session": "3fa2c41b09de",
+                "timestamp": 1762800000, "dnf": true, "deviated": true,
+                "include": true, "scramble": "...", "moves": "..."}],
+  "profiles": [{"name": "Right-handed 2H", "moves": {"R": 1.0, "U'": 1.1},
+                "other": 2.5, "axis": 0.15,
+                "rules": [{"first": "R2", "second": "F*", "cost": 0.6}]}],
+  "moveSets": [{"name": "Mine", "moves": "U, R, F2"}]
+}
+```
+
+- A case is named by a key: `set:<set id>/<case id>` for a case of an alg
+  set, `lab:<id>` for a lab case. Algs are written out plainly (one space
+  between moves, `R'` for `R3`), which is how an alg's times find it.
+- `sessions`: the test sessions, each with an `id` its attempts keep, its
+  options (`cube`, `order` `"interleaved"` or `"blocked"`, `reps`,
+  `warmup` reps, `trim` per cent, `randomAuf`) and its `entries`.
+- `cases`: the lab cases: a `setup` alg that makes the case from a solved
+  cube, the `free` pieces its algs may leave (as in alg sets) and whether
+  a U turn may come before (`aufBefore`) and after (`aufAfter`) its algs.
+- `candidates`: the algs kept for each case besides its set's own, with
+  where they came from (`generated`, `pasted`, `typed`) and when.
+- `attempts`: every timed attempt, oldest first, with its case, alg, cube,
+  `time`, `session` and `timestamp`; `dnf`, `deviated` (virtual: the moves
+  left the alg) and `include` (counted although it left the alg), the
+  physical `scramble` and the virtual `moves` are left out when false or
+  empty.
+- `profiles`: the ergonomic profiles: the cost of each move (`moves`), of
+  a move not listed (`other`) and of a turn on another axis (`axis`), and
+  the `rules` for pairs of moves. A file without `profiles` gets the
+  built-in ones.
+- `moveSets`: your own move-set presets, as text (a layer for quarter and
+  half turns, `2` for half turns only, `1` for quarter turns only).
+
+Entries, candidates and attempts whose case key can't be read are left
+out. The Alg Lab page's own choices (the case shown, the generator's
+options, the filters, the profile) are in the settings file under
+`[alglab]`.
 
 ## Settings
 

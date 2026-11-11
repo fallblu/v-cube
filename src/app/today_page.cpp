@@ -77,10 +77,11 @@ std::vector<std::string> learnPool(const AlgSet &set) {
 
 TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
                      const SessionStore &timed, const MoveCountStore &untimed,
-                     const MoveCountStore &moveCounts, QString dataDir,
-                     QWidget *parent)
+                     const MoveCountStore &moveCounts, const AlgLabStore &lab,
+                     QString dataDir, QWidget *parent)
     : ModePage(parent), settings_(settings), library_(library), timed_(timed),
-      untimed_(untimed), moveCounts_(moveCounts), dataDir_(std::move(dataDir)) {
+      untimed_(untimed), moveCounts_(moveCounts), lab_(lab),
+      dataDir_(std::move(dataDir)) {
   auto *layout = new QVBoxLayout(this);
   auto *title = new QLabel(tr("Today"), this);
   QFont tf = title->font();
@@ -182,6 +183,9 @@ std::vector<ActivityEvent> TodayPage::events() {
       }
     }
   }
+  for (const LabAttempt &a : lab_.attempts()) {
+    add(AppMode::AlgLab, a.timestamp, a.timeMs);
+  }
   FileRead inspection =
       readDataFile(QDir(dataDir_).filePath("inspection.json"), kInspectionFile);
   if (inspection.status == FileStatus::Read) {
@@ -238,6 +242,7 @@ void TodayPage::refresh() {
   static const std::pair<int, const char *> rows[] = {
       {AppMode::Learn, QT_TR_NOOP("Learn (cases)")},
       {AppMode::Drill, QT_TR_NOOP("Drill (cases)")},
+      {AppMode::AlgLab, QT_TR_NOOP("Alg Lab (algs timed)")},
       {AppMode::Timed, QT_TR_NOOP("Timed (solves)")},
       {AppMode::Untimed, QT_TR_NOOP("Untimed (solves)")},
       {AppMode::MoveCount, QT_TR_NOOP("Move Count (solves)")},

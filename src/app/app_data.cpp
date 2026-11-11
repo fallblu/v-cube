@@ -31,7 +31,8 @@ AppData::AppData(QString dataDir)
       sessions(QDir(dataDir).filePath("sessions.json")),
       untimed(QDir(dataDir).filePath("untimed.json"), SolveLog::Untimed),
       moveCounts(QDir(dataDir).filePath("movecounts.json")),
-      dataDir_(std::move(dataDir)) {}
+      lab(QDir(dataDir).filePath("alglab.json")), dataDir_(std::move(dataDir)) {
+}
 
 QString AppData::backupsDir() const {
   return QDir(dataDir_).filePath(kBackupsFolder);
@@ -63,6 +64,12 @@ AppData::LoadReport AppData::load() {
                           "Count starts with the default sessions.")
                                .arg(error) +
                            " " + kept(moveCounts.setAsidePath());
+  }
+  if (!lab.load(&error)) {
+    report.warnings << tr("Could not read your Alg Lab data (%1), so Alg Lab "
+                          "starts afresh.")
+                               .arg(error) +
+                           " " + kept(lab.setAsidePath());
   }
   return report;
 }

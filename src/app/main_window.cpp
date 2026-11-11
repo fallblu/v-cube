@@ -3,6 +3,7 @@
 #include "io/backup.hpp"
 #include "io/data_file.hpp"
 
+#include "app/alglab_page.hpp"
 #include "app/blind_page.hpp"
 #include "app/command_palette.hpp"
 #include "app/drill_page.hpp"
@@ -92,17 +93,39 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_);
   inspectionPage_ = new InspectionPage(settings_, data_.dataDir(), stack_);
   blindPage_ = new BlindPage(settings_, data_.dataDir(), stack_);
+  algLabPage_ = new AlgLabPage(settings_, data_.library, data_.lab, stack_);
   todayPage_ =
       new TodayPage(settings_, data_.library, data_.sessions, data_.untimed,
-                    data_.moveCounts, data_.dataDir(), stack_);
-  pages_ = {learnPage_,      drillPage_,   libraryPage_,
-            timedPage_,      untimedPage_, moveCountPage_,
-            inspectionPage_, blindPage_,   todayPage_};
+                    data_.moveCounts, data_.lab, data_.dataDir(), stack_);
+  pages_ = {learnPage_,   drillPage_,     libraryPage_,    timedPage_,
+            untimedPage_, moveCountPage_, inspectionPage_, blindPage_,
+            algLabPage_,  todayPage_};
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
   }
   connect(libraryPage_, &LibraryPage::setsChanged, this,
+          [this](const QString &setId) {
+            learnPage_->reloadSets();
+            drillPage_->reloadSets();
+            timedPage_->refreshScrambleTypes(setId);
+            untimedPage_->refreshScrambleTypes(setId);
+            algLabPage_->reloadSets();
+            updateBadges();
+          });
+  libraryPage_->setLab(&data_.lab);
+  connect(libraryPage_, &LibraryPage::algLabRequested, this,
+          [this](const QString &setId, const QString &caseId) {
+            if (setMode(AppMode::AlgLab)) {
+              algLabPage_->selectCase(setId, caseId);
+            }
+          });
+  algLabPage_->setAlgEditor([this](const QString &setId, const QString &caseId,
+                                   std::vector<std::string> algs,
+                                   const QString &text) {
+    return libraryPage_->setCaseAlgs(setId, caseId, std::move(algs), text);
+  });
+  connect(algLabPage_, &AlgLabPage::setsChanged, this,
           [this](const QString &setId) {
             learnPage_->reloadSets();
             drillPage_->reloadSets();

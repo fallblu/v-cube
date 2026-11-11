@@ -20,6 +20,7 @@ constexpr std::array<ModeInfo, AppMode::Count> kModes = {{
     {"movecount", QT_TRANSLATE_NOOP("MainWindow", "Move Count")},
     {"inspection", QT_TRANSLATE_NOOP("MainWindow", "Inspection")},
     {"blind", QT_TRANSLATE_NOOP("MainWindow", "Blind")},
+    {"alglab", QT_TRANSLATE_NOOP("MainWindow", "Alg Lab")},
     {"today", QT_TRANSLATE_NOOP("MainWindow", "Today")},
 }};
 
@@ -31,8 +32,8 @@ const ModeInfo &info(int mode) {
 
 const std::array<AppMode::Id, AppMode::Count> &AppMode::sidebarOrder() {
   static constexpr std::array<Id, Count> order = {
-      Today,   Learn,     Drill,      Library, Timed,
-      Untimed, MoveCount, Inspection, Blind};
+      Today, Learn,   Drill,     Library,    AlgLab,
+      Timed, Untimed, MoveCount, Inspection, Blind};
   return order;
 }
 
@@ -50,7 +51,7 @@ QString AppMode::sidebarHeader(int mode) {
 }
 
 bool AppMode::menuSeparatorAfter(int mode) {
-  return mode == Today || mode == Library || mode == MoveCount;
+  return mode == Today || mode == AlgLab || mode == MoveCount;
 }
 
 QString AppMode::label(int mode) {

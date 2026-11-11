@@ -19,7 +19,7 @@ struct Section {
 };
 
 // By mode, in AppMode order.
-constexpr std::array<Section, 9> kModeSections = {{
+constexpr std::array<Section, 10> kModeSections = {{
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Learn (virtual cube, untimed)"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",
@@ -147,6 +147,22 @@ constexpr std::array<Section, 9> kModeSections = {{
          "<b>Space</b> starts the memo, <b>Space</b> hides the cube for the "
          "execution and <b>Space</b> stops (physical cube: any key stops, "
          "<b>Backspace</b> toggles DNF); <b>Esc</b> cancels.</p>")},
+    {QT_TRANSLATE_NOOP("vcube::HelpText", "Alg Lab"),
+     QT_TRANSLATE_NOOP(
+         "vcube::HelpText",
+         "<p>Search tab: pick a case on the left (an alg set's or a lab "
+         "case), type an alg and press <b>Enter</b> to add it, or Find algs "
+         "to generate them; right-click candidates to add them to the set, "
+         "make one the main alg or add them to the test session.</p>"
+         "<p>Test tab: <b>Space</b> starts the session. Physical cube: "
+         "scramble, hold <b>Space</b> until the time turns green and let go, "
+         "do the alg shown, any key stops. Virtual cube: your first turn "
+         "starts the timer and it stops when the case is solved "
+         "(<b>Space</b> stops early, a DNF). <b>Esc</b> sets the case up "
+         "again. After an attempt: <b>Space</b> next alg, "
+         "<b>Backspace</b> toggles DNF, <b>Delete</b> deletes the time, "
+         "<b>Esc</b> the same alg again. Double-click an alg in the list to "
+         "time it next.</p>")},
     {QT_TRANSLATE_NOOP("vcube::HelpText", "Today"),
      QT_TRANSLATE_NOOP(
          "vcube::HelpText",
@@ -157,8 +173,8 @@ constexpr std::array<Section, 9> kModeSections = {{
 
 const char *const kWindow = QT_TRANSLATE_NOOP(
     "vcube::HelpText",
-    "<p><b>Ctrl+1</b> to <b>Ctrl+8</b> switch between Learn, Drill, "
-    "Library, Timed, Untimed, Move Count, Inspection and Blind, and "
+    "<p><b>Ctrl+1</b> to <b>Ctrl+9</b> switch between Learn, Drill, "
+    "Library, Timed, Untimed, Move Count, Inspection, Blind and Alg Lab, and "
     "<b>Ctrl+0</b> shows Today. Switching is blocked while a solve or "
     "inspection is running.</p><p><b>Ctrl+K</b> opens the command list: "
     "type to find any menu command or a choice on the page (set, session, "

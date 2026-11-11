@@ -9,8 +9,9 @@ namespace vcube {
 
 // The main window's modes, one page each.
 struct AppMode {
-  // In this order Ctrl+1 to Ctrl+8 (Today Ctrl+0); the help text and the
-  // Today page's activity follow it too.
+  // In this order Ctrl+1 to Ctrl+9 (Today Ctrl+0); the help text and the
+  // Today page's activity follow it too. Alg Lab came last, so it keeps
+  // Ctrl+9 although the sidebar lists it with the alg modes.
   enum Id : int {
     Learn,
     Drill,
@@ -20,6 +21,7 @@ struct AppMode {
     MoveCount,
     Inspection,
     Blind,
+    AlgLab,
     Today,
     Count
   };

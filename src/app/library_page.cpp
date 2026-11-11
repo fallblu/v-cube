@@ -73,8 +73,8 @@ QString drillText(const CaseProgress &p, AttemptMode mode) {
 // -------------------------------------------------------------
 
 AlgListWidget::AlgListWidget(QWidget *parent) : QTreeWidget(parent) {
-  setColumnCount(2);
-  setHeaderLabels({tr("Alg"), tr("Check")});
+  setColumnCount(3);
+  setHeaderLabels({tr("Alg"), tr("Check"), tr("Alg Lab")});
   setRootIsDecorated(false);
   setUniformRowHeights(true);
   setSelectionMode(QAbstractItemView::SingleSelection);
@@ -498,6 +498,7 @@ void LibraryPage::updateActions() {
 
 void LibraryPage::activated() {
   active_ = true;
+  refreshAlgList(); // Alg Lab's times may have changed
   for (QAction *a : editActions()) {
     a->setVisible(true);
   }
@@ -883,6 +884,28 @@ void LibraryPage::refreshAlgList() {
         item->setToolTip(1, qs(check.parseError->message));
       }
     }
+    if (lab_) {
+      // Each alg's times from Alg Lab, on each cube it was timed on.
+      LabCaseKey key{editor_.setId, c->id};
+      WarmupOf warm = [this](std::string_view id) {
+        return lab_->warmupOf(id);
+      };
+      for (int i = 0; i < algList_->topLevelItemCount(); ++i) {
+        std::string alg = labAlgKey(c->algs[static_cast<std::size_t>(i)]);
+        QStringList parts;
+        for (CubeKind cube : {CubeKind::Physical, CubeKind::Virtual}) {
+          LabStats st = labStats(lab_->attempts(), key, alg, cube, {}, 0, warm);
+          if (st.mean) {
+            parts << tr("%1 mean of %2%3")
+                         .arg(qs(formatTime(*st.mean, settings_.decimals)))
+                         .arg(st.used)
+                         .arg(cube == CubeKind::Virtual ? tr(" (virtual)")
+                                                        : QString());
+          }
+        }
+        algList_->topLevelItem(i)->setText(2, parts.join(" · "));
+      }
+    }
   }
   if (row >= 0 && row < algList_->topLevelItemCount()) {
     algList_->setCurrentItem(algList_->topLevelItem(row));
@@ -955,6 +978,11 @@ void LibraryPage::showAlgMenu(const QPoint &pos) {
   menu.addAction(tr("Move down"), QKeySequence(Qt::ALT | Qt::Key_Down), this,
                  [this, row] { moveAlg(row, 1); })
       ->setEnabled(row + 1 < algList_->topLevelItemCount());
+  menu.addAction(tr("Open in Alg Lab"), this, [this] {
+    if (currentCase()) {
+      emit algLabRequested(qs(editor_.setId), qs(currentCase()->id));
+    }
+  });
   menu.addSeparator();
   menu.addAction(tr("Remove"), QKeySequence(QKeySequence::Delete), this,
                  [this, row] { removeAlg(row); });
@@ -972,6 +1000,25 @@ void LibraryPage::selectCase(const QString &setId, const QString &caseId) {
   buildCaseTree();
   loadCase();
   newAlgEdit_->setFocus();
+}
+
+bool LibraryPage::setCaseAlgs(const QString &setId, const QString &caseId,
+                              std::vector<std::string> algs,
+                              const QString &text) {
+  selectCase(setId, caseId);
+  AlgCase *c = currentCase();
+  if (!c || editor_.setId != ss(setId) || c->id != ss(caseId)) {
+    return false;
+  }
+  if (algs == c->algs) {
+    return true;
+  }
+  auto pending = editor_.begin();
+  if (!pending) {
+    return false;
+  }
+  c->algs = std::move(algs);
+  return editor_.commit(text, *pending, std::vector<std::string>{c->id});
 }
 
 // --- selection ---------------------------------------------------------------

@@ -2,6 +2,7 @@
 // keys go in as QTest events and what was saved is read back from the data
 // folder. The settings and data folders are temporary ones, set before the
 // QApplication exists, so the user's own data is never read or written.
+#include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
 #include "app/blind_page.hpp"
 #include "app/cube_view.hpp"
@@ -19,6 +20,7 @@
 #include "app/today_page.hpp"
 #include "app/untimed_page.hpp"
 #include "cube/solver.hpp"
+#include "io/alglab_store.hpp"
 #include "io/data_file.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
@@ -28,12 +30,16 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
+#include <QTabWidget>
+#include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTextBrowser>
@@ -262,6 +268,7 @@ private slots:
   void learnStartsACase();
   void drillArmsAndStopsItself();
   void libraryAddsAnAlgAndUndoes();
+  void algLabTimesEachAlg();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
   void cleanupTestCase();
@@ -330,7 +337,8 @@ void GuiTest::modesSwitch() {
   const std::array<ModePage *, AppMode::Count> pages = {
       page<LearnPage>(),      page<DrillPage>(),   page<LibraryPage>(),
       page<TimerPage>(),      page<UntimedPage>(), page<MoveCountPage>(),
-      page<InspectionPage>(), page<BlindPage>(),   page<TodayPage>()};
+      page<InspectionPage>(), page<BlindPage>(),   page<AlgLabPage>(),
+      page<TodayPage>()};
   for (int m : AppMode::sidebarOrder()) {
     QVERIFY2(switchTo(m, pages[static_cast<std::size_t>(m)]),
              qPrintable(AppMode::label(m)));
@@ -338,6 +346,128 @@ void GuiTest::modesSwitch() {
   }
   // And back to the first, from the last.
   QVERIFY(switchTo(AppMode::Learn, pages[AppMode::Learn]));
+}
+
+void GuiTest::algLabTimesEachAlg() {
+  auto *lab = page<AlgLabPage>();
+  QVERIFY(switchTo(AppMode::AlgLab, lab));
+  lab->selectCase("pll", "T");
+  QTableWidget *candidates = nullptr;
+  QTabWidget *tabs = lab->findChild<QTabWidget *>();
+  QVERIFY(tabs);
+  tabs->setCurrentIndex(0);
+  for (QTableWidget *t : lab->findChildren<QTableWidget *>()) {
+    if (t->columnCount() > 10 && t->horizontalHeaderItem(1)->text() == "HTM") {
+      candidates = t;
+    }
+  }
+  QVERIFY(candidates);
+  // The set's alg is a candidate.
+  QCOMPARE(candidates->rowCount(), 1);
+  QCOMPARE(candidates->item(0, 0)->data(Qt::UserRole).toString(),
+           qs(labAlgKey(kTPerm)));
+
+  // Another T perm, typed in.
+  const std::string other = "R2 F2 U R2 U2 F' U F' R2 F U' F' U F2";
+  QLineEdit *add = nullptr;
+  for (QLineEdit *e : lab->findChildren<QLineEdit *>()) {
+    if (e->placeholderText().startsWith("Type an alg")) {
+      add = e;
+    }
+  }
+  QVERIFY(add);
+  add->setText(qs(other));
+  QMetaObject::invokeMethod(add, "returnPressed");
+  QCOMPARE(candidates->rowCount(), 2);
+
+  // Both into the session, then timed on a physical cube.
+  candidates->selectAll();
+  QPushButton *toSession = nullptr;
+  for (QPushButton *b : lab->findChildren<QPushButton *>()) {
+    if (b->text() == "Add to session") {
+      toSession = b;
+    }
+  }
+  QVERIFY(toSession);
+  toSession->click();
+  tabs->setCurrentIndex(1);
+  // No warm-up reps, so that every time counts.
+  for (QSpinBox *box : lab->findChildren<QSpinBox *>()) {
+    if (box->prefix().startsWith("warm-up")) {
+      box->setValue(0);
+    }
+  }
+  QTest::keyClick(window_.get(), Qt::Key_Space); // starts the session
+  holdSpace();
+  QVERIFY(lab->isBusy());
+  QTest::qWait(350);
+  QTest::keyClick(window_.get(), Qt::Key_A);
+  QVERIFY(!lab->isBusy());
+  finishBackgroundWrites();
+  {
+    AlgLabStore saved(QDir(dataDir_).filePath("alglab.json"));
+    QVERIFY(saved.load());
+    QCOMPARE(saved.current().entries.size(), std::size_t{2});
+    QCOMPARE(saved.attempts().size(), std::size_t{1});
+    QVERIFY(saved.attempts()[0].cube == CubeKind::Physical);
+    QVERIFY(saved.attempts()[0].timeMs >= 300);
+    QVERIFY(!saved.attempts()[0].scramble.empty());
+  }
+
+  // The virtual cube: the next alg is set up on it, done with that alg.
+  QComboBox *cube = nullptr;
+  for (QComboBox *box : lab->findChildren<QComboBox *>()) {
+    if (box->findText("Virtual cube") >= 0) {
+      cube = box;
+    }
+  }
+  QVERIFY(cube);
+  QTest::qWait(400);
+  QTest::keyClick(window_.get(), Qt::Key_Space); // the next alg
+  cube->setCurrentIndex(cube->findText("Virtual cube"));
+  QTest::keyClick(window_.get(), Qt::Key_Escape); // set up on the cube
+  CubeView *view = nullptr;
+  for (CubeView *v : lab->findChildren<CubeView *>()) {
+    if (v->isVisible()) {
+      view = v;
+    }
+  }
+  QVERIFY(view);
+  view->finishAnimations();
+  // The alg the session asks for, as the page shows it.
+  std::string asked;
+  for (QLabel *l : lab->findChildren<QLabel *>()) {
+    for (const std::string &a : {std::string(kTPerm), other}) {
+      if (l->isVisible() && l->text() == qs(a)) {
+        asked = a;
+      }
+    }
+  }
+  QVERIFY(!asked.empty());
+  std::optional<Alg> moves =
+      withAufs(view->displayedState(), parseAlgOrEmpty(asked));
+  QVERIFY2(moves, "the case shown isn't T perm");
+  typeMoves(*moves);
+  QTRY_VERIFY(!lab->isBusy());
+  finishBackgroundWrites();
+  AlgLabStore saved(QDir(dataDir_).filePath("alglab.json"));
+  QVERIFY(saved.load());
+  QCOMPARE(saved.attempts().size(), std::size_t{2});
+  const LabAttempt &v = saved.attempts()[1];
+  QVERIFY(v.cube == CubeKind::Virtual);
+  QVERIFY(!v.dnf);
+  QVERIFY(!v.deviated);
+  QVERIFY(!v.moves.empty());
+
+  // Library shows the times beside the set's alg.
+  auto *library = page<LibraryPage>();
+  QVERIFY(switchTo(AppMode::Library, library));
+  library->selectCase("pll", "T");
+  auto *algs = library->findChild<AlgListWidget *>();
+  QVERIFY(algs);
+  QVERIFY(algs->topLevelItemCount() >= 1);
+  // Interleaved, each alg was timed once: the set's on one of the cubes.
+  QVERIFY(algs->topLevelItem(0)->text(2).contains("mean of 1"));
 }
 
 void GuiTest::timedPhysicalSolve() {

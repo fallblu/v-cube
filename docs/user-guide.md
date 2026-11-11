@@ -6,7 +6,7 @@ lists every key, and `F1` in the app shows the current mode's.
 - [The window](#the-window)
 - [Alg sets](#alg-sets): [Learn](#learn), [Drill](#drill),
   [case lists](#case-lists), [Library](#library),
-  [getting algs into a set](#getting-algs-into-a-set)
+  [getting algs into a set](#getting-algs-into-a-set), [Alg Lab](#alg-lab)
 - [Solves](#solves): [Timed](#timed), [Untimed](#untimed),
   [Move Count](#move-count), [Review](#review), [scramble types](#scramble-types)
 - [Practice](#practice): [Inspection](#inspection), [Blind](#blind)
@@ -15,10 +15,11 @@ lists every key, and `F1` in the app shows the current mode's.
 
 ## The window
 
-The sidebar lists the modes in three groups, Algs (Learn, Drill, Library),
-Solves (Timed, Untimed, Move Count) and Practice (Inspection, Blind), under
-**Today**. `Ctrl+1` to `Ctrl+8` switch modes in that order and `Ctrl+0`
-shows Today; the **Mode** menu has them too. Switching is blocked while a
+The sidebar lists the modes in three groups, Algs (Learn, Drill, Library,
+Alg Lab), Solves (Timed, Untimed, Move Count) and Practice (Inspection,
+Blind), under **Today**. `Ctrl+1` to `Ctrl+8` switch to Learn, Drill,
+Library, Timed, Untimed, Move Count, Inspection and Blind, `Ctrl+9` to Alg
+Lab and `Ctrl+0` to Today; the **Mode** menu has them too. Switching is blocked while a
 solve or inspection is running.
 
 - **Today** shows, for each alg set, the reviews due now or later today,
@@ -413,6 +414,123 @@ then **Cases > New case from alg…** (Ctrl+Shift+A) or **Paste algs…** (with
 "Make new cases" ticked) builds the cases. If you change a set's step
 settings later, **Set > Check algs…** (Ctrl+Shift+K) lists the algs that no
 longer pass.
+
+### Alg Lab
+
+Alg Lab finds, compares and times algs for a case, so that you can choose
+the best one for your hands. Each alg keeps its own times.
+
+**The case.** The drop-down at the top left picks an alg set (its cases
+are listed in their groups) or **Lab cases**, Alg Lab's own cases for
+states that aren't in any set. **New…** makes a lab case from a setup alg
+(the moves that make the case from a solved cube) and what its algs must
+solve: the whole cube, the last layer oriented, the F2L, the steps of one
+of your sets, or your own free pieces (`LL:p`, `LLE:o UF:p`, as in the set
+properties), and whether a U turn may come before or after the alg.
+**Edit…** (or a double-click) changes it and **Delete** removes it with
+its candidates and times. Library's alg list has **Open in Alg Lab** on a
+case's algs.
+
+**Search tab.** The case's candidate algs: the set's own algs (the main
+alg in bold), then the ones you typed, pasted or generated. An alg that
+doesn't solve the case is greyed out with the reason. For each:
+
+- move counts in **HTM** (a slice counts 2), **STM** (any layer turn is
+  1), **QTM** (half turns count 2) and **ETM** (every move, rotations too);
+- an ergonomic **Score** (lower is easier, see below);
+- its times on the cube chosen (physical or virtual): the number counted,
+  mean, median, best, current ao5 and ao12, standard deviation and DNF
+  rate, over all time, the current test session or the last 50 attempts.
+
+Click a column header to sort by it. **Show** filters the list to the algs
+of a move set (such as `<R, U>`), **No rotations** hides algs with x, y or
+z, and the length box hides algs over that many moves (HTM). Type an alg
+under the list and press Enter to add it, or **Paste…** a list (one alg a
+line; `name: alg / alg` lines and `//` comments are fine, and algs that
+don't solve the case are left out). **Add to set** adds the selected algs
+to the case in its set and **Make main alg** puts one first; both are
+Library edits, so Library's Undo takes them back. **Add to session** puts
+them in the current test session. **Remove** forgets kept candidates (a
+set's own algs are removed in Library) and **Clear times…** forgets the
+selected algs' times. Right-click for the same, and Copy.
+
+**The generator** finds every alg of a move set that solves the case,
+shortest first, and adds them as candidates while it runs:
+
+- **Move set**: a preset (`<U, R>`, `<U, R, F>`, `<U, R, D>`, `<U, R, L>`,
+  `<U, R, F, D>`, `<U, R, D, F2>`, `<U, R, r>`, `<U, R, M>`,
+  `<U, R, F, r>`, `<U, R, F, L, B>`, all faces), one of your own, or
+  **Custom…**: a grid of every face, wide turn and slice with its quarter
+  and half turns, also typed as text (`R, U, F2`: a 2 allows half turns
+  only, a 1 quarter turns only). Give it a name to keep it as a preset;
+  **…** edits the move set or deletes one of your presets.
+- **Shortest +** stops that many moves after the shortest alg found;
+  **Every length** goes on to the limit. **Up to** is the longest alg it
+  looks for, and **at most** stops it after that many algs. Lengths count
+  every layer turn as one move (STM).
+- A U turn before and after the alg is allowed as the case allows (the
+  set's random U turns, or the lab case's), and an alg never starts or
+  ends with a U turn that would only be that AUF. Algs never turn a layer
+  twice in a row and turn the layers of one axis (R, L, r, M) in one order.
+  Wide turns and slices are followed with the way they turn the cube, so
+  after `r` a U turn turns the layer that was in front.
+- **Find algs** searches the case; **Whole group…** every case of its group
+  or of its set, one after another. **Stop** ends a search. The line under
+  the controls says how far it got: the number of algs, the shortest, and
+  the length to which every alg was found.
+- The first search with a move set and step builds tables for it, which
+  takes a moment for all six faces and a solved goal (about 3 seconds)
+  and much less for smaller move sets; later searches with the same moves
+  and step reuse them. Restricted move sets search deep quickly (a ZBLL in
+  `<U, R>` to 14 moves takes well under a second); all six faces past 13
+  or 14 moves can take minutes, so stop it or lower the limit.
+
+**Ergonomic score.** A profile gives each move a cost (`R`, `R'`, `R2`,
+`r`, `M'`, `x` ...), a cost for each turn on another axis than the turn
+before, and rules for awkward pairs of moves in a row, each side a move
+(`R2`), a layer with any turn (`R*`) or any move (`*`), such as `R2` then
+`F*` for a regrip. The score is the sum. **Right-handed 2H** is the
+default and **One-handed (right)** ships too; **Profile…** edits the
+chosen profile (with a field to try an alg against it), makes a new one
+from it, deletes it, or restores the built-in ones.
+
+**Test tab.** Test sessions time algs one at a time. A session lists
+algs, each with its case (from any cases and sets), and has:
+
+- the **cube**: physical (a random-state scramble sets the case up, so
+  the scramble never hints at an alg; hold Space and let go to start, any
+  key stops) or virtual (the case is set up on the cube, your first turn
+  starts the timer and it stops when the case is solved; Space stops it
+  early, a DNF);
+- the **order**: interleaved (rounds of every alg once, in a random order,
+  never the same alg twice in a row) or blocked (every rep of one alg,
+  then the next), and the **reps** of each alg;
+- the **warm-up** reps of each alg left out of the statistics at the start
+  of the session, and the **trim**, the share of the fastest and slowest
+  times left out of the mean, median and SD (averages trim as the WCA
+  does);
+- **Random AUF**: off, each alg's case is set up from the side the alg
+  starts from, so only the alg is timed; on, a random U turn comes first
+  and the AUF is timed too.
+
+Space starts the session. Each attempt names the alg to do and shows the
+case and, on a physical cube, the scramble. On the virtual cube your moves
+are checked against the alg (as Learn checks them): a time where they left
+it is marked and not counted, and the Times tab can count it. After an
+attempt Space goes on, Backspace toggles DNF, Delete deletes the time and
+Esc does the same alg again; Esc before or during an attempt sets the case
+up again. Double-click an alg in the session's list to time it next.
+When every alg has its reps, raise the reps or add algs to go on.
+
+Below, **Compare** has the session's algs side by side (this session or
+all time): the statistics table and a chart, either the spread of each
+alg's times (each time a dot, with its middle half as a box and the median
+as a line) or the times in the order they were done. Hover a dot for its
+time. **Times** lists the session's attempts, newest first; right-click
+one to toggle DNF, count or stop counting a time that left the alg, or
+delete it. Every alg's times are kept over all sessions (and deleting a
+session keeps them), apart for each cube, and Library's alg list shows
+each alg's mean and count.
 
 ## Solves
 

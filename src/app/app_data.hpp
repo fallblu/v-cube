@@ -1,5 +1,6 @@
 #pragma once
 
+#include "io/alglab_store.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
@@ -11,7 +12,8 @@ namespace vcube {
 
 // The data files the modes share, in the data folder: the alg sets and
 // their progress, the timer sessions, the untimed solves and the move
-// counts. (Inspection and Blind keep their own files.)
+// counts, and Alg Lab's file. (Inspection and Blind keep their own
+// files.)
 class AppData {
 public:
   explicit AppData(QString dataDir);
@@ -33,6 +35,7 @@ public:
   SessionStore sessions;
   MoveCountStore untimed;
   MoveCountStore moveCounts;
+  AlgLabStore lab;
 
 private:
   QString dataDir_;

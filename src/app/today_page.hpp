@@ -1,5 +1,7 @@
 #pragma once
 
+#include "io/alglab_store.hpp"
+
 #include "app/app_settings.hpp"
 #include "app/mode_page.hpp"
 #include "io/library.hpp"
@@ -26,8 +28,8 @@ class TodayPage : public ModePage {
 public:
   TodayPage(AppSettings &settings, AlgLibrary &library,
             const SessionStore &timed, const MoveCountStore &untimed,
-            const MoveCountStore &moveCounts, QString dataDir,
-            QWidget *parent = nullptr);
+            const MoveCountStore &moveCounts, const AlgLabStore &lab,
+            QString dataDir, QWidget *parent = nullptr);
 
   // Learn's due reviews (and learning steps) and the new cases left today,
   // over every set, for the sidebar.
@@ -52,6 +54,7 @@ private:
   const SessionStore &timed_;
   const MoveCountStore &untimed_;
   const MoveCountStore &moveCounts_;
+  const AlgLabStore &lab_;
   QString dataDir_;
   QLabel *streakLabel_;
   QTreeWidget *sets_;
