@@ -685,11 +685,11 @@ scramble is set up for one of them, picked at random.
 
 ## The virtual cube
 
-- Choose the view in each mode: animated 3D, a flat view of the U and F
-  faces with the adjacent L and R stickers (as in Alg-Trainer), an unfolded
-  net, or hidden. Learn remembers the view for each alg set, and its 3D
-  view (and Drill's) looks from the corner the case's diagrams are drawn
-  from (e.g. front left for left-slot F2L cases).
+- Choose the view in each mode: a flat view of the U and F faces with the
+  adjacent L and R stickers (as in Alg-Trainer, and the default), animated
+  3D, an unfolded net, or hidden. Learn remembers the view for each alg
+  set, and its 3D view (and Drill's) looks from the corner the case's
+  diagrams are drawn from (e.g. front left for left-slot F2L cases).
 - It is turned from the keyboard with cstimer's face keys (Shift for wide
   moves), which you can remap in Settings > Keyboard; see
   [keys.md](keys.md#turning-keys).
