@@ -14,6 +14,7 @@ Esc).
 | Key | Action |
 | --- | --- |
 | Ctrl+1 … Ctrl+8 | Learn, Drill, Library, Timed, Untimed, Move Count, Inspection, Blind (not while a solve or inspection is running) |
+| Ctrl+9 | Alg Lab |
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
@@ -27,7 +28,8 @@ Esc).
 ## Turning keys
 
 The virtual cube (Learn, Drill on the virtual cube, the Solves modes'
-virtual sessions, Inspection, Blind) is turned with cstimer's face keys.
+virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) is
+turned with cstimer's face keys.
 Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G
 is `f'`. Remap them in Settings > Keyboard: select a row and **Change** its
 key or move, or **Add** one. A turning key may be held with Shift but not
@@ -227,6 +229,27 @@ with no moves done doesn't finish.
 | Blind solves, physical | Space / any key | start, end the memo / stop |
 | Blind solves, physical, after a solve | Backspace | toggle DNF |
 | Blind solves | Esc | cancel |
+
+## Alg Lab
+
+The Search tab is used with the mouse: Enter in the field under the list
+adds the alg typed. These keys are for the Test tab.
+
+| When | Key | Action |
+| --- | --- | --- |
+| Before the session or after its last rep | Space | start: the next alg is set up |
+| Physical, case set up | Space held, then let go | start the timer (hold until the time turns green) |
+| Physical, timer running | any key but Shift, Ctrl, Alt | stop |
+| Virtual, case set up | turning keys | rotations look at the case; the first layer turn starts the timer, which stops when the case is solved |
+| Virtual, timer running | Space | stop early (a DNF unless solved) |
+| Case set up or timer running | Esc | set the case up again (nothing is recorded) |
+| After an attempt | Space | next alg |
+| After an attempt | Backspace | toggle DNF |
+| After an attempt | Delete | delete the time and set the case up again |
+| After an attempt | Esc | the same alg again |
+
+Keys are ignored for a moment after the timer stops. Double-click an alg in
+the session's list to time it next.
 
 ## Today
 

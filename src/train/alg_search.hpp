@@ -23,7 +23,7 @@ namespace vcube {
 //
 // The search prunes with pattern databases: the distance to the goal of
 // the corners alone (where the corners whose place is free count as one
-// kind of piece), and of groups of up to seven edges, under the move
+// kind of piece), and of one or two groups of edges, under the move
 // set's turns. Tables are built when a search first needs them (a few
 // seconds for all six faces and a fully solved goal, much less for
 // restricted move sets) and kept for later searches with the same moves
