@@ -219,17 +219,26 @@ void CubeView::paintEvent(QPaintEvent *) {
   QRectF area = drawArea();
   StickerMarks marks = shownMarks();
   const StickerMarks *m = marks.empty() ? nullptr : &marks;
+  // The 3D and top views draw the cube at two thirds of the space it is
+  // given, centred; the net keeps the full area so its stickers stay easy
+  // to click.
+  QRectF cubeArea = area;
+  if (mode_ == Mode::ThreeD || mode_ == Mode::Flat) {
+    QSizeF size = area.size() * (2.0 / 3.0);
+    cubeArea = QRectF(QPointF(), size);
+    cubeArea.moveCenter(area.center());
+  }
   switch (mode_) {
   case Mode::ThreeD: {
     std::optional<TurnAnimation> turn;
     if (!queue_.empty()) {
       turn = TurnAnimation{queue_.front(), progress_};
     }
-    cube_painter::paint3D(p, area, shown_, look_, turn, m);
+    cube_painter::paint3D(p, cubeArea, shown_, look_, turn, m);
     break;
   }
   case Mode::Flat:
-    cube_painter::paintFlat(p, area, shown_, look_, m);
+    cube_painter::paintFlat(p, cubeArea, shown_, look_, m);
     break;
   case Mode::Net:
     cube_painter::paintNet(p, area, shown_, look_, m);
