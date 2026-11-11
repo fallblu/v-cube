@@ -701,7 +701,7 @@ void DrillPage::followView() {
   if (!s || !current_ || !s->reduction || current_->world.none()) {
     return;
   }
-  // A mirrored case is looked at from its slot's corner. Once a step
+  // A mirrored case is looked at from its slot's side. Once a step
   // leaves a case whose algs are done as written, such as an OCLL at the
   // end, the cube is seen from the front right again, as the algs are.
   auto c = cubeState();
@@ -721,7 +721,7 @@ void DrillPage::followView() {
 void DrillPage::resetCube() {
   if (current_) {
     // In 3D, look from the corner the group's diagrams are drawn from,
-    // mirrored with the case, so that e.g. a back-left F2L slot can be seen.
+    // so that e.g. a back-left F2L slot can be seen, on the case's side.
     CubeLook look = cubeView_->look();
     look.yaw = yawFor(current_->caseId, current_->world);
     cubeView_->setLook(look);
