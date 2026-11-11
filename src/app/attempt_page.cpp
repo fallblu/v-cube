@@ -132,14 +132,8 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   scrambleLabel_->setFont(sf);
   markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(60);
-  holdLabel_ = new QLabel(right);
-  holdLabel_->setAlignment(Qt::AlignCenter);
-  holdLabel_->setTextFormat(Qt::RichText);
-  holdLabel_->setToolTip(
-      tr("The hold your colour neutrality picked for this scramble"));
   auto *scrambleColumn = new QVBoxLayout;
   scrambleColumn->addWidget(scrambleLabel_);
-  scrambleColumn->addWidget(holdLabel_);
   net_ = new NetPreview(right);
   scrambleRow->addLayout(scrambleColumn, 1);
   scrambleRow->addWidget(net_);
@@ -376,11 +370,6 @@ void AttemptPage::showCubeKind() {
 void AttemptPage::showScramble() {
   const GeneratedScramble *shown = shownScramble();
   scrambleShown(shown);
-  // A retry's scramble has no hold of its own.
-  holdLabel_->setText(
-      !shown || flow_.retry() || settings_.neutrality.isFixed()
-          ? QString()
-          : tr("Hold: %1").arg(holdHtml(shown->hold, settings_.scheme)));
   if (!shown) {
     scrambleLabel_->setText(tr("Generating scramble…"));
     net_->setCube(std::nullopt);

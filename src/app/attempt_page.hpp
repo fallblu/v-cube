@@ -221,7 +221,6 @@ private:
   QWidget *viewPicker_;
   QPushButton *skipButton_;
   QLabel *scrambleLabel_;
-  QLabel *holdLabel_;
   NetPreview *net_;
   QLabel *hintLabel_;
   QLabel *focusStats_;

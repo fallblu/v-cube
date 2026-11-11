@@ -149,13 +149,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   scrambleLabel_->setFont(sf);
   markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(60);
-  holdLabel_ = new QLabel(right);
-  holdLabel_->setAlignment(Qt::AlignCenter);
-  holdLabel_->setTextFormat(Qt::RichText);
-  holdLabel_->setToolTip(
-      tr("The hold your colour neutrality picked for this scramble"));
   scrambleColumn->addWidget(scrambleLabel_);
-  scrambleColumn->addWidget(holdLabel_);
   net_ = new NetPreview(right);
   scrambleRow->addLayout(scrambleColumn, 1);
   scrambleRow->addWidget(net_);
@@ -449,17 +443,12 @@ void TimerPage::showScramble() {
   algs_->setScramble(current ? &*current : nullptr);
   if (!current) {
     scrambleLabel_->setText(tr("Generating scramble…"));
-    holdLabel_->clear();
     net_->setCube(std::nullopt);
     attempt_.load(Alg{});
     showCube();
     return;
   }
   scrambleLabel_->setText(current->text);
-  holdLabel_->setText(
-      settings_.neutrality.isFixed()
-          ? QString()
-          : tr("Hold: %1").arg(holdHtml(current->hold, settings_.scheme)));
   net_->setScramble(current->text);
   // Shown as scrambled holding white on top and green in front.
   attempt_.load(parseAlgOrEmpty(ss(current->text)));

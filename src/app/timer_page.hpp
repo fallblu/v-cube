@@ -92,7 +92,6 @@ private:
   QComboBox *cubeBox_;
   QWidget *viewPicker_;
   QLabel *scrambleLabel_;
-  QLabel *holdLabel_;
   NetPreview *net_;
   CubeView *cubeView_;
   TimeDisplay *display_;
