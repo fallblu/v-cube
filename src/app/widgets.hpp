@@ -112,6 +112,7 @@ protected:
   void contextMenuEvent(QContextMenuEvent *e) override;
 
 private:
+  QString hoverText(std::size_t at) const;
   std::vector<Solve> solves_;
   std::vector<Series> series_;
   QString emptyText_;
