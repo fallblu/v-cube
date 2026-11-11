@@ -571,8 +571,10 @@ std::shared_ptr<EdgeTable> buildEdges(const MoveModel &model,
         std::uint32_t nf = 0;
         for (int j = 0; j < t->k; ++j) {
           auto uj = static_cast<std::size_t>(j);
-          np[uj] = am.to[0][pl[uj]];
-          nf |= (((sub >> j) & 1u) ^ am.flip[0][pl[uj]]) << j;
+          // A local place, below kEdges (clamped so that GCC sees it).
+          std::size_t at = std::min<std::size_t>(pl[uj], kEdges - 1);
+          np[uj] = am.to[0][at];
+          nf |= (((sub >> j) & 1u) ^ am.flip[0][at]) << j;
         }
         seeds.insert(t->rank(np, nf));
       }
