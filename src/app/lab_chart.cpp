@@ -58,9 +58,9 @@ void LabChart::paintEvent(QPaintEvent *) {
   const QPalette &pal = palette();
   const QColor ink = pal.color(QPalette::WindowText);
   QColor muted = ink;
-  muted.setAlphaF(0.55);
+  muted.setAlphaF(0.55f);
   QColor grid = ink;
-  grid.setAlphaF(0.12);
+  grid.setAlphaF(0.12f);
   dots_.clear();
 
   std::int64_t lo = std::numeric_limits<std::int64_t>::max(), hi = 0;
@@ -141,7 +141,7 @@ void LabChart::paintEvent(QPaintEvent *) {
       double q3 = quantile(s.times, 0.75) / 1000.0;
       double med = quantile(s.times, 0.5) / 1000.0;
       QColor fill = s.colour;
-      fill.setAlphaF(0.18);
+      fill.setAlphaF(0.18f);
       p.setPen(QPen(s.colour, 1.5));
       p.setBrush(fill);
       p.drawRoundedRect(QRectF(cx - half, yOf(q3), 2 * half, yOf(q1) - yOf(q3)),

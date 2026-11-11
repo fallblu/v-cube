@@ -876,7 +876,6 @@ void AlgLabPage::fillTable() {
   WarmupOf warm = [this](std::string_view id) { return store_.warmupOf(id); };
   const int trim = store_.current().trimPercent;
   const int d = settings_.decimals;
-  int shown = 0;
   int hidden = 0;
   for (const CandidateRow &r : rows_) {
     Alg alg = parseAlgOrEmpty(r.alg);
@@ -934,7 +933,6 @@ void AlgLabPage::fillTable() {
     num(ColDnf,
         st.used + st.dnfs ? QString::number(st.dnfRate() * 100.0, 'f', 0) : "–",
         st.used + st.dnfs ? std::optional(st.dnfRate()) : std::nullopt);
-    ++shown;
     if (qs(r.alg) == selected) {
       table_->selectRow(row);
     }
