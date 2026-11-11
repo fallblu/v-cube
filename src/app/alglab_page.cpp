@@ -281,7 +281,9 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   sl->addLayout(actions);
 
   auto *gen = new QGroupBox(tr("Generator"), search);
-  auto *gl = new QHBoxLayout(gen);
+  auto *genLayout = new QVBoxLayout(gen);
+  auto *gl = new QHBoxLayout;
+  genLayout->addLayout(gl);
   genBox_ = new QComboBox(gen);
   auto *genMenu = new QToolButton(gen);
   genMenu->setText(tr("…"));
@@ -345,7 +347,8 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
            runButton_, batchButton_, stopButton_}) {
     gl->addWidget(w);
   }
-  gl->addWidget(genStatus_, 1);
+  gl->addStretch();
+  genLayout->addWidget(genStatus_);
   sl->addWidget(gen);
   tabs_->addTab(search, tr("Search"));
 
@@ -600,6 +603,15 @@ void AlgLabPage::fillCases() {
         if (k == want) {
           select = it;
         }
+      }
+    }
+  }
+  if (!select) {
+    // The first case shown, rather than none.
+    for (QTreeWidgetItemIterator it(caseTree_); *it; ++it) {
+      if (!(*it)->data(0, Qt::UserRole).toString().isEmpty()) {
+        select = *it;
+        break;
       }
     }
   }
