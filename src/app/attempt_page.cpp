@@ -259,6 +259,8 @@ void AttemptPage::deactivated() {
 
 void AttemptPage::windowDeactivated() { apply(flow_.dropHold()); }
 
+QWidget *AttemptPage::sidePanel() const { return panel_; }
+
 void AttemptPage::focusModeChanged() {
   const bool on = focusMode();
   if (on) {
@@ -332,13 +334,13 @@ void AttemptPage::showScramble() {
 
 void AttemptPage::showHint() {
   using Phase = AttemptFlow::Phase;
-  QString text;
+  Hint hint;
   const auto &retry = flow_.retry();
   if (!onVirtualCube()) {
-    text = physicalHint();
+    hint = physicalHint();
   } else if (flow_.phase() == Phase::Inspect) {
-    text = tr("Turn the cube as a whole to look at it, then hold Space and "
-              "release it to start.");
+    hint.message = tr("Turn the cube as a whole to look at it.");
+    hint.keys = {{tr("hold Space"), tr("start")}, {tr("Ctrl+→"), tr("skip")}};
     if (retry) {
       QString which = tr("Retry of #%1 (not recorded). ").arg(retry->index + 1);
       if (flow_.retryCount() > 1) {
@@ -347,22 +349,22 @@ void AttemptPage::showHint() {
                     .arg(flow_.retryCount())
                     .arg(retry->index + 1);
       }
-      text =
-          which + text + " " + tr("Skip scramble goes back to new scrambles.");
+      hint.message = which + hint.message;
+      hint.keys = {{tr("hold Space"), tr("start")},
+                   {tr("Ctrl+→"), tr("back to new scrambles")}};
     }
   } else if (flow_.phase() == Phase::Solving) {
-    text = solvingHint();
-  } else if (retry) {
-    text = !flow_.retriesQueued()
-               ? tr("The cube turns freely. Space: back to new scrambles. Esc: "
-                    "reset the cube to solved.")
-               : tr("The cube turns freely. Space: the next retry. Esc: reset "
-                    "the cube to solved.");
+    hint = solvingHint();
   } else {
-    text = tr("The cube turns freely. Space or Enter: next scramble. Esc: "
-              "reset the cube to solved.");
+    hint.message = tr("The cube turns freely.");
+    hint.keys = {{tr("Space"), !retry ? tr("next scramble")
+                               : flow_.retriesQueued()
+                                   ? tr("the next retry")
+                                   : tr("back to new scrambles")},
+                 {tr("Esc"), tr("reset the cube to solved")}};
   }
-  hintLabel_->setText(text);
+  hintLabel_->setText(hint.message);
+  stage_->setKeys(focusMode() ? QList<KeyHint>{} : hint.keys);
 }
 
 void AttemptPage::showEntry() {

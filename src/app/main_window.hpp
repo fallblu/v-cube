@@ -56,6 +56,7 @@ private:
   QAction *focusAction_ = nullptr;
   QAction *sidebarAction_ = nullptr;
   QAction *pageUndoAction_ = nullptr;
+  QAction *sidePanelAction_ = nullptr;
   QLabel *focusHint_;
   QTimer *focusHintTimer_;
   HelpPanel *help_ = nullptr;

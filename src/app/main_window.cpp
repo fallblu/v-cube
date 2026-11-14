@@ -204,6 +204,20 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   focusHintTimer_->setSingleShot(true);
   connect(focusHintTimer_, &QTimer::timeout, focusHint_, &QWidget::hide);
 
+  // Each mode's side panel, hidden or shown as it was left.
+  for (int m = 0; m < AppMode::Count; ++m) {
+    ModePage *page = pages_[static_cast<std::size_t>(m)];
+    QString id = AppMode::settingsId(m);
+    page->setSideHidden(saved::sideHidden(id).get());
+    connect(page, &ModePage::sideHiddenToggled, this,
+            [this, page, id](bool hidden) {
+              saved::sideHidden(id).set(hidden);
+              if (page == currentPage() && sidePanelAction_) {
+                sidePanelAction_->setChecked(!hidden);
+              }
+            });
+  }
+
   badgeTimer_ = new QTimer(this);
   badgeTimer_->setInterval(60 * 1000);
   connect(badgeTimer_, &QTimer::timeout, this, &MainWindow::updateBadges);
@@ -417,6 +431,10 @@ bool MainWindow::setMode(int mode) {
   if (switching && !sidebar_->isVisible()) {
     // Nothing else shows which mode this is.
     showOverlay(AppMode::label(mode), 1500);
+  }
+  if (sidePanelAction_) {
+    sidePanelAction_->setEnabled(currentPage()->sidePanel() != nullptr);
+    sidePanelAction_->setChecked(!currentPage()->sideHidden());
   }
   if (pageUndoAction_) {
     // Library has its own Undo and Redo; these modes take Ctrl+Z.
@@ -657,6 +675,17 @@ void MainWindow::buildMenus() {
   sidebarAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_B));
   connect(sidebarAction_, &QAction::toggled, this,
           &MainWindow::setSidebarShown);
+  sidePanelAction_ = view->addAction(tr("Side &panel"));
+  sidePanelAction_->setCheckable(true);
+  sidePanelAction_->setChecked(true);
+  sidePanelAction_->setShortcut(QKeySequence(Qt::Key_F9));
+  sidePanelAction_->setToolTip(
+      tr("The mode's case list or session, beside the cube"));
+  connect(sidePanelAction_, &QAction::triggered, this, [this](bool on) {
+    if (ModePage *page = currentPage()) {
+      page->setSideHidden(!on);
+    }
+  });
   QAction *help = help_->toggleViewAction();
   help->setText(tr("&Keyboard controls"));
   help->setShortcut(QKeySequence(Qt::Key_F1));

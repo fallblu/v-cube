@@ -56,6 +56,7 @@ public:
            SettingsPart::Theme;
   }
   void applySettings() override;
+  QWidget *sidePanel() const override { return left_; }
   bool isBusy() const override;
   void activated() override;
   void deactivated() override;

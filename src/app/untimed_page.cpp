@@ -119,17 +119,18 @@ void UntimedPage::addCells(std::vector<AttemptCell> &cells,
   add(ao12);
 }
 
-QString UntimedPage::physicalHint() const {
-  return tr("Solve the scramble, then press Space (or →) for the next one. "
-            "Backspace (or ←) goes back.");
+AttemptPage::Hint UntimedPage::physicalHint() const {
+  return {tr("Solve the scramble."),
+          {{tr("Space or →"), tr("done, next scramble")},
+           {tr("Backspace or ←"), tr("go back")}}};
 }
 
-QString UntimedPage::solvingHint() const {
-  return settings_.autoStop
-             ? tr("The solve ends when the cube is solved (or on Space). Esc "
-                  "starts the scramble again.")
-             : tr("Press Space when the cube is solved. Esc starts the "
-                  "scramble again.");
+AttemptPage::Hint UntimedPage::solvingHint() const {
+  if (settings_.autoStop) {
+    return {tr("The solve ends when the cube is solved."),
+            {{tr("Space"), tr("end it now")}, {tr("Esc"), tr("start again")}}};
+  }
+  return {{}, {{tr("Space"), tr("solved")}, {tr("Esc"), tr("start again")}}};
 }
 
 bool UntimedPage::reached(const FaceletCube &cube) const {

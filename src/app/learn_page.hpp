@@ -140,7 +140,6 @@ private:
   SegmentedPicker *practiceBox_;
   QPushButton *listButton_;
   QSplitter *split_;
-  bool listHidden_ = false;
   QTimer idleTimer_; // with nothing due: looks again when a card falls due
 
   std::optional<AlgGuide> guide_;
@@ -268,6 +267,7 @@ private:
   void undoLast();
   // The case list on or off (F9), apart from focus mode.
   void toggleList();
+  void sideHiddenChanged() override;
   void updateHeader();
   // The interval a grade gives, for the buttons: "1 min", "4 d".
   static QString intervalText(std::int64_t seconds);

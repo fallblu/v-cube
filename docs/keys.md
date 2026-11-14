@@ -14,6 +14,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
+| F9 | show or hide the mode's side panel (the case list or the session) |
 | F11 | full screen |
 | F10 | focus mode (right-click outside the scramble, timer, cube and algs to switch it, full screen or the sidebar with the mouse) |
 | Ctrl+B | show or hide the sidebar |
@@ -50,7 +51,6 @@ Before a solve starts, the cube only turns as a whole (rotations), so that a sli
 | after a case | 1 / 2 / 3 / 4 | change the grade to Again / Hard / Good / Easy |
 | after a case | Esc | reset the cube to practise the case |
 | any time | Ctrl+Z | take back the last grade (up to 10) and do the case again |
-| any time | F9 | hide or show the case list |
 | walkthrough | → / ← | step through the main alg / back |
 | walkthrough | Home or Esc | back to the start |
 | walkthrough | Space / Enter | do the case, with each next move shown |

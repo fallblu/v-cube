@@ -125,6 +125,8 @@ public:
   TimeDisplay *display;
   QLabel *hint;
   QLabel *focusStats; // shown by the page in focus mode
+  // The keys that do something now, as chips under the hint.
+  void setKeys(const QList<KeyHint> &keys);
   QVBoxLayout *centre;
 
   // The options every solve mode ends its bar with: the session's cube,
@@ -148,6 +150,7 @@ public:
 private:
   QVBoxLayout *layout_;
   QHBoxLayout *buttons_;
+  QLabel *keys_;
   TrendChart *chart_ = nullptr;
   QString mode_;
 };

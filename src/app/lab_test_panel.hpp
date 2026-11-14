@@ -25,6 +25,7 @@ class QTabWidget;
 
 namespace vcube {
 
+class HintBar;
 class LabChart;
 
 // Alg Lab's Test tab: test sessions that time algs one at a time, each alg
@@ -110,7 +111,7 @@ private:
   CubeView *cubeView_;
   QWidget *viewRow_;
   TimeDisplay *display_;
-  QLabel *status_;
+  HintBar *status_;
   QComboBox *windowBox_;
   QComboBox *chartBox_;
   QTableWidget *compare_;

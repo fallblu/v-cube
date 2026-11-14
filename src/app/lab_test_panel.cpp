@@ -1,5 +1,6 @@
 #include "app/lab_test_panel.hpp"
 #include "app/key_router.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/app_settings.hpp"
 #include "app/colours.hpp"
@@ -155,9 +156,9 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   viewLayout->addWidget(createViewSelector(cubeView_, "alglab", viewRow_));
   display_ = new TimeDisplay(top);
   display_->setAlignment(Qt::AlignCenter);
-  status_ = new QLabel(top);
-  status_->setAlignment(Qt::AlignCenter);
-  status_->setWordWrap(true);
+  status_ = new HintBar(top);
+  // The message in the text colour, as the other status lines are.
+  status_->setForegroundRole(QPalette::WindowText);
   run->addWidget(caseLabel_);
   run->addWidget(algLabel_);
   run->addWidget(diagram_);
@@ -731,33 +732,41 @@ void LabTestPanel::resetCube() {
 
 void LabTestPanel::showStatus() {
   QString text;
+  QList<KeyHint> keys;
   switch (phase_) {
   case Phase::Idle:
-    text = session().entries.empty()
-               ? tr("Add algs to the session from the Search tab (Add to "
-                    "session), then press Space here to start timing.")
-               : tr("Space starts timing the session's algs.");
+    if (session().entries.empty()) {
+      text = tr("Add algs to the session from the Search tab (Add to "
+                "session).");
+    } else {
+      keys = {{tr("Space"), tr("start timing the session's algs")}};
+    }
     break;
   case Phase::Ready:
-    text = onVirtual()
-               ? tr("Do the alg: the timer starts with your first turn and "
-                    "stops when the case is solved. Esc sets it up again.")
-               : tr("Scramble, then hold Space and let go to start; any key "
-                    "stops. Esc cancels.");
+    if (onVirtual()) {
+      text = tr("Do the alg: the timer starts with your first turn and "
+                "stops when the case is solved.");
+      keys = {{tr("Esc"), tr("set it up again")}};
+    } else {
+      text = tr("Scramble, then start the timer.");
+      keys = {{tr("hold Space"), tr("start on letting go")},
+              {tr("Esc"), tr("cancel")}};
+    }
     break;
   case Phase::Running:
-    text = onVirtual() ? tr("Space stops (a DNF unless solved).")
-                       : tr("Any key stops.");
+    keys = {onVirtual() ? KeyHint{tr("Space"), tr("stop (a DNF unless solved)")}
+                        : KeyHint{tr("any key"), tr("stop")}};
     break;
   case Phase::Done: {
-    text = tr("Space: next alg · Backspace: DNF · Delete: delete the time · "
-              "Esc: same alg again");
+    keys = {{tr("Space"), tr("next alg")},
+            {tr("Backspace"), tr("DNF")},
+            {tr("Delete"), tr("delete the time")},
+            {tr("Esc"), tr("same alg again")}};
     if (lastAttempt_) {
       if (const LabAttempt *a = store_.attempt(*lastAttempt_);
           a && a->deviated) {
         text = tr("Your moves left the alg: the time is kept but not "
-                  "counted (the Times tab can count it). ") +
-               text;
+                  "counted (the Times tab can count it).");
       }
     }
     break;
@@ -768,7 +777,7 @@ void LabTestPanel::showStatus() {
               nullptr, session().reps);
     break;
   }
-  status_->setText(text);
+  status_->setHint(text, keys);
 }
 
 void LabTestPanel::onTick() {

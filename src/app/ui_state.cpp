@@ -64,6 +64,12 @@ Stored<QStringList> hiddenColumns(const QString &mode,
 Stored<QByteArray> learnSplitter() { return {"learn/splitter"}; }
 Stored<QByteArray> learnRightSplitter() { return {"learn/rightSplitter"}; }
 Stored<bool> learnListHidden() { return {"learn/listHidden", false}; }
+Stored<bool> sideHidden(const QString &modeId) {
+  // Learn's list was the first that could be hidden: its key is kept.
+  return {modeId == "learn" ? QStringLiteral("learn/listHidden")
+                            : "window/sideHidden/" + modeId,
+          false};
+}
 Stored<QString> learnPractice() { return {"learn/practice", "solve"}; }
 Stored<QString> learnOrder(const std::string &setId) {
   return {setSettingsKey(setId, "learnOrder"), "list"};

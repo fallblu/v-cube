@@ -1,4 +1,5 @@
 #include "app/inspection_page.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/flow_layout.hpp"
 #include "app/session_panel.hpp"
@@ -275,6 +276,13 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   hintLabel_->setWordWrap(true);
   hintLabel_->setForegroundRole(QPalette::PlaceholderText);
   rightLayout->addWidget(hintLabel_);
+  keysLabel_ = new QLabel(right);
+  keysLabel_->setAlignment(Qt::AlignCenter);
+  keysLabel_->setWordWrap(true);
+  keysLabel_->setTextFormat(Qt::RichText);
+  keysLabel_->setForegroundRole(QPalette::PlaceholderText);
+  keysLabel_->setProperty("vcubeHint", true);
+  rightLayout->addWidget(keysLabel_);
   resultLabel_ = new QLabel(right);
   resultLabel_->setAlignment(Qt::AlignCenter);
   resultLabel_->setWordWrap(true);
@@ -470,6 +478,8 @@ void InspectionPage::windowDeactivated() {
   }
 }
 
+QWidget *InspectionPage::sidePanel() const { return panel_; }
+
 void InspectionPage::focusModeChanged() {
   const bool on = focusMode();
   panel_->setVisible(!on);
@@ -537,39 +547,54 @@ void InspectionPage::showCube(bool shown) {
 
 void InspectionPage::showHint() {
   QString text;
+  QList<KeyHint> keys;
+  const KeyHint putBack{tr("Esc"), tr("put the scramble back")};
   switch (flow_.phase()) {
   case Phase::Ready:
-    text = planning()
-               ? tr("Space shows the scrambled cube and starts inspection.")
-               : tr("Space shows the scrambled cube; count its bad edges.");
+    keys = {{tr("Space"), planning() ? tr("show the cube and start inspection")
+                                     : tr("show the cube")},
+            {tr("Ctrl+→"), tr("skip")}};
+    if (!planning()) {
+      text = tr("Count the cube's bad edges.");
+    }
+    if (!session().attempts.empty()) {
+      keys << KeyHint{tr("Delete"), tr("delete last")};
+      if (planning()) {
+        keys << KeyHint{tr("Alt+R"), tr("review last")};
+      }
+    }
     if (std::optional<std::size_t> retry = flow_.retry()) {
-      text = tr("Retry of #%1, not recorded. ").arg(*retry + 1) + text +
-             tr(" Esc ends the retry.");
+      text = tr("Retry of #%1, not recorded. ").arg(*retry + 1) + text;
+      keys = {{tr("Space"), tr("show the cube and start inspection")},
+              {tr("Esc"), tr("end the retry")}};
     }
     break;
   case Phase::Inspecting:
-    text = tr("Plan %1, turning the cube only as a whole. Space (or the time "
-              "limit) hides it. Esc puts the scramble back.")
+    text = tr("Plan %1, turning the cube only as a whole.")
                .arg(qs(std::string(stepName(session().step))));
+    keys = {{tr("Space"), tr("hide the cube (the time limit does too)")},
+            putBack};
     break;
   case Phase::Executing:
-    text = tr("Do your plan with the turning keys, then press Space to see "
-              "the cube. Esc puts the scramble back.");
+    text = tr("Do your plan with the turning keys.");
+    keys = {{tr("Space"), tr("see the cube")}, putBack};
     break;
   case Phase::Counting:
     break; // showDisplay() shows what to type and the time
   case Phase::Result:
-    text = !planning() && session().axes == EdgeAxes::Both
-               ? tr("Space: next scramble. Tab: ring the other axis's bad "
-                    "edges. Rotations turn the cube to look at it.")
-               : tr("Space: next scramble. Rotations turn the cube to look "
-                    "at it.");
+    text = tr("Rotations turn the cube to look at it.");
+    keys = {{tr("Space"), tr("next scramble")}};
+    if (!planning() && session().axes == EdgeAxes::Both) {
+      keys << KeyHint{tr("Tab"), tr("ring the other axis's bad edges")};
+    }
     break;
   }
   if (flow_.phase() != Phase::Counting) {
     hintLabel_->setStyleSheet({});
     hintLabel_->setText(text);
   }
+  keysLabel_->setText(keyHintsHtml(keys, palette()));
+  keysLabel_->setVisible(!keys.isEmpty() && !focusMode());
 }
 
 void InspectionPage::updateControls() {

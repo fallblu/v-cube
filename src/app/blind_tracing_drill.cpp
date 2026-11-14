@@ -423,16 +423,18 @@ void TracingDrill::refreshLeft() {
 
 void TracingDrill::showHint() {
   TraceFlow::Phase phase = flow_.phase();
-  ctx_.hint->setText(
-      phase == TraceFlow::Phase::Ready
-          ? tr("Space: a new scramble, and the timer starts.")
-      : phase == TraceFlow::Phase::Done
-          ? tr("Space: next scramble. Rotations turn the cube to look "
-               "at it.")
-          : tr("Turn the cube as a whole to look at it. Enter: type "
-               "the letters (Enter after the edges, Enter again to "
-               "check; Esc returns the keys to the cube). Esc: give "
-               "up this scramble."));
+  if (phase == TraceFlow::Phase::Ready) {
+    ctx_.hint->setHint({},
+                       {{tr("Space"), tr("a new scramble; the timer starts")}});
+  } else if (phase == TraceFlow::Phase::Done) {
+    ctx_.hint->setHint(tr("Rotations turn the cube to look at it."),
+                       {{tr("Space"), tr("next scramble")}});
+  } else {
+    ctx_.hint->setHint(
+        tr("Turn the cube as a whole to look at it, then type the letters."),
+        {{tr("Enter"), tr("type: after the edges, then again to check")},
+         {tr("Esc"), tr("back to the cube; give this scramble up")}});
+  }
 }
 
 } // namespace vcube

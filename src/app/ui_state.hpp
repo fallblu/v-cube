@@ -70,6 +70,8 @@ Stored<QStringList> hiddenColumns(const QString &mode,
 Stored<QByteArray> learnSplitter();
 Stored<QByteArray> learnRightSplitter();
 Stored<bool> learnListHidden();
+// A mode's side panel (its list or session) is hidden.
+Stored<bool> sideHidden(const QString &modeId);
 // How reviews are done: "solve", "recognise" or "quiz".
 Stored<QString> learnPractice();
 // Per set: the order new cases come in, the cube's view, and the seed of

@@ -50,6 +50,7 @@ public:
   // Shows a set and selects one of its cases in the list.
   void showCase(const QString &setId, const QString &caseId);
   void applySettings() override;
+  QWidget *sidePanel() const override { return left_; }
   void activated() override;
   void deactivated() override;
 

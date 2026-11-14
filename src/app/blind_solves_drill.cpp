@@ -387,25 +387,39 @@ void SolvesDrill::showHint() {
   using P = BlindSolveFlow::Phase;
   P phase = flow_.phase();
   QString text;
-  if (!onVirtualCube()) {
-    text = phase == P::Ready ? tr("Space starts the timer and the memo.")
-           : phase == P::Memo
-               ? tr("Space when the memo is done (put the blindfold on).")
-           : phase == P::Executing
-               ? tr("Any key stops the timer. Esc cancels.")
-               : tr("Space: next scramble. Backspace toggles DNF.");
-  } else {
-    text = phase == P::Ready ? tr("Space starts the memo and the timer.")
-           : phase == P::Memo
-               ? tr("Memorise: turn the cube as a whole to look at it. "
-                    "Space hides it and starts the execution. Esc cancels.")
-           : phase == P::Executing
-               ? tr("Turn the hidden cube. Space stops the timer. Esc "
-                    "cancels.")
-               : tr("Space: next scramble. Rotations turn the cube to look "
-                    "at it.");
+  QList<KeyHint> keys;
+  const KeyHint cancel{tr("Esc"), tr("cancel")};
+  bool virt = onVirtualCube();
+  switch (phase) {
+  case P::Ready:
+    keys = {{tr("Space"), tr("start the memo and the timer")}};
+    break;
+  case P::Memo:
+    if (virt) {
+      text = tr("Memorise: turn the cube as a whole to look at it.");
+      keys = {{tr("Space"), tr("hide it and start the execution")}, cancel};
+    } else {
+      keys = {{tr("Space"), tr("the memo is done (blindfold on)")}, cancel};
+    }
+    break;
+  case P::Executing:
+    if (virt) {
+      text = tr("Turn the hidden cube.");
+      keys = {{tr("Space"), tr("stop")}, cancel};
+    } else {
+      keys = {{tr("any key"), tr("stop")}, cancel};
+    }
+    break;
+  case P::Done:
+    keys = {{tr("Space"), tr("next scramble")}};
+    if (virt) {
+      text = tr("Rotations turn the cube to look at it.");
+    } else {
+      keys << KeyHint{tr("Backspace"), tr("toggle DNF")};
+    }
+    break;
   }
-  ctx_.hint->setText(text);
+  ctx_.hint->setHint(text, keys);
 }
 
 void SolvesDrill::refreshSessionMenu() {

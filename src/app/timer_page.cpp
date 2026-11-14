@@ -326,6 +326,22 @@ void TimerPage::updateControls() {
     }
   }
   bool any = !session().solves.empty();
+  // The keys that do something between solves; none while one runs.
+  QList<KeyHint> keys;
+  if (!busy && !focusMode()) {
+    if (settings_.inspection) {
+      keys << KeyHint{tr("Space"), tr("inspect")};
+    }
+    keys << KeyHint{tr("hold Space"), tr("start")};
+    if (any) {
+      keys << KeyHint{tr("Backspace"), tr("DNF")}
+           << KeyHint{tr("Alt+2"), tr("+2")}
+           << KeyHint{tr("Delete"), tr("delete last")}
+           << KeyHint{tr("Alt+R"), tr("review")};
+    }
+    keys << KeyHint{tr("Ctrl+→"), tr("skip")};
+  }
+  stage_->setKeys(keys);
   for (QWidget *w : std::initializer_list<QWidget *>{
            typeBox_, nextButton_, panel_->sessionButton(), cubeBox_}) {
     w->setEnabled(!busy);
@@ -338,6 +354,8 @@ void TimerPage::updateControls() {
   reviewButton_->setVisible(reviewable);
   reviewButton_->setEnabled(!busy);
 }
+
+QWidget *TimerPage::sidePanel() const { return panel_; }
 
 void TimerPage::focusModeChanged() {
   const bool on = focusMode();

@@ -55,6 +55,7 @@ public:
            SettingsPart::Timer | SettingsPart::Counts;
   }
   void applySettings() override;
+  QWidget *sidePanel() const override;
   bool isBusy() const override; // a solve or inspection is in progress
   void activated() override;
   void deactivated() override;

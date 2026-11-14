@@ -243,9 +243,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
           [this] { saved::learnSplitter().set(split_->saveState()); });
   connect(right, &QSplitter::splitterMoved, this,
           [right] { saved::learnRightSplitter().set(right->saveState()); });
-  listHidden_ = saved::learnListHidden().get();
-  left_->setVisible(!listHidden_);
-  listButton_->setText(listHidden_ ? tr("Show list") : tr("Hide list"));
+  sideHiddenChanged();
   int p = practiceBox_->findData(saved::learnPractice().get());
   practiceBox_->setCurrentIndex(std::max(0, p));
 
@@ -362,15 +360,13 @@ void LearnPage::activated() {
 
 void LearnPage::focusModeChanged() {
   CasePage::focusModeChanged();
-  left_->setVisible(!focusMode() && !listHidden_);
   stage_->options->setVisible(!focusMode());
 }
 
-void LearnPage::toggleList() {
-  listHidden_ = !listHidden_;
-  saved::learnListHidden().set(listHidden_);
-  left_->setVisible(!listHidden_ && !focusMode());
-  listButton_->setText(listHidden_ ? tr("Show list") : tr("Hide list"));
+void LearnPage::toggleList() { setSideHidden(!sideHidden()); }
+
+void LearnPage::sideHiddenChanged() {
+  listButton_->setText(sideHidden() ? tr("Show list") : tr("Hide list"));
 }
 
 void LearnPage::deactivated() {
@@ -1442,9 +1438,6 @@ LearnSession::KeyEvent LearnPage::sessionKey(const QKeyEvent *e,
     break;
   case Qt::Key_Home:
     k.key = Key::Home;
-    break;
-  case Qt::Key_F9:
-    k.key = Key::List;
     break;
   case Qt::Key_Z:
     k.key = ctrl ? Key::Undo : Key::Other;

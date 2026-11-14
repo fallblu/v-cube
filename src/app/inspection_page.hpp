@@ -62,6 +62,7 @@ public:
     return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality;
   }
   void applySettings() override;
+  QWidget *sidePanel() const override;
   bool isBusy() const override;
   void deactivated() override;
   void windowDeactivated() override;
@@ -145,6 +146,7 @@ private:
   QLabel *hiddenLabel_;
   TimeDisplay *display_;
   QLabel *hintLabel_;
+  QLabel *keysLabel_;
   QLabel *resultLabel_;
   QPushButton *reviewButton_;
   QPushButton *retryButton_;

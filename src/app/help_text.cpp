@@ -61,6 +61,8 @@ const std::vector<Section> &sections() {
                         "choice on the page (alg set, session, scramble type, "
                         "cube, view, ...), then Enter")},
         {T("F1"), T("show or hide the keyboard controls")},
+        {T("F9"), T("show or hide the mode's side panel (the case list or the "
+                    "session)")},
         {T("F11"), T("full screen")},
         {T("F10"),
          T("focus mode (right-click outside the scramble, timer, cube and algs "
@@ -92,7 +94,6 @@ const std::vector<Section> &sections() {
         {T("after a case"), T("Esc"), T("reset the cube to practise the case")},
         {T("any time"), T("Ctrl+Z"),
          T("take back the last grade (up to 10) and do the case again")},
-        {T("any time"), T("F9"), T("hide or show the case list")},
         {T("walkthrough"), T("→ / ←"), T("step through the main alg / back")},
         {T("walkthrough"), T("Home or Esc"), T("back to the start")},
         {T("walkthrough"), T("Space / Enter"),

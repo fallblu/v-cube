@@ -60,18 +60,43 @@ public:
   void setFocusMode(bool on) {
     focusMode_ = on;
     focusModeChanged();
+    showSidePanel();
   }
   bool focusMode() const { return focusMode_; }
 
+  // The side panel (the case list or the session with its attempts) can
+  // be hidden to give the stage the whole page (F9, View > Side panel):
+  // the page names the panel, the window remembers the choice per mode.
+  virtual QWidget *sidePanel() const { return nullptr; }
+  bool sideHidden() const { return sideHidden_; }
+  void setSideHidden(bool hidden) {
+    if (hidden == sideHidden_) {
+      return;
+    }
+    sideHidden_ = hidden;
+    showSidePanel();
+    sideHiddenChanged();
+    emit sideHiddenToggled(hidden);
+  }
+
 signals:
   void message(const QString &text);
+  void sideHiddenToggled(bool hidden);
 
 protected:
   // Shows or hides the page's controls as focusMode() now says.
   virtual void focusModeChanged() {}
+  // The side panel was hidden or shown (e.g. to word a button).
+  virtual void sideHiddenChanged() {}
 
 private:
   bool focusMode_ = false;
+  bool sideHidden_ = false;
+  void showSidePanel() {
+    if (QWidget *side = sidePanel()) {
+      side->setVisible(!sideHidden_ && !focusMode_);
+    }
+  }
 };
 
 } // namespace vcube

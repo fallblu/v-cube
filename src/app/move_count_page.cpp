@@ -164,14 +164,18 @@ void MoveCountPage::addStats(QString &html) {
   requestOptimal();
 }
 
-QString MoveCountPage::physicalHint() const {
-  return tr("Type the number of moves your solution took and press Enter. "
-            "Backspace corrects, Esc clears.");
+AttemptPage::Hint MoveCountPage::physicalHint() const {
+  return {tr("Type the number of moves your solution took."),
+          {{tr("Enter"), tr("record")},
+           {tr("Backspace"), tr("correct")},
+           {tr("Esc"), tr("clear")},
+           {tr("Alt+3"), tr("DNF")}}};
 }
 
-QString MoveCountPage::solvingHint() const {
-  return tr("Press Space when the step is done. Esc starts the scramble "
-            "again.");
+AttemptPage::Hint MoveCountPage::solvingHint() const {
+  return {
+      {},
+      {{tr("Space"), tr("the step is done")}, {tr("Esc"), tr("start again")}}};
 }
 
 bool MoveCountPage::reached(const FaceletCube &cube) const {

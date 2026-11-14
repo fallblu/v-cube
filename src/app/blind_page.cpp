@@ -1,4 +1,5 @@
 #include "app/blind_page.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/blind_quiz_drill.hpp"
 #include "app/blind_setup_drill.hpp"
@@ -73,10 +74,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   prompt->setFont(pf);
   auto *display = new TimeDisplay(right);
   display->setTextFormat(Qt::PlainText); // letters may hold < or &
-  auto *hint = new QLabel(right);
-  hint->setAlignment(Qt::AlignCenter);
-  hint->setWordWrap(true);
-  hint->setForegroundRole(QPalette::PlaceholderText);
+  auto *hint = new HintBar(right);
   auto *result = new QLabel(right);
   result->setTextFormat(Qt::RichText);
   result->setWordWrap(true);

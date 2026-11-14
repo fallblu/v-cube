@@ -119,7 +119,15 @@ SolveStage::SolveStage(const QString &mode, QWidget *parent) : QWidget(parent) {
   centre->addStretch(1);
   centre->addWidget(cube, 8);
   centre->addWidget(display);
+  keys_ = new QLabel(this);
+  keys_->setAlignment(Qt::AlignCenter);
+  keys_->setWordWrap(true);
+  keys_->setTextFormat(Qt::RichText);
+  keys_->setForegroundRole(QPalette::PlaceholderText);
+  keys_->setProperty("vcubeHint", true);
+  keys_->setVisible(false);
   centre->addWidget(hint);
+  centre->addWidget(keys_);
   centre->addWidget(focusStats);
   centre->addLayout(buttons_);
   centre->addStretch(1);
@@ -144,6 +152,11 @@ void SolveStage::addStandardOptions() {
   viewPicker = options->addViewPicker(cube, mode_);
   options->addWidget(skipButton);
   skipButton->show();
+}
+
+void SolveStage::setKeys(const QList<KeyHint> &keys) {
+  keys_->setText(keyHintsHtml(keys, palette()));
+  keys_->setVisible(!keys.isEmpty());
 }
 
 void SolveStage::addButton(QWidget *button, bool first) {
