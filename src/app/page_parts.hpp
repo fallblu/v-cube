@@ -3,8 +3,10 @@
 #include <QLabel>
 #include <QList>
 #include <QString>
+#include <QVariant>
 #include <QWidget>
 
+class QButtonGroup;
 class QComboBox;
 class QFormLayout;
 class QPushButton;
@@ -44,6 +46,29 @@ public:
 
 private:
   FlowLayout *layout_;
+};
+
+// A choice among a few named options shown side by side, the chosen one
+// pressed in: for a choice worth seeing at a glance (what Learn practises),
+// where a drop-down would hide the alternatives.
+class SegmentedPicker : public QWidget {
+  Q_OBJECT
+public:
+  explicit SegmentedPicker(QWidget *parent = nullptr);
+  void addOption(const QString &text, const QVariant &data = {});
+  int currentIndex() const;
+  void setCurrentIndex(int index);
+  QVariant currentData() const;
+  int findData(const QVariant &data) const;
+
+signals:
+  // The user chose an option (not setCurrentIndex).
+  void activated(int index);
+
+private:
+  QButtonGroup *group_;
+  QHBoxLayout *layout_;
+  QList<QVariant> data_;
 };
 
 // A key and what it does now, e.g. {"Space", "next case"}.

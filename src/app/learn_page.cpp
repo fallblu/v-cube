@@ -4,6 +4,7 @@
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
+#include <QActionGroup>
 #include <QComboBox>
 #include <QDateTime>
 #include <QFormLayout>
@@ -16,6 +17,7 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QSplitter>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -94,17 +96,21 @@ const OrderName kOrders[] = {
 LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
                      QWidget *parent)
     : CasePage(settings, library, "learn", parent) {
+  // The order of new cases: chosen from the new cases strip's menu.
   orderBox_ = new QComboBox(left_);
   orderBox_->setFocusPolicy(Qt::NoFocus);
   for (const OrderName &o : kOrders) {
     orderBox_->addItem(tr(o.label), QString(o.id));
   }
-  orderBox_->setToolTip(
-      tr("The order new cases are put into the learn queue and introduced "
-         "in, chosen for each alg set. \"Fewest steps left first\" is for "
-         "sets solved a step at a time."));
-  form_->addRow(tr("New cases:"), orderBox_);
+  orderBox_->hide();
 
+  // --- the new cases strip, under the list: the learn queue, adding to
+  // it, and what is rarely needed in a menu ---
+  panel_->setTickButtonsVisible(false);
+  auto *queueRow = new QHBoxLayout;
+  queueLabel_ = new QLabel(left_);
+  queueLabel_->setWordWrap(true);
+  queueLabel_->setTextFormat(Qt::RichText);
   learnCount_ = new QSpinBox(left_);
   learnCount_->setRange(1, 50);
   learnCount_->setValue(3);
@@ -112,67 +118,89 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   learnCount_->installEventFilter(this);
   connect(learnCount_, &QSpinBox::editingFinished, learnCount_,
           [this] { learnCount_->clearFocus(); });
-  learnButton_ = new QPushButton(tr("Start learning"), left_);
+  learnButton_ = new QPushButton(tr("Add new cases"), left_);
   learnButton_->setFocusPolicy(Qt::NoFocus);
   learnButton_->setToolTip(
       tr("Put the next N ticked cases you haven't started into your learn "
          "queue, in the set's order for new cases"));
-  tickRow_->addWidget(learnCount_);
-  tickRow_->addWidget(learnButton_);
-
-  // The learn queue: what comes next, and how many were introduced today.
-  auto *queueRow = new QHBoxLayout;
-  queueLabel_ = new QLabel(left_);
-  queueLabel_->setWordWrap(true);
-  queueLabel_->setTextFormat(Qt::RichText);
   learnNextButton_ = new QPushButton(tr("Learn next"), left_);
   learnNextButton_->setFocusPolicy(Qt::NoFocus);
   learnNextButton_->setToolTip(
       tr("Introduce the next case in the learn queue now, whatever the daily "
          "limit"));
-  unqueueButton_ = new QPushButton(tr("Remove"), left_);
-  unqueueButton_->setFocusPolicy(Qt::NoFocus);
-  unqueueButton_->setToolTip(
-      tr("Take the next case out of the learn queue (it becomes new again)"));
-  queueRow->addWidget(queueLabel_, 1);
+  auto *more = new QToolButton(left_);
+  more->setText(QStringLiteral("⋯"));
+  more->setFocusPolicy(Qt::NoFocus);
+  more->setPopupMode(QToolButton::InstantPopup);
+  more->setToolTip(tr("More: the order of new cases, the queue, ticks"));
+  auto *moreMenu = new QMenu(more);
+  more->setMenu(moreMenu);
+  unqueueAction_ = moreMenu->addAction(
+      tr("Take the next case out of the queue"), this, &LearnPage::unqueueHead);
+  QMenu *orderMenu = moreMenu->addMenu(tr("Order of new cases"));
+  auto *orderGroup = new QActionGroup(orderMenu);
+  for (int i = 0; i < orderBox_->count(); ++i) {
+    QAction *a = orderMenu->addAction(orderBox_->itemText(i));
+    a->setCheckable(true);
+    orderGroup->addAction(a);
+    connect(a, &QAction::triggered, this, [this, i] {
+      orderBox_->setCurrentIndex(i);
+      emit orderBox_->activated(i);
+    });
+  }
+  connect(orderMenu, &QMenu::aboutToShow, this, [this, orderGroup] {
+    if (QAction *a = orderGroup->actions().value(orderBox_->currentIndex())) {
+      a->setChecked(true);
+    }
+  });
+  moreMenu->addSeparator();
+  QAction *tickAll = moreMenu->addAction(QString());
+  connect(tickAll, &QAction::triggered, this,
+          [this] { panel_->tickShown(true); });
+  connect(moreMenu, &QMenu::aboutToShow, this,
+          [this, tickAll] { tickAll->setText(panel_->tickAllText()); });
+  moreMenu->addAction(tr("Tick none"), this,
+                      [this] { panel_->tickShown(false); });
+  queueRow->addWidget(learnCount_);
+  queueRow->addWidget(learnButton_);
   queueRow->addWidget(learnNextButton_);
-  queueRow->addWidget(unqueueButton_);
+  queueRow->addStretch();
+  queueRow->addWidget(more);
+  leftLayout_->insertWidget(leftLayout_->count() - 1, queueLabel_);
   leftLayout_->insertLayout(leftLayout_->count() - 1, queueRow);
   queueMessageTimer_.setSingleShot(true);
   connect(&queueMessageTimer_, &QTimer::timeout, this, &LearnPage::updateQueue);
 
-  // --- right: the virtual cube above, what is said about it below ---
+  // --- right: the options, the virtual cube, what is said about it ---
   stage_ = new CaseStage(this);
   cubeView_ = stage_->cube;
   statusLabel_ = stage_->status;
   reveal_ = stage_->reveal;
   gradeRow_ = stage_->gradeRow;
-  QWidget *optionsRow = stage_->optionsRow;
-  QHBoxLayout *options = stage_->optionsLayout;
-  options->addWidget(new QLabel(tr("View:"), optionsRow));
-  viewBox_ = createViewSelector(cubeView_, "learn", optionsRow);
-  viewBox_->setToolTip(
-      tr("How the virtual cube is shown, remembered for each alg set"));
-  options->addWidget(viewBox_);
-  practiceBox_ = new QComboBox(optionsRow);
-  practiceBox_->setFocusPolicy(Qt::NoFocus);
-  practiceBox_->addItem(tr("Solve"), "solve");
-  practiceBox_->addItem(tr("Recognise"), "recognise");
-  practiceBox_->addItem(tr("Which case?"), "quiz");
+  OptionBar *options = stage_->options;
+  options->addPicker(tr("Alg set:"), panel_->takeSetBox(), 1);
+  practiceBox_ = new SegmentedPicker(options);
+  practiceBox_->addOption(tr("Solve"), "solve");
+  practiceBox_->addOption(tr("Recognise"), "recognise");
+  practiceBox_->addOption(tr("Which case?"), "quiz");
   practiceBox_->setToolTip(
       tr("Solve: solve each case from memory. Recognise: reviews only show "
          "the case; press Space once you recall its alg, then grade "
          "yourself (new and learning cases are still solved). Which case?: "
          "name the case among others of its group, not graded."));
-  options->addWidget(practiceBox_);
+  options->addPicker(tr("Practise:"), practiceBox_);
+  viewBox_ = createViewSelector(cubeView_, "learn", options);
+  viewBox_->setToolTip(
+      tr("How the virtual cube is shown, remembered for each alg set"));
+  options->addPicker(tr("View:"), viewBox_);
   options->addStretch();
-  slotsSpin_ = new QSpinBox(optionsRow);
+  slotsSpin_ = new QSpinBox(options);
   slotsSpin_->setRange(1, 4);
   slotsSpin_->setValue(2);
   slotsSpin_->setSuffix(tr(" open"));
   slotsSpin_->setFocusPolicy(Qt::NoFocus);
   slotsSpin_->setToolTip(tr("How many slots are open in context practice"));
-  contextButton_ = new QPushButton(tr("Practise in context"), optionsRow);
+  contextButton_ = new QPushButton(tr("Practise in context"), options);
   contextButton_->setFocusPolicy(Qt::NoFocus);
   contextButton_->setToolTip(
       tr("Solve several pairs at once on a cube with EO Cross done and some "
@@ -180,7 +208,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
          "cheapest order. Not graded. Backspace returns to learning."));
   options->addWidget(slotsSpin_);
   options->addWidget(contextButton_);
-  listButton_ = new QPushButton(optionsRow);
+  listButton_ = new QPushButton(options);
   listButton_->setFocusPolicy(Qt::NoFocus);
   listButton_->setToolTip(tr("Hide or show the case list (F9)"));
   options->addWidget(listButton_);
@@ -205,7 +233,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   split_->addWidget(stage_);
   split_->setStretchFactor(1, 1);
   left_->setMinimumWidth(300);
-  split_->setSizes({400, 800});
+  split_->setSizes({340, 860});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split_);
   split_->restoreState(saved::learnSplitter().get());
@@ -230,7 +258,6 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   connect(learnButton_, &QPushButton::clicked, this, &LearnPage::learnNext);
   connect(learnNextButton_, &QPushButton::clicked, this,
           &LearnPage::learnQueueHead);
-  connect(unqueueButton_, &QPushButton::clicked, this, &LearnPage::unqueueHead);
   connect(listButton_, &QPushButton::clicked, this, &LearnPage::toggleList);
   connect(orderBox_, &QComboBox::activated, this, [this] {
     saved::learnOrder(setId_).set(orderBox_->currentData().toString());
@@ -239,7 +266,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
       nextCase();
     }
   });
-  connect(practiceBox_, &QComboBox::activated, this, [this] {
+  connect(practiceBox_, &SegmentedPicker::activated, this, [this] {
     saved::learnPractice().set(practiceBox_->currentData().toString());
     if (context_) {
       return; // applies when back to learning
@@ -336,7 +363,7 @@ void LearnPage::activated() {
 void LearnPage::focusModeChanged() {
   CasePage::focusModeChanged();
   left_->setVisible(!focusMode() && !listHidden_);
-  stage_->optionsRow->setVisible(!focusMode());
+  stage_->options->setVisible(!focusMode());
 }
 
 void LearnPage::toggleList() {
@@ -593,7 +620,8 @@ void LearnPage::nextCase(bool early) {
   }
   if (!set()) {
     current_.reset();
-    statusLabel_->setText(tr("No alg set selected."));
+    say(tr("No alg set selected."));
+    stage_->setActions({});
     setPhase(Phase::NoCase);
     return;
   }
@@ -705,6 +733,8 @@ void LearnPage::showIdle(const LearnPick &pick) {
   std::int64_t dayStart = localDayStart(), dayEnd = localDayEnd();
   std::vector<std::string> cases = pool();
   QStringList lines;
+  QList<KeyHint> keys;
+  std::vector<CaseStage::Action> actions;
   if (tickedCount() == 0) {
     lines << tr("Tick some cases to learn them.");
   } else if (cases.empty() && excludedCount() > 0) {
@@ -729,7 +759,7 @@ void LearnPage::showIdle(const LearnPick &pick) {
       lines << tr("Nothing is due in any set.");
     } else if (pick.newLimitReached) {
       lines << tr("%1 in your learn queue wait for tomorrow; the daily limit "
-                  "for new cases is %2 (see Settings, or \"Learn next\").")
+                  "for new cases is %2 (see Settings).")
                    .arg(pick.queued == 1 ? tr("1 case")
                                          : tr("%1 cases").arg(pick.queued))
                    .arg(settings_.srs.newPerDay);
@@ -746,10 +776,8 @@ void LearnPage::showIdle(const LearnPick &pick) {
     bool unstarted = std::any_of(cases.begin(), cases.end(), [this](auto &id) {
       return statusOf(progressOf(id)) == CaseStatus::Unstarted;
     });
-    if (!acrossSets() && pick.queued == 0) {
-      lines << (unstarted ? tr("Use \"Start learning\" to put more cases into "
-                               "your learn queue.")
-                          : tr("Every ticked case is started."));
+    if (!acrossSets() && pick.queued == 0 && !unstarted) {
+      lines << tr("Every ticked case is started.");
     }
     LearnPickOptions early;
     early.early = true;
@@ -758,11 +786,53 @@ void LearnPage::showIdle(const LearnPick &pick) {
     bool waiting =
         pickLearnCase(cases, progress(), now, dayStart, settings_.srs, early)
             .caseId.has_value();
-    lines << (waiting ? tr("Space: the next learning case now, early.")
-                      : tr("Space checks again."));
+    keys = {{tr("Space"), waiting ? tr("the next learning case now, early")
+                                  : tr("check again")}};
+    // What can be done instead of waiting.
+    if (waiting) {
+      actions.push_back(
+          {tr("Next learning case now"), [this] { nextCase(true); }});
+    }
+    if (!acrossSets() && pick.queued == 0 && unstarted) {
+      int n = learnCount_->value();
+      actions.push_back(
+          {n == 1 ? tr("Learn 1 new case") : tr("Learn %1 new cases").arg(n),
+           [this] { learnNext(); }});
+    }
+    if (!acrossSets() && pick.queued > 0 && pick.newLimitReached) {
+      actions.push_back(
+          {tr("Learn the next one anyway"), [this] { learnQueueHead(); }});
+    }
   }
-  statusLabel_->setText(lines.join(' '));
+  if (!acrossSets()) {
+    // Reviews due in the other sets.
+    int total = 0, most = 0, setsDue = 0;
+    const AlgSet *top = nullptr;
+    for (const auto &other : library_.sets()) {
+      if (other.id == setId_) {
+        continue;
+      }
+      int due = dueIn(other);
+      total += due;
+      setsDue += due > 0 ? 1 : 0;
+      if (due > most) {
+        most = due;
+        top = &other;
+      }
+    }
+    if (top) {
+      std::string id = top->id;
+      actions.push_back({tr("Review %1 due in %2").arg(most).arg(qs(top->name)),
+                         [this, id] { chooseSet(id); }});
+    }
+    if (setsDue > 1) {
+      actions.push_back({tr("Review all sets (%1 due)").arg(total),
+                         [this] { chooseAcrossSets(); }});
+    }
+  }
+  say(lines.join(' '), keys);
   setPhase(Phase::NoCase);
+  stage_->setActions(actions);
   // Look again when the next card falls due (learn-ahead included), or
   // when the day changes.
   std::int64_t target = dayEnd;
@@ -915,8 +985,8 @@ void LearnPage::nextQuiz() {
     stage_->hideQuiz();
     cube_ = FaceletCube();
     cubeView_->setState(cube_);
-    statusLabel_->setText(tr("The quiz needs two or more ticked cases with "
-                             "algs (cases you have started come first)."));
+    say(tr("The quiz needs two or more ticked cases with algs (cases you "
+           "have started come first)."));
     setPhase(Phase::NoCase);
     return;
   }
@@ -989,10 +1059,9 @@ void LearnPage::answerQuiz(std::size_t choice) {
   selectInTree(current_->caseId);
   setPhase(Phase::QuizDone);
   const AlgCase *c = set() ? set()->findCase(current_->caseId) : nullptr;
-  statusLabel_->setText(
-      (right ? tr("Right, in %1 s.").arg(secondsText(static_cast<double>(ms)))
-             : tr("It was %1.").arg(c ? qs(c->name) : QString())) +
-      " " + tr("Space/Enter: another one."));
+  say(right ? tr("Right, in %1 s.").arg(secondsText(static_cast<double>(ms)))
+            : tr("It was %1.").arg(c ? qs(c->name) : QString()),
+      {{tr("Space"), tr("another one")}});
   statusLabel_->setStyleSheet(right ? QString() : "color: " + kLearning.name());
   updateHeader();
 }
@@ -1220,6 +1289,9 @@ void LearnPage::resetCube() {
 void LearnPage::setPhase(Phase p) {
   session_.setPhase(p);
   statusLabel_->setStyleSheet({});
+  if (p != Phase::NoCase) {
+    stage_->setActions({}); // the idle screen's offers
+  }
   switch (p) {
   case Phase::NoCase:
     break;
@@ -1232,9 +1304,11 @@ void LearnPage::setPhase(Phase p) {
     break;
   case Phase::Demo:
     showGuide();
-    statusLabel_->setText(
-        tr("New case: → and ← step through the main alg, Home goes back to "
-           "the start. Space: try it yourself, with each next move shown."));
+    say(tr("New case: step through its main alg, then try it yourself with "
+           "each next move shown."),
+        {{tr("→ ←"), tr("step")},
+         {tr("Home"), tr("back to the start")},
+         {tr("Space"), tr("try it")}});
     break;
   case Phase::Solving:
     showGuide();
@@ -1242,31 +1316,31 @@ void LearnPage::setPhase(Phase p) {
     break;
   case Phase::Done:
     showGuide();
-    statusLabel_->setText(
-        current_ && current_->practice
-            ? tr("Space/Enter: next case. Esc: reset the cube to practise.")
-            : tr("Space/Enter: next case. 1-4: change the grade. Esc: reset "
-                 "the cube to practise. Ctrl+Z: take the grade back."));
+    if (current_ && current_->practice) {
+      say({}, {{tr("Space"), tr("next case")}, {tr("Esc"), tr("practise it")}});
+    } else {
+      say({}, {{tr("Space"), tr("next case")},
+               {tr("1-4"), tr("change the grade")},
+               {tr("Esc"), tr("practise it")},
+               {tr("Ctrl+Z"), tr("take the grade back")}});
+    }
     break;
   case Phase::Recognise:
     showGuide();
-    statusLabel_->setText(
-        tr("Recognise the case: Space as soon as you recall its alg, "
-           "Shift+Space if you can't. Rotations and U and D turns turn the "
-           "cube to look at it."));
+    say(tr("Recognise the case. Rotations and U and D turns look at it."),
+        {{tr("Space"), tr("I recall its alg")},
+         {tr("Shift+Space"), tr("I can't")}});
     break;
   case Phase::Recalled:
     showGuide();
-    statusLabel_->setText(tr("1-4: grade yourself and go on (Space/Enter: "
-                             "the grade shown). Ctrl+Z takes a grade "
-                             "back."));
+    say(tr("Grade yourself."), {{tr("1-4"), tr("grade and go on")},
+                                {tr("Space"), tr("the grade shown")},
+                                {tr("Ctrl+Z"), tr("take a grade back")}});
     break;
   case Phase::Quiz:
     showGuide();
-    statusLabel_->setText(
-        tr("Which case is this? 1-%1 or click its name. Rotations and U and "
-           "D turns turn the cube to look at it.")
-            .arg(quizChoices_.size()));
+    say(tr("Which case is this? Rotations and U and D turns look at it."),
+        {{tr("1-%1").arg(quizChoices_.size()), tr("answer")}});
     break;
   case Phase::QuizDone:
     break;
@@ -1275,15 +1349,15 @@ void LearnPage::setPhase(Phase p) {
 }
 
 void LearnPage::showSolvingStatus() {
-  const QString warning = "color: " + statusColour(Status::Warning).name();
   std::string id = linkCase();
   bool later = attempt_.links().size() > 1;
   const AlgFollower &follower = attempt_.follower();
-  QString keys =
-      guide_ && !guide_->follow && !guide_->next && !attempt_.hinted() &&
-              current_ && inLearningSteps(id)
-          ? tr("Tab shows the next move, Shift+Space gives up, Esc resets.")
-          : tr("Tab shows the algs, Shift+Space gives up, Esc resets.");
+  bool nextMoveHint = guide_ && !guide_->follow && !guide_->next &&
+                      !attempt_.hinted() && current_ && inLearningSteps(id);
+  const QList<KeyHint> keys = {
+      {tr("Tab"), nextMoveHint ? tr("next move") : tr("show the algs")},
+      {tr("Shift+Space"), tr("give up")},
+      {tr("Esc"), tr("reset")}};
   QString note = later && !linkNote_.isEmpty() ? linkNote_ + " " : QString();
   if (follower.deviated() && !chained()) {
     bool practice = current_ && current_->practice;
@@ -1295,8 +1369,7 @@ void LearnPage::showSolvingStatus() {
             : (practice ? tr("That isn't one of the algs.")
                         : tr("That isn't one of the algs, so the case will "
                              "be graded Again."));
-    statusLabel_->setText(what + " " + keys);
-    statusLabel_->setStyleSheet(warning);
+    say(what, keys, true);
     return;
   }
   QString what;
@@ -1319,8 +1392,15 @@ void LearnPage::showSolvingStatus() {
     what = chained() ? tr("Do the next step from memory.")
                      : tr("Solve the case from memory.");
   }
-  statusLabel_->setText(note + what + " " + keys);
-  statusLabel_->setStyleSheet({});
+  say(note + what, keys);
+}
+
+void LearnPage::say(const QString &message, const QList<KeyHint> &keys,
+                    bool warn) {
+  statusLabel_->setText(message);
+  statusLabel_->setStyleSheet(
+      warn ? "color: " + statusColour(Status::Warning).name() : QString());
+  stage_->setKeys(keys);
 }
 
 bool LearnPage::handleKey(QKeyEvent *e, bool press) {
@@ -1667,7 +1747,15 @@ void LearnPage::showContextStatus() {
     return;
   }
   statusLabel_->setStyleSheet({});
-  statusLabel_->setText(context_->statusText(phase() != Phase::Context));
+  bool done = phase() != Phase::Context;
+  say(context_->statusText(done),
+      done ? QList<KeyHint>{{tr("Space"), tr("another one")},
+                            {tr("Esc"), tr("this one again")},
+                            {tr("Backspace"), tr("back to learning")}}
+           : QList<KeyHint>{{tr("Tab"), tr("cheapest order")},
+                            {tr("Esc"), tr("start again")},
+                            {tr("Shift+Space"), tr("give up")},
+                            {tr("Backspace"), tr("back to learning")}});
 }
 
 void LearnPage::showContextResult() {

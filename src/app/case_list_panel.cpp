@@ -68,12 +68,31 @@ void CaseListPanel::setColumns(const QStringList &headers,
   all << headers;
   tree->setColumnCount(static_cast<int>(all.size()));
   tree->setHeaderLabels(all);
+  // The case's name takes the spare width, not the last column.
+  tree->header()->setStretchLastSection(false);
   tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
   for (int c = 1; c < all.size(); ++c) {
     tree->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
   }
   applyHiddenColumns();
 }
+
+QComboBox *CaseListPanel::takeSetBox() {
+  QFormLayout::TakeRowResult row = form->takeRow(setBox);
+  if (row.labelItem) {
+    delete row.labelItem->widget();
+  }
+  delete row.labelItem;
+  delete row.fieldItem;
+  return setBox;
+}
+
+void CaseListPanel::setTickButtonsVisible(bool on) {
+  tickAllButton_->setVisible(on);
+  tickNoneButton_->setVisible(on);
+}
+
+QString CaseListPanel::tickAllText() const { return tickAllButton_->text(); }
 
 void CaseListPanel::setSortable(bool on) {
   sortable_ = on;

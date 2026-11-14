@@ -497,7 +497,9 @@ void MainWindow::showOverlay(const QString &text, int ms) {
   // shown).
   QTimer::singleShot(0, focusHint_, [this] {
     QWidget *area = centralWidget();
-    focusHint_->move((area->width() - focusHint_->width()) / 2, 12);
+    // At the bottom, clear of the page's header and scramble.
+    focusHint_->move((area->width() - focusHint_->width()) / 2,
+                     area->height() - focusHint_->height() - 16);
     focusHint_->raise();
     focusHint_->show();
   });

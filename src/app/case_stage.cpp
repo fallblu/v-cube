@@ -32,10 +32,8 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   topLayout->addWidget(header);
   cube = new CubeView(top);
   cube->setMinimumSize(200, 160);
-  optionsRow = new QWidget(top);
-  optionsLayout = new QHBoxLayout(optionsRow);
-  optionsLayout->setContentsMargins(0, 0, 0, 0);
-  topLayout->addWidget(optionsRow);
+  options = new OptionBar(top);
+  topLayout->insertWidget(0, options);
   topLayout->addWidget(cube, 1);
 
   auto *bottom = new QWidget(this);
@@ -54,6 +52,19 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   guide_->setVisible(false);
   bottomLayout->addWidget(guide_);
   bottomLayout->addWidget(status);
+  keys_ = new QLabel(bottom);
+  keys_->setAlignment(Qt::AlignCenter);
+  keys_->setWordWrap(true);
+  keys_->setTextFormat(Qt::RichText);
+  keys_->setForegroundRole(QPalette::PlaceholderText);
+  keys_->setProperty("vcubeHint", true);
+  keys_->setVisible(false);
+  bottomLayout->addWidget(keys_);
+  actionRow_ = new QWidget(bottom);
+  auto *actionLayout = new QHBoxLayout(actionRow_);
+  actionLayout->setContentsMargins(0, 4, 0, 4);
+  actionRow_->setVisible(false);
+  bottomLayout->addWidget(actionRow_);
 
   // The outcome on one line, the grade buttons on the next.
   gradeRow = new QWidget(bottom);
@@ -125,6 +136,31 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   auto *layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->addWidget(splitter);
+}
+
+void CaseStage::setKeys(const QList<KeyHint> &keys) {
+  keys_->setText(keyHintsHtml(keys, palette()));
+  keys_->setVisible(!keys.isEmpty());
+}
+
+void CaseStage::setActions(const std::vector<Action> &actions) {
+  auto *row = static_cast<QHBoxLayout *>(actionRow_->layout());
+  while (QLayoutItem *item = row->takeAt(0)) {
+    if (QWidget *w = item->widget()) {
+      w->deleteLater();
+    }
+    delete item;
+  }
+  row->addStretch();
+  for (const Action &a : actions) {
+    auto *b = new QPushButton(a.text, actionRow_);
+    b->setFocusPolicy(Qt::NoFocus);
+    // Queued: the action may rebuild these buttons.
+    connect(b, &QPushButton::clicked, this, a.run, Qt::QueuedConnection);
+    row->addWidget(b);
+  }
+  row->addStretch();
+  actionRow_->setVisible(!actions.empty());
 }
 
 void CaseStage::showGuide(const AlgGuide *g, bool nextOnly, bool solving,

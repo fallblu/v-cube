@@ -66,8 +66,7 @@ bool ContextPractice::turned(Move m, const FaceletCube &cube) {
 
 QString ContextPractice::statusText(bool done) const {
   if (done) {
-    return tr("Space/Enter: another one. Esc: try this one again. Backspace: "
-              "back to learning.");
+    return {};
   }
   int open = 0;
   for (Slot slot : kAllSlots) {
@@ -76,10 +75,7 @@ QString ContextPractice::statusText(bool done) const {
   return (open == 1 ? tr("In context: solve the open pair.")
                     : tr("In context: solve the %1 open pairs in any order.")
                           .arg(open)) +
-         " " +
-         tr("Tab shows the set's cheapest order, Esc starts again, "
-            "Shift+Space gives up, Backspace goes back to learning. Not "
-            "graded.");
+         " " + tr("Not graded.");
 }
 
 QString ContextPractice::resultHtml(const AlgSet &set, bool done,

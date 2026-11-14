@@ -1,11 +1,14 @@
 #pragma once
 
+#include "app/page_parts.hpp"
+
 #include <QPixmap>
 #include <QStringList>
 #include <QWidget>
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <vector>
 
 class QHBoxLayout;
@@ -28,9 +31,8 @@ class CaseStage : public QWidget {
 public:
   explicit CaseStage(QWidget *parent = nullptr);
 
-  QLabel *header;      // stays in focus mode
-  QWidget *optionsRow; // the page's options, hidden in focus mode
-  QHBoxLayout *optionsLayout;
+  QLabel *header;     // stays in focus mode
+  OptionBar *options; // the page's options, hidden in focus mode
   CubeView *cube;
   QLabel *status;
   QLabel *reveal;    // the algs
@@ -44,6 +46,15 @@ public:
   // off the alg (`deviated`) is said so. Null hides it.
   void showGuide(const AlgGuide *guide, bool nextOnly, bool solving,
                  bool deviated);
+  // The keys that do something now, as chips under the status.
+  void setKeys(const QList<KeyHint> &keys);
+  // Buttons under the status for what can be done next (none hides them).
+  struct Action {
+    QString text;
+    std::function<void()> run;
+  };
+  void setActions(const std::vector<Action> &actions);
+
   // The outcome: a coloured badge and the words beside it.
   void showOutcome(const QString &badge, const QString &colour,
                    const QString &detail);
@@ -71,6 +82,8 @@ signals:
 
 private:
   QLabel *guide_;
+  QLabel *keys_;
+  QWidget *actionRow_;
   QLabel *gradeBadge_;
   QLabel *gradeLabel_;
   QWidget *quizRow_;

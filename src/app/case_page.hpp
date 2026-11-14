@@ -141,6 +141,10 @@ protected:
   // Reviewing the due cases of every set: the set drop-down shows "All
   // sets" and the list shows the set of the case being practised.
   bool acrossSets() const { return acrossSets_; }
+  // Switches to another set, or to the reviews across every set, as the
+  // set selector does.
+  void chooseSet(const std::string &id) { selectSet(id); }
+  void chooseAcrossSets() { selectAcrossSets(); }
   virtual bool offersAcrossSets() const { return false; }
   // While reviewing across sets: shows another set's cases (without
   // starting it as selecting it would).

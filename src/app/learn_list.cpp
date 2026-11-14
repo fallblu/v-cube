@@ -212,14 +212,8 @@ void LearnPage::updateSummary() {
   }
   LearnCounts n = learnCounts(pool(), progress(), unixNow(), localDayStart(),
                               settings_.srs, localDayEnd());
-  QString text = tr("%1 of %2 ticked. Learning %3, learned %4, due %5, %6 "
-                    "in the learn queue.")
-                     .arg(tickedCount())
-                     .arg(s->caseCount())
-                     .arg(n.learning)
-                     .arg(n.learned)
-                     .arg(n.due)
-                     .arg(n.queued);
+  // The header has the counts; here, what the list's ticks come to.
+  QString text = tr("%1 of %2 ticked.").arg(tickedCount()).arg(s->caseCount());
   if (n.held > 0) {
     text += " " + tr("%1 suspended or buried.").arg(n.held);
   }
@@ -232,6 +226,11 @@ void LearnPage::updateSummary() {
   if (!queueMessageTimer_.isActive()) {
     updateQueue();
   }
+}
+
+int LearnPage::dueIn(const AlgSet &s) const {
+  return dueCards(library_.progress(s.id), unixNow(), localDayEnd(),
+                  settings_.srs);
 }
 
 QString LearnPage::setItemText(const AlgSet &s) {
@@ -420,7 +419,7 @@ void LearnPage::updateQueue() {
   std::vector<std::string> queue =
       s ? queueOrder() : std::vector<std::string>{};
   learnNextButton_->setEnabled(!queue.empty() && !context_);
-  unqueueButton_->setEnabled(!queue.empty());
+  unqueueAction_->setEnabled(!queue.empty());
   if (!s) {
     queueLabel_->clear();
     return;

@@ -627,7 +627,7 @@ void GuiTest::learnStartsACase() {
   // Nothing is due until a case is put in the learn queue.
   QPushButton *start = nullptr;
   for (QPushButton *b : learn->findChildren<QPushButton *>()) {
-    if (b->text() == "Start learning") {
+    if (b->text() == "Add new cases") {
       start = b;
     }
   }

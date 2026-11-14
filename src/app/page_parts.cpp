@@ -6,6 +6,7 @@
 #include "app/session_panel.hpp"
 #include "app/widgets.hpp"
 
+#include <QButtonGroup>
 #include <QComboBox>
 #include <QEvent>
 #include <QFormLayout>
@@ -166,6 +167,43 @@ void SolveStage::setChart(TrendChart *chart) {
   chart_ = chart;
   chart->setParent(this);
   layout_->addWidget(chart, 1);
+}
+
+SegmentedPicker::SegmentedPicker(QWidget *parent) : QWidget(parent) {
+  layout_ = new QHBoxLayout(this);
+  layout_->setContentsMargins(0, 0, 0, 0);
+  layout_->setSpacing(0);
+  group_ = new QButtonGroup(this);
+  group_->setExclusive(true);
+  connect(group_, &QButtonGroup::idClicked, this, &SegmentedPicker::activated);
+}
+
+void SegmentedPicker::addOption(const QString &text, const QVariant &data) {
+  auto *b = new QPushButton(text, this);
+  b->setCheckable(true);
+  b->setFocusPolicy(Qt::NoFocus);
+  group_->addButton(b, static_cast<int>(data_.size()));
+  layout_->addWidget(b);
+  if (data_.isEmpty()) {
+    b->setChecked(true);
+  }
+  data_ << data;
+}
+
+int SegmentedPicker::currentIndex() const { return group_->checkedId(); }
+
+void SegmentedPicker::setCurrentIndex(int index) {
+  if (QAbstractButton *b = group_->button(index)) {
+    b->setChecked(true);
+  }
+}
+
+QVariant SegmentedPicker::currentData() const {
+  return data_.value(currentIndex());
+}
+
+int SegmentedPicker::findData(const QVariant &data) const {
+  return static_cast<int>(data_.indexOf(data));
 }
 
 QString keyHintsHtml(const QList<KeyHint> &keys, const QPalette &palette) {
