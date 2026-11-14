@@ -31,7 +31,9 @@ std::string_view trim(std::string_view s) {
 
 } // namespace
 
-std::string_view handId(Hand h) { return kHandIds[static_cast<int>(h)]; }
+std::string_view handId(Hand h) {
+  return kHandIds[static_cast<std::size_t>(h)];
+}
 
 std::optional<Hand> handFromId(std::string_view id) {
   for (std::size_t i = 0; i < kHandIds.size(); ++i) {
@@ -42,7 +44,9 @@ std::optional<Hand> handFromId(std::string_view id) {
   return std::nullopt;
 }
 
-std::string_view fingerId(Finger f) { return kFingerIds[static_cast<int>(f)]; }
+std::string_view fingerId(Finger f) {
+  return kFingerIds[static_cast<std::size_t>(f)];
+}
 
 std::optional<Finger> fingerFromId(std::string_view id) {
   for (std::size_t i = 0; i < kFingerIds.size(); ++i) {
