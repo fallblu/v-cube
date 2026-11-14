@@ -8,6 +8,10 @@
 #include "io/session_store.hpp"
 
 #include <QComboBox>
+#include <QLineEdit>
+#include <QFormLayout>
+#include <QDialogButtonBox>
+#include <QDialog>
 #include <QDir>
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -538,11 +542,39 @@ void InspectionPage::showCube(bool shown) {
                    : tr("The cube is hidden: do your plan.\nSpace when you "
                         "are done."))
         : !flow_.retry() && !feed_.current() ? tr("Generating scramble…")
-        : planning()                         ? tr("Space: start inspection")
-                                             : tr("Space: show the cube"));
+                                             : readyText());
   }
   cubeStack_->setCurrentWidget(shown ? static_cast<QWidget *>(cubeView_)
                                      : hiddenLabel_);
+}
+
+QString InspectionPage::readyText() const {
+  // What the session is for and how the last attempt went, while the
+  // cube waits to be shown.
+  const InspectionSession &s = session();
+  QStringList lines;
+  if (planning()) {
+    QString what = tr("Plan %1").arg(qs(std::string(stepName(s.step))));
+    if (std::optional<Slot> pair = trackedPair()) {
+      what += tr(", then the %1 pair").arg(qs(std::string(slotName(*pair))));
+    }
+    lines << what;
+  } else {
+    lines << tr("Count bad edges");
+  }
+  if (!s.attempts.empty() && planning()) {
+    const InspectionAttempt &a = s.attempts.back();
+    QString last = a.dnf ? tr("Last: DNF") : tr("Last: %n move(s)", "", a.moves);
+    if (!a.dnf && a.optimal) {
+      int over = a.moves - *a.optimal;
+      last += over > 0 ? tr(", %1 over the optimal %2").arg(over).arg(*a.optimal)
+                       : tr(", optimal");
+    }
+    lines << last;
+  }
+  lines << (planning() ? tr("Space: start inspection")
+                       : tr("Space: show the cube"));
+  return lines.join("\n");
 }
 
 void InspectionPage::showHint() {
@@ -1657,21 +1689,102 @@ void InspectionPage::showAttemptMenu(int index, const QPoint &globalPos) {
 }
 
 void InspectionPage::addSession() {
-  bool plan = planning();
-  QString suggested =
-      plan ? qs(std::string(stepName(session().step))) : tr("Bad edges");
-  std::optional<QString> name =
-      askSessionName(this, tr("New session"), tr("Name:"), suggested);
-  if (!name) {
+  // What the session practises is chosen with it, in one form: it is
+  // fixed once the session has attempts.
+  const InspectionSession from = session();
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("New session"));
+  auto *form = new QFormLayout(&dialog);
+  auto *drill = new QComboBox(&dialog);
+  drill->addItem(tr("Plan a step"));
+  drill->addItem(tr("Count bad edges"));
+  drill->setCurrentIndex(from.drill == InspectionDrill::Plan ? 0 : 1);
+  auto *step = new QComboBox(&dialog);
+  for (SolveStep st : planSteps()) {
+    step->addItem(qs(std::string(stepName(st))));
+  }
+  step->setCurrentIndex(stepBox_->currentIndex());
+  auto *pair = new QComboBox(&dialog);
+  pair->addItem(tr("None"));
+  for (Slot slot : kSlots4) {
+    pair->addItem(tr("%1 pair (%2)")
+                      .arg(qs(std::string(slotName(slot))), slotWords(slot)));
+  }
+  pair->setCurrentIndex(pairBox_->currentIndex());
+  auto *axes = new QComboBox(&dialog);
+  axes->addItem(tr("F/B"));
+  axes->addItem(tr("R/L"));
+  axes->addItem(tr("F/B, then R/L"));
+  axes->setCurrentIndex(static_cast<int>(from.axes));
+  auto *name = new QLineEdit(&dialog);
+  form->addRow(tr("Drill:"), drill);
+  form->addRow(tr("Step:"), step);
+  form->addRow(tr("Then:"), pair);
+  form->addRow(tr("Axes:"), axes);
+  form->addRow(tr("Name:"), name);
+  form->addRow(
+      helpLabel(tr("The drill and what it is for can't be changed once the "
+                   "session has attempts. The inspection time limit can."),
+                &dialog));
+  auto *buttons = new QDialogButtonBox(
+      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  form->addRow(buttons);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  // The name follows the choices until it is typed over.
+  auto suggested = [=] {
+    if (drill->currentIndex() == 1) {
+      return tr("Bad edges");
+    }
+    QString text = step->currentText();
+    if (planSteps()[static_cast<std::size_t>(step->currentIndex())] ==
+            SolveStep::EOCross &&
+        pair->currentIndex() > 0) {
+      text += " + " + qs(std::string(slotName(kSlots4[static_cast<std::size_t>(
+                          pair->currentIndex() - 1)])));
+    }
+    return text;
+  };
+  auto refresh = [=] {
+    bool plan = drill->currentIndex() == 0;
+    bool cross = plan && planSteps()[static_cast<std::size_t>(
+                             step->currentIndex())] == SolveStep::EOCross;
+    form->setRowVisible(step, plan);
+    form->setRowVisible(pair, cross);
+    form->setRowVisible(axes, !plan);
+    if (!name->isModified()) {
+      name->setText(suggested());
+    }
+  };
+  for (QComboBox *box : {drill, step, pair, axes}) {
+    connect(box, &QComboBox::currentIndexChanged, &dialog, refresh);
+  }
+  refresh();
+  if (dialog.exec() != QDialog::Accepted) {
     return;
   }
-  InspectionSession from = session();
-  InspectionSession &s = store_.addSession(ss(*name));
-  s.drill = from.drill;
-  s.step = from.step;
-  s.axes = from.axes;
+  QString chosen = name->text().trimmed();
+  if (chosen.isEmpty()) {
+    chosen = suggested();
+  }
+  InspectionSession &s = store_.addSession(ss(chosen));
+  s.drill =
+      drill->currentIndex() == 0 ? InspectionDrill::Plan : InspectionDrill::Edges;
+  s.step = planSteps()[static_cast<std::size_t>(step->currentIndex())];
+  s.axes = static_cast<EdgeAxes>(axes->currentIndex());
+  if (s.drill == InspectionDrill::Plan && s.step == SolveStep::EOCross &&
+      pair->currentIndex() > 0) {
+    s.pair = kSlots4[static_cast<std::size_t>(pair->currentIndex() - 1)];
+  }
   s.limitSeconds = from.limitSeconds;
   s.wca = from.wca;
+  if (s.drill == InspectionDrill::Plan && s.limitSeconds == 0 &&
+      from.drill != InspectionDrill::Plan) {
+    // Edges sessions have no limit: a Plan session starts with WCA
+    // inspection.
+    s.limitSeconds = 15;
+    s.wca = true;
+  }
   selectSession(store_.currentIndex());
 }
 

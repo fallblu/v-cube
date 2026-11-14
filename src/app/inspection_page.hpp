@@ -213,6 +213,8 @@ private:
   void deleteAttempt(int index);
   // Puts the attempt deleted last back where it was.
   void undoDelete();
+  // What the stage says while the cube waits to be shown.
+  QString readyText() const;
   void addSession();
   void renameSession();
   void deleteSession();
