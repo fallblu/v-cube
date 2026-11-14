@@ -57,6 +57,8 @@ public:
   }
   void applySettings() override;
   QWidget *sidePanel() const override { return left_; }
+  bool hasModeMenu() const override { return true; }
+  void fillModeMenu(QMenu &menu) override;
   bool isBusy() const override;
   void activated() override;
   void deactivated() override;

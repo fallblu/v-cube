@@ -51,6 +51,8 @@ public:
   void showCase(const QString &setId, const QString &caseId);
   void applySettings() override;
   QWidget *sidePanel() const override { return left_; }
+  bool hasModeMenu() const override { return true; }
+  void fillModeMenu(QMenu &menu) override;
   void activated() override;
   void deactivated() override;
 
@@ -261,6 +263,9 @@ private:
   ColourNeutrality neutrality_; // as last applied
   void fillGroupRows();
   void showCaseMenu(const QPoint &pos);
+  // Fills `menu` with what can be done with a row of the list (a case, a
+  // group, or the selected rows it is one of); false if nothing.
+  bool fillCaseMenu(QMenu &menu, QTreeWidgetItem *item);
 };
 
 // When a case is due: "now", "10 min", "3 h" or "4 d", or "today" for a

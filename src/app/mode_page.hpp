@@ -5,6 +5,7 @@
 #include <QWidget>
 
 class QKeyEvent;
+class QMenu;
 
 namespace vcube {
 
@@ -68,6 +69,11 @@ public:
   // be hidden to give the stage the whole page (F9, View > Side panel):
   // the page names the panel, the window remembers the choice per mode.
   virtual QWidget *sidePanel() const { return nullptr; }
+
+  // The page's own menu in the menu bar, named after the mode: what its
+  // lists otherwise offer only on a right-click, for what is selected.
+  virtual bool hasModeMenu() const { return false; }
+  virtual void fillModeMenu(QMenu &menu) { (void)menu; }
   bool sideHidden() const { return sideHidden_; }
   void setSideHidden(bool hidden) {
     if (hidden == sideHidden_) {

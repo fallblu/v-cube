@@ -432,6 +432,10 @@ bool MainWindow::setMode(int mode) {
     // Nothing else shows which mode this is.
     showOverlay(AppMode::label(mode), 1500);
   }
+  if (modeMenu_) {
+    modeMenu_->setTitle(AppMode::label(mode));
+    modeMenu_->menuAction()->setVisible(currentPage()->hasModeMenu());
+  }
   if (sidePanelAction_) {
     sidePanelAction_->setEnabled(currentPage()->sidePanel() != nullptr);
     sidePanelAction_->setChecked(!currentPage()->sideHidden());
@@ -727,6 +731,16 @@ void MainWindow::buildMenus() {
   for (QMenu *menu : libraryPage_->menus()) {
     menuBar()->insertMenu(view->menuAction(), menu);
   }
+  // The current mode's own menu, filled each time it opens.
+  modeMenu_ = new QMenu(this);
+  menuBar()->insertMenu(view->menuAction(), modeMenu_);
+  modeMenu_->menuAction()->setVisible(false);
+  connect(modeMenu_, &QMenu::aboutToShow, this, [this] {
+    modeMenu_->clear();
+    if (ModePage *page = currentPage(); page && !page->isBusy()) {
+      page->fillModeMenu(*modeMenu_);
+    }
+  });
 }
 
 void MainWindow::openCommandPalette() {

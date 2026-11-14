@@ -1223,6 +1223,15 @@ void AlgLabPage::tableMenu(const QPoint &at) {
     return;
   }
   QMenu menu(this);
+  fillModeMenu(menu);
+  menu.exec(table_->viewport()->mapToGlobal(at));
+}
+
+void AlgLabPage::fillModeMenu(QMenu &menu) {
+  if (selectedAlgs().empty()) {
+    menu.addAction(tr("Select an alg in the Search tab"))->setEnabled(false);
+    return;
+  }
   menu.addAction(tr("Add to session"), this, &AlgLabPage::addToSession);
   if (case_ && !case_->key.isLab()) {
     menu.addAction(tr("Add to set"), this, [this] { addToSet(false); });
@@ -1238,7 +1247,6 @@ void AlgLabPage::tableMenu(const QPoint &at) {
   menu.addSeparator();
   menu.addAction(tr("Remove"), this, &AlgLabPage::removeCandidates);
   menu.addAction(tr("Clear times…"), this, &AlgLabPage::clearTimes);
-  menu.exec(table_->viewport()->mapToGlobal(at));
 }
 
 // --- generator --------------------------------------------------------------
