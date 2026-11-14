@@ -173,12 +173,12 @@ GripModel standardGripModel() {
   };
   // U layer: flicks and pushes.
   add("U", H::Right, F::Index, "flick", hm | up, 0, 1.0);
-  add("U", H::Left, F::Index, "push", hm, 0, 1.7);
-  add("U'", H::Left, F::Index, "flick", hm, 0, 1.0);
-  add("U'", H::Right, F::Index, "push", dn, 0, 1.4);
+  add("U", H::Left, F::Index, "push", hm, 0, 1.0);
+  add("U'", H::Left, F::Index, "flick", hm | up, 0, 1.0);
+  add("U'", H::Right, F::Index, "push", dn, 0, 1.3);
   add("U'", H::Right, F::Index, "push", hm, 0, 1.7);
   add("U2", H::Right, F::Index, "double flick", hm, 0, 1.5);
-  add("U2", H::Left, F::Index, "double flick", hm, 0, 1.6);
+  add("U2", H::Left, F::Index, "double flick", hm, 0, 1.5);
   // R layer: the right wrist.
   add("R", H::Right, F::Wrist, "", fd | dn | hm | up, 1, 1.0);
   add("R'", H::Right, F::Wrist, "", dn | hm | up | fu, -1, 1.0);
@@ -189,29 +189,36 @@ GripModel standardGripModel() {
   add("L'", H::Left, F::Wrist, "", fd | dn | hm | up, 1, 1.3);
   add("L2", H::Left, F::Wrist, "down", hm | up | fu, -2, 1.9);
   add("L2", H::Left, F::Wrist, "up", fd | dn | hm, 2, 1.9);
-  // D layer: ring fingers.
-  add("D", H::Left, F::Ring, "pull", hm, 0, 1.4);
-  add("D", H::Right, F::Ring, "push", hm, 0, 1.9);
-  add("D'", H::Right, F::Ring, "pull", hm, 0, 1.4);
-  add("D'", H::Right, F::Ring, "pull", up, 0, 1.8);
-  add("D'", H::Left, F::Ring, "push", hm, 0, 1.9);
-  add("D2", H::Left, F::Ring, "double pull", hm, 0, 2.0);
-  add("D2", H::Right, F::Ring, "double pull", hm, 0, 2.1);
-  // F layer: index from the top with the thumb down, thumbs from the front.
-  add("F", H::Right, F::Index, "push from the top", dn, 0, 1.3);
-  add("F", H::Left, F::Thumb, "push", hm, 0, 1.6);
+  // D layer: ring fingers, from home.
+  add("D", H::Left, F::Ring, "pull", hm, 0, 1.0);
+  add("D", H::Right, F::Ring, "push", hm, 0, 1.7);
+  add("D'", H::Right, F::Ring, "pull", hm, 0, 1.3);
+  add("D'", H::Left, F::Ring, "push", hm, 0, 1.3);
+  add("D2", H::Right, F::Ring, "double pull", hm, 0, 1.5);
+  // F layer: the index from the top with the thumb down, the ring finger
+  // from below with the thumb up, a thumb from the front at home.
+  add("F", H::Right, F::Index, "push from the top", dn, 0, 1.0);
+  add("F", H::Right, F::Ring, "push", up, 0, 1.3);
+  add("F", H::Left, F::Thumb, "push", hm, 0, 1.7);
   add("F", H::Right, F::Index, "reach over the top", hm, 0, 2.2);
-  add("F'", H::Right, F::Thumb, "push", hm, 0, 1.5);
   add("F'", H::Left, F::Index, "push from the top", dn, 0, 1.3);
-  add("F'", H::Left, F::Index, "reach over the top", hm, 0, 2.2);
-  add("F2", H::Right, F::Index, "double push from the top", dn, 0, 2.0);
-  add("F2", H::Right, F::Thumb, "double push", hm, 0, 2.4);
-  add("F2", H::Left, F::Thumb, "double push", hm, 0, 2.4);
-  // B layer: ring fingers from behind.
-  add("B", H::Left, F::Ring, "pull", hm, 0, 2.6);
-  add("B'", H::Right, F::Ring, "pull", hm, 0, 2.6);
-  add("B2", H::Right, F::Ring, "double pull", hm, 0, 3.4);
-  add("B2", H::Left, F::Ring, "double pull", hm, 0, 3.4);
+  add("F'", H::Right, F::Ring, "flick", up, 0, 1.3);
+  add("F'", H::Right, F::Thumb, "push", dn, 0, 1.3);
+  add("F'", H::Right, F::Thumb, "push", hm, 0, 1.6);
+  add("F2", H::Right, F::Ring, "double flick", up, 0, 1.5);
+  add("F2", H::Right, F::Index, "double push from the top", dn, 0, 1.5);
+  add("F2", H::Left, F::Index, "double push from the top", dn, 0, 1.5);
+  // B layer: the index from below with the thumb up, the ring finger from
+  // the top with the thumb down.
+  add("B", H::Right, F::Index, "flick", up, 0, 1.3);
+  add("B", H::Right, F::Ring, "push", dn, 0, 1.7);
+  add("B", H::Left, F::Index, "push", up, 0, 1.3);
+  add("B'", H::Right, F::Ring, "flick", dn, 0, 1.3);
+  add("B'", H::Right, F::Index, "push", up, 0, 1.7);
+  add("B'", H::Left, F::Index, "flick", up, 0, 1.3);
+  add("B2", H::Right, F::Index, "double flick", up, 0, 1.5);
+  add("B2", H::Right, F::Ring, "double flick", dn, 0, 1.5);
+  add("B2", H::Left, F::Index, "double flick", up, 0, 1.5);
   // Wide R and L turns: the wrist, as R and L.
   add("r", H::Right, F::Wrist, "", fd | dn | hm | up, 1, 1.2);
   add("r'", H::Right, F::Wrist, "", dn | hm | up | fu, -1, 1.2);
@@ -220,10 +227,10 @@ GripModel standardGripModel() {
   add("l", H::Left, F::Wrist, "", dn | hm | up | fu, -1, 1.6);
   add("l'", H::Left, F::Wrist, "", fd | dn | hm | up, 1, 1.6);
   add("l2", H::Left, F::Wrist, "", hm | up | fu, -2, 2.3);
-  // M slice: the left ring finger.
-  add("M'", H::Left, F::Ring, "push", hm, 0, 1.4);
-  add("M", H::Left, F::Ring, "pull", hm, 0, 1.6);
-  add("M2", H::Left, F::Ring, "double push", hm, 0, 2.0);
+  // M slice: the right ring finger.
+  add("M'", H::Right, F::Ring, "push", hm, 0, 1.4);
+  add("M", H::Right, F::Ring, "pull", hm, 0, 1.6);
+  add("M2", H::Right, F::Ring, "double push", hm, 0, 2.0);
   // Rotations: both hands let go and take the cube again, home.
   for (const char *r : {"x", "x'", "y", "y'", "z", "z'"}) {
     double c = r[0] == 'y' ? 1.5 : r[0] == 'x' ? 1.8 : 2.2;
@@ -320,8 +327,11 @@ public:
                ((std::abs(r) == 2 ? 1 : 0) + (std::abs(l) == 2 ? 1 : 0));
   }
 
-  // Every way to turn a move with trick `t` from state `s`.
-  template <typename F> void edges(std::size_t s, int t, F &&visit) const {
+  // Every way to turn move `i` with trick `t` from state `s`. Where the
+  // hands end up after the last move is no strain: the alg is over.
+  template <typename F>
+  void edges(std::size_t i, std::size_t s, int t, F &&visit) const {
+    const bool last = i + 1 == all_.size();
     const int r0 = space_.right(s), l0 = space_.left(s);
     static const GripTrick kNone{"", Hand::Either, Finger::Hands, "",  kAnyGrip,
                                  0,  false,        0.0,           true};
@@ -365,8 +375,9 @@ public:
         if (r1 < kGripMin || r1 > kGripMax || l1 < kGripMin || l1 > kGripMax) {
           continue;
         }
-        double strain = model_.strain * ((std::abs(r1) == 2 ? 1 : 0) +
-                                         (std::abs(l1) == 2 ? 1 : 0));
+        double strain = last ? 0.0
+                             : model_.strain * ((std::abs(r1) == 2 ? 1 : 0) +
+                                                (std::abs(l1) == 2 ? 1 : 0));
         visit(Edge{space_.id(r1, l1, slot), t, r, l,
                    base + cr + cl + strain + same});
       }
@@ -407,7 +418,7 @@ GripResult planGrips(const Alg &alg, const GripModel &model,
         continue;
       }
       for (int t : pl.allowed(i)) {
-        pl.edges(s, t, [&](const Edge &e) {
+        pl.edges(i, s, t, [&](const Edge &e) {
           double c = c0 + e.cost;
           if (c < fwd[i + 1][e.to]) {
             fwd[i + 1][e.to] = c;
@@ -467,7 +478,7 @@ GripResult planGrips(const Alg &alg, const GripModel &model,
     for (std::size_t s0 = 0; s0 < S; ++s0) {
       double c = kInf;
       for (int t : pl.allowed(i)) {
-        pl.edges(s0, t, [&](const Edge &e) {
+        pl.edges(i, s0, t, [&](const Edge &e) {
           c = std::min(c, e.cost + bwd[i + 1][e.to]);
         });
       }
@@ -482,7 +493,7 @@ GripResult planGrips(const Alg &alg, const GripModel &model,
         if (fwd[i][s0] == kInf) {
           continue;
         }
-        pl.edges(s0, t, [&](const Edge &e) {
+        pl.edges(i, s0, t, [&](const Edge &e) {
           c = std::min(c, fwd[i][s0] + e.cost + bwd[i + 1][e.to]);
         });
       }
@@ -526,7 +537,7 @@ double gripCost(const Alg &alg, const GripModel &model) {
         continue;
       }
       for (int t : pl.allowed(i)) {
-        pl.edges(s, t, [&](const Edge &e) {
+        pl.edges(i, s, t, [&](const Edge &e) {
           next[e.to] = std::min(next[e.to], cur[s] + e.cost);
         });
       }

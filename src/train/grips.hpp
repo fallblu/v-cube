@@ -71,15 +71,16 @@ struct GripModel {
   double regrip = 1.2;       // a hand regrips while it would turn
   double hiddenRegrip = 0.4; // a hand regrips while the other one turns
   double regripStep = 0.3;   // each step of a regrip past the first
-  double strain = 1.5;       // each move ending with a hand far up or down
+  double strain = 0.5;       // each move but the last ending far up or down
   double start = 0.25;       // each step from home of the starting grips
   double sameFinger = 0.4;   // a finger turning two moves in a row
   friend bool operator==(const GripModel &, const GripModel &) = default;
 };
 
 // v-cube's standard two-handed catalogue: flicks, pushes and pulls, wrist
-// turns, ring-finger D moves, thumb and index F moves, and rotations as a
-// regrip of both hands.
+// turns, ring-finger D moves, F and B moves from above with the thumb down
+// and from below with the thumb up, and rotations as a regrip of both
+// hands.
 GripModel standardGripModel();
 
 struct Grip {

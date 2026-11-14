@@ -563,22 +563,27 @@ left) and its cost. Turn off the tricks you don't use, change the costs to
 suit your hands, or add tricks; **Standard tricks** puts back v-cube's.
 The costs of a regrip, of one while the other hand turns, of a hand far up
 or down, of starting away from home and of one finger turning two moves in
-a row are set there too. Moves no trick turns (`E`, `S`, wide `u` and the
+a row are set there too (where the hands end up after the last move is
+never a strain). Moves no trick turns (`E`, `S`, wide `u` and the
 like) cost a flat amount and show "no trick". The standard tricks are:
 
 - U layer: right index flick (`U`, thumb home or up), left index flick
-  (`U'`), double flicks (`U2`, from home), left index push (`U`), right
-  index push (`U'`, best with the thumb down);
+  (`U'`, thumb home or up), double flicks (`U2`, from home), left index
+  push (`U`), right index push (`U'`, best with the thumb down);
 - R and L: the wrists (`R2` up or down a half turn);
-- D layer: left ring pull (`D`), right ring pull (`D'`) and the pushes the
-  other way, double pulls (`D2`);
-- F layer: right index from the top with the right thumb down (`F`, as
-  after `R'`), right thumb push (`F'`), left thumb push (`F`), left index
-  from the top with the left thumb down (`F'`), and slower reaches over
-  the top;
-- B layer, wide `r` and `l` (as the wrists), `M` with the left ring
-  finger, and rotations, which let go with both hands and take the cube
-  again home.
+- D layer, from home: left ring pull (`D`), right ring pull (`D'`) and the
+  pushes the other way, right ring double pull (`D2`);
+- F layer: the right index from the top with the right thumb down (`F`
+  and `F2`, as after `R'`), the right ring finger from below with the
+  right thumb up (`F`, `F'` and `F2`, as after `R`), the thumbs from the
+  front (left for `F` at home, right for `F'` at home or, better, with
+  the thumb down), the left index from the top with the left thumb down
+  (`F'` and `F2`), and a slower right index reach over the top (`F`);
+- B layer: the right index from below with the right thumb up and the
+  right ring finger from the top with the right thumb down (`B`, `B'` and
+  `B2`), and the left index from below with the left thumb up;
+- wide `r` and `l` (as the wrists), `M` with the right ring finger, and
+  rotations, which let go with both hands and take the cube again home.
 
 **Test tab.** Test sessions time algs one at a time. A session lists
 algs, each with its case (from any cases and sets), and has:

@@ -78,6 +78,68 @@ TEST_CASE("R2-heavy algs start with the thumb down or up", "[grips]") {
   CHECK(std::abs(p.start.right) < 2);
 }
 
+TEST_CASE("the standard profile turns F and B from above and below",
+          "[grips]") {
+  // Thumb up after R: the ring finger turns F2 from below, both times, with
+  // the left ring finger on D' and D while the right thumb is down.
+  GripPlan p = plan("U' R2 D' R U' R F2 R' U R F2 R2 D R2");
+  CHECK(p.regrips == 0);
+  CHECK(p.untricked == 0);
+  CHECK(p.start == Grip{1, 0});
+  auto t = tricks(p);
+  CHECK(t[1] == "right wrist down");
+  CHECK(t[2] == "left ring push");
+  CHECK(t[6] == "right ring double flick");
+  CHECK(t[10] == "right ring double flick");
+  CHECK(t[12] == "left ring pull");
+  CHECK(t[13] == "right wrist up");
+
+  // B from below with the index (thumb up), from the top with the ring
+  // finger (thumb down).
+  auto b = tricks(plan("R B2 R' U R' B' R"));
+  CHECK(b[1] == "right index double flick");
+  CHECK(b[5] == "right ring flick");
+  CHECK(tricks(plan("R' B2 R"))[1] == "right ring double flick");
+
+  // No thumb double pushes, no ring pulls on B from home.
+  for (const GripTrick &k : standardGripModel().tricks) {
+    CHECK_FALSE((k.move == "F2" && k.finger == Finger::Thumb));
+    if (k.move[0] == 'B') {
+      CHECK_FALSE((k.from & gripBit(0)));
+    }
+    if (k.move[0] == 'M') {
+      CHECK(k.hand == Hand::Right);
+    }
+  }
+}
+
+TEST_CASE("F R U R' U' F' starts with the thumb down", "[grips]") {
+  GripPlan p = plan("F R U R' U' F'");
+  CHECK(p.start == Grip{-1, 0});
+  CHECK(p.regrips == 0);
+  auto t = tricks(p);
+  CHECK(t[0] == "right index push from the top");
+  CHECK(t[4] == "left index flick");
+  CHECK(t[5] == "right thumb push");
+  CHECK(p.steps[5].before.right == -1);
+}
+
+TEST_CASE("three R turns one way take one hidden regrip", "[grips]") {
+  // Ua: thumb down to start, back down while the left hand pushes U, and
+  // the last R2 is turned from home, wherever that leaves the thumb.
+  GripPlan p = plan("R U' R U R U R U' R' U' R2");
+  CHECK(p.start.right == -1);
+  CHECK(p.regrips == 1);
+  CHECK(p.steps[3].regripRight);
+  CHECK(tricks(p)[3] == "left index push");
+  CHECK(p.steps[10].before.right == 0);
+  CHECK(std::abs(p.steps[10].after.right) == 2);
+  // Mid-alg the same R2 is a strain.
+  GripModel m = standardGripModel();
+  CHECK(planGrips(parseAlgOrEmpty("R2 U"), m).plan.start.right != 0);
+  CHECK(planGrips(parseAlgOrEmpty("R2"), m).plan.total == Catch::Approx(1.5));
+}
+
 TEST_CASE("regrips hide behind the other hand's moves", "[grips]") {
   GripModel m = standardGripModel();
   // F after R needs the thumb down (or a thumb or reach trick): the right
