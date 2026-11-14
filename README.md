@@ -21,7 +21,7 @@ over the last 7 days.
 | Algs | **Learn** | Untimed practice on the virtual cube, scheduled by spaced repetition |
 | Algs | **Drill** | Timed practice on the virtual cube or a physical one with the space-bar timer |
 | Algs | **Library** | Creating and editing alg sets, and filing pasted algs under their cases |
-| Algs | **Alg Lab** | Finding algs with a generator, comparing them by move count and an ergonomic score, and timing each alg on a physical or virtual cube |
+| Algs | **Alg Lab** | Finding algs with a generator, comparing them by move count and an ergonomic score, showing the fingertricks and regrips to turn each one with, and timing each alg on a physical or virtual cube |
 | Solves | **Timed** | Timed solves, with sessions, statistics and cstimer import and export |
 | Solves | **Untimed** | Solves with no timer, with their move counts |
 | Solves | **Move Count** | Move-efficiency practice for one step (EO to ZZ F2L, the cross, CFOP F2L) |

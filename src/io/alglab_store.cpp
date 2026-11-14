@@ -9,7 +9,8 @@ namespace vcube {
 
 namespace {
 
-constexpr FileFormat kAlgLabFile{"v-cube.alglab", 1, false, "Alg Lab file"};
+// Version 2 added grip profiles; a version 1 file gets the built-in one.
+constexpr FileFormat kAlgLabFile{"v-cube.alglab", 2, false, "Alg Lab file"};
 
 QString q(const std::string &s) { return QString::fromStdString(s); }
 QString q(std::string_view s) {
@@ -75,7 +76,68 @@ QJsonObject profileToJson(const ErgoProfile &p) {
         {"first", q(r.first)}, {"second", q(r.second)}, {"cost", r.cost}});
   }
   o["rules"] = rules;
+  if (p.grips) {
+    const GripModel &g = *p.grips;
+    QJsonArray tricks;
+    for (const auto &t : g.tricks) {
+      QJsonObject j{{"move", q(t.move)},
+                    {"hand", q(handId(t.hand))},
+                    {"finger", q(fingerId(t.finger))},
+                    {"how", q(t.how)},
+                    {"from", q(gripMaskText(t.from))},
+                    {"turn", t.turn},
+                    {"cost", t.cost}};
+      if (t.reset) {
+        j["reset"] = true;
+      }
+      if (!t.on) {
+        j["off"] = true;
+      }
+      tricks.append(j);
+    }
+    o["grips"] = QJsonObject{{"other", g.otherMove},
+                             {"regrip", g.regrip},
+                             {"hiddenRegrip", g.hiddenRegrip},
+                             {"regripStep", g.regripStep},
+                             {"strain", g.strain},
+                             {"start", g.start},
+                             {"sameFinger", g.sameFinger},
+                             {"tricks", tricks}};
+  }
   return o;
+}
+
+GripModel gripsFromJson(const QJsonObject &o) {
+  GripModel g;
+  g.otherMove = o["other"].toDouble(g.otherMove);
+  g.regrip = o["regrip"].toDouble(g.regrip);
+  g.hiddenRegrip = o["hiddenRegrip"].toDouble(g.hiddenRegrip);
+  g.regripStep = o["regripStep"].toDouble(g.regripStep);
+  g.strain = o["strain"].toDouble(g.strain);
+  g.start = o["start"].toDouble(g.start);
+  g.sameFinger = o["sameFinger"].toDouble(g.sameFinger);
+  for (const auto &v : o["tricks"].toArray()) {
+    QJsonObject j = v.toObject();
+    auto hand = handFromId(str(j["hand"]));
+    auto finger = fingerFromId(str(j["finger"]));
+    auto from = gripMaskFromText(str(j["from"]));
+    std::string move = str(j["move"]);
+    if (!hand || !finger || !from || move.empty()) {
+      continue;
+    }
+    GripTrick t;
+    t.move = move;
+    t.hand = *hand;
+    t.finger = *finger;
+    t.how = str(j["how"]);
+    t.from = *from;
+    t.turn = std::clamp(j["turn"].toInt(0), -4, 4);
+    t.cost = j["cost"].toDouble(1.0);
+    t.reset = j["reset"].toBool(false);
+    t.on = !j["off"].toBool(false);
+    g.tricks.push_back(std::move(t));
+  }
+  return g;
 }
 
 ErgoProfile profileFromJson(const QJsonObject &o) {
@@ -91,6 +153,9 @@ ErgoProfile profileFromJson(const QJsonObject &o) {
     QJsonObject r = v.toObject();
     p.rules.push_back(
         {str(r["first"]), str(r["second"]), r["cost"].toDouble()});
+  }
+  if (o["grips"].isObject()) {
+    p.grips = gripsFromJson(o["grips"].toObject());
   }
   return p;
 }
@@ -236,6 +301,14 @@ AlgLabData algLabFromJson(const QJsonObject &o) {
   if (o.contains("profiles")) {
     for (const auto &v : o["profiles"].toArray()) {
       d.profiles.push_back(profileFromJson(v.toObject()));
+    }
+    // Written before grip profiles: the built-in one goes first, as the
+    // new default.
+    if (o["version"].toInt(1) < 2 &&
+        std::none_of(
+            d.profiles.begin(), d.profiles.end(),
+            [](const ErgoProfile &p) { return p.grips.has_value(); })) {
+      d.profiles.insert(d.profiles.begin(), builtinErgoProfiles().front());
     }
   } else {
     d.profiles = builtinErgoProfiles();

@@ -1,17 +1,21 @@
 #pragma once
 
 #include "cube/move.hpp"
+#include "train/grips.hpp"
 
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace vcube {
 
-// A guess at how hard an alg is to turn, as the sum of a cost for each
-// move and a cost for each pair of moves in a row that turns awkwardly
-// (a regrip, a change of axis). Lower is better. The numbers are a
+// A guess at how hard an alg is to turn. Lower is better. A grip profile
+// (one with a GripModel) scores the cheapest way to turn the alg with its
+// fingertricks and regrips (see grips.hpp); a move profile scores the sum
+// of a cost for each move and a cost for each pair of moves in a row that
+// turns awkwardly (a regrip, a change of axis). The numbers are a
 // profile's: the user tunes them to their hands.
 
 // A rule for a pair of moves in a row: the second move after the first
@@ -31,11 +35,14 @@ struct ErgoProfile {
   double otherMove = 2.0;  // a move the table doesn't list
   double axisChange = 0.0; // each turn on another axis than the last turn
   std::vector<ErgoRule> rules;
+  // A grip profile scores with this instead of the table and rules.
+  std::optional<GripModel> grips;
   friend bool operator==(const ErgoProfile &, const ErgoProfile &) = default;
 };
 
-// The profiles v-cube ships: "Right-handed 2H" (the default) and
-// "One-handed (right)".
+// The profiles v-cube ships: "Two-handed grips" (the default, a grip
+// profile), "Right-handed 2H" and "One-handed (right)".
+inline constexpr std::string_view kGripProfileName = "Two-handed grips";
 const std::vector<ErgoProfile> &builtinErgoProfiles();
 
 // Whether a rule side matches a move.
@@ -43,10 +50,12 @@ bool ergoMatches(std::string_view pattern, Move m);
 
 struct ErgoScore {
   double total = 0.0;
-  double moves = 0.0;       // the moves' own costs
-  double transitions = 0.0; // axis changes and rules
+  double moves = 0.0;       // the moves' (or tricks') own costs
+  double transitions = 0.0; // axis changes and rules (or regrips ...)
 };
 ErgoScore ergoScore(const Alg &alg, const ErgoProfile &profile);
+// The total alone, quicker for a grip profile.
+double ergoTotal(const Alg &alg, const ErgoProfile &profile);
 
 // Every move token a profile's table can price, in a fixed order: each
 // face, wide turn and slice with its three turns, then the rotations.

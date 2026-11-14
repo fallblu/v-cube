@@ -28,6 +28,7 @@ add_library(vcube_gui STATIC
   drill_list.cpp
   drill_page.cpp
   drill_settings.cpp
+  grip_view.cpp
   flow_layout.cpp
   help_panel.cpp
   help_text.cpp

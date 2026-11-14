@@ -104,11 +104,20 @@ std::string newLabSessionId();
 //    "dnf": true, "deviated": true, "include": true, "session": ...,
 //    "timestamp": ..., "scramble": ..., "moves": ...}],
 //  "profiles": [{"name": ..., "moves": {"R": 1.0, ...}, "other": 2.5,
-//    "axis": 0.15, "rules": [{"first": "R2", "second": "F*", "cost": 0.6}]}],
+//    "axis": 0.15, "rules": [{"first": "R2", "second": "F*", "cost": 0.6}],
+//    "grips": {"other": 2.5, "regrip": 1.2, "hiddenRegrip": 0.4,
+//      "regripStep": 0.3, "strain": 1.5, "start": 0.25, "sameFinger": 0.4,
+//      "tricks": [{"move": "U", "hand": "right", "finger": "index",
+//        "how": "flick", "from": "home, up", "turn": 0, "cost": 1.0,
+//        "reset": true, "off": true}]}}],
 //  "moveSets": [{"name": ..., "moves": "U, R, F2"}]}
 // "dnf", "deviated", "include", "scramble" and "moves" are left out when
 // false or empty. Entries, candidates and attempts whose case key can't be
 // read are dropped; a file without "profiles" gets the built-in ones.
+// "grips" makes a grip profile (left out for a move profile); "reset" and
+// "off" are left out when false, and a trick that can't be read is
+// dropped. A version 1 file (before grip profiles) with no grip profile
+// gets the built-in one first.
 QJsonObject algLabToJson(const AlgLabData &d);
 AlgLabData algLabFromJson(const QJsonObject &o);
 

@@ -62,6 +62,30 @@ private:
   void updateTry();
 };
 
+class GripView;
+
+// Edits a grip profile: its tricks (which move each turns, with which hand
+// and finger, from which grips, how it moves the wrist and what it costs,
+// each one on or off) and the costs of regrips and strain, with a field to
+// try an alg against it.
+class GripProfileDialog : public QDialog {
+  Q_OBJECT
+public:
+  GripProfileDialog(const ErgoProfile &profile, QWidget *parent = nullptr);
+  ErgoProfile profile() const;
+
+private:
+  ErgoProfile base_;
+  QLineEdit *name_;
+  QDoubleSpinBox *other_, *regrip_, *hidden_, *step_, *strain_, *start_, *same_;
+  QTableWidget *tricks_;
+  QLabel *problems_;
+  QLineEdit *tryAlg_;
+  GripView *tryView_;
+  void addTrickRow(const GripTrick &t);
+  void updateTry();
+};
+
 // Makes or edits a lab case: its name, the setup alg that makes it from a
 // solved cube, what its algs must solve (solved, as an alg set's steps do,
 // or a free-pieces text such as "LL:p") and the U turns allowed around it.

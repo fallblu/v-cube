@@ -30,6 +30,8 @@ class QUndoStack;
 
 namespace vcube {
 
+class GripView;
+
 // The alg list of a case: algs in order (the first passing one is the main
 // alg) with each one's check result; reordered by drag and drop.
 class AlgListWidget : public QTreeWidget {
@@ -133,6 +135,8 @@ private:
   QLabel *caseSummary_;
   AlgListWidget *algList_ = nullptr;
   QLineEdit *newAlgEdit_;
+  QLabel *gripTitle_;
+  GripView *grips_;
 
   QMenu *setMenu_;
   QMenu *caseMenu_;
@@ -178,6 +182,7 @@ private:
                      const CaseGroup &g);
   void loadCase();
   void refreshAlgList();
+  void updateGrips();
   void storeAlgs(const QString &text, std::optional<int> edited = {});
   void showAlgMenu(const QPoint &pos);
 

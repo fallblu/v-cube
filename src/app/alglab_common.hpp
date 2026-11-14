@@ -63,6 +63,17 @@ public:
   bool operator<(const QTableWidgetItem &other) const override;
 };
 
+// Where the profile chosen for Alg Lab's scores is kept (QSettings).
+inline constexpr const char *kLabProfileSetting = "alglab/scoreProfile";
+
+// The grip profile that shows fingertricks: `chosen` (a profile's name)
+// when it is a grip profile, else the first grip profile; null if there
+// is none.
+const ErgoProfile *labGuideProfile(const AlgLabStore &store,
+                                   const QString &chosen);
+// The same with the profile chosen in Alg Lab.
+const ErgoProfile *labGuideProfile(const AlgLabStore &store);
+
 // Colours for the algs compared in a chart, in a fixed order (eight).
 QColor seriesColour(std::size_t i, bool dark);
 
