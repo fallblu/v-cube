@@ -457,7 +457,7 @@ under `[blind]`.
   "profiles": [{"name": "Two-handed grips", "moves": {}, "other": 2.5,
                 "axis": 0, "rules": [],
                 "grips": {"other": 2.5, "regrip": 1.2, "hiddenRegrip": 0.4,
-                          "regripStep": 0.3, "strain": 1.5, "start": 0.25,
+                          "regripStep": 0.3, "strain": 0.5, "start": 0.25,
                           "sameFinger": 0.4,
                           "tricks": [{"move": "U", "hand": "right",
                                       "finger": "index", "how": "flick",
