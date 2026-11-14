@@ -485,14 +485,62 @@ shortest first, and adds them as candidates while it runs:
   `<U, R>` to 14 moves takes well under a second); all six faces past 13
   or 14 moves can take minutes, so stop it or lower the limit.
 
-**Ergonomic score.** A profile gives each move a cost (`R`, `R'`, `R2`,
-`r`, `M'`, `x` ...), a cost for each turn on another axis than the turn
-before, and rules for awkward pairs of moves in a row, each side a move
-(`R2`), a layer with any turn (`R*`) or any move (`*`), such as `R2` then
-`F*` for a regrip. The score is the sum. **Right-handed 2H** is the
-default and **One-handed (right)** ships too; **Profile…** edits the
-chosen profile (with a field to try an alg against it), makes a new one
-from it, deletes it, or restores the built-in ones.
+**Ergonomic score.** The score comes from the profile chosen beside it.
+The default, **Two-handed grips**, is a grip profile: the score is the
+cheapest way to turn the alg with two hands, adding up a fingertrick for
+each move and the regrips between them (see **Fingertricks** below).
+**Right-handed 2H** and **One-handed (right)** are move profiles: each
+move has a cost (`R`, `R'`, `R2`, `r`, `M'`, `x` ...), and there is a cost
+for each turn on another axis than the turn before and rules for awkward
+pairs of moves in a row (each side a move such as `R2`, a layer with any
+turn such as `R*`, or any move `*`; `R2` then `F*` is a regrip). Their
+score is the sum. **Profile…** edits the chosen profile (with a field to
+try an alg against it), makes a new one from it, makes a new grip profile,
+deletes it, or restores the built-in ones.
+
+**Fingertricks.** Under the candidates, the selected alg is shown as it is
+best turned with two hands, from the chosen grip profile (or the first
+grip profile, when a move profile is chosen). A hand's grip is where its
+thumb sits as the wrist turns it: **home**, **up** a quarter turn (the
+right thumb after `R` from home, the left thumb after `L'`), **down**, or
+**far up** or **far down**, a strain. The line at the top gives the grips
+to start in, the cost (the tricks', then the regrips' and strain's) and
+the number of regrips. Below it is a column per move, with the trick each
+hand turns it with (`index flick`, `wrist up`, `ring pull` ...), where the
+thumb ends up after a wrist turn, and **↻ regrip** where a hand moves to
+another grip before the move. A regrip while the other hand turns costs
+less than one that pauses the alg, so the plan puts regrips there when it
+can. Click a move to list every trick that can turn it, with what the
+whole alg costs that way: the best first, then how much more each other
+one costs. Click one to use it, and the rest of the alg is planned round
+it; **Reset picks** goes back to the best plan (picks last until another
+alg is selected). **Copy** copies the plan as text. Library shows the
+same under a case's algs, for the alg selected there.
+
+A grip profile's tricks are its own to change: **Profile… > Edit this
+profile** lists every trick, with the move it turns, the hand and finger,
+how it turns it, the grips it starts from (`home, up`), the steps it
+moves the hand's thumb (`R` is +1 for the right hand, `L` is -1 for the
+left) and its cost. Turn off the tricks you don't use, change the costs to
+suit your hands, or add tricks; **Standard tricks** puts back v-cube's.
+The costs of a regrip, of one while the other hand turns, of a hand far up
+or down, of starting away from home and of one finger turning two moves in
+a row are set there too. Moves no trick turns (`E`, `S`, wide `u` and the
+like) cost a flat amount and show "no trick". The standard tricks are:
+
+- U layer: right index flick (`U`, thumb home or up), left index flick
+  (`U'`), double flicks (`U2`), left index push (`U`), right index push
+  (`U'`, best with the thumb down);
+- R and L: the wrists (`R2` up or down a half turn);
+- D layer: left ring pull (`D`), right ring pull (`D'`) and the pushes the
+  other way, double pulls (`D2`);
+- F layer: right index from the top with the right thumb down (`F`, as
+  after `R'`), right thumb push (`F'`), left thumb push (`F`), left index
+  from the top with the left thumb down (`F'`), and slower reaches over
+  the top;
+- B layer, wide `r` and `l` (as the wrists), `M` with the left ring
+  finger, and rotations, which let go with both hands and take the cube
+  again home.
 
 **Test tab.** Test sessions time algs one at a time. A session lists
 algs, each with its case (from any cases and sets), and has:

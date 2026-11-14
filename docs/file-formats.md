@@ -92,7 +92,9 @@ Every data file is a JSON object that starts with a `format` and a
 | Blind | `v-cube.blind` | no |
 | Alg Lab | `v-cube.alglab` | no |
 
-Every format is at version 1. A file whose `format` is another v-cube
+Every format is at version 1 but Alg Lab's, at version 2 (version 2 added
+grip profiles; a version 1 file is read and gets the built-in grip profile
+first). A file whose `format` is another v-cube
 format, or not a v-cube format, can't be read. `version` may be left out
 (read as 1); otherwise it must be a whole number of at least 1, and a
 higher number than the app reads makes the file "newer" (see above).
@@ -437,7 +439,7 @@ under `[blind]`.
 
 ```json
 {
-  "format": "v-cube.alglab", "version": 1, "current": 0,
+  "format": "v-cube.alglab", "version": 2, "current": 0,
   "sessions": [{"id": "3fa2c41b09de", "name": "Session 1",
                 "cube": "physical", "order": "interleaved", "reps": 12,
                 "warmup": 1, "trim": 0, "randomAuf": false,
@@ -452,7 +454,20 @@ under `[blind]`.
                 "time": 1830, "session": "3fa2c41b09de",
                 "timestamp": 1762800000, "dnf": true, "deviated": true,
                 "include": true, "scramble": "...", "moves": "..."}],
-  "profiles": [{"name": "Right-handed 2H", "moves": {"R": 1.0, "U'": 1.1},
+  "profiles": [{"name": "Two-handed grips", "moves": {}, "other": 2.5,
+                "axis": 0, "rules": [],
+                "grips": {"other": 2.5, "regrip": 1.2, "hiddenRegrip": 0.4,
+                          "regripStep": 0.3, "strain": 1.5, "start": 0.25,
+                          "sameFinger": 0.4,
+                          "tricks": [{"move": "U", "hand": "right",
+                                      "finger": "index", "how": "flick",
+                                      "from": "home, up", "turn": 0,
+                                      "cost": 1.0},
+                                     {"move": "y", "hand": "both",
+                                      "finger": "hands", "how": "regrip",
+                                      "from": "any", "turn": 0, "cost": 1.5,
+                                      "reset": true, "off": true}]}},
+               {"name": "Right-handed 2H", "moves": {"R": 1.0, "U'": 1.1},
                 "other": 2.5, "axis": 0.15,
                 "rules": [{"first": "R2", "second": "F*", "cost": 0.6}]}],
   "moveSets": [{"name": "Mine", "moves": "U, R, F2"}]
@@ -475,17 +490,30 @@ under `[blind]`.
   left the alg) and `include` (counted although it left the alg), the
   physical `scramble` and the virtual `moves` are left out when false or
   empty.
-- `profiles`: the ergonomic profiles: the cost of each move (`moves`), of
-  a move not listed (`other`) and of a turn on another axis (`axis`), and
-  the `rules` for pairs of moves. A file without `profiles` gets the
-  built-in ones.
+- `profiles`: the ergonomic profiles. A move profile has the cost of each
+  move (`moves`), of a move not listed (`other`) and of a turn on another
+  axis (`axis`), and the `rules` for pairs of moves. A grip profile also
+  has `grips`, which it scores with instead: the costs of a regrip
+  (`regrip`), a regrip while the other hand turns (`hiddenRegrip`), each
+  regrip step past the first (`regripStep`), each move ending with a hand
+  far up or down (`strain`), each step from home of the starting grips
+  (`start`), a finger turning two moves in a row (`sameFinger`) and a move
+  no trick turns (`other`), and its `tricks`: the `move` each turns (as
+  written, `R2`), the `hand` (`right`, `left`, `both`, `either`), the
+  `finger` (`thumb`, `index`, `middle`, `ring`, `wrist`, `hands`), `how`
+  (shown with them), the grips it starts `from` (`far down`, `down`,
+  `home`, `up`, `far up`, comma-separated, or `any`), the steps its
+  hand's thumb moves (`turn`, R is 1), its `cost`, `reset` (both hands
+  end home, for rotations) and `off` (never chosen); `reset` and `off`
+  are left out when false and a trick that can't be read is left out. A
+  file without `profiles` gets the built-in ones.
 - `moveSets`: your own move-set presets, as text (a layer for quarter and
   half turns, `2` for half turns only, `1` for quarter turns only).
 
 Entries, candidates and attempts whose case key can't be read are left
 out. The Alg Lab page's own choices (the case shown, the generator's
-options, the filters, the profile) are in the settings file under
-`[alglab]`.
+options, the filters, the profile, as `scoreProfile`) are in the settings
+file under `[alglab]`.
 
 ## Settings
 
