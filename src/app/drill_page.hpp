@@ -2,6 +2,7 @@
 
 #include "app/case_page.hpp"
 #include "app/cube_view.hpp"
+#include "app/page_parts.hpp"
 #include "app/widgets.hpp"
 #include "train/case_picker.hpp"
 #include "train/drill_flow.hpp"
@@ -18,6 +19,7 @@
 #include <vector>
 
 class QPushButton;
+class QToolButton;
 
 namespace vcube {
 
@@ -133,6 +135,9 @@ private:
   QComboBox *orderBox_;
   bool controlsLocked_ = false;
   QWidget *viewRow_;
+  OptionBar *options_;
+  QToolButton *casesButton_;
+  QLabel *keysLabel_;
   QLabel *scrambleLabel_;
   CubeView *cubeView_;
   TimeDisplay *display_;
@@ -155,6 +160,8 @@ private:
   // Does what the flow asked after a key.
   void perform(const DrillFlow::Step &step, std::int64_t now);
   QString hintText(DrillFlow::Hint hint) const;
+  // The status line and, under it, the keys that do something now.
+  void say(const QString &message, const QList<KeyHint> &keys = {});
   Pool poolChoice() const;
   // The cases the scope chooses, and of those the pool's, which can be
   // drilled.

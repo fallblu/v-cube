@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QToolButton>
 #include <QTreeWidget>
 
 #include <algorithm>
@@ -164,10 +165,16 @@ void DrillPage::updateSummary() {
     summary_->setText(tr("No alg sets. Create one in Library mode."));
     return;
   }
+  // The picker says what is drilled: "Ticked cases · All (12)".
+  const auto drilled = pool().size();
+  casesButton_->setText(
+      tr("%1 · %2 (%3)")
+          .arg(scopeBox_->currentText(), poolBox_->currentText())
+          .arg(drilled));
   QString text = tr("%1 of %2 ticked, %3 to drill. Target time %4 s.")
                      .arg(tickedCount())
                      .arg(s->caseCount())
-                     .arg(pool().size())
+                     .arg(drilled)
                      .arg(s->targetSeconds, 0, 'f', 2);
   if (picker_.mode() == PickMode::Recap && picker_.recapLeft() > 0) {
     text += " " + tr("Recap: %1 still to come.").arg(picker_.recapLeft());
