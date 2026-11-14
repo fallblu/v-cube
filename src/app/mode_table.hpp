@@ -9,9 +9,8 @@ namespace vcube {
 
 // The main window's modes, one page each.
 struct AppMode {
-  // In this order Ctrl+1 to Ctrl+9 (Today Ctrl+0); the help text and the
-  // Today page's activity follow it too. Alg Lab came last, so it keeps
-  // Ctrl+9 although the sidebar lists it with the alg modes.
+  // The order of the pages and of the Today page's activity. The sidebar
+  // has its own order (sidebarOrder), which Ctrl+0 to Ctrl+9 follow.
   enum Id : int {
     Learn,
     Drill,

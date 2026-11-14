@@ -73,6 +73,8 @@ if(TARGET vcube_gui)
   target_link_libraries(vcube_gui_tests PRIVATE vcube_gui Qt6::Test
     vcube_warnings)
   set_target_properties(vcube_gui_tests PROPERTIES AUTOMOC ON)
+  target_compile_definitions(vcube_gui_tests PRIVATE
+    VCUBE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
   if(WIN32)
     # Qt's libraries are copied next to the test, away from its plugins.
     target_compile_definitions(vcube_gui_tests PRIVATE

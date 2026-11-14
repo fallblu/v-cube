@@ -1,20 +1,16 @@
 # Keys
 
-Every keyboard control, mode by mode. In the app, `F1` shows the same
-controls in a panel beside the page, the current mode's first, with your
-own turning keys. The [user guide](user-guide.md) says more about what
-each mode does.
+<!-- Written from src/app/help_text.cpp by the test "keys.md matches the key table": edit the table, not this file. -->
 
-A key only reaches the mode's page when no text field or dialog has the
-keyboard. A search box or count field gives the keys back with Enter (or
-Esc).
+Every keyboard control, mode by mode. In the app, `F1` shows the same controls in a panel beside the page, the current mode's first, with your own turning keys. The [user guide](user-guide.md) says more about what each mode does.
+
+A key only reaches the mode's page when no text field or dialog has the keyboard. A search box or count field gives the keys back with Enter (or Esc).
 
 ## Window
 
 | Key | Action |
 | --- | --- |
-| Ctrl+1 … Ctrl+8 | Learn, Drill, Library, Timed, Untimed, Move Count, Inspection, Blind (not while a solve or inspection is running) |
-| Ctrl+9 | Alg Lab |
+| Ctrl+1 … Ctrl+9 | Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, Inspection, Blind, in the sidebar's order (not while a solve or inspection is running) |
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
@@ -27,24 +23,20 @@ Esc).
 
 ## Turning keys
 
-The virtual cube (Learn, Drill on the virtual cube, the Solves modes'
-virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) is
-turned with cstimer's face keys.
-Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G
-is `f'`. Remap them in Settings > Keyboard: select a row and **Change** its
-key or move, or **Add** one. A turning key may be held with Shift but not
-Ctrl or Alt; the digits, arrows, function keys and the modes' own keys
-can't be bound.
+The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Keyboard: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
 
-| Move | Key | Move | Key | Move | Key |
-| --- | --- | --- | --- | --- | --- |
-| R R' | I K | U U' | J F | F F' | H G |
-| L L' | D E | D D' | S L | B B' | W O |
-| M' M | U M | x x' | R V | y y' | ; A |
-| z z' | P Q | | | | |
+| Key | Move | Key | Move | Key | Move | Key | Move |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| I | R | Shift+I | r | K | R' | Shift+K | r' |
+| D | L | Shift+D | l | E | L' | Shift+E | l' |
+| J | U | Shift+J | u | F | U' | Shift+F | u' |
+| S | D | Shift+S | d | L | D' | Shift+L | d' |
+| H | F | Shift+H | f | G | F' | Shift+G | f' |
+| W | B | Shift+W | b | O | B' | Shift+O | b' |
+| U | M' | M | M | R | x | V | x' |
+| ; | y | A | y' | P | z | Q | z' |
 
-Before a solve starts, the cube only turns as a whole (rotations), so that
-a slip can't turn a face early.
+Before a solve starts, the cube only turns as a whole (rotations), so that a slip can't turn a face early.
 
 ## Learn
 
@@ -105,8 +97,7 @@ a slip can't turn a face early.
 | practice | Backspace | toggle DNF or "wrong alg" on the attempt |
 | practice | Delete or Ctrl+Z | delete the attempt |
 
-For about 0.3 s after the timer stops, keys are ignored, so that a second
-press doesn't skip the result.
+For about 0.3 s after the timer stops, keys are ignored, so that a second press doesn't skip the result.
 
 ## Library
 
@@ -206,8 +197,7 @@ In the solve review (Alt+R, or double-click a solve):
 | Bad edges | 0-9 / Backspace / Enter | type a count / correct it / give it (F/B first, then R/L if asked) |
 | Bad edges, afterwards | Tab | ring the other axis's bad edges |
 
-A Space in the moment the time limit hides the cube is ignored, and Space
-with no moves done doesn't finish.
+A Space in the moment the time limit hides the cube is ignored, and Space with no moves done doesn't finish.
 
 ## Blind
 
@@ -232,8 +222,7 @@ with no moves done doesn't finish.
 
 ## Alg Lab
 
-The Search tab is used with the mouse: Enter in the field under the list
-adds the alg typed. These keys are for the Test tab.
+The Search tab is used with the mouse: Enter in the field under the list adds the alg typed. These keys are for the Test tab.
 
 | When | Key | Action |
 | --- | --- | --- |
@@ -248,8 +237,7 @@ adds the alg typed. These keys are for the Test tab.
 | After an attempt | Delete | delete the time and set the case up again |
 | After an attempt | Esc | the same alg again |
 
-Keys are ignored for a moment after the timer stops. Double-click an alg in
-the session's list to time it next.
+Keys are ignored for a moment after the timer stops. Double-click an alg in the session's list to time it next.
 
 ## Today
 
