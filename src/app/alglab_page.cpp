@@ -144,7 +144,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   labLayout->setContentsMargins(0, 0, 0, 0);
   auto *newCase = new QPushButton(tr("New…"), labButtons_);
   auto *editCase = new QPushButton(tr("Edit…"), labButtons_);
-  auto *deleteCase = new QPushButton(tr("Delete"), labButtons_);
+  auto *deleteCase = new QPushButton(tr("Delete…"), labButtons_);
   labLayout->addWidget(newCase);
   labLayout->addWidget(editCase);
   labLayout->addWidget(deleteCase);
@@ -292,7 +292,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   addEdit_ = new QLineEdit(search);
   addEdit_->setPlaceholderText(tr("Type an alg and press Enter to add it"));
   auto *addButton = new QPushButton(tr("Add"), search);
-  auto *pasteButton = new QPushButton(tr("Paste…"), search);
+  auto *pasteButton = new QPushButton(tr("Paste algs…"), search);
   addRow->addWidget(addEdit_, 1);
   addRow->addWidget(addButton);
   addRow->addWidget(pasteButton);

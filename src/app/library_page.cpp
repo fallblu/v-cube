@@ -3,8 +3,11 @@
 
 #include "app/alglab_common.hpp"
 #include "app/case_filter.hpp"
+#include "app/case_history_dialog.hpp"
 #include "app/cube_painter.hpp"
+#include "app/drill_history_dialog.hpp"
 #include "app/grip_view.hpp"
+#include "app/mode_table.hpp"
 #include "app/paste_dialog.hpp"
 #include "app/set_properties_dialog.hpp"
 #include "app/ui_state.hpp"
@@ -30,6 +33,7 @@
 #include <QScrollBar>
 #include <QSet>
 #include <QSplitter>
+#include <QToolButton>
 #include <QUndoStack>
 #include <QVBoxLayout>
 
@@ -194,21 +198,6 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   });
   middleLayout->addWidget(caseFilter_);
   middleLayout->addWidget(caseTree_, 1);
-  auto *caseButtons = new QHBoxLayout;
-  auto *newCaseButton = new QPushButton(tr("New case…"), middle);
-  newCaseButton->setToolTip(
-      tr("Make a case from an alg that solves it (%1)")
-          .arg(newCaseAction_->shortcut().toString(QKeySequence::NativeText)));
-  auto *pasteButton = new QPushButton(tr("Paste algs…"), middle);
-  pasteButton->setToolTip(
-      tr("Paste a list of algs; each is filed under the case its line names "
-         "or the case it solves (%1)")
-          .arg(pasteAction_->shortcut().toString(QKeySequence::NativeText)));
-  caseButtons->addWidget(newCaseButton);
-  caseButtons->addStretch();
-  caseButtons->addWidget(pasteButton);
-  middleLayout->addLayout(caseButtons);
-
   // --- the case ---
   caseBox_ = new QGroupBox(tr("Case"), this);
   auto *caseLayout = new QVBoxLayout(caseBox_);
@@ -232,6 +221,67 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   caseTop->addWidget(caseDiagram_, 0, Qt::AlignTop);
   caseTop->addLayout(caseForm, 1);
   caseLayout->addLayout(caseTop);
+  // Where the case goes from here: the modes that practise it, Alg Lab
+  // and its history.
+  auto *goRow = new QHBoxLayout;
+  auto goButton = [this, goRow](const QString &text, auto run) {
+    auto *b = new QPushButton(text, caseBox_);
+    connect(b, &QPushButton::clicked, this, run);
+    goRow->addWidget(b);
+    return b;
+  };
+  goButton(tr("Learn"), [this] {
+    if (currentCase()) {
+      emit practiceRequested(AppMode::Learn, qs(editor_.setId),
+                             qs(currentCase()->id));
+    }
+  });
+  goButton(tr("Drill"), [this] {
+    if (currentCase()) {
+      emit practiceRequested(AppMode::Drill, qs(editor_.setId),
+                             qs(currentCase()->id));
+    }
+  });
+  goButton(tr("Alg Lab"), [this] {
+    if (currentCase()) {
+      emit algLabRequested(qs(editor_.setId), qs(currentCase()->id));
+    }
+  });
+  goRow->addSpacing(12);
+  goButton(tr("Learn history…"), [this] {
+    const AlgCase *c = currentCase();
+    if (!c) {
+      return;
+    }
+    const SetProgress &p = library_.progress(editor_.setId);
+    auto it = p.find(c->id);
+    const CaseProgress *own = it == p.end() ? nullptr : &it->second;
+    showCaseHistory(this, qs(c->name), own, caseAttempts(own, nullptr), false,
+                    settings_.srs);
+  });
+  auto *drillHistory = new QToolButton(caseBox_);
+  drillHistory->setText(tr("Drill history…"));
+  drillHistory->setPopupMode(QToolButton::InstantPopup);
+  auto *drillMenu = new QMenu(drillHistory);
+  const std::pair<AttemptMode, QString> drillModes[] = {
+      {AttemptMode::VirtualDrill, tr("Virtual cube")},
+      {AttemptMode::PhysicalDrill, tr("Physical cube")}};
+  for (const auto &[mode, name] : drillModes) {
+    drillMenu->addAction(name, this, [this, mode] {
+      const AlgCase *c = currentCase();
+      if (!c) {
+        return;
+      }
+      const SetProgress &p = library_.progress(editor_.setId);
+      auto it = p.find(c->id);
+      showDrillHistory(this, qs(c->name), it == p.end() ? nullptr : &it->second,
+                       mode, settings_.decimals);
+    });
+  }
+  drillHistory->setMenu(drillMenu);
+  goRow->addWidget(drillHistory);
+  goRow->addStretch();
+  caseLayout->addLayout(goRow);
   auto *algHelp =
       new QLabel(tr("The first passing alg is the main alg. Drag to reorder "
                     "(or Alt+Up and Alt+Down), F2 or double-click to edit, "
@@ -261,8 +311,23 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   split->setStretchFactor(1, 1);
   split->setStretchFactor(2, 1);
   split->setSizes({220, 520, 460});
-  auto *layout = new QHBoxLayout(this);
-  layout->addWidget(split);
+  // The commands used most, which were only in the menus.
+  auto *toolbar = new QHBoxLayout;
+  for (QAction *a : {newSetAction_, propertiesAction_, newCaseAction_,
+                     pasteAction_, newGroupAction_, checkAction_}) {
+    auto *b = new QToolButton(this);
+    b->setDefaultAction(a);
+    b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    b->setFocusPolicy(Qt::NoFocus);
+    toolbar->addWidget(b);
+    if (a == propertiesAction_) {
+      toolbar->addSpacing(12);
+    }
+  }
+  toolbar->addStretch();
+  auto *layout = new QVBoxLayout(this);
+  layout->addLayout(toolbar);
+  layout->addWidget(split, 1);
 
   // --- wiring ---
   connect(setList_, &QListWidget::currentRowChanged, this, [this](int row) {
@@ -310,9 +375,6 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   connect(caseTree_, &QTreeWidget::itemSelectionChanged, this,
           &LibraryPage::updateActions);
   connect(caseTree_, &CaseTreeWidget::dropped, this, &LibraryPage::dropOnTree);
-  connect(pasteButton, &QPushButton::clicked, this, &LibraryPage::pasteAlgs);
-  connect(newCaseButton, &QPushButton::clicked, this,
-          &LibraryPage::newCaseFromAlg);
   connect(caseNameEdit_, &QLineEdit::editingFinished, this, [this] {
     QString name = caseNameEdit_->text().trimmed();
     AlgCase *c = currentCase();
@@ -777,7 +839,7 @@ void LibraryPage::loadCase() {
     caseProgress_->clear();
     QSignalBlocker block(algList_);
     algList_->clear();
-    caseBox_->setTitle(tr("Case"));
+    caseBox_->setTitle(tr("Select a case to see and edit its algs"));
     updateActions();
     return;
   }
@@ -986,7 +1048,7 @@ void LibraryPage::showAlgMenu(const QPoint &pos) {
   int row = algList_->indexOfTopLevelItem(item);
   algList_->setCurrentItem(item);
   QMenu menu(this);
-  menu.addAction(tr("Make main"), this, [this, row] { makeMain(row); })
+  menu.addAction(tr("Make main alg"), this, [this, row] { makeMain(row); })
       ->setEnabled(row > 0);
   menu.addAction(tr("Edit"), QKeySequence(Qt::Key_F2), this,
                  [this, item] { algList_->editItem(item, 0); });
@@ -1532,18 +1594,16 @@ void LibraryPage::deleteSelected() {
                ? tr("case \"%1\"").arg(qs(s->findCase(ids.front())->name))
                : tr("%1 cases").arg(ids.size());
   }
+  // Not asked first: Edit > Undo brings it all back, which the message
+  // says.
   QString text =
-      tr("Delete %1 and %2?").arg(what, counted(algs, tr("alg"), tr("algs")));
+      tr("Deleted %1 and %2").arg(what, counted(algs, tr("alg"), tr("algs")));
   if (withProgress > 0) {
-    text += " " + tr("Your Learn and Drill progress on %n of the cases goes "
-                     "too.",
-                     nullptr, withProgress);
+    text += " " +
+            tr("with your progress on %n of the cases", nullptr, withProgress);
   }
-  text += "\n\n" + tr("Edit > Undo brings it all back.");
+  emit message(text + tr(" (Ctrl+Z brings it all back)"));
   QString title = groups.empty() ? tr("Delete cases") : tr("Delete groups");
-  if (QMessageBox::question(this, title, text) != QMessageBox::Yes) {
-    return;
-  }
   auto pending = editor_.begin();
   for (auto &g : s->groups) {
     std::erase_if(g.cases, [&ids](const AlgCase &c) {
@@ -1852,7 +1912,7 @@ void LibraryPage::makeMain(int row) {
   if (a && static_cast<std::size_t>(row) < a->checks.size() &&
       !a->checks[static_cast<std::size_t>(row)].passes()) {
     auto answer = QMessageBox::question(
-        this, tr("Make main"),
+        this, tr("Make main alg"),
         tr("This alg doesn't pass the check (%1). It moves to the top of the "
            "list but only becomes the main alg once it passes. Move it "
            "anyway?")
@@ -1865,7 +1925,7 @@ void LibraryPage::makeMain(int row) {
   std::string alg = c->algs[static_cast<std::size_t>(row)];
   c->algs.erase(c->algs.begin() + row);
   c->algs.insert(c->algs.begin(), alg);
-  if (editor_.commit(tr("Make main"), *pending,
+  if (editor_.commit(tr("Make main alg"), *pending,
                      std::vector<std::string>{editor_.caseId})) {
     algList_->setCurrentItem(algList_->topLevelItem(0));
   }

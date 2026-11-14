@@ -68,4 +68,23 @@ bool KeyRouter::route(QKeyEvent *e, bool press) {
   return used;
 }
 
+bool isModifierKey(int key) {
+  switch (key) {
+  case Qt::Key_Shift:
+  case Qt::Key_Control:
+  case Qt::Key_Alt:
+  case Qt::Key_AltGr:
+  case Qt::Key_Meta:
+  case Qt::Key_Super_L:
+  case Qt::Key_Super_R:
+  case Qt::Key_Hyper_L:
+  case Qt::Key_Hyper_R:
+  case Qt::Key_CapsLock:
+  case Qt::Key_NumLock:
+    return true;
+  default:
+    return false;
+  }
+}
+
 } // namespace vcube

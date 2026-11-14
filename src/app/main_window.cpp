@@ -114,6 +114,16 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
             updateBadges();
           });
   libraryPage_->setLab(&data_.lab);
+  connect(libraryPage_, &LibraryPage::practiceRequested, this,
+          [this](int mode, const QString &setId, const QString &caseId) {
+            if (!setMode(mode)) {
+              return;
+            }
+            CasePage *page = mode == AppMode::Drill
+                                 ? static_cast<CasePage *>(drillPage_)
+                                 : static_cast<CasePage *>(learnPage_);
+            page->showCase(setId, caseId);
+          });
   connect(libraryPage_, &LibraryPage::algLabRequested, this,
           [this](const QString &setId, const QString &caseId) {
             if (setMode(AppMode::AlgLab)) {

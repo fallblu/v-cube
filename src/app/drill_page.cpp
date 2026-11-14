@@ -1,4 +1,5 @@
 #include "app/drill_page.hpp"
+#include "app/key_router.hpp"
 #include "app/page_parts.hpp"
 
 #include "app/drill_history_dialog.hpp"
@@ -53,25 +54,6 @@ QString orderName(PickMode m) {
     return "recap";
   }
   return "random";
-}
-
-bool isModifierKey(int key) {
-  switch (key) {
-  case Qt::Key_Shift:
-  case Qt::Key_Control:
-  case Qt::Key_Alt:
-  case Qt::Key_AltGr:
-  case Qt::Key_Meta:
-  case Qt::Key_Super_L:
-  case Qt::Key_Super_R:
-  case Qt::Key_Hyper_L:
-  case Qt::Key_Hyper_R:
-  case Qt::Key_CapsLock:
-  case Qt::Key_NumLock:
-    return true;
-  default:
-    return false;
-  }
 }
 
 } // namespace

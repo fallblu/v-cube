@@ -47,6 +47,8 @@ class CasePage : public ModePage {
 public:
   // The library changed. A hidden page catches up when it is shown.
   void reloadSets();
+  // Shows a set and selects one of its cases in the list.
+  void showCase(const QString &setId, const QString &caseId);
   void applySettings() override;
   void activated() override;
   void deactivated() override;

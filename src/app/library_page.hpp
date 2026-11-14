@@ -107,6 +107,8 @@ signals:
   void setsChanged(const QString &setId);
   // "Open in Alg Lab" on a case's alg.
   void algLabRequested(const QString &setId, const QString &caseId);
+  // Show the case in Learn or Drill (an AppMode).
+  void practiceRequested(int mode, const QString &setId, const QString &caseId);
 
 private:
   using Edit = LibraryEditor::Edit;

@@ -1,4 +1,5 @@
 #include "app/lab_test_panel.hpp"
+#include "app/key_router.hpp"
 
 #include "app/app_settings.hpp"
 #include "app/colours.hpp"
@@ -35,11 +36,6 @@ namespace {
 constexpr std::int64_t kStopGraceMs = 300;
 constexpr int kDiagramSize = 120;
 
-bool isModifier(int key) {
-  return key == Qt::Key_Shift || key == Qt::Key_Control || key == Qt::Key_Alt ||
-         key == Qt::Key_Meta || key == Qt::Key_AltGr || key == Qt::Key_CapsLock;
-}
-
 QTableWidgetItem *item(const QString &text, bool number = false) {
   auto *it = new QTableWidgetItem(text);
   it->setFlags(it->flags() & ~Qt::ItemIsEditable);
@@ -73,9 +69,9 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   auto *sessionRow = new QHBoxLayout;
   sessionBox_ = new QComboBox(this);
   sessionBox_->setMinimumContentsLength(14);
-  auto *newButton = new QPushButton(tr("New"), this);
+  auto *newButton = new QPushButton(tr("New…"), this);
   auto *renameButton = new QPushButton(tr("Rename…"), this);
-  auto *deleteButton = new QPushButton(tr("Delete"), this);
+  auto *deleteButton = new QPushButton(tr("Delete…"), this);
   sessionRow->addWidget(new QLabel(tr("Session:"), this));
   sessionRow->addWidget(sessionBox_, 1);
   sessionRow->addWidget(newButton);
@@ -900,7 +896,7 @@ bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
     if (!press) {
       return key == Qt::Key_Space;
     }
-    if (now - stoppedAt_ < kStopGraceMs && !isModifier(key)) {
+    if (now - stoppedAt_ < kStopGraceMs && !isModifierKey(key)) {
       return true;
     }
     if (!plain) {
@@ -982,7 +978,7 @@ bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
       }
       return false;
     }
-    if (isModifier(key)) {
+    if (isModifierKey(key)) {
       return false;
     }
     timer_.pressStop(now);

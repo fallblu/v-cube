@@ -423,6 +423,13 @@ void CasePage::showSet(const std::string &id) {
   buildTree();
 }
 
+void CasePage::showCase(const QString &setId, const QString &caseId) {
+  if (acrossSets_ || ss(setId) != setId_) {
+    selectSet(ss(setId));
+  }
+  selectInTree(ss(caseId));
+}
+
 void CasePage::releaseKeys() {
   filter_->release();
   if (QWidget *focus = QApplication::focusWidget();
