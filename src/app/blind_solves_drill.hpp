@@ -41,6 +41,8 @@ private:
   QTimer tick_;
   SessionPanel *panel_;
   QComboBox *cubeBox_;
+  // The solve deleted last, for Ctrl+Z (until the session changes).
+  std::optional<BlindAttempt> deleted_;
   QWidget *cubeItem_;
   // The scramble solved: the feed moves on as soon as one is shown, so
   // that no scramble is seen twice.

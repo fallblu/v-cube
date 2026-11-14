@@ -124,6 +124,29 @@ void SolvesDrill::updateControls() {
 
 bool SolvesDrill::handleKey(QKeyEvent *e, bool press) {
   int key = e->key();
+  // Delete and Ctrl+Z for the last solve, as in the solve modes.
+  if (press && !e->isAutoRepeat() && !isBusy()) {
+    Qt::KeyboardModifiers mods =
+        e->modifiers() & (Qt::ControlModifier | Qt::AltModifier |
+                          Qt::ShiftModifier | Qt::MetaModifier);
+    auto &list = session().attempts;
+    if (mods == Qt::NoModifier && key == Qt::Key_Delete && !list.empty()) {
+      deleted_ = list.back();
+      list.pop_back();
+      ctx_.save();
+      refreshLeft();
+      emit message(tr("Solve deleted (Ctrl+Z puts it back)"));
+      return true;
+    }
+    if (mods == Qt::ControlModifier && key == Qt::Key_Z && deleted_) {
+      list.push_back(*deleted_);
+      deleted_.reset();
+      ctx_.save();
+      refreshLeft();
+      emit message(tr("Solve put back"));
+      return true;
+    }
+  }
   std::optional<Move> move = ctx_.settings.keymap.lookup(e);
   using K = BlindSolveFlow::Key;
   K k = key == Qt::Key_Space       ? K::Space
@@ -435,6 +458,7 @@ void SolvesDrill::selectSession(std::size_t index) {
     return;
   }
   ctx_.store.setCurrentIndex(index);
+  deleted_.reset();
   ctx_.save();
   emit restartRequested();
 }

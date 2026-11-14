@@ -104,12 +104,10 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   }
 
   // --- right column: options, scramble, middle, chart ---
-  optionsRow_ = new QWidget(right);
-  auto *options = new FlowLayout(optionsRow_);
-  options->setContentsMargins(0, 0, 0, 0);
+  auto *options = new OptionBar(right);
+  optionsRow_ = options;
   for (BlindDrill *d : drills_) {
     for (QWidget *w : d->options()) {
-      w->setParent(optionsRow_);
       options->addWidget(w);
     }
   }

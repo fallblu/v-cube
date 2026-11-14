@@ -8,15 +8,15 @@
 #include "io/session_store.hpp"
 
 #include <QComboBox>
-#include <QLineEdit>
-#include <QFormLayout>
-#include <QDialogButtonBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
@@ -564,11 +564,13 @@ QString InspectionPage::readyText() const {
   }
   if (!s.attempts.empty() && planning()) {
     const InspectionAttempt &a = s.attempts.back();
-    QString last = a.dnf ? tr("Last: DNF") : tr("Last: %n move(s)", "", a.moves);
+    QString last =
+        a.dnf ? tr("Last: DNF") : tr("Last: %n move(s)", "", a.moves);
     if (!a.dnf && a.optimal) {
       int over = a.moves - *a.optimal;
-      last += over > 0 ? tr(", %1 over the optimal %2").arg(over).arg(*a.optimal)
-                       : tr(", optimal");
+      last += over > 0
+                  ? tr(", %1 over the optimal %2").arg(over).arg(*a.optimal)
+                  : tr(", optimal");
     }
     lines << last;
   }
@@ -1740,15 +1742,18 @@ void InspectionPage::addSession() {
     if (planSteps()[static_cast<std::size_t>(step->currentIndex())] ==
             SolveStep::EOCross &&
         pair->currentIndex() > 0) {
-      text += " + " + qs(std::string(slotName(kSlots4[static_cast<std::size_t>(
-                          pair->currentIndex() - 1)])));
+      text +=
+          " + " +
+          qs(std::string(slotName(
+              kSlots4[static_cast<std::size_t>(pair->currentIndex() - 1)])));
     }
     return text;
   };
   auto refresh = [=] {
     bool plan = drill->currentIndex() == 0;
-    bool cross = plan && planSteps()[static_cast<std::size_t>(
-                             step->currentIndex())] == SolveStep::EOCross;
+    bool cross =
+        plan && planSteps()[static_cast<std::size_t>(step->currentIndex())] ==
+                    SolveStep::EOCross;
     form->setRowVisible(step, plan);
     form->setRowVisible(pair, cross);
     form->setRowVisible(axes, !plan);
@@ -1768,8 +1773,8 @@ void InspectionPage::addSession() {
     chosen = suggested();
   }
   InspectionSession &s = store_.addSession(ss(chosen));
-  s.drill =
-      drill->currentIndex() == 0 ? InspectionDrill::Plan : InspectionDrill::Edges;
+  s.drill = drill->currentIndex() == 0 ? InspectionDrill::Plan
+                                       : InspectionDrill::Edges;
   s.step = planSteps()[static_cast<std::size_t>(step->currentIndex())];
   s.axes = static_cast<EdgeAxes>(axes->currentIndex());
   if (s.drill == InspectionDrill::Plan && s.step == SolveStep::EOCross &&

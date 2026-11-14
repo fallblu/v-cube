@@ -350,6 +350,8 @@ const std::vector<Section> &sections() {
          T("start, end the memo / stop")},
         {T("Blind solves, physical, after a solve"), T("Backspace"),
          T("toggle DNF")},
+        {T("Blind solves, between solves"), T("Delete / Ctrl+Z"),
+         T("delete the last solve / put the last deleted solve back")},
         {T("Blind solves"), T("Esc"), T("cancel")}},
        {}},
       {T("Alg Lab"),

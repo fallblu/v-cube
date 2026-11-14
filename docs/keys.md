@@ -222,6 +222,7 @@ A Space in the moment the time limit hides the cube is ignored, and Space with n
 | Blind solves, virtual | turning keys | rotations during the memo, any turn during the execution, rotations afterwards |
 | Blind solves, physical | Space / any key | start, end the memo / stop |
 | Blind solves, physical, after a solve | Backspace | toggle DNF |
+| Blind solves, between solves | Delete / Ctrl+Z | delete the last solve / put the last deleted solve back |
 | Blind solves | Esc | cancel |
 
 ## Alg Lab
