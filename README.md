@@ -11,7 +11,8 @@ blindfolded solving.
 
 ## Modes
 
-The sidebar lists nine modes in three groups (`Ctrl+1` to `Ctrl+9`), under
+The sidebar lists nine modes in three groups (`Ctrl+1` to `Ctrl+9`, in the
+sidebar's order), under
 a **Today** view (`Ctrl+0`) that shows each alg set's reviews due and new
 cases left, your practice streak, and what you did in each mode today and
 over the last 7 days.

@@ -117,7 +117,7 @@ const std::vector<Section> &sections() {
         {T("in context, afterwards"), T("Space / Enter"), T("another one")},
         {T("in context, afterwards"), T("Esc"), T("the same one again")},
         {T("in context"), T("Backspace"), T("back to learning")},
-        {T("count field (next to Start learning)"), T("digits, then Enter"),
+        {T("count field (next to Add new cases)"), T("digits, then Enter"),
          T("start learning that many cases")}},
        {}},
       {T("Drill"),
@@ -125,7 +125,8 @@ const std::vector<Section> &sections() {
        {},
        {T("When"), T("Key"), T("Action")},
        {{T("virtual, waiting"), T("tap Space, then turn"),
-         T("arm the timer; the first face turn starts it (Settings > Drill can "
+         T("arm the timer; the first face turn starts it (Settings > Timing "
+           "and solves can "
            "have Space held and let go instead; a turn made while Space is "
            "held and green starts it too)")},
         {T("virtual, waiting"), T("turning keys"),
@@ -142,7 +143,7 @@ const std::vector<Section> &sections() {
          T("says which key gives up (with Shift+Space as the give-up key)")},
         {T("virtual, running"), T("turning keys"),
          T("any turn; the timer stops by itself when the step is done (unless "
-           "turned off in Settings > Drill)")},
+           "turned off in Settings > Timing and solves)")},
         {T("virtual, running"), T("Space"),
          T("stop (a DNF unless the step is done; before any face turn, the "
            "attempt is cancelled)")},
@@ -214,7 +215,7 @@ const std::vector<Section> &sections() {
         {T("physical, running"), T("any key"), T("stop")},
         {T("virtual, running"), T("turning keys"),
          T("any turn; the timer stops when the cube is solved (unless turned "
-           "off in Settings > Solves)")},
+           "off in Settings > Timing and solves)")},
         {T("virtual, running"), T("Space"),
          T("stop (a DNF if the cube isn't solved)")},
         {T("after a virtual DNF"), T("Space, Enter or Esc"),
@@ -241,7 +242,7 @@ const std::vector<Section> &sections() {
          T("start the solve, once the hint turns green")},
         {T("virtual, solving"), T("Space"),
          T("end the solve (a DNF if the cube isn't solved); it also ends by "
-           "itself when the cube is solved (Settings > Solves)")},
+           "itself when the cube is solved (Settings > Timing and solves)")},
         {T("virtual, solving"), T("Esc"), T("put the scramble back")},
         {T("virtual, after the solve"), T("turning keys"), T("any turn")},
         {T("virtual, after the solve"), T("Space / Enter"), T("next scramble")},
@@ -377,7 +378,8 @@ const std::vector<Section> &sections() {
           "an alg in the session's list to time it next.")}},
       {T("Today"),
        AppMode::Today,
-       {T("Double-click a set to learn it.")},
+       {T("Each set has a button to review or learn it; Review all sets "
+          "reviews every set's due cases together.")},
        {},
        {
 
@@ -387,15 +389,15 @@ const std::vector<Section> &sections() {
   return all;
 }
 
-const char *const kTurningIntro =
-    T("The virtual cube (Learn, Drill on the virtual cube, the Solves modes' "
-      "virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) "
-      "is turned with cstimer's face keys. Shift and a face key turns the "
-      "wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in "
-      "Settings > Keyboard: select a row and **Change** its key or move, or "
-      "**Add** one. A turning key may be held with Shift but not Ctrl or "
-      "Alt; the digits, arrows, function keys and the modes' own keys can't "
-      "be bound.");
+const char *const kTurningIntro = T(
+    "The virtual cube (Learn, Drill on the virtual cube, the Solves modes' "
+    "virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) "
+    "is turned with cstimer's face keys. Shift and a face key turns the "
+    "wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in "
+    "Settings > Cube and keys: select a row and **Change** its key or move, or "
+    "**Add** one. A turning key may be held with Shift but not Ctrl or "
+    "Alt; the digits, arrows, function keys and the modes' own keys can't "
+    "be bound.");
 const char *const kTurningOutro =
     T("Before a solve starts, the cube only turns as a whole (rotations), so "
       "that a slip can't turn a face early.");

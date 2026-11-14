@@ -23,7 +23,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 
 ## Turning keys
 
-The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Keyboard: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
+The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Cube and keys: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
 
 | Key | Move | Key | Move | Key | Move | Key | Move |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -69,19 +69,19 @@ Before a solve starts, the cube only turns as a whole (rotations), so that a sli
 | in context, afterwards | Space / Enter | another one |
 | in context, afterwards | Esc | the same one again |
 | in context | Backspace | back to learning |
-| count field (next to Start learning) | digits, then Enter | start learning that many cases |
+| count field (next to Add new cases) | digits, then Enter | start learning that many cases |
 
 ## Drill
 
 | When | Key | Action |
 | --- | --- | --- |
-| virtual, waiting | tap Space, then turn | arm the timer; the first face turn starts it (Settings > Drill can have Space held and let go instead; a turn made while Space is held and green starts it too) |
+| virtual, waiting | tap Space, then turn | arm the timer; the first face turn starts it (Settings > Timing and solves can have Space held and let go instead; a turn made while Space is held and green starts it too) |
 | virtual, waiting | turning keys | rotations only until the timer starts |
 | physical, waiting | hold Space, release | start, once the time turns green (Drill's own hold time, Settings > Drill) |
 | waiting | Esc | disarm the timer and set the case up as it was |
 | waiting, running | Shift+Space | give the case up (a DNF). Settings > Drill can make Backspace the give-up key instead. |
 | waiting | Backspace | says which key gives up (with Shift+Space as the give-up key) |
-| virtual, running | turning keys | any turn; the timer stops by itself when the step is done (unless turned off in Settings > Drill) |
+| virtual, running | turning keys | any turn; the timer stops by itself when the step is done (unless turned off in Settings > Timing and solves) |
 | virtual, running | Space | stop (a DNF unless the step is done; before any face turn, the attempt is cancelled) |
 | physical, running | any key but Shift, Ctrl or Alt | stop |
 | running | Esc | cancel (nothing is recorded) |
@@ -131,7 +131,7 @@ Ctrl- or Shift-click selects several cases.
 | before a solve, virtual | turning keys | rotations only |
 | inspection, hold, solve | Esc | cancel (the scramble is put back on the virtual cube) |
 | physical, running | any key | stop |
-| virtual, running | turning keys | any turn; the timer stops when the cube is solved (unless turned off in Settings > Solves) |
+| virtual, running | turning keys | any turn; the timer stops when the cube is solved (unless turned off in Settings > Timing and solves) |
 | virtual, running | Space | stop (a DNF if the cube isn't solved) |
 | after a virtual DNF | Space, Enter or Esc | next scramble |
 | after a solve | Alt+1 / Alt+2 / Alt+3 | no penalty / toggle +2 / toggle DNF on the last solve |
@@ -147,7 +147,7 @@ Ctrl- or Shift-click selects several cases.
 | --- | --- | --- |
 | virtual, before the solve | turning keys | rotations only |
 | virtual, before the solve | hold Space, release | start the solve, once the hint turns green |
-| virtual, solving | Space | end the solve (a DNF if the cube isn't solved); it also ends by itself when the cube is solved (Settings > Solves) |
+| virtual, solving | Space | end the solve (a DNF if the cube isn't solved); it also ends by itself when the cube is solved (Settings > Timing and solves) |
 | virtual, solving | Esc | put the scramble back |
 | virtual, after the solve | turning keys | any turn |
 | virtual, after the solve | Space / Enter | next scramble |
@@ -245,4 +245,4 @@ Keys are ignored for a moment after the timer stops. Double-click an alg in the 
 
 ## Today
 
-Double-click a set to learn it.
+Each set has a button to review or learn it; Review all sets reviews every set's due cases together.

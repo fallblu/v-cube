@@ -16,6 +16,7 @@
 #include <vector>
 
 class QLabel;
+class QPushButton;
 class QTreeWidget;
 
 namespace vcube {
@@ -58,6 +59,7 @@ private:
   QString dataDir_;
   QLabel *streakLabel_;
   QTreeWidget *sets_;
+  QPushButton *reviewAll_;
   QTreeWidget *modes_;
   QTimer refresh_;
 

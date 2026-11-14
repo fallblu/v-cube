@@ -1,4 +1,5 @@
 #include "app/today_page.hpp"
+#include "app/case_page.hpp"
 
 #include "app/mode_table.hpp"
 #include "app/widgets.hpp"
@@ -9,8 +10,10 @@
 #include <QDate>
 #include <QDateTime>
 #include <QDir>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QPushButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -94,7 +97,7 @@ TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
 
   auto *setsTitle = new QLabel(tr("<b>Learn: what's waiting</b>"), this);
   sets_ = table({tr("Alg set"), tr("Due"), tr("New today"), tr("In queue"),
-                 tr("Learned")},
+                 tr("Learned"), QString()},
                 this);
   sets_->setToolTip(tr("Reviews due now or later today, and the new cases "
                        "Learn can still bring in today from the learn "
@@ -103,18 +106,41 @@ TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
           [this](QTreeWidgetItem *item) {
             emit learnSetRequested(item->data(0, kSetIdRole).toString());
           });
-  layout->addWidget(setsTitle);
-  layout->addWidget(sets_, 3);
+  reviewAll_ = new QPushButton(this);
+  reviewAll_->setFocusPolicy(Qt::NoFocus);
+  connect(reviewAll_, &QPushButton::clicked, this,
+          [this] { emit learnSetRequested(QString(CasePage::kAcrossSetsId)); });
 
-  auto *modesTitle = new QLabel(tr("<b>Practice</b>"), this);
+  auto *modesTitle = new QLabel(tr("<b>Activity</b>"), this);
   modes_ = table({tr("Mode"), tr("Today"), tr("Time today"), tr("Last 7 days"),
                   tr("Time, 7 days")},
                  this);
   modes_->setSelectionMode(QAbstractItemView::NoSelection);
   modes_->setToolTip(tr("Solves, cases and answers recorded in each mode, "
                         "and the time they took where it is timed"));
-  layout->addWidget(modesTitle);
-  layout->addWidget(modes_, 2);
+
+  // What to do, and what was done, side by side and no wider than they
+  // need to be.
+  auto *columns = new QHBoxLayout;
+  auto *learnColumn = new QVBoxLayout;
+  auto *learnHead = new QHBoxLayout;
+  learnHead->addWidget(setsTitle);
+  learnHead->addStretch();
+  learnHead->addWidget(reviewAll_);
+  learnColumn->addLayout(learnHead);
+  learnColumn->addWidget(sets_, 1);
+  auto *activityColumn = new QVBoxLayout;
+  // As tall as the other column's head, so the tables line up.
+  modesTitle->setMinimumHeight(reviewAll_->sizeHint().height());
+  activityColumn->addWidget(modesTitle);
+  activityColumn->addWidget(modes_, 1);
+  sets_->setMaximumWidth(720);
+  modes_->setMaximumWidth(720);
+  columns->addLayout(learnColumn, 1);
+  columns->addSpacing(16);
+  columns->addLayout(activityColumn, 1);
+  columns->addStretch(0);
+  layout->addLayout(columns, 1);
 
   refresh_.setInterval(60 * 1000);
   connect(&refresh_, &QTimer::timeout, this, &TodayPage::refresh);
@@ -214,6 +240,7 @@ std::vector<ActivityEvent> TodayPage::events() {
 void TodayPage::refresh() {
   // Learn.
   auto due = dueBySet();
+  int dueTotal = 0;
   sets_->clear();
   for (const AlgSet &set : library_.sets()) {
     const SetWaiting &d = due[set.id];
@@ -229,9 +256,22 @@ void TodayPage::refresh() {
       f.setBold(true);
       item->setFont(1, f);
     }
+    // What the set has waiting, as a button.
+    QString go = d.due > 0                       ? tr("Review")
+                 : d.newLeft > 0 || d.queued > 0 ? tr("Learn")
+                                                 : tr("Open");
+    auto *button = new QPushButton(go, sets_);
+    button->setFocusPolicy(Qt::NoFocus);
+    QString id = qs(set.id);
+    connect(button, &QPushButton::clicked, this,
+            [this, id] { emit learnSetRequested(id); });
+    sets_->setItemWidget(item, 5, button);
+    dueTotal += d.due;
   }
+  reviewAll_->setText(tr("Review all sets (%1 due)").arg(dueTotal));
+  reviewAll_->setEnabled(dueTotal > 0);
 
-  // Practice.
+  // Activity.
   std::vector<ActivityEvent> all = events();
   std::int64_t today = localDayStart();
   QDate date = QDate::currentDate();
