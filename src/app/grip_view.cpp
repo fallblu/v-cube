@@ -1,4 +1,5 @@
 #include "app/grip_view.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/colours.hpp"
 
@@ -18,10 +19,6 @@
 namespace vcube {
 
 namespace {
-
-QString qs(std::string_view s) {
-  return QString::fromUtf8(s.data(), static_cast<qsizetype>(s.size()));
-}
 
 enum Row { RowMove, RowRight, RowLeft, RowCount };
 

@@ -1,4 +1,5 @@
 #include "app/untimed_page.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/review_dialog.hpp"
 #include "train/solve_review.hpp"
@@ -19,8 +20,8 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
     : AttemptPage(settings, store, library, "untimed", false, parent) {
   QWidget *right = cubeView_->parentWidget();
   algs_ = new ScrambleAlgs(library, "untimed/showAlgs", right);
-  setTypeBox(new ScrambleTypeBox(library, typeRow()), algs_->button());
-  centre()->insertWidget(centre()->count() - 1, algs_->label());
+  setTypeBox(new ScrambleTypeBox(library, stage()->options), algs_->button());
+  stage()->addUnderButtons(algs_->label());
 
   algPanel_ = new QWidget(right);
   auto *algLayout = new QVBoxLayout(algPanel_);

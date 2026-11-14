@@ -28,7 +28,7 @@ class QVBoxLayout;
 
 namespace vcube {
 
-class FlowLayout;
+class SolveStage;
 struct ReviewedSolve;
 
 // What Untimed and Move Count mode share (UntimedPage, MoveCountPage):
@@ -88,10 +88,7 @@ protected:
   void setTypeBox(ScrambleTypeBox *box, QWidget *extra = nullptr);
   // Shows the session and scramble and starts the feed.
   void start();
-  FlowLayout *typeLayout() const { return typeLayout_; }
-  QWidget *typeRow() const { return typeRow_; }
-  QVBoxLayout *centre() const { return centre_; }
-  QHBoxLayout *buttonRow() const { return buttonRow_; }
+  SolveStage *stage() const { return stage_; }
   // Adds a widget below the cube, above the chart.
   void addBelowCentre(QWidget *w);
 
@@ -212,13 +209,8 @@ private:
   GeneratedScramble retryScramble_;
   DeletedAttempt<MoveCountAttempt> deleted_;
 
-  QWidget *typeRow_;
-  FlowLayout *typeLayout_;
-  QVBoxLayout *rightLayout_;
-  QVBoxLayout *centre_;
-  QHBoxLayout *buttonRow_;
+  SolveStage *stage_;
   QComboBox *cubeBox_;
-  QWidget *viewPicker_;
   QPushButton *skipButton_;
   QLabel *scrambleLabel_;
   NetPreview *net_;

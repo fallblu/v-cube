@@ -40,6 +40,8 @@ namespace vcube {
 // until Space. Each virtual solve keeps its solution and when each move
 // was turned, which give its step splits (cross, pairs, last layer) and a
 // review.
+class SolveStage;
+
 class TimerPage : public ModePage {
   Q_OBJECT
 public:
@@ -87,10 +89,9 @@ private:
   std::optional<int> eoYours_; // the solve's own EO Cross count
 
   SessionPanel *panel_;
-  QWidget *typeRow_;
+  SolveStage *stage_;
   ScrambleTypeBox *typeBox_;
   QComboBox *cubeBox_;
-  QWidget *viewPicker_;
   QLabel *scrambleLabel_;
   NetPreview *net_;
   CubeView *cubeView_;

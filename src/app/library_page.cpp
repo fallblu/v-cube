@@ -1,4 +1,5 @@
 #include "app/library_page.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/alglab_common.hpp"
 #include "app/case_filter.hpp"
@@ -41,16 +42,11 @@ namespace {
 constexpr int kCaseRole = Qt::UserRole;
 constexpr int kGroupRole = Qt::UserRole + 1;
 
-const StatusColour kPass{Status::Good};
-const StatusColour kWarn{Status::Warning};
-const QColor kFail(0xe6, 0x66, 0x66);
+const auto &kPass = kPassColour;
+const auto &kWarn = kWarnColour;
+const auto &kFail = kFailColour;
 
 constexpr int kDiagramSize = 160;
-
-// "1 alg", "3 algs".
-QString counted(int n, const QString &one, const QString &many) {
-  return QString("%1 %2").arg(n).arg(n == 1 ? one : many);
-}
 
 QString drillText(const CaseProgress &p, AttemptMode mode) {
   std::size_t n = p.drillCount(mode);

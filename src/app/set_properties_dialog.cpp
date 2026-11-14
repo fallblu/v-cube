@@ -1,4 +1,5 @@
 #include "app/set_properties_dialog.hpp"
+#include "app/ui_text.hpp"
 
 #include "train/case_logic.hpp"
 
@@ -45,13 +46,6 @@ QComboBox *maskCombo(QWidget *parent) {
              static_cast<int>(StickerMode::Orientation));
   c->addItem(QObject::tr("Grey"), static_cast<int>(StickerMode::Hidden));
   return c;
-}
-
-QString qs(const std::string &s) { return QString::fromStdString(s); }
-
-// "1 alg", "3 algs".
-QString counted(int n, const QString &one, const QString &many) {
-  return QString("%1 %2").arg(n).arg(n == 1 ? one : many);
 }
 
 // A short explanation shown under a control, rather than in a tooltip.

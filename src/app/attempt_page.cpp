@@ -1,4 +1,5 @@
 #include "app/attempt_page.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/colours.hpp"
 #include "app/flow_layout.hpp"
@@ -99,84 +100,32 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   panel_->setDeleteRowVisible(true);
 
   // --- right column: scramble, cube or entry, chart ---
-  auto *right = new QWidget(this);
-  rightLayout_ = new QVBoxLayout(right);
-  rightLayout_->setContentsMargins(0, 0, 0, 0);
-  typeRow_ = new QWidget(right);
-  typeLayout_ = new FlowLayout(typeRow_);
-  typeLayout_->setContentsMargins(0, 0, 0, 0);
-  cubeBox_ = new QComboBox(typeRow_);
-  cubeBox_->setFocusPolicy(Qt::NoFocus);
-  cubeBox_->addItem(tr("Virtual cube"));
-  cubeBox_->addItem(tr("Physical cube"));
-  cubeBox_->setToolTip(tr("The cube this session's solves are done on (fixed "
-                          "once the session has solves)"));
-  cubeView_ = new CubeView(right);
-  viewPicker_ = new QWidget(typeRow_);
-  auto *viewLayout = new QHBoxLayout(viewPicker_);
-  viewLayout->setContentsMargins(0, 0, 0, 0);
-  viewLayout->addWidget(new QLabel(tr("View:"), viewPicker_));
-  viewLayout->addWidget(createViewSelector(cubeView_, mode, viewPicker_));
-  skipButton_ = flatButton(tr("Skip scramble"), typeRow_);
-  skipButton_->setToolTip(
-      tr("Go on to the next scramble without solving this one (Ctrl+→)"));
-  rightLayout_->addWidget(typeRow_);
-
-  auto *scrambleRow = new QHBoxLayout;
-  scrambleLabel_ = new QLabel(right);
-  scrambleLabel_->setWordWrap(true);
-  scrambleLabel_->setAlignment(Qt::AlignCenter);
-  scrambleLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont sf = scrambleLabel_->font();
-  sf.setPointSize(17);
-  scrambleLabel_->setFont(sf);
-  markScrambleLabel(scrambleLabel_);
-  scrambleLabel_->setMinimumHeight(60);
-  auto *scrambleColumn = new QVBoxLayout;
-  scrambleColumn->addWidget(scrambleLabel_);
-  net_ = new NetPreview(right);
-  scrambleRow->addLayout(scrambleColumn, 1);
-  scrambleRow->addWidget(net_);
-  rightLayout_->addLayout(scrambleRow);
-
-  centre_ = new QVBoxLayout;
-  display_ = new TimeDisplay(right);
-  hintLabel_ = new QLabel(right);
-  hintLabel_->setAlignment(Qt::AlignCenter);
-  hintLabel_->setWordWrap(true);
-  hintLabel_->setForegroundRole(QPalette::PlaceholderText);
-  buttonRow_ = new QHBoxLayout;
+  stage_ = new SolveStage(mode, this);
+  QWidget *right = stage_;
+  cubeBox_ = stage_->cubeBox;
+  cubeView_ = stage_->cube;
+  skipButton_ = stage_->skipButton;
+  scrambleLabel_ = stage_->scramble;
+  net_ = stage_->net;
+  display_ = stage_->display;
+  hintLabel_ = stage_->hint;
+  focusStats_ = stage_->focusStats;
   reviewButton_ = flatButton(tr("Review last"), right);
   reviewButton_->setToolTip(
       tr("Replay the last solve with its steps marked, see the optimal "
          "solutions and how the F2L pairs went (Alt+R; double-click any "
          "solve to review it)"));
-  buttonRow_->addStretch();
-  buttonRow_->addWidget(reviewButton_);
-  buttonRow_->addStretch();
+  stage_->addButton(reviewButton_);
   lastLabel_ = new QLabel(right);
   lastLabel_->setAlignment(Qt::AlignCenter);
   lastLabel_->setWordWrap(true);
-  focusStats_ = new QLabel(right);
-  focusStats_->setAlignment(Qt::AlignCenter);
-  focusStats_->setForegroundRole(QPalette::PlaceholderText);
-  focusStats_->setVisible(false);
-  centre_->addStretch(1);
-  centre_->addWidget(cubeView_, 8);
-  centre_->addWidget(display_);
-  centre_->addWidget(hintLabel_);
-  centre_->addLayout(buttonRow_);
-  centre_->addWidget(lastLabel_);
-  centre_->addWidget(focusStats_);
-  centre_->addStretch(1);
-  rightLayout_->addLayout(centre_, 3);
+  stage_->addUnderButtons(lastLabel_);
 
   chart_ = panel_->chart();
-  chart_->setParent(right);
   chart_->setEmptyText(tr("Move counts will be charted here"));
   chart_->setMoveCounts(true);
   chart_->setSettingsKey(mode + "/chart");
-  rightLayout_->addWidget(chart_, 1);
+  stage_->setChart(chart_);
 
   auto *split = new QSplitter(this);
   split->addWidget(panel_);
@@ -250,15 +199,11 @@ AttemptPage::~AttemptPage() = default;
 
 void AttemptPage::setTypeBox(ScrambleTypeBox *box, QWidget *extra) {
   typeBox_ = box;
-  typeLayout_->addWidget(new QLabel(tr("Scramble:"), typeRow_));
-  typeLayout_->addWidget(typeBox_, 1);
+  stage_->options->addPicker(tr("Scramble:"), typeBox_, 1);
   if (extra) {
-    typeLayout_->addWidget(extra);
+    stage_->options->addWidget(extra);
   }
-  typeLayout_->addSpacing(12);
-  typeLayout_->addWidget(cubeBox_);
-  typeLayout_->addWidget(viewPicker_);
-  typeLayout_->addWidget(skipButton_);
+  stage_->addStandardOptions();
   connect(typeBox_, &ScrambleTypeBox::typeChanged, this,
           [this](const QString &type) {
             if (session().scrambleType != ss(type)) {
@@ -283,9 +228,7 @@ void AttemptPage::start() {
   feed_.setType(typeBox_->currentType()); // if the type didn't change
 }
 
-void AttemptPage::addBelowCentre(QWidget *w) {
-  rightLayout_->insertWidget(rightLayout_->indexOf(chart_), w);
-}
+void AttemptPage::addBelowCentre(QWidget *w) { stage_->addAboveChart(w); }
 
 bool AttemptPage::onVirtualCube() const {
   return store_.sessions()[store_.currentIndex()].cube == CubeKind::Virtual;
@@ -322,7 +265,7 @@ void AttemptPage::focusModeChanged() {
     returnFocus();
   }
   panel_->setVisible(!on);
-  typeRow_->setVisible(!on);
+  stage_->options->setVisible(!on);
   // The hint shows the hold's progress in focus mode too.
   hintLabel_->setVisible(!on || flow_.isHolding());
   chart_->setVisible(!on && !scramblesOnly());
@@ -358,7 +301,7 @@ void AttemptPage::showCubeKind() {
   bool virt = onVirtualCube();
   cubeBox_->setCurrentIndex(virt ? 0 : 1);
   cubeView_->setVisible(virt);
-  viewPicker_->setVisible(virt);
+  stage_->viewPicker->setVisible(virt);
   net_->setVisible(!virt);
   showModeWidgets(virt);
   chart_->setVisible(!scramblesOnly() && !focusMode());

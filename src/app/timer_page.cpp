@@ -1,4 +1,5 @@
 #include "app/timer_page.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/review_dialog.hpp"
 #include "app/ui_state.hpp"
@@ -103,68 +104,24 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   panel_->setHiddenColumnsKey(saved::timedHiddenColumns().key());
 
   // --- right column: scramble, timer, chart ---
-  auto *right = new QWidget(this);
-  auto *rightLayout = new QVBoxLayout(right);
-  rightLayout->setContentsMargins(0, 0, 0, 0);
-  typeRow_ = new QWidget(right);
-  auto *typeRow = new QHBoxLayout(typeRow_);
-  typeRow->setContentsMargins(0, 0, 0, 0);
-  typeBox_ = new ScrambleTypeBox(library_, typeRow_);
-  nextButton_ = flatButton(tr("Skip scramble"), typeRow_);
-  nextButton_->setToolTip(
-      tr("Go on to the next scramble without solving this one (Ctrl+→)"));
-  cubeBox_ = new QComboBox(typeRow_);
-  cubeBox_->setFocusPolicy(Qt::NoFocus);
-  cubeBox_->addItem(tr("Virtual cube"));
-  cubeBox_->addItem(tr("Physical cube"));
-  cubeBox_->setToolTip(tr("The cube this session's solves are done on (fixed "
-                          "once the session has solves)"));
-  cubeView_ = new CubeView(right);
+  stage_ = new SolveStage("timed", this);
+  QWidget *right = stage_;
+  typeBox_ = new ScrambleTypeBox(library_, stage_->options);
+  nextButton_ = stage_->skipButton;
+  cubeBox_ = stage_->cubeBox;
+  cubeView_ = stage_->cube;
   cubeView_->setToolTip(
       tr("Turn the cube as a whole to look at it, hold Space to start the "
          "timer, and solve"));
-  viewPicker_ = new QWidget(typeRow_);
-  auto *viewLayout = new QHBoxLayout(viewPicker_);
-  viewLayout->setContentsMargins(0, 0, 0, 0);
-  viewLayout->addWidget(new QLabel(tr("View:"), viewPicker_));
-  viewLayout->addWidget(createViewSelector(cubeView_, "timed", viewPicker_));
-  typeRow->addWidget(new QLabel(tr("Scramble:"), typeRow_));
   algs_ = new ScrambleAlgs(library_, "timer/showAlgs", right);
-  typeRow->addWidget(typeBox_, 1);
-  typeRow->addWidget(algs_->button());
-  typeRow->addSpacing(12);
-  typeRow->addWidget(cubeBox_);
-  typeRow->addWidget(viewPicker_);
-  typeRow->addWidget(nextButton_);
-  rightLayout->addWidget(typeRow_);
-
-  auto *scrambleRow = new QHBoxLayout;
-  auto *scrambleColumn = new QVBoxLayout;
-  scrambleLabel_ = new QLabel(right);
-  scrambleLabel_->setWordWrap(true);
-  scrambleLabel_->setAlignment(Qt::AlignCenter);
-  scrambleLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont sf = scrambleLabel_->font();
-  sf.setPointSize(17);
-  scrambleLabel_->setFont(sf);
-  markScrambleLabel(scrambleLabel_);
-  scrambleLabel_->setMinimumHeight(60);
-  scrambleColumn->addWidget(scrambleLabel_);
-  net_ = new NetPreview(right);
-  scrambleRow->addLayout(scrambleColumn, 1);
-  scrambleRow->addWidget(net_);
-  rightLayout->addLayout(scrambleRow);
-
-  auto *timeColumn = new QVBoxLayout;
-  display_ = new TimeDisplay(right);
-  statusLabel_ = new QLabel(right);
-  statusLabel_->setAlignment(Qt::AlignCenter);
-  statusLabel_->setWordWrap(true);
-  focusStats_ = new QLabel(right);
-  focusStats_->setAlignment(Qt::AlignCenter);
-  focusStats_->setForegroundRole(QPalette::PlaceholderText);
-  focusStats_->setVisible(false);
-  auto *penaltyRow = new QHBoxLayout;
+  stage_->options->addPicker(tr("Scramble:"), typeBox_, 1);
+  stage_->options->addWidget(algs_->button());
+  stage_->addStandardOptions();
+  scrambleLabel_ = stage_->scramble;
+  net_ = stage_->net;
+  display_ = stage_->display;
+  statusLabel_ = stage_->hint;
+  focusStats_ = stage_->focusStats;
   plus2Button_ = flatButton("+2", right);
   dnfButton_ = flatButton("DNF", right);
   reviewButton_ = flatButton(tr("Review last"), right);
@@ -173,25 +130,15 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   reviewButton_->setToolTip(
       tr("Replay the last solve with its steps and splits (Alt+R; "
          "double-click any solve to review it)"));
-  penaltyRow->addStretch();
-  penaltyRow->addWidget(plus2Button_);
-  penaltyRow->addWidget(dnfButton_);
-  penaltyRow->addWidget(reviewButton_);
-  penaltyRow->addStretch();
-  timeColumn->addStretch(1);
-  timeColumn->addWidget(cubeView_, 8);
-  timeColumn->addWidget(display_);
-  timeColumn->addWidget(statusLabel_);
-  timeColumn->addWidget(focusStats_);
-  timeColumn->addLayout(penaltyRow);
-  timeColumn->addWidget(algs_->label());
-  timeColumn->addStretch(1);
-  rightLayout->addLayout(timeColumn, 3);
+  stage_->addButton(plus2Button_);
+  stage_->addButton(dnfButton_);
+  stage_->addButton(reviewButton_);
+  stage_->addUnderButtons(algs_->label());
 
   chart_ = panel_->chart();
   chart_->setVisible(true);
   chart_->setSettingsKey("timed/chart");
-  rightLayout->addWidget(chart_, 1);
+  stage_->setChart(chart_);
 
   auto *split = new QSplitter(this);
   split->addWidget(panel_);
@@ -329,7 +276,7 @@ void TimerPage::showCubeKind() {
   bool virt = onVirtualCube();
   cubeBox_->setCurrentIndex(virt ? 0 : 1);
   cubeView_->setVisible(virt);
-  viewPicker_->setVisible(virt && !focusMode());
+  stage_->viewPicker->setVisible(virt);
   net_->setVisible(!virt);
   showColumns();
 }
@@ -395,7 +342,7 @@ void TimerPage::updateControls() {
 void TimerPage::focusModeChanged() {
   const bool on = focusMode();
   panel_->setVisible(!on);
-  typeRow_->setVisible(!on);
+  stage_->options->setVisible(!on);
   chart_->setVisible(!on);
   focusStats_->setVisible(on);
   showCubeKind();

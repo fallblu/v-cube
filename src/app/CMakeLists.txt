@@ -41,6 +41,7 @@ add_library(vcube_gui STATIC
   learn_page.cpp
   library_editor.cpp
   library_page.cpp
+  page_parts.cpp
   paste_dialog.cpp
   main_window.cpp
   move_count_page.cpp
