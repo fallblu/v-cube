@@ -31,8 +31,17 @@ public:
 
   void accept() override;
 
+signals:
+  // Apply was pressed: the settings as the dialog now has them.
+  void applied(const AppSettings &settings);
+
 protected:
   bool eventFilter(QObject *watched, QEvent *event) override;
+
+private:
+  // Reads the controls into the settings; false (with a message) if
+  // something can't be read.
+  bool collect();
 
 private:
   AppSettings settings_;

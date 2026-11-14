@@ -61,9 +61,15 @@ QString AppMode::label(int mode) {
 QString AppMode::settingsId(int mode) { return info(mode).id; }
 
 QKeySequence AppMode::shortcut(int mode) {
-  return mode == Today
-             ? QKeySequence(Qt::CTRL | Qt::Key_0)
-             : QKeySequence(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_1 + mode));
+  // The digit is the mode's place in the sidebar: Today 0, Learn 1, ...
+  const auto &order = sidebarOrder();
+  for (std::size_t i = 0; i < order.size(); ++i) {
+    if (order[i] == mode) {
+      return QKeySequence(
+          Qt::CTRL | static_cast<Qt::Key>(Qt::Key_0 + static_cast<int>(i)));
+    }
+  }
+  return {};
 }
 
 int AppMode::fromSettingsId(const QString &id) {

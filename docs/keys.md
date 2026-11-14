@@ -1,23 +1,20 @@
 # Keys
 
-Every keyboard control, mode by mode. In the app, `F1` shows the same
-controls in a panel beside the page, the current mode's first, with your
-own turning keys. The [user guide](user-guide.md) says more about what
-each mode does.
+<!-- Written from src/app/help_text.cpp by the test "keys.md matches the key table": edit the table, not this file. -->
 
-A key only reaches the mode's page when no text field or dialog has the
-keyboard. A search box or count field gives the keys back with Enter (or
-Esc).
+Every keyboard control, mode by mode. In the app, `F1` shows the same controls in a panel beside the page, the current mode's first, with your own turning keys. The [user guide](user-guide.md) says more about what each mode does.
+
+A key only reaches the mode's page when no text field or dialog has the keyboard. A search box or count field gives the keys back with Enter (or Esc).
 
 ## Window
 
 | Key | Action |
 | --- | --- |
-| Ctrl+1 … Ctrl+8 | Learn, Drill, Library, Timed, Untimed, Move Count, Inspection, Blind (not while a solve or inspection is running) |
-| Ctrl+9 | Alg Lab |
+| Ctrl+1 … Ctrl+9 | Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, Inspection, Blind, in the sidebar's order (not while a solve or inspection is running) |
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
+| F9 | show or hide the mode's side panel (the case list or the session) |
 | F11 | full screen |
 | F10 | focus mode (right-click outside the scramble, timer, cube and algs to switch it, full screen or the sidebar with the mouse) |
 | Ctrl+B | show or hide the sidebar |
@@ -27,24 +24,20 @@ Esc).
 
 ## Turning keys
 
-The virtual cube (Learn, Drill on the virtual cube, the Solves modes'
-virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) is
-turned with cstimer's face keys.
-Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G
-is `f'`. Remap them in Settings > Keyboard: select a row and **Change** its
-key or move, or **Add** one. A turning key may be held with Shift but not
-Ctrl or Alt; the digits, arrows, function keys and the modes' own keys
-can't be bound.
+The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Cube and keys: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
 
-| Move | Key | Move | Key | Move | Key |
-| --- | --- | --- | --- | --- | --- |
-| R R' | I K | U U' | J F | F F' | H G |
-| L L' | D E | D D' | S L | B B' | W O |
-| M' M | U M | x x' | R V | y y' | ; A |
-| z z' | P Q | | | | |
+| Key | Move | Key | Move | Key | Move | Key | Move |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| I | R | Shift+I | r | K | R' | Shift+K | r' |
+| D | L | Shift+D | l | E | L' | Shift+E | l' |
+| J | U | Shift+J | u | F | U' | Shift+F | u' |
+| S | D | Shift+S | d | L | D' | Shift+L | d' |
+| H | F | Shift+H | f | G | F' | Shift+G | f' |
+| W | B | Shift+W | b | O | B' | Shift+O | b' |
+| U | M' | M | M | R | x | V | x' |
+| ; | y | A | y' | P | z | Q | z' |
 
-Before a solve starts, the cube only turns as a whole (rotations), so that
-a slip can't turn a face early.
+Before a solve starts, the cube only turns as a whole (rotations), so that a slip can't turn a face early.
 
 ## Learn
 
@@ -58,7 +51,6 @@ a slip can't turn a face early.
 | after a case | 1 / 2 / 3 / 4 | change the grade to Again / Hard / Good / Easy |
 | after a case | Esc | reset the cube to practise the case |
 | any time | Ctrl+Z | take back the last grade (up to 10) and do the case again |
-| any time | F9 | hide or show the case list |
 | walkthrough | → / ← | step through the main alg / back |
 | walkthrough | Home or Esc | back to the start |
 | walkthrough | Space / Enter | do the case, with each next move shown |
@@ -77,19 +69,19 @@ a slip can't turn a face early.
 | in context, afterwards | Space / Enter | another one |
 | in context, afterwards | Esc | the same one again |
 | in context | Backspace | back to learning |
-| count field (next to Start learning) | digits, then Enter | start learning that many cases |
+| count field (next to Add new cases) | digits, then Enter | start learning that many cases |
 
 ## Drill
 
 | When | Key | Action |
 | --- | --- | --- |
-| virtual, waiting | tap Space, then turn | arm the timer; the first face turn starts it (Settings > Drill can have Space held and let go instead; a turn made while Space is held and green starts it too) |
+| virtual, waiting | tap Space, then turn | arm the timer; the first face turn starts it (Settings > Timing and solves can have Space held and let go instead; a turn made while Space is held and green starts it too) |
 | virtual, waiting | turning keys | rotations only until the timer starts |
 | physical, waiting | hold Space, release | start, once the time turns green (Drill's own hold time, Settings > Drill) |
 | waiting | Esc | disarm the timer and set the case up as it was |
 | waiting, running | Shift+Space | give the case up (a DNF). Settings > Drill can make Backspace the give-up key instead. |
 | waiting | Backspace | says which key gives up (with Shift+Space as the give-up key) |
-| virtual, running | turning keys | any turn; the timer stops by itself when the step is done (unless turned off in Settings > Drill) |
+| virtual, running | turning keys | any turn; the timer stops by itself when the step is done (unless turned off in Settings > Timing and solves) |
 | virtual, running | Space | stop (a DNF unless the step is done; before any face turn, the attempt is cancelled) |
 | physical, running | any key but Shift, Ctrl or Alt | stop |
 | running | Esc | cancel (nothing is recorded) |
@@ -105,8 +97,7 @@ a slip can't turn a face early.
 | practice | Backspace | toggle DNF or "wrong alg" on the attempt |
 | practice | Delete or Ctrl+Z | delete the attempt |
 
-For about 0.3 s after the timer stops, keys are ignored, so that a second
-press doesn't skip the result.
+For about 0.3 s after the timer stops, keys are ignored, so that a second press doesn't skip the result.
 
 ## Library
 
@@ -140,10 +131,11 @@ Ctrl- or Shift-click selects several cases.
 | before a solve, virtual | turning keys | rotations only |
 | inspection, hold, solve | Esc | cancel (the scramble is put back on the virtual cube) |
 | physical, running | any key | stop |
-| virtual, running | turning keys | any turn; the timer stops when the cube is solved (unless turned off in Settings > Solves) |
+| virtual, running | turning keys | any turn; the timer stops when the cube is solved (unless turned off in Settings > Timing and solves) |
 | virtual, running | Space | stop (a DNF if the cube isn't solved) |
 | after a virtual DNF | Space, Enter or Esc | next scramble |
 | after a solve | Alt+1 / Alt+2 / Alt+3 | no penalty / toggle +2 / toggle DNF on the last solve |
+| after a solve | Backspace | toggle DNF on the last solve, as in Drill |
 | after a solve | Alt+C / Alt+R | comment on / review the last solve |
 | after a solve | Delete / Ctrl+Z | delete the last solve / put the last deleted solve back |
 | after a solve | Ctrl+→ | skip the scramble |
@@ -155,7 +147,7 @@ Ctrl- or Shift-click selects several cases.
 | --- | --- | --- |
 | virtual, before the solve | turning keys | rotations only |
 | virtual, before the solve | hold Space, release | start the solve, once the hint turns green |
-| virtual, solving | Space | end the solve (a DNF if the cube isn't solved); it also ends by itself when the cube is solved (Settings > Solves) |
+| virtual, solving | Space | end the solve (a DNF if the cube isn't solved); it also ends by itself when the cube is solved (Settings > Timing and solves) |
 | virtual, solving | Esc | put the scramble back |
 | virtual, after the solve | turning keys | any turn |
 | virtual, after the solve | Space / Enter | next scramble |
@@ -205,9 +197,11 @@ In the solve review (Alt+R, or double-click a solve):
 | Bad edges | Space | show the cube; afterwards, the next scramble |
 | Bad edges | 0-9 / Backspace / Enter | type a count / correct it / give it (F/B first, then R/L if asked) |
 | Bad edges, afterwards | Tab | ring the other axis's bad edges |
+| between attempts | Delete / Ctrl+Z | delete the last attempt / put the last deleted attempt back |
+| between attempts | Alt+R | review the last Plan attempt |
+| between attempts | Ctrl+→ | skip the scramble |
 
-A Space in the moment the time limit hides the cube is ignored, and Space
-with no moves done doesn't finish.
+A Space in the moment the time limit hides the cube is ignored, and Space with no moves done doesn't finish.
 
 ## Blind
 
@@ -228,12 +222,12 @@ with no moves done doesn't finish.
 | Blind solves, virtual | turning keys | rotations during the memo, any turn during the execution, rotations afterwards |
 | Blind solves, physical | Space / any key | start, end the memo / stop |
 | Blind solves, physical, after a solve | Backspace | toggle DNF |
+| Blind solves, between solves | Delete / Ctrl+Z | delete the last solve / put the last deleted solve back |
 | Blind solves | Esc | cancel |
 
 ## Alg Lab
 
-The Search tab is used with the mouse: Enter in the field under the list
-adds the alg typed. These keys are for the Test tab.
+The Search tab is used with the mouse: Enter in the field under the list adds the alg typed. These keys are for the Test tab.
 
 | When | Key | Action |
 | --- | --- | --- |
@@ -248,9 +242,8 @@ adds the alg typed. These keys are for the Test tab.
 | After an attempt | Delete | delete the time and set the case up again |
 | After an attempt | Esc | the same alg again |
 
-Keys are ignored for a moment after the timer stops. Double-click an alg in
-the session's list to time it next.
+Keys are ignored for a moment after the timer stops. Double-click an alg in the session's list to time it next.
 
 ## Today
 
-Double-click a set to learn it.
+Each set has a button to review or learn it; Review all sets reviews every set's due cases together.

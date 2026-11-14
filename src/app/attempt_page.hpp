@@ -3,6 +3,7 @@
 #include "app/app_settings.hpp"
 #include "app/cube_view.hpp"
 #include "app/mode_page.hpp"
+#include "app/page_parts.hpp"
 #include "app/scramble_source.hpp"
 #include "app/session_panel.hpp"
 #include "app/widgets.hpp"
@@ -28,7 +29,6 @@ class QVBoxLayout;
 
 namespace vcube {
 
-class FlowLayout;
 struct ReviewedSolve;
 
 // What Untimed and Move Count mode share (UntimedPage, MoveCountPage):
@@ -62,6 +62,7 @@ public:
            SettingsPart::Timer | SettingsPart::Counts;
   }
   void applySettings() override;
+  QWidget *sidePanel() const override;
   // Space held to start counts, as in Timed.
   bool isBusy() const override { return flow_.isBusy() || flow_.isHolding(); }
   void deactivated() override;
@@ -88,10 +89,7 @@ protected:
   void setTypeBox(ScrambleTypeBox *box, QWidget *extra = nullptr);
   // Shows the session and scramble and starts the feed.
   void start();
-  FlowLayout *typeLayout() const { return typeLayout_; }
-  QWidget *typeRow() const { return typeRow_; }
-  QVBoxLayout *centre() const { return centre_; }
-  QHBoxLayout *buttonRow() const { return buttonRow_; }
+  SolveStage *stage() const { return stage_; }
   // Adds a widget below the cube, above the chart.
   void addBelowCentre(QWidget *w);
 
@@ -105,8 +103,13 @@ protected:
                         const QString &ao12) const = 0;
   // More statistics below the table of them.
   virtual void addStats(QString &html) { (void)html; }
-  virtual QString physicalHint() const = 0;
-  virtual QString solvingHint() const = 0;
+  // What the hint line says and the keys shown under it.
+  struct Hint {
+    QString message;
+    QList<KeyHint> keys;
+  };
+  virtual Hint physicalHint() const = 0;
+  virtual Hint solvingHint() const = 0;
   // The cube shows what the solve was for (solved, or the step done).
   virtual bool reached(const FaceletCube &cube) const = 0;
   virtual QString notReachedText() const = 0;
@@ -212,13 +215,8 @@ private:
   GeneratedScramble retryScramble_;
   DeletedAttempt<MoveCountAttempt> deleted_;
 
-  QWidget *typeRow_;
-  FlowLayout *typeLayout_;
-  QVBoxLayout *rightLayout_;
-  QVBoxLayout *centre_;
-  QHBoxLayout *buttonRow_;
+  SolveStage *stage_;
   QComboBox *cubeBox_;
-  QWidget *viewPicker_;
   QPushButton *skipButton_;
   QLabel *scrambleLabel_;
   NetPreview *net_;

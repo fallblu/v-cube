@@ -34,8 +34,8 @@ protected:
   void addCells(std::vector<AttemptCell> &cells, const MoveCountAttempt &a,
                 const QString &ao5, const QString &ao12) const override;
   void addStats(QString &html) override;
-  QString physicalHint() const override;
-  QString solvingHint() const override;
+  Hint physicalHint() const override;
+  Hint solvingHint() const override;
   bool reached(const FaceletCube &cube) const override;
   QString notReachedText() const override;
   QString retryNote(const MoveCountAttempt &was) const override;

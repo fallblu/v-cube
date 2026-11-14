@@ -1,4 +1,5 @@
 #include "app/alglab_common.hpp"
+#include "app/ui_state.hpp"
 
 #include "app/app_settings.hpp"
 #include "app/colours.hpp"
@@ -138,8 +139,7 @@ const ErgoProfile *labGuideProfile(const AlgLabStore &store,
 }
 
 const ErgoProfile *labGuideProfile(const AlgLabStore &store) {
-  return labGuideProfile(store,
-                         QSettings().value(kLabProfileSetting).toString());
+  return labGuideProfile(store, saved::lab("scoreProfile").get().toString());
 }
 
 QColor seriesColour(std::size_t i, bool dark) {

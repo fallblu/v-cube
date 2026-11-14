@@ -1,4 +1,6 @@
 #include "app/alglab_page.hpp"
+#include "app/alglab_page_private.hpp"
+#include "app/ui_state.hpp"
 
 #include "app/alglab_dialogs.hpp"
 #include "app/app_settings.hpp"
@@ -39,44 +41,6 @@ namespace {
 
 constexpr int kDiagramSize = 110;
 
-enum Column {
-  ColAlg,
-  ColHtm,
-  ColStm,
-  ColQtm,
-  ColEtm,
-  ColScore,
-  ColSource,
-  ColCount,
-  ColMean,
-  ColMedian,
-  ColBest,
-  ColAo5,
-  ColAo12,
-  ColSd,
-  ColDnf,
-  ColumnCount
-};
-
-QString sourceText(const CandidateRow &r) {
-  if (r.inSet) {
-    return QObject::tr("set");
-  }
-  switch (r.source) {
-  case CandidateSource::Generated:
-    return QObject::tr("generated");
-  case CandidateSource::Pasted:
-    return QObject::tr("pasted");
-  case CandidateSource::Typed:
-    return QObject::tr("typed");
-  case CandidateSource::Set:
-    return QObject::tr("was in set");
-  }
-  return {};
-}
-
-QString key(const char *name) { return QStringLiteral("alglab/") + name; }
-
 // The move-set drop-downs: each item holds its move set's text, "custom"
 // opens the dialog.
 void addMoveSets(QComboBox *box, const AlgLabStore &store, bool any) {
@@ -113,19 +77,13 @@ void selectMoveSet(QComboBox *box, const MoveSet &set) {
 
 } // namespace
 
-struct AlgLabPage::Job {
-  std::atomic<bool> stop{false};
-  int cases = 0;
-  int found = 0;
-  bool dirty = false; // candidates added since the last save
-};
-
 AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
                        AlgLabStore &store, QWidget *parent)
     : ModePage(parent), settings_(settings), library_(library), store_(store) {
   auto *layout = new QHBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
   auto *split = new QSplitter(Qt::Horizontal, this);
+  split->setObjectName("main");
   layout->addWidget(split);
 
   // Cases.
@@ -144,7 +102,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   labLayout->setContentsMargins(0, 0, 0, 0);
   auto *newCase = new QPushButton(tr("New…"), labButtons_);
   auto *editCase = new QPushButton(tr("Edit…"), labButtons_);
-  auto *deleteCase = new QPushButton(tr("Delete"), labButtons_);
+  auto *deleteCase = new QPushButton(tr("Delete…"), labButtons_);
   labLayout->addWidget(newCase);
   labLayout->addWidget(editCase);
   labLayout->addWidget(deleteCase);
@@ -276,6 +234,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
                                                    QHeaderView::Stretch);
   table_->setFocusPolicy(Qt::ClickFocus);
   auto *tableSplit = new QSplitter(Qt::Vertical, search);
+  tableSplit->setObjectName("candidates");
   tableSplit->setChildrenCollapsible(false);
   tableSplit->addWidget(table_);
   auto *gripBox = new QGroupBox(tr("Fingertricks"), tableSplit);
@@ -292,7 +251,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   addEdit_ = new QLineEdit(search);
   addEdit_->setPlaceholderText(tr("Type an alg and press Enter to add it"));
   auto *addButton = new QPushButton(tr("Add"), search);
-  auto *pasteButton = new QPushButton(tr("Paste…"), search);
+  auto *pasteButton = new QPushButton(tr("Paste algs…"), search);
   addRow->addWidget(addEdit_, 1);
   addRow->addWidget(addButton);
   addRow->addWidget(pasteButton);
@@ -379,6 +338,26 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   }
   gl->addStretch();
   genLayout->addWidget(genStatus_);
+  // The generator folds away: a button with an arrow shows or hides it.
+  auto *genToggle = new QToolButton(search);
+  genToggle->setText(tr("Generator"));
+  genToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  genToggle->setAutoRaise(true);
+  genToggle->setCheckable(true);
+  genToggle->setFocusPolicy(Qt::NoFocus);
+  gen->setTitle(QString());
+  auto showGen = [gen, genToggle](bool on) {
+    gen->setVisible(on);
+    genToggle->setArrowType(on ? Qt::DownArrow : Qt::RightArrow);
+  };
+  bool genShown = saved::lab("generatorShown", true).get().toBool();
+  genToggle->setChecked(genShown);
+  showGen(genShown);
+  connect(genToggle, &QToolButton::toggled, this, [showGen](bool on) {
+    saved::lab("generatorShown").set(on);
+    showGen(on);
+  });
+  sl->addWidget(genToggle);
   sl->addWidget(gen);
   tabs_->addTab(search, tr("Search"));
 
@@ -397,25 +376,24 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   });
 
   // Choices kept from last time.
-  QSettings q;
-  lengthMode_->setCurrentIndex(q.value(key("lengthMode"), 0).toInt());
-  extra_->setValue(q.value(key("extra"), 2).toInt());
-  maxLength_->setValue(q.value(key("maxLength"), 16).toInt());
-  maxResults_->setValue(q.value(key("maxResults"), 200).toInt());
-  statsCube_->setCurrentIndex(q.value(key("statsCube"), 0).toInt());
-  statsWindow_->setCurrentIndex(q.value(key("statsWindow"), 0).toInt());
-  noRotations_->setChecked(q.value(key("noRotations"), false).toBool());
-  maxHtm_->setValue(q.value(key("maxHtm"), 0).toInt());
+  lengthMode_->setCurrentIndex(saved::lab("lengthMode", 0).get().toInt());
+  extra_->setValue(saved::lab("extra", 2).get().toInt());
+  maxLength_->setValue(saved::lab("maxLength", 16).get().toInt());
+  maxResults_->setValue(saved::lab("maxResults", 200).get().toInt());
+  statsCube_->setCurrentIndex(saved::lab("statsCube", 0).get().toInt());
+  statsWindow_->setCurrentIndex(saved::lab("statsWindow", 0).get().toInt());
+  noRotations_->setChecked(saved::lab("noRotations", false).get().toBool());
+  maxHtm_->setValue(saved::lab("maxHtm", 0).get().toInt());
   if (auto s = MoveSet::parse(
-          q.value(key("moveSet"), "U, R, F").toString().toStdString())) {
+          saved::lab("moveSet", "U, R, F").get().toString().toStdString())) {
     genSet_ = *s;
   }
-  QString filter = q.value(key("filter")).toString();
+  QString filter = saved::lab("filter").get().toString();
   if (auto s = MoveSet::parse(filter.toStdString())) {
     filterSet_ = *s;
     filterOn_ = true;
   }
-  tabs_->setCurrentIndex(q.value(key("tab"), 0).toInt());
+  tabs_->setCurrentIndex(saved::lab("tab", 0).get().toInt());
 
   fillProfiles();
   fillMoveSetBoxes();
@@ -423,7 +401,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
 
   connect(sourceBox_, &QComboBox::currentIndexChanged, this, [this] {
     if (!loading_) {
-      QSettings().setValue(key("source"), sourceBox_->currentData());
+      saved::lab("source").set(sourceBox_->currentData());
       fillCases();
     }
   });
@@ -440,15 +418,14 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   });
   for (QComboBox *b : {statsCube_, statsWindow_}) {
     connect(b, &QComboBox::currentIndexChanged, this, [this] {
-      QSettings kept;
-      kept.setValue(key("statsCube"), statsCube_->currentIndex());
-      kept.setValue(key("statsWindow"), statsWindow_->currentIndex());
+      saved::lab("statsCube").set(statsCube_->currentIndex());
+      saved::lab("statsWindow").set(statsWindow_->currentIndex());
       fillTable();
     });
   }
   connect(profileBox_, &QComboBox::currentIndexChanged, this, [this] {
     if (!loading_) {
-      QSettings().setValue(kLabProfileSetting, profileBox_->currentText());
+      saved::lab("scoreProfile").set(profileBox_->currentText());
       scoreCache_.clear();
       fillTable();
     }
@@ -458,19 +435,18 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   connect(genBox_, &QComboBox::currentIndexChanged, this,
           &AlgLabPage::genChosen);
   connect(noRotations_, &QCheckBox::toggled, this, [this](bool on) {
-    QSettings().setValue(key("noRotations"), on);
+    saved::lab("noRotations").set(on);
     fillTable();
   });
   connect(maxHtm_, &QSpinBox::valueChanged, this, [this](int v) {
-    QSettings().setValue(key("maxHtm"), v);
+    saved::lab("maxHtm").set(v);
     fillTable();
   });
   auto keepGen = [this] {
-    QSettings kept;
-    kept.setValue(key("lengthMode"), lengthMode_->currentIndex());
-    kept.setValue(key("extra"), extra_->value());
-    kept.setValue(key("maxLength"), maxLength_->value());
-    kept.setValue(key("maxResults"), maxResults_->value());
+    saved::lab("lengthMode").set(lengthMode_->currentIndex());
+    saved::lab("extra").set(extra_->value());
+    saved::lab("maxLength").set(maxLength_->value());
+    saved::lab("maxResults").set(maxResults_->value());
     updateGenControls();
   };
   connect(lengthMode_, &QComboBox::currentIndexChanged, this, keepGen);
@@ -497,7 +473,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   });
   connect(stopButton_, &QPushButton::clicked, this, &AlgLabPage::stopSearch);
   connect(tabs_, &QTabWidget::currentChanged, this, [this](int i) {
-    QSettings().setValue(key("tab"), i);
+    saved::lab("tab").set(i);
     test_->cancelAttempt();
     fillTable();
   });
@@ -529,6 +505,18 @@ bool AlgLabPage::handleKey(QKeyEvent *e, bool press) {
   if (tabs_->currentWidget() == test_) {
     return test_->handleKey(e, press);
   }
+  // Ctrl+Z takes back an alg added to the set or made its main alg here.
+  if (press && e->key() == Qt::Key_Z &&
+      (e->modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier) {
+    if (setEdits_ > 0 && setUndo_ && setUndo_()) {
+      --setEdits_;
+      showCase(case_ ? std::optional(case_->key) : std::nullopt);
+      emit message(tr("The set's algs are as they were before"));
+    } else {
+      emit message(tr("Nothing changed in a set here to undo"));
+    }
+    return true;
+  }
   return false;
 }
 
@@ -540,6 +528,8 @@ void AlgLabPage::applySettings() {
 bool AlgLabPage::isBusy() const { return test_->isBusy(); }
 
 void AlgLabPage::activated() {
+  setEdits_ = 0; // Library may have changed the sets since
+
   // Sets and their algs may have changed in the other modes.
   reloadSets();
 }
@@ -580,7 +570,7 @@ void AlgLabPage::selectCase(const QString &setId, const QString &caseId) {
 void AlgLabPage::fillSources() {
   QString current = sourceBox_->count() > 0
                         ? sourceBox_->currentData().toString()
-                        : QSettings().value(key("source")).toString();
+                        : saved::lab("source").get().toString();
   loading_ = true;
   sourceBox_->clear();
   sourceBox_->addItem(tr("Lab cases"), QString());
@@ -596,7 +586,7 @@ void AlgLabPage::fillSources() {
 void AlgLabPage::fillCases() {
   QString source = sourceBox_->currentData().toString();
   QString want =
-      case_ ? qs(case_->key.text()) : QSettings().value(key("case")).toString();
+      case_ ? qs(case_->key.text()) : saved::lab("case").get().toString();
   QString filter = caseFilter_->text().trimmed();
   labButtons_->setVisible(source.isEmpty());
   QSignalBlocker block(caseTree_);
@@ -660,7 +650,7 @@ void AlgLabPage::caseChosen() {
   QString k = it ? it->data(0, Qt::UserRole).toString() : QString();
   auto parsed = LabCaseKey::parse(k.toStdString());
   if (parsed) {
-    QSettings().setValue(key("case"), k);
+    saved::lab("case").set(k);
   }
   showCase(parsed);
 }
@@ -712,7 +702,7 @@ void AlgLabPage::newLabCase() {
   }
   store_.cases().push_back(d.labCase());
   saveStore();
-  QSettings().setValue(key("case"), qs(LabCaseKey{"", c.id}.text()));
+  saved::lab("case").set(qs(LabCaseKey{"", c.id}.text()));
   case_.reset();
   sourceBox_->setCurrentIndex(0);
   fillCases();
@@ -774,7 +764,7 @@ void AlgLabPage::deleteLabCase() {
 void AlgLabPage::fillProfiles() {
   QString want = profileBox_->count() > 0
                      ? profileBox_->currentText()
-                     : QSettings().value(kLabProfileSetting).toString();
+                     : saved::lab("scoreProfile").get().toString();
   loading_ = true;
   profileBox_->clear();
   for (const auto &p : store_.profiles()) {
@@ -826,7 +816,7 @@ void AlgLabPage::editProfile(bool copy) {
   }
   profileBox_->setCurrentText(qs(edited.name));
   loading_ = false;
-  QSettings().setValue(kLabProfileSetting, qs(edited.name));
+  saved::lab("scoreProfile").set(qs(edited.name));
   scoreCache_.clear();
   fillTable();
 }
@@ -867,8 +857,7 @@ void AlgLabPage::filterChosen() {
     filterSet_ = *s;
     filterOn_ = true;
   }
-  QSettings().setValue(key("filter"),
-                       filterOn_ ? qs(filterSet_.toString()) : QString());
+  saved::lab("filter").set(filterOn_ ? qs(filterSet_.toString()) : QString());
   fillTable();
 }
 
@@ -891,515 +880,7 @@ void AlgLabPage::genChosen() {
   } else if (auto s = MoveSet::parse(d.mid(2).toStdString())) {
     genSet_ = *s;
   }
-  QSettings().setValue(key("moveSet"), qs(genSet_.toString()));
-}
-
-void AlgLabPage::fillTable() {
-  QString selected;
-  if (auto *it = table_->currentItem()) {
-    selected = table_->item(it->row(), ColAlg)->data(Qt::UserRole).toString();
-  }
-  // The guidance follows the selection once the table is filled again.
-  QSignalBlocker blockSelection(table_);
-  struct UpdateAfter {
-    AlgLabPage *page;
-    ~UpdateAfter() { page->updateGrips(); }
-  } updateAfter{this};
-  table_->setSortingEnabled(false);
-  table_->setRowCount(0);
-  if (!case_) {
-    return;
-  }
-  rows_ = candidateRows(*case_, store_);
-  const ErgoProfile &prof = profile();
-  CubeKind cube =
-      statsCube_->currentIndex() == 1 ? CubeKind::Virtual : CubeKind::Physical;
-  LabWindow window;
-  if (statsWindow_->currentIndex() == 1) {
-    window.kind = LabWindow::Kind::Session;
-    window.session = store_.current().id;
-  } else if (statsWindow_->currentIndex() == 2) {
-    window.kind = LabWindow::Kind::Recent;
-    window.recent = 50;
-  }
-  WarmupOf warm = [this](std::string_view id) { return store_.warmupOf(id); };
-  const int trim = store_.current().trimPercent;
-  const int d = settings_.decimals;
-  int hidden = 0;
-  for (const CandidateRow &r : rows_) {
-    Alg alg = parseAlgOrEmpty(r.alg);
-    MoveCounts mc = moveCounts(alg);
-    bool rotations = std::any_of(alg.begin(), alg.end(),
-                                 [](Move m) { return isRotation(m.type); });
-    if ((filterOn_ && !filterSet_.contains(alg)) ||
-        (noRotations_->isChecked() && rotations) ||
-        (maxHtm_->value() > 0 && mc.htm > maxHtm_->value())) {
-      ++hidden;
-      continue;
-    }
-    int row = table_->rowCount();
-    table_->insertRow(row);
-    auto *algItem = new QTableWidgetItem(r.shown);
-    algItem->setFlags(algItem->flags() & ~Qt::ItemIsEditable);
-    algItem->setData(Qt::UserRole, qs(r.alg));
-    if (!r.fit) {
-      algItem->setForeground(palette().color(QPalette::PlaceholderText));
-    }
-    if (r.inSet && !case_->setAlgs.empty() &&
-        labAlgKey(case_->setAlgs.front()) == r.alg) {
-      QFont f = algItem->font();
-      f.setBold(true);
-      algItem->setFont(f);
-    }
-    table_->setItem(row, ColAlg, algItem);
-    auto num = [&](int col, const QString &text, std::optional<double> k) {
-      table_->setItem(row, col, new SortItem(text, k));
-    };
-    num(ColHtm, QString::number(mc.htm), mc.htm);
-    num(ColStm, QString::number(mc.stm), mc.stm);
-    num(ColQtm, QString::number(mc.qtm), mc.qtm);
-    num(ColEtm, QString::number(mc.etm), mc.etm);
-    auto cached = scoreCache_.find(r.alg);
-    if (cached == scoreCache_.end()) {
-      cached = scoreCache_.emplace(r.alg, ergoTotal(alg, prof)).first;
-    }
-    double score = cached->second;
-    num(ColScore, QString::number(score, 'f', 1), score);
-    auto *src = new QTableWidgetItem(sourceText(r));
-    src->setFlags(src->flags() & ~Qt::ItemIsEditable);
-    table_->setItem(row, ColSource, src);
-    LabStats st = labStats(store_.attempts(), case_->key, r.alg, cube, window,
-                           trim, warm);
-    auto ms = [](std::optional<std::int64_t> v) -> std::optional<double> {
-      if (!v) {
-        return std::nullopt;
-      }
-      return static_cast<double>(*v);
-    };
-    num(ColCount, QString::number(st.used), st.used);
-    num(ColMean, labTime(st.mean, d), ms(st.mean));
-    num(ColMedian, labTime(st.median, d), ms(st.median));
-    num(ColBest, labTime(st.best, d), ms(st.best));
-    num(ColAo5, labTime(st.ao5, d), ms(st.ao5));
-    num(ColAo12, labTime(st.ao12, d), ms(st.ao12));
-    num(ColSd, st.sd ? QString::number(*st.sd / 1000.0, 'f', d) : "–", st.sd);
-    num(ColDnf,
-        st.used + st.dnfs ? QString::number(st.dnfRate() * 100.0, 'f', 0) : "–",
-        st.used + st.dnfs ? std::optional(st.dnfRate()) : std::nullopt);
-    if (qs(r.alg) == selected) {
-      table_->selectRow(row);
-    }
-  }
-  table_->setSortingEnabled(true);
-  for (int c = ColHtm; c < ColumnCount; ++c) {
-    table_->resizeColumnToContents(c);
-  }
-  if (hidden > 0 && !job_) {
-    genStatus_->setText(
-        tr("%n alg(s) hidden by the filters.", nullptr, hidden));
-  }
-}
-
-void AlgLabPage::updateGrips() {
-  const ErgoProfile *g = labGuideProfile(store_, profileBox_->currentText());
-  QTableWidgetItem *it = table_->currentItem();
-  if (!it || !table_->item(it->row(), ColAlg) || !it->isSelected()) {
-    grips_->clear(case_ ? tr("Select an alg to see how to turn it.")
-                        : QString());
-    return;
-  }
-  QString alg = table_->item(it->row(), ColAlg)->data(Qt::UserRole).toString();
-  grips_->setAlg(alg, g ? &*g->grips : nullptr,
-                 tr("No grip profile: make one with Profile… > New grip "
-                    "profile, or restore the built-in profiles."));
-}
-
-std::vector<std::string> AlgLabPage::selectedAlgs() const {
-  std::vector<std::string> out;
-  for (const auto &index : table_->selectionModel()->selectedRows(ColAlg)) {
-    out.push_back(index.data(Qt::UserRole).toString().toStdString());
-  }
-  return out;
-}
-
-void AlgLabPage::addTyped() {
-  if (!case_) {
-    return;
-  }
-  std::string text = cleanAlgText(addEdit_->text().toStdString());
-  if (text.empty()) {
-    return;
-  }
-  auto parsed = parseAlg(text);
-  if (!parsed) {
-    emit message(tr("Can't read that alg at character %1.")
-                     .arg(parsed.error->position + 1));
-    return;
-  }
-  std::string k = labAlgKey(text);
-  if (!fitAlg(case_->state, parsed.alg, case_->free, case_->aufBefore,
-              case_->aufAfter)) {
-    AlgCheck check = checkAlg(case_->state, k, case_->free, case_->aufBefore,
-                              case_->aufAfter);
-    emit message(tr("That alg doesn't solve the case: it %1. Added anyway, "
-                    "greyed out.")
-                     .arg(qs(describeCheck(check))));
-  }
-  store_.addCandidate(case_->key, {k, CandidateSource::Typed, unixNow()});
-  saveStore();
-  addEdit_->clear();
-  fillTable();
-}
-
-void AlgLabPage::pasteCandidates() {
-  if (!case_) {
-    return;
-  }
-  bool ok = false;
-  QString text = QInputDialog::getMultiLineText(
-      this, tr("Paste algs"),
-      tr("One alg per line (\"name: alg / alg\" lines and // comments are "
-         "fine). Algs that don't solve the case are left out."),
-      QApplication::clipboard()->text(), &ok);
-  if (!ok) {
-    return;
-  }
-  int added = 0, failed = 0, have = 0;
-  for (const PasteItem &p : readPaste(text.toStdString())) {
-    auto parsed = parseAlg(p.alg);
-    if (!parsed || parsed.alg.empty() ||
-        !fitAlg(case_->state, parsed.alg, case_->free, case_->aufBefore,
-                case_->aufAfter)) {
-      ++failed;
-      continue;
-    }
-    if (store_.addCandidate(case_->key, {labAlgKey(p.alg),
-                                         CandidateSource::Pasted, unixNow()})) {
-      ++added;
-    } else {
-      ++have;
-    }
-  }
-  saveStore();
-  fillTable();
-  emit message(tr("Added %1 alg(s); %2 didn't solve the case, %3 were there "
-                  "already.")
-                   .arg(added)
-                   .arg(failed)
-                   .arg(have));
-}
-
-void AlgLabPage::addToSet(bool makeMain) {
-  if (!case_) {
-    return;
-  }
-  if (case_->key.isLab()) {
-    emit message(tr("A lab case isn't in a set."));
-    return;
-  }
-  auto algs = selectedAlgs();
-  if (algs.empty() || (makeMain && algs.size() != 1)) {
-    emit message(makeMain ? tr("Select one alg to make it the main alg.")
-                          : tr("Select the algs to add to the set."));
-    return;
-  }
-  AlgSet *set = library_.find(case_->key.setId);
-  AlgCase *c = set ? set->findCase(case_->key.caseId) : nullptr;
-  if (!c) {
-    return;
-  }
-  std::vector<std::string> newAlgs = c->algs;
-  int added = 0;
-  for (const std::string &a : algs) {
-    auto it =
-        std::find_if(newAlgs.begin(), newAlgs.end(),
-                     [&](const std::string &x) { return labAlgKey(x) == a; });
-    if (makeMain) {
-      std::string text = it != newAlgs.end() ? *it : a;
-      if (it != newAlgs.end()) {
-        newAlgs.erase(it);
-      }
-      newAlgs.insert(newAlgs.begin(), text);
-      ++added;
-    } else if (it == newAlgs.end()) {
-      newAlgs.push_back(a);
-      ++added;
-    }
-  }
-  if (added == 0 || newAlgs == c->algs) {
-    emit message(tr("The set has those algs already."));
-    return;
-  }
-  QString what = makeMain ? tr("Make main alg") : tr("Add algs");
-  bool saved = false;
-  if (algEditor_) {
-    saved = algEditor_(qs(set->id), qs(c->id), newAlgs, what);
-  } else {
-    std::vector<std::string> old = c->algs;
-    c->algs = newAlgs;
-    saved = library_.save(*set);
-    if (!saved) {
-      c->algs = old;
-    }
-  }
-  if (!saved) {
-    emit message(tr("Could not save the set."));
-    return;
-  }
-  emit message(
-      makeMain ? tr("Made it the main alg of %1.").arg(case_->name)
-               : tr("Added %n alg(s) to %1.", nullptr, added).arg(case_->name));
-  if (!algEditor_) {
-    emit setsChanged(qs(set->id));
-  }
-  showCase(case_->key);
-}
-
-void AlgLabPage::addToSession() {
-  if (!case_) {
-    return;
-  }
-  std::vector<LabEntry> entries;
-  for (const std::string &a : selectedAlgs()) {
-    auto parsed = parseAlg(a);
-    if (parsed && fitAlg(case_->state, parsed.alg, case_->free,
-                         case_->aufBefore, case_->aufAfter)) {
-      entries.push_back({case_->key, a});
-    }
-  }
-  if (entries.empty()) {
-    emit message(tr("Select algs that solve the case to add them."));
-    return;
-  }
-  int added = test_->addEntries(entries);
-  emit message(tr("Added %1 alg(s) to the session %2 (Test tab).")
-                   .arg(added)
-                   .arg(test_->sessionName()));
-}
-
-void AlgLabPage::removeCandidates() {
-  if (!case_) {
-    return;
-  }
-  int removed = 0, inSet = 0;
-  for (const std::string &a : selectedAlgs()) {
-    if (store_.removeCandidate(case_->key, a)) {
-      ++removed;
-    } else {
-      ++inSet;
-    }
-  }
-  if (removed) {
-    saveStore();
-    fillTable();
-  }
-  if (inSet) {
-    emit message(tr("Algs in the set are removed in Library."));
-  }
-}
-
-void AlgLabPage::clearTimes() {
-  auto algs = selectedAlgs();
-  if (!case_ || algs.empty()) {
-    return;
-  }
-  if (QMessageBox::question(
-          this, tr("Clear times"),
-          tr("Forget every time of the %n selected alg(s), on both cubes and "
-             "in every session?",
-             nullptr, static_cast<int>(algs.size()))) != QMessageBox::Yes) {
-    return;
-  }
-  for (const std::string &a : algs) {
-    store_.clearAttempts(case_->key, a);
-  }
-  saveStore();
-  fillTable();
-  test_->refresh();
-}
-
-void AlgLabPage::tableMenu(const QPoint &at) {
-  if (!table_->itemAt(at)) {
-    return;
-  }
-  QMenu menu(this);
-  menu.addAction(tr("Add to session"), this, &AlgLabPage::addToSession);
-  if (case_ && !case_->key.isLab()) {
-    menu.addAction(tr("Add to set"), this, [this] { addToSet(false); });
-    menu.addAction(tr("Make main alg"), this, [this] { addToSet(true); });
-  }
-  menu.addAction(tr("Copy"), this, [this] {
-    QStringList lines;
-    for (const auto &a : selectedAlgs()) {
-      lines << qs(a);
-    }
-    QApplication::clipboard()->setText(lines.join("\n"));
-  });
-  menu.addSeparator();
-  menu.addAction(tr("Remove"), this, &AlgLabPage::removeCandidates);
-  menu.addAction(tr("Clear times…"), this, &AlgLabPage::clearTimes);
-  menu.exec(table_->viewport()->mapToGlobal(at));
-}
-
-// --- generator --------------------------------------------------------------
-
-SearchOptions AlgLabPage::searchOptions() const {
-  SearchOptions o;
-  o.moves = genSet_;
-  o.maxLength = maxLength_->value();
-  o.extra = lengthMode_->currentIndex() == 0 ? extra_->value() : -1;
-  o.maxResults = maxResults_->value();
-  return o;
-}
-
-void AlgLabPage::updateGenControls() {
-  bool running = job_ != nullptr;
-  runButton_->setEnabled(!running && case_.has_value());
-  batchButton_->setEnabled(!running && case_ && !case_->key.isLab());
-  stopButton_->setEnabled(running);
-  extra_->setEnabled(lengthMode_->currentIndex() == 0);
-  genBox_->setEnabled(!running);
-}
-
-void AlgLabPage::runSearch(std::vector<ResolvedCase> cases) {
-  if (job_ || cases.empty()) {
-    return;
-  }
-  auto job = std::make_shared<Job>();
-  job->cases = static_cast<int>(cases.size());
-  job_ = job;
-  updateGenControls();
-  SearchOptions options = searchOptions();
-  QString moves = qs(options.moves.display());
-  genStatus_->setText(tr("Starting…"));
-  jobFuture_ = QtConcurrent::run([this, job, cases, options, moves] {
-    int done = 0;
-    int unsolvable = 0;
-    QString last;
-    for (const ResolvedCase &c : cases) {
-      if (job->stop) {
-        break;
-      }
-      ++done;
-      SearchGoal goal{c.state, c.free, c.aufBefore, c.aufAfter};
-      QString prefix =
-          cases.size() > 1
-              ? tr("%1 of %2, %3: ").arg(done).arg(cases.size()).arg(c.name)
-              : QString();
-      SearchCallbacks cb;
-      LabCaseKey k = c.key;
-      cb.result = [this, job, k](const SearchResult &r) {
-        std::string text = r.text;
-        QMetaObject::invokeMethod(
-            this,
-            [this, job, k, text] {
-              if (store_.addCandidate(
-                      k, {text, CandidateSource::Generated, unixNow()})) {
-                ++job->found;
-                job->dirty = true;
-                if (case_ && case_->key == k && !refreshTimer_.isActive()) {
-                  refreshTimer_.start();
-                }
-              }
-            },
-            Qt::QueuedConnection);
-      };
-      cb.progress = [this, prefix](const std::string &m) {
-        QString text = prefix + qs(m);
-        QMetaObject::invokeMethod(
-            this, [this, text] { genStatus_->setText(text); },
-            Qt::QueuedConnection);
-      };
-      SearchOutcome out = searchAlgs(goal, options, job->stop, cb);
-      if (out.end == SearchEnd::Unsolvable) {
-        ++unsolvable;
-        last = tr("%1 can't solve %2.").arg(moves, c.name);
-      } else if (out.found == 0) {
-        last = tr("No alg of %1 up to %2 moves.").arg(moves).arg(out.deepest);
-      } else {
-        last =
-            tr("%n alg(s), shortest %1 moves, every alg up to %2 moves "
-               "found%3.",
-               nullptr, out.found)
-                .arg(out.shortest)
-                .arg(out.deepest)
-                .arg(out.end == SearchEnd::Capped ? tr(" (stopped at the cap)")
-                     : out.end == SearchEnd::Stopped ? tr(" (stopped)")
-                                                     : QString());
-      }
-    }
-    QString summary =
-        cases.size() > 1
-            ? tr("Searched %1 of %2 cases with %3.%4")
-                  .arg(done)
-                  .arg(cases.size())
-                  .arg(moves)
-                  .arg(unsolvable ? tr(" %n can't be solved with it.", nullptr,
-                                       unsolvable)
-                                  : QString())
-            : last;
-    QMetaObject::invokeMethod(
-        this,
-        [this, summary] {
-          genStatus_->setText(summary);
-          searchFinished();
-        },
-        Qt::QueuedConnection);
-  });
-}
-
-void AlgLabPage::runBatch(bool wholeSet) {
-  if (!case_ || case_->key.isLab()) {
-    return;
-  }
-  const AlgSet *set = library_.find(case_->key.setId);
-  const CaseGroup *group = set ? set->groupOf(case_->key.caseId) : nullptr;
-  if (!group) {
-    return;
-  }
-  std::vector<ResolvedCase> cases;
-  for (const CaseGroup &g : set->groups) {
-    if (!wholeSet && &g != group) {
-      continue;
-    }
-    for (const AlgCase &c : g.cases) {
-      if (auto r = resolveLabCase(library_, store_, {set->id, c.id})) {
-        cases.push_back(*r);
-      }
-    }
-  }
-  if (QMessageBox::question(
-          this, tr("Find algs"),
-          tr("Search %n case(s) with %1, keeping at most %2 algs each? It "
-             "runs in the background; Stop ends it.",
-             nullptr, static_cast<int>(cases.size()))
-              .arg(qs(genSet_.display()))
-              .arg(maxResults_->value())) != QMessageBox::Yes) {
-    return;
-  }
-  runSearch(std::move(cases));
-}
-
-void AlgLabPage::stopSearch() {
-  if (job_) {
-    job_->stop = true;
-    genStatus_->setText(tr("Stopping…"));
-  }
-}
-
-void AlgLabPage::searchFinished() {
-  jobFuture_.waitForFinished();
-  bool dirty = job_ && job_->dirty;
-  int found = job_ ? job_->found : 0;
-  job_.reset();
-  if (dirty) {
-    saveStore();
-  }
-  updateGenControls();
-  fillTable();
-  if (found > 0) {
-    emit message(tr("The generator added %n alg(s).", nullptr, found));
-  }
+  saved::lab("moveSet").set(qs(genSet_.toString()));
 }
 
 } // namespace vcube

@@ -1,4 +1,5 @@
 #include "app/blind_page.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/blind_quiz_drill.hpp"
 #include "app/blind_setup_drill.hpp"
@@ -73,10 +74,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   prompt->setFont(pf);
   auto *display = new TimeDisplay(right);
   display->setTextFormat(Qt::PlainText); // letters may hold < or &
-  auto *hint = new QLabel(right);
-  hint->setAlignment(Qt::AlignCenter);
-  hint->setWordWrap(true);
-  hint->setForegroundRole(QPalette::PlaceholderText);
+  auto *hint = new HintBar(right);
   auto *result = new QLabel(right);
   result->setTextFormat(Qt::RichText);
   result->setWordWrap(true);
@@ -106,12 +104,10 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   }
 
   // --- right column: options, scramble, middle, chart ---
-  optionsRow_ = new QWidget(right);
-  auto *options = new FlowLayout(optionsRow_);
-  options->setContentsMargins(0, 0, 0, 0);
+  auto *options = new OptionBar(right);
+  optionsRow_ = options;
   for (BlindDrill *d : drills_) {
     for (QWidget *w : d->options()) {
-      w->setParent(optionsRow_);
       options->addWidget(w);
     }
   }
@@ -151,6 +147,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   rightLayout->addWidget(chart_, 1);
 
   auto *split = new QSplitter(this);
+  split->setObjectName("main");
   split->addWidget(leftPanel_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);

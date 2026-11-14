@@ -4,6 +4,7 @@
 #include "app/bld_scheme_dialog.hpp"
 #include "app/colours.hpp"
 #include "app/cube_view.hpp"
+#include "app/page_parts.hpp"
 #include "app/session_panel.hpp"
 #include "io/blind_store.hpp"
 #include "train/blind_flow.hpp"
@@ -57,7 +58,7 @@ struct BlindContext {
   CubeView *cube = nullptr;
   QLabel *prompt = nullptr;
   TimeDisplay *display = nullptr;
-  QLabel *hint = nullptr;
+  HintBar *hint = nullptr;
   QLabel *result = nullptr;
   QLabel *scramble = nullptr; // the scramble's text
   NetPreview *net = nullptr;  // the scramble's net

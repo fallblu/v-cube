@@ -47,6 +47,17 @@ public:
   // Sorts the list again as chosen, e.g. after its values changed.
   void applySort();
 
+  // Takes the set selector out of the panel, for a page that shows it in
+  // its option bar.
+  QComboBox *takeSetBox();
+  // A page with its own place for them hides the tick buttons and ticks
+  // with tickShown().
+  void setTickButtonsVisible(bool on);
+  // Ticks or unticks every case shown.
+  void tickShown(bool on);
+  // "Tick all", or "Tick shown" while the list is filtered.
+  QString tickAllText() const;
+
 signals:
   // The list was sorted another way from its header.
   void sorted();
@@ -60,8 +71,6 @@ private:
   int sortColumn_ = -1; // -1: list order
   Qt::SortOrder sortOrder_ = Qt::DescendingOrder;
 
-  // Ticks or unticks every case shown.
-  void tickShown(bool on);
   // "Tick all" becomes "Tick shown" while the list is filtered.
   void filterChanged();
   void showHeaderMenu(const QPoint &pos);

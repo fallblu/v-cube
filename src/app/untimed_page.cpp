@@ -1,4 +1,5 @@
 #include "app/untimed_page.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/review_dialog.hpp"
 #include "train/solve_review.hpp"
@@ -19,8 +20,8 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
     : AttemptPage(settings, store, library, "untimed", false, parent) {
   QWidget *right = cubeView_->parentWidget();
   algs_ = new ScrambleAlgs(library, "untimed/showAlgs", right);
-  setTypeBox(new ScrambleTypeBox(library, typeRow()), algs_->button());
-  centre()->insertWidget(centre()->count() - 1, algs_->label());
+  setTypeBox(new ScrambleTypeBox(library, stage()->options), algs_->button());
+  stage()->addUnderButtons(algs_->label());
 
   algPanel_ = new QWidget(right);
   auto *algLayout = new QVBoxLayout(algPanel_);
@@ -118,17 +119,18 @@ void UntimedPage::addCells(std::vector<AttemptCell> &cells,
   add(ao12);
 }
 
-QString UntimedPage::physicalHint() const {
-  return tr("Solve the scramble, then press Space (or →) for the next one. "
-            "Backspace (or ←) goes back.");
+AttemptPage::Hint UntimedPage::physicalHint() const {
+  return {tr("Solve the scramble."),
+          {{tr("Space or →"), tr("done, next scramble")},
+           {tr("Backspace or ←"), tr("go back")}}};
 }
 
-QString UntimedPage::solvingHint() const {
-  return settings_.autoStop
-             ? tr("The solve ends when the cube is solved (or on Space). Esc "
-                  "starts the scramble again.")
-             : tr("Press Space when the cube is solved. Esc starts the "
-                  "scramble again.");
+AttemptPage::Hint UntimedPage::solvingHint() const {
+  if (settings_.autoStop) {
+    return {tr("The solve ends when the cube is solved."),
+            {{tr("Space"), tr("end it now")}, {tr("Esc"), tr("start again")}}};
+  }
+  return {{}, {{tr("Space"), tr("solved")}, {tr("Esc"), tr("start again")}}};
 }
 
 bool UntimedPage::reached(const FaceletCube &cube) const {

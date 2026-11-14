@@ -1,4 +1,5 @@
 #include "app/paste_dialog.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/colours.hpp"
 
@@ -20,16 +21,9 @@ namespace vcube {
 
 namespace {
 
-QString qs(const std::string &s) { return QString::fromStdString(s); }
-
-// "1 alg", "3 algs".
-QString counted(int n, const QString &one, const QString &many) {
-  return QString("%1 %2").arg(n).arg(n == 1 ? one : many);
-}
-
-const StatusColour kPass{Status::Good};
-const StatusColour kWarn{Status::Warning};
-const QColor kFail(0xe6, 0x66, 0x66);
+const auto &kPass = kPassColour;
+const auto &kWarn = kWarnColour;
+const auto &kFail = kFailColour;
 
 enum Column { LineColumn, AlgColumn, CaseColumn, ResultColumn, ColumnCount };
 

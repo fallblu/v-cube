@@ -81,6 +81,8 @@ public:
   void selectCase(const QString &setId, const QString &caseId);
   // Sets a case's algs for another mode (Alg Lab), as one undoable edit
   // named `text`, the case selected; false if it couldn't be saved.
+  // Undoes the last change, as Edit > Undo does; false if there is none.
+  bool undoLast();
   bool setCaseAlgs(const QString &setId, const QString &caseId,
                    std::vector<std::string> algs, const QString &text);
   // Alg Lab's times, shown beside each alg (none until set).
@@ -107,6 +109,8 @@ signals:
   void setsChanged(const QString &setId);
   // "Open in Alg Lab" on a case's alg.
   void algLabRequested(const QString &setId, const QString &caseId);
+  // Show the case in Learn or Drill (an AppMode).
+  void practiceRequested(int mode, const QString &setId, const QString &caseId);
 
 private:
   using Edit = LibraryEditor::Edit;
@@ -132,6 +136,7 @@ private:
   QLabel *caseGroup_;
   QLabel *caseAlgCount_;
   QLabel *caseProgress_;
+  QLabel *caseHistory_;
   QLabel *caseSummary_;
   AlgListWidget *algList_ = nullptr;
   QLineEdit *newAlgEdit_;
@@ -181,6 +186,8 @@ private:
   void fillGroupItem(QTreeWidgetItem *item, const AlgSet &s,
                      const CaseGroup &g);
   void loadCase();
+  // The case's Learn card and drill statistics, for the History tab.
+  QString historyHtml(const AlgCase &c) const;
   void refreshAlgList();
   void updateGrips();
   void storeAlgs(const QString &text, std::optional<int> edited = {});

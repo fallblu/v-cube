@@ -25,7 +25,7 @@ SetupDrill::SetupDrill(BlindContext &context, QWidget *parent)
   modeBox_->setToolTip(
       tr("Do each setup on the virtual cube, or type it to be checked"));
   piecesItem_ = labelledBox(tr("Pieces:"), piecesBox_, parent);
-  modeItem_ = labelledBox(tr("Setups:"), modeBox_, parent);
+  modeItem_ = labelledBox(tr("Answer:"), modeBox_, parent);
 
   row_ = new QWidget(parent);
   auto *layout = new QHBoxLayout(row_);
@@ -305,17 +305,19 @@ void SetupDrill::refreshLeft() {
 
 void SetupDrill::showHint() {
   const std::optional<LetterItem> &it = flow_.item();
-  QString text;
   if (it && it->answered) {
-    text = tr("Space: next letter. Esc: try it again.");
+    ctx_.hint->setHint({}, {{tr("Space"), tr("next letter")},
+                            {tr("Esc"), tr("try it again")}});
   } else if (onCube()) {
-    text = tr("Turn the cube to bring the ringed sticker to ◎ without "
-              "moving the buffer. Esc starts again, Space skips.");
+    ctx_.hint->setHint(
+        tr("Turn the cube to bring the ringed sticker to ◎ "
+           "without moving the buffer."),
+        {{tr("Esc"), tr("start again")}, {tr("Space"), tr("skip")}});
   } else {
-    text = tr("Type the setup and press Enter. Esc leaves the field; Esc "
-              "again gives the letter up.");
+    ctx_.hint->setHint(tr("Type the setup."),
+                       {{tr("Enter"), tr("check it")},
+                        {tr("Esc"), tr("leave the field; again gives up")}});
   }
-  ctx_.hint->setText(text);
 }
 
 } // namespace vcube

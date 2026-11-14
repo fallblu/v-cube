@@ -1,4 +1,5 @@
 #include "app/move_count_page.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
@@ -30,7 +31,7 @@ QString stepText(SolveStep step) { return qs(std::string(stepName(step))); }
 MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
                              AlgLibrary &library, QWidget *parent)
     : AttemptPage(settings, store, library, "movecount", true, parent) {
-  QWidget *row = typeRow();
+  QWidget *row = stage()->options;
   stepBox_ = new QComboBox(row);
   stepBox_->setFocusPolicy(Qt::NoFocus);
   for (SolveStep step : solveSteps()) {
@@ -40,9 +41,8 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
       tr("The step this session is for (fixed once the session has "
          "solves). On the virtual cube a scramble counts only if the step "
          "is done (on any colour) when you press Space."));
-  typeLayout()->addWidget(new QLabel(tr("Step:"), row));
-  typeLayout()->addWidget(stepBox_);
-  typeLayout()->addSpacing(12);
+  stage()->options->addPicker(tr("Step:"), stepBox_);
+  stage()->options->addSpacing();
   auto *types = new ScrambleTypeBox(library, row, offeredTypes());
   types->setToolTip(
       tr("What the scramble leaves solved: a full WCA scramble for EO, "
@@ -58,15 +58,15 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
   stepFont.setBold(true);
   stepLabel_->setFont(stepFont);
   stepLabel_->setToolTip(tr("The session and the step it is for"));
-  centre()->insertWidget(1, stepLabel_); // above the cube
+  stage()->addAboveCube(stepLabel_);
 
   recordButton_ = flatButton(tr("Record (Enter)"), right);
   dnfButton_ = flatButton("DNF", right);
   recordButton_->setToolTip(tr("Record the move count for this scramble"));
   dnfButton_->setToolTip(tr("Record this scramble as DNF, e.g. when the step "
                             "went wrong (Alt+3)"));
-  buttonRow()->insertWidget(1, recordButton_);
-  buttonRow()->insertWidget(2, dnfButton_);
+  stage()->addButton(dnfButton_, true);
+  stage()->addButton(recordButton_, true);
 
   connect(stepBox_, &QComboBox::activated, this, [this](int index) {
     auto step = static_cast<SolveStep>(stepBox_->itemData(index).toInt());
@@ -164,14 +164,18 @@ void MoveCountPage::addStats(QString &html) {
   requestOptimal();
 }
 
-QString MoveCountPage::physicalHint() const {
-  return tr("Type the number of moves your solution took and press Enter. "
-            "Backspace corrects, Esc clears.");
+AttemptPage::Hint MoveCountPage::physicalHint() const {
+  return {tr("Type the number of moves your solution took."),
+          {{tr("Enter"), tr("record")},
+           {tr("Backspace"), tr("correct")},
+           {tr("Esc"), tr("clear")},
+           {tr("Alt+3"), tr("DNF")}}};
 }
 
-QString MoveCountPage::solvingHint() const {
-  return tr("Press Space when the step is done. Esc starts the scramble "
-            "again.");
+AttemptPage::Hint MoveCountPage::solvingHint() const {
+  return {
+      {},
+      {{tr("Space"), tr("the step is done")}, {tr("Esc"), tr("start again")}}};
 }
 
 bool MoveCountPage::reached(const FaceletCube &cube) const {

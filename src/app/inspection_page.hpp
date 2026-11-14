@@ -62,6 +62,7 @@ public:
     return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality;
   }
   void applySettings() override;
+  QWidget *sidePanel() const override;
   bool isBusy() const override;
   void deactivated() override;
   void windowDeactivated() override;
@@ -136,6 +137,8 @@ private:
   QComboBox *chartBox_;
   QWidget *viewPicker_;
   QPushButton *skipButton_;
+  QPushButton *newSessionButton_;
+  std::optional<std::pair<int, InspectionAttempt>> deleted_;
   QLabel *stepLabel_;
   QLabel *scrambleLabel_;
   QStackedWidget *cubeStack_;
@@ -143,6 +146,7 @@ private:
   QLabel *hiddenLabel_;
   TimeDisplay *display_;
   QLabel *hintLabel_;
+  QLabel *keysLabel_;
   QLabel *resultLabel_;
   QPushButton *reviewButton_;
   QPushButton *retryButton_;
@@ -207,6 +211,10 @@ private:
   void showAttemptMenu(int index, const QPoint &globalPos);
   void requestReview(int index);
   void deleteAttempt(int index);
+  // Puts the attempt deleted last back where it was.
+  void undoDelete();
+  // What the stage says while the cube waits to be shown.
+  QString readyText() const;
   void addSession();
   void renameSession();
   void deleteSession();

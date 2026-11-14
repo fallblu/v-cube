@@ -195,6 +195,37 @@ std::optional<QString> askSessionName(QWidget *parent, const QString &title,
 // question calls `noun` ("solves", "attempts").
 bool confirmDeleteSession(QWidget *parent, const QString &name,
                           std::size_t count, const QString &noun);
+
+// What every mode with sessions does to rename and delete the current
+// one. `store` has sessions(), currentIndex() and removeSession(); each
+// session has a name. The page shows the session again afterwards.
+
+// Asks for a new name for `session`; true if it was renamed.
+template <typename Session>
+bool renameSessionAsked(QWidget *parent, Session &session) {
+  std::optional<QString> name = askSessionName(
+      parent, QObject::tr("Rename session"), QObject::tr("Name:"),
+      QString::fromStdString(session.name));
+  if (!name) {
+    return false;
+  }
+  session.name = name->toStdString();
+  return true;
+}
+
+// Asks first (naming how many `noun`, e.g. "solves", go with it), then
+// removes the store's current session; true if it was removed.
+template <typename Store>
+bool deleteSessionAsked(QWidget *parent, Store &store, std::size_t count,
+                        const QString &noun) {
+  const auto &session = store.sessions()[store.currentIndex()];
+  if (!confirmDeleteSession(parent, QString::fromStdString(session.name), count,
+                            noun)) {
+    return false;
+  }
+  store.removeSession(store.currentIndex());
+  return true;
+}
 // Asks for a comment: nullopt when cancelled.
 std::optional<QString> askComment(QWidget *parent, const QString &label,
                                   const QString &comment);

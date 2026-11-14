@@ -9,6 +9,7 @@
 #include "app/drill_page.hpp"
 #include "app/grip_view.hpp"
 #include "app/help_panel.hpp"
+#include "app/help_text.hpp"
 #include "app/inspection_page.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
@@ -31,6 +32,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
+#include <QFile>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -274,6 +276,7 @@ private slots:
   void fingertrickGuidance();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
+  void keysDocMatchesTheKeyTable();
   void cleanupTestCase();
 };
 
@@ -624,7 +627,7 @@ void GuiTest::learnStartsACase() {
   // Nothing is due until a case is put in the learn queue.
   QPushButton *start = nullptr;
   for (QPushButton *b : learn->findChildren<QPushButton *>()) {
-    if (b->text() == "Start learning") {
+    if (b->text() == "Add new cases") {
       start = b;
     }
   }
@@ -752,6 +755,23 @@ void GuiTest::helpPanelShowsTheKeys() {
   QTRY_VERIFY(text->toPlainText() != timed);
   QTest::keyClick(window_.get(), Qt::Key_F1);
   QTRY_VERIFY(!help->isVisible());
+}
+
+// docs/keys.md is written from the key table; VCUBE_WRITE_DOCS=1 writes
+// it again after the table changed.
+void GuiTest::keysDocMatchesTheKeyTable() {
+  QFile file(QStringLiteral(VCUBE_SOURCE_DIR "/docs/keys.md"));
+  QString expected = controlsMarkdown();
+  if (qEnvironmentVariableIsSet("VCUBE_WRITE_DOCS")) {
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(expected.toUtf8());
+    return;
+  }
+  QVERIFY(file.open(QIODevice::ReadOnly));
+  QString actual = QString::fromUtf8(file.readAll()).remove('\r');
+  QVERIFY2(actual == expected,
+           "docs/keys.md is out of date: run the GUI tests once with "
+           "VCUBE_WRITE_DOCS=1");
 }
 
 void GuiTest::cleanupTestCase() {

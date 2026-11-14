@@ -25,6 +25,7 @@ SolvesDrill::SolvesDrill(BlindContext &context, QWidget *parent)
                       blindColumn("memo", tr("Memo"))});
   cubeBox_ = blindComboBox({tr("Virtual cube"), tr("Physical cube")}, parent);
   cubeBox_->setToolTip(tr("The cube this session's solves are done on"));
+  cubeItem_ = labelledBox(tr("Cube:"), cubeBox_, parent);
 
   connect(&tick_, &QTimer::timeout, this, &SolvesDrill::onTick);
   connect(cubeBox_, &QComboBox::activated, this, [this](int index) {
@@ -54,7 +55,7 @@ TrendChart *SolvesDrill::chart() const { return panel_->chart(); }
 
 QWidget *SolvesDrill::leftPanel() const { return panel_; }
 
-std::vector<QWidget *> SolvesDrill::options() const { return {cubeBox_}; }
+std::vector<QWidget *> SolvesDrill::options() const { return {cubeItem_}; }
 
 bool SolvesDrill::onVirtualCube() const {
   return ctx_.store.current().cube == CubeKind::Virtual;
@@ -123,6 +124,29 @@ void SolvesDrill::updateControls() {
 
 bool SolvesDrill::handleKey(QKeyEvent *e, bool press) {
   int key = e->key();
+  // Delete and Ctrl+Z for the last solve, as in the solve modes.
+  if (press && !e->isAutoRepeat() && !isBusy()) {
+    Qt::KeyboardModifiers mods =
+        e->modifiers() & (Qt::ControlModifier | Qt::AltModifier |
+                          Qt::ShiftModifier | Qt::MetaModifier);
+    auto &list = session().attempts;
+    if (mods == Qt::NoModifier && key == Qt::Key_Delete && !list.empty()) {
+      deleted_ = list.back();
+      list.pop_back();
+      ctx_.save();
+      refreshLeft();
+      emit message(tr("Solve deleted (Ctrl+Z puts it back)"));
+      return true;
+    }
+    if (mods == Qt::ControlModifier && key == Qt::Key_Z && deleted_) {
+      list.push_back(*deleted_);
+      deleted_.reset();
+      ctx_.save();
+      refreshLeft();
+      emit message(tr("Solve put back"));
+      return true;
+    }
+  }
   std::optional<Move> move = ctx_.settings.keymap.lookup(e);
   using K = BlindSolveFlow::Key;
   K k = key == Qt::Key_Space       ? K::Space
@@ -386,25 +410,39 @@ void SolvesDrill::showHint() {
   using P = BlindSolveFlow::Phase;
   P phase = flow_.phase();
   QString text;
-  if (!onVirtualCube()) {
-    text = phase == P::Ready ? tr("Space starts the timer and the memo.")
-           : phase == P::Memo
-               ? tr("Space when the memo is done (put the blindfold on).")
-           : phase == P::Executing
-               ? tr("Any key stops the timer. Esc cancels.")
-               : tr("Space: next scramble. Backspace toggles DNF.");
-  } else {
-    text = phase == P::Ready ? tr("Space starts the memo and the timer.")
-           : phase == P::Memo
-               ? tr("Memorise: turn the cube as a whole to look at it. "
-                    "Space hides it and starts the execution. Esc cancels.")
-           : phase == P::Executing
-               ? tr("Turn the hidden cube. Space stops the timer. Esc "
-                    "cancels.")
-               : tr("Space: next scramble. Rotations turn the cube to look "
-                    "at it.");
+  QList<KeyHint> keys;
+  const KeyHint cancel{tr("Esc"), tr("cancel")};
+  bool virt = onVirtualCube();
+  switch (phase) {
+  case P::Ready:
+    keys = {{tr("Space"), tr("start the memo and the timer")}};
+    break;
+  case P::Memo:
+    if (virt) {
+      text = tr("Memorise: turn the cube as a whole to look at it.");
+      keys = {{tr("Space"), tr("hide it and start the execution")}, cancel};
+    } else {
+      keys = {{tr("Space"), tr("the memo is done (blindfold on)")}, cancel};
+    }
+    break;
+  case P::Executing:
+    if (virt) {
+      text = tr("Turn the hidden cube.");
+      keys = {{tr("Space"), tr("stop")}, cancel};
+    } else {
+      keys = {{tr("any key"), tr("stop")}, cancel};
+    }
+    break;
+  case P::Done:
+    keys = {{tr("Space"), tr("next scramble")}};
+    if (virt) {
+      text = tr("Rotations turn the cube to look at it.");
+    } else {
+      keys << KeyHint{tr("Backspace"), tr("toggle DNF")};
+    }
+    break;
   }
-  ctx_.hint->setText(text);
+  ctx_.hint->setHint(text, keys);
 }
 
 void SolvesDrill::refreshSessionMenu() {
@@ -420,6 +458,7 @@ void SolvesDrill::selectSession(std::size_t index) {
     return;
   }
   ctx_.store.setCurrentIndex(index);
+  deleted_.reset();
   ctx_.save();
   emit restartRequested();
 }
@@ -489,22 +528,16 @@ void SolvesDrill::addSession() {
 }
 
 void SolvesDrill::renameSession() {
-  std::optional<QString> name = askSessionName(ctx_.page, tr("Rename session"),
-                                               tr("Name:"), qs(session().name));
-  if (!name) {
-    return;
+  if (renameSessionAsked(ctx_.page, session())) {
+    selectSession(ctx_.store.currentIndex());
   }
-  session().name = ss(*name);
-  selectSession(ctx_.store.currentIndex());
 }
 
 void SolvesDrill::deleteSession() {
-  if (!confirmDeleteSession(ctx_.page, qs(session().name),
-                            session().attempts.size(), tr("solves"))) {
-    return;
+  if (deleteSessionAsked(ctx_.page, ctx_.store, session().attempts.size(),
+                         tr("solves"))) {
+    selectSession(ctx_.store.currentIndex());
   }
-  ctx_.store.removeSession(ctx_.store.currentIndex());
-  selectSession(ctx_.store.currentIndex());
 }
 
 } // namespace vcube

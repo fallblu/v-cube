@@ -17,16 +17,18 @@ lists every key, and `F1` in the app shows the current mode's.
 
 The sidebar lists the modes in three groups, Algs (Learn, Drill, Library,
 Alg Lab), Solves (Timed, Untimed, Move Count) and Practice (Inspection,
-Blind), under **Today**. `Ctrl+1` to `Ctrl+8` switch to Learn, Drill,
-Library, Timed, Untimed, Move Count, Inspection and Blind, `Ctrl+9` to Alg
-Lab and `Ctrl+0` to Today; the **Mode** menu has them too. Switching is blocked while a
+Blind), under **Today**. `Ctrl+1` to `Ctrl+9` switch to them in the
+sidebar's order (Learn, Drill, Library, Alg Lab, Timed, Untimed, Move
+Count, Inspection, Blind) and `Ctrl+0` to Today; the **Go** menu has them
+too. Switching is blocked while a
 solve or inspection is running.
 
 - **Today** shows, for each alg set, the reviews due now or later today,
   the new cases Learn can still bring in today from the learn queue, the
   cases in the queue and the cases learned; your practice streak; and the solves, cases
   and answers recorded in each mode, with the time spent, today and over
-  the last 7 days. Double-click a set to learn it. The sidebar's Today and
+  the last 7 days. Each set has a button to review or learn it, and
+  **Review all sets** reviews every set's due cases together. The sidebar's Today and
   Learn buttons show how many reviews are due.
 - **Keyboard controls**: `F1` (View or Help > Keyboard controls) shows the
   keys in a panel beside the page, the current mode's first, with your own
@@ -41,6 +43,15 @@ solve or inspection is running.
   show at the top of the window instead. Right-click anywhere outside them
   to switch full screen, focus mode or the sidebar with the mouse.
   `Ctrl+B` (View > Sidebar) hides just the sidebar.
+- **Side panel**: `F9` (View > Side panel) hides or shows the current
+  mode's side panel (the case list in Learn and Drill, the session and
+  its attempts in the solve modes, Inspection and Blind, the case browser
+  in Alg Lab), giving the cube the whole page. Each mode remembers it.
+- **The mode's menu**: in Learn, Drill and Alg Lab the menu bar has a menu
+  named after the mode with what its list offers on a right-click, for
+  the case or alg selected.
+- **Keys on the page**: under the cube each practice mode shows a short
+  message and the keys that do something now, each with its action.
 - The window reopens at the size and place you left it (moved back onto
   the screen if the screen or its scaling changed), with the lists' widths
   and the sidebar as you left them, but never in full screen or focus mode.
@@ -117,7 +128,7 @@ together don't always come up in the same sequence, then new cases from
 your learn queue, up to a daily limit (5) and only while fewer than 3
 cases are in their learning steps, so that new cases don't arrive back to
 back. Review intervals of three days or more are spread out by a few
-percent. Settings > Learning holds the scheduler's choices: the learning
+percent. Settings > Learn holds the scheduler's choices: the learning
 and relearning steps, the graduating and easy intervals, how much of its
 interval a forgotten case keeps (20 %; earlier versions kept 50 %), the
 ease a Good review regains (so a case once missed can space out again),
@@ -127,19 +138,22 @@ time (off; earlier versions took learning cases up to 20 minutes early),
 when a case is a leech and when it is slow to recognise. Learn attempts
 change the schedule; Drill attempts never do.
 
-**The learn queue.** "Start learning" adds the next N ticked cases to the
-queue (type N in the count field and press Enter to do the same). **New
-cases** (for each set) chooses the order cases are queued and introduced
-in: list order, the order you queued them, shuffled, one from each group in
-turn, shortest alg first, or fewest steps left first (for sets solved a
-step at a time). Under the list the queue shows the next cases and how many
-were introduced today; "Learn next" introduces the next one now, whatever
-the limits, and "Remove" takes it out of the queue.
+**The learn queue.** Under the list, one strip holds the queue: the next
+cases and how many were introduced today, then **Add new cases**, which
+adds the next N ticked cases to the queue (type N in the count field and
+press Enter to do the same), and **Learn next**, which introduces the next
+one now, whatever the limits. The **⋯** menu beside them takes the next
+case out of the queue, chooses the **order of new cases** for the set (list
+order, the order you queued them, shuffled, one from each group in turn,
+shortest alg first, or fewest steps left first for sets solved a step at a
+time) and ticks or unticks every case shown.
 
 **With nothing due** the page says why, when the next review is, and how
-the day went (reviewed, Again rate, due tomorrow). It looks again by itself
-when a case falls due; Space looks again, and takes the next learning case
-early when that is all there is.
+the day went (reviewed, Again rate, due tomorrow), and offers what can be
+done instead as buttons: the next learning case early, new cases from this
+set, the reviews due in another set, or every set's reviews together. It
+looks again by itself when a case falls due; Space looks again, and takes
+the next learning case early when that is all there is.
 
 **The header** above the cube (also in focus mode) counts the queued,
 learning, due and done-today cases, and the set drop-down shows each set's
@@ -169,7 +183,12 @@ and buried ones, and right-clicking the header hides or shows columns. F9
 hides the list, and the splitters between the list, the cube and the algs
 keep their place.
 
-**How reviews go.** The drop-down next to the view picks it:
+**The bar above the cube** has the alg set, what is practised, the view
+of the cube and **Hide list** (`F9`). Under the cube the status line says
+what is going on, and each key that does something now is shown under it
+with its action.
+
+**How reviews go.** **Practise** in the bar picks it:
 
 - **Solve**: as above.
 - **Recognise**: a learned case is only shown. Press Space as soon as you
@@ -241,14 +260,19 @@ your cases.
 
 Drill times you on the cases, on the virtual cube (the default) or a
 physical cube, chosen for each alg set under "Cube". The two keep separate
-drill times and statistics, and the case list shows the chosen cube's.
+drill times and statistics, and the case list shows the chosen cube's. One
+bar above the cube has the alg set, the cube, the cases and the order.
+**Cases** is one choice in two parts, where they come from (the ticked
+ones, those the list shows, or a group) and which of them (learned in
+Learn, all, being learned, in the learn queue, or the weakest), and shows
+how many that comes to.
 
 - The pieces the step doesn't care about (e.g. the permutation when
   drilling OLL) are scrambled too, and there's a random U turn before and
   after (as the set allows).
 - **On the virtual cube** the case is set up on the cube, which only turns
   as a whole until the timer starts: tap Space to arm it and the first face
-  turn starts it (Settings > Drill can have Space held and let go instead;
+  turn starts it (Settings > Timing and solves can have Space held and let go instead;
   a turn made while it is held and green starts it too). The timer stops by
   itself as soon as the cube shows the step done (solved for PLL, the last
   layer oriented for OLL, and so on); Space stops it before that, which is
@@ -258,7 +282,7 @@ drill times and statistics, and the case list shows the chosen cube's.
 - **On a physical cube** a real random-state scramble sets the case up, so
   you can't tell the case from the scramble; hold Space and let go to
   start, and any key but Shift, Ctrl or Alt stops the timer. Drill has its
-  own hold time (Settings > Drill).
+  own hold time (Settings > Timing and solves).
 - **Which cases**, apart from the ticks Learn shares: the ticked cases, the
   cases the list shows (searched or filtered) or one group; and of those,
   the ones learned in Learn (the default), all of them, those being
@@ -297,9 +321,9 @@ drill times and statistics, and the case list shows the chosen cube's.
   taken together. Click a column's header to sort by it (again for the
   other way, a third time for list order). Right-click a case for its drill
   history (a chart of its last 100 attempts, and every attempt summed up by
-  day as a table and a chart) or to clear its drill times. A session panel
-  counts the attempts, mean, DNFs and new bests since the session started
-  and names the slowest cases. On the virtual cube each solved attempt also
+  day as a table and a chart) or to clear its drill times. A tally under
+  the list counts the attempts, mean, DNFs and new bests since it was last
+  reset (**Reset tally**) and names the slowest cases. On the virtual cube each solved attempt also
   records its recognition time (from the case being set up to the first
   turn of a layer other than U or D) and its execution time, which Learn's
   Recog column and the "slow to recognise" filter use. Drill attempts never
@@ -325,10 +349,19 @@ Library creates and edits alg sets.
 
 - The page shows the set list, the selected set's case tree and the
   selected case with its diagram, group, algs and Learn and Drill progress.
+- **The toolbar** above the lists has the commands used most: New set,
+  Set properties, New case from alg, Paste algs, New group and Check algs.
+- **A case's buttons** (under its details) show it in **Learn** or
+  **Drill** and open it in **Alg Lab**. Its details are on two tabs:
+  **Algs**, with the selected alg's fingertricks under the list, and
+  **History**, with its Learn card, its drill statistics on each cube and
+  buttons for the full **Learn history** and **Drill history** (for sets
+  learned by family, Learn's own History shows the family's shared
+  schedule).
 - **Menus**: in Library mode the menu bar has two more menus. **Set** (also
   on right-click in the set list) creates, duplicates and deletes sets,
-  opens the set properties, checks the algs, imports and exports sets as
-  JSON, and restores built-in sets and cases. **Cases** (also on
+  opens the set properties, checks the algs, and restores built-in sets
+  and cases (**File** imports and exports sets as JSON). **Cases** (also on
   right-click in the case tree) makes a case from an alg, pastes algs, makes
   a group, and renames, moves (**Move to group**, Move up, Move down) and
   deletes the selected cases or groups. **Edit** gains Undo and Redo.
@@ -336,8 +369,9 @@ Library creates and edits alg sets.
   another place, or use **Move to group** or Alt+Up / Alt+Down.
 - Every change is saved at once and can be undone (**Edit > Undo**, Ctrl+Z)
   and redone while v-cube is open, including deleted cases, groups and sets
-  with their progress and per-set settings. Deleting asks first and says
-  how much progress goes with it.
+  with their progress and per-set settings. Deleting a set asks first;
+  deleting cases or groups doesn't, and says what went and that Ctrl+Z
+  brings it back.
 - **Set properties…** (or double-click a set, or Alt+Enter) edits, on three
   tabs with each option explained, the name, description, random U turns
   around cases in Learn and Drill, target time, guided learning, learning
@@ -454,7 +488,8 @@ them in the current test session. **Remove** forgets kept candidates (a
 set's own algs are removed in Library) and **Clear times…** forgets the
 selected algs' times. Right-click for the same, and Copy.
 
-**The generator** finds every alg of a move set that solves the case,
+**The generator** (the **Generator** button with the arrow folds it away
+or shows it) finds every alg of a move set that solves the case,
 shortest first, and adds them as candidates while it runs:
 
 - **Move set**: a preset (`<U, R>`, `<U, R, F>`, `<U, R, D>`, `<U, R, L>`,
@@ -497,6 +532,9 @@ turn such as `R*`, or any move `*`; `R2` then `F*` is a regrip). Their
 score is the sum. **Profile…** edits the chosen profile (with a field to
 try an alg against it), makes a new one from it, makes a new grip profile,
 deletes it, or restores the built-in ones.
+
+**Undo.** On the Search tab, Ctrl+Z (Edit > Undo) takes back an alg added
+to the set or made its main alg there.
 
 **Fingertricks.** Under the candidates, the selected alg is shown as it is
 best turned with two hands, from the chosen grip profile (or the first
@@ -595,7 +633,7 @@ solution, the moves as you did them with turns of the same layer joined (R
 R is R2, R R' nothing), and its move count in HTM (a slice turn counts two,
 rotations nothing). Counts are simplified by default: turns that cancel
 across a turn of the opposite layer or a rotation about the same axis don't
-count (U D U' is one move, R x R' none); Settings > Solves turns this off
+count (U D U' is one move, R x R' none); Settings > Timing and solves turns this off
 to count every turn as done.
 
 **The solve list**: hover over a solve to see its date, scramble and
@@ -610,13 +648,13 @@ solve's values.
 
 ### Timed
 
-Hold Space to start (the hold time is in Settings > Solves, any time up to
+Hold Space to start (the hold time is in Settings > Timing and solves, any time up to
 2 s).
 
 - **Physical cube**: a small net next to the scramble shows the scrambled
   cube, white on top and green in front, and any key stops the timer.
 - **Virtual cube**: the scrambled cube is shown, rotations only, until the
-  timer starts. The timer stops when the cube is solved (Settings > Solves
+  timer starts. The timer stops when the cube is solved (Settings > Timing and solves
   can leave that to Space). Space stops it too; if the cube isn't solved
   then, the solve is a DNF, and the cube stays as you left it to look at
   until Space (or Enter or Esc) brings the next scramble. Esc during a
@@ -626,7 +664,7 @@ Hold Space to start (the hold time is in Settings > Solves, any time up to
   from the chart's menu, cross/F2L/LL lines. After a solve its EO Cross
   count is shown with the optimal. **Review last** (Alt+R, or double-click
   a solve) opens the [review](#review).
-- **Inspection**: optional WCA inspection (Settings > Solves), with +2 and
+- **Inspection**: optional WCA inspection (Settings > Timing and solves), with +2 and
   DNF applied automatically and optional beeps at 8 s and 12 s; tap Space
   to start inspecting, then hold Space to start. On the virtual cube the
   scrambled cube can be hidden until inspection starts (a setting).
@@ -685,7 +723,7 @@ installs start with one virtual-cube session per step.
   solution.
 - The **Opt** column has each scramble's optimal move count for the
   session's step (EO to EO Cross, and the cross) in any hold, as the step
-  is checked (Settings > Solves can limit it to the holds of your colour
+  is checked (Settings > Timing and solves can limit it to the holds of your colour
   neutrality, either EO axis allowed), and the statistics add the mean
   moves over optimal and how often you were optimal.
 - Each session keeps its own scramble type. Choosing a step picks a WCA
@@ -756,8 +794,16 @@ inspection) and a Bad edges session.
   rotations turn the cube to look at it. **Review last**, double-click or
   right-click > Review… replays an attempt; **Retry** (or Retry in the
   review) plans its scramble again without recording it; **Delete last**
-  deletes the last attempt. A scramble you have seen is never served again
-  (Esc during an attempt puts it back, unrecorded).
+  (or Delete) deletes the last attempt and Ctrl+Z puts it back. Alt+R
+  reviews the last attempt and Ctrl+→ skips the scramble, as in the solve
+  modes. A scramble you have seen is never served again (Esc during an
+  attempt puts it back, unrecorded).
+- What a session practises (its drill, step, pair and axes) is fixed once
+  it has attempts: the pickers then only show it, and **New session…**
+  beside them starts one for something else. A new session is set up in
+  one form (drill, step or axes, pair, name), and while the cube waits to
+  be shown the page says what the session is for and how the last attempt
+  went.
 - An EO Cross session can **track a pair**: pick it under **Then** (FL,
   BL, FR or BR, as you hold the cube when the cross is done) and solve that
   pair blind after the cross. The moves to EO Cross are compared with the
@@ -822,6 +868,7 @@ in focus mode too.
   - Physical: Space starts the timer, Space again ends the memo, any key
     stops. Backspace toggles DNF on the solve just done.
   - A solve cancelled (Esc) after the memo started gets a new scramble.
+  - Between solves, Delete deletes the last solve and Ctrl+Z puts it back.
   - Statistics: mo3, ao5, ao12, success rate, mean of successes and mean
     memo, plus a trend chart.
 - **Lettering & setups…**: the blind hold (the colours on top and in front
@@ -858,31 +905,35 @@ scramble is set up for one of them, picked at random.
   set, and its 3D view (and Drill's) looks from the corner the case's
   diagrams are drawn from (e.g. front left for left-slot F2L cases).
 - It is turned from the keyboard with cstimer's face keys (Shift for wide
-  moves), which you can remap in Settings > Keyboard; see
+  moves), which you can remap in Settings > Cube and keys; see
   [keys.md](keys.md#turning-keys).
 
 ## Settings
 
 Edit > Settings (`Ctrl+,`) has these tabs:
 
-- **General**: theme, the virtual cube's turn speed, sticker colours, the
-  scramble's text size, the size of hints and messages, and the case
-  pictures' size in Learn and Drill.
+- **Appearance**: theme, sticker colours, the text sizes of the scramble,
+  the timer and the hints and messages, the case pictures' size in Learn
+  and Drill, and the decimal places of times.
 - **Colour neutrality**: see [above](#colour-neutrality).
-- **Solves**: the hold time before the timer starts (any time up to 2 s),
-  WCA inspection with optional beeps at 8 s and 12 s, decimals, the
-  timer's text size, whether the virtual cube stops the timer when solved
-  (Timed and Untimed), hiding the scrambled cube until inspection starts,
-  simplified move counts, and whether Move Count's Opt column is over any
-  hold or your colour neutrality's.
-- **Keyboard**: the turning keys (the digits, arrows, function keys and the
-  modes' own keys can't be bound).
-- **Learning**: the spaced-repetition scheduler (see [Learn](#learn)).
-- **Drill**: how the virtual-cube timer starts (tap Space then turn, or
-  hold Space and let go) and whether it stops by itself, Drill's own hold
-  time, the give-up key (Shift+Space or Backspace), what Space does after a
-  DNF, whether practice goes on by itself, how many cases later a failed
-  case comes back, and how many cases "Weakest" drills.
+- **Timing and solves**: how every timer starts and stops, in one place.
+  The hold time before the timer starts in the solve modes and in Drill
+  (any time up to 2 s), how Drill's virtual-cube timer starts (tap Space
+  then turn, or hold Space and let go) and whether it stops by itself, WCA
+  inspection with optional beeps at 8 s and 12 s, whether the virtual cube
+  stops the timer when solved (Timed and Untimed), hiding the scrambled
+  cube until inspection starts, simplified move counts, and whether Move
+  Count's Opt column is over any hold or your colour neutrality's.
+- **Cube and keys**: the virtual cube's turn speed and the turning keys
+  (the digits, arrows, function keys and the modes' own keys can't be
+  bound).
+- **Learn**: the spaced-repetition scheduler (see [Learn](#learn)).
+- **Drill**: the give-up key (Shift+Space or Backspace), what Space does
+  after a DNF, whether practice goes on by itself, how many cases later a
+  failed case comes back, and how many cases "Weakest" drills.
+
+Each option's explanation is written under it. **Apply** applies the
+settings without closing the dialog.
 
 Where the settings and the rest of your data are kept is in
 [file-formats.md](file-formats.md).

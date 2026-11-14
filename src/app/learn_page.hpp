@@ -4,6 +4,7 @@
 #include "app/case_stage.hpp"
 #include "app/context_practice.hpp"
 #include "app/cube_view.hpp"
+#include "app/page_parts.hpp"
 #include "train/alg_follow.hpp"
 #include "train/alg_guide.hpp"
 #include "train/learn_attempt.hpp"
@@ -20,6 +21,7 @@
 #include <string>
 #include <vector>
 
+class QAction;
 class QPushButton;
 class QSpinBox;
 class QSplitter;
@@ -126,7 +128,7 @@ private:
   QComboBox *orderBox_;
   QLabel *queueLabel_;
   QPushButton *learnNextButton_;
-  QPushButton *unqueueButton_;
+  QAction *unqueueAction_;
   QTimer queueMessageTimer_;
   // The cube and what is said about it; the page's own widgets on it.
   CaseStage *stage_;
@@ -135,10 +137,9 @@ private:
   QLabel *reveal_;
   QWidget *gradeRow_;
   QComboBox *viewBox_;
-  QComboBox *practiceBox_;
+  SegmentedPicker *practiceBox_;
   QPushButton *listButton_;
   QSplitter *split_;
-  bool listHidden_ = false;
   QTimer idleTimer_; // with nothing due: looks again when a card falls due
 
   std::optional<AlgGuide> guide_;
@@ -235,6 +236,11 @@ private:
   void showFamily();
   void showGrade();
   void setPhase(Phase p);
+  // The reviews due in a set now or later today.
+  int dueIn(const AlgSet &s) const;
+  // The status line and, under it, the keys that do something now.
+  void say(const QString &message, const QList<KeyHint> &keys = {},
+           bool warn = false);
   void showSolvingStatus();
   void learnNext();
   // Shows a message under the learn queue for a few seconds.
@@ -261,6 +267,7 @@ private:
   void undoLast();
   // The case list on or off (F9), apart from focus mode.
   void toggleList();
+  void sideHiddenChanged() override;
   void updateHeader();
   // The interval a grade gives, for the buttons: "1 min", "4 d".
   static QString intervalText(std::int64_t seconds);

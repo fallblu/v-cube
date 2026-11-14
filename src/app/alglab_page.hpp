@@ -56,6 +56,9 @@ public:
            SettingsPart::Theme;
   }
   void applySettings() override;
+  QWidget *sidePanel() const override { return left_; }
+  bool hasModeMenu() const override { return true; }
+  void fillModeMenu(QMenu &menu) override;
   bool isBusy() const override;
   void activated() override;
   void deactivated() override;
@@ -70,6 +73,9 @@ public:
       std::function<bool(const QString &setId, const QString &caseId,
                          std::vector<std::string> algs, const QString &text)>;
   void setAlgEditor(AlgEditor editor) { algEditor_ = std::move(editor); }
+  // Undoes the last change made to a set (as Library's Undo does); false
+  // if there was nothing to undo.
+  void setSetUndo(std::function<bool()> undo) { setUndo_ = std::move(undo); }
 
 signals:
   // An alg was added to a set or made its main alg.
@@ -83,6 +89,9 @@ private:
   AlgLibrary &library_;
   AlgLabStore &store_;
   AlgEditor algEditor_;
+  std::function<bool()> setUndo_;
+  // The set edits made here since the page was shown, which Ctrl+Z undoes.
+  int setEdits_ = 0;
   std::optional<ResolvedCase> case_;
   std::vector<CandidateRow> rows_;
   bool loading_ = false;

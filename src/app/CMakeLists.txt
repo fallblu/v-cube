@@ -3,6 +3,8 @@ add_library(vcube_gui STATIC
   alg_html.cpp
   alglab_common.cpp
   alglab_dialogs.cpp
+  alglab_candidates.cpp
+  alglab_generator.cpp
   alglab_page.cpp
   app_data.cpp
   app_settings.cpp
@@ -26,21 +28,30 @@ add_library(vcube_gui STATIC
   cube_view.cpp
   drill_history_dialog.cpp
   drill_list.cpp
+  drill_attempt.cpp
   drill_page.cpp
   drill_settings.cpp
   grip_view.cpp
   flow_layout.cpp
   help_panel.cpp
   help_text.cpp
+  inspection_attempts.cpp
   inspection_page.cpp
+  inspection_sessions.cpp
   key_router.cpp
   lab_chart.cpp
   lab_test_panel.cpp
   keymap.cpp
   learn_list.cpp
   learn_page.cpp
+  learn_practice.cpp
+  learn_solve.cpp
   library_editor.cpp
+  library_algs.cpp
+  library_cases.cpp
   library_page.cpp
+  library_sets.cpp
+  page_parts.cpp
   paste_dialog.cpp
   main_window.cpp
   move_count_page.cpp
@@ -55,6 +66,7 @@ add_library(vcube_gui STATIC
   single_instance.cpp
   sounds.cpp
   timer_page.cpp
+  timer_sessions.cpp
   today_page.cpp
   ui_state.cpp
   untimed_page.cpp

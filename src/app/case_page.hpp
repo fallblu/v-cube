@@ -47,7 +47,12 @@ class CasePage : public ModePage {
 public:
   // The library changed. A hidden page catches up when it is shown.
   void reloadSets();
+  // Shows a set and selects one of its cases in the list.
+  void showCase(const QString &setId, const QString &caseId);
   void applySettings() override;
+  QWidget *sidePanel() const override { return left_; }
+  bool hasModeMenu() const override { return true; }
+  void fillModeMenu(QMenu &menu) override;
   void activated() override;
   void deactivated() override;
 
@@ -141,6 +146,10 @@ protected:
   // Reviewing the due cases of every set: the set drop-down shows "All
   // sets" and the list shows the set of the case being practised.
   bool acrossSets() const { return acrossSets_; }
+  // Switches to another set, or to the reviews across every set, as the
+  // set selector does.
+  void chooseSet(const std::string &id) { selectSet(id); }
+  void chooseAcrossSets() { selectAcrossSets(); }
   virtual bool offersAcrossSets() const { return false; }
   // While reviewing across sets: shows another set's cases (without
   // starting it as selecting it would).
@@ -254,6 +263,9 @@ private:
   ColourNeutrality neutrality_; // as last applied
   void fillGroupRows();
   void showCaseMenu(const QPoint &pos);
+  // Fills `menu` with what can be done with a row of the list (a case, a
+  // group, or the selected rows it is one of); false if nothing.
+  bool fillCaseMenu(QMenu &menu, QTreeWidgetItem *item);
 };
 
 // When a case is due: "now", "10 min", "3 h" or "4 d", or "today" for a

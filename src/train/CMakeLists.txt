@@ -8,6 +8,7 @@ add_library(vcube_train
   blind_flow.cpp
   case_logic.cpp
   drill_flow.cpp
+  lab_flow.cpp
   case_picker.cpp
   drill_session.cpp
   ergonomics.cpp

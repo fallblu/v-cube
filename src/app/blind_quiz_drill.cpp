@@ -254,16 +254,17 @@ void QuizDrill::refreshLeft() {
 
 void QuizDrill::showHint() {
   const std::optional<LetterItem> &it = flow_.item();
-  QString text;
   if (it && it->answered) {
-    text = tr("Space: next letter.");
+    ctx_.hint->setHint({}, {{tr("Space"), tr("next letter")}});
   } else if (it && it->toLetter) {
-    text = tr("Type the ringed sticker's letter (Enter for a longer "
-              "label, Backspace corrects). Space gives up.");
+    ctx_.hint->setHint(tr("Type the ringed sticker's letter."),
+                       {{tr("Enter"), tr("for a longer label")},
+                        {tr("Backspace"), tr("correct")},
+                        {tr("Space"), tr("give up")}});
   } else {
-    text = tr("Click the letter's sticker on the net. Space gives up.");
+    ctx_.hint->setHint(tr("Click the letter's sticker on the net."),
+                       {{tr("Space"), tr("give up")}});
   }
-  ctx_.hint->setText(text);
 }
 
 } // namespace vcube

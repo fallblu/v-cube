@@ -25,6 +25,9 @@ Stored<int> legacyTab() { return {"window/tab", -1}; }
 Stored<QByteArray> splitter(const QString &modeId, int index) {
   return {QString("window/splitters/%1/%2").arg(modeId).arg(index)};
 }
+Stored<QByteArray> splitter(const QString &modeId, const QString &name) {
+  return {QString("window/splitters/%1/%2").arg(modeId, name)};
+}
 
 Stored<QString> exportFolder() { return {"export/folder", QDir::homePath()}; }
 
@@ -64,6 +67,12 @@ Stored<QStringList> hiddenColumns(const QString &mode,
 Stored<QByteArray> learnSplitter() { return {"learn/splitter"}; }
 Stored<QByteArray> learnRightSplitter() { return {"learn/rightSplitter"}; }
 Stored<bool> learnListHidden() { return {"learn/listHidden", false}; }
+Stored<bool> sideHidden(const QString &modeId) {
+  // Learn's list was the first that could be hidden: its key is kept.
+  return {modeId == "learn" ? QStringLiteral("learn/listHidden")
+                            : "window/sideHidden/" + modeId,
+          false};
+}
 Stored<QString> learnPractice() { return {"learn/practice", "solve"}; }
 Stored<QString> learnOrder(const std::string &setId) {
   return {setSettingsKey(setId, "learnOrder"), "list"};
@@ -133,5 +142,9 @@ Stored<int> blindSetupMode() { return {"blind/setupMode", 0}; }
 Stored<QStringList> blindList(const QString &name) { return {"blind/" + name}; }
 Stored<int> blindHoldTop(int fallback) { return {"blind/top", fallback}; }
 Stored<int> blindHoldFront(int fallback) { return {"blind/front", fallback}; }
+
+Stored<QVariant> lab(const char *name, const QVariant &fallback) {
+  return {QStringLiteral("alglab/") + name, fallback};
+}
 
 } // namespace vcube::saved

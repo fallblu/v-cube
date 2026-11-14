@@ -54,6 +54,7 @@ public:
 
   bool handleKey(QKeyEvent *e, bool press) override;
   void applySettings() override;
+  QWidget *sidePanel() const override { return leftPanel_; }
   bool isBusy() const override;
   void activated() override;
   void deactivated() override;

@@ -1,9 +1,13 @@
 #include "app/drill_page.hpp"
+#include "app/drill_private.hpp"
+#include "app/key_router.hpp"
+#include "app/page_parts.hpp"
 
 #include "app/drill_history_dialog.hpp"
 #include "app/ui_state.hpp"
 #include "train/alg_follow.hpp"
 
+#include <QActionGroup>
 #include <QApplication>
 #include <QComboBox>
 #include <QFormLayout>
@@ -14,6 +18,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -22,13 +27,6 @@
 namespace vcube {
 
 namespace {
-
-const StatusColour kGood{Status::Good};
-const StatusColour kSlow{Status::Warning};
-
-// A practice stage solved is shown this long before the next one.
-constexpr int kAdvanceMs = 700;
-constexpr int kDiagramSize = 170;
 
 QString poolName(int i) {
   static const char *names[] = {"learned", "ticked", "learning", "queue",
@@ -50,25 +48,6 @@ QString orderName(PickMode m) {
     return "recap";
   }
   return "random";
-}
-
-bool isModifierKey(int key) {
-  switch (key) {
-  case Qt::Key_Shift:
-  case Qt::Key_Control:
-  case Qt::Key_Alt:
-  case Qt::Key_AltGr:
-  case Qt::Key_Meta:
-  case Qt::Key_Super_L:
-  case Qt::Key_Super_R:
-  case Qt::Key_Hyper_L:
-  case Qt::Key_Hyper_R:
-  case Qt::Key_CapsLock:
-  case Qt::Key_NumLock:
-    return true;
-  default:
-    return false;
-  }
 }
 
 } // namespace
@@ -107,19 +86,47 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   orderBox_->addItem(tr("In list order"), orderName(PickMode::InOrder));
   orderBox_->addItem(tr("Recap (each case once, then a summary)"),
                      orderName(PickMode::Recap));
-  form_->addRow(tr("Cube:"), cubeBox_);
-  form_->addRow(tr("Drill:"), scopeBox_);
-  form_->addRow(tr("Cases:"), poolBox_);
-  form_->addRow(tr("Order:"), orderBox_);
+  // What is drilled is one choice on the page: the scope and the pool
+  // are picked from one menu (the two boxes only hold the choices).
+  scopeBox_->hide();
+  poolBox_->hide();
+  casesButton_ = new QToolButton(left_);
+  casesButton_->setFocusPolicy(Qt::NoFocus);
+  casesButton_->setPopupMode(QToolButton::InstantPopup);
+  casesButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+  auto *casesMenu = new QMenu(casesButton_);
+  casesButton_->setMenu(casesMenu);
+  connect(casesMenu, &QMenu::aboutToShow, this, [this, casesMenu] {
+    casesMenu->clear();
+    auto fill = [&](QComboBox *box, const QString &title) {
+      casesMenu->addSection(title);
+      auto *group = new QActionGroup(casesMenu);
+      for (int i = 0; i < box->count(); ++i) {
+        if (box->itemText(i).isEmpty()) {
+          continue; // a separator
+        }
+        QAction *a = casesMenu->addAction(box->itemText(i));
+        a->setCheckable(true);
+        a->setChecked(i == box->currentIndex());
+        group->addAction(a);
+        connect(a, &QAction::triggered, box, [box, i] {
+          box->setCurrentIndex(i);
+          emit box->activated(i);
+        });
+      }
+    };
+    fill(scopeBox_, tr("From"));
+    fill(poolBox_, tr("Which of them"));
+  });
 
   auto *sessionRow = new QHBoxLayout;
   sessionLabel_ = new QLabel(left_);
   sessionLabel_->setWordWrap(true);
   sessionLabel_->setTextFormat(Qt::RichText);
-  auto *sessionReset = new QPushButton(tr("New session"), left_);
+  auto *sessionReset = new QPushButton(tr("Reset tally"), left_);
   sessionReset->setFocusPolicy(Qt::NoFocus);
-  sessionReset->setToolTip(tr("Start counting this session's attempts "
-                              "afresh (nothing recorded is lost)"));
+  sessionReset->setToolTip(tr("Start counting attempts afresh (nothing "
+                              "recorded is lost)"));
   sessionRow->addWidget(sessionLabel_, 1);
   sessionRow->addWidget(sessionReset, 0, Qt::AlignTop);
   leftLayout_->addLayout(sessionRow);
@@ -134,13 +141,13 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
       tr("Turn the cube as a whole to look at the case, tap Space and solve: "
          "the first face turn starts the timer and it stops when the step "
          "is done"));
-  viewRow_ = new QWidget(right);
-  auto *viewLayout = new QHBoxLayout(viewRow_);
-  viewLayout->setContentsMargins(0, 0, 0, 0);
-  viewLayout->addWidget(new QLabel(tr("View:"), viewRow_));
-  viewLayout->addWidget(createViewSelector(cubeView_, "drill", viewRow_));
-  viewLayout->addStretch();
-  rightLayout->addWidget(viewRow_);
+  options_ = new OptionBar(right);
+  options_->addPicker(tr("Alg set:"), panel_->takeSetBox(), 1);
+  options_->addPicker(tr("Cube:"), cubeBox_);
+  options_->addPicker(tr("Cases:"), casesButton_);
+  options_->addPicker(tr("Order:"), orderBox_);
+  viewRow_ = options_->addViewPicker(cubeView_, "drill");
+  rightLayout->addWidget(options_);
   scrambleLabel_ = new QLabel(right);
   scrambleLabel_->setWordWrap(true);
   scrambleLabel_->setAlignment(Qt::AlignCenter);
@@ -157,10 +164,15 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   statusLabel_->setAlignment(Qt::AlignCenter);
   statusLabel_->setWordWrap(true);
   resultRow_ = new QWidget(right);
-  auto *resultLayout = new QHBoxLayout(resultRow_);
-  resultLayout->setContentsMargins(0, 0, 0, 0);
+  // The reason on a line of its own, the buttons under it.
+  auto *resultRows = new QVBoxLayout(resultRow_);
+  resultRows->setContentsMargins(0, 0, 0, 0);
   resultLabel_ = new QLabel(resultRow_);
   resultLabel_->setWordWrap(true); // a long DNF reason mustn't widen the page
+  resultLabel_->setAlignment(Qt::AlignCenter);
+  resultRows->addWidget(resultLabel_);
+  auto *resultLayout = new QHBoxLayout;
+  resultRows->addLayout(resultLayout);
   wrongButton_ = new QPushButton(tr("Wrong alg (Backspace)"), resultRow_);
   wrongButton_->setFocusPolicy(Qt::NoFocus);
   wrongButton_->setCheckable(true);
@@ -170,14 +182,20 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
       tr("Delete the attempt, e.g. one stopped by mistake. A case given up "
          "before the timer started is set up again."));
   resultLayout->addStretch();
-  resultLayout->addWidget(resultLabel_);
   resultLayout->addWidget(wrongButton_);
   resultLayout->addWidget(deleteButton_);
   resultLayout->addStretch();
   rightLayout->addWidget(cubeView_, 8);
   rightLayout->addWidget(display_);
+  keysLabel_ = new QLabel(right);
+  keysLabel_->setAlignment(Qt::AlignCenter);
+  keysLabel_->setWordWrap(true);
+  keysLabel_->setTextFormat(Qt::RichText);
+  keysLabel_->setForegroundRole(QPalette::PlaceholderText);
+  keysLabel_->setProperty("vcubeHint", true);
   rightLayout->addWidget(statusLabel_);
   rightLayout->addWidget(resultRow_);
+  rightLayout->addWidget(keysLabel_);
 
   // After a case: its diagram and algs side by side under the time, kept
   // together rather than spread across the page.
@@ -206,11 +224,12 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   rightLayout->addWidget(revealBox, 1);
 
   auto *split = new QSplitter(this);
+  split->setObjectName("main");
   split->addWidget(left_);
   split->addWidget(right);
   split->setStretchFactor(1, 1);
-  left_->setMinimumWidth(380);
-  split->setSizes({470, 730});
+  left_->setMinimumWidth(300);
+  split->setSizes({360, 840});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split);
 
@@ -280,7 +299,7 @@ void DrillPage::showCubeKind() {
   bool virt = onVirtualCube();
   flow_.setConfig(flowConfig());
   cubeView_->setVisible(virt);
-  viewRow_->setVisible(virt && !focusMode());
+  viewRow_->setVisible(virt);
   scrambleLabel_->setVisible(!virt);
   wrongButton_->setText(virt ? tr("DNF (Backspace)")
                              : tr("Wrong alg (Backspace)"));
@@ -297,7 +316,7 @@ DrillFlow::Config DrillPage::flowConfig() const {
 
 void DrillPage::focusModeChanged() {
   CasePage::focusModeChanged();
-  viewRow_->setVisible(!focusMode() && onVirtualCube());
+  options_->setVisible(!focusMode());
 }
 
 bool DrillPage::isBusy() const {
@@ -370,8 +389,8 @@ void DrillPage::updateControls() {
     return;
   }
   controlsLocked_ = busy;
-  for (QWidget *w : std::initializer_list<QWidget *>{
-           setBox_, cubeBox_, scopeBox_, poolBox_, orderBox_}) {
+  for (QWidget *w : std::initializer_list<QWidget *>{setBox_, cubeBox_,
+                                                     casesButton_, orderBox_}) {
     w->setEnabled(!busy);
   }
 }
@@ -444,114 +463,125 @@ QString DrillPage::giveUpKeyText() const {
                                            : tr("Backspace");
 }
 
+void DrillPage::say(const QString &message, const QList<KeyHint> &keys) {
+  statusLabel_->setText(message);
+  statusLabel_->setVisible(!message.isEmpty());
+  keysLabel_->setText(keyHintsHtml(keys, palette()));
+  keysLabel_->setVisible(!keys.isEmpty());
+}
+
 void DrillPage::showStatus() {
   const bool virt = onVirtualCube();
-  const QString giveUp = giveUpKeyText();
+  const KeyHint giveUp{giveUpKeyText(), tr("give up")};
   const bool recorded = flow_.recorded();
   const bool failed = flow_.failed();
   const bool gaveUp = flow_.gaveUp();
-  QString status;
+  QString message;
+  QList<KeyHint> keys;
   switch (flow_.phase()) {
   case Phase::NoCase:
     return;
   case Phase::Waiting:
     if (!virt) {
-      status = tr("Scramble, then hold Space and let go to start. %1 gives "
-                  "the case up.")
-                   .arg(giveUp);
+      message = tr("Scramble, then start the timer.");
+      keys = {{tr("hold Space"), tr("start on letting go")}, giveUp};
     } else if (flow_.armed()) {
-      status = tr("Ready: the first face turn starts the timer. Space: not "
-                  "yet. %1 gives the case up.")
-                   .arg(giveUp);
+      message = tr("Ready: the first face turn starts the timer.");
+      keys = {{tr("Esc"), tr("not yet")}, giveUp};
     } else if (settings_.drill.tapToArm) {
-      status = tr("Turn the cube as a whole to look at the case, then tap "
-                  "Space: the first face turn starts the timer. %1 gives the "
-                  "case up.")
-                   .arg(giveUp);
+      message = tr("Turn the cube as a whole to look at the case.");
+      keys = {{tr("Space"), tr("ready: the first face turn starts the timer")},
+              giveUp};
     } else {
-      status = tr("Turn the cube as a whole to look at the case, then hold "
-                  "Space and let go (or start turning) to start. %1 gives "
-                  "the case up.")
-                   .arg(giveUp);
+      message = tr("Turn the cube as a whole to look at the case.");
+      keys = {{tr("hold Space"), tr("start on letting go or turning")}, giveUp};
     }
     break;
   case Phase::Running:
     if (!virt) {
-      status = tr("Any key stops the timer; %1 gives the case up; Esc "
-                  "cancels the solve.")
-                   .arg(giveUp);
+      keys = {{tr("any key"), tr("stop")}, giveUp, {tr("Esc"), tr("cancel")}};
     } else if (settings_.drill.autoStop) {
-      status = tr("The timer stops when the step is done (Space stops it "
-                  "before: a DNF unless done); %1 gives the case up; Esc "
-                  "cancels the solve.")
-                   .arg(giveUp);
+      message = tr("The timer stops when the step is done.");
+      keys = {{tr("Space"), tr("stop now (a DNF unless done)")},
+              giveUp,
+              {tr("Esc"), tr("cancel")}};
     } else {
-      status = tr("Space stops the timer; %1 gives the case up; Esc cancels "
-                  "the solve.")
-                   .arg(giveUp);
+      keys = {{tr("Space"), tr("stop")}, giveUp, {tr("Esc"), tr("cancel")}};
     }
     break;
   case Phase::Revealed: {
-    QStringList keys;
     if (!recorded) {
-      keys << tr("Deleted; nothing is recorded.");
+      message = tr("Deleted; nothing is recorded.");
     }
     if (failed && settings_.drill.practiseAfterDnf) {
-      keys << tr("Space: practise the case with the algs. Enter: next "
-                 "case.");
+      keys << KeyHint{tr("Space"), tr("practise it with the algs")}
+           << KeyHint{tr("Enter"), tr("next case")};
     } else {
-      keys << tr("Space: next case. Tab: practise the case.");
+      keys << KeyHint{tr("Space"), tr("next case")}
+           << KeyHint{tr("Tab"), tr("practise it")};
     }
     if (recorded && !gaveUp) {
-      keys << (virt ? (failed ? tr("Backspace: not a DNF.")
-                              : tr("Backspace: DNF."))
-                    : (failed ? tr("Backspace: not a wrong alg.")
-                              : tr("Backspace: wrong alg.")));
+      keys << KeyHint{tr("Backspace"),
+                      virt
+                          ? (failed ? tr("not a DNF") : tr("DNF"))
+                          : (failed ? tr("not a wrong alg") : tr("wrong alg"))};
     }
     if (recorded) {
-      keys << (gaveUp && flow_.gaveUpBeforeStart() ? tr("Delete: take it back.")
-                                                   : tr("Delete: delete it."));
+      keys << KeyHint{tr("Delete"), gaveUp && flow_.gaveUpBeforeStart()
+                                        ? tr("take it back")
+                                        : tr("delete it")};
     }
-    keys << tr("Esc: try the case again.");
-    status = keys.join(' ');
+    keys << KeyHint{tr("Esc"), tr("try it again")};
     break;
   }
   case Phase::Aided:
     if (!virt) {
-      status = tr("Practice, not timed or recorded: scramble again and solve "
-                  "the case with the algs. Tab: now without them. Space: "
-                  "next case.");
+      message = tr("Practice, not timed or recorded: scramble again and solve "
+                   "the case with the algs.");
+      keys = {{tr("Tab"), tr("now without them")},
+              {tr("Space"), tr("next case")}};
     } else if (flow_.practiceDone()) {
-      status = settings_.drill.autoAdvance
-                   ? tr("Solved. Now without the algs…")
-                   : tr("Solved. Tab: now without the algs. Esc: once more "
-                        "with them. Space: next case.");
+      if (settings_.drill.autoAdvance) {
+        message = tr("Solved. Now without the algs…");
+      } else {
+        message = tr("Solved.");
+        keys = {{tr("Tab"), tr("now without the algs")},
+                {tr("Esc"), tr("once more with them")},
+                {tr("Space"), tr("next case")}};
+      }
     } else {
-      status = tr("Practice, not timed or recorded: solve the case with the "
-                  "algs shown. Tab: without them. Esc: reset. Space: next "
-                  "case.");
+      message = tr("Practice, not timed or recorded: solve the case with the "
+                   "algs shown.");
+      keys = {{tr("Tab"), tr("without them")},
+              {tr("Esc"), tr("reset")},
+              {tr("Space"), tr("next case")}};
     }
     break;
   case Phase::Unaided:
     if (!virt) {
-      status = tr("Scramble again and solve the case without the algs. "
-                  "Tab: show the algs again. Space: next case.");
+      message = tr("Scramble again and solve the case without the algs.");
+      keys = {{tr("Tab"), tr("show the algs again")},
+              {tr("Space"), tr("next case")}};
     } else if (flow_.practiceDone()) {
-      status = settings_.drill.autoAdvance
-                   ? tr("Solved without help. Next case…")
-                   : tr("Solved without help. Space: next case. Esc: once "
-                        "more.");
+      if (settings_.drill.autoAdvance) {
+        message = tr("Solved without help. Next case…");
+      } else {
+        message = tr("Solved without help.");
+        keys = {{tr("Space"), tr("next case")}, {tr("Esc"), tr("once more")}};
+      }
     } else {
-      status = tr("Now solve the case without the algs. Tab: show them "
-                  "again. Esc: reset. Space: next case.");
+      message = tr("Now solve the case without the algs.");
+      keys = {{tr("Tab"), tr("show them again")},
+              {tr("Esc"), tr("reset")},
+              {tr("Space"), tr("next case")}};
     }
     break;
   }
   if (flow_.inPractice() && recorded && !gaveUp) {
-    status += " " + (virt ? tr("Backspace toggles the DNF.")
-                          : tr("Backspace toggles the wrong alg."));
+    keys << KeyHint{tr("Backspace"),
+                    virt ? tr("toggle the DNF") : tr("toggle the wrong alg")};
   }
-  statusLabel_->setText(status);
+  say(message, keys);
 }
 
 QString DrillPage::sessionText(std::size_t from) {
@@ -585,8 +615,8 @@ QString DrillPage::sessionText(std::size_t from) {
 void DrillPage::refreshSession() {
   QString text = sessionText(0);
   sessionLabel_->setText(
-      text.isEmpty() ? tr("<b>This session:</b> no attempts yet.")
-                     : tr("<b>This session:</b> %1").arg(text.toHtmlEscaped()));
+      text.isEmpty() ? tr("<b>Tally:</b> no attempts yet.")
+                     : tr("<b>Tally:</b> %1").arg(text.toHtmlEscaped()));
 }
 
 void DrillPage::nextCase() {
@@ -643,7 +673,7 @@ void DrillPage::nextCase() {
         break;
       }
     }
-    statusLabel_->setText(text);
+    say(text);
     flow_.noCase();
     return;
   }
@@ -773,450 +803,6 @@ void DrillPage::onTick() {
   if (isBusy()) {
     display_->showTimer(flow_.timer(), now);
   }
-}
-
-bool DrillPage::handleKey(QKeyEvent *e, bool press) {
-  struct Update {
-    DrillPage *page;
-    ~Update() { page->updateControls(); }
-  } update{this};
-  std::int64_t now = monotonicMs();
-  bool scrambleShown =
-      current_ && (onVirtualCube() || !current_->scramble.isEmpty());
-  DrillFlow::Step step = flow_.key(flowKey(e, press), now, scrambleShown);
-  perform(step, now);
-  return step.handled;
-}
-
-DrillFlow::KeyEvent DrillPage::flowKey(const QKeyEvent *e, bool press) const {
-  using Key = DrillFlow::Key;
-  DrillFlow::KeyEvent k;
-  k.press = press;
-  k.shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  const bool ctrl = e->modifiers().testFlag(Qt::ControlModifier);
-  switch (e->key()) {
-  case Qt::Key_Space:
-    k.key = Key::Space;
-    break;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    k.key = Key::Enter;
-    break;
-  case Qt::Key_Tab:
-    k.key = Key::Tab;
-    break;
-  case Qt::Key_Backspace:
-    k.key = Key::Backspace;
-    break;
-  case Qt::Key_Delete:
-    k.key = Key::Delete;
-    break;
-  case Qt::Key_Escape:
-    k.key = Key::Escape;
-    break;
-  case Qt::Key_Z:
-    k.key = ctrl ? Key::Undo : Key::Other;
-    break;
-  default:
-    k.key = isModifierKey(e->key()) ? Key::Modifier : Key::Other;
-    break;
-  }
-  if (onVirtualCube()) {
-    k.move = settings_.keymap.lookup(e);
-  }
-  return k;
-}
-
-QString DrillPage::hintText(DrillFlow::Hint hint) const {
-  switch (hint) {
-  case DrillFlow::Hint::GiveUpKey:
-    return tr("%1 gives the case up.").arg(giveUpKeyText());
-  case DrillFlow::Hint::KeepHolding:
-    return tr("Keep holding Space until the time turns green, then let go or "
-              "start turning.");
-  case DrillFlow::Hint::OnlyRotations:
-    return settings_.drill.tapToArm
-               ? tr("Only rotations until the timer starts: tap Space first.")
-               : tr("Only rotations until the timer starts (hold Space).");
-  case DrillFlow::Hint::None:
-    break;
-  }
-  return {};
-}
-
-void DrillPage::perform(const DrillFlow::Step &step, std::int64_t now) {
-  using A = DrillFlow::Action;
-  switch (step.action) {
-  case A::None:
-    break;
-  case A::NextFromIdle:
-    if (picker_.recapDone()) {
-      picker_.restartRecap();
-      recapFrom_ = session_.size();
-    }
-    nextCase();
-    break;
-  case A::NextCase:
-    nextCase();
-    break;
-  case A::Retry:
-    retryCase();
-    break;
-  case A::ResetWaiting:
-    display_->showTime(0);
-    if (onVirtualCube()) {
-      resetCube(); // back to the case as it was set up
-    }
-    showStatus();
-    break;
-  case A::Rotate:
-    if (attempt_.turn(*step.move)) {
-      cubeView_->animateMove(*step.move);
-    }
-    break;
-  case A::Start:
-    if (onVirtualCube()) {
-      attempt_.start();
-    }
-    showStatus();
-    if (step.move) {
-      runningTurn(*step.move, now); // the turn that started it counts
-    } else {
-      display_->showTimer(flow_.timer(), now);
-    }
-    break;
-  case A::Armed:
-    display_->showTimer(flow_.timer(), now);
-    showStatus();
-    break;
-  case A::TimerShown:
-    display_->showTimer(flow_.timer(), now);
-    break;
-  case A::Turn:
-    runningTurn(*step.move, now);
-    break;
-  case A::Stopped:
-    if (onVirtualCube()) {
-      // A DNF unless the cube shows the step done.
-      cubeView_->finishAnimations();
-      finish(step.timeMs, !stepDone());
-    } else {
-      finish(step.timeMs, false);
-    }
-    break;
-  case A::CancelNoTurn:
-    cancelSolve(tr("Stopped before any face turn: cancelled, nothing was "
-                   "recorded."));
-    break;
-  case A::Cancel:
-    cancelSolve(tr("Solve cancelled; nothing was recorded."));
-    break;
-  case A::GiveUp:
-    giveUp(now);
-    break;
-  case A::Practise:
-  case A::PracticeReset:
-    startPractice(step.aided);
-    break;
-  case A::PracticeTurn:
-    practiceTurn(*step.move);
-    break;
-  case A::ToggleWrong:
-    setWrong(!flow_.failed());
-    break;
-  case A::Delete:
-    deleteAttempt();
-    break;
-  case A::Hint:
-    statusLabel_->setText(hintText(step.hint));
-    break;
-  }
-}
-
-void DrillPage::cancelSolve(const QString &why) {
-  flow_.cancelSolve();
-  cubeView_->finishAnimations();
-  display_->showTime(0);
-  if (onVirtualCube()) {
-    resetCube();
-  }
-  showStatus();
-  statusLabel_->setText(why + " " + statusLabel_->text());
-}
-
-void DrillPage::runningTurn(Move m, std::int64_t now) {
-  const bool face = !isRotation(m.type);
-  const bool offUd = face && !udTurn(attempt_.cube(), m);
-  if (!attempt_.turn(m)) {
-    return;
-  }
-  // The first turn of a layer off the U-D axis ends recognition.
-  std::optional<std::int64_t> stopped =
-      flow_.turned(face, offUd, now, [this] { return stepDone(); });
-  cubeView_->animateMove(m);
-  followView();
-  if (stopped) {
-    finish(*stopped, false);
-  }
-}
-
-std::optional<CubieCube> DrillPage::cubeState() const {
-  FaceletCube f = attempt_.cube();
-  f.normalizeOrientation();
-  return CubieCube::fromFacelets(f);
-}
-
-bool DrillPage::stepDone() {
-  const AlgSet *s = set();
-  const CaseGroup *g = s && current_ ? s->groupOf(current_->caseId) : nullptr;
-  if (!g) {
-    return false;
-  }
-  auto c = cubeState();
-  // As in Learn: the cube itself must reach the step's end state, so a
-  // case that leaves the last layer to be lined up (PLL, say) needs its
-  // last U turn too, while one that leaves the last-layer permutation free
-  // (OLL) doesn't.
-  return c && withinMask(*c, mirrorMask(s->specFor(*g).free, current_->world));
-}
-
-void DrillPage::giveUp(std::int64_t now) {
-  std::int64_t timeMs = flow_.giveUp(now);
-  cubeView_->finishAnimations();
-  finish(timeMs, true, true);
-}
-
-void DrillPage::startPractice(bool aided) {
-  if (!current_) {
-    return;
-  }
-  flow_.startPractice(aided);
-  if (onVirtualCube()) {
-    cubeView_->finishAnimations();
-    resetCube();
-    attempt_.start(); // every layer turns
-  }
-  if (aided) {
-    showReveal();
-  } else {
-    reveal_->clear();
-    setDiagram({});
-  }
-  showStatus();
-  showResult();
-}
-
-void DrillPage::practiceTurn(Move m) {
-  if (!attempt_.turn(m)) {
-    return;
-  }
-  cubeView_->animateMove(m);
-  followView();
-  if (!flow_.practiceTurned(!isRotation(m.type),
-                            [this] { return stepDone(); })) {
-    return;
-  }
-  showStatus();
-  if (settings_.drill.autoAdvance) {
-    const bool aided = flow_.phase() == Phase::Aided;
-    QTimer::singleShot(
-        kAdvanceMs, this, [this, token = flow_.practiceToken(), aided] {
-          if (token != flow_.practiceToken() || !flow_.practiceDone()) {
-            return;
-          }
-          if (aided && flow_.phase() == Phase::Aided) {
-            startPractice(false);
-          } else if (!aided && flow_.phase() == Phase::Unaided) {
-            nextCase();
-          }
-        });
-  }
-}
-
-void DrillPage::finish(std::int64_t timeMs, bool failed, bool gaveUp) {
-  if (!current_ || !set()) {
-    return;
-  }
-  const AttemptMode mode = attemptMode();
-  const CaseProgress *before = progressOf(current_->caseId);
-  flow_.finished(timeMs, failed, gaveUp,
-                 before ? before->best(mode) : std::nullopt, monotonicMs());
-  Attempt a{unixNow(), timeMs, failed, mode};
-  // On the virtual cube: recognition from the case being set up to the
-  // first turn off U and D, execution from there to the stop; only for a
-  // case solved, which was recognised rightly.
-  if (auto t = flow_.timing(timeMs, failed)) {
-    a.recognitionMs = t->recognitionMs;
-    a.executionMs = t->executionMs;
-  }
-  progress()[current_->caseId].record(a);
-  sessionIndex_ =
-      session_.add({current_->caseId, timeMs, failed, flow_.newBest()});
-  picker_.requeue(current_->caseId, failed ? settings_.drill.requeueAfter : 0);
-  missText_.clear();
-  if (flow_.unfinished() && onVirtualCube()) {
-    const AlgSet *s = set();
-    const CaseGroup *g = s->groupOf(current_->caseId);
-    auto c = cubeState();
-    if (g && c) {
-      StepMiss miss =
-          stepMiss(*c, mirrorMask(s->specFor(*g).free, current_->world));
-      missText_ =
-          miss.auf != 0 ? tr("Off by an AUF: %1 would have finished it.")
-                              .arg(qs(aufText(miss.auf)))
-          : miss.pieces == 1
-              ? tr("1 piece wasn't where the step leaves it when you stopped "
-                   "the timer.")
-              : tr("%1 pieces weren't where the step leaves them when you "
-                   "stopped the timer.")
-                    .arg(miss.pieces);
-    }
-  }
-  saveProgress();
-  selectInTree(current_->caseId);
-  showStatus();
-  showReveal();
-  showResult();
-  updateRow(current_->caseId);
-  refreshSession();
-}
-
-void DrillPage::setWrong(bool wrong) {
-  if (!current_ || !flow_.setWrong(wrong)) {
-    showResult();
-    return;
-  }
-  const bool failed = flow_.failed();
-  missText_.clear();
-  auto &attempts = progress()[current_->caseId].attempts;
-  // The attempt just recorded is the last one in this drill mode.
-  for (auto it = attempts.rbegin(); it != attempts.rend(); ++it) {
-    if (it->mode == attemptMode()) {
-      it->failed = failed;
-      if (failed) {
-        it->recognitionMs = 0; // a case failed wasn't recognised rightly
-        it->executionMs = 0;
-      }
-      break;
-    }
-  }
-  saveProgress();
-  if (sessionIndex_) {
-    session_.setFailed(*sessionIndex_, failed, flow_.newBest());
-  }
-  picker_.requeue(current_->caseId, failed ? settings_.drill.requeueAfter : 0);
-  showStatus(); // what Space does next depends on the DNF
-  showResult();
-  updateRow(current_->caseId);
-  refreshSession();
-}
-
-void DrillPage::deleteAttempt() {
-  if (!current_ || !flow_.recorded()) {
-    return;
-  }
-  auto &p = progress();
-  if (auto it = p.find(current_->caseId); it != p.end()) {
-    it->second.removeLast(attemptMode());
-  }
-  saveProgress();
-  if (sessionIndex_ && *sessionIndex_ + 1 == session_.size()) {
-    session_.removeLast();
-  }
-  sessionIndex_.reset();
-  picker_.requeue(current_->caseId, 0);
-  const bool takenBack = flow_.deleted();
-  updateRow(current_->caseId);
-  refreshSession();
-  if (takenBack) {
-    // Given up by mistake: the case is set up as it was, to try.
-    missText_.clear();
-    reveal_->clear();
-    setDiagram({});
-    resultRow_->setVisible(false);
-    display_->showTime(0);
-    clearCaseSelection();
-    if (onVirtualCube()) {
-      resetCube();
-    }
-    showStatus();
-    statusLabel_->setText(tr("Give-up taken back; nothing was recorded.") +
-                          " " + statusLabel_->text());
-    return;
-  }
-  showStatus();
-  showResult();
-}
-
-void DrillPage::showResult() {
-  if (!flow_.resultShown() || !current_) {
-    resultRow_->setVisible(false);
-    return;
-  }
-  const bool failed = flow_.failed();
-  const bool gaveUp = flow_.gaveUp();
-  const bool recorded = flow_.recorded();
-  resultRow_->setVisible(true);
-  wrongButton_->setChecked(failed);
-  wrongButton_->setVisible(!gaveUp && recorded);
-  deleteButton_->setVisible(recorded);
-  deleteButton_->setText(gaveUp && flow_.gaveUpBeforeStart()
-                             ? tr("Take back (Del)")
-                             : tr("Delete (Del)"));
-  const AlgSet *s = set();
-  double target = s ? s->targetSeconds : 0.0;
-  Solve shown;
-  shown.timeMs = flow_.timeMs();
-  shown.penalty = failed ? Penalty::Dnf : Penalty::None;
-  QColor colour;
-  if (!failed && target > 0) {
-    colour =
-        static_cast<double>(flow_.timeMs()) <= target * 1000.0 ? kGood : kSlow;
-  }
-  display_->showText(
-      gaveUp ? tr("DNF") : qs(formatSolve(shown, settings_.decimals)), colour);
-  QString text;
-  if (!recorded) {
-    text = tr("Deleted");
-  } else if (!failed) {
-    text = flow_.newBest() ? tr("New best! Target %1 s").arg(target, 0, 'f', 2)
-                           : tr("Target %1 s").arg(target, 0, 'f', 2);
-  } else if (gaveUp) {
-    text = tr("Given up");
-  } else if (!onVirtualCube()) {
-    text = tr("Wrong alg");
-  } else if (flow_.unfinished()) {
-    text = missText_.isEmpty()
-               ? tr("The case wasn't solved when you stopped the timer.")
-               : missText_;
-  } else {
-    text = tr("Marked DNF");
-  }
-  resultLabel_->setText(text);
-}
-
-void DrillPage::showReveal() {
-  if (!current_) {
-    return;
-  }
-  QString html = algsHtml(current_->caseId, current_->state, current_->world);
-  // A virtual DNF shows what was done.
-  if (onVirtualCube() && flow_.failed() && !attempt_.moves().empty() &&
-      flow_.phase() == Phase::Revealed) {
-    html += "<p style='color:gray'>" +
-            tr("Your moves: %1")
-                .arg(qs(toString(attempt_.solution())))
-                .toHtmlEscaped() +
-            "</p>";
-  }
-  reveal_->setText(html);
-  setDiagram(caseDiagram(current_->caseId, current_->state, kDiagramSize,
-                         colourMapOf(current_->hold), current_->world));
-}
-
-void DrillPage::setDiagram(const QPixmap &pixmap) {
-  diagram_->setPixmap(pixmap);
-  diagram_->setVisible(!pixmap.isNull());
 }
 
 } // namespace vcube

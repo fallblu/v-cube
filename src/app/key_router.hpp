@@ -44,4 +44,8 @@ private:
   bool route(QKeyEvent *e, bool press);
 };
 
+// A key that only modifies others (Shift, Ctrl, Alt, the lock keys ...):
+// pressing one never stops a timer.
+bool isModifierKey(int key);
+
 } // namespace vcube

@@ -42,6 +42,7 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
                                    QWidget *parent)
     : QWidget(parent), settings_(settings) {
   auto *form = new QFormLayout(this);
+  form_ = form;
   startBox_ = new QComboBox(this);
   startBox_->addItem(tr("Tap Space, then the first face turn starts it"), true);
   startBox_->addItem(tr("Hold Space and let go"), false);
@@ -63,9 +64,8 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
   holdSpin_->setSuffix(" ms");
   holdSpin_->setSpecialValueText(tr("None"));
   holdSpin_->setValue(settings_.holdMs);
-  holdSpin_->setToolTip(tr("Drill's own hold time (apart from the Solves "
-                           "tab's), for a physical cube and for holding "
-                           "Space on the virtual cube"));
+  holdSpin_->setToolTip(tr("Drill's own hold time, for a physical cube and "
+                           "for holding Space on the virtual cube"));
   form->addRow(tr("Hold Space before starting:"), holdSpin_);
   giveUpBox_ = new QComboBox(this);
   giveUpBox_->addItem(tr("Shift+Space (Backspace then only toggles the DNF)"),
@@ -108,6 +108,29 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
       this);
   note->setWordWrap(true);
   form->addRow(note);
+}
+
+void DrillSettingsTab::moveTimingRows(QFormLayout *to, int row) {
+  struct Moved {
+    QWidget *field;
+    QString label;
+  };
+  // In the order they end up under the other modes' hold time.
+  const Moved rows[] = {
+      {holdSpin_, tr("Hold Space before starting, in Drill:")},
+      {startBox_, tr("Drill's virtual cube timer starts:")},
+      {autoStopBox_, tr("Drill's timer stops:")},
+  };
+  int at = row + 1;
+  for (const Moved &m : rows) {
+    QFormLayout::TakeRowResult taken = form_->takeRow(m.field);
+    if (taken.labelItem) {
+      delete taken.labelItem->widget();
+    }
+    delete taken.labelItem;
+    delete taken.fieldItem;
+    to->insertRow(at++, m.label, m.field);
+  }
 }
 
 DrillSettings DrillSettingsTab::result() const {

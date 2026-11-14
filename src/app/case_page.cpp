@@ -423,6 +423,13 @@ void CasePage::showSet(const std::string &id) {
   buildTree();
 }
 
+void CasePage::showCase(const QString &setId, const QString &caseId) {
+  if (acrossSets_ || ss(setId) != setId_) {
+    selectSet(ss(setId));
+  }
+  selectInTree(ss(caseId));
+}
+
 void CasePage::releaseKeys() {
   filter_->release();
   if (QWidget *focus = QApplication::focusWidget();
@@ -653,9 +660,26 @@ void CasePage::saveTicks() {
 }
 
 void CasePage::showCaseMenu(const QPoint &pos) {
-  QTreeWidgetItem *item = tree_->itemAt(pos);
+  QMenu menu(this);
+  if (fillCaseMenu(menu, tree_->itemAt(pos))) {
+    menu.exec(tree_->viewport()->mapToGlobal(pos));
+  }
+}
+
+void CasePage::fillModeMenu(QMenu &menu) {
+  QTreeWidgetItem *item = tree_->currentItem();
+  if (!item || !item->isSelected()) {
+    const auto selected = tree_->selectedItems();
+    item = selected.isEmpty() ? nullptr : selected.front();
+  }
+  if (!fillCaseMenu(menu, item)) {
+    menu.addAction(tr("Select a case in the list"))->setEnabled(false);
+  }
+}
+
+bool CasePage::fillCaseMenu(QMenu &menu, QTreeWidgetItem *item) {
   if (!item || !set()) {
-    return;
+    return false;
   }
   // The cases of a group's row, or of every selected row when the row
   // right-clicked is one of them.
@@ -688,21 +712,17 @@ void CasePage::showCaseMenu(const QPoint &pos) {
     add(item);
   }
   if (ids.empty()) {
-    return;
+    return false;
   }
-  QMenu menu(this);
   if (ids.size() > 1) {
     menu.addSection(tr("%1 cases").arg(ids.size()));
     extendCaseMenu(menu, ids);
-    if (menu.actions().size() > 1) { // more than the section
-      menu.exec(tree_->viewport()->mapToGlobal(pos));
-    }
-    return;
+    return menu.actions().size() > 1; // more than the section
   }
   std::string id = ids.front();
   const AlgCase *c = set()->findCase(id);
   if (!c) {
-    return;
+    return false;
   }
   QAction *now = menu.addAction(startCaseLabel(id), this,
                                 [this, id] { startCaseFromList(id); });
@@ -720,7 +740,7 @@ void CasePage::showCaseMenu(const QPoint &pos) {
     }
   });
   copy->setEnabled(eligible(id));
-  menu.exec(tree_->viewport()->mapToGlobal(pos));
+  return true;
 }
 
 double CasePage::yawFor(const std::string &caseId, Mirror world) {
