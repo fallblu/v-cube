@@ -433,9 +433,6 @@ void LibraryPage::buildActions() {
   setMenu_->addAction(propertiesAction_);
   setMenu_->addAction(checkAction_);
   setMenu_->addSeparator();
-  setMenu_->addAction(importAction_);
-  setMenu_->addAction(exportAction_);
-  setMenu_->addSeparator();
   setMenu_->addAction(restoreCasesAction_);
   restoreSetMenu_ = setMenu_->addMenu(tr("Restore a &built-in set"));
   connect(restoreSetMenu_, &QMenu::aboutToShow, this,

@@ -4,6 +4,8 @@
 
 class QCheckBox;
 class QComboBox;
+class QFormLayout;
+class QLabel;
 class QSettings;
 class QSpinBox;
 
@@ -46,9 +48,14 @@ class DrillSettingsTab : public QWidget {
 public:
   DrillSettingsTab(const DrillSettings &settings, QWidget *parent = nullptr);
   DrillSettings result() const;
+  QFormLayout *form() const { return form_; }
+  // Moves the rows about starting and stopping the timer into `to` at
+  // `row`, where the same choices of the other modes are.
+  void moveTimingRows(QFormLayout *to, int row);
 
 private:
   DrillSettings settings_;
+  QFormLayout *form_;
   QCheckBox *autoStopBox_;
   QComboBox *startBox_;
   QSpinBox *holdSpin_;

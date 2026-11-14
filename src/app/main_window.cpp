@@ -408,6 +408,13 @@ bool MainWindow::setMode(int mode) {
     // Nothing else shows which mode this is.
     showOverlay(AppMode::label(mode), 1500);
   }
+  if (pageUndoAction_) {
+    // Library has its own Undo and Redo; these modes take Ctrl+Z.
+    pageUndoAction_->setVisible(
+        mode == AppMode::Learn || mode == AppMode::Drill ||
+        mode == AppMode::Timed || mode == AppMode::Untimed ||
+        mode == AppMode::MoveCount);
+  }
   updateHelp();
   updateBadges();
   return true;
@@ -594,8 +601,8 @@ void MainWindow::fitToScreen() {
 
 void MainWindow::buildMenus() {
   QMenu *file = menuBar()->addMenu(tr("&File"));
-  file->addAction(tr("Import alg set…"), this, &MainWindow::importAlgSet);
-  file->addAction(tr("Export alg set…"), this, &MainWindow::exportAlgSet);
+  file->addAction(tr("&Import alg set…"), this, &MainWindow::importAlgSet);
+  file->addAction(tr("&Export alg set…"), this, &MainWindow::exportAlgSet);
   file->addSeparator();
   file->addAction(tr("Export all data…"), this, &MainWindow::exportAllData);
   file->addAction(tr("Open data folder"), this, &MainWindow::openDataFolder);
@@ -643,7 +650,7 @@ void MainWindow::buildMenus() {
   help->setShortcut(QKeySequence(Qt::Key_F1));
   view->addAction(help);
 
-  QMenu *modes = menuBar()->addMenu(tr("&Mode"));
+  QMenu *modes = menuBar()->addMenu(tr("&Go"));
   for (int m : AppMode::sidebarOrder()) {
     modes->addAction(AppMode::label(m), AppMode::shortcut(m), this,
                      [this, m] { setMode(m); });
@@ -665,6 +672,17 @@ void MainWindow::buildMenus() {
   // stay with the page (they would act on it from other modes).
   QAction *first = edit->actions().value(0);
   edit->insertActions(first, libraryPage_->editActions());
+  // The other modes take Ctrl+Z themselves (see KeyRouter): the menu item
+  // sends them the key, so that undo can be found in the menu everywhere.
+  pageUndoAction_ = new QAction(tr("&Undo") + "\tCtrl+Z", this);
+  connect(pageUndoAction_, &QAction::triggered, this, [this] {
+    if (ModePage *page = currentPage()) {
+      QKeyEvent press(QEvent::KeyPress, Qt::Key_Z, Qt::ControlModifier);
+      page->handleKey(&press, true);
+    }
+  });
+  edit->insertAction(first, pageUndoAction_);
+  edit->insertSeparator(first);
   for (QMenu *menu : libraryPage_->menus()) {
     menuBar()->insertMenu(view->menuAction(), menu);
   }
@@ -770,13 +788,16 @@ void MainWindow::openSettings(bool neutrality) {
   if (neutrality) {
     dialog.showNeutralityTab();
   }
-  if (dialog.exec() != QDialog::Accepted) {
-    return;
+  auto apply = [this](const AppSettings &now) {
+    SettingsParts changed = changedParts(settings_, now);
+    settings_ = now;
+    settings_.save();
+    settingsChanged(changed);
+  };
+  connect(&dialog, &SettingsDialog::applied, this, apply);
+  if (dialog.exec() == QDialog::Accepted) {
+    apply(dialog.result());
   }
-  SettingsParts changed = changedParts(settings_, dialog.result());
-  settings_ = dialog.result();
-  settings_.save();
-  settingsChanged(changed);
 }
 
 void MainWindow::settingsChanged(SettingsParts parts) {

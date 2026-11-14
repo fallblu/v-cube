@@ -6,6 +6,7 @@
 #include <QWidget>
 
 class QComboBox;
+class QFormLayout;
 class QPushButton;
 class QHBoxLayout;
 class QVBoxLayout;
@@ -71,6 +72,12 @@ private:
   QList<KeyHint> keys_;
   void render();
 };
+
+// A short explanation shown under a control. Tooltips are never shown in
+// the app (see MainWindow), so what a control needs said is said here.
+QLabel *helpLabel(const QString &text, QWidget *parent);
+// Writes the tooltip of each field of the form under it as a helpLabel.
+void showTipsAsHelp(QFormLayout *form);
 
 // The two-item drop-down "Virtual cube" / "Physical cube".
 QComboBox *createCubeKindBox(QWidget *parent);

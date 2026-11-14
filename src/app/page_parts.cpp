@@ -8,6 +8,7 @@
 
 #include <QComboBox>
 #include <QEvent>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -45,6 +46,31 @@ void OptionBar::addWidget(QWidget *w, int stretch) {
 void OptionBar::addSpacing(int size) { layout_->addSpacing(size); }
 
 void OptionBar::addStretch(int stretch) { layout_->addStretch(stretch); }
+
+QLabel *helpLabel(const QString &text, QWidget *parent) {
+  auto *label = new QLabel(text, parent);
+  label->setWordWrap(true);
+  label->setForegroundRole(QPalette::PlaceholderText);
+  QFont f = label->font();
+  f.setPointSizeF(f.pointSizeF() * 0.9);
+  label->setFont(f);
+  return label;
+}
+
+void showTipsAsHelp(QFormLayout *form) {
+  for (int row = form->rowCount() - 1; row >= 0; --row) {
+    QLayoutItem *item = form->itemAt(row, QFormLayout::FieldRole);
+    if (!item) {
+      item = form->itemAt(row, QFormLayout::SpanningRole);
+    }
+    QWidget *field = item ? item->widget() : nullptr;
+    if (!field || field->toolTip().isEmpty()) {
+      continue;
+    }
+    form->insertRow(row + 1, QString(),
+                    helpLabel(field->toolTip(), form->parentWidget()));
+  }
+}
 
 QComboBox *createCubeKindBox(QWidget *parent) {
   auto *box = new QComboBox(parent);

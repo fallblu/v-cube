@@ -1,4 +1,5 @@
 #include "app/settings_dialog.hpp"
+#include "app/page_parts.hpp"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -25,9 +26,32 @@
 namespace vcube {
 
 namespace {
+
+// Moves the row of `field` to the end of another form.
+void moveRow(QFormLayout *from, QFormLayout *to, QWidget *field) {
+  QFormLayout::TakeRowResult row = from->takeRow(field);
+  if (row.labelItem && row.labelItem->widget()) {
+    to->addRow(row.labelItem->widget(), field);
+  } else {
+    to->addRow(field);
+  }
+  delete row.labelItem;
+  delete row.fieldItem;
+}
+
+// A tab's contents in a scroll area: the forms are longer than the dialog
+// on a small screen.
+QScrollArea *scrolled(QWidget *page, QWidget *parent) {
+  auto *scroll = new QScrollArea(parent);
+  scroll->setWidget(page);
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  return scroll;
+}
+
 const std::array<const char *, 6> kFaceNames = {
     "U (top)", "R (right)", "F (front)", "D (bottom)", "L (left)", "B (back)"};
-}
+} // namespace
 
 SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     : QDialog(parent), settings_(settings) {
@@ -106,7 +130,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   thumbnailBox_->setToolTip(
       tr("The size of the case pictures in the Learn and Drill lists"));
   gForm->addRow(tr("Case pictures:"), thumbnailBox_);
-  tabs->addTab(general, tr("General"));
+  tabs->addTab(scrolled(general, tabs), tr("Appearance"));
 
   tabs->addTab(buildNeutralityTab(tabs), tr("Colour neutrality"));
   refreshColours();
@@ -123,7 +147,8 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   holdSpin_->setToolTip(tr("How long Space must be held before the timer "
                            "can start (cstimer uses 300 ms, a Stackmat 550 "
                            "ms)"));
-  tForm->addRow(tr("Hold Space before starting:"), holdSpin_);
+  tForm->addRow(tr("Hold Space before starting, in the solve modes:"),
+                holdSpin_);
   inspectionBox_ = new QCheckBox(
       tr("15 s WCA inspection (+2 after 15 s, DNF after 17 s)"), timer);
   inspectionBox_->setChecked(settings_.inspection);
@@ -148,7 +173,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
       tr("Off: Space ends the solve, and a cube that isn't solved then is a "
          "DNF"));
   autoStopBox_->setChecked(settings_.autoStop);
-  tForm->addRow(tr("Virtual cube:"), autoStopBox_);
+  tForm->addRow(tr("Virtual cube solves:"), autoStopBox_);
   hideCubeBox_ = new QCheckBox(
       tr("Hide the scrambled cube until inspection starts (Timed)"), timer);
   hideCubeBox_->setChecked(settings_.hideBeforeInspection);
@@ -168,11 +193,17 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
          "axis)"));
   anyHoldBox_->setChecked(settings_.optimalAnyHold);
   tForm->addRow(QString(), anyHoldBox_);
-  tabs->addTab(timer, tr("Solves"));
+  // What is about text and looks goes with the appearance.
+  moveRow(tForm, gForm, timerFontSpin_);
+  moveRow(tForm, gForm, decimalsSpin_);
+  tabs->addTab(scrolled(timer, tabs), tr("Timing and solves"));
 
   // Keyboard
   auto *keys = new QWidget(tabs);
   auto *kLayout = new QVBoxLayout(keys);
+  auto *cubeForm = new QFormLayout;
+  kLayout->addLayout(cubeForm);
+  moveRow(gForm, cubeForm, animationSpin_);
   kLayout->addWidget(
       new QLabel(tr("Virtual cube turning keys. Select a row to change its "
                     "key or move, or enter a key and a move to add one."),
@@ -234,7 +265,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     refreshKeys();
   });
   refreshKeys();
-  tabs->addTab(keys, tr("Keyboard"));
+  tabs->addTab(keys, tr("Cube and keys"));
 
   // Learning
   auto *learning = new QWidget(tabs);
@@ -352,19 +383,36 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   learningScroll->setWidget(learning);
   learningScroll->setWidgetResizable(true);
   learningScroll->setFrameShape(QFrame::NoFrame);
-  tabs->addTab(learningScroll, tr("Learning"));
+  tabs->addTab(learningScroll, tr("Learn"));
 
   drillTab_ = new DrillSettingsTab(settings_.drill, tabs);
-  tabs->addTab(drillTab_, tr("Drill"));
+  // Starting and stopping the timer is set in one place for every mode.
+  int holdRow = 0;
+  tForm->getWidgetPosition(holdSpin_, &holdRow, nullptr);
+  drillTab_->moveTimingRows(tForm, holdRow);
+  tabs->addTab(scrolled(drillTab_, tabs), tr("Drill"));
+
+  // Tooltips are never shown (see MainWindow), so each option's
+  // explanation is written under it.
+  for (QFormLayout *form : {gForm, cubeForm, tForm, lForm, drillTab_->form()}) {
+    showTipsAsHelp(form);
+  }
 
   auto *buttons = new QDialogButtonBox(
-      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+      QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel,
+      this);
   connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, this, &SettingsDialog::reject);
+  connect(buttons->button(QDialogButtonBox::Apply), &QPushButton::clicked, this,
+          [this] {
+            if (collect()) {
+              emit applied(settings_);
+            }
+          });
   auto *layout = new QVBoxLayout(this);
   layout->addWidget(tabs);
   layout->addWidget(buttons);
-  resize(620, 520);
+  resize(720, 640);
 }
 
 void SettingsDialog::refreshColours() {
@@ -689,13 +737,19 @@ bool SettingsDialog::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void SettingsDialog::accept() {
+  if (collect()) {
+    QDialog::accept();
+  }
+}
+
+bool SettingsDialog::collect() {
   auto learn = stepsFromText(learningEdit_->text());
   auto relearn = stepsFromText(relearningEdit_->text());
   if (learn.empty() || relearn.empty()) {
     QMessageBox::warning(this, tr("Settings"),
                          tr("Learning steps must be durations like \"1m 10m\" "
                             "or \"30s 5m 1h\"."));
-    return;
+    return false;
   }
   settings_.darkTheme = themeBox_->currentIndex() == 0;
   settings_.animationMs = animationSpin_->value();
@@ -726,7 +780,7 @@ void SettingsDialog::accept() {
   settings_.slowRecognitionMs =
       static_cast<int>(std::lround(slowSpin_->value() * 1000));
   settings_.drill = drillTab_->result();
-  QDialog::accept();
+  return true;
 }
 
 } // namespace vcube
