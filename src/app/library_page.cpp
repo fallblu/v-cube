@@ -1,7 +1,9 @@
 #include "app/library_page.hpp"
 
+#include "app/alglab_common.hpp"
 #include "app/case_filter.hpp"
 #include "app/cube_painter.hpp"
+#include "app/grip_view.hpp"
 #include "app/paste_dialog.hpp"
 #include "app/set_properties_dialog.hpp"
 #include "app/ui_state.hpp"
@@ -251,6 +253,10 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   addRow->addWidget(newAlgEdit_, 1);
   addRow->addWidget(addButton);
   caseLayout->addLayout(addRow);
+  gripTitle_ = new QLabel(tr("<b>Fingertricks</b>"), caseBox_);
+  caseLayout->addWidget(gripTitle_);
+  grips_ = new GripView(caseBox_);
+  caseLayout->addWidget(grips_);
 
   auto *split = new QSplitter(this);
   split->addWidget(left);
@@ -341,6 +347,8 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
           &LibraryPage::showAlgMenu);
   connect(algList_, &QTreeWidget::currentItemChanged, this,
           &LibraryPage::updateActions);
+  connect(algList_, &QTreeWidget::currentItemChanged, this,
+          &LibraryPage::updateGrips);
   connect(qApp, &QApplication::focusChanged, this, [this] {
     if (active_) {
       updateActions(); // the keys act on the alg list or the case tree
@@ -911,6 +919,23 @@ void LibraryPage::refreshAlgList() {
     algList_->setCurrentItem(algList_->topLevelItem(row));
   }
   loading_ = false;
+  updateGrips();
+}
+
+void LibraryPage::updateGrips() {
+  const ErgoProfile *g = lab_ ? labGuideProfile(*lab_) : nullptr;
+  gripTitle_->setVisible(lab_ != nullptr);
+  grips_->setVisible(lab_ != nullptr);
+  QTreeWidgetItem *item = algList_->currentItem();
+  if (!item) {
+    grips_->clear(currentCase() && !currentCase()->algs.empty()
+                      ? tr("Select an alg to see how to turn it.")
+                      : QString());
+    return;
+  }
+  grips_->setAlg(item->text(0), g ? &*g->grips : nullptr,
+                 g ? tr("Can't read this alg.")
+                   : tr("No grip profile: make one in Alg Lab (Profile…)."));
 }
 
 void LibraryPage::storeAlgs(const QString &text, std::optional<int> edited) {

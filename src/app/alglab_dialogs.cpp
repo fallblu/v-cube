@@ -2,6 +2,7 @@
 
 #include "app/alglab_common.hpp"
 #include "app/app_settings.hpp"
+#include "app/grip_view.hpp"
 #include "io/algset_json.hpp"
 
 #include <QCheckBox>
@@ -264,6 +265,261 @@ void ProfileDialog::updateTry() {
                          .arg(s.total, 0, 'f', 2)
                          .arg(s.moves, 0, 'f', 2)
                          .arg(s.transitions, 0, 'f', 2));
+}
+
+// --- GripProfileDialog ------------------------------------------------------
+
+namespace {
+
+enum TrickCol {
+  TOn,
+  TMove,
+  THand,
+  TFinger,
+  THow,
+  TFrom,
+  TTurn,
+  TCost,
+  TReset,
+  TColCount
+};
+
+QDoubleSpinBox *costBox(double value, double max, QWidget *parent) {
+  auto *b = new QDoubleSpinBox(parent);
+  b->setRange(0, max);
+  b->setSingleStep(0.05);
+  b->setDecimals(2);
+  b->setValue(value);
+  return b;
+}
+
+} // namespace
+
+GripProfileDialog::GripProfileDialog(const ErgoProfile &profile,
+                                     QWidget *parent)
+    : QDialog(parent), base_(profile) {
+  setWindowTitle(tr("Grip profile"));
+  resize(900, 760);
+  const GripModel g = profile.grips.value_or(standardGripModel());
+  auto *layout = new QVBoxLayout(this);
+  auto *intro = new QLabel(
+      tr("An alg's score is the cheapest way to turn it with these tricks: "
+         "each move gets a trick, and a hand regrips between moves when the "
+         "next trick needs another grip. A grip is where the hand's thumb "
+         "sits as the wrist turns it: home, up or down a quarter turn (the "
+         "right thumb goes up with R, the left thumb down with L), far up "
+         "or far down. A trick turns its move from the grips listed under "
+         "From and moves its hand's thumb by Turn steps; a rotation lets go "
+         "with both hands, which take the cube again home. Lower is "
+         "easier."),
+      this);
+  intro->setWordWrap(true);
+  layout->addWidget(intro);
+
+  auto *top = new QHBoxLayout;
+  auto *form1 = new QFormLayout;
+  auto *form2 = new QFormLayout;
+  name_ = new QLineEdit(qs(profile.name), this);
+  form1->addRow(tr("Name:"), name_);
+  regrip_ = costBox(g.regrip, 20, this);
+  form1->addRow(tr("A regrip (a pause):"), regrip_);
+  hidden_ = costBox(g.hiddenRegrip, 20, this);
+  form1->addRow(tr("A regrip while the other hand turns:"), hidden_);
+  step_ = costBox(g.regripStep, 20, this);
+  form1->addRow(tr("Each regrip step past the first:"), step_);
+  strain_ = costBox(g.strain, 20, this);
+  form2->addRow(tr("Each move with a hand far up or down:"), strain_);
+  start_ = costBox(g.start, 20, this);
+  form2->addRow(tr("Each step from home to start in:"), start_);
+  same_ = costBox(g.sameFinger, 20, this);
+  form2->addRow(tr("A finger turning two moves in a row:"), same_);
+  other_ = costBox(g.otherMove, 50, this);
+  form2->addRow(tr("A move no trick turns:"), other_);
+  top->addLayout(form1);
+  top->addLayout(form2);
+  layout->addLayout(top);
+
+  tricks_ = new QTableWidget(0, TColCount, this);
+  tricks_->setHorizontalHeaderLabels({tr("On"), tr("Move"), tr("Hand"),
+                                      tr("Finger"), tr("How"), tr("From"),
+                                      tr("Turn"), tr("Cost"), tr("Rotation")});
+  tricks_->horizontalHeaderItem(TFrom)->setToolTip(
+      tr("The grips the trick starts from, such as \"home, up\": far down, "
+         "down, home, up, far up (or -2 .. 2), or \"any\""));
+  tricks_->horizontalHeaderItem(TTurn)->setToolTip(
+      tr("Steps the hand's thumb moves: R is +1 for the right hand, L is -1 "
+         "for the left"));
+  tricks_->horizontalHeaderItem(TReset)->setToolTip(
+      tr("Both hands let go and take the cube again home (x, y, z)"));
+  tricks_->verticalHeader()->hide();
+  tricks_->horizontalHeader()->setSectionResizeMode(THow, QHeaderView::Stretch);
+  for (const GripTrick &t : g.tricks) {
+    addTrickRow(t);
+  }
+  tricks_->resizeColumnsToContents();
+  layout->addWidget(tricks_, 1);
+  auto *trickButtons = new QHBoxLayout;
+  auto *add = new QPushButton(tr("Add trick"), this);
+  auto *remove = new QPushButton(tr("Remove trick"), this);
+  auto *standard = new QPushButton(tr("Standard tricks"), this);
+  standard->setToolTip(tr("Put back v-cube's standard tricks and costs"));
+  problems_ = new QLabel(this);
+  problems_->setForegroundRole(QPalette::PlaceholderText);
+  trickButtons->addWidget(add);
+  trickButtons->addWidget(remove);
+  trickButtons->addWidget(standard);
+  trickButtons->addWidget(problems_, 1);
+  layout->addLayout(trickButtons);
+  connect(add, &QPushButton::clicked, this, [this] {
+    GripTrick t;
+    t.move = "U";
+    t.how = "flick";
+    t.from = gripBit(0);
+    addTrickRow(t);
+    tricks_->scrollToBottom();
+    tricks_->editItem(tricks_->item(tricks_->rowCount() - 1, TMove));
+    updateTry();
+  });
+  connect(remove, &QPushButton::clicked, this, [this] {
+    if (tricks_->currentRow() >= 0) {
+      tricks_->removeRow(tricks_->currentRow());
+      updateTry();
+    }
+  });
+  connect(standard, &QPushButton::clicked, this, [this] {
+    GripModel s = standardGripModel();
+    tricks_->setRowCount(0);
+    for (const GripTrick &t : s.tricks) {
+      addTrickRow(t);
+    }
+    regrip_->setValue(s.regrip);
+    hidden_->setValue(s.hiddenRegrip);
+    step_->setValue(s.regripStep);
+    strain_->setValue(s.strain);
+    start_->setValue(s.start);
+    same_->setValue(s.sameFinger);
+    other_->setValue(s.otherMove);
+    updateTry();
+  });
+
+  auto *tryRow = new QHBoxLayout;
+  tryAlg_ = new QLineEdit("R U R' U' R' F R2 U' R' U' R U R' F'", this);
+  tryRow->addWidget(new QLabel(tr("Try an alg:"), this));
+  tryRow->addWidget(tryAlg_, 1);
+  layout->addLayout(tryRow);
+  tryView_ = new GripView(this);
+  layout->addWidget(tryView_);
+
+  auto *buttons =
+      new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+  connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+  layout->addWidget(buttons);
+
+  connect(tryAlg_, &QLineEdit::textChanged, this,
+          &GripProfileDialog::updateTry);
+  connect(tricks_, &QTableWidget::itemChanged, this,
+          &GripProfileDialog::updateTry);
+  for (QDoubleSpinBox *b :
+       {other_, regrip_, hidden_, step_, strain_, start_, same_}) {
+    connect(b, &QDoubleSpinBox::valueChanged, this,
+            &GripProfileDialog::updateTry);
+  }
+  updateTry();
+}
+
+void GripProfileDialog::addTrickRow(const GripTrick &t) {
+  QSignalBlocker block(tricks_);
+  int row = tricks_->rowCount();
+  tricks_->insertRow(row);
+  auto check = [](bool on) {
+    auto *i = new QTableWidgetItem;
+    i->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable |
+                Qt::ItemIsUserCheckable);
+    i->setCheckState(on ? Qt::Checked : Qt::Unchecked);
+    return i;
+  };
+  tricks_->setItem(row, TOn, check(t.on));
+  tricks_->setItem(row, TMove, new QTableWidgetItem(qs(t.move)));
+  auto *hand = new QComboBox(tricks_);
+  for (Hand h : {Hand::Right, Hand::Left, Hand::Both, Hand::Either}) {
+    hand->addItem(qs(std::string(handId(h))));
+  }
+  hand->setCurrentIndex(static_cast<int>(t.hand));
+  tricks_->setCellWidget(row, THand, hand);
+  auto *finger = new QComboBox(tricks_);
+  for (int f = 0; f <= static_cast<int>(Finger::Hands); ++f) {
+    finger->addItem(qs(std::string(fingerId(static_cast<Finger>(f)))));
+  }
+  finger->setCurrentIndex(static_cast<int>(t.finger));
+  tricks_->setCellWidget(row, TFinger, finger);
+  for (QComboBox *b : {hand, finger}) {
+    connect(b, &QComboBox::currentIndexChanged, this,
+            &GripProfileDialog::updateTry);
+  }
+  tricks_->setItem(row, THow, new QTableWidgetItem(qs(t.how)));
+  tricks_->setItem(row, TFrom, new QTableWidgetItem(qs(gripMaskText(t.from))));
+  tricks_->setItem(row, TTurn, new QTableWidgetItem(QString::number(t.turn)));
+  tricks_->setItem(row, TCost, new QTableWidgetItem(QString::number(t.cost)));
+  tricks_->setItem(row, TReset, check(t.reset));
+}
+
+ErgoProfile GripProfileDialog::profile() const {
+  ErgoProfile p = base_;
+  p.name = name_->text().trimmed().toStdString();
+  GripModel g;
+  g.otherMove = other_->value();
+  g.regrip = regrip_->value();
+  g.hiddenRegrip = hidden_->value();
+  g.regripStep = step_->value();
+  g.strain = strain_->value();
+  g.start = start_->value();
+  g.sameFinger = same_->value();
+  for (int r = 0; r < tricks_->rowCount(); ++r) {
+    auto text = [&](int c) {
+      return tricks_->item(r, c) ? tricks_->item(r, c)->text().trimmed()
+                                 : QString();
+    };
+    auto combo = [&](int c) {
+      auto *b = qobject_cast<QComboBox *>(tricks_->cellWidget(r, c));
+      return b ? b->currentIndex() : 0;
+    };
+    auto parsed = parseAlg(text(TMove).toStdString());
+    auto from = gripMaskFromText(text(TFrom).toStdString());
+    bool turnOk = false, costOk = false;
+    int turn = text(TTurn).toInt(&turnOk);
+    double cost = text(TCost).toDouble(&costOk);
+    if (!parsed || parsed.alg.size() != 1 || !from || !turnOk || !costOk ||
+        turn < -4 || turn > 4 || cost < 0) {
+      continue;
+    }
+    GripTrick t;
+    t.move = toString(parsed.alg.front());
+    t.hand = static_cast<Hand>(combo(THand));
+    t.finger = static_cast<Finger>(combo(TFinger));
+    t.how = text(THow).toStdString();
+    t.from = *from;
+    t.turn = turn;
+    t.cost = cost;
+    t.on = tricks_->item(r, TOn)->checkState() == Qt::Checked;
+    t.reset = tricks_->item(r, TReset)->checkState() == Qt::Checked;
+    g.tricks.push_back(std::move(t));
+  }
+  p.otherMove = g.otherMove;
+  p.grips = std::move(g);
+  return p;
+}
+
+void GripProfileDialog::updateTry() {
+  ErgoProfile p = profile();
+  int bad = tricks_->rowCount() - static_cast<int>(p.grips->tricks.size());
+  problems_->setText(
+      bad > 0 ? tr("%n row(s) can't be read and will be left out (a move "
+                   "such as R2, grips such as \"home, up\", a whole number "
+                   "turn and a cost).",
+                   nullptr, bad)
+              : QString());
+  tryView_->setAlg(tryAlg_->text(), &*p.grips, tr("Type an alg to try."));
 }
 
 // --- LabCaseDialog ----------------------------------------------------------

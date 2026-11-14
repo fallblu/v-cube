@@ -2,6 +2,7 @@
 
 #include "app/alglab_dialogs.hpp"
 #include "app/app_settings.hpp"
+#include "app/grip_view.hpp"
 #include "app/lab_test_panel.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
@@ -189,6 +190,22 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   pm->addAction(tr("Edit this profile…"), this, [this] { editProfile(false); });
   pm->addAction(tr("New profile from this one…"), this,
                 [this] { editProfile(true); });
+  pm->addAction(tr("New grip profile…"), this, [this] {
+    ErgoProfile p = builtinErgoProfiles().front();
+    p.name = tr("My grips").toStdString();
+    GripProfileDialog d(p, this);
+    if (d.exec() != QDialog::Accepted) {
+      return;
+    }
+    ErgoProfile made = d.profile();
+    if (made.name.empty()) {
+      made.name = p.name;
+    }
+    store_.profiles().push_back(made);
+    saveStore();
+    fillProfiles();
+    profileBox_->setCurrentText(qs(made.name));
+  });
   pm->addAction(tr("Delete this profile"), this, [this] {
     auto &ps = store_.profiles();
     if (ps.size() <= 1) {
@@ -200,6 +217,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
       ps.erase(ps.begin() + i);
       saveStore();
       fillProfiles();
+      scoreCache_.clear();
       fillTable();
     }
   });
@@ -217,6 +235,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     }
     saveStore();
     fillProfiles();
+    scoreCache_.clear();
     fillTable();
   });
   profileMenu->setMenu(pm);
@@ -256,7 +275,18 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   table_->horizontalHeader()->setSectionResizeMode(ColAlg,
                                                    QHeaderView::Stretch);
   table_->setFocusPolicy(Qt::ClickFocus);
-  sl->addWidget(table_, 1);
+  auto *tableSplit = new QSplitter(Qt::Vertical, search);
+  tableSplit->setChildrenCollapsible(false);
+  tableSplit->addWidget(table_);
+  auto *gripBox = new QGroupBox(tr("Fingertricks"), tableSplit);
+  auto *gripLayout = new QVBoxLayout(gripBox);
+  grips_ = new GripView(gripBox);
+  gripLayout->addWidget(grips_);
+  gripLayout->addStretch();
+  tableSplit->addWidget(gripBox);
+  tableSplit->setStretchFactor(0, 1);
+  tableSplit->setStretchFactor(1, 0);
+  sl->addWidget(tableSplit, 1);
 
   auto *addRow = new QHBoxLayout;
   addEdit_ = new QLineEdit(search);
@@ -418,7 +448,8 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   }
   connect(profileBox_, &QComboBox::currentIndexChanged, this, [this] {
     if (!loading_) {
-      QSettings().setValue(key("profile"), profileBox_->currentText());
+      QSettings().setValue(kLabProfileSetting, profileBox_->currentText());
+      scoreCache_.clear();
       fillTable();
     }
   });
@@ -457,6 +488,8 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   connect(clear, &QPushButton::clicked, this, &AlgLabPage::clearTimes);
   connect(table_, &QWidget::customContextMenuRequested, this,
           &AlgLabPage::tableMenu);
+  connect(table_, &QTableWidget::itemSelectionChanged, this,
+          &AlgLabPage::updateGrips);
   connect(runButton_, &QPushButton::clicked, this, [this] {
     if (case_) {
       runSearch({*case_});
@@ -741,7 +774,7 @@ void AlgLabPage::deleteLabCase() {
 void AlgLabPage::fillProfiles() {
   QString want = profileBox_->count() > 0
                      ? profileBox_->currentText()
-                     : QSettings().value(key("profile")).toString();
+                     : QSettings().value(kLabProfileSetting).toString();
   loading_ = true;
   profileBox_->clear();
   for (const auto &p : store_.profiles()) {
@@ -761,11 +794,20 @@ void AlgLabPage::editProfile(bool copy) {
   if (copy) {
     p.name += " (copy)";
   }
-  ProfileDialog d(p, this);
-  if (d.exec() != QDialog::Accepted) {
-    return;
+  ErgoProfile edited;
+  if (p.grips) {
+    GripProfileDialog d(p, this);
+    if (d.exec() != QDialog::Accepted) {
+      return;
+    }
+    edited = d.profile();
+  } else {
+    ProfileDialog d(p, this);
+    if (d.exec() != QDialog::Accepted) {
+      return;
+    }
+    edited = d.profile();
   }
-  ErgoProfile edited = d.profile();
   if (edited.name.empty()) {
     edited.name = p.name;
   }
@@ -784,7 +826,8 @@ void AlgLabPage::editProfile(bool copy) {
   }
   profileBox_->setCurrentText(qs(edited.name));
   loading_ = false;
-  QSettings().setValue(key("profile"), qs(edited.name));
+  QSettings().setValue(kLabProfileSetting, qs(edited.name));
+  scoreCache_.clear();
   fillTable();
 }
 
@@ -856,6 +899,12 @@ void AlgLabPage::fillTable() {
   if (auto *it = table_->currentItem()) {
     selected = table_->item(it->row(), ColAlg)->data(Qt::UserRole).toString();
   }
+  // The guidance follows the selection once the table is filled again.
+  QSignalBlocker blockSelection(table_);
+  struct UpdateAfter {
+    AlgLabPage *page;
+    ~UpdateAfter() { page->updateGrips(); }
+  } updateAfter{this};
   table_->setSortingEnabled(false);
   table_->setRowCount(0);
   if (!case_) {
@@ -910,7 +959,11 @@ void AlgLabPage::fillTable() {
     num(ColStm, QString::number(mc.stm), mc.stm);
     num(ColQtm, QString::number(mc.qtm), mc.qtm);
     num(ColEtm, QString::number(mc.etm), mc.etm);
-    double score = ergoScore(alg, prof).total;
+    auto cached = scoreCache_.find(r.alg);
+    if (cached == scoreCache_.end()) {
+      cached = scoreCache_.emplace(r.alg, ergoTotal(alg, prof)).first;
+    }
+    double score = cached->second;
     num(ColScore, QString::number(score, 'f', 1), score);
     auto *src = new QTableWidgetItem(sourceText(r));
     src->setFlags(src->flags() & ~Qt::ItemIsEditable);
@@ -945,6 +998,20 @@ void AlgLabPage::fillTable() {
     genStatus_->setText(
         tr("%n alg(s) hidden by the filters.", nullptr, hidden));
   }
+}
+
+void AlgLabPage::updateGrips() {
+  const ErgoProfile *g = labGuideProfile(store_, profileBox_->currentText());
+  QTableWidgetItem *it = table_->currentItem();
+  if (!it || !table_->item(it->row(), ColAlg) || !it->isSelected()) {
+    grips_->clear(case_ ? tr("Select an alg to see how to turn it.")
+                        : QString());
+    return;
+  }
+  QString alg = table_->item(it->row(), ColAlg)->data(Qt::UserRole).toString();
+  grips_->setAlg(alg, g ? &*g->grips : nullptr,
+                 tr("No grip profile: make one with Profile… > New grip "
+                    "profile, or restore the built-in profiles."));
 }
 
 std::vector<std::string> AlgLabPage::selectedAlgs() const {

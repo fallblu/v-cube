@@ -5,6 +5,8 @@
 #include "app/cube_painter.hpp"
 #include "io/algset_json.hpp"
 
+#include <QSettings>
+
 #include <array>
 
 namespace vcube {
@@ -116,6 +118,28 @@ bool SortItem::operator<(const QTableWidgetItem &other) const {
     return a.toDouble() < b.toDouble();
   }
   return QTableWidgetItem::operator<(other);
+}
+
+const ErgoProfile *labGuideProfile(const AlgLabStore &store,
+                                   const QString &chosen) {
+  const ErgoProfile *first = nullptr;
+  for (const auto &p : store.profiles()) {
+    if (!p.grips) {
+      continue;
+    }
+    if (qs(p.name) == chosen) {
+      return &p;
+    }
+    if (!first) {
+      first = &p;
+    }
+  }
+  return first;
+}
+
+const ErgoProfile *labGuideProfile(const AlgLabStore &store) {
+  return labGuideProfile(store,
+                         QSettings().value(kLabProfileSetting).toString());
 }
 
 QColor seriesColour(std::size_t i, bool dark) {

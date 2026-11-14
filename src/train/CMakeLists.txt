@@ -11,6 +11,7 @@ add_library(vcube_train
   case_picker.cpp
   drill_session.cpp
   ergonomics.cpp
+  grips.cpp
   inspection_flow.cpp
   families.cpp
   learn_attempt.cpp

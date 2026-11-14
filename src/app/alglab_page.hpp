@@ -11,6 +11,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <unordered_map>
 
 class QCheckBox;
 class QComboBox;
@@ -24,6 +26,7 @@ class QTreeWidget;
 
 namespace vcube {
 
+class GripView;
 class LabTestPanel;
 
 // Alg Lab: finds, compares and times algs for a case.
@@ -32,7 +35,9 @@ class LabTestPanel;
 // alg and what its algs must solve). The Search tab lists the case's
 // candidate algs (the set's own, then those generated, pasted or typed)
 // with their move counts in HTM, STM, QTM and ETM, an ergonomic score from
-// the chosen profile and each alg's timed statistics, filtered by move set,
+// the chosen profile (by default a grip profile: the cheapest way to turn
+// it with fingertricks and regrips, shown for the selected alg under the
+// table) and each alg's timed statistics, filtered by move set,
 // rotations and length. The generator finds every alg of a move set from
 // the shortest up to a limit, in the background, for the case or every
 // case of its group or set. A candidate can be added to the case's set or
@@ -117,6 +122,9 @@ private:
   QPushButton *stopButton_;
   QLabel *genStatus_;
   LabTestPanel *test_;
+  GripView *grips_;
+  // Scores of the chosen profile, by alg (cleared when it changes).
+  std::unordered_map<std::string, double> scoreCache_;
 
   void saveStore();
   void fillSources();
@@ -128,6 +136,7 @@ private:
   void filterChosen();
   void genChosen();
   void fillTable();
+  void updateGrips();
   std::vector<std::string> selectedAlgs() const;
   const ErgoProfile &profile() const;
 

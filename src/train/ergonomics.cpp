@@ -33,6 +33,13 @@ ErgoProfile makeProfile(std::string name, const std::vector<Turns> &table,
 
 const std::vector<ErgoProfile> &builtinErgoProfiles() {
   static const std::vector<ErgoProfile> profiles = {
+      [] {
+        ErgoProfile p;
+        p.name = std::string(kGripProfileName);
+        p.grips = standardGripModel();
+        p.otherMove = p.grips->otherMove;
+        return p;
+      }(),
       makeProfile("Right-handed 2H",
                   {
                       {"U", 1.0, 1.1, 1.6},
@@ -110,6 +117,13 @@ bool ergoMatches(std::string_view pattern, Move m) {
 
 ErgoScore ergoScore(const Alg &alg, const ErgoProfile &profile) {
   ErgoScore s;
+  if (profile.grips) {
+    GripPlan plan = planGrips(alg, *profile.grips).plan;
+    s.total = plan.total;
+    s.moves = plan.tricks;
+    s.transitions = plan.extras;
+    return s;
+  }
   int lastAxis = -1;
   const Move *prev = nullptr;
   for (const Move &m : alg) {
@@ -134,6 +148,13 @@ ErgoScore ergoScore(const Alg &alg, const ErgoProfile &profile) {
   }
   s.total = s.moves + s.transitions;
   return s;
+}
+
+double ergoTotal(const Alg &alg, const ErgoProfile &profile) {
+  if (profile.grips) {
+    return gripCost(alg, *profile.grips);
+  }
+  return ergoScore(alg, profile).total;
 }
 
 const std::vector<std::string> &ergoMoveTokens() {

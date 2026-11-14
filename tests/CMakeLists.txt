@@ -42,6 +42,7 @@ add_executable(vcube_tests
   test_blind_flow.cpp
   test_alg_search.cpp
   test_alg_lab.cpp
+  test_grips.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)

@@ -7,6 +7,7 @@
 #include "app/blind_page.hpp"
 #include "app/cube_view.hpp"
 #include "app/drill_page.hpp"
+#include "app/grip_view.hpp"
 #include "app/help_panel.hpp"
 #include "app/inspection_page.hpp"
 #include "app/learn_page.hpp"
@@ -32,6 +33,7 @@
 #include <QDir>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
@@ -269,6 +271,7 @@ private slots:
   void drillArmsAndStopsItself();
   void libraryAddsAnAlgAndUndoes();
   void algLabTimesEachAlg();
+  void fingertrickGuidance();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
   void cleanupTestCase();
@@ -357,7 +360,8 @@ void GuiTest::algLabTimesEachAlg() {
   QVERIFY(tabs);
   tabs->setCurrentIndex(0);
   for (QTableWidget *t : lab->findChildren<QTableWidget *>()) {
-    if (t->columnCount() > 10 && t->horizontalHeaderItem(1)->text() == "HTM") {
+    if (t->columnCount() > 10 && t->horizontalHeaderItem(1) &&
+        t->horizontalHeaderItem(1)->text() == "HTM") {
       candidates = t;
     }
   }
@@ -468,6 +472,71 @@ void GuiTest::algLabTimesEachAlg() {
   QVERIFY(algs->topLevelItemCount() >= 1);
   // Interleaved, each alg was timed once: the set's on one of the cubes.
   QVERIFY(algs->topLevelItem(0)->text(2).contains("mean of 1"));
+}
+
+void GuiTest::fingertrickGuidance() {
+  auto *lab = page<AlgLabPage>();
+  QVERIFY(switchTo(AppMode::AlgLab, lab));
+  lab->selectCase("pll", "T");
+  lab->findChild<QTabWidget *>()->setCurrentIndex(0);
+  QTableWidget *candidates = nullptr;
+  for (QTableWidget *t : lab->findChildren<QTableWidget *>()) {
+    if (t->columnCount() > 10 && t->horizontalHeaderItem(1) &&
+        t->horizontalHeaderItem(1)->text() == "HTM") {
+      candidates = t;
+    }
+  }
+  QVERIFY(candidates);
+  // The default score is the grip profile's.
+  QComboBox *profiles = nullptr;
+  for (QComboBox *b : lab->findChildren<QComboBox *>()) {
+    if (b->findText(qs(std::string(kGripProfileName))) >= 0) {
+      profiles = b;
+    }
+  }
+  QVERIFY(profiles);
+  QCOMPARE(profiles->currentText(), qs(std::string(kGripProfileName)));
+  GripModel model = standardGripModel();
+  double best = gripCost(parseAlgOrEmpty(kTPerm), model);
+  QCOMPARE(candidates->item(0, 5)->text(), QString::number(best, 'f', 1));
+
+  // Selecting the alg shows how to turn it: a column per move.
+  auto *view = lab->findChild<GripView *>();
+  QVERIFY(view);
+  candidates->selectRow(0);
+  QTableWidget *lanes = nullptr;
+  for (QTableWidget *t : view->findChildren<QTableWidget *>()) {
+    lanes = t;
+  }
+  QVERIFY(lanes);
+  QCOMPARE(lanes->columnCount(), 14);
+  QCOMPARE(lanes->item(0, 5)->text(), QString("F"));
+  QCOMPARE(lanes->item(1, 5)->text(), QString("index push from the top"));
+  QLabel *summary = view->findChild<QLabel *>();
+  QVERIFY(summary->text().contains("Start:"));
+  QVERIFY(!summary->text().contains("your picks"));
+
+  // Another way to turn F: the plan follows, and the cost shows.
+  lanes->selectColumn(5);
+  auto *options = view->findChild<QListWidget *>();
+  QVERIFY(options->count() >= 2);
+  QVERIFY(options->item(0)->text().startsWith("✓"));
+  options->setCurrentRow(1);
+  emit options->itemClicked(options->item(1));
+  QVERIFY(summary->text().contains("your picks"));
+  QVERIFY(lanes->item(1, 5)->text() != "index push from the top" ||
+          lanes->item(2, 5)->text() != "");
+
+  // Library shows the same guidance for the selected alg.
+  auto *library = page<LibraryPage>();
+  QVERIFY(switchTo(AppMode::Library, library));
+  library->selectCase("pll", "T");
+  auto *algs = library->findChild<AlgListWidget *>();
+  algs->setCurrentItem(algs->topLevelItem(0));
+  auto *libView = library->findChild<GripView *>();
+  QVERIFY(libView && libView->isVisible());
+  QVERIFY(libView->findChild<QLabel *>()->text().contains("Start:"));
+  QCOMPARE(libView->findChild<QTableWidget *>()->columnCount(), 14);
 }
 
 void GuiTest::timedPhysicalSolve() {

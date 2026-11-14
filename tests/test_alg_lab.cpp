@@ -7,6 +7,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QDir>
+#include <QJsonArray>
 #include <QTemporaryDir>
 
 using namespace vcube;
@@ -47,7 +48,7 @@ TEST_CASE("ergonomic scores add move costs, axis changes and rules",
   CHECK(ergoMatches("R'", parseAlgOrEmpty("R3").front()));
 
   const auto &rh = builtinErgoProfiles().front();
-  CHECK(rh.name == "Right-handed 2H");
+  CHECK(rh.name == kGripProfileName);
   // The sexy move is easier than its B-face version.
   CHECK(ergoScore(parseAlgOrEmpty("R U R' U'"), rh).total <
         ergoScore(parseAlgOrEmpty("B U B' U'"), rh).total);
@@ -225,6 +226,28 @@ TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {
   QJsonObject o = algLabToJson(d);
   o.remove("profiles");
   CHECK(algLabFromJson(o).profiles == builtinErgoProfiles());
+
+  // A grip profile keeps its tricks, turned off ones too.
+  ErgoProfile mine = builtinErgoProfiles().front();
+  mine.name = "Mine";
+  mine.grips->tricks[1].on = false;
+  mine.grips->tricks[2].from = gripBit(-1) | gripBit(2);
+  mine.grips->regrip = 2.0;
+  d.profiles = {mine, builtinErgoProfiles()[1]};
+  CHECK(algLabFromJson(algLabToJson(d)).profiles == d.profiles);
+
+  // A version 1 file gets the built-in grip profile first.
+  o = algLabToJson(d);
+  QJsonArray moveOnly;
+  moveOnly.append(o["profiles"].toArray()[1]);
+  o["profiles"] = moveOnly;
+  o["version"] = 1;
+  auto old = algLabFromJson(o).profiles;
+  REQUIRE(old.size() == 2);
+  CHECK(old[0] == builtinErgoProfiles().front());
+  CHECK(old[1] == builtinErgoProfiles()[1]);
+  o["version"] = 2;
+  CHECK(algLabFromJson(o).profiles.size() == 1);
 
   QTemporaryDir dir;
   AlgLabStore store(QDir(dir.path()).filePath("alglab.json"));
