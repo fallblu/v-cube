@@ -43,6 +43,15 @@ solve or inspection is running.
   show at the top of the window instead. Right-click anywhere outside them
   to switch full screen, focus mode or the sidebar with the mouse.
   `Ctrl+B` (View > Sidebar) hides just the sidebar.
+- **Side panel**: `F9` (View > Side panel) hides or shows the current
+  mode's side panel (the case list in Learn and Drill, the session and
+  its attempts in the solve modes, Inspection and Blind, the case browser
+  in Alg Lab), giving the cube the whole page. Each mode remembers it.
+- **The mode's menu**: in Learn, Drill and Alg Lab the menu bar has a menu
+  named after the mode with what its list offers on a right-click, for
+  the case or alg selected.
+- **Keys on the page**: under the cube each practice mode shows a short
+  message and the keys that do something now, each with its action.
 - The window reopens at the size and place you left it (moved back onto
   the screen if the screen or its scaling changed), with the lists' widths
   and the sidebar as you left them, but never in full screen or focus mode.
@@ -343,9 +352,12 @@ Library creates and edits alg sets.
 - **The toolbar** above the lists has the commands used most: New set,
   Set properties, New case from alg, Paste algs, New group and Check algs.
 - **A case's buttons** (under its details) show it in **Learn** or
-  **Drill**, open it in **Alg Lab**, and show its **Learn history** and
-  **Drill history** (for sets learned by family, Learn's own History shows
-  the family's shared schedule).
+  **Drill** and open it in **Alg Lab**. Its details are on two tabs:
+  **Algs**, with the selected alg's fingertricks under the list, and
+  **History**, with its Learn card, its drill statistics on each cube and
+  buttons for the full **Learn history** and **Drill history** (for sets
+  learned by family, Learn's own History shows the family's shared
+  schedule).
 - **Menus**: in Library mode the menu bar has two more menus. **Set** (also
   on right-click in the set list) creates, duplicates and deletes sets,
   opens the set properties, checks the algs, and restores built-in sets
@@ -476,7 +488,8 @@ them in the current test session. **Remove** forgets kept candidates (a
 set's own algs are removed in Library) and **Clear times…** forgets the
 selected algs' times. Right-click for the same, and Copy.
 
-**The generator** finds every alg of a move set that solves the case,
+**The generator** (the **Generator** button with the arrow folds it away
+or shows it) finds every alg of a move set that solves the case,
 shortest first, and adds them as candidates while it runs:
 
 - **Move set**: a preset (`<U, R>`, `<U, R, F>`, `<U, R, D>`, `<U, R, L>`,
@@ -519,6 +532,9 @@ turn such as `R*`, or any move `*`; `R2` then `F*` is a regrip). Their
 score is the sum. **Profile…** edits the chosen profile (with a field to
 try an alg against it), makes a new one from it, makes a new grip profile,
 deletes it, or restores the built-in ones.
+
+**Undo.** On the Search tab, Ctrl+Z (Edit > Undo) takes back an alg added
+to the set or made its main alg there.
 
 **Fingertricks.** Under the candidates, the selected alg is shown as it is
 best turned with two hands, from the chosen grip profile (or the first
@@ -784,7 +800,10 @@ inspection) and a Bad edges session.
   attempt puts it back, unrecorded).
 - What a session practises (its drill, step, pair and axes) is fixed once
   it has attempts: the pickers then only show it, and **New session…**
-  beside them starts one for something else.
+  beside them starts one for something else. A new session is set up in
+  one form (drill, step or axes, pair, name), and while the cube waits to
+  be shown the page says what the session is for and how the last attempt
+  went.
 - An EO Cross session can **track a pair**: pick it under **Then** (FL,
   BL, FR or BR, as you hold the cube when the cross is done) and solve that
   pair blind after the cross. The moves to EO Cross are compared with the
@@ -849,6 +868,7 @@ in focus mode too.
   - Physical: Space starts the timer, Space again ends the memo, any key
     stops. Backspace toggles DNF on the solve just done.
   - A solve cancelled (Esc) after the memo started gets a new scramble.
+  - Between solves, Delete deletes the last solve and Ctrl+Z puts it back.
   - Statistics: mo3, ao5, ao12, success rate, mean of successes and mean
     memo, plus a trend chart.
 - **Lettering & setups…**: the blind hold (the colours on top and in front
