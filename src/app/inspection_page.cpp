@@ -326,6 +326,7 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   rightLayout->addLayout(chartRow, 1);
 
   auto *split = new QSplitter(this);
+  split->setObjectName("main");
   split->addWidget(panel_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);
@@ -1794,22 +1795,16 @@ void InspectionPage::addSession() {
 }
 
 void InspectionPage::renameSession() {
-  std::optional<QString> name = askSessionName(this, tr("Rename session"),
-                                               tr("Name:"), qs(session().name));
-  if (!name) {
-    return;
+  if (renameSessionAsked(this, session())) {
+    selectSession(store_.currentIndex());
   }
-  session().name = ss(*name);
-  selectSession(store_.currentIndex());
 }
 
 void InspectionPage::deleteSession() {
-  if (!confirmDeleteSession(this, qs(session().name), session().attempts.size(),
-                            tr("attempts"))) {
-    return;
+  if (deleteSessionAsked(this, store_, session().attempts.size(),
+                         tr("attempts"))) {
+    selectSession(store_.currentIndex());
   }
-  store_.removeSession(store_.currentIndex());
-  selectSession(store_.currentIndex());
 }
 
 void InspectionPage::save() {

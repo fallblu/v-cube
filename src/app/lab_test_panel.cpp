@@ -106,6 +106,7 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   layout->addLayout(options);
 
   auto *split = new QSplitter(Qt::Vertical, this);
+  split->setObjectName("test");
   auto *top = new QWidget(split);
   auto *topLayout = new QHBoxLayout(top);
   topLayout->setContentsMargins(0, 0, 0, 0);
@@ -184,6 +185,7 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   compareRow->addStretch();
   compareLayout->addLayout(compareRow);
   auto *compareSplit = new QSplitter(Qt::Horizontal, comparePage);
+  compareSplit->setObjectName("compare");
   compare_ = table({tr("Alg"), tr("Case"), tr("n"), tr("Mean"), tr("Median"),
                     tr("Best"), tr("Worst"), tr("ao5"), tr("ao12"), tr("SD"),
                     tr("DNF %")},

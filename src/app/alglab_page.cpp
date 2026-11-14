@@ -1,4 +1,5 @@
 #include "app/alglab_page.hpp"
+#include "app/ui_state.hpp"
 
 #include "app/alglab_dialogs.hpp"
 #include "app/app_settings.hpp"
@@ -75,8 +76,6 @@ QString sourceText(const CandidateRow &r) {
   return {};
 }
 
-QString key(const char *name) { return QStringLiteral("alglab/") + name; }
-
 // The move-set drop-downs: each item holds its move set's text, "custom"
 // opens the dialog.
 void addMoveSets(QComboBox *box, const AlgLabStore &store, bool any) {
@@ -126,6 +125,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   auto *layout = new QHBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
   auto *split = new QSplitter(Qt::Horizontal, this);
+  split->setObjectName("main");
   layout->addWidget(split);
 
   // Cases.
@@ -276,6 +276,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
                                                    QHeaderView::Stretch);
   table_->setFocusPolicy(Qt::ClickFocus);
   auto *tableSplit = new QSplitter(Qt::Vertical, search);
+  tableSplit->setObjectName("candidates");
   tableSplit->setChildrenCollapsible(false);
   tableSplit->addWidget(table_);
   auto *gripBox = new QGroupBox(tr("Fingertricks"), tableSplit);
@@ -391,11 +392,11 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     gen->setVisible(on);
     genToggle->setArrowType(on ? Qt::DownArrow : Qt::RightArrow);
   };
-  bool genShown = QSettings().value("alglab/generatorShown", true).toBool();
+  bool genShown = saved::lab("generatorShown", true).get().toBool();
   genToggle->setChecked(genShown);
   showGen(genShown);
   connect(genToggle, &QToolButton::toggled, this, [showGen](bool on) {
-    QSettings().setValue("alglab/generatorShown", on);
+    saved::lab("generatorShown").set(on);
     showGen(on);
   });
   sl->addWidget(genToggle);
@@ -417,25 +418,24 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   });
 
   // Choices kept from last time.
-  QSettings q;
-  lengthMode_->setCurrentIndex(q.value(key("lengthMode"), 0).toInt());
-  extra_->setValue(q.value(key("extra"), 2).toInt());
-  maxLength_->setValue(q.value(key("maxLength"), 16).toInt());
-  maxResults_->setValue(q.value(key("maxResults"), 200).toInt());
-  statsCube_->setCurrentIndex(q.value(key("statsCube"), 0).toInt());
-  statsWindow_->setCurrentIndex(q.value(key("statsWindow"), 0).toInt());
-  noRotations_->setChecked(q.value(key("noRotations"), false).toBool());
-  maxHtm_->setValue(q.value(key("maxHtm"), 0).toInt());
+  lengthMode_->setCurrentIndex(saved::lab("lengthMode", 0).get().toInt());
+  extra_->setValue(saved::lab("extra", 2).get().toInt());
+  maxLength_->setValue(saved::lab("maxLength", 16).get().toInt());
+  maxResults_->setValue(saved::lab("maxResults", 200).get().toInt());
+  statsCube_->setCurrentIndex(saved::lab("statsCube", 0).get().toInt());
+  statsWindow_->setCurrentIndex(saved::lab("statsWindow", 0).get().toInt());
+  noRotations_->setChecked(saved::lab("noRotations", false).get().toBool());
+  maxHtm_->setValue(saved::lab("maxHtm", 0).get().toInt());
   if (auto s = MoveSet::parse(
-          q.value(key("moveSet"), "U, R, F").toString().toStdString())) {
+          saved::lab("moveSet", "U, R, F").get().toString().toStdString())) {
     genSet_ = *s;
   }
-  QString filter = q.value(key("filter")).toString();
+  QString filter = saved::lab("filter").get().toString();
   if (auto s = MoveSet::parse(filter.toStdString())) {
     filterSet_ = *s;
     filterOn_ = true;
   }
-  tabs_->setCurrentIndex(q.value(key("tab"), 0).toInt());
+  tabs_->setCurrentIndex(saved::lab("tab", 0).get().toInt());
 
   fillProfiles();
   fillMoveSetBoxes();
@@ -443,7 +443,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
 
   connect(sourceBox_, &QComboBox::currentIndexChanged, this, [this] {
     if (!loading_) {
-      QSettings().setValue(key("source"), sourceBox_->currentData());
+      saved::lab("source").set(sourceBox_->currentData());
       fillCases();
     }
   });
@@ -460,15 +460,14 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   });
   for (QComboBox *b : {statsCube_, statsWindow_}) {
     connect(b, &QComboBox::currentIndexChanged, this, [this] {
-      QSettings kept;
-      kept.setValue(key("statsCube"), statsCube_->currentIndex());
-      kept.setValue(key("statsWindow"), statsWindow_->currentIndex());
+      saved::lab("statsCube").set(statsCube_->currentIndex());
+      saved::lab("statsWindow").set(statsWindow_->currentIndex());
       fillTable();
     });
   }
   connect(profileBox_, &QComboBox::currentIndexChanged, this, [this] {
     if (!loading_) {
-      QSettings().setValue(kLabProfileSetting, profileBox_->currentText());
+      saved::lab("scoreProfile").set(profileBox_->currentText());
       scoreCache_.clear();
       fillTable();
     }
@@ -478,19 +477,18 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   connect(genBox_, &QComboBox::currentIndexChanged, this,
           &AlgLabPage::genChosen);
   connect(noRotations_, &QCheckBox::toggled, this, [this](bool on) {
-    QSettings().setValue(key("noRotations"), on);
+    saved::lab("noRotations").set(on);
     fillTable();
   });
   connect(maxHtm_, &QSpinBox::valueChanged, this, [this](int v) {
-    QSettings().setValue(key("maxHtm"), v);
+    saved::lab("maxHtm").set(v);
     fillTable();
   });
   auto keepGen = [this] {
-    QSettings kept;
-    kept.setValue(key("lengthMode"), lengthMode_->currentIndex());
-    kept.setValue(key("extra"), extra_->value());
-    kept.setValue(key("maxLength"), maxLength_->value());
-    kept.setValue(key("maxResults"), maxResults_->value());
+    saved::lab("lengthMode").set(lengthMode_->currentIndex());
+    saved::lab("extra").set(extra_->value());
+    saved::lab("maxLength").set(maxLength_->value());
+    saved::lab("maxResults").set(maxResults_->value());
     updateGenControls();
   };
   connect(lengthMode_, &QComboBox::currentIndexChanged, this, keepGen);
@@ -517,7 +515,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   });
   connect(stopButton_, &QPushButton::clicked, this, &AlgLabPage::stopSearch);
   connect(tabs_, &QTabWidget::currentChanged, this, [this](int i) {
-    QSettings().setValue(key("tab"), i);
+    saved::lab("tab").set(i);
     test_->cancelAttempt();
     fillTable();
   });
@@ -614,7 +612,7 @@ void AlgLabPage::selectCase(const QString &setId, const QString &caseId) {
 void AlgLabPage::fillSources() {
   QString current = sourceBox_->count() > 0
                         ? sourceBox_->currentData().toString()
-                        : QSettings().value(key("source")).toString();
+                        : saved::lab("source").get().toString();
   loading_ = true;
   sourceBox_->clear();
   sourceBox_->addItem(tr("Lab cases"), QString());
@@ -630,7 +628,7 @@ void AlgLabPage::fillSources() {
 void AlgLabPage::fillCases() {
   QString source = sourceBox_->currentData().toString();
   QString want =
-      case_ ? qs(case_->key.text()) : QSettings().value(key("case")).toString();
+      case_ ? qs(case_->key.text()) : saved::lab("case").get().toString();
   QString filter = caseFilter_->text().trimmed();
   labButtons_->setVisible(source.isEmpty());
   QSignalBlocker block(caseTree_);
@@ -694,7 +692,7 @@ void AlgLabPage::caseChosen() {
   QString k = it ? it->data(0, Qt::UserRole).toString() : QString();
   auto parsed = LabCaseKey::parse(k.toStdString());
   if (parsed) {
-    QSettings().setValue(key("case"), k);
+    saved::lab("case").set(k);
   }
   showCase(parsed);
 }
@@ -746,7 +744,7 @@ void AlgLabPage::newLabCase() {
   }
   store_.cases().push_back(d.labCase());
   saveStore();
-  QSettings().setValue(key("case"), qs(LabCaseKey{"", c.id}.text()));
+  saved::lab("case").set(qs(LabCaseKey{"", c.id}.text()));
   case_.reset();
   sourceBox_->setCurrentIndex(0);
   fillCases();
@@ -808,7 +806,7 @@ void AlgLabPage::deleteLabCase() {
 void AlgLabPage::fillProfiles() {
   QString want = profileBox_->count() > 0
                      ? profileBox_->currentText()
-                     : QSettings().value(kLabProfileSetting).toString();
+                     : saved::lab("scoreProfile").get().toString();
   loading_ = true;
   profileBox_->clear();
   for (const auto &p : store_.profiles()) {
@@ -860,7 +858,7 @@ void AlgLabPage::editProfile(bool copy) {
   }
   profileBox_->setCurrentText(qs(edited.name));
   loading_ = false;
-  QSettings().setValue(kLabProfileSetting, qs(edited.name));
+  saved::lab("scoreProfile").set(qs(edited.name));
   scoreCache_.clear();
   fillTable();
 }
@@ -901,8 +899,7 @@ void AlgLabPage::filterChosen() {
     filterSet_ = *s;
     filterOn_ = true;
   }
-  QSettings().setValue(key("filter"),
-                       filterOn_ ? qs(filterSet_.toString()) : QString());
+  saved::lab("filter").set(filterOn_ ? qs(filterSet_.toString()) : QString());
   fillTable();
 }
 
@@ -925,7 +922,7 @@ void AlgLabPage::genChosen() {
   } else if (auto s = MoveSet::parse(d.mid(2).toStdString())) {
     genSet_ = *s;
   }
-  QSettings().setValue(key("moveSet"), qs(genSet_.toString()));
+  saved::lab("moveSet").set(qs(genSet_.toString()));
 }
 
 void AlgLabPage::fillTable() {

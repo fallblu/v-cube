@@ -64,7 +64,6 @@ public:
 };
 
 // Where the profile chosen for Alg Lab's scores is kept (QSettings).
-inline constexpr const char *kLabProfileSetting = "alglab/scoreProfile";
 
 // The grip profile that shows fingertricks: `chosen` (a profile's name)
 // when it is a grip profile, else the first grip profile; null if there

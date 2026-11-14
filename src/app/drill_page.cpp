@@ -230,6 +230,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   rightLayout->addWidget(revealBox, 1);
 
   auto *split = new QSplitter(this);
+  split->setObjectName("main");
   split->addWidget(left_);
   split->addWidget(right);
   split->setStretchFactor(1, 1);

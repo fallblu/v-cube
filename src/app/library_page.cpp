@@ -331,6 +331,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   caseLayout->addWidget(caseTabs, 1);
 
   auto *split = new QSplitter(this);
+  split->setObjectName("main");
   split->addWidget(left);
   split->addWidget(middle);
   split->addWidget(caseBox_);

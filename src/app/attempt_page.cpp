@@ -128,6 +128,7 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
   stage_->setChart(chart_);
 
   auto *split = new QSplitter(this);
+  split->setObjectName("main");
   split->addWidget(panel_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);
@@ -1007,24 +1008,20 @@ void AttemptPage::addSession() {
 }
 
 void AttemptPage::renameSession() {
-  std::optional<QString> name = askSessionName(this, tr("Rename session"),
-                                               tr("Name:"), qs(session().name));
-  if (!name) {
+  // Only the name changes: the scramble, a typed count and a retry stay.
+  if (!renameSessionAsked(this, session())) {
     return;
   }
-  // Only the name changes: the scramble, a typed count and a retry stay.
-  session().name = ss(*name);
   panel_->setSessionName(qs(session().name));
   sessionShown();
   save();
 }
 
 void AttemptPage::deleteSession() {
-  if (!confirmDeleteSession(this, qs(session().name), session().attempts.size(),
-                            tr("solves"))) {
+  if (!deleteSessionAsked(this, store_, session().attempts.size(),
+                          tr("solves"))) {
     return;
   }
-  store_.removeSession(store_.currentIndex());
   deleted_.forget();
   selectSession(store_.currentIndex());
 }

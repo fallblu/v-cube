@@ -141,6 +141,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   stage_->setChart(chart_);
 
   auto *split = new QSplitter(this);
+  split->setObjectName("main");
   split->addWidget(panel_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);
@@ -1069,22 +1070,18 @@ void TimerPage::addSession() {
 }
 
 void TimerPage::renameSession() {
-  std::optional<QString> name = askSessionName(this, tr("Rename session"),
-                                               tr("Name:"), qs(session().name));
-  if (!name) {
+  if (!renameSessionAsked(this, session())) {
     return;
   }
-  session().name = ss(*name);
   panel_->setSessionName(qs(session().name));
   save();
 }
 
 void TimerPage::deleteSession() {
-  if (!confirmDeleteSession(this, qs(session().name), session().solves.size(),
-                            tr("solves"))) {
+  if (!deleteSessionAsked(this, store_, session().solves.size(),
+                          tr("solves"))) {
     return;
   }
-  store_.removeSession(store_.currentIndex());
   deleted_.forget();
   selectSession(store_.currentIndex());
 }

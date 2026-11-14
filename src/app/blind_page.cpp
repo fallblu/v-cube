@@ -147,6 +147,7 @@ BlindPage::BlindPage(AppSettings &settings, const QString &dataDir,
   rightLayout->addWidget(chart_, 1);
 
   auto *split = new QSplitter(this);
+  split->setObjectName("main");
   split->addWidget(leftPanel_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);

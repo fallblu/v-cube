@@ -587,8 +587,15 @@ void MainWindow::restoreLayout() {
     const auto splitters =
         pages_[static_cast<std::size_t>(m)]->findChildren<QSplitter *>();
     for (qsizetype i = 0; i < splitters.size(); ++i) {
+      // By name; a splitter with no name, or sizes kept before they had
+      // names, by its place among the page's splitters.
+      QString id = AppMode::settingsId(m);
+      QString name = splitters[i]->objectName();
       QByteArray state =
-          saved::splitter(AppMode::settingsId(m), static_cast<int>(i)).get();
+          name.isEmpty() ? QByteArray() : saved::splitter(id, name).get();
+      if (state.isEmpty()) {
+        state = saved::splitter(id, static_cast<int>(i)).get();
+      }
       if (!state.isEmpty()) {
         splitters[i]->restoreState(state);
       }
@@ -604,8 +611,13 @@ void MainWindow::saveLayout() {
     const auto splitters =
         pages_[static_cast<std::size_t>(m)]->findChildren<QSplitter *>();
     for (qsizetype i = 0; i < splitters.size(); ++i) {
-      saved::splitter(AppMode::settingsId(m), static_cast<int>(i))
-          .set(splitters[i]->saveState());
+      QString id = AppMode::settingsId(m);
+      QString name = splitters[i]->objectName();
+      if (name.isEmpty()) {
+        saved::splitter(id, static_cast<int>(i)).set(splitters[i]->saveState());
+      } else {
+        saved::splitter(id, name).set(splitters[i]->saveState());
+      }
     }
   }
 }

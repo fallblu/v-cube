@@ -48,6 +48,10 @@ Stored<QString> windowMode();
 Stored<int> legacyTab();
 // A page's splitter, by mode id and the splitter's index on the page.
 Stored<QByteArray> splitter(const QString &modeId, int index);
+// A splitter's sizes by its name (its objectName), which stays the same
+// when a page gains or loses a splitter; the index is how they were kept
+// before.
+Stored<QByteArray> splitter(const QString &modeId, const QString &name);
 Stored<QString> exportFolder();
 // The settings file, e.g. for Export all data.
 QString settingsFile();
@@ -118,6 +122,12 @@ Stored<int> blindSetupMode();
 Stored<QStringList> blindList(const QString &name);
 Stored<int> blindHoldTop(int fallback);
 Stored<int> blindHoldFront(int fallback);
+
+// Alg Lab's choices, kept as "alglab/<name>": source, case, tab, filter,
+// noRotations, maxHtm, statsCube, statsWindow (the Search tab), moveSet,
+// lengthMode, extra, maxLength, maxResults, generatorShown (the generator)
+// and scoreProfile (the profile the Score column uses).
+Stored<QVariant> lab(const char *name, const QVariant &fallback = {});
 
 } // namespace saved
 

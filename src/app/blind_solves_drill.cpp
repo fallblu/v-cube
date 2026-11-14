@@ -528,22 +528,16 @@ void SolvesDrill::addSession() {
 }
 
 void SolvesDrill::renameSession() {
-  std::optional<QString> name = askSessionName(ctx_.page, tr("Rename session"),
-                                               tr("Name:"), qs(session().name));
-  if (!name) {
-    return;
+  if (renameSessionAsked(ctx_.page, session())) {
+    selectSession(ctx_.store.currentIndex());
   }
-  session().name = ss(*name);
-  selectSession(ctx_.store.currentIndex());
 }
 
 void SolvesDrill::deleteSession() {
-  if (!confirmDeleteSession(ctx_.page, qs(session().name),
-                            session().attempts.size(), tr("solves"))) {
-    return;
+  if (deleteSessionAsked(ctx_.page, ctx_.store, session().attempts.size(),
+                         tr("solves"))) {
+    selectSession(ctx_.store.currentIndex());
   }
-  ctx_.store.removeSession(ctx_.store.currentIndex());
-  selectSession(ctx_.store.currentIndex());
 }
 
 } // namespace vcube
