@@ -58,7 +58,7 @@ TEST_CASE("the sexy move and sune need no regrips", "[grips]") {
   GripPlan sune = plan("R U R' U R U2 R'");
   CHECK(sune.regrips == 0);
   CHECK(sune.steps[5].trick >= 0);
-  CHECK(tricks(sune)[5] == "right index double flick");
+  CHECK(tricks(sune)[5] == "left index double flick");
 }
 
 TEST_CASE("T perm: F from the top after R', F' with the thumb", "[grips]") {

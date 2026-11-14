@@ -529,8 +529,8 @@ a row are set there too. Moves no trick turns (`E`, `S`, wide `u` and the
 like) cost a flat amount and show "no trick". The standard tricks are:
 
 - U layer: right index flick (`U`, thumb home or up), left index flick
-  (`U'`), double flicks (`U2`), left index push (`U`), right index push
-  (`U'`, best with the thumb down);
+  (`U'`), double flicks (`U2`, from home), left index push (`U`), right
+  index push (`U'`, best with the thumb down);
 - R and L: the wrists (`R2` up or down a half turn);
 - D layer: left ring pull (`D`), right ring pull (`D'`) and the pushes the
   other way, double pulls (`D2`);

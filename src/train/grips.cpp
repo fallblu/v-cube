@@ -173,7 +173,7 @@ GripModel standardGripModel() {
   add("U'", H::Left, F::Index, "flick", hm, 0, 1.0);
   add("U'", H::Right, F::Index, "push", dn, 0, 1.4);
   add("U'", H::Right, F::Index, "push", hm, 0, 1.7);
-  add("U2", H::Right, F::Index, "double flick", hm | up, 0, 1.5);
+  add("U2", H::Right, F::Index, "double flick", hm, 0, 1.5);
   add("U2", H::Left, F::Index, "double flick", hm, 0, 1.6);
   // R layer: the right wrist.
   add("R", H::Right, F::Wrist, "", fd | dn | hm | up, 1, 1.0);
