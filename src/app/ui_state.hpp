@@ -36,6 +36,16 @@ private:
   T fallback_;
 };
 
+// A value kept as it is stored, whatever its type: converting a QVariant
+// to a QVariant is what MSVC calls unreachable code in Qt's header.
+template <> inline QVariant Stored<QVariant>::get() const {
+  QVariant v = QSettings().value(key_);
+  return v.isValid() ? v : fallback_;
+}
+template <> inline void Stored<QVariant>::set(const QVariant &value) const {
+  QSettings().setValue(key_, value);
+}
+
 namespace saved {
 
 // --- the window
