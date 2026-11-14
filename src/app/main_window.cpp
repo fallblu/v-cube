@@ -130,6 +130,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
               algLabPage_->selectCase(setId, caseId);
             }
           });
+  algLabPage_->setSetUndo([this] { return libraryPage_->undoLast(); });
   algLabPage_->setAlgEditor([this](const QString &setId, const QString &caseId,
                                    std::vector<std::string> algs,
                                    const QString &text) {
@@ -445,7 +446,8 @@ bool MainWindow::setMode(int mode) {
     pageUndoAction_->setVisible(
         mode == AppMode::Learn || mode == AppMode::Drill ||
         mode == AppMode::Timed || mode == AppMode::Untimed ||
-        mode == AppMode::MoveCount);
+        mode == AppMode::MoveCount || mode == AppMode::Inspection ||
+        mode == AppMode::AlgLab);
   }
   updateHelp();
   updateBadges();

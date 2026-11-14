@@ -34,7 +34,6 @@ namespace {
 
 // Keys are ignored this long after the timer stops, so that a second press
 // of the stop key doesn't go on to the next alg.
-constexpr std::int64_t kStopGraceMs = 300;
 constexpr int kDiagramSize = 120;
 
 QTableWidgetItem *item(const QString &text, bool number = false) {
@@ -248,7 +247,7 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
           &LabTestPanel::timesMenu);
   connect(entries_, &QTableWidget::cellDoubleClicked, this,
           [this](int row, int) {
-            if (phase_ != Phase::Running && row >= 0) {
+            if (flow_.phase() != Phase::Running && row >= 0) {
               cancelAttempt();
               setUp(static_cast<std::size_t>(row));
             }
@@ -328,7 +327,7 @@ void LabTestPanel::optionsChanged() {
   s.trimPercent = trimBox_->value();
   s.randomAuf = randomAufBox_->isChecked();
   saveStore();
-  if (setupChanged && current_ && phase_ == Phase::Ready && !isBusy()) {
+  if (setupChanged && current_ && flow_.phase() == Phase::Ready && !isBusy()) {
     setUp(current_->entry); // on the other cube, or with(out) the AUF
   }
   refresh();
@@ -358,7 +357,7 @@ void LabTestPanel::refresh() {
       current_->c = *c;
     }
   }
-  if (phase_ == Phase::Idle || phase_ == Phase::Finished) {
+  if (flow_.phase() == Phase::Idle || flow_.phase() == Phase::Finished) {
     showStatus();
   }
 }
@@ -492,8 +491,8 @@ int LabTestPanel::addEntries(const std::vector<LabEntry> &entries) {
   }
   if (added) {
     saveStore();
-    if (phase_ == Phase::Finished) {
-      phase_ = Phase::Idle;
+    if (flow_.phase() == Phase::Finished) {
+      flow_.setPhase(Phase::Idle);
     }
     refresh();
   }
@@ -601,8 +600,8 @@ void LabTestPanel::moveEntry(int direction) {
 // --- attempts ---------------------------------------------------------------
 
 bool LabTestPanel::isBusy() const {
-  return phase_ == Phase::Running ||
-         (phase_ == Phase::Ready &&
+  return flow_.phase() == Phase::Running ||
+         (flow_.phase() == Phase::Ready &&
           (timer_.state() == SolveTimer::State::Holding ||
            timer_.state() == SolveTimer::State::Ready));
 }
@@ -610,8 +609,8 @@ bool LabTestPanel::isBusy() const {
 void LabTestPanel::cancelAttempt() {
   timer_.cancel();
   tick_.stop();
-  if (phase_ == Phase::Running || phase_ == Phase::Ready) {
-    phase_ = current_ ? Phase::Ready : Phase::Idle;
+  if (flow_.phase() == Phase::Running || flow_.phase() == Phase::Ready) {
+    flow_.setPhase(current_ ? Phase::Ready : Phase::Idle);
     if (current_) {
       resetCube();
       display_->showTime(0);
@@ -624,7 +623,7 @@ void LabTestPanel::next() {
   auto n = nextEntry(session(), store_.attempts(), lastEntry_, rng_);
   if (!n) {
     current_.reset();
-    phase_ = session().entries.empty() ? Phase::Idle : Phase::Finished;
+    flow_.setPhase(session().entries.empty() ? Phase::Idle : Phase::Finished);
     showCurrent();
     showStatus();
     return;
@@ -653,7 +652,7 @@ void LabTestPanel::setUp(std::size_t entry) {
       displayOrientation(c->state, e.alg, c->free, c->aufBefore, c->aufAfter);
   cur.shownAlg = qs(d ? d->alg : e.alg);
   current_ = std::move(cur);
-  phase_ = Phase::Ready;
+  flow_.setPhase(Phase::Ready);
   lastAttempt_.reset();
   timer_.cancel();
   display_->showTime(0);
@@ -733,7 +732,7 @@ void LabTestPanel::resetCube() {
 void LabTestPanel::showStatus() {
   QString text;
   QList<KeyHint> keys;
-  switch (phase_) {
+  switch (flow_.phase()) {
   case Phase::Idle:
     if (session().entries.empty()) {
       text = tr("Add algs to the session from the Search tab (Add to "
@@ -810,11 +809,11 @@ bool LabTestPanel::stepDone() const {
 }
 
 void LabTestPanel::virtualTurn(Move m, std::int64_t now) {
-  if (phase_ == Phase::Ready && !isRotation(m.type)) {
+  if (flow_.phase() == Phase::Ready && !isRotation(m.type)) {
     attempt_.setClock(now);
     attempt_.start();
     timer_.startNow(now);
-    phase_ = Phase::Running;
+    flow_.setPhase(Phase::Running);
     tick_.start();
     showStatus();
   }
@@ -823,7 +822,7 @@ void LabTestPanel::virtualTurn(Move m, std::int64_t now) {
   }
   follower_.move(m);
   cubeView_->animateMove(m);
-  if (phase_ == Phase::Running && stepDone()) {
+  if (flow_.phase() == Phase::Running && stepDone()) {
     timer_.stopNow(now);
     finish(timer_.elapsed(now), false);
   }
@@ -831,7 +830,7 @@ void LabTestPanel::virtualTurn(Move m, std::int64_t now) {
 
 void LabTestPanel::finish(std::int64_t ms, bool dnf) {
   tick_.stop();
-  stoppedAt_ = monotonicMs();
+  flow_.stopped(monotonicMs());
   if (!current_) {
     return;
   }
@@ -852,7 +851,7 @@ void LabTestPanel::finish(std::int64_t ms, bool dnf) {
   store_.addAttempt(a);
   lastAttempt_ = store_.attempts().size() - 1;
   lastEntry_ = current_->entry;
-  phase_ = Phase::Done;
+  flow_.setPhase(Phase::Done);
   display_->showTime(ms, dnf ? Penalty::Dnf : Penalty::None);
   saveStore();
   refresh();
@@ -891,114 +890,84 @@ void LabTestPanel::deleteLast() {
 bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
   const std::int64_t now = monotonicMs();
   const int key = e->key();
-  const bool plain = !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier |
-                                         Qt::MetaModifier));
-  switch (phase_) {
-  case Phase::Idle:
-  case Phase::Finished:
-    if (press && key == Qt::Key_Space && plain) {
-      next();
-      return true;
+  std::optional<Move> move =
+      onVirtual() ? settings_.keymap.lookup(e) : std::optional<Move>();
+  using K = LabFlow::Key;
+  LabFlow::Input in;
+  in.key = key == Qt::Key_Space       ? K::Space
+           : key == Qt::Key_Escape    ? K::Escape
+           : key == Qt::Key_Backspace ? K::Backspace
+           : key == Qt::Key_Delete    ? K::Delete
+           : isModifierKey(key)       ? K::Modifier
+           : move                     ? K::Move
+                                      : K::Other;
+  in.press = press;
+  in.plain = !(e->modifiers() &
+               (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
+  in.now = now;
+  flow_.setVirtualCube(onVirtual());
+  const LabFlow::Step step = flow_.key(in);
+  using A = LabFlow::Action;
+  switch (step.action) {
+  case A::None:
+    break;
+  case A::Next:
+    next();
+    break;
+  case A::ToggleDnf:
+    toggleDnf();
+    break;
+  case A::DeleteLast:
+    deleteLast();
+    break;
+  case A::SameAgain:
+    if (current_) {
+      setUp(current_->entry);
     }
-    return false;
-  case Phase::Done:
-    if (!press) {
-      return key == Qt::Key_Space;
-    }
-    if (now - stoppedAt_ < kStopGraceMs && !isModifierKey(key)) {
-      return true;
-    }
-    if (!plain) {
-      return false;
-    }
-    if (key == Qt::Key_Space) {
-      next();
-      return true;
-    }
-    if (key == Qt::Key_Backspace) {
-      toggleDnf();
-      return true;
-    }
-    if (key == Qt::Key_Delete) {
-      deleteLast();
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      if (current_) {
-        setUp(current_->entry);
-      }
-      return true;
-    }
-    return false;
-  case Phase::Ready:
-    if (key == Qt::Key_Escape && press) {
-      timer_.cancel();
-      tick_.stop();
-      resetCube();
-      display_->showTime(0);
+    break;
+  case A::ResetReady:
+    timer_.cancel();
+    tick_.stop();
+    resetCube();
+    display_->showTime(0);
+    showStatus();
+    break;
+  case A::Turn:
+    virtualTurn(*move, now);
+    break;
+  case A::HoldPress:
+    timer_.pressStart(now);
+    tick_.start();
+    display_->showTimer(timer_, now);
+    break;
+  case A::HoldRelease:
+    timer_.releaseStart(now);
+    if (timer_.state() == SolveTimer::State::Running) {
+      flow_.setPhase(Phase::Running);
       showStatus();
-      return true;
+    } else {
+      tick_.stop();
     }
-    if (onVirtual()) {
-      if (!press || !plain) {
-        return false;
-      }
-      if (auto m = settings_.keymap.lookup(e)) {
-        virtualTurn(*m, now);
-        return true;
-      }
-      return false;
-    }
-    if (key == Qt::Key_Space && plain) {
-      if (press) {
-        timer_.pressStart(now);
-        tick_.start();
-      } else {
-        timer_.releaseStart(now);
-        if (timer_.state() == SolveTimer::State::Running) {
-          phase_ = Phase::Running;
-          showStatus();
-        } else {
-          tick_.stop();
-        }
-      }
-      display_->showTimer(timer_, now);
-      return true;
-    }
-    return false;
-  case Phase::Running:
-    if (!press) {
-      return key == Qt::Key_Space;
-    }
-    if (key == Qt::Key_Escape) {
-      cancelAttempt();
-      emit message(tr("Attempt cancelled; nothing was recorded."));
-      return true;
-    }
-    if (onVirtual()) {
-      if (key == Qt::Key_Space && plain) {
-        timer_.stopNow(now);
-        finish(timer_.elapsed(now), !stepDone());
-        return true;
-      }
-      if (auto m = plain ? settings_.keymap.lookup(e) : std::nullopt) {
-        virtualTurn(*m, now);
-        return true;
-      }
-      return false;
-    }
-    if (isModifierKey(key)) {
-      return false;
-    }
+    display_->showTimer(timer_, now);
+    break;
+  case A::StopVirtual:
+    timer_.stopNow(now);
+    finish(timer_.elapsed(now), !stepDone());
+    break;
+  case A::StopPhysical:
     timer_.pressStop(now);
     if (auto r = timer_.takeResult()) {
       finish(r->timeMs, false);
     } else {
       finish(timer_.elapsed(now), false);
     }
-    return true;
+    break;
+  case A::Cancel:
+    cancelAttempt();
+    emit message(tr("Attempt cancelled; nothing was recorded."));
+    break;
   }
-  return false;
+  return step.used;
 }
 
 void LabTestPanel::timesMenu(const QPoint &at) {

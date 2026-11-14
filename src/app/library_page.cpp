@@ -15,6 +15,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDropEvent>
@@ -27,14 +28,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSet>
 #include <QSplitter>
-#include <QLocale>
-#include <QDateTime>
 #include <QTabWidget>
 #include <QToolButton>
 #include <QUndoStack>
@@ -882,8 +882,8 @@ QString LibraryPage::historyHtml(const AlgCase &c) const {
   if (card.reps > 0) {
     html += row(tr("Reviews"), QString::number(card.reps));
     html += row(tr("Misses"), QString::number(card.lapses));
-    html += row(tr("Interval"),
-                tr("%1 days").arg(card.intervalDays, 0, 'f', 1));
+    html +=
+        row(tr("Interval"), tr("%1 days").arg(card.intervalDays, 0, 'f', 1));
     html += row(tr("Ease"), QString::number(card.ease, 'f', 2));
   }
   html += "</table>";
@@ -1167,6 +1167,14 @@ void LibraryPage::selectCase(const QString &setId, const QString &caseId) {
   buildCaseTree();
   loadCase();
   newAlgEdit_->setFocus();
+}
+
+bool LibraryPage::undoLast() {
+  if (!undo_->canUndo()) {
+    return false;
+  }
+  undo_->undo();
+  return true;
 }
 
 bool LibraryPage::setCaseAlgs(const QString &setId, const QString &caseId,

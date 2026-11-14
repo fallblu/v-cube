@@ -7,6 +7,8 @@
 #include "train/move_count.hpp"
 #include "train/timer.hpp"
 
+#include "train/lab_flow.hpp"
+
 #include <QFutureWatcher>
 #include <QTimer>
 #include <QWidget>
@@ -68,7 +70,7 @@ signals:
   void message(const QString &text);
 
 private:
-  enum class Phase { Idle, Ready, Running, Done, Finished };
+  using Phase = LabFlow::Phase;
 
   struct Current {
     std::size_t entry = 0;
@@ -83,13 +85,12 @@ private:
   AlgLibrary &library_;
   AlgLabStore &store_;
   Rng rng_;
-  Phase phase_ = Phase::Idle;
   std::optional<Current> current_;
   std::optional<std::size_t> lastEntry_;
   std::optional<std::size_t> lastAttempt_; // index into the store
   SolveTimer timer_;
   QTimer tick_;
-  std::int64_t stoppedAt_ = 0;
+  LabFlow flow_;
   VirtualAttempt attempt_;
   AlgFollower follower_;
   QFutureWatcher<GeneratedScramble> watcher_;

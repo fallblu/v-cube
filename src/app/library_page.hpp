@@ -81,6 +81,8 @@ public:
   void selectCase(const QString &setId, const QString &caseId);
   // Sets a case's algs for another mode (Alg Lab), as one undoable edit
   // named `text`, the case selected; false if it couldn't be saved.
+  // Undoes the last change, as Edit > Undo does; false if there is none.
+  bool undoLast();
   bool setCaseAlgs(const QString &setId, const QString &caseId,
                    std::vector<std::string> algs, const QString &text);
   // Alg Lab's times, shown beside each alg (none until set).

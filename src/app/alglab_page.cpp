@@ -379,6 +379,26 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   }
   gl->addStretch();
   genLayout->addWidget(genStatus_);
+  // The generator folds away: a button with an arrow shows or hides it.
+  auto *genToggle = new QToolButton(search);
+  genToggle->setText(tr("Generator"));
+  genToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  genToggle->setAutoRaise(true);
+  genToggle->setCheckable(true);
+  genToggle->setFocusPolicy(Qt::NoFocus);
+  gen->setTitle(QString());
+  auto showGen = [gen, genToggle](bool on) {
+    gen->setVisible(on);
+    genToggle->setArrowType(on ? Qt::DownArrow : Qt::RightArrow);
+  };
+  bool genShown = QSettings().value("alglab/generatorShown", true).toBool();
+  genToggle->setChecked(genShown);
+  showGen(genShown);
+  connect(genToggle, &QToolButton::toggled, this, [showGen](bool on) {
+    QSettings().setValue("alglab/generatorShown", on);
+    showGen(on);
+  });
+  sl->addWidget(genToggle);
   sl->addWidget(gen);
   tabs_->addTab(search, tr("Search"));
 
@@ -529,6 +549,18 @@ bool AlgLabPage::handleKey(QKeyEvent *e, bool press) {
   if (tabs_->currentWidget() == test_) {
     return test_->handleKey(e, press);
   }
+  // Ctrl+Z takes back an alg added to the set or made its main alg here.
+  if (press && e->key() == Qt::Key_Z &&
+      (e->modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier) {
+    if (setEdits_ > 0 && setUndo_ && setUndo_()) {
+      --setEdits_;
+      showCase(case_ ? std::optional(case_->key) : std::nullopt);
+      emit message(tr("The set's algs are as they were before"));
+    } else {
+      emit message(tr("Nothing changed in a set here to undo"));
+    }
+    return true;
+  }
   return false;
 }
 
@@ -540,6 +572,8 @@ void AlgLabPage::applySettings() {
 bool AlgLabPage::isBusy() const { return test_->isBusy(); }
 
 void AlgLabPage::activated() {
+  setEdits_ = 0; // Library may have changed the sets since
+
   // Sets and their algs may have changed in the other modes.
   reloadSets();
 }
@@ -1134,6 +1168,7 @@ void AlgLabPage::addToSet(bool makeMain) {
   bool saved = false;
   if (algEditor_) {
     saved = algEditor_(qs(set->id), qs(c->id), newAlgs, what);
+    setEdits_ += saved ? 1 : 0;
   } else {
     std::vector<std::string> old = c->algs;
     c->algs = newAlgs;
