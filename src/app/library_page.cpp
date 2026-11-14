@@ -33,11 +33,15 @@
 #include <QScrollBar>
 #include <QSet>
 #include <QSplitter>
+#include <QLocale>
+#include <QDateTime>
+#include <QTabWidget>
 #include <QToolButton>
 #include <QUndoStack>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 
 namespace vcube {
 
@@ -247,8 +251,46 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
       emit algLabRequested(qs(editor_.setId), qs(currentCase()->id));
     }
   });
-  goRow->addSpacing(12);
-  goButton(tr("Learn history…"), [this] {
+  goRow->addStretch();
+  caseLayout->addLayout(goRow);
+  // The case's algs (with the fingertricks of the one selected) and its
+  // history, on tabs.
+  auto *caseTabs = new QTabWidget(caseBox_);
+  auto *algsTab = new QWidget(caseTabs);
+  auto *algsLayout = new QVBoxLayout(algsTab);
+  auto *algHelp =
+      new QLabel(tr("The first passing alg is the main alg. Drag to reorder "
+                    "(or Alt+Up and Alt+Down), F2 or double-click to edit, "
+                    "Delete to remove, right-click for more."),
+                 caseBox_);
+  algHelp->setWordWrap(true);
+  algHelp->setForegroundRole(QPalette::PlaceholderText);
+  algsLayout->addWidget(algHelp);
+  algList_ = new AlgListWidget(caseBox_);
+  algsLayout->addWidget(algList_, 1);
+  auto *addRow = new QHBoxLayout;
+  newAlgEdit_ = new QLineEdit(caseBox_);
+  newAlgEdit_->setPlaceholderText(tr("New alg, e.g. R U R' U R U2 R'"));
+  auto *addButton = new QPushButton(tr("Add"), caseBox_);
+  addRow->addWidget(newAlgEdit_, 1);
+  addRow->addWidget(addButton);
+  algsLayout->addLayout(addRow);
+  gripTitle_ = new QLabel(tr("<b>Fingertricks</b>"), caseBox_);
+  algsLayout->addWidget(gripTitle_);
+  grips_ = new GripView(caseBox_);
+  algsLayout->addWidget(grips_);
+
+  caseTabs->addTab(algsTab, tr("Algs"));
+  auto *historyTab = new QWidget(caseTabs);
+  auto *historyLayout = new QVBoxLayout(historyTab);
+  caseHistory_ = new QLabel(historyTab);
+  caseHistory_->setTextFormat(Qt::RichText);
+  caseHistory_->setWordWrap(true);
+  caseHistory_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+  caseHistory_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  historyLayout->addWidget(caseHistory_);
+  auto *learnHistory = new QPushButton(tr("Learn history…"), caseBox_);
+  connect(learnHistory, &QPushButton::clicked, this, [this] {
     const AlgCase *c = currentCase();
     if (!c) {
       return;
@@ -279,30 +321,14 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
     });
   }
   drillHistory->setMenu(drillMenu);
-  goRow->addWidget(drillHistory);
-  goRow->addStretch();
-  caseLayout->addLayout(goRow);
-  auto *algHelp =
-      new QLabel(tr("The first passing alg is the main alg. Drag to reorder "
-                    "(or Alt+Up and Alt+Down), F2 or double-click to edit, "
-                    "Delete to remove, right-click for more."),
-                 caseBox_);
-  algHelp->setWordWrap(true);
-  algHelp->setForegroundRole(QPalette::PlaceholderText);
-  caseLayout->addWidget(algHelp);
-  algList_ = new AlgListWidget(caseBox_);
-  caseLayout->addWidget(algList_, 1);
-  auto *addRow = new QHBoxLayout;
-  newAlgEdit_ = new QLineEdit(caseBox_);
-  newAlgEdit_->setPlaceholderText(tr("New alg, e.g. R U R' U R U2 R'"));
-  auto *addButton = new QPushButton(tr("Add"), caseBox_);
-  addRow->addWidget(newAlgEdit_, 1);
-  addRow->addWidget(addButton);
-  caseLayout->addLayout(addRow);
-  gripTitle_ = new QLabel(tr("<b>Fingertricks</b>"), caseBox_);
-  caseLayout->addWidget(gripTitle_);
-  grips_ = new GripView(caseBox_);
-  caseLayout->addWidget(grips_);
+  auto *historyButtons = new QHBoxLayout;
+  historyButtons->addWidget(learnHistory);
+  historyButtons->addWidget(drillHistory);
+  historyButtons->addStretch();
+  historyLayout->addLayout(historyButtons);
+  historyLayout->addStretch(1);
+  caseTabs->addTab(historyTab, tr("History"));
+  caseLayout->addWidget(caseTabs, 1);
 
   auto *split = new QSplitter(this);
   split->addWidget(left);
@@ -825,6 +851,65 @@ void LibraryPage::buildCaseTree() {
   updateActions();
 }
 
+QString LibraryPage::historyHtml(const AlgCase &c) const {
+  const SetProgress &p = library_.progress(editor_.setId);
+  auto it = p.find(c.id);
+  if (it == p.end()) {
+    return tr("Not learned yet, no drills.");
+  }
+  const CaseProgress &cp = it->second;
+  auto row = [](const QString &name, const QString &value) {
+    return QString("<tr><td>%1&nbsp;&nbsp;</td><td>%2</td></tr>")
+        .arg(name.toHtmlEscaped(), value.toHtmlEscaped());
+  };
+  auto secs = [this](double ms) {
+    return QString::number(ms / 1000.0, 'f', settings_.decimals) + " s";
+  };
+  QString html = "<p><b>" + tr("Learn") + "</b></p><table>";
+  const SrsCard &card = cp.card;
+  QString status = statusOf(&cp) == CaseStatus::Learned    ? tr("learned")
+                   : statusOf(&cp) == CaseStatus::Learning ? tr("learning")
+                                                           : tr("not started");
+  if (card.suspended) {
+    status += tr(", suspended");
+  }
+  html += row(tr("Status"), status);
+  if (card.due > 0) {
+    html += row(tr("Due"),
+                QLocale().toString(QDateTime::fromSecsSinceEpoch(card.due),
+                                   QLocale::ShortFormat));
+  }
+  if (card.reps > 0) {
+    html += row(tr("Reviews"), QString::number(card.reps));
+    html += row(tr("Misses"), QString::number(card.lapses));
+    html += row(tr("Interval"),
+                tr("%1 days").arg(card.intervalDays, 0, 'f', 1));
+    html += row(tr("Ease"), QString::number(card.ease, 'f', 2));
+  }
+  html += "</table>";
+  const std::pair<AttemptMode, QString> modes[] = {
+      {AttemptMode::VirtualDrill, tr("Drill, virtual cube")},
+      {AttemptMode::PhysicalDrill, tr("Drill, physical cube")}};
+  for (const auto &[mode, name] : modes) {
+    std::size_t n = cp.drillCount(mode);
+    if (n == 0) {
+      continue;
+    }
+    html += "<p><b>" + name.toHtmlEscaped() + "</b></p><table>";
+    html += row(tr("Attempts"), QString::number(n));
+    if (auto best = cp.best(mode)) {
+      html += row(tr("Best"), secs(static_cast<double>(*best)));
+    }
+    if (auto mean = cp.recentMean(mode)) {
+      html += row(tr("Recent mean"), secs(*mean));
+    }
+    html += row(tr("Fail rate, last 10"),
+                QString("%1%").arg(std::lround(100.0 * cp.failRate(mode))));
+    html += "</table>";
+  }
+  return html;
+}
+
 void LibraryPage::loadCase() {
   AlgCase *c = currentCase();
   caseBox_->setEnabled(c != nullptr);
@@ -837,6 +922,7 @@ void LibraryPage::loadCase() {
     caseGroup_->clear();
     caseAlgCount_->clear();
     caseProgress_->clear();
+    caseHistory_->clear();
     QSignalBlocker block(algList_);
     algList_->clear();
     caseBox_->setTitle(tr("Select a case to see and edit its algs"));
@@ -885,6 +971,7 @@ void LibraryPage::loadCase() {
     progress << tr("not learned yet, no drills");
   }
   caseProgress_->setText(progress.join("; "));
+  caseHistory_->setText(historyHtml(*c));
   if (a && a->main && s->reduction) {
     // Every step from this case to the end, by the set's main algs.
     Chain chain = solveChain(*s, c->state);

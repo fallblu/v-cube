@@ -134,6 +134,7 @@ private:
   QLabel *caseGroup_;
   QLabel *caseAlgCount_;
   QLabel *caseProgress_;
+  QLabel *caseHistory_;
   QLabel *caseSummary_;
   AlgListWidget *algList_ = nullptr;
   QLineEdit *newAlgEdit_;
@@ -183,6 +184,8 @@ private:
   void fillGroupItem(QTreeWidgetItem *item, const AlgSet &s,
                      const CaseGroup &g);
   void loadCase();
+  // The case's Learn card and drill statistics, for the History tab.
+  QString historyHtml(const AlgCase &c) const;
   void refreshAlgList();
   void updateGrips();
   void storeAlgs(const QString &text, std::optional<int> edited = {});
