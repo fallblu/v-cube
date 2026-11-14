@@ -215,13 +215,18 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
                        createViewSelector(cubeView_, "inspection", optionsRow_),
                        optionsRow_);
   skipButton_ = flatButton(tr("Skip scramble"), optionsRow_);
-  skipButton_->setToolTip(tr("Go on to the next scramble"));
+  skipButton_->setToolTip(tr("Go on to the next scramble (Ctrl+→)"));
+  newSessionButton_ = flatButton(tr("New session…"), optionsRow_);
+  newSessionButton_->setToolTip(
+      tr("This session's drill and step are fixed now that it has attempts: "
+         "a new session practises something else"));
   options->addWidget(new QLabel(tr("Drill:"), optionsRow_));
   options->addWidget(drillBox_);
   options->addSpacing(12);
   options->addWidget(stepPicker_);
   options->addWidget(pairPicker_);
   options->addWidget(axesPicker_);
+  options->addWidget(newSessionButton_);
   options->addSpacing(12);
   options->addWidget(limitPicker_);
   options->addStretch();
@@ -285,7 +290,8 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
   retryButton_->setToolTip(
       tr("Plan the last scramble again; the retry isn't recorded"));
   deleteButton_ = flatButton(tr("Delete last"), right);
-  deleteButton_->setToolTip(tr("Delete the last recorded attempt"));
+  deleteButton_->setToolTip(
+      tr("Delete the last recorded attempt (Delete; Ctrl+Z puts it back)"));
   buttonRow->addStretch();
   buttonRow->addWidget(reviewButton_);
   buttonRow->addWidget(retryButton_);
@@ -344,6 +350,8 @@ InspectionPage::InspectionPage(AppSettings &settings, const QString &dataDir,
             }
           });
   connect(skipButton_, &QPushButton::clicked, this, &InspectionPage::skip);
+  connect(newSessionButton_, &QPushButton::clicked, this,
+          &InspectionPage::addSession);
   connect(drillBox_, &QComboBox::activated, this, [this](int index) {
     auto drill = index == 0 ? InspectionDrill::Plan : InspectionDrill::Edges;
     if (isBusy() || session().drill == drill) {
@@ -566,12 +574,19 @@ void InspectionPage::showHint() {
 
 void InspectionPage::updateControls() {
   bool busy = isBusy();
-  for (QWidget *w : std::initializer_list<QWidget *>{
-           panel_->sessionButton(), drillBox_, stepBox_, axesBox_, limitBox_,
-           skipButton_, pairBox_}) {
+  bool any = !session().attempts.empty();
+  for (QWidget *w : std::initializer_list<QWidget *>{panel_->sessionButton(),
+                                                     limitBox_, skipButton_}) {
     w->setEnabled(!busy);
   }
-  bool any = !session().attempts.empty();
+  // What the session is for is fixed once it has attempts: the pickers
+  // show it, and a new session changes it.
+  for (QWidget *w : std::initializer_list<QWidget *>{drillBox_, stepBox_,
+                                                     axesBox_, pairBox_}) {
+    w->setEnabled(!busy && !any);
+  }
+  newSessionButton_->setVisible(any);
+  newSessionButton_->setEnabled(!busy);
   reviewButton_->setVisible(planning());
   retryButton_->setVisible(planning());
   reviewButton_->setEnabled(!busy && any);
@@ -1160,6 +1175,29 @@ void InspectionPage::showRings() {
 bool InspectionPage::handleKey(QKeyEvent *e, bool press) {
   using Key = InspectionFlow::Key;
   int key = e->key();
+  // The keys the solve modes use for the last attempt and the scramble.
+  if (press && !e->isAutoRepeat() && !isBusy()) {
+    Qt::KeyboardModifiers mods =
+        e->modifiers() & (Qt::ControlModifier | Qt::AltModifier |
+                          Qt::ShiftModifier | Qt::MetaModifier);
+    if (mods == Qt::NoModifier && key == Qt::Key_Delete) {
+      deleteButton_->click();
+      return true;
+    }
+    if (mods == Qt::ControlModifier && key == Qt::Key_Z) {
+      undoDelete();
+      return true;
+    }
+    if (mods == Qt::ControlModifier && key == Qt::Key_Right) {
+      skip();
+      return true;
+    }
+    if (mods == Qt::AltModifier && key == Qt::Key_R && planning() &&
+        !session().attempts.empty()) {
+      reviewButton_->click();
+      return true;
+    }
+  }
   std::optional<Move> move = settings_.keymap.lookup(e);
   InspectionFlow::KeyInput k;
   if (key == Qt::Key_Space) {
@@ -1278,6 +1316,7 @@ void InspectionPage::selectSession(std::size_t index) {
     return;
   }
   store_.setCurrentIndex(index);
+  deleted_.reset(); // undo is for the session it was deleted from
   panel_->setSessionName(qs(session().name));
   showDrill();
   flow_.next();
@@ -1535,9 +1574,27 @@ void InspectionPage::deleteAttempt(int index) {
   if (index < 0 || index >= static_cast<int>(attempts.size())) {
     return;
   }
+  // Kept for Ctrl+Z, until the session changes.
+  deleted_ = {index, attempts[static_cast<std::size_t>(index)]};
   attempts.erase(attempts.begin() + index);
   save();
   refreshAttempts();
+  updateControls();
+  emit message(tr("Attempt deleted (Ctrl+Z puts it back)"));
+}
+
+void InspectionPage::undoDelete() {
+  if (!deleted_) {
+    return;
+  }
+  auto &attempts = session().attempts;
+  int at = std::clamp(deleted_->first, 0, static_cast<int>(attempts.size()));
+  attempts.insert(attempts.begin() + at, deleted_->second);
+  deleted_.reset();
+  save();
+  refreshAttempts();
+  updateControls();
+  emit message(tr("Attempt put back"));
 }
 
 void InspectionPage::showAttemptMenu(int index, const QPoint &globalPos) {

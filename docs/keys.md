@@ -135,6 +135,7 @@ Ctrl- or Shift-click selects several cases.
 | virtual, running | Space | stop (a DNF if the cube isn't solved) |
 | after a virtual DNF | Space, Enter or Esc | next scramble |
 | after a solve | Alt+1 / Alt+2 / Alt+3 | no penalty / toggle +2 / toggle DNF on the last solve |
+| after a solve | Backspace | toggle DNF on the last solve, as in Drill |
 | after a solve | Alt+C / Alt+R | comment on / review the last solve |
 | after a solve | Delete / Ctrl+Z | delete the last solve / put the last deleted solve back |
 | after a solve | Ctrl+→ | skip the scramble |
@@ -196,6 +197,9 @@ In the solve review (Alt+R, or double-click a solve):
 | Bad edges | Space | show the cube; afterwards, the next scramble |
 | Bad edges | 0-9 / Backspace / Enter | type a count / correct it / give it (F/B first, then R/L if asked) |
 | Bad edges, afterwards | Tab | ring the other axis's bad edges |
+| between attempts | Delete / Ctrl+Z | delete the last attempt / put the last deleted attempt back |
+| between attempts | Alt+R | review the last Plan attempt |
+| between attempts | Ctrl+→ | skip the scramble |
 
 A Space in the moment the time limit hides the cube is ignored, and Space with no moves done doesn't finish.
 

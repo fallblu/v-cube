@@ -25,7 +25,7 @@ SetupDrill::SetupDrill(BlindContext &context, QWidget *parent)
   modeBox_->setToolTip(
       tr("Do each setup on the virtual cube, or type it to be checked"));
   piecesItem_ = labelledBox(tr("Pieces:"), piecesBox_, parent);
-  modeItem_ = labelledBox(tr("Setups:"), modeBox_, parent);
+  modeItem_ = labelledBox(tr("Answer:"), modeBox_, parent);
 
   row_ = new QWidget(parent);
   auto *layout = new QHBoxLayout(row_);

@@ -136,6 +136,8 @@ private:
   QComboBox *chartBox_;
   QWidget *viewPicker_;
   QPushButton *skipButton_;
+  QPushButton *newSessionButton_;
+  std::optional<std::pair<int, InspectionAttempt>> deleted_;
   QLabel *stepLabel_;
   QLabel *scrambleLabel_;
   QStackedWidget *cubeStack_;
@@ -207,6 +209,8 @@ private:
   void showAttemptMenu(int index, const QPoint &globalPos);
   void requestReview(int index);
   void deleteAttempt(int index);
+  // Puts the attempt deleted last back where it was.
+  void undoDelete();
   void addSession();
   void renameSession();
   void deleteSession();

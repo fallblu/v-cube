@@ -25,6 +25,7 @@ SolvesDrill::SolvesDrill(BlindContext &context, QWidget *parent)
                       blindColumn("memo", tr("Memo"))});
   cubeBox_ = blindComboBox({tr("Virtual cube"), tr("Physical cube")}, parent);
   cubeBox_->setToolTip(tr("The cube this session's solves are done on"));
+  cubeItem_ = labelledBox(tr("Cube:"), cubeBox_, parent);
 
   connect(&tick_, &QTimer::timeout, this, &SolvesDrill::onTick);
   connect(cubeBox_, &QComboBox::activated, this, [this](int index) {
@@ -54,7 +55,7 @@ TrendChart *SolvesDrill::chart() const { return panel_->chart(); }
 
 QWidget *SolvesDrill::leftPanel() const { return panel_; }
 
-std::vector<QWidget *> SolvesDrill::options() const { return {cubeBox_}; }
+std::vector<QWidget *> SolvesDrill::options() const { return {cubeItem_}; }
 
 bool SolvesDrill::onVirtualCube() const {
   return ctx_.store.current().cube == CubeKind::Virtual;

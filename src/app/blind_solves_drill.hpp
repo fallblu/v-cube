@@ -41,6 +41,7 @@ private:
   QTimer tick_;
   SessionPanel *panel_;
   QComboBox *cubeBox_;
+  QWidget *cubeItem_;
   // The scramble solved: the feed moves on as soon as one is shown, so
   // that no scramble is seen twice.
   std::optional<GeneratedScramble> used_;

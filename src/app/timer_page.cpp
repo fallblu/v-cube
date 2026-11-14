@@ -429,6 +429,11 @@ bool TimerPage::handleActionKey(QKeyEvent *e) {
   Qt::KeyboardModifiers mods = e->modifiers() & ~Qt::KeypadModifier;
   int key = e->key();
   int last = static_cast<int>(session().solves.size()) - 1;
+  // Backspace toggles the DNF, as in Drill, Blind and Alg Lab.
+  if (mods == Qt::NoModifier && key == Qt::Key_Backspace && last >= 0) {
+    setLastPenalty(Penalty::Dnf);
+    return true;
+  }
   if (mods == Qt::AltModifier) {
     switch (key) {
     case Qt::Key_1:

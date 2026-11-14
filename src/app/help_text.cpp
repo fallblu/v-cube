@@ -221,6 +221,8 @@ const std::vector<Section> &sections() {
          T("next scramble")},
         {T("after a solve"), T("Alt+1 / Alt+2 / Alt+3"),
          T("no penalty / toggle +2 / toggle DNF on the last solve")},
+        {T("after a solve"), T("Backspace"),
+         T("toggle DNF on the last solve, as in Drill")},
         {T("after a solve"), T("Alt+C / Alt+R"),
          T("comment on / review the last solve")},
         {T("after a solve"), T("Delete / Ctrl+Z"),
@@ -306,7 +308,11 @@ const std::vector<Section> &sections() {
          T("type a count / correct it / give it (F/B first, then R/L if "
            "asked)")},
         {T("Bad edges, afterwards"), T("Tab"),
-         T("ring the other axis's bad edges")}},
+         T("ring the other axis's bad edges")},
+        {T("between attempts"), T("Delete / Ctrl+Z"),
+         T("delete the last attempt / put the last deleted attempt back")},
+        {T("between attempts"), T("Alt+R"), T("review the last Plan attempt")},
+        {T("between attempts"), T("Ctrl+→"), T("skip the scramble")}},
        {T("A Space in the moment the time limit hides the cube is ignored, and "
           "Space with no moves done doesn't finish.")}},
       {T("Blind"),
