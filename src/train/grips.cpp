@@ -174,7 +174,7 @@ GripModel standardGripModel() {
   // U layer: flicks and pushes.
   add("U", H::Right, F::Index, "flick", hm | up, 0, 1.0);
   add("U", H::Left, F::Index, "push", hm, 0, 1.7);
-  add("U'", H::Left, F::Index, "flick", hm, 0, 1.0);
+  add("U'", H::Left, F::Index, "flick", hm | up, 0, 1.0);
   add("U'", H::Right, F::Index, "push", dn, 0, 1.4);
   add("U'", H::Right, F::Index, "push", hm, 0, 1.7);
   add("U2", H::Right, F::Index, "double flick", hm, 0, 1.5);
@@ -189,29 +189,35 @@ GripModel standardGripModel() {
   add("L'", H::Left, F::Wrist, "", fd | dn | hm | up, 1, 1.3);
   add("L2", H::Left, F::Wrist, "down", hm | up | fu, -2, 1.9);
   add("L2", H::Left, F::Wrist, "up", fd | dn | hm, 2, 1.9);
-  // D layer: ring fingers.
+  // D layer: ring fingers, from home.
   add("D", H::Left, F::Ring, "pull", hm, 0, 1.4);
   add("D", H::Right, F::Ring, "push", hm, 0, 1.9);
   add("D'", H::Right, F::Ring, "pull", hm, 0, 1.4);
-  add("D'", H::Right, F::Ring, "pull", up, 0, 1.8);
   add("D'", H::Left, F::Ring, "push", hm, 0, 1.9);
-  add("D2", H::Left, F::Ring, "double pull", hm, 0, 2.0);
   add("D2", H::Right, F::Ring, "double pull", hm, 0, 2.1);
-  // F layer: index from the top with the thumb down, thumbs from the front.
+  // F layer: the index from the top with the thumb down, the ring finger
+  // from below with the thumb up, a thumb from the front at home.
   add("F", H::Right, F::Index, "push from the top", dn, 0, 1.3);
+  add("F", H::Right, F::Ring, "push", up, 0, 1.6);
   add("F", H::Left, F::Thumb, "push", hm, 0, 1.6);
   add("F", H::Right, F::Index, "reach over the top", hm, 0, 2.2);
-  add("F'", H::Right, F::Thumb, "push", hm, 0, 1.5);
   add("F'", H::Left, F::Index, "push from the top", dn, 0, 1.3);
-  add("F'", H::Left, F::Index, "reach over the top", hm, 0, 2.2);
+  add("F'", H::Right, F::Ring, "flick", up, 0, 1.5);
+  add("F'", H::Right, F::Thumb, "push", hm, 0, 1.5);
+  add("F2", H::Right, F::Ring, "double flick", up, 0, 1.8);
   add("F2", H::Right, F::Index, "double push from the top", dn, 0, 2.0);
-  add("F2", H::Right, F::Thumb, "double push", hm, 0, 2.4);
-  add("F2", H::Left, F::Thumb, "double push", hm, 0, 2.4);
-  // B layer: ring fingers from behind.
-  add("B", H::Left, F::Ring, "pull", hm, 0, 2.6);
-  add("B'", H::Right, F::Ring, "pull", hm, 0, 2.6);
-  add("B2", H::Right, F::Ring, "double pull", hm, 0, 3.4);
-  add("B2", H::Left, F::Ring, "double pull", hm, 0, 3.4);
+  add("F2", H::Left, F::Index, "double push from the top", dn, 0, 2.0);
+  // B layer: the index from below with the thumb up, the ring finger from
+  // the top with the thumb down.
+  add("B", H::Right, F::Index, "flick", up, 0, 1.8);
+  add("B", H::Right, F::Ring, "push", dn, 0, 2.0);
+  add("B", H::Left, F::Index, "push", up, 0, 2.2);
+  add("B'", H::Right, F::Ring, "flick", dn, 0, 1.8);
+  add("B'", H::Right, F::Index, "push", up, 0, 2.0);
+  add("B'", H::Left, F::Index, "flick", up, 0, 2.0);
+  add("B2", H::Right, F::Index, "double flick", up, 0, 2.4);
+  add("B2", H::Right, F::Ring, "double flick", dn, 0, 2.4);
+  add("B2", H::Left, F::Index, "double flick", up, 0, 2.6);
   // Wide R and L turns: the wrist, as R and L.
   add("r", H::Right, F::Wrist, "", fd | dn | hm | up, 1, 1.2);
   add("r'", H::Right, F::Wrist, "", dn | hm | up | fu, -1, 1.2);
@@ -220,10 +226,10 @@ GripModel standardGripModel() {
   add("l", H::Left, F::Wrist, "", dn | hm | up | fu, -1, 1.6);
   add("l'", H::Left, F::Wrist, "", fd | dn | hm | up, 1, 1.6);
   add("l2", H::Left, F::Wrist, "", hm | up | fu, -2, 2.3);
-  // M slice: the left ring finger.
-  add("M'", H::Left, F::Ring, "push", hm, 0, 1.4);
-  add("M", H::Left, F::Ring, "pull", hm, 0, 1.6);
-  add("M2", H::Left, F::Ring, "double push", hm, 0, 2.0);
+  // M slice: the right ring finger.
+  add("M'", H::Right, F::Ring, "push", hm, 0, 1.4);
+  add("M", H::Right, F::Ring, "pull", hm, 0, 1.6);
+  add("M2", H::Right, F::Ring, "double push", hm, 0, 2.0);
   // Rotations: both hands let go and take the cube again, home.
   for (const char *r : {"x", "x'", "y", "y'", "z", "z'"}) {
     double c = r[0] == 'y' ? 1.5 : r[0] == 'x' ? 1.8 : 2.2;

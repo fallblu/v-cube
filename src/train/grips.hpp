@@ -78,8 +78,9 @@ struct GripModel {
 };
 
 // v-cube's standard two-handed catalogue: flicks, pushes and pulls, wrist
-// turns, ring-finger D moves, thumb and index F moves, and rotations as a
-// regrip of both hands.
+// turns, ring-finger D moves, F and B moves from above with the thumb down
+// and from below with the thumb up, and rotations as a regrip of both
+// hands.
 GripModel standardGripModel();
 
 struct Grip {
