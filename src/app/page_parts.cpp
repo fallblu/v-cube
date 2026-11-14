@@ -191,7 +191,7 @@ SegmentedPicker::SegmentedPicker(QWidget *parent) : QWidget(parent) {
   connect(group_, &QButtonGroup::idClicked, this, &SegmentedPicker::activated);
 }
 
-void SegmentedPicker::addOption(const QString &text, const QVariant &data) {
+void SegmentedPicker::addOption(const QString &text, const QVariant &value) {
   auto *b = new QPushButton(text, this);
   b->setCheckable(true);
   b->setFocusPolicy(Qt::NoFocus);
@@ -200,7 +200,7 @@ void SegmentedPicker::addOption(const QString &text, const QVariant &data) {
   if (data_.isEmpty()) {
     b->setChecked(true);
   }
-  data_ << data;
+  data_ << value;
 }
 
 int SegmentedPicker::currentIndex() const { return group_->checkedId(); }
@@ -215,8 +215,8 @@ QVariant SegmentedPicker::currentData() const {
   return data_.value(currentIndex());
 }
 
-int SegmentedPicker::findData(const QVariant &data) const {
-  return static_cast<int>(data_.indexOf(data));
+int SegmentedPicker::findData(const QVariant &value) const {
+  return static_cast<int>(data_.indexOf(value));
 }
 
 QString keyHintsHtml(const QList<KeyHint> &keys, const QPalette &palette) {

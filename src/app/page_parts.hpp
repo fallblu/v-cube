@@ -55,11 +55,11 @@ class SegmentedPicker : public QWidget {
   Q_OBJECT
 public:
   explicit SegmentedPicker(QWidget *parent = nullptr);
-  void addOption(const QString &text, const QVariant &data = {});
+  void addOption(const QString &text, const QVariant &value = {});
   int currentIndex() const;
   void setCurrentIndex(int index);
   QVariant currentData() const;
-  int findData(const QVariant &data) const;
+  int findData(const QVariant &value) const;
 
 signals:
   // The user chose an option (not setCurrentIndex).
