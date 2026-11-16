@@ -29,6 +29,8 @@ class QPushButton;
 
 namespace vcube {
 
+class SolveStage;
+
 // Timed mode, a cstimer-like timer: scrambles, a space-bar timer with
 // optional inspection, sessions, statistics and a trend chart. Each
 // session is for the virtual cube or a physical one, fixed once it has
@@ -40,8 +42,6 @@ namespace vcube {
 // until Space. Each virtual solve keeps its solution and when each move
 // was turned, which give its step splits (cross, pairs, last layer) and a
 // review.
-class SolveStage;
-
 class TimerPage : public ModePage {
   Q_OBJECT
 public:

@@ -33,7 +33,6 @@ public:
   QComboBox *setBox;
   CaseFilter *filter;
   QTreeWidget *tree;
-  QHBoxLayout *tickRow; // tick all/none; pages add buttons
   QLabel *summary;
 
   // The list's columns: "Case" and `headers` after it, of which
@@ -43,7 +42,6 @@ public:
   // A click on a column's header sorts by it (largest first, then
   // smallest first, then in list order again, as a click on "Case" does).
   void setSortable(bool on);
-  bool sortable() const { return sortable_; }
   // Sorts the list again as chosen, e.g. after its values changed.
   void applySort();
 
@@ -57,10 +55,6 @@ public:
   void tickShown(bool on);
   // "Tick all", or "Tick shown" while the list is filtered.
   QString tickAllText() const;
-
-signals:
-  // The list was sorted another way from its header.
-  void sorted();
 
 private:
   QString mode_;

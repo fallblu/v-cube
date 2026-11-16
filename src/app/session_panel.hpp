@@ -106,7 +106,6 @@ public:
   // statActivated()) don't wrap; the others do.
   void setStatsClickable(bool on);
   void setStatsHtml(const QString &html);
-  QLabel *statsLabel() const { return stats_; }
 
   // --- the attempt table ---
   void setColumns(std::vector<AttemptColumn> columns);
@@ -116,8 +115,6 @@ public:
   // Lets the header's context menu hide the hideable columns, kept under
   // this QSettings key.
   void setHiddenColumnsKey(const QString &key);
-  QTableView *table() const { return table_; }
-  AttemptTableModel *model() const { return model_; }
 
   // --- the delete and undo buttons (hidden until shown) ---
   void setDeleteRowVisible(bool on);

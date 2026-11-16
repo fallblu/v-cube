@@ -40,7 +40,7 @@ CaseListPanel::CaseListPanel(QString mode, int thumbnailSize, QWidget *parent)
   layout->addWidget(filter);
   layout->addWidget(tree, 1);
 
-  tickRow = new QHBoxLayout;
+  auto *tickRow = new QHBoxLayout;
   tickAllButton_ = new QPushButton(this);
   tickNoneButton_ = new QPushButton(this);
   for (auto *b : {tickAllButton_, tickNoneButton_}) {
@@ -178,7 +178,6 @@ void CaseListPanel::sortClicked(int column) {
   saved::sortColumn(mode_).set(sortColumn_);
   saved::sortAscending(mode_).set(sortOrder_ == Qt::AscendingOrder);
   applySort();
-  emit sorted();
 }
 
 void CaseListPanel::applySort() {

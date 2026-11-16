@@ -1111,11 +1111,4 @@ SearchOutcome searchAlgs(const SearchGoal &goal, const SearchOptions &options,
   return s.run();
 }
 
-void clearSearchTables() {
-  std::lock_guard lock(cache().mutex);
-  cache().tables.clear();
-  cache().bytes.clear();
-  cache().used.clear();
-}
-
 } // namespace vcube

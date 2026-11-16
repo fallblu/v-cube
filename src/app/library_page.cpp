@@ -459,8 +459,6 @@ void LibraryPage::buildActions() {
              QKeySequence(Qt::ALT | Qt::Key_Return));
   checkAction_ = action(tr("&Check algs…"), &LibraryPage::checkAlgs,
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K));
-  importAction_ = action(tr("&Import set…"), &LibraryPage::importSetFile);
-  exportAction_ = action(tr("&Export set…"), &LibraryPage::exportSetFile);
   restoreCasesAction_ =
       action(tr("&Restore built-in cases…"), &LibraryPage::restoreSet);
   restoreCasesAction_->setToolTip(
@@ -540,7 +538,6 @@ void LibraryPage::updateActions() {
   deleteSetAction_->setEnabled(s);
   propertiesAction_->setEnabled(s);
   checkAction_->setEnabled(s);
-  exportAction_->setEnabled(s);
   restoreCasesAction_->setEnabled(s &&
                                   library_.builtinIds().contains(qs(s->id)));
   newGroupAction_->setEnabled(s);

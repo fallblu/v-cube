@@ -65,13 +65,13 @@ protected:
   void dropEvent(QDropEvent *event) override;
 };
 
+class CaseFilter;
+
 // Browse and edit alg sets: the set list, each set's case tree, and the
 // selected case with its algs. Set properties and step settings live in a
 // dialog; set and case actions in the Set and Cases menus of the menu bar
 // (shown while the page is) and in context menus. Every change is saved
 // at once and can be undone.
-class CaseFilter;
-
 class LibraryPage : public ModePage {
   Q_OBJECT
 public:
@@ -79,16 +79,14 @@ public:
               QWidget *parent = nullptr);
 
   void selectCase(const QString &setId, const QString &caseId);
-  // Sets a case's algs for another mode (Alg Lab), as one undoable edit
-  // named `text`, the case selected; false if it couldn't be saved.
   // Undoes the last change, as Edit > Undo does; false if there is none.
   bool undoLast();
+  // Sets a case's algs for another mode (Alg Lab), as one undoable edit
+  // named `text`, the case selected; false if it couldn't be saved.
   bool setCaseAlgs(const QString &setId, const QString &caseId,
                    std::vector<std::string> algs, const QString &text);
   // Alg Lab's times, shown beside each alg (none until set).
   void setLab(const AlgLabStore *lab) { lab_ = lab; }
-  // Shows the algs again (Alg Lab's times changed, say).
-  void refreshAlgs() { refreshAlgList(); }
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Neutrality;
   }
@@ -155,8 +153,6 @@ private:
   QAction *deleteSetAction_;
   QAction *propertiesAction_;
   QAction *checkAction_;
-  QAction *importAction_;
-  QAction *exportAction_;
   QAction *restoreCasesAction_;
   QAction *newGroupAction_;
   QAction *newCaseAction_;

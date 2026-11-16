@@ -101,7 +101,6 @@ protected:
   QComboBox *setBox_;
   CaseFilter *filter_;
   QTreeWidget *tree_;
-  QHBoxLayout *tickRow_; // tick all/none; derived pages add buttons
   QLabel *summary_;
 
   AlgSet *set();
@@ -209,8 +208,6 @@ protected:
   virtual bool sortableColumns() const { return false; }
   // Sorts the list again, e.g. after its values changed.
   void applySort();
-  // The list was sorted another way from its header.
-  virtual void sortChanged() {}
   virtual void updateSummary() = 0;
   // A set was selected: start practising it.
   virtual void startSet() = 0;

@@ -57,8 +57,6 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
 // Unfolded net: U above L F R B, D below.
 void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
               const CubeLook &look, const StickerMarks *marks = nullptr);
-// The facelet drawn at `pos` by paintNet() in `area`, if any.
-std::optional<int> netFaceletAt(const QRectF &area, QPointF pos);
 
 // Alg-Trainer's flat view (see flatLayout()): U above F with the adjacent
 // L and R stickers, 5 stickers wide and 6 tall.
