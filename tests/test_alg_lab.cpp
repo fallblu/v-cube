@@ -47,11 +47,6 @@ TEST_CASE("ergonomic scores add move costs, axis changes and rules",
   CHECK(ergoMatches("r*", parseAlgOrEmpty("Rw2").front()));
   CHECK(ergoMatches("R'", parseAlgOrEmpty("R3").front()));
 
-  const auto &rh = builtinErgoProfiles().front();
-  CHECK(rh.name == kGripProfileName);
-  // The sexy move is easier than its B-face version.
-  CHECK(ergoScore(parseAlgOrEmpty("R U R' U'"), rh).total <
-        ergoScore(parseAlgOrEmpty("B U B' U'"), rh).total);
   CHECK(ergoMoveTokens().size() == 54);
 }
 

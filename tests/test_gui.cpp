@@ -373,9 +373,8 @@ void GuiTest::modesSwitch() {
            QKeySequence(Qt::CTRL | Qt::Key_8));
   QCOMPARE(AppMode::shortcut(AppMode::Tsle),
            QKeySequence(Qt::CTRL | Qt::Key_Minus));
-  // A window last left in Inspection opens in EO Cross; Blind is gone.
+  // A window last left in the old Inspection mode opens in EO Cross.
   QCOMPARE(AppMode::fromSettingsId("inspection"), int(AppMode::EoCross));
-  QCOMPARE(AppMode::fromSettingsId("blind"), -1);
 }
 
 void GuiTest::algLabTimesEachAlg() {

@@ -17,7 +17,7 @@ namespace vcube {
 //  "introduced": ["UF-N-0120", ...],
 //  "fulls": [{"timestamp": ..., "ms": 6100, "moves": 14, "pairs": 3,
 //    "excess": 2}],
-//  "ocll": {"pi": "R U2 R2 U' R2 U' R2 U2 R"}}
+//  "ocll": {"sune": "L' U2 L U L' U L"}}
 // A try is written as in F2L mode's file (its "excess" is in moves; a
 // whole solve's "pairs" are its steps). "ocll" has only the OCLL algs
 // changed from the default ones.
