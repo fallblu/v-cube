@@ -123,6 +123,8 @@ std::string_view groupName(PairGroup g);
 // flipped), 167 without.
 const std::vector<PairCase> &pairCases(bool eo);
 
+// The mirror image that brings a slot to the front right (and back).
+Mirror slotMirror(Slot s);
 // The slot a slot of the front-right view is for `target`'s pair: where a
 // case's "FL slot" is when the pair is, say, the back-left one.
 Slot slotSeenFrom(Slot seen, Slot target);

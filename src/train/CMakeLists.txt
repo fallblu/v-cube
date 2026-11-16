@@ -17,6 +17,7 @@ add_library(vcube_train
   families.cpp
   f2l.cpp
   f2l_stats.cpp
+  tsle.cpp
   learn_attempt.cpp
   learn_session.cpp
   move_count.cpp

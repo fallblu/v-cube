@@ -22,6 +22,13 @@ namespace vcube {
 QJsonObject f2lToJson(const F2LStats &stats);
 F2LStats f2lFromJson(const QJsonObject &o);
 
+// One try and one whole solve, as they are written here and in TSLE
+// mode's file.
+QJsonObject pairAttemptToJson(const PairAttempt &a);
+PairAttempt pairAttemptFromJson(const QJsonObject &o);
+QJsonObject fullAttemptToJson(const FullAttempt &a);
+FullAttempt fullAttemptFromJson(const QJsonObject &o);
+
 inline constexpr FileFormat kF2LFile{"v-cube.f2l", 1, false, "F2L file"};
 
 class F2LStore {
