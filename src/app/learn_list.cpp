@@ -461,6 +461,7 @@ void LearnPage::updateQueue() {
 }
 
 void LearnPage::learnQueueHead() {
+  ready_ = false; // asked for with a button: it waits for Space
   std::vector<std::string> queue = queueOrder();
   if (queue.empty() || context_) {
     return;
@@ -486,6 +487,7 @@ void LearnPage::unqueueHead() {
 }
 
 void LearnPage::learnNext() {
+  ready_ = false; // asked for with a button: it waits for Space
   int n = learnCount_->value();
   learnCount_->clearFocus();
   std::int64_t now = unixNow();

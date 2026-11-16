@@ -278,7 +278,9 @@ QString F2LPage::resultHtml() const { return result_->text(); }
 void F2LPage::showResult() {
   const QString working = "<p>" + tr("Working out the solutions…") + "</p>";
   QString html;
-  if (phase_ == Phase::Explore) {
+  if (phase_ == Phase::Ready) {
+    html.clear();
+  } else if (phase_ == Phase::Explore) {
     html = round_.analysed ? exploreHtml() : working;
   } else if (phase_ == Phase::Done) {
     if (!round_.analysed) {

@@ -43,6 +43,7 @@ Before a solve starts, the cube only turns as a whole (rotations), so that a sli
 
 | When | Key | Action |
 | --- | --- | --- |
+| ready | Space | show the first case; it is timed from then (on opening Learn or coming back to it, after picking a set, a way of practising or a case with the mouse, and when a case falls due) |
 | solving | turning keys | turn the cube; solving the case finishes it |
 | solving | Tab | show the algs (grades the case Again); in the learning steps of a guided set, the first Tab shows only the next move (Hard) |
 | solving | Shift+Space | give up (grades the case Again). Space alone does nothing, so a double tap after a case can't give up the next one. |
@@ -189,6 +190,7 @@ In the solve review (Alt+R, or double-click a solve):
 
 | When | Key | Action |
 | --- | --- | --- |
+| ready (Pair solutions, Pair choice, Full F2L) | Space | show the first state; the clock starts then (on opening F2L or coming back to it, and after picking a drill or an option) |
 | solving | turning keys | any turn; the clock runs from the first look |
 | Pair solutions, solving | Tab | show the best solution's next move, done from the start (the try counts as hinted) |
 | Pair choice, solving | Tab | name the best pair to start with (the pick isn't counted) |
@@ -210,6 +212,7 @@ Full F2L has no hint and nothing to step through: its pairs are compared in a ta
 
 | When | Key | Action |
 | --- | --- | --- |
+| ready (Next trigger, Full TSLE) | Space | show the first state; the clock starts then (on opening TSLE or coming back to it, and after picking a drill or an option) |
 | solving | turning keys | any turn; a step is judged when the trigger is finished |
 | Guided intro, a trigger shown | Enter | show the trigger on the cube, then put the cube back to do it |
 | Guided intro | Space | skip the case as known; after a case, the next one |
@@ -247,6 +250,7 @@ A Space in the moment the time limit hides the cube is ignored, and Space with n
 
 | Drill | Key | Action |
 | --- | --- | --- |
+| Letter quiz, Setup moves, ready | Space | show the first letter; it is timed from then (on opening the drill or coming back to it) |
 | Letter quiz | letter keys | answer |
 | Letter quiz | Enter / Backspace | answer a longer label / correct |
 | Letter quiz | click a sticker on the net | answer a letter → sticker question |

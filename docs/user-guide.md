@@ -24,6 +24,17 @@ Lab, Timed, Untimed, Move Count, F2L, TSLE, then Inspection on `Ctrl+-`
 and Blind on `Ctrl+=`) and `Ctrl+0` to Today; the **Go** menu has them too. Switching is blocked while a
 solve or inspection is running.
 
+**Nothing timed starts by itself.** Wherever a case is timed from the
+moment it is shown, the mode opens on a ready page and shows nothing until
+you press `Space`: Learn (a case's recognition time), F2L's Pair solutions,
+Pair choice and Full F2L, TSLE's Next trigger and Full TSLE, and Blind's
+Letter quiz and Setup moves. The ready page comes back when you return to
+the mode, and after you pick a drill, a set or an option with the mouse;
+a case whose clock was running when you left is put away, unrecorded.
+Once started, the cases follow one another as before. The other timed
+modes already waited for a key: Timed, Drill and Alg Lab start on Space
+or the first turn, Inspection and Blind's tracing and solves on Space.
+
 - **Today** shows, for each alg set, the reviews due now or later today,
   the new cases Learn can still bring in today from the learn queue, the
   cases in the queue and the cases learned; your practice streak; and the solves, cases
@@ -81,6 +92,9 @@ They ship as case definitions only, with no algs, so you add your own (see
 Learn teaches the cases of an alg set on the virtual cube, untimed, and
 schedules them by spaced repetition.
 
+- Learn opens on a ready page: the first case is shown, and its
+  recognition time starts, when you press `Space`. So does a case you pick
+  in the list, and one that falls due while nothing was up.
 - Each case is set up on the cube and you solve it from memory. The algs
   stay hidden until you press Tab. When the set has random U turns before
   and after its cases (as Drill uses), the case comes from a random side,
@@ -814,7 +828,8 @@ already the best and when the state offers something better.
 The four drills are the tabs at the top:
 
 - **Pair solutions**: one pair to solve, ringed on the cube and named in
-  the prompt. The clock runs from the moment the state is shown. Afterwards
+  the prompt. The clock runs from the moment the state is shown, which is
+  when you press `Space` on the drill's ready page. Afterwards
   your moves and their cost stand beside the best solutions; click one, or
   press its number, to see it, `Enter` to play it and `←` `→` to step
   through it. `Tab` while solving shows the best solution's next move (the
@@ -885,7 +900,8 @@ The drills are the tabs at the top:
   so that it needs no AUF: `Enter` shows it on the cube, then you do it.
   After that you pick the best trigger from two random AUFs, and the case
   is introduced. `Space` skips a case you know.
-- **Next trigger**: a state at a random AUF; do the next step (the AUF and
+- **Next trigger** (which, like Full TSLE, opens on a ready page and
+  shows its first state on `Space`): a state at a random AUF; do the next step (the AUF and
   one trigger, or the OCLL alg). It is judged as the best trigger from
   that AUF, a good one that costs more moves, or not a good one, and every
   good trigger is listed with what it leaves and the moves to the end.

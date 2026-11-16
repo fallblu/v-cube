@@ -234,6 +234,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
          (attempt_.links().size() > 1 || !attempt_.follower().moves().empty() ||
           attempt_.hinted() || attempt_.nextHinted()));
     if (!begun) {
+      ready_ = false;
       nextCase();
     }
     updateHeader();
@@ -332,6 +333,28 @@ void LearnPage::deactivated() {
   cubeView_->finishAnimations();
   learnCount_->clearFocus();
   idleTimer_.stop();
+  // A case whose clock is running isn't left running: it is taken off
+  // the cube and waits for Space on the way back. One already answered
+  // stays up to be graded.
+  ready_ = false;
+  if (context_ || !current_) {
+    return;
+  }
+  Current was = *current_;
+  switch (phase()) {
+  case Phase::Solving:
+  case Phase::Demo:
+    begin(was.caseId, was.isNew, was.practice);
+    break;
+  case Phase::Recognise:
+    beginRecognition(was.caseId);
+    break;
+  case Phase::Quiz:
+    nextQuiz();
+    break;
+  default:
+    break;
+  }
 }
 
 // --- the learn queue -------------------------------------------------------
@@ -391,6 +414,8 @@ LearnPage::Practice LearnPage::practice() const {
 }
 
 void LearnPage::startSet() {
+  ready_ = false;
+  pending_ = nullptr;
   context_.reset();
   contextButton_->setText(tr("Practise in context"));
   adoptSet();
@@ -465,6 +490,7 @@ void LearnPage::neutralityChanged() {
 }
 
 void LearnPage::startCase(const std::string &caseId) {
+  ready_ = false; // picked in the list: it waits for Space
   if (eligible(caseId)) {
     if (context_) {
       context_.reset();
@@ -555,6 +581,7 @@ void LearnPage::updateCardRows(const std::string &caseId) {
 }
 
 void LearnPage::nextCase(bool early) {
+  pending_ = nullptr; // what comes next is worked out afresh
   idleTimer_.stop();
   reveal_->clear();
   stage_->hideFamily();
@@ -679,6 +706,9 @@ QString LearnPage::whenText(std::int64_t due) {
 }
 
 void LearnPage::showIdle(const LearnPick &pick) {
+  // Whatever falls due later waits for Space.
+  ready_ = false;
+  pending_ = nullptr;
   current_.reset();
   cube_ = FaceletCube();
   cubeView_->setState(cube_);

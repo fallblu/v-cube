@@ -44,6 +44,10 @@ void LearnPage::beginRecognition(const std::string &caseId) {
   if (!c || !g || !infoOf(caseId)) {
     return;
   }
+  if (!ready_) {
+    holdBack([this, caseId] { beginRecognition(caseId); });
+    return;
+  }
   idleTimer_.stop();
   Hold hold = pickHold();
   Mirror world = pickWorld(caseId);
@@ -90,6 +94,10 @@ void LearnPage::gradeRecognition(Grade grade) {
 }
 
 void LearnPage::nextQuiz() {
+  if (!ready_) {
+    holdBack([this] { nextQuiz(); });
+    return;
+  }
   current_.reset();
   attempt_.clear();
   guide_.reset();

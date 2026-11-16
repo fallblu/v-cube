@@ -17,6 +17,7 @@
 #include "app/main_window.hpp"
 #include "app/mode_table.hpp"
 #include "app/move_count_page.hpp"
+#include "app/page_parts.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
 #include "app/timer_page.hpp"
@@ -46,6 +47,7 @@
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTemporaryDir>
@@ -281,6 +283,7 @@ private slots:
   void fingertrickGuidance();
   void f2lDrills();
   void tsleDrills();
+  void timedModesWaitForSpace();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
@@ -564,8 +567,17 @@ void GuiTest::f2lDrills() {
   };
 
   // Pair solutions: the best solution solves the pair and keeps EO.
-  f2l->selectDrill(F2LPage::Drill::Pair);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+  // Nothing is shown, and no clock runs, until Space.
+  auto start = [this, f2l](F2LPage::Drill drill) {
+    f2l->selectDrill(drill);
+    QCOMPARE(f2l->phase(), F2LPage::Phase::Ready);
+    QVERIFY(f2l->findChild<CubeView *>()->displayedState().isSolved());
+    typeMoves({Move{MoveType::R, 1}});
+    QVERIFY(f2l->findChild<CubeView *>()->displayedState().isSolved());
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+    QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+  };
+  start(F2LPage::Drill::Pair);
   QVERIFY(f2l->target());
   QVERIFY(f2lBase(f2l->startState(), f2l->config()));
   QVERIFY(!slotSolved(f2l->startState(), *f2l->target()));
@@ -600,7 +612,7 @@ void GuiTest::f2lDrills() {
   QCOMPARE(f2l->stats().cases.at(key).size(), std::size_t{1});
 
   // Pair choice: solving the best pair is rank 1.
-  f2l->selectDrill(F2LPage::Drill::Choice);
+  start(F2LPage::Drill::Choice);
   QVERIFY(!f2l->target());
   QVERIFY(unsolvedSlots(f2l->startState()).size() >= 2);
   QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
@@ -613,7 +625,7 @@ void GuiTest::f2lDrills() {
   QCOMPARE(f2l->stats().choices.back().regret, 0.0);
 
   // Full F2L: every slot open; the F2L is done with a front slot left.
-  f2l->selectDrill(F2LPage::Drill::Full);
+  start(F2LPage::Drill::Full);
   QCOMPARE(unsolvedSlots(f2l->startState()).size(), std::size_t{4});
   AnalysisOptions options;
   options.config = f2l->config();
@@ -725,10 +737,20 @@ void GuiTest::tsleDrills() {
   QVERIFY(*tsle->introCase() != first);
 
   // Next trigger, with every case: the best trigger is judged the best.
+  // The timed drills show nothing, and run no clock, until Space.
+  auto begin = [this, tsle](TslePage::Drill drill) {
+    tsle->selectDrill(drill);
+    QCOMPARE(tsle->phase(), TslePage::Phase::Ready);
+    QVERIFY(tsle->findChild<CubeView *>()->displayedState().isSolved());
+    typeMoves({Move{MoveType::R, 1}});
+    QVERIFY(tsle->findChild<CubeView *>()->displayedState().isSolved());
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+    QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
+  };
   tsle->setAllCases(true);
-  tsle->selectDrill(TslePage::Drill::Next);
+  begin(TslePage::Drill::Next);
   for (int i = 0; i < 20 && tsle->startState().ocll(); ++i) {
-    tsle->selectDrill(TslePage::Drill::Next); // a case with a trigger
+    begin(TslePage::Drill::Next); // a case with a trigger
   }
   QVERIFY(!tsle->startState().ocll());
   TsleState start = tsle->startState();
@@ -752,7 +774,7 @@ void GuiTest::tsleDrills() {
   QCOMPARE(tsle->progress().cases.at(key).size(), before + 1);
 
   // Full TSLE: the best way, step by step, ends it.
-  tsle->selectDrill(TslePage::Drill::Full);
+  begin(TslePage::Drill::Full);
   QVERIFY(tsleStepsLeft(tsle->startState()) >= 2);
   int best_moves = tsle->solver(tsle->slot()).movesLeft(tsle->startState());
   for (const Alg &step :
@@ -794,6 +816,70 @@ void GuiTest::tsleDrills() {
   QVERIFY(saved.progress == tsle->progress());
   tsle->setAllCases(false);
   tsle->selectDrill(TslePage::Drill::Intro);
+}
+
+void GuiTest::timedModesWaitForSpace() {
+  // F2L: a state left with its clock running is given up, and the ready
+  // page is there on the way back; a result stays up.
+  auto *f2l = page<F2LPage>();
+  QVERIFY(switchTo(AppMode::F2L, f2l));
+  f2l->selectDrill(F2LPage::Drill::Pair);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Ready);
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+  QVERIFY(switchTo(AppMode::Tsle, page<TslePage>()));
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Ready);
+  QVERIFY(switchTo(AppMode::F2L, f2l));
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Ready);
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
+  // Space after a result goes straight on.
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+  // The Case explorer isn't timed and has no ready page.
+  f2l->selectDrill(F2LPage::Drill::Explore);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Explore);
+  f2l->selectDrill(F2LPage::Drill::Pair);
+
+  // TSLE: the same for Next trigger and Full TSLE; Guided intro and the
+  // explorer start at once.
+  auto *tsle = page<TslePage>();
+  QVERIFY(switchTo(AppMode::Tsle, tsle));
+  for (TslePage::Drill drill : {TslePage::Drill::Next, TslePage::Drill::Full}) {
+    tsle->selectDrill(drill);
+    QCOMPARE(tsle->phase(), TslePage::Phase::Ready);
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+    QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
+    QVERIFY(switchTo(AppMode::F2L, f2l));
+    QVERIFY(switchTo(AppMode::Tsle, tsle));
+    QCOMPARE(tsle->phase(), TslePage::Phase::Ready);
+  }
+  tsle->selectDrill(TslePage::Drill::Explore);
+  QCOMPARE(tsle->phase(), TslePage::Phase::Explore);
+  tsle->selectDrill(TslePage::Drill::Intro);
+  QVERIFY(tsle->phase() != TslePage::Phase::Ready);
+
+  // Blind: the letter quiz and the setup drill ask (and time) nothing
+  // until Space.
+  auto *blind = page<BlindPage>();
+  QVERIFY(switchTo(AppMode::Blind, blind));
+  auto *tabs = blind->findChild<QTabBar *>();
+  auto *hint = blind->findChild<HintBar *>();
+  QVERIFY(tabs && hint);
+  for (int drill : {0, 2}) {
+    tabs->setCurrentIndex(drill);
+    QCOMPARE(hint->message(), QString("Ready when you are."));
+    QTest::keyClick(window_.get(), Qt::Key_A); // not Space: nothing starts
+    QCOMPARE(hint->message(), QString("Ready when you are."));
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+    QVERIFY(hint->message() != "Ready when you are.");
+    // Away and back: ready again.
+    QVERIFY(switchTo(AppMode::F2L, f2l));
+    QVERIFY(switchTo(AppMode::Blind, blind));
+    QCOMPARE(hint->message(), QString("Ready when you are."));
+  }
+  tabs->setCurrentIndex(0);
 }
 
 void GuiTest::timedPhysicalSolve() {
@@ -888,6 +974,13 @@ void GuiTest::learnStartsACase() {
   QVERIFY(start);
   QVERIFY(start->isVisible());
   start->click();
+  // The case waits for Space: nothing of it is shown, and no clock runs.
+  QVERIFY(learn->waitingForSpace());
+  QVERIFY(mainCube(learn)->displayedState().isSolved());
+  typeMoves({Move{MoveType::R, 1}});
+  QVERIFY(mainCube(learn)->displayedState().isSolved());
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QVERIFY(!learn->waitingForSpace());
   // The one case with an alg is set up on the cube.
   CubeView *view = waitForCase(learn);
   QVERIFY(view);

@@ -46,6 +46,8 @@ private:
   BlindPieces pieces() const;
   Direction direction() const;
   void apply(const QuizFlow::Effects &e, const QString &feedback);
+  // Nothing is asked (or timed) until Space.
+  void showReady();
   void nextItem();
   void showItem();
   void finishItem(const LetterAnswer &answer, const QString &feedback);

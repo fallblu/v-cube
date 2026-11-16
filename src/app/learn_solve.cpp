@@ -82,12 +82,39 @@ CubieCube LearnPage::setUp(const std::string &caseId, Mirror world,
       rng_);
 }
 
+void LearnPage::holdBack(std::function<void()> start) {
+  pending_ = std::move(start);
+  idleTimer_.stop();
+  current_.reset();
+  attempt_.clear();
+  guide_.reset();
+  showGuide();
+  reveal_->clear();
+  gradeRow_->setVisible(false);
+  stage_->hideFamily();
+  stage_->hideQuiz();
+  stage_->setActions({});
+  cube_ = FaceletCube();
+  cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
+  cubeView_->clearMarks();
+  cubeView_->setState(cube_);
+  clearCaseSelection();
+  say(tr("Ready when you are: a case is timed from the moment it is shown."),
+      {{tr("Space"), tr("start")}});
+  setPhase(Phase::NoCase);
+}
+
 void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   const CaseInfo *info = infoOf(caseId);
   const AlgSet *s = set();
   const AlgCase *c = s ? s->findCase(caseId) : nullptr;
   const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
   if (!info || !c || !g) {
+    return;
+  }
+  if (!ready_) {
+    holdBack(
+        [this, caseId, isNew, practice] { begin(caseId, isNew, practice); });
     return;
   }
   if (context_) {
@@ -534,11 +561,17 @@ void LearnPage::perform(const LearnSession::Step &step) {
     toggleList();
     break;
   case A::NextEarly:
-    // Checks again, and takes a learning case early if nothing is due.
-    nextCase(true);
-    break;
   case A::NextCase:
-    nextCase();
+    // Space: whatever was waiting for it starts now.
+    ready_ = true;
+    if (pending_) {
+      std::function<void()> start = std::move(pending_);
+      pending_ = nullptr;
+      start();
+      break;
+    }
+    // Checks again, and (early) takes a learning case if nothing is due.
+    nextCase(step.action == A::NextEarly);
     break;
   case A::Turn:
     turn(*step.move);

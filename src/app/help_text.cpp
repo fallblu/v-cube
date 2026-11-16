@@ -77,7 +77,11 @@ const std::vector<Section> &sections() {
        AppMode::Learn,
        {},
        {T("When"), T("Key"), T("Action")},
-       {{T("solving"), T("turning keys"),
+       {{T("ready"), T("Space"),
+         T("show the first case; it is timed from then (on opening Learn or "
+           "coming back to it, after picking a set, a way of practising or a "
+           "case with the mouse, and when a case falls due)")},
+        {T("solving"), T("turning keys"),
          T("turn the cube; solving the case finishes it")},
         {T("solving"), T("Tab"),
          T("show the algs (grades the case Again); in the learning steps of a "
@@ -295,7 +299,10 @@ const std::vector<Section> &sections() {
        AppMode::F2L,
        {},
        {T("When"), T("Key"), T("Action")},
-       {{T("solving"), T("turning keys"),
+       {{T("ready (Pair solutions, Pair choice, Full F2L)"), T("Space"),
+         T("show the first state; the clock starts then (on opening F2L or "
+           "coming back to it, and after picking a drill or an option)")},
+        {T("solving"), T("turning keys"),
          T("any turn; the clock runs from the first look")},
         {T("Pair solutions, solving"), T("Tab"),
          T("show the best solution's next move, done from the start (the "
@@ -323,7 +330,10 @@ const std::vector<Section> &sections() {
        AppMode::Tsle,
        {},
        {T("When"), T("Key"), T("Action")},
-       {{T("solving"), T("turning keys"),
+       {{T("ready (Next trigger, Full TSLE)"), T("Space"),
+         T("show the first state; the clock starts then (on opening TSLE or "
+           "coming back to it, and after picking a drill or an option)")},
+        {T("solving"), T("turning keys"),
          T("any turn; a step is judged when the trigger is finished")},
         {T("Guided intro, a trigger shown"), T("Enter"),
          T("show the trigger on the cube, then put the cube back to do it")},
@@ -377,7 +387,10 @@ const std::vector<Section> &sections() {
        AppMode::Blind,
        {},
        {T("Drill"), T("Key"), T("Action")},
-       {{T("Letter quiz"), T("letter keys"), T("answer")},
+       {{T("Letter quiz, Setup moves, ready"), T("Space"),
+         T("show the first letter; it is timed from then (on opening the "
+           "drill or coming back to it)")},
+        {T("Letter quiz"), T("letter keys"), T("answer")},
         {T("Letter quiz"), T("Enter / Backspace"),
          T("answer a longer label / correct")},
         {T("Letter quiz"), T("click a sticker on the net"),
