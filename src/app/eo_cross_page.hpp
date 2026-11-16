@@ -119,7 +119,7 @@ public:
   QString promptHtml() const;
   QString resultHtml() const;
   QString displayText() const;
-  const EoCrossStats &stats() const { return store_.stats; }
+  const EoCrossStats &stats() const { return store_.data; }
 
 protected:
   void focusModeChanged() override;

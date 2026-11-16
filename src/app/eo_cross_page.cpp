@@ -468,7 +468,7 @@ void EoCrossPage::newRound(bool sameState) {
       // way to the others.
       kind.bad = pinned_ >= 0 && tries < 30
                      ? pinned_
-                     : pickBadEdges(store_.stats, drill_, kind.step, rng_);
+                     : pickBadEdges(store_.data, drill_, kind.step, rng_);
     }
     scrambled = heldState(randomEoState(kind.bad, rng_), shown);
     // Not a state with the step already done in one of the holds.

@@ -75,7 +75,7 @@ public:
   TsleState startState() const { return round_.start; }
   std::optional<TsleState> currentState() const;
   const TsleSolver &solver(Slot slot) const;
-  const TsleProgress &progress() const { return store_.progress; }
+  const TsleProgress &progress() const { return store_.data; }
   std::array<bool, kSlots> lastSlots() const { return slots_; }
   void setLastSlots(const std::array<bool, kSlots> &chosen);
   bool allCases() const { return allCases_; }

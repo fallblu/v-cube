@@ -715,7 +715,7 @@ void GuiTest::f2lDrills() {
   finishBackgroundWrites();
   F2LStore saved(QDir(dataDir_).filePath("f2l.json"));
   QVERIFY(saved.load());
-  QVERIFY(saved.stats == f2l->stats());
+  QVERIFY(saved.data == f2l->stats());
   f2l->selectDrill(F2LPage::Drill::Pair);
 }
 
@@ -843,7 +843,7 @@ void GuiTest::tsleDrills() {
   finishBackgroundWrites();
   TsleStore saved(QDir(dataDir_).filePath("tsle.json"));
   QVERIFY(saved.load());
-  QVERIFY(saved.progress == tsle->progress());
+  QVERIFY(saved.data == tsle->progress());
   tsle->setAllCases(false);
   tsle->selectDrill(TslePage::Drill::Intro);
 }
@@ -1036,7 +1036,7 @@ void GuiTest::eoCrossDrills() {
   finishBackgroundWrites();
   EoCrossStore saved(QDir(dataDir_).filePath("eocross.json"));
   QVERIFY(saved.load());
-  QVERIFY(saved.stats == eo->stats());
+  QVERIFY(saved.data == eo->stats());
   eo->setPinnedBad(-1);
   eo->setLimitSeconds(15);
   eo->selectDrill(EoDrill::Solve);

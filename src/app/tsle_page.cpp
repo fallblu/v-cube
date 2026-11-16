@@ -313,7 +313,7 @@ void TslePage::setAllCases(bool on) {
 }
 
 void TslePage::rebuildSolvers() {
-  std::vector<OcllAlg> algs = store_.progress.ocllAlgs();
+  std::vector<OcllAlg> algs = store_.data.ocllAlgs();
   for (Slot s : kF2LSlots) {
     solvers_[static_cast<std::size_t>(s)] =
         std::make_unique<TsleSolver>(s, algs);
@@ -403,7 +403,7 @@ std::optional<TsleState> TslePage::currentState() const {
 }
 
 TsleState TslePage::pickCase(bool deep) {
-  const TsleProgress &p = store_.progress;
+  const TsleProgress &p = store_.data;
   double sum = 0.0;
   int n = 0;
   for (const auto &[key, attempts] : p.cases) {
@@ -718,7 +718,7 @@ void TslePage::showClock() {
 // --- Guided intro ------------------------------------------------------------
 
 void TslePage::introBegin() {
-  introCase_ = tsleNextNew(store_.progress);
+  introCase_ = tsleNextNew(store_.data);
   introStage_ = 0;
   introNote_.clear();
   introGood_.clear();
@@ -792,14 +792,14 @@ void TslePage::introStepDone(const Step &step) {
   tried.moves = step.moves;
   tried.bestMoves = solver(round_.slot).options(round_.start).front().moves;
   tried.excess = step.good ? step.extra : kWrongTrigger;
-  store_.progress.add(tsleKey(*introCase_), tried);
+  store_.data.add(tsleKey(*introCase_), tried);
   save();
   refreshTree();
   if (step.good && step.extra == 0) {
     ++introStage_;
     introNote_.clear();
     if (introStage_ >= introTriggers() + kIntroPicks) {
-      store_.progress.introduced.insert(tsleKey(*introCase_));
+      store_.data.introduced.insert(tsleKey(*introCase_));
       save();
       refreshTree();
       phase_ = Phase::Done;
@@ -823,7 +823,7 @@ void TslePage::introStepDone(const Step &step) {
 
 void TslePage::introSkip() {
   if (introCase_) {
-    store_.progress.introduced.insert(tsleKey(*introCase_));
+    store_.data.introduced.insert(tsleKey(*introCase_));
     save();
     refreshTree();
   }
@@ -854,7 +854,7 @@ void TslePage::showPrompt() {
                        : "<br><span style='font-size:small'>" + t + "</span>";
   };
   if (phase_ == Phase::Ready) {
-    bool onlyOclls = !allCases_ && store_.progress.introduced.empty();
+    bool onlyOclls = !allCases_ && store_.data.introduced.empty();
     prompt_->setText(
         tabs_->tabText(static_cast<int>(drill_)) +
         small(tr("%1, timed from the moment the cube is shown. Press Space "
@@ -872,8 +872,8 @@ void TslePage::showPrompt() {
     if (phase_ == Phase::Idle) {
       bool all = std::all_of(
           tsleCases().begin(), tsleCases().end(),
-          [this](TsleState c) { return store_.progress.isIntroduced(c); });
-      int open = tsleOpenLevel(store_.progress);
+          [this](TsleState c) { return store_.data.isIntroduced(c); });
+      int open = tsleOpenLevel(store_.data);
       prompt_->setText(
           all ? tr("Every case has been introduced")
               : tr("Nothing new for now") +
@@ -910,7 +910,7 @@ void TslePage::showPrompt() {
     break;
   }
   case Drill::Next: {
-    bool onlyOclls = !allCases_ && store_.progress.introduced.empty();
+    bool onlyOclls = !allCases_ && store_.data.introduced.empty();
     prompt_->setText(
         tr("Do the next step") +
         small(onlyOclls ? slot + "; " +

@@ -44,12 +44,12 @@ TEST_CASE("F2L statistics survive the file", "[f2l][io]") {
   QString path = QDir(dir.path()).filePath("f2l.json");
   F2LStore store(path);
   CHECK(store.load()); // no file yet
-  CHECK(store.stats == F2LStats{});
-  store.stats = stats;
+  CHECK(store.data == F2LStats{});
+  store.data = stats;
   REQUIRE(store.save());
   F2LStore again(path);
   REQUIRE(again.load());
-  CHECK(again.stats == stats);
+  CHECK(again.data == stats);
 }
 
 TEST_CASE("an F2L file is read with care", "[f2l][io]") {
@@ -87,5 +87,5 @@ TEST_CASE("an F2L file is read with care", "[f2l][io]") {
   QString error;
   CHECK_FALSE(store.load(&error));
   CHECK_FALSE(error.isEmpty());
-  CHECK(store.stats == F2LStats{});
+  CHECK(store.data == F2LStats{});
 }

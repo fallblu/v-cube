@@ -7,14 +7,6 @@
 namespace vcube {
 
 QJsonObject tsleToJson(const TsleProgress &progress) {
-  QJsonObject cases;
-  for (const auto &[key, attempts] : progress.cases) {
-    QJsonArray list;
-    for (const PairAttempt &a : attempts) {
-      list.append(pairAttemptToJson(a));
-    }
-    cases[QString::fromStdString(key)] = list;
-  }
   QJsonArray introduced;
   for (const std::string &key : progress.introduced) {
     introduced.append(QString::fromStdString(key));
@@ -29,7 +21,7 @@ QJsonObject tsleToJson(const TsleProgress &progress) {
   }
   return {{"format", kTsleFile.format},
           {"version", kTsleFile.version},
-          {"cases", cases},
+          {"cases", attemptsToJson(progress.cases)},
           {"introduced", introduced},
           {"fulls", fulls},
           {"ocll", ocll}};
@@ -64,23 +56,6 @@ TsleProgress tsleFromJson(const QJsonObject &o) {
     }
   }
   return progress;
-}
-
-TsleStore::TsleStore(QString path) : file_(std::move(path), kTsleFile) {}
-
-bool TsleStore::load(QString *error) {
-  progress = {};
-  QJsonObject o;
-  FileStatus status = file_.load(o, error);
-  if (status != FileStatus::Read) {
-    return status == FileStatus::Missing;
-  }
-  progress = tsleFromJson(o);
-  return true;
-}
-
-bool TsleStore::save(QString *error) const {
-  return file_.save(tsleToJson(progress), error);
 }
 
 } // namespace vcube

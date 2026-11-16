@@ -26,21 +26,6 @@ TsleProgress tsleFromJson(const QJsonObject &o);
 
 inline constexpr FileFormat kTsleFile{"v-cube.tsle", 1, false, "TSLE file"};
 
-class TsleStore {
-public:
-  explicit TsleStore(QString path);
-
-  // A missing file gives empty progress. A file that can't be read is
-  // set aside (see DataFile) and also gives empty progress.
-  bool load(QString *error = nullptr);
-  bool save(QString *error = nullptr) const;
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-  QString path() const { return file_.path(); }
-
-  TsleProgress progress;
-
-private:
-  DataFile file_;
-};
+using TsleStore = JsonStore<TsleProgress, kTsleFile, tsleToJson, tsleFromJson>;
 
 } // namespace vcube

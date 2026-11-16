@@ -44,6 +44,9 @@ public:
       return;
     }
     sessions_.erase(sessions_.begin() + static_cast<std::ptrdiff_t>(i));
+    if (i < current_) {
+      --current_; // the same session stays current
+    }
     if (sessions_.empty()) {
       sessions_.push_back(Session{});
     }

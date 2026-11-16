@@ -21,21 +21,7 @@ EoCrossStats eoCrossFromJson(const QJsonObject &o);
 inline constexpr FileFormat kEoCrossFile{"v-cube.eocross", 1, false,
                                          "EO Cross file"};
 
-class EoCrossStore {
-public:
-  explicit EoCrossStore(QString path);
-
-  // A missing file gives empty statistics. A file that can't be read is
-  // set aside (see DataFile) and also gives empty ones.
-  bool load(QString *error = nullptr);
-  bool save(QString *error = nullptr) const;
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-  QString path() const { return file_.path(); }
-
-  EoCrossStats stats;
-
-private:
-  DataFile file_;
-};
+using EoCrossStore =
+    JsonStore<EoCrossStats, kEoCrossFile, eoCrossToJson, eoCrossFromJson>;
 
 } // namespace vcube

@@ -81,16 +81,20 @@ FullAttempt fullAttemptFromJson(const QJsonObject &j) {
   return a;
 }
 
-QJsonObject f2lToJson(const F2LStats &stats) {
-  QJsonObject cases;
-  for (const auto &[key, attempts] : stats.cases) {
+QJsonObject
+attemptsToJson(const std::map<std::string, std::vector<PairAttempt>> &byKey) {
+  QJsonObject out;
+  for (const auto &[key, attempts] : byKey) {
     QJsonArray list;
     for (const PairAttempt &a : attempts) {
-      QJsonObject o = pairAttemptToJson(a);
-      list.append(o);
+      list.append(pairAttemptToJson(a));
     }
-    cases[QString::fromStdString(key)] = list;
+    out[QString::fromStdString(key)] = list;
   }
+  return out;
+}
+
+QJsonObject f2lToJson(const F2LStats &stats) {
   QJsonArray choices;
   for (const ChoiceAttempt &a : stats.choices) {
     choices.append(QJsonObject{{"timestamp", static_cast<double>(a.timestamp)},
@@ -104,7 +108,7 @@ QJsonObject f2lToJson(const F2LStats &stats) {
   }
   return {{"format", kF2LFile.format},
           {"version", kF2LFile.version},
-          {"cases", cases},
+          {"cases", attemptsToJson(stats.cases)},
           {"choices", choices},
           {"fulls", fulls}};
 }
@@ -113,18 +117,8 @@ F2LStats f2lFromJson(const QJsonObject &o) {
   F2LStats stats;
   const QJsonObject cases = o.value("cases").toObject();
   for (auto it = cases.begin(); it != cases.end(); ++it) {
-    std::vector<PairAttempt> attempts;
     for (const QJsonValue &v : it.value().toArray()) {
-      PairAttempt a = pairAttemptFromJson(v.toObject());
-      attempts.push_back(a);
-    }
-    if (attempts.size() > F2LStats::kPerCase) {
-      attempts.erase(attempts.begin(),
-                     attempts.end() -
-                         static_cast<std::ptrdiff_t>(F2LStats::kPerCase));
-    }
-    if (!attempts.empty()) {
-      stats.cases[it.key().toStdString()] = std::move(attempts);
+      stats.add(it.key().toStdString(), pairAttemptFromJson(v.toObject()));
     }
   }
   for (const QJsonValue &v : o.value("choices").toArray()) {
@@ -134,29 +128,12 @@ F2LStats f2lFromJson(const QJsonObject &o) {
     a.of = std::max(1, j.value("of").toInt(1));
     a.rank = std::clamp(j.value("rank").toInt(1), 1, a.of);
     a.regret = std::max(0.0, j.value("regret").toDouble());
-    stats.choices.push_back(a);
+    stats.add(a);
   }
   for (const QJsonValue &v : o.value("fulls").toArray()) {
-    stats.fulls.push_back(fullAttemptFromJson(v.toObject()));
+    stats.add(fullAttemptFromJson(v.toObject()));
   }
   return stats;
-}
-
-F2LStore::F2LStore(QString path) : file_(std::move(path), kF2LFile) {}
-
-bool F2LStore::load(QString *error) {
-  stats = {};
-  QJsonObject o;
-  FileStatus status = file_.load(o, error);
-  if (status != FileStatus::Read) {
-    return status == FileStatus::Missing;
-  }
-  stats = f2lFromJson(o);
-  return true;
-}
-
-bool F2LStore::save(QString *error) const {
-  return file_.save(f2lToJson(stats), error);
 }
 
 } // namespace vcube

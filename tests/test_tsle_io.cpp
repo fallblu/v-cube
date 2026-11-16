@@ -32,13 +32,13 @@ TEST_CASE("TSLE progress survives the file", "[tsle][io]") {
   QString path = QDir(dir.path()).filePath("tsle.json");
   TsleStore store(path);
   CHECK(store.load());
-  CHECK(store.progress == TsleProgress{});
-  store.progress = p;
+  CHECK(store.data == TsleProgress{});
+  store.data = p;
   REQUIRE(store.save());
   TsleStore again(path);
   REQUIRE(again.load());
-  CHECK(again.progress == p);
-  CHECK(again.progress.ocllAlgs()[1].alg == "L' U' L U' L' U2 L");
+  CHECK(again.data == p);
+  CHECK(again.data.ocllAlgs()[1].alg == "L' U' L U' L' U2 L");
 }
 
 TEST_CASE("a TSLE file is read with care", "[tsle][io]") {

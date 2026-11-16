@@ -94,7 +94,7 @@ void TslePage::record() {
     } else {
       a = attemptOf(round_.steps.front(), round_.ms, F2LDrill::Pair);
     }
-    store_.progress.add(tsleKey(tsleCase(round_.start)), a);
+    store_.data.add(tsleKey(tsleCase(round_.start)), a);
   } else if (drill_ == Drill::Full) {
     if (round_.gaveUp) {
       return;
@@ -109,9 +109,9 @@ void TslePage::record() {
       PairAttempt a =
           attemptOf(step, round_.moveMs[step.end - 1] - from, F2LDrill::Full);
       f.excess += a.excess;
-      store_.progress.add(tsleKey(tsleCase(step.before)), a);
+      store_.data.add(tsleKey(tsleCase(step.before)), a);
     }
-    store_.progress.add(f);
+    store_.data.add(f);
   } else {
     return;
   }
@@ -333,9 +333,9 @@ QString TslePage::exploreHtml() const {
     html += "<p>" + tr("Every good trigger from this AUF:") + "</p>";
   }
   html += optionsHtml(anchor_, round_.slot) + pathHtml(anchor_, round_.slot);
-  auto it = store_.progress.cases.find(tsleKey(tsleCase(anchor_)));
-  if (it != store_.progress.cases.end()) {
-    CaseSummary sum = summarizeCase(it->second, meanMs(store_.progress));
+  auto it = store_.data.cases.find(tsleKey(tsleCase(anchor_)));
+  if (it != store_.data.cases.end()) {
+    CaseSummary sum = summarizeCase(it->second, meanMs(store_.data));
     html +=
         QString("<p style='color:%1'>%2</p>")
             .arg(muted,
@@ -407,7 +407,7 @@ void TslePage::fillTree() {
 }
 
 void TslePage::refreshTree() {
-  const TsleProgress &p = store_.progress;
+  const TsleProgress &p = store_.data;
   const double overall = meanMs(p);
   const QBrush normal = palette().brush(QPalette::Text);
   const QBrush muted = palette().brush(QPalette::PlaceholderText);
@@ -451,7 +451,7 @@ void TslePage::refreshTree() {
 }
 
 void TslePage::showSummary() {
-  const TsleProgress &p = store_.progress;
+  const TsleProgress &p = store_.data;
   const double overall = meanMs(p);
   int toIntroduce = 0, introduced = 0, weak = 0;
   for (TsleState c : tsleCases()) {
@@ -526,8 +526,8 @@ void TslePage::clearProgress() {
     return;
   }
   TsleProgress fresh;
-  fresh.ocll = store_.progress.ocll;
-  store_.progress = fresh;
+  fresh.ocll = store_.data.ocll;
+  store_.data = fresh;
   ready_ = false;
   save();
   refreshTree();
@@ -547,7 +547,7 @@ void TslePage::editOcllAlgs() {
          "you solve, any alg that works counts."),
       &dialog));
   auto *form = new QFormLayout;
-  std::vector<OcllAlg> algs = store_.progress.ocllAlgs();
+  std::vector<OcllAlg> algs = store_.data.ocllAlgs();
   std::vector<QLineEdit *> edits;
   for (const OcllAlg &a : algs) {
     auto *edit = new QLineEdit(qs(a.alg), &dialog);
@@ -591,11 +591,11 @@ void TslePage::editOcllAlgs() {
     return;
   }
   const std::vector<OcllAlg> &defaults = defaultOcllAlgs();
-  store_.progress.ocll.clear();
+  store_.data.ocll.clear();
   for (std::size_t i = 0; i < edits.size(); ++i) {
     std::string text = cleanAlgText(edits[i]->text().toStdString());
     if (text != defaults[i].alg) {
-      store_.progress.ocll[defaults[i].id] = text;
+      store_.data.ocll[defaults[i].id] = text;
     }
   }
   save();

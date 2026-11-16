@@ -549,11 +549,11 @@ void F2LPage::newRound(bool sameState) {
   case Drill::Pair: {
     // Weak cases, and cases not tried yet, come up more often.
     const std::vector<PairCase> &cases = pairCases(config_.eo);
-    double overall = meanPairMs(store_.stats);
+    double overall = meanPairMs(store_.data);
     std::vector<double> weights;
     for (PairCase c : cases) {
-      auto it = store_.stats.cases.find(caseKey(c));
-      weights.push_back(summarizeCase(it == store_.stats.cases.end()
+      auto it = store_.data.cases.find(caseKey(c));
+      weights.push_back(summarizeCase(it == store_.data.cases.end()
                                           ? std::vector<PairAttempt>{}
                                           : it->second,
                                       overall)

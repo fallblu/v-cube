@@ -6,6 +6,10 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <map>
+#include <string>
+#include <vector>
+
 namespace vcube {
 
 // F2L mode's statistics, saved as one JSON file.
@@ -25,27 +29,15 @@ F2LStats f2lFromJson(const QJsonObject &o);
 // One try and one whole solve, as they are written here and in TSLE
 // mode's file.
 QJsonObject pairAttemptToJson(const PairAttempt &a);
+// The tries of each case or kind, by its key.
+QJsonObject
+attemptsToJson(const std::map<std::string, std::vector<PairAttempt>> &byKey);
 PairAttempt pairAttemptFromJson(const QJsonObject &o);
 QJsonObject fullAttemptToJson(const FullAttempt &a);
 FullAttempt fullAttemptFromJson(const QJsonObject &o);
 
 inline constexpr FileFormat kF2LFile{"v-cube.f2l", 1, false, "F2L file"};
 
-class F2LStore {
-public:
-  explicit F2LStore(QString path);
-
-  // A missing file gives empty statistics. A file that can't be read is
-  // set aside (see DataFile) and also gives empty ones.
-  bool load(QString *error = nullptr);
-  bool save(QString *error = nullptr) const;
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-  QString path() const { return file_.path(); }
-
-  F2LStats stats;
-
-private:
-  DataFile file_;
-};
+using F2LStore = JsonStore<F2LStats, kF2LFile, f2lToJson, f2lFromJson>;
 
 } // namespace vcube

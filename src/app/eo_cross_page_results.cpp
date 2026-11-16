@@ -136,7 +136,7 @@ void EoCrossPage::record() {
     }
     break;
   }
-  store_.stats.add(round_.kind, a);
+  store_.data.add(round_.kind, a);
   save();
   refreshTree();
 }
@@ -446,7 +446,7 @@ void EoCrossPage::refreshTree() {
       QTreeWidgetItem *item = group->child(i);
       std::optional<EoKind> kind =
           eoKindFromKey(item->data(0, Qt::UserRole).toString().toStdString());
-      if (!kind || store_.stats.tries(*kind).empty()) {
+      if (!kind || store_.data.tries(*kind).empty()) {
         item->setText(1, QString());
         item->setText(2, kNoValue);
         item->setText(3, kNoValue);
@@ -454,7 +454,7 @@ void EoCrossPage::refreshTree() {
         item->setForeground(2, normal);
         continue;
       }
-      CaseSummary s = eoSummary(store_.stats, *kind);
+      CaseSummary s = eoSummary(store_.data, *kind);
       item->setText(1, QString::number(s.attempts));
       item->setText(2, "+" + QString::number(s.excess, 'f', 1));
       item->setText(3, s.meanMs > 0
@@ -469,10 +469,10 @@ void EoCrossPage::refreshTree() {
 
 void EoCrossPage::showSummary() {
   int tries = 0, weak = 0;
-  for (const auto &[key, attempts] : store_.stats.kinds) {
+  for (const auto &[key, attempts] : store_.data.kinds) {
     tries += static_cast<int>(attempts.size());
     std::optional<EoKind> kind = eoKindFromKey(key);
-    if (kind && eoSummary(store_.stats, *kind).weak) {
+    if (kind && eoSummary(store_.data, *kind).weak) {
       ++weak;
     }
   }
@@ -483,11 +483,11 @@ void EoCrossPage::showSummary() {
   EoKind kind = normalized({drill_, step_, -1});
   std::vector<PairAttempt> all;
   if (drill_ == Drill::Axis) {
-    all = store_.stats.tries(kind);
+    all = store_.data.tries(kind);
   } else {
     for (int bad : kBadEdgeKinds) {
       kind.bad = bad;
-      const std::vector<PairAttempt> &t = store_.stats.tries(kind);
+      const std::vector<PairAttempt> &t = store_.data.tries(kind);
       all.insert(all.end(), t.begin(), t.end());
     }
     std::stable_sort(all.begin(), all.end(),
@@ -555,7 +555,7 @@ void EoCrossPage::clearStats() {
              "drill?")) != QMessageBox::Yes) {
     return;
   }
-  store_.stats = {};
+  store_.data = {};
   save();
   refreshTree();
   ready_ = false;

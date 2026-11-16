@@ -7,17 +7,9 @@
 namespace vcube {
 
 QJsonObject eoCrossToJson(const EoCrossStats &stats) {
-  QJsonObject kinds;
-  for (const auto &[key, attempts] : stats.kinds) {
-    QJsonArray list;
-    for (const PairAttempt &a : attempts) {
-      list.append(pairAttemptToJson(a));
-    }
-    kinds[QString::fromStdString(key)] = list;
-  }
   return {{"format", kEoCrossFile.format},
           {"version", kEoCrossFile.version},
-          {"kinds", kinds}};
+          {"kinds", attemptsToJson(stats.kinds)}};
 }
 
 EoCrossStats eoCrossFromJson(const QJsonObject &o) {
@@ -34,24 +26,6 @@ EoCrossStats eoCrossFromJson(const QJsonObject &o) {
     }
   }
   return stats;
-}
-
-EoCrossStore::EoCrossStore(QString path)
-    : file_(std::move(path), kEoCrossFile) {}
-
-bool EoCrossStore::load(QString *error) {
-  stats = {};
-  QJsonObject o;
-  FileStatus status = file_.load(o, error);
-  if (status != FileStatus::Read) {
-    return status == FileStatus::Missing;
-  }
-  stats = eoCrossFromJson(o);
-  return true;
-}
-
-bool EoCrossStore::save(QString *error) const {
-  return file_.save(eoCrossToJson(stats), error);
 }
 
 } // namespace vcube

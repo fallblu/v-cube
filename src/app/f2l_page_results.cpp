@@ -189,7 +189,7 @@ void F2LPage::record() {
     a.bestMoves = pair.best()->htm;
     a.excess = std::max(0.0, costOf(moves) - pair.best()->cost);
     a.drill = drill;
-    store_.stats.add(caseKey(pair.pcase), a);
+    store_.data.add(caseKey(pair.pcase), a);
   };
   switch (drill_) {
   case Drill::Pair: {
@@ -207,7 +207,7 @@ void F2LPage::record() {
     a.excess = round_.gaveUp
                    ? 0.0
                    : std::max(0.0, costOf(round_.moves) - pair.best()->cost);
-    store_.stats.add(caseKey(pair.pcase), a);
+    store_.data.add(caseKey(pair.pcase), a);
     break;
   }
   case Drill::Choice: {
@@ -223,7 +223,7 @@ void F2LPage::record() {
       c.rank = placeOf(ranks, *round_.picked);
       c.of = static_cast<int>(ranks.size());
       c.regret = std::max(0.0, picked->total - ranks.front().total);
-      store_.stats.add(c);
+      store_.data.add(c);
     }
     pairAttempt(picked->pair, round_.moves, round_.ms, F2LDrill::Choice);
     break;
@@ -255,7 +255,7 @@ void F2LPage::record() {
                   F2LDrill::Full);
       f.excess += std::max(0.0, costOf(moves) - r->pair.best()->cost);
     }
-    store_.stats.add(f);
+    store_.data.add(f);
     break;
   }
   case Drill::Explore:
@@ -546,9 +546,9 @@ QString F2LPage::exploreHtml() const {
                  tr("The best solutions from this state (cost by "
                     "your Alg Lab score profile):") +
                  "</p>" + solutionsHtml(pair, 0);
-  auto it = store_.stats.cases.find(caseKey(pair.pcase));
-  if (it != store_.stats.cases.end()) {
-    CaseSummary s = summarizeCase(it->second, meanPairMs(store_.stats));
+  auto it = store_.data.cases.find(caseKey(pair.pcase));
+  if (it != store_.data.cases.end()) {
+    CaseSummary s = summarizeCase(it->second, meanPairMs(store_.data));
     html += QString("<p style='color:%1'>%2</p>")
                 .arg(muted,
                      tr("%1 tries; lately +%2 over the best, %3 s")
@@ -596,15 +596,15 @@ void F2LPage::fillTree() {
 }
 
 void F2LPage::refreshTree() {
-  const double overall = meanPairMs(store_.stats);
+  const double overall = meanPairMs(store_.data);
   const QBrush normal = palette().brush(QPalette::Text);
   for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
     QTreeWidgetItem *group = tree_->topLevelItem(g);
     for (int i = 0; i < group->childCount(); ++i) {
       QTreeWidgetItem *item = group->child(i);
-      auto it = store_.stats.cases.find(
+      auto it = store_.data.cases.find(
           item->data(0, Qt::UserRole).toString().toStdString());
-      if (it == store_.stats.cases.end()) {
+      if (it == store_.data.cases.end()) {
         for (int col = 1; col < 4; ++col) {
           item->setText(col, col == 1 ? QString() : kNoValue);
         }
@@ -626,7 +626,7 @@ void F2LPage::refreshTree() {
 }
 
 void F2LPage::showSummary() {
-  const F2LStats &stats = store_.stats;
+  const F2LStats &stats = store_.data;
   int tried = 0, weak = 0;
   const double overall = meanPairMs(stats);
   for (PairCase c : pairCases(config_.eo)) {
@@ -710,7 +710,7 @@ void F2LPage::clearStats() {
              "and the Full F2L solves?")) != QMessageBox::Yes) {
     return;
   }
-  store_.stats = {};
+  store_.data = {};
   save();
   refreshTree();
 }

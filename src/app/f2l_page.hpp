@@ -84,7 +84,7 @@ public:
   QString resultHtml() const;
   // The solutions shown (best first); empty until worked out.
   std::vector<RankedSolution> shownSolutions() const;
-  const F2LStats &stats() const { return store_.stats; }
+  const F2LStats &stats() const { return store_.data; }
   // Shows a case in the Case explorer.
   void exploreCase(PairCase c);
 
