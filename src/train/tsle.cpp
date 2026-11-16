@@ -41,9 +41,9 @@ TsleState stateOf(const CubieCube &c) {
 
 Alg uTurn2(int quarters) {
   quarters = ((quarters % 4) + 4) % 4;
-  return quarters ? Alg{Move{MoveType::U, static_cast<std::uint8_t>(quarters),
-                             0}}
-                  : Alg{};
+  return quarters
+             ? Alg{Move{MoveType::U, static_cast<std::uint8_t>(quarters), 0}}
+             : Alg{};
 }
 
 // The AUF and the trigger R U^turn R', in the front-right view.
@@ -103,8 +103,9 @@ const Graph &graph() {
     }
     for (int i = 0; i < kTsleStates; ++i) {
       TsleState s = TsleState::fromIndex(i);
-      out.steps[static_cast<std::size_t>(i)] =
-          s.done() ? 0 : s.ocll() ? 1 : INT_MAX / 2;
+      out.steps[static_cast<std::size_t>(i)] = s.done()   ? 0
+                                               : s.ocll() ? 1
+                                                          : INT_MAX / 2;
     }
     for (bool changed = true; changed;) {
       changed = false;
@@ -217,16 +218,14 @@ CubieCube randomTsleCube(TsleState state, Slot slot, Rng &rng) {
 }
 
 TsleState tsleTurned(TsleState state, int quarters) {
-  return TsleState::fromIndex(
-      graph().turned[static_cast<std::size_t>(state.index())]
-                    [static_cast<std::size_t>(((quarters % 4) + 4) % 4)]);
+  return TsleState::fromIndex(graph().turned[static_cast<std::size_t>(
+      state.index())][static_cast<std::size_t>(((quarters % 4) + 4) % 4)]);
 }
 
 TsleState tsleAfter(TsleState state, int auf, int turn) {
-  return TsleState::fromIndex(
-      graph().after[static_cast<std::size_t>(state.index())]
-                   [static_cast<std::size_t>((((auf % 4) + 4) % 4) * 3 + turn -
-                                             1)]);
+  return TsleState::fromIndex(graph().after[static_cast<std::size_t>(
+      state.index())][static_cast<std::size_t>((((auf % 4) + 4) % 4) * 3 +
+                                               turn - 1)]);
 }
 
 TsleState tsleCase(TsleState state) {
@@ -557,9 +556,9 @@ std::vector<OcllAlg> TsleProgress::ocllAlgs() const {
 
 bool tsleLevelSolid(const TsleProgress &progress, int level) {
   const double overall = meanMs(progress);
-  int cases = 0, weak = 0;
+  int cases = 0, sound = 0;
   for (TsleState c : tsleCases()) {
-    if (tsleStepsLeft(c) != level) {
+    if (tsleStepsLeft(c) != level || c.ocll()) {
       continue;
     }
     if (!progress.isIntroduced(c)) {
@@ -568,11 +567,11 @@ bool tsleLevelSolid(const TsleProgress &progress, int level) {
     ++cases;
     auto it = progress.cases.find(tsleKey(c));
     if (it != progress.cases.end() &&
-        summarizeCase(it->second, overall).weak) {
-      ++weak;
+        !summarizeCase(it->second, overall).weak) {
+      ++sound;
     }
   }
-  return weak * 4 <= cases;
+  return sound * 4 >= cases * 3;
 }
 
 int tsleOpenLevel(const TsleProgress &progress) {

@@ -187,8 +187,9 @@ struct TsleProgress {
   friend bool operator==(const TsleProgress &, const TsleProgress &) = default;
 };
 
-// A level is the cases with that many steps left. It is solid when every
-// case of it is introduced and at most a quarter of them are weak.
+// A level is the cases with that many steps left (the OCLLs aside). It is
+// solid when every case of it is introduced and three quarters of them
+// at least have been tried and aren't weak.
 bool tsleLevelSolid(const TsleProgress &progress, int level);
 // The deepest level open: 1 at least, and each further one once the level
 // before it is solid.

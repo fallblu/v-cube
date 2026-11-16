@@ -140,7 +140,7 @@ TEST_CASE("OCLL algs are done as written in every slot", "[tsle]") {
   for (const OcllAlg &a : defaultOcllAlgs()) {
     CHECK(ocllAlgWorks(a.id, parseAlgOrEmpty(a.alg)));
   }
-  CHECK(ocllAlgWorks("sune", parseAlgOrEmpty("R U2 R' U' R U' R'") ) == false);
+  CHECK(ocllAlgWorks("sune", parseAlgOrEmpty("R U2 R' U' R U' R'")) == false);
   CHECK(ocllAlgWorks("antisune", parseAlgOrEmpty("R U2 R' U' R U' R'")));
   CHECK_FALSE(ocllAlgWorks("sune", {}));
   CHECK_FALSE(ocllAlgWorks("nothing", parseAlgOrEmpty("R U R' U R U2 R'")));
@@ -164,8 +164,8 @@ TEST_CASE("OCLL algs are done as written in every slot", "[tsle]") {
       Alg written = parseAlgOrEmpty(alg->alg);
       Alg tail(f->alg.end() - static_cast<std::ptrdiff_t>(written.size()),
                f->alg.end());
-      bool joinedTurn = f->alg.size() < written.size() + 1 &&
-                        f->alg.size() != written.size();
+      bool joinedTurn =
+          f->alg.size() < written.size() + 1 && f->alg.size() != written.size();
       if (!joinedTurn && f->alg.size() >= written.size()) {
         CHECK(tail == written);
       }
@@ -208,6 +208,11 @@ TEST_CASE("TSLE levels open as the ones before are solid", "[tsle]") {
   while (auto c = tsleNextNew(p)) {
     CHECK(tsleStepsLeft(*c) <= tsleOpenLevel(p));
     p.introduced.insert(tsleKey(*c));
+    // Introduced but not tried, a level isn't solid yet.
+    if (!tsleNextNew(p) && introduced < 96) {
+      CHECK(tsleOpenLevel(p) == tsleStepsLeft(*c));
+    }
+    p.add(tsleKey(*c), PairAttempt{});
     ++introduced;
   }
   CHECK(introduced == 97);
@@ -252,8 +257,7 @@ TEST_CASE("TSLE good triggers per case", "[.tsleinfo]") {
       }
     }
   }
-  std::printf("%d cases have a way with more steps and fewer moves\n",
-              shorter);
+  std::printf("%d cases have a way with more steps and fewer moves\n", shorter);
   for (auto [n, cases] : goodCounts) {
     std::printf("%d good triggers: %d cases\n", n, cases);
   }

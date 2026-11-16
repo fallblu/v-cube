@@ -16,6 +16,7 @@ anyone who wants to back them up, move them, or edit an alg set by hand.
 | Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
 | Inspection sessions | `~/.local/share/v-cube/inspection.json` | `%LOCALAPPDATA%\v-cube\inspection.json` |
 | F2L statistics | `~/.local/share/v-cube/f2l.json` | `%LOCALAPPDATA%\v-cube\f2l.json` |
+| TSLE progress | `~/.local/share/v-cube/tsle.json` | `%LOCALAPPDATA%\v-cube\tsle.json` |
 | Blind sessions and drill statistics | `~/.local/share/v-cube/blind.json` | `%LOCALAPPDATA%\v-cube\blind.json` |
 | Alg Lab (lab cases, candidates, test sessions, times, profiles) | `~/.local/share/v-cube/alglab.json` | `%LOCALAPPDATA%\v-cube\alglab.json` |
 | Daily backups | `~/.local/share/v-cube/backups/` | `%LOCALAPPDATA%\v-cube\backups\` |
@@ -91,6 +92,7 @@ Every data file is a JSON object that starts with a `format` and a
 | Move Count sessions | `v-cube.movecount` | no |
 | Inspection sessions | `v-cube.inspection` | no |
 | F2L | `v-cube.f2l` | no |
+| TSLE | `v-cube.tsle` | no |
 | Blind | `v-cube.blind` | no |
 | Alg Lab | `v-cube.alglab` | no |
 
@@ -438,6 +440,45 @@ and a Bad edges session for both axes.
 
 The mode's choices (drill, method, the slots that may be left, the moves
 solutions use, the stage) are in the settings file under `[f2l]`.
+
+## TSLE
+
+`tsle.json` (`"v-cube.tsle"`), TSLE mode's progress:
+
+```json
+{
+  "format": "v-cube.tsle", "version": 1,
+  "cases": {
+    "UF-CW-0120": [
+      {"timestamp": 1794000000, "ms": 1800, "moves": 4, "best": 3,
+       "excess": 1, "hint": true, "drill": "full"}
+    ]
+  },
+  "introduced": ["UF-CW-0120"],
+  "fulls": [{"timestamp": 1794000000, "ms": 6100, "moves": 14, "pairs": 3,
+             "excess": 2}],
+  "ocll": {"pi": "R U2 R2 U' R2 U' R2 U2 R"}
+}
+```
+
+- `cases`: the last 50 tries of each case, written as F2L mode's are. A
+  case's key is the case seen for the front-right slot: where the slot's
+  edge is (`UF`, with the cube turned so, or `FR` for in the slot), the
+  slot's corner place (`N` oriented, `CW`, `CCW`) and the twists at URF,
+  UFL, ULB and UBR (0 oriented, 1 clockwise, 2 anticlockwise). `excess` is
+  in moves: a good trigger's moves over the best way from that AUF, or 3
+  for a trigger that isn't good. `drill` is `full` for a step of a Full
+  TSLE solve.
+- `introduced`: the cases Guided intro has been through (the seven OCLLs
+  need none).
+- `fulls`: the last 500 Full TSLE solves: time, moves (step by step, as
+  done), the steps taken (`pairs`) and their summed `excess`.
+- `ocll`: the OCLL algs changed from the default ones, by `sune`,
+  `antisune`, `h`, `pi`, `headlights`, `chameleon` or `bowtie`. An alg
+  that doesn't solve its OCLL is dropped on reading.
+
+The mode's choices (drill, last slots, cases) are in the settings file
+under `[tsle]`.
 
 ## Blind
 

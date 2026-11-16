@@ -10,7 +10,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 
 | Key | Action |
 | --- | --- |
-| Ctrl+1 … Ctrl+9, Ctrl+- | Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, F2L, Inspection, Blind, in the sidebar's order (not while a solve or inspection is running) |
+| Ctrl+1 … Ctrl+9, Ctrl+-, Ctrl+= | Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, F2L, TSLE, Inspection, Blind, in the sidebar's order (not while a solve or inspection is running) |
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
@@ -24,7 +24,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 
 ## Turning keys
 
-The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, F2L, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Cube and keys: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
+The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, F2L, TSLE, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Cube and keys: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
 
 | Key | Move | Key | Move | Key | Move | Key | Move |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -205,6 +205,25 @@ In the solve review (Alt+R, or double-click a solve):
 | Case explorer | Esc | put the cube back |
 
 Full F2L has no hint and nothing to step through: its pairs are compared in a table.
+
+## TSLE
+
+| When | Key | Action |
+| --- | --- | --- |
+| solving | turning keys | any turn; a step is judged when the trigger is finished |
+| Guided intro, a trigger shown | Enter | show the trigger on the cube, then put the cube back to do it |
+| Guided intro | Space | skip the case as known; after a case, the next one |
+| Next trigger, Full TSLE, solving | Tab | show the best step from here (the try counts as hinted) |
+| Next trigger, Full TSLE, solving | Backspace | give up and see the good triggers |
+| solving | Esc | put the cube back as it started |
+| afterwards | Space | next |
+| afterwards | Enter / 1-9 | play the best trigger / the trigger with that number (or click it) |
+| afterwards | Esc | the same state again, not recorded |
+| Case explorer | Enter / 1-9 | do the best trigger / that trigger; the list follows the cube |
+| Case explorer | turning keys | turn the cube freely; the list follows it |
+| Case explorer | ↑ / ↓ | the case before / after |
+| Case explorer | Space | the case at its next AUF |
+| Case explorer | Esc | back to the case |
 
 ## Inspection
 

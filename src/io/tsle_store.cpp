@@ -27,9 +27,12 @@ QJsonObject tsleToJson(const TsleProgress &progress) {
   for (const auto &[id, alg] : progress.ocll) {
     ocll[QString::fromStdString(id)] = QString::fromStdString(alg);
   }
-  return {{"format", kTsleFile.format}, {"version", kTsleFile.version},
-          {"cases", cases},             {"introduced", introduced},
-          {"fulls", fulls},             {"ocll", ocll}};
+  return {{"format", kTsleFile.format},
+          {"version", kTsleFile.version},
+          {"cases", cases},
+          {"introduced", introduced},
+          {"fulls", fulls},
+          {"ocll", ocll}};
 }
 
 TsleProgress tsleFromJson(const QJsonObject &o) {

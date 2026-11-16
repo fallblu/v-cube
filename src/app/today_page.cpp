@@ -7,6 +7,7 @@
 #include "io/data_file.hpp"
 #include "io/f2l_store.hpp"
 #include "io/inspection_store.hpp"
+#include "io/tsle_store.hpp"
 
 #include <QDate>
 #include <QDateTime>
@@ -238,6 +239,20 @@ std::vector<ActivityEvent> TodayPage::events() {
       add(AppMode::F2L, a.timestamp, a.ms);
     }
   }
+  FileRead tsle = readDataFile(QDir(dataDir_).filePath("tsle.json"), kTsleFile);
+  if (tsle.status == FileStatus::Read) {
+    TsleProgress progress = tsleFromJson(tsle.object);
+    for (const auto &[key, attempts] : progress.cases) {
+      for (const PairAttempt &a : attempts) {
+        if (a.drill != F2LDrill::Full) {
+          add(AppMode::Tsle, a.timestamp, a.ms);
+        }
+      }
+    }
+    for (const FullAttempt &a : progress.fulls) {
+      add(AppMode::Tsle, a.timestamp, a.ms);
+    }
+  }
   FileRead blind =
       readDataFile(QDir(dataDir_).filePath("blind.json"), kBlindFile);
   if (blind.status == FileStatus::Read) {
@@ -304,6 +319,7 @@ void TodayPage::refresh() {
       {AppMode::Untimed, QT_TR_NOOP("Untimed (solves)")},
       {AppMode::MoveCount, QT_TR_NOOP("Move Count (solves)")},
       {AppMode::F2L, QT_TR_NOOP("F2L (pairs and solves)")},
+      {AppMode::Tsle, QT_TR_NOOP("TSLE (triggers and solves)")},
       {AppMode::Inspection, QT_TR_NOOP("Inspection (scrambles)")},
       {AppMode::Blind, QT_TR_NOOP("Blind (solves and traces)")},
   };

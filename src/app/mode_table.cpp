@@ -22,6 +22,7 @@ constexpr std::array<ModeInfo, AppMode::Count> kModes = {{
     {"blind", QT_TRANSLATE_NOOP("MainWindow", "Blind")},
     {"alglab", QT_TRANSLATE_NOOP("MainWindow", "Alg Lab")},
     {"f2l", QT_TRANSLATE_NOOP("MainWindow", "F2L")},
+    {"tsle", QT_TRANSLATE_NOOP("MainWindow", "TSLE")},
     {"today", QT_TRANSLATE_NOOP("MainWindow", "Today")},
 }};
 
@@ -33,8 +34,8 @@ const ModeInfo &info(int mode) {
 
 const std::array<AppMode::Id, AppMode::Count> &AppMode::sidebarOrder() {
   static constexpr std::array<Id, Count> order = {
-      Today,   Learn,     Drill, Library,    AlgLab, Timed,
-      Untimed, MoveCount, F2L,   Inspection, Blind};
+      Today,   Learn,     Drill, Library, AlgLab,     Timed,
+      Untimed, MoveCount, F2L,   Tsle,    Inspection, Blind};
   return order;
 }
 
@@ -63,14 +64,16 @@ QString AppMode::settingsId(int mode) { return info(mode).id; }
 
 QKeySequence AppMode::shortcut(int mode) {
   // The digit is the mode's place in the sidebar: Today 0, Learn 1, ...
-  // and the key after 9 on the keyboard, the minus, for the eleventh.
+  // and the two keys after 9 on the keyboard, - and =, for the eleventh
+  // and twelfth.
   const auto &order = sidebarOrder();
   for (std::size_t i = 0; i < order.size(); ++i) {
     if (order[i] == mode) {
-      return QKeySequence(
-          Qt::CTRL |
-          (i < 10 ? static_cast<Qt::Key>(Qt::Key_0 + static_cast<int>(i))
-                  : Qt::Key_Minus));
+      Qt::Key key = i < 10
+                        ? static_cast<Qt::Key>(Qt::Key_0 + static_cast<int>(i))
+                    : i == 10 ? Qt::Key_Minus
+                              : Qt::Key_Equal;
+      return QKeySequence(Qt::CTRL | key);
     }
   }
   return {};
