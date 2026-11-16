@@ -21,10 +21,6 @@ namespace vcube {
 
 namespace {
 
-const auto &kPass = kPassColour;
-const auto &kWarn = kWarnColour;
-const auto &kFail = kFailColour;
-
 enum Column { LineColumn, AlgColumn, CaseColumn, ResultColumn, ColumnCount };
 
 // Combo entries after the candidates.
@@ -230,11 +226,12 @@ void PasteDialog::fillTable() {
     switch (r.outcome) {
     case PasteOutcome::Added:
       result = tr("✓ adds to %1").arg(qs(r.reason));
-      colour = r.reason.find(", but") != std::string::npos ? kWarn : kPass;
+      colour = r.reason.find(", but") != std::string::npos ? kWarnColour
+                                                           : kPassColour;
       break;
     case PasteOutcome::NewCase:
       result = tr("✓ %1").arg(qs(r.reason));
-      colour = kPass;
+      colour = kPassColour;
       break;
     case PasteOutcome::Duplicate:
       result = tr("= %1").arg(qs(r.reason));
@@ -243,12 +240,12 @@ void PasteDialog::fillTable() {
     case PasteOutcome::Ambiguous:
     case PasteOutcome::Mismatch:
       result = tr("? %1: choose a case").arg(qs(r.reason));
-      colour = kWarn;
+      colour = kWarnColour;
       break;
     case PasteOutcome::Unmatched:
     case PasteOutcome::Invalid:
       result = tr("✗ %1").arg(qs(r.reason));
-      colour = kFail;
+      colour = kFailColour;
       break;
     }
     auto *resultItem = new QTableWidgetItem(result);

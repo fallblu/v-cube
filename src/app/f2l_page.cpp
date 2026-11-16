@@ -27,8 +27,6 @@ namespace vcube {
 
 namespace {
 
-QString slotText(Slot s) { return qs(slotName(s)); }
-
 // The stickers of a slot's corner and edge, wherever they are on a cube
 // held any way.
 std::vector<int> pairFacelets(const FaceletCube &cube, Slot slot) {

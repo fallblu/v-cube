@@ -20,23 +20,6 @@ namespace {
 // Optimal solutions worked out per hold, to list a few that differ.
 constexpr int kSolutionsPerHold = 12;
 
-const StatusColour kGood{Status::Good};
-const StatusColour kWeak{Status::Warning};
-
-QString movesText(int n) {
-  return n == 1 ? QObject::tr("1 move") : QObject::tr("%1 moves").arg(n);
-}
-
-QString algText(const Alg &alg) { return qs(toString(alg)).toHtmlEscaped(); }
-
-QString coloured(const QColor &colour, const QString &text) {
-  return QString("<span style='color:%1'>%2</span>").arg(colour.name(), text);
-}
-
-bool hasStep(EoDrill d) {
-  return d == EoDrill::Axis || d == EoDrill::Plan || d == EoDrill::Solve;
-}
-
 // How far a cube that didn't reach the step got: "EO not done (2 bad edges
 // left); 3 of 4 cross edges solved".
 QString progressText(const FaceletCube &cube, SolveStep step) {
@@ -190,7 +173,7 @@ QString EoCrossPage::verdictHtml() const {
                                        .arg(round_.correct[0])
                                        .arg(round_.correct[1])
                                  : tr("%1 bad edges").arg(round_.correct[0]);
-    return right ? coloured(kGood, tr("Right: %1").arg(counts))
+    return right ? coloured(kPassColour, tr("Right: %1").arg(counts))
                  : coloured(kFailColour, tr("Wrong: %1").arg(counts));
   }
   case Drill::Axis: {
@@ -200,9 +183,9 @@ QString EoCrossPage::verdictHtml() const {
     int over = round_.ranked[*round_.picked].optimum.length - best;
     return over == 0
                ? coloured(
-                     kGood,
+                     kPassColour,
                      tr("The best hold: %1 in %2").arg(step, movesText(best)))
-               : coloured(over >= 2 ? QColor(kFailColour) : QColor(kWeak),
+               : coloured(over >= 2 ? QColor(kFailColour) : QColor(kWarnColour),
                           tr("Not the best hold: +%1").arg(movesText(over)));
   }
   case Drill::Plan:
@@ -217,9 +200,10 @@ QString EoCrossPage::verdictHtml() const {
     QString done = tr("%1 done in %2").arg(step, movesText(moves));
     int over = std::max(0, moves - best);
     QString against =
-        over == 0 ? coloured(kGood, tr("optimal"))
-                  : coloured(over >= 3 ? QColor(kFailColour) : QColor(kWeak),
-                             tr("+%1 over the optimum").arg(over));
+        over == 0
+            ? coloured(kPassColour, tr("optimal"))
+            : coloured(over >= 3 ? QColor(kFailColour) : QColor(kWarnColour),
+                       tr("+%1 over the optimum").arg(over));
     return done + " · " + against;
   }
   }
@@ -236,7 +220,7 @@ QString EoCrossPage::edgesResultHtml() const {
     bool right = round_.answers[i] == round_.correct[i];
     QString what = axisText(axis, true);
     lines << (right ? "<b>" +
-                          coloured(kGood,
+                          coloured(kPassColour,
                                    tr("right: %1").arg(round_.answers[i])) +
                           "</b> · " + what
                     : "<b>" +
@@ -288,7 +272,7 @@ QString EoCrossPage::holdsHtml() const {
     QString hold = stepHoldHtml(r.hold, eoOnly, settings_.scheme);
     QString mark = mine == i ? tr("yours") : QString();
     QString length = r.optimum.length == best
-                         ? coloured(kGood, movesText(r.optimum.length))
+                         ? coloured(kPassColour, movesText(r.optimum.length))
                          : movesText(r.optimum.length);
     html += QString("<tr><td>%1</td><td align='right'>%2</td><td>%3</td>"
                     "<td style='color:%4'>%5</td></tr>")
@@ -331,9 +315,9 @@ QString EoCrossPage::breakdownHtml() const {
   for (const EoPart &p : b.parts) {
     Alg moves(round_.moves.begin() + static_cast<std::ptrdiff_t>(p.begin),
               round_.moves.begin() + static_cast<std::ptrdiff_t>(p.end));
-    QString lost = p.lost <= 0 ? coloured(kGood, tr("nothing"))
+    QString lost = p.lost <= 0 ? coloured(kPassColour, tr("nothing"))
                                : coloured(p.lost >= 3 ? QColor(kFailColour)
-                                                      : QColor(kWeak),
+                                                      : QColor(kWarnColour),
                                           "+" + QString::number(p.lost));
     html += QString("<tr><td>%1</td><td><b>%2</b></td><td align='right'>%3"
                     "</td><td align='right'>%4</td><td align='right'>%5</td>"
@@ -462,8 +446,8 @@ void EoCrossPage::refreshTree() {
       item->setText(3, s.meanMs > 0
                            ? clockText(static_cast<std::int64_t>(s.meanMs))
                            : kNoValue);
-      item->setForeground(0, s.weak ? QBrush(kWeak) : normal);
-      item->setForeground(2, s.weak ? QBrush(kWeak) : normal);
+      item->setForeground(0, s.weak ? QBrush(kWarnColour) : normal);
+      item->setForeground(2, s.weak ? QBrush(kWarnColour) : normal);
     }
   }
   showSummary();

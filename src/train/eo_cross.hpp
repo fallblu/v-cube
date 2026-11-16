@@ -38,6 +38,9 @@ enum class EoDrill : std::uint8_t { Edges, Axis, Plan, Solve, Full };
 inline constexpr int kEoDrills = 5;
 // "edges", "axis", "plan", "solve", "full".
 std::string_view eoDrillId(EoDrill d);
+// The drill is for a step chosen in the bar (the others have a step of
+// their own).
+bool hasStep(EoDrill d);
 
 // The steps the mode practises, in the order a solve does them: EO, EOLine,
 // EO+1, EO+2, EO Cross.

@@ -1,6 +1,7 @@
 // DrillPage's case list: its columns and statuses, the cases a drill
 // picks from (scope, pool and order) and the right-click menu.
 #include "app/drill_page.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/drill_history_dialog.hpp"
 #include "app/ui_state.hpp"
@@ -16,13 +17,6 @@
 #include <cmath>
 
 namespace vcube {
-
-namespace {
-
-const StatusColour kGood{Status::Good};
-const StatusColour kSlow{Status::Warning};
-
-} // namespace
 
 QStringList DrillPage::columns() const {
   return {tr("Avg"), tr("Best"), tr("Fail"), tr("Weak")};
@@ -83,7 +77,7 @@ void DrillPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
   item->setData(3, kSortRole, fail ? QVariant(*fail) : QVariant());
   item->setData(4, kSortRole, weak ? QVariant(*weak) : QVariant());
   if (mean && target > 0) {
-    item->setForeground(1, *mean <= target ? kGood : kSlow);
+    item->setForeground(1, *mean <= target ? kPassColour : kWarnColour);
   } else {
     item->setForeground(1, palette().color(QPalette::Text));
   }

@@ -2,6 +2,7 @@
 #include "app/drill_private.hpp"
 #include "app/key_router.hpp"
 #include "app/page_parts.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/drill_history_dialog.hpp"
 #include "app/ui_state.hpp"
@@ -27,9 +28,6 @@
 namespace vcube {
 
 namespace {
-
-const StatusColour kGood{Status::Good};
-const StatusColour kSlow{Status::Warning};
 
 // A practice stage solved is shown this long before the next one.
 constexpr int kAdvanceMs = 700;
@@ -435,8 +433,9 @@ void DrillPage::showResult() {
   shown.penalty = failed ? Penalty::Dnf : Penalty::None;
   QColor colour;
   if (!failed && target > 0) {
-    colour =
-        static_cast<double>(flow_.timeMs()) <= target * 1000.0 ? kGood : kSlow;
+    colour = static_cast<double>(flow_.timeMs()) <= target * 1000.0
+                 ? kPassColour
+                 : kWarnColour;
   }
   display_->showText(
       gaveUp ? tr("DNF") : qs(formatSolve(shown, settings_.decimals)), colour);

@@ -22,18 +22,6 @@ namespace vcube {
 
 namespace {
 
-QString slotText(Slot s) { return qs(slotName(s)); }
-
-QString movesText(int n) {
-  return n == 1 ? QObject::tr("1 move") : QObject::tr("%1 moves").arg(n);
-}
-
-QString algText(const Alg &alg) { return qs(toString(alg)).toHtmlEscaped(); }
-
-QString coloured(const QColor &colour, const QString &text) {
-  return QString("<span style='color:%1'>%2</span>").arg(colour.name(), text);
-}
-
 double meanMs(const TsleProgress &p) {
   double sum = 0.0;
   int n = 0;
@@ -50,9 +38,6 @@ double meanMs(const TsleProgress &p) {
 
 // The group a case is listed in: 0 the OCLLs, else its steps left.
 int groupOf(TsleState c) { return c.ocll() ? 0 : tsleStepsLeft(c); }
-
-const StatusColour kGood{Status::Good};
-const StatusColour kWeak{Status::Warning};
 
 } // namespace
 
@@ -187,12 +172,12 @@ QString TslePage::optionsHtml(TsleState state, Slot slot) const {
     if (o.finish) {
       leaves += " · " + algText(o.finish->alg);
     }
-    QString mark = o.best ? coloured(kGood, tr("best from this AUF"))
-                   : o.good
-                       ? coloured(kWeak, tr("good, +%1").arg(o.total - best))
-                       : QString("<span style='color:%1'>%2</span>")
-                             .arg(muted, tr("a step more, %1 fewer")
-                                             .arg(movesText(best - o.total)));
+    QString mark =
+        o.best   ? coloured(kPassColour, tr("best from this AUF"))
+        : o.good ? coloured(kWarnColour, tr("good, +%1").arg(o.total - best))
+                 : QString("<span style='color:%1'>%2</span>")
+                       .arg(muted, tr("a step more, %1 fewer")
+                                       .arg(movesText(best - o.total)));
     QString alg = QString("<a href='opt:%1'>%2</a>").arg(i).arg(algText(o.alg));
     html += QString("<tr><td align='right' style='color:%1'>%2</td>"
                     "<td>%3</td><td>%4</td><td align='right'>%5</td>"
@@ -224,9 +209,9 @@ QString TslePage::pathHtml(TsleState state, Slot slot) const {
 QString TslePage::verdictHtml(const Step &step) const {
   if (step.before.ocll()) {
     return step.extra == 0
-               ? coloured(kGood, tr("OCLL solved"))
-               : coloured(kWeak, tr("OCLL solved, +%1 over your alg")
-                                     .arg(movesText(step.extra)));
+               ? coloured(kPassColour, tr("OCLL solved"))
+               : coloured(kWarnColour, tr("OCLL solved, +%1 over your alg")
+                                           .arg(movesText(step.extra)));
   }
   if (!step.good) {
     int before = tsleStepsLeft(step.before), after = tsleStepsLeft(step.after);
@@ -237,10 +222,10 @@ QString TslePage::verdictHtml(const Step &step) const {
             .arg(before));
   }
   return step.extra == 0
-             ? coloured(kGood, tr("The best trigger from this AUF"))
-             : coloured(kWeak, tr("A good trigger, but +%1 over the best "
-                                  "from this AUF")
-                                   .arg(movesText(step.extra)));
+             ? coloured(kPassColour, tr("The best trigger from this AUF"))
+             : coloured(kWarnColour, tr("A good trigger, but +%1 over the best "
+                                        "from this AUF")
+                                         .arg(movesText(step.extra)));
 }
 
 QString TslePage::nextResultHtml() const {
@@ -284,10 +269,10 @@ QString TslePage::fullResultHtml() const {
       moves += step.moves;
     }
     QString over =
-        moves <= best
-            ? coloured(kGood, tr("as short as the best way"))
-            : coloured(moves - best >= 3 ? QColor(kFailColour) : QColor(kWeak),
-                       tr("+%1 over the best way").arg(moves - best));
+        moves <= best ? coloured(kPassColour, tr("as short as the best way"))
+                      : coloured(moves - best >= 3 ? QColor(kFailColour)
+                                                   : QColor(kWarnColour),
+                                 tr("+%1 over the best way").arg(moves - best));
     html += "<p><b>" + tr("TSLE done in %1").arg(movesText(moves)) + "</b> · " +
             over + "</p>";
   }
@@ -446,9 +431,9 @@ void TslePage::refreshTree() {
       item->setText(3, s.meanMs > 0
                            ? clockText(static_cast<std::int64_t>(s.meanMs))
                            : kNoValue);
-      item->setForeground(0, s.weak ? QBrush(kWeak) : normal);
+      item->setForeground(0, s.weak ? QBrush(kWarnColour) : normal);
       item->setForeground(1, normal);
-      item->setForeground(2, s.weak ? QBrush(kWeak) : normal);
+      item->setForeground(2, s.weak ? QBrush(kWarnColour) : normal);
     }
   }
   showSummary();

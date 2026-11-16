@@ -27,8 +27,6 @@ namespace vcube {
 
 namespace {
 
-QString slotText(Slot s) { return qs(slotName(s)); }
-
 // Whether the moves turn anything but the top layer and the whole cube.
 bool turnsTheSlot(const Alg &moves) {
   Alg simple = simplify(moves);

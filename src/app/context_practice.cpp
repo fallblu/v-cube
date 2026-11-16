@@ -1,5 +1,7 @@
 #include "app/context_practice.hpp"
 
+#include "app/ui_text.hpp"
+
 #include "io/algset_json.hpp"
 #include "train/move_count.hpp"
 #include "train/solve_review.hpp"
@@ -23,10 +25,6 @@ constexpr Slot kAllSlots[] = {Slot::FR, Slot::FL, Slot::BL, Slot::BR};
 // Tries for an in-context state whose open pairs are all cases already
 // started in Learn, before taking any.
 constexpr int kContextTries = 40;
-
-QString movesText(int n) {
-  return n == 1 ? tr("1 move") : tr("%1 moves").arg(n);
-}
 
 } // namespace
 

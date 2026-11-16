@@ -19,12 +19,6 @@ namespace vcube {
 
 namespace {
 
-QString slotText(Slot s) { return qs(slotName(s)); }
-
-QString movesText(int n) {
-  return n == 1 ? QObject::tr("1 move") : QObject::tr("%1 moves").arg(n);
-}
-
 QString costText(double cost) { return QString::number(cost, 'f', 1); }
 
 QString secondsText(std::int64_t ms, int decimals) {
@@ -77,9 +71,6 @@ DiagramView viewOf(PairCase c) {
   }
   return DiagramView::Iso3D;
 }
-
-const StatusColour kGood{Status::Good};
-const StatusColour kWeak{Status::Warning};
 
 } // namespace
 
@@ -346,12 +337,13 @@ QString F2LPage::pairResultHtml() const {
     QString verdict;
     if (pair.best()) {
       double over = cost - pair.best()->cost;
-      verdict = over < 0.05
-                    ? QString("<span style='color:%1'>%2</span>")
-                          .arg(kGood.name(), tr("as good as the best"))
-                    : QString("<span style='color:%1'>%2</span>")
-                          .arg(over >= 2.0 ? kFailColour.name() : kWeak.name(),
-                               tr("+%1 over the best").arg(costText(over)));
+      verdict =
+          over < 0.05
+              ? QString("<span style='color:%1'>%2</span>")
+                    .arg(kPassColour.name(), tr("as good as the best"))
+              : QString("<span style='color:%1'>%2</span>")
+                    .arg(over >= 2.0 ? kFailColour.name() : kWarnColour.name(),
+                         tr("+%1 over the best").arg(costText(over)));
     }
     html += "<p><b>" + tr("You: %1").arg(qs(toString(moves)).toHtmlEscaped()) +
             "</b><br>" +
@@ -389,10 +381,10 @@ QString F2LPage::choiceResultHtml() const {
     QString verdict =
         place == 1 || regret < 0.05
             ? QString("<span style='color:%1'>%2</span>")
-                  .arg(kGood.name(), tr("%1: the best pair to start with")
-                                         .arg(slotText(*round_.picked)))
+                  .arg(kPassColour.name(), tr("%1: the best pair to start with")
+                                               .arg(slotText(*round_.picked)))
             : QString("<span style='color:%1'>%2</span>")
-                  .arg(regret >= 2.0 ? kFailColour.name() : kWeak.name(),
+                  .arg(regret >= 2.0 ? kFailColour.name() : kWarnColour.name(),
                        tr("%1: the %2 best of %3 pairs, +%4 over starting "
                           "with %5")
                            .arg(slotText(*round_.picked), ordinal(place))
@@ -503,20 +495,20 @@ QString F2LPage::fullResultHtml() const {
                         movesText(r->pair.best()->htm),
                         costText(r->pair.best()->cost));
         double d = cost - r->pair.best()->cost;
-        over =
-            d < 0.05
-                ? QString("<span style='color:%1'>✓</span>").arg(kGood.name())
-                : QString("<span style='color:%1'>+%2</span>")
-                      .arg(d >= 2.0 ? kFailColour.name() : kWeak.name(),
-                           costText(d));
+        over = d < 0.05 ? QString("<span style='color:%1'>✓</span>")
+                              .arg(kPassColour.name())
+                        : QString("<span style='color:%1'>+%2</span>")
+                              .arg(d >= 2.0 ? kFailColour.name()
+                                            : kWarnColour.name(),
+                                   costText(d));
         double regret = r->total - ranks.front().total;
-        pick =
-            regret < 0.05
-                ? QString("<span style='color:%1'>✓</span>").arg(kGood.name())
-                : QString("%1 <span style='color:%2'>(%3)</span>")
-                      .arg(slotText(ranks.front().pair.slot),
-                           regret >= 2.0 ? kFailColour.name() : kWeak.name(),
-                           tr("−%1").arg(costText(regret)));
+        pick = regret < 0.05 ? QString("<span style='color:%1'>✓</span>")
+                                   .arg(kPassColour.name())
+                             : QString("%1 <span style='color:%2'>(%3)</span>")
+                                   .arg(slotText(ranks.front().pair.slot),
+                                        regret >= 2.0 ? kFailColour.name()
+                                                      : kWarnColour.name(),
+                                        tr("−%1").arg(costText(regret)));
       }
     }
     html +=
@@ -627,8 +619,8 @@ void F2LPage::refreshTree() {
                            ? secondsText(static_cast<std::int64_t>(s.meanMs),
                                          settings_.decimals)
                            : kNoValue);
-      item->setForeground(0, s.weak ? QBrush(kWeak) : normal);
-      item->setForeground(2, s.weak ? QBrush(kWeak) : normal);
+      item->setForeground(0, s.weak ? QBrush(kWarnColour) : normal);
+      item->setForeground(2, s.weak ? QBrush(kWarnColour) : normal);
     }
   }
   showSummary();

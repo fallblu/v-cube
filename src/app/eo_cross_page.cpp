@@ -33,11 +33,6 @@ constexpr std::int64_t kHideGraceMs = 600;
 // The inspection times offered, in seconds (0: none).
 constexpr std::array<int, 7> kLimits = {0, 5, 8, 10, 15, 20, 30};
 
-const StatusColour kWarn{Status::Warning};
-
-bool hasStep(EoDrill d) {
-  return d == EoDrill::Axis || d == EoDrill::Plan || d == EoDrill::Solve;
-}
 bool hasLimit(EoDrill d) { return d == EoDrill::Axis || d == EoDrill::Plan; }
 
 // A hold in plain words, for the hint line: "yellow cross, green front",
@@ -913,7 +908,7 @@ void EoCrossPage::showClock() {
         }
       }
       colour = elapsed >= 12000  ? kFailColour.name()
-               : elapsed >= 8000 ? kWarn.name()
+               : elapsed >= 8000 ? kWarnColour.name()
                                  : QString();
     } else if (left <= 3000) {
       colour = kFailColour.name();
