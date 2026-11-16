@@ -638,7 +638,7 @@ struct TableCache {
   std::uint64_t clock = 0;
 
   template <typename T, typename Build>
-  std::shared_ptr<T> get(const std::string &key, bool &built, Build build) {
+  std::shared_ptr<T> get(const std::string &key, Build build) {
     {
       std::lock_guard lock(mutex);
       auto it = tables.find(key);
@@ -647,7 +647,6 @@ struct TableCache {
         return std::static_pointer_cast<T>(it->second);
       }
     }
-    built = true;
     std::shared_ptr<T> t = build();
     std::lock_guard lock(mutex);
     std::size_t total = t->dist.size();
@@ -677,11 +676,6 @@ TableCache &cache() {
 
 // ---------------------------------------------------------------------
 // The search.
-
-struct Start {
-  CubieCube cube;
-  std::uint32_t cornerRank = 0, cornerTwist = 0;
-};
 
 struct Node {
   CubieCube cube;
@@ -982,7 +976,6 @@ struct Searcher {
     std::string base = model.key + "|" + bytesOf(goal.free) + "|" +
                        (goal.aufAfter ? "a" : "-") +
                        (goal.aufBefore ? "b" : "-");
-    bool built = false;
     bool announced = false;
     auto announce = [&] {
       if (!announced && callbacks.progress) {
@@ -998,7 +991,7 @@ struct Searcher {
           announce();
         }
       }
-      corners = cache().get<CornerTable>(key, built, [&] {
+      corners = cache().get<CornerTable>(key, [&] {
         return buildCorners(model, cPlaces, goal.free, goal.aufAfter, threads);
       });
     }
@@ -1013,7 +1006,7 @@ struct Searcher {
           announce();
         }
       }
-      edges.push_back(cache().get<EdgeTable>(key, built, [&] {
+      edges.push_back(cache().get<EdgeTable>(key, [&] {
         return buildEdges(model, sortedPlaces, g, goal.free, goal.aufAfter,
                           threads);
       }));

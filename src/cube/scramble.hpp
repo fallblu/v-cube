@@ -28,7 +28,6 @@ struct PieceMask {
   std::array<bool, kEdges> eo{};
 
   static PieceMask all();
-  static PieceMask none() { return {}; }
 
   // Builders for common groups of positions.
   PieceMask &corners(std::initializer_list<Corner> cs, bool perm, bool ori);

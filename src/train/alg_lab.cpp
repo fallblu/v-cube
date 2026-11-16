@@ -140,8 +140,7 @@ std::optional<std::size_t> nextEntry(const LabSession &s,
 }
 
 double LabStats::dnfRate() const {
-  int n = used + dnfs;
-  return n == 0 ? 0.0 : static_cast<double>(dnfs) / n;
+  return timed == 0 ? 0.0 : static_cast<double>(dnfs) / timed;
 }
 
 namespace {
@@ -244,6 +243,7 @@ LabStats statsOf(std::span<const LabAttempt> timed, int trimPercent,
       times.push_back(a.timeMs);
     }
   }
+  st.timed = static_cast<int>(timed.size());
   std::sort(times.begin(), times.end());
   if (!times.empty()) {
     st.best = times.front();
@@ -275,8 +275,6 @@ LabStats statsOf(std::span<const LabAttempt> timed, int trimPercent,
   std::vector<Solve> solves = labSolves(timed);
   st.ao5 = currentAverage(solves, 5);
   st.ao12 = currentAverage(solves, 12);
-  st.bestAo5 = bestAverage(solves, 5);
-  st.bestAo12 = bestAverage(solves, 12);
   return st;
 }
 

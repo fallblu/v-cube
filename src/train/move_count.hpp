@@ -76,7 +76,7 @@ bool stepDoneAsHeld(const CubieCube &cube, SolveStep step);
 // for the front-back axis), sorted; empty if none.
 std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step);
 
-// How far a cube got towards the inspection steps, in the hold that got
+// How far a cube got towards EO Cross, in the hold that got
 // furthest: the fewest edges left bad for its front-back axis, then the
 // most cross edges solved (DF, DR, DB, DL as held), then the line (DF and
 // DB) solved.

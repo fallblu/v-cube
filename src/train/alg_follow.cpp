@@ -1,5 +1,7 @@
 #include "train/alg_follow.hpp"
 
+#include "train/alg_guide.hpp"
+
 #include <algorithm>
 
 namespace vcube {
@@ -26,20 +28,6 @@ int doneCost(Move m) { return isRotation(m.type) ? 0 : quarterTurns(m); }
 int heldAxis(const FaceletCube &f, MoveType t) {
   static constexpr int kFaceOnAxis[3] = {1, 0, 2}; // R, U, F
   return f[kFaceOnAxis[moveAxis(t)] * 9 + 4] % 3;
-}
-
-FaceletCube oriented(FaceletCube f) {
-  f.normalizeOrientation();
-  return f;
-}
-
-bool sameCentres(const FaceletCube &a, const FaceletCube &b) {
-  for (int face = 0; face < 6; ++face) {
-    if (a[face * 9 + 4] != b[face * 9 + 4]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 Move turn(MoveType t, int quarters) {

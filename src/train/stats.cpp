@@ -180,7 +180,8 @@ StatValue bestMean(std::span<const Solve> all, std::size_t n,
 std::vector<StatValue> rollingAverages(std::span<const Solve> all,
                                        std::size_t n, std::int64_t unit) {
   std::vector<StatValue> out(all.size());
-  for (std::size_t end = n; end <= all.size(); ++end) {
+  for (std::size_t end = std::max<std::size_t>(n, 1); end <= all.size();
+       ++end) {
     out[end - 1] = averageOf(all.subspan(end - n, n), unit);
   }
   return out;

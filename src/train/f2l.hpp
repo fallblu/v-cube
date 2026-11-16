@@ -152,8 +152,8 @@ struct PairSetup {
 std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
                                          std::optional<PairCase> wanted,
                                          Rng &rng);
-// The same for a slot of the caller's choice, with the slots in `solved`
-// solved if the case lets them be (Case explorer).
+// The same for a slot of the caller's choice, with the other slots
+// solved, when `othersSolved`, if the case lets them be (Case explorer).
 std::optional<PairSetup> casePairSetup(const F2LConfig &config, PairCase wanted,
                                        Slot target, bool othersSolved,
                                        Rng &rng);
@@ -184,9 +184,8 @@ struct RankedSolution {
   Alg alg;
   std::string text;
   int htm = 0;
-  double cost = 0.0;    // the profile's cost (and the wide-turn penalty)
-  bool computed = true; // found by the search
-  std::string setCase;  // the reference set's case it is the alg of
+  double cost = 0.0;   // the profile's cost (and the wide-turn penalty)
+  std::string setCase; // the reference set's case it is the alg of
   bool fromSet() const { return !setCase.empty(); }
 };
 
@@ -210,8 +209,8 @@ struct PairAnalysis {
   Slot slot = Slot::FR;
   PairCase pcase;
   // Cheapest first: the solutions within `extra` moves of the shortest,
-  // by cost, and the reference set's alg for the pair (marked, and not
-  // `computed` when the search didn't find it), wherever its cost puts it.
+  // by cost, and the reference set's alg for the pair (marked),
+  // wherever its cost puts it.
   std::vector<RankedSolution> solutions;
   int shortest = 0;
   bool found() const { return !solutions.empty(); }

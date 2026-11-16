@@ -141,6 +141,10 @@ TEST_CASE("lab statistics leave out warm-up, deviations and the trim",
   CHECK(*all.sd == Catch::Approx(129.1).epsilon(0.01));
   CHECK(all.ao5); // 5 timed attempts: 4 times and a DNF
   CHECK(all.dnfRate() == Catch::Approx(0.2));
+  // The trim leaves times out of the mean, not out of the DNF rate.
+  LabStats trimmed = labStats(as, k, "A", CubeKind::Physical, {}, 25, warm);
+  CHECK(trimmed.used == 2);
+  CHECK(trimmed.dnfRate() == Catch::Approx(0.2));
 
   LabWindow s2{LabWindow::Kind::Session, "s2", 0};
   LabStats second = labStats(as, k, "A", CubeKind::Physical, s2, 0, warm);

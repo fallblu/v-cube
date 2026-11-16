@@ -62,7 +62,7 @@ QString colourName(int slot);
 QString holdHtml(Hold h, const ColourScheme &scheme);
 // A colour's square and name as rich text, e.g. "■ yellow".
 QString colourHtml(int slot, const ColourScheme &scheme);
-// A hold as an inspection step sees it: "■ yellow cross, ■ green front"
+// A hold as a step sees it: "■ yellow cross, ■ green front"
 // (the cross on the bottom), or for EO alone, which only has an axis, "EO
 // on ■ green / ■ blue".
 QString stepHoldHtml(Hold h, bool eoOnly, const ColourScheme &scheme);

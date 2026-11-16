@@ -42,7 +42,8 @@ struct StepOptimum {
 };
 
 // The optimal solutions for `step` of `cube` (in the solver's frame), at
-// most `maxSolutions` (at least one is always kept). nullopt for ZZ F2L. A
+// most `maxSolutions` (at least one is always kept). nullopt for a step
+// without a solver (see hasOptimalSolver()). A
 // step that is already done gives length 0 and one empty solution.
 std::optional<StepOptimum> solveStep(const CubieCube &cube, SolveStep step,
                                      int maxSolutions = 8);

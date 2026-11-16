@@ -148,12 +148,12 @@ struct LabWindow {
 struct LabStats {
   int attempts = 0; // every attempt in the window
   int used = 0;     // after warm-up, deviations and the trim
-  int dnfs = 0;     // of the attempts after warm-up and deviations
+  int timed = 0;    // after warm-up and deviations: the times and the DNFs
+  int dnfs = 0;     // of those
   int deviated = 0; // left out for leaving the alg
   std::optional<std::int64_t> mean, median, best, worst;
-  std::optional<double> sd;    // milliseconds
-  StatValue ao5, ao12;         // current
-  StatValue bestAo5, bestAo12; // best rolling
+  std::optional<double> sd; // milliseconds
+  StatValue ao5, ao12;      // current
   double dnfRate() const;
 };
 
@@ -178,7 +178,7 @@ LabStats labStats(std::span<const LabAttempt> attempts, const LabCaseKey &key,
 LabStats statsOf(std::span<const LabAttempt> timed, int trimPercent,
                  int windowAttempts, int deviated);
 
-// Attempts as solves, oldest first, for the charts (DNFs kept).
+// Attempts as solves, oldest first (DNFs kept).
 std::vector<Solve> labSolves(std::span<const LabAttempt> timed);
 
 // The case's state with the alg's lead-in done to it, as a test session

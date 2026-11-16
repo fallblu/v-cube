@@ -98,8 +98,7 @@ public:
   bool practice() const { return practice_; }
 
   // --- the cases solved
-  // The cube shows a case: it is solved from here. `algs` its algs as
-  // done from there, main first.
+  // The cube shows a case: it is solved from here.
   void startLink(const CaseView &view, const FaceletCube &start,
                  const CubieCube &state);
   // The algs of the case being solved (again, e.g. after an edit).

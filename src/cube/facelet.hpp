@@ -87,8 +87,8 @@ const FlatLayout &flatLayout();
 // Whether a sticker at `pos` (a cubie centre) belongs to the layer(s) that
 // the move type turns.
 bool moveTurnsCubie(MoveType t, Vec3i pos);
-// Axis (0 x, 1 y, 2 z) and the sense of a single clockwise quarter turn as a
-// right-handed rotation about the positive axis (+1 or -1).
+// The sense of a single clockwise quarter turn as a right-handed rotation
+// about the positive axis (+1 or -1).
 int moveRotationSign(MoveType t);
 
 // The 24 whole-cube orientations, each as a rotation sequence from the
