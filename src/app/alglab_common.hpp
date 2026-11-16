@@ -63,8 +63,6 @@ public:
   bool operator<(const QTableWidgetItem &other) const override;
 };
 
-// Where the profile chosen for Alg Lab's scores is kept (QSettings).
-
 // The grip profile that shows fingertricks: `chosen` (a profile's name)
 // when it is a grip profile, else the first grip profile; null if there
 // is none.

@@ -27,34 +27,29 @@ namespace vcube {
 
 namespace {
 
+// The Moves, TPS, Cross (EO Cross in a ZZ solve), F2L and LL columns come
+// from a virtual solve's move times.
 std::vector<AttemptColumn> columns(bool virt) {
-  auto col = [](const char *id, const QString &title, const QString &tip,
-                bool hideable, bool available) {
+  auto col = [](const char *id, const QString &title, bool hideable,
+                bool available) {
     AttemptColumn c;
     c.id = id;
     c.title = title;
-    c.tip = tip;
     c.fit = true;
     c.hideable = hideable;
     c.available = available;
     return c;
   };
   return {
-      col("#", "#", {}, false, true),
-      col("time", QObject::tr("Time"), {}, false, true),
-      col("ao5", "ao5", {}, true, true),
-      col("ao12", "ao12", {}, true, true),
-      col("moves", QObject::tr("Moves"),
-          QObject::tr("The solve's move count (HTM)"), true, virt),
-      col("tps", QObject::tr("TPS"),
-          QObject::tr("Moves per second over the whole solve"), true, virt),
-      col("cross", QObject::tr("Cross"),
-          QObject::tr("Time to the cross (EO Cross in a ZZ solve)"), true,
-          virt),
-      col("f2l", QObject::tr("F2L"),
-          QObject::tr("Time from the cross to the end of the F2L"), true, virt),
-      col("ll", QObject::tr("LL"),
-          QObject::tr("Time from the F2L to the end of the solve"), true, virt),
+      col("#", "#", false, true),
+      col("time", QObject::tr("Time"), false, true),
+      col("ao5", "ao5", true, true),
+      col("ao12", "ao12", true, true),
+      col("moves", QObject::tr("Moves"), true, virt),
+      col("tps", QObject::tr("TPS"), true, virt),
+      col("cross", QObject::tr("Cross"), true, virt),
+      col("f2l", QObject::tr("F2L"), true, virt),
+      col("ll", QObject::tr("LL"), true, virt),
   };
 }
 
@@ -66,9 +61,6 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
       feed_(library), eoCheck_(settings) {
   // --- left column: sessions, stats, times ---
   panel_ = new SessionPanel(this);
-  panel_->setMenuTip(
-      tr("Switch, add, rename or delete sessions, or import and export "
-         "cstimer sessions"));
   panel_->setStatsClickable(true);
   panel_->setDeleteRowVisible(true);
   panel_->setStretchLast(true);

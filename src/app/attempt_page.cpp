@@ -94,8 +94,6 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
       feed_(library), moveCountFlow_(moveCount) {
   // --- left column: sessions, stats, attempts ---
   panel_ = new SessionPanel(this);
-  panel_->setMenuTip(
-      tr("Switch, add, rename or delete sessions, or retry the worst solves"));
   panel_->setStatsClickable(true);
   panel_->setDeleteRowVisible(true);
 
@@ -752,7 +750,6 @@ void AttemptPage::refreshSessionMenu() {
     menu->addSeparator();
     QAction *worst = menu->addAction(tr("Retry the worst %1").arg(kWorst), this,
                                      &AttemptPage::retryWorst);
-    worst->setToolTip(retryWorstTip());
     worst->setEnabled(!session().attempts.empty());
   }
 }
@@ -820,18 +817,6 @@ void AttemptPage::refreshAttempts() {
     row.cells.push_back(number);
     addCells(row.cells, a, counted[i] ? movesText(ao5[*counted[i]]) : "-",
              counted[i] ? movesText(ao12[*counted[i]]) : "-");
-    QStringList tip;
-    if (!a.comment.empty()) {
-      tip << tr("Comment: %1").arg(qs(a.comment));
-    }
-    tip << dateText(a.timestamp);
-    tip << tr("Scramble: %1").arg(qs(a.scramble));
-    if (!a.solution.empty()) {
-      tip << tr("Solution: %1").arg(qs(a.solution));
-    }
-    for (AttemptCell &cell : row.cells) {
-      cell.tip = tip.join("\n");
-    }
     rows.push_back(std::move(row));
   }
   panel_->setRows(std::move(rows));

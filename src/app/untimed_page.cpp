@@ -137,10 +137,6 @@ QString UntimedPage::notReachedText() const {
   return tr("DNF: the cube wasn't solved when you pressed Space");
 }
 
-QString UntimedPage::retryWorstTip() const {
-  return tr("Retry the DNFs and the longest solves, one after another");
-}
-
 void UntimedPage::describeReview(ReviewedSolve &solve, int index) const {
   solve.title = tr("Solve #%1").arg(index + 1);
 }

@@ -104,9 +104,6 @@ QLabel *helpLabel(const QString &text, QWidget *parent);
 // Writes the tooltip of each field of the form under it as a helpLabel.
 void showTipsAsHelp(QFormLayout *form);
 
-// The two-item drop-down "Virtual cube" / "Physical cube".
-QComboBox *createCubeKindBox(QWidget *parent);
-
 // The right-hand side of a mode that solves scrambles (Timed, Untimed,
 // Move Count): the option bar, the scramble with its net, then, centred,
 // the cube, the readout, a hint, the focus-mode statistics and a row of

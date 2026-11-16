@@ -38,7 +38,6 @@ protected:
   Hint solvingHint() const override;
   bool reached(const FaceletCube &cube) const override;
   QString notReachedText() const override;
-  QString retryWorstTip() const override;
   void describeReview(ReviewedSolve &solve, int index) const override;
   QString suggestedName() const override;
   QString newSessionLabel() const override;

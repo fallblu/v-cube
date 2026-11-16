@@ -39,7 +39,6 @@ protected:
   bool reached(const FaceletCube &cube) const override;
   QString notReachedText() const override;
   QString retryNote(const MoveCountAttempt &was) const override;
-  QString retryWorstTip() const override;
   bool reviewable(const MoveCountAttempt &a) const override;
   void describeReview(ReviewedSolve &solve, int index) const override;
   void addDetails(QList<QPair<QString, QString>> &rows,

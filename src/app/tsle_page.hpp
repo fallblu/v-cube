@@ -35,8 +35,8 @@ namespace vcube {
 //   Next trigger   a state at a random AUF: do the next step; it is
 //                  judged as good or not, and against the best one
 //   Full TSLE      the whole step, compared trigger by trigger
-//   Case explorer  the cases with their good triggers; the list follows
-//                  the cube as triggers are done
+//   Case explorer  the cases with their good triggers; the triggers
+//                  listed follow the cube as they are done
 //
 // Next trigger and Full TSLE are timed from the moment a state is shown,
 // so each opens on a ready page: nothing is shown until Space.

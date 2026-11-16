@@ -32,8 +32,6 @@ namespace vcube {
 
 namespace {
 
-// Keys are ignored this long after the timer stops, so that a second press
-// of the stop key doesn't go on to the next alg.
 constexpr int kDiagramSize = 120;
 
 QTableWidgetItem *item(const QString &text, bool number = false) {

@@ -22,8 +22,8 @@ struct DrillSettings {
   // How long Space is held before the timer can start (ms).
   int holdMs = 300;
   static constexpr int kMaxHoldMs = 2000;
-  // Shift+Space gives a case up; off: Backspace does, as in earlier
-  // versions (when it also toggles the DNF afterwards).
+  // Shift+Space gives a case up; off: Backspace does (and also toggles
+  // the DNF afterwards).
   bool shiftSpaceGivesUp = true;
   // After a DNF, Space practises the case (with the algs, then without)
   // rather than going on to the next case.

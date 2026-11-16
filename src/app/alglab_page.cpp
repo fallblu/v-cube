@@ -175,6 +175,8 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
       ps.erase(ps.begin() + i);
       saveStore();
       fillProfiles();
+      // The box fell back to another profile: that is the one chosen now.
+      saved::lab("scoreProfile").set(profileBox_->currentText());
       scoreCache_.clear();
       fillTable();
     }

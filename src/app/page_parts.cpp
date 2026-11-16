@@ -73,7 +73,8 @@ void showTipsAsHelp(QFormLayout *form) {
   }
 }
 
-QComboBox *createCubeKindBox(QWidget *parent) {
+// The two-item drop-down "Virtual cube" / "Physical cube".
+static QComboBox *createCubeKindBox(QWidget *parent) {
   auto *box = new QComboBox(parent);
   box->setFocusPolicy(Qt::NoFocus);
   box->addItem(QObject::tr("Virtual cube"));
