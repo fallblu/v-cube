@@ -645,15 +645,16 @@ void GuiTest::f2lDrills() {
   options.config = f2l->config();
   options.profile = builtinErgoProfiles().front();
   CubieCube state = f2l->startState();
-  int pairs = 0;
-  for (; !f2lDone(state, options.config); ++pairs) {
-    QVERIFY(pairs < 4);
+  Alg typed;
+  for (int algs = 0; !f2lDone(state, options.config); ++algs) {
+    QVERIFY(algs < 4);
     std::vector<PairRank> ranks = rankPairs(state, options);
     QVERIFY(!ranks.empty());
     const Alg &alg = ranks.front().pair.best()->alg;
     QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
     typeMoves(alg);
     state.apply(alg);
+    typed.insert(typed.end(), alg.begin(), alg.end());
   }
   QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
   // A front slot is left, unless an alg happened to solve a second slot
@@ -664,8 +665,14 @@ void GuiTest::f2lDrills() {
   }
   QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
   QCOMPARE(f2l->stats().fulls.size(), std::size_t{1});
-  // One pair per alg done: three, or fewer when one solved two slots.
-  QVERIFY(pairs >= 2 && pairs <= 4);
+  // One pair each time the solve had more slots solved than before. That
+  // needn't be one per alg: an alg can solve a second slot on its way.
+  int pairs = 0;
+  for (const F2LSegment &seg :
+       f2lSegments(f2l->startState(), typed, f2l->config())) {
+    pairs += f2lDone(seg.before, f2l->config()) ? 0 : 1;
+  }
+  QVERIFY(pairs >= 1 && pairs <= 4);
   QCOMPARE(f2l->stats().fulls.back().pairs, pairs);
 
   // The Case explorer sets the chosen case up and records nothing.
@@ -797,16 +804,18 @@ void GuiTest::tsleDrills() {
   // Full TSLE: the best way, step by step, ends it.
   begin(TslePage::Drill::Full);
   QVERIFY(tsleStepsLeft(tsle->startState()) >= 2);
-  int best_moves = tsle->solver(tsle->slot()).movesLeft(tsle->startState());
+  // Counted a step at a time, so moves that cancel between steps count.
+  int stepMoves = 0;
   for (const Alg &step :
        tsle->solver(tsle->slot()).bestPath(tsle->startState())) {
     QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
     typeMoves(step);
+    stepMoves += htmCount(simplify(step));
   }
   QCOMPARE(tsle->phase(), TslePage::Phase::Done);
   QVERIFY(tsle->currentState() && tsle->currentState()->done());
   QCOMPARE(tsle->progress().fulls.size(), std::size_t{1});
-  QVERIFY(tsle->progress().fulls.back().moves <= best_moves + 2);
+  QCOMPARE(tsle->progress().fulls.back().moves, stepMoves);
 
   // The Case explorer follows the cube down a chain.
   TsleState deep = tsleCases().back();
