@@ -104,7 +104,12 @@ F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
   QFont pf = prompt_->font();
   pf.setPointSizeF(pf.pointSizeF() * 1.3);
   prompt_->setFont(pf);
-  display_ = new TimeDisplay(right);
+  display_ = new QLabel(right);
+  display_->setAlignment(Qt::AlignCenter);
+  display_->setTextFormat(Qt::RichText);
+  QFont df = display_->font();
+  df.setPointSizeF(df.pointSizeF() * 1.8);
+  display_->setFont(df);
   hint_ = new HintBar(right);
   result_ = new QLabel(right);
   result_->setObjectName("f2lResult");
@@ -121,10 +126,10 @@ F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
   scroll->setWidget(result_);
 
   rightLayout->addWidget(prompt_);
-  rightLayout->addWidget(cubeView_, 5);
+  rightLayout->addWidget(cubeView_, 4);
   rightLayout->addWidget(display_);
   rightLayout->addWidget(hint_);
-  rightLayout->addWidget(scroll, 4);
+  rightLayout->addWidget(scroll, 5);
 
   auto *split = new QSplitter(this);
   split->setObjectName("main");
@@ -451,7 +456,6 @@ void F2LPage::applySettings() {
   look.scheme = settings_.scheme;
   cubeView_->setLook(look);
   cubeView_->setAnimationMs(settings_.animationMs);
-  display_->setDecimals(settings_.decimals);
   fillTree();
   if (active_) {
     showPrompt();
@@ -586,7 +590,7 @@ void F2LPage::startRound(const CubieCube &state, std::optional<Slot> target) {
   round_.began = monotonicMs();
   display_->setVisible(phase_ == Phase::Solving);
   if (phase_ == Phase::Solving) {
-    display_->showTime(0);
+    display_->setText(clockText(0));
     clock_.start();
   } else {
     clock_.stop();
@@ -675,9 +679,10 @@ void F2LPage::finish(bool gaveUp) {
   clock_.stop();
   phase_ = Phase::Done;
   if (gaveUp) {
-    display_->showText(tr("Gave up"), kFailColour);
+    display_->setText(QString("<span style='color:%1'>%2</span>")
+                          .arg(kFailColour.name(), tr("Gave up")));
   } else {
-    display_->showTime(round_.ms);
+    display_->setText(clockText(round_.ms));
   }
   stepping_ = false;
   if (drill_ == Drill::Full) {
@@ -848,9 +853,14 @@ void F2LPage::showKeys() {
   hint_->setHint(message, keys);
 }
 
+QString F2LPage::clockText(std::int64_t ms) const {
+  return QString::number(static_cast<double>(ms) / 1000.0, 'f',
+                         settings_.decimals);
+}
+
 void F2LPage::showClock() {
   if (phase_ == Phase::Solving) {
-    display_->showTime(monotonicMs() - round_.began);
+    display_->setText(clockText(monotonicMs() - round_.began));
   }
 }
 

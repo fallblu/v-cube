@@ -154,7 +154,7 @@ private:
   QWidget *contextItem_;
   QLabel *prompt_;
   CubeView *cubeView_;
-  TimeDisplay *display_;
+  QLabel *display_;
   HintBar *hint_;
   QLabel *result_;
   QTimer clock_;
@@ -181,6 +181,7 @@ private:
   void showPrompt();
   void showKeys();
   void showClock();
+  QString clockText(std::int64_t ms) const;
   bool initiallySolvedKept(const CubieCube &c) const;
 
   // --- stepping through a solution

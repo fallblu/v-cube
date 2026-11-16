@@ -171,6 +171,31 @@ Alg ordered(Alg alg) {
   return alg;
 }
 
+// Whether the moves solve a slot's pair from a state, keeping the base and
+// the slots that were solved.
+bool solvesPair(const CubieCube &state, Slot slot, const Alg &alg,
+                const F2LConfig &config) {
+  auto c = afterAlg(state, alg);
+  return c && f2lBase(*c, config) && slotSolved(*c, slot) &&
+         std::all_of(kF2LSlots.begin(), kF2LSlots.end(), [&](Slot s) {
+           return !slotSolved(state, s) || slotSolved(*c, s);
+         });
+}
+
+// A solution with a turn it doesn't need: without it the pair is solved
+// all the same (a U turn slipped in beside a D turn, say).
+bool hasSpareTurn(const CubieCube &state, Slot slot, const Alg &alg,
+                  const F2LConfig &config) {
+  for (std::size_t i = 0; i < alg.size(); ++i) {
+    Alg without = alg;
+    without.erase(without.begin() + static_cast<std::ptrdiff_t>(i));
+    if (solvesPair(state, slot, without, config)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 struct Plan {
   double cost = 0.0;
   int moves = 0;
@@ -718,8 +743,10 @@ PairAnalysis analysePair(const CubieCube &state, Slot slot,
   std::vector<RankedSolution> ranked;
   ranked.reserve(found.algs.size());
   for (Alg &alg : found.algs) {
-    if (simplify(alg).size() != alg.size()) {
-      continue; // turns that cancel: a shorter solution written long
+    if (simplify(alg).size() != alg.size() ||
+        (static_cast<int>(alg.size()) > found.shortest &&
+         hasSpareTurn(state, slot, alg, options.config))) {
+      continue; // a shorter solution written long
     }
     RankedSolution r;
     r.htm = htmCount(alg);
