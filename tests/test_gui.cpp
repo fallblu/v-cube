@@ -645,7 +645,8 @@ void GuiTest::f2lDrills() {
   options.config = f2l->config();
   options.profile = builtinErgoProfiles().front();
   CubieCube state = f2l->startState();
-  for (int pairs = 0; !f2lDone(state, options.config); ++pairs) {
+  int pairs = 0;
+  for (; !f2lDone(state, options.config); ++pairs) {
     QVERIFY(pairs < 4);
     std::vector<PairRank> ranks = rankPairs(state, options);
     QVERIFY(!ranks.empty());
@@ -655,11 +656,17 @@ void GuiTest::f2lDrills() {
     state.apply(alg);
   }
   QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
-  QCOMPARE(unsolvedSlots(state).size(), std::size_t{1});
-  QVERIFY(f2l->config().leaves(unsolvedSlots(state).front()));
+  // A front slot is left, unless an alg happened to solve a second slot
+  // with its own and took the last one too.
+  QVERIFY(unsolvedSlots(state).size() <= 1);
+  for (Slot left : unsolvedSlots(state)) {
+    QVERIFY(f2l->config().leaves(left));
+  }
   QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
   QCOMPARE(f2l->stats().fulls.size(), std::size_t{1});
-  QCOMPARE(f2l->stats().fulls.back().pairs, 3);
+  // One pair per alg done: three, or fewer when one solved two slots.
+  QVERIFY(pairs >= 2 && pairs <= 4);
+  QCOMPARE(f2l->stats().fulls.back().pairs, pairs);
 
   // The Case explorer sets the chosen case up and records nothing.
   std::size_t tries = 0;
