@@ -1,6 +1,6 @@
 # Keys
 
-<!-- Written from src/app/help_text.cpp by the test "keys.md matches the key table": edit the table, not this file. -->
+<!-- Written from src/app/help_text.cpp by the GUI test (run it with VCUBE_WRITE_DOCS=1): edit the table, not this file. -->
 
 Every keyboard control, mode by mode. In the app, `F1` shows the same controls in a panel beside the page, the current mode's first, with your own turning keys. The [user guide](user-guide.md) says more about what each mode does.
 
@@ -14,7 +14,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
-| F9 | show or hide the mode's side panel (the case list or the session) |
+| F9 | show or hide the mode's side panel (the case list, the session or the case browser) |
 | F11 | full screen |
 | F10 | focus mode (right-click outside the scramble, timer, cube and algs to switch it, full screen or the sidebar with the mouse) |
 | Ctrl+B | show or hide the sidebar |
@@ -78,7 +78,7 @@ Before a solve starts, the cube only turns as a whole (rotations), so that a sli
 | --- | --- | --- |
 | virtual, waiting | tap Space, then turn | arm the timer; the first face turn starts it (Settings > Timing and solves can have Space held and let go instead; a turn made while Space is held and green starts it too) |
 | virtual, waiting | turning keys | rotations only until the timer starts |
-| physical, waiting | hold Space, release | start, once the time turns green (Drill's own hold time, Settings > Drill) |
+| physical, waiting | hold Space, release | start, once the time turns green (Drill's own hold time, Settings > Timing and solves) |
 | waiting | Esc | disarm the timer and set the case up as it was |
 | waiting, running | Shift+Space | give the case up (a DNF). Settings > Drill can make Backspace the give-up key instead. |
 | waiting | Backspace | says which key gives up (with Shift+Space as the give-up key) |
@@ -128,7 +128,7 @@ Ctrl- or Shift-click selects several cases.
 
 | When | Key | Action |
 | --- | --- | --- |
-| before a solve | hold Space, release | start, once the time turns green (the hold time is in Settings > Solves). With inspection on, tap Space first to start inspecting. |
+| before a solve | hold Space, release | start, once the time turns green (the hold time is in Settings > Timing and solves). With inspection on, tap Space first to start inspecting. |
 | before a solve, virtual | turning keys | rotations only |
 | inspection, hold, solve | Esc | cancel (the scramble is put back on the virtual cube) |
 | physical, running | any key | stop |
