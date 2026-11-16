@@ -9,13 +9,6 @@ add_library(vcube_gui STATIC
   app_data.cpp
   app_settings.cpp
   attempt_page.cpp
-  blind_drill.cpp
-  blind_page.cpp
-  blind_quiz_drill.cpp
-  blind_setup_drill.cpp
-  blind_solves_drill.cpp
-  blind_tracing_drill.cpp
-  bld_scheme_dialog.cpp
   case_filter.cpp
   case_history_dialog.cpp
   case_list_panel.cpp
@@ -35,13 +28,12 @@ add_library(vcube_gui STATIC
   flow_layout.cpp
   help_panel.cpp
   help_text.cpp
+  eo_cross_page.cpp
+  eo_cross_page_results.cpp
   f2l_page.cpp
   tsle_page.cpp
   tsle_page_results.cpp
   f2l_page_results.cpp
-  inspection_attempts.cpp
-  inspection_page.cpp
-  inspection_sessions.cpp
   key_router.cpp
   lab_chart.cpp
   lab_test_panel.cpp

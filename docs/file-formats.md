@@ -14,10 +14,9 @@ anyone who wants to back them up, move them, or edit an alg set by hand.
 | Timed sessions | `~/.local/share/v-cube/sessions.json` | `%LOCALAPPDATA%\v-cube\sessions.json` |
 | Untimed sessions | `~/.local/share/v-cube/untimed.json` | `%LOCALAPPDATA%\v-cube\untimed.json` |
 | Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
-| Inspection sessions | `~/.local/share/v-cube/inspection.json` | `%LOCALAPPDATA%\v-cube\inspection.json` |
+| EO Cross statistics | `~/.local/share/v-cube/eocross.json` | `%LOCALAPPDATA%\v-cube\eocross.json` |
 | F2L statistics | `~/.local/share/v-cube/f2l.json` | `%LOCALAPPDATA%\v-cube\f2l.json` |
 | TSLE progress | `~/.local/share/v-cube/tsle.json` | `%LOCALAPPDATA%\v-cube\tsle.json` |
-| Blind sessions and drill statistics | `~/.local/share/v-cube/blind.json` | `%LOCALAPPDATA%\v-cube\blind.json` |
 | Alg Lab (lab cases, candidates, test sessions, times, profiles) | `~/.local/share/v-cube/alglab.json` | `%LOCALAPPDATA%\v-cube\alglab.json` |
 | Daily backups | `~/.local/share/v-cube/backups/` | `%LOCALAPPDATA%\v-cube\backups\` |
 | Settings (theme, colours, keys, per-set and per-mode choices) | `~/.config/v-cube/v-cube.ini` | `%APPDATA%\v-cube\v-cube.ini` |
@@ -90,10 +89,9 @@ Every data file is a JSON object that starts with a `format` and a
 | Timed sessions | `v-cube.sessions` | yes (older files have none) |
 | Untimed sessions | `v-cube.untimed` | no |
 | Move Count sessions | `v-cube.movecount` | no |
-| Inspection sessions | `v-cube.inspection` | no |
+| EO Cross | `v-cube.eocross` | no |
 | F2L | `v-cube.f2l` | no |
 | TSLE | `v-cube.tsle` | no |
-| Blind | `v-cube.blind` | no |
 | Alg Lab | `v-cube.alglab` | no |
 
 Every format is at version 1 but Alg Lab's, at version 2 (version 2 added
@@ -361,47 +359,49 @@ cstimer's "Import from file" would replace all your data.
 A new Untimed file starts with one session; a new Move Count file with one
 virtual-cube session per step.
 
-## Inspection sessions
+## EO Cross
 
-`inspection.json` (`"v-cube.inspection"`), with `current` and `sessions`
-as above. A session is a Plan session or a Bad edges session:
+`eocross.json` (`"v-cube.eocross"`), EO Cross mode's statistics:
 
-| Session key | Meaning |
-| --- | --- |
-| `name` | |
-| `drill` | `"plan"` (default) or `"edges"` |
-| `step` | Plan: `eo`, `eoline`, `eo+1`, `eo+2` or `eocross` (default and fallback `eocross`) |
-| `pair` | Plan, EO Cross only, optional: the pair tracked after the cross, `fr`, `fl`, `bl` or `br` |
-| `limit` | Plan, optional: the inspection limit in seconds (up to 3600); none without it |
-| `wca` | Plan, optional, `true` with a `limit` of 15: WCA inspection, with the calls at 8 and 12 s |
-| `axes` | Bad edges: `"fb"`, `"rl"` or `"both"` (default) |
-| `attempts` | Oldest first |
+```json
+{
+  "format": "v-cube.eocross", "version": 1,
+  "kinds": {
+    "solve/eocross/6": [
+      {"timestamp": 1794000000, "ms": 9310, "moves": 13, "best": 11,
+       "excess": 2, "hint": true}
+    ],
+    "plan/eo+2/4": [{"timestamp": 1794000000, "ms": 7200, "best": 6,
+                     "gaveUp": true}],
+    "full/8": [], "edges/4": [], "axis/eoline": []
+  }
+}
+```
 
-Every attempt has `scramble`, `timestamp`, `ms` (Plan: the inspection time
-used; Bad edges: the time to the last answer) and an optional `comment`.
+`kinds` has the last 50 tries of each kind of state in each drill. A key
+is the drill (`edges`, `axis`, `plan`, `solve` or `full`), then the step
+for the drills that have one (`axis`, `plan`, `solve`: `eo`, `eoline`,
+`eo+1`, `eo+2` or `eocross`), then the number of edges bad for the
+front-back axis as the cube was first shown (0, 2, ... 12; not for
+`axis`). A try is written as F2L mode's are, and its numbers mean:
 
-| Plan attempt key | Meaning |
-| --- | --- |
-| `moves` | Moves done with the cube hidden (HTM); with a pair tracked, those to EO Cross |
-| `dnf` | Optional, `true`: the step wasn't done |
-| `solution` | Optional: the moves as done |
-| `optimal` | Optional: the optimal length in your colour neutrality's holds (either EO axis) |
-| `hold` | Optional: the hold the step was done in |
-| `pair`, `pairMoves` | Optional, with a pair tracked: whether it was solved, and the moves after EO Cross |
+| Drill | `ms` | `moves` | `best` | `excess` |
+| --- | --- | --- | --- | --- |
+| `edges` | to the last answer | the F/B count given | the right one | how far off the counts were, over the axes asked |
+| `axis` | to the pick | the optimum of the hold picked | the best hold's | their difference |
+| `plan` | the inspection time used | the moves done unseen | the optimum over your holds | the moves over it |
+| `solve`, `full` | from the first look to the step done | the moves done | the optimum over your holds | the moves over it |
 
-| Bad edges attempt key | Meaning |
-| --- | --- |
-| `hold` | The hold the cube was shown in |
-| `fb`, `rl` | The counts given for the F/B and R/L axes, for the axes asked |
-| `fbCorrect`, `rlCorrect` | The right counts |
+`gaveUp` is also written for a plan that didn't do its step and for an
+Axis choice that ran out of time off your holds; `moves` and `excess` are
+then left out. Keys that aren't kinds are dropped on reading.
 
-A hold is two digits, the top and front faces in `URFDLB` order counted
-from 0, in the WCA scrambling orientation (U white, R red, F green, D
-yellow, L orange, B blue): `02` is white top, green front, and `35` yellow
-top, blue front.
+The mode's choices (drill, step, the bad edges pinned, axes, inspection
+time) are in the settings file under `[eocross]`.
 
-A new file starts with EO, EO+2 and EO Cross Plan sessions (WCA inspection)
-and a Bad edges session for both axes.
+`inspection.json` and `blind.json`, the files of the Inspection and Blind
+modes of earlier versions, are no longer read or written; they are left
+where they are.
 
 ## F2L
 
@@ -479,40 +479,6 @@ solutions use, the stage) are in the settings file under `[f2l]`.
 
 The mode's choices (drill, last slots, cases) are in the settings file
 under `[tsle]`.
-
-## Blind
-
-`blind.json` (`"v-cube.blind"`):
-
-```json
-{
-  "format": "v-cube.blind", "version": 1, "current": 0,
-  "sessions": [{"name": "Session", "cube": "virtual",
-                "attempts": [{"time": 95000, "memo": 41000, "scramble": "...",
-                              "timestamp": 1762800000, "dnf": true,
-                              "solution": "x2 ...", "comment": ""}]}],
-  "quiz": {"edges": {"A": {"attempts": 12, "correct": 11, "ms": 9800}},
-           "corners": {}},
-  "setups": {"edges": {}, "corners": {}},
-  "tracing": [{"time": 52000, "timestamp": 1762800000,
-               "edges": true, "corners": false}]
-}
-```
-
-- `sessions`: blind solve sessions, each with a `name`, a `cube`
-  (default `"virtual"`) and `attempts`: `time` (memo and execution, ms),
-  `memo` (ms), `scramble`, `timestamp`, and optionally `dnf`, `solution`
-  (virtual cube: starting with the rotation from the WCA hold to the blind
-  hold) and `comment`.
-- `quiz` and `setups`: the letter quiz's and the setup drill's statistics,
-  for `edges` and `corners`, by sticker, keyed by the sticker's Speffz
-  letter (`A` to `X`) whatever your lettering: `attempts`, `correct` and
-  `ms` (the total time of the right answers, each counted up to 30 s).
-- `tracing`: the memo traces, oldest first, at most the last 1000: the
-  `time` taken, when, and whether the `edges` and `corners` were right.
-
-The lettering, your own setups and the blind hold are in the settings file
-under `[blind]`.
 
 ## Alg Lab
 

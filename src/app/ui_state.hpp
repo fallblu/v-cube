@@ -118,20 +118,10 @@ Stored<bool> showAlgs(const QString &key);
 // --- the solve review
 Stored<QString> reviewPairSet();
 
-// --- Timed, Inspection and Blind
+// --- Timed
 Stored<QStringList> timedHiddenColumns();
 // A session table's hidden columns, under the key its page gives.
 Stored<QStringList> hiddenSessionColumns(const QString &key);
-Stored<int> inspectionChart();
-Stored<int> blindDrill();
-Stored<int> blindQuizPieces();
-Stored<int> blindQuizDirection();
-Stored<int> blindSetupPieces();
-Stored<int> blindSetupMode();
-// The letter scheme and setups (lists of 24) and the blind hold.
-Stored<QStringList> blindList(const QString &name);
-Stored<int> blindHoldTop(int fallback);
-Stored<int> blindHoldFront(int fallback);
 
 // Alg Lab's choices, kept as "alglab/<name>": source, case, tab, filter,
 // noRotations, maxHtm, statsCube, statsWindow (the Search tab), moveSet,
@@ -143,6 +133,9 @@ Stored<QVariant> lab(const char *name, const QVariant &fallback = {});
 // slots that may be left), dMoves, halfFB, wide, stage, slot and context.
 Stored<QVariant> f2l(const char *name, const QVariant &fallback = {});
 
+// EO Cross mode's choices, kept as "eocross/<name>": drill, step, bad (the
+// bad edges pinned, -1 for any), axes, limit.
+Stored<QVariant> eoCross(const char *name, const QVariant &fallback = {});
 // TSLE mode's choices, kept as "tsle/<name>": drill, slots (the last
 // slots practised), allCases and slot (the Case explorer's).
 Stored<QVariant> tsle(const char *name, const QVariant &fallback = {});

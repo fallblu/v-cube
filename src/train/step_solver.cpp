@@ -663,11 +663,22 @@ std::optional<int> stepDistance(const CubieCube &cube, SolveStep step) {
 std::vector<HeldOptimum> solveStepHeld(const Alg &scramble, SolveStep step,
                                        const std::vector<Hold> &holds,
                                        int maxSolutions) {
+  return solveStepHeld(cubieOf(scramble), step, holds, maxSolutions);
+}
+
+bool sameStepProblem(Hold a, Hold b, SolveStep step) {
+  return isValidHold(a) && isValidHold(b) &&
+         problemKey(a, step) == problemKey(b, step);
+}
+
+std::vector<HeldOptimum> solveStepHeld(const CubieCube &scrambled,
+                                       SolveStep step,
+                                       const std::vector<Hold> &holds,
+                                       int maxSolutions) {
   std::vector<HeldOptimum> out;
   if (!hasOptimalSolver(step)) {
     return out;
   }
-  CubieCube scrambled = cubieOf(scramble);
   for (Hold h : distinctHolds(holds, step)) {
     if (auto opt = solveStep(solverState(scrambled, h), step, maxSolutions)) {
       out.push_back({h, std::move(*opt)});

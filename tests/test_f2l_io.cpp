@@ -81,7 +81,7 @@ TEST_CASE("an F2L file is read with care", "[f2l][io]") {
   QString path = QDir(dir.path()).filePath("f2l.json");
   QFile f(path);
   REQUIRE(f.open(QIODevice::WriteOnly));
-  f.write("{\"format\": \"v-cube.blind\"}");
+  f.write("{\"format\": \"v-cube.tsle\"}");
   f.close();
   F2LStore store(path);
   QString error;

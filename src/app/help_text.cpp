@@ -52,10 +52,10 @@ const std::vector<Section> &sections() {
        kNoMode,
        {},
        {T("Key"), T("Action")},
-       {{T("Ctrl+1 … Ctrl+9, Ctrl+-, Ctrl+="),
-         T("Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, F2L, "
-           "TSLE, Inspection, Blind, in the sidebar's order (not while a "
-           "solve or inspection is running)")},
+       {{T("Ctrl+1 … Ctrl+9, Ctrl+-"),
+         T("Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, EO "
+           "Cross, F2L, TSLE, in the sidebar's order (not while a solve or "
+           "inspection is running)")},
         {T("Ctrl+0"), T("Today")},
         {T("Ctrl+K"), T("command list: type part of any menu command or of a "
                         "choice on the page (alg set, session, scramble type, "
@@ -295,6 +295,53 @@ const std::vector<Section> &sections() {
        {{T("← / →"), T("step the replay back / forward")},
         {T("Home / End"), T("to the scramble / to the end")}},
        {}},
+      {T("EO Cross"),
+       AppMode::EoCross,
+       {},
+       {T("When"), T("Key"), T("Action")},
+       {{T("ready (every drill)"), T("Space"),
+         T("show the first state; the clock starts then (on opening EO Cross "
+           "or coming back to it, and after picking a drill or an option)")},
+        {T("Bad edges"), T("0-9 / Backspace / Enter"),
+         T("type a count / correct it / give it (F/B first, then R/L if "
+           "asked)")},
+        {T("Bad edges"), T("turning keys"),
+         T("rotations, to look at the cube (also afterwards)")},
+        {T("Bad edges, afterwards"), T("Tab"),
+         T("ring the other axis's bad edges")},
+        {T("Axis choice"), T("turning keys"),
+         T("rotations only: turn the cube to the hold you would solve from")},
+        {T("Axis choice"), T("Space"),
+         T("take the hold the cube is in (the inspection time takes it for "
+           "you when it runs out)")},
+        {T("Plan blind, looking"), T("turning keys"), T("rotations only")},
+        {T("Plan blind, looking"), T("Space"),
+         T("hide the cube and do the plan (the inspection time hides it when "
+           "it runs out)")},
+        {T("Plan blind, cube hidden"), T("turning keys"),
+         T("any turn, unseen")},
+        {T("Plan blind, cube hidden"), T("Space"),
+         T("done: show the cube and how the plan went")},
+        {T("Plan blind, cube hidden"), T("Esc"),
+         T("start the moves again from where the cube was hidden")},
+        {T("Step solutions, Full EO Cross"), T("turning keys"),
+         T("any turn; the state ends by itself when the step is done in one "
+           "of your holds")},
+        {T("Step solutions, Full EO Cross"), T("Tab"),
+         T("a hint: the hold nearest the step, or the next move of an optimal "
+           "solution from here (the try counts as hinted)")},
+        {T("Step solutions, Full EO Cross"), T("Esc"),
+         T("put the cube back as it started")},
+        {T("Axis choice, Plan blind, solving"), T("Backspace"),
+         T("give up and see the solutions")},
+        {T("afterwards"), T("Space"), T("next")},
+        {T("afterwards"), T("Enter / 1-9"),
+         T("play the best solution / the solution with that number from the "
+           "start (or click it)")},
+        {T("afterwards"), T("turning keys"), T("turn the cube freely")},
+        {T("afterwards"), T("Esc"), T("the same state again, not recorded")}},
+       {T("A Space in the moment the inspection time hides the cube is "
+          "ignored, and Space with no moves done doesn't finish a plan.")}},
       {T("F2L"),
        AppMode::F2L,
        {},
@@ -357,72 +404,6 @@ const std::vector<Section> &sections() {
         {T("Case explorer"), T("Space"), T("the case at its next AUF")},
         {T("Case explorer"), T("Esc"), T("back to the case")}},
        {}},
-      {T("Inspection"),
-       AppMode::Inspection,
-       {},
-       {T("When"), T("Key"), T("Action")},
-       {{T("Plan"), T("Space"),
-         T("start inspection (the cube is shown), hide the cube, reveal it, "
-           "then the next scramble")},
-        {T("Plan, inspecting"), T("turning keys"), T("rotations only")},
-        {T("Plan, cube hidden"), T("turning keys"), T("any turn, unseen")},
-        {T("Plan, afterwards"), T("turning keys"),
-         T("rotations, to look at the cube")},
-        {T("any"), T("Esc"),
-         T("put the scramble back (nothing is recorded), or end a retry")},
-        {T("Bad edges"), T("Space"),
-         T("show the cube; afterwards, the next scramble")},
-        {T("Bad edges"), T("0-9 / Backspace / Enter"),
-         T("type a count / correct it / give it (F/B first, then R/L if "
-           "asked)")},
-        {T("Bad edges, afterwards"), T("Tab"),
-         T("ring the other axis's bad edges")},
-        {T("between attempts"), T("Delete / Ctrl+Z"),
-         T("delete the last attempt / put the last deleted attempt back")},
-        {T("between attempts"), T("Alt+R"), T("review the last Plan attempt")},
-        {T("between attempts"), T("Ctrl+→"), T("skip the scramble")}},
-       {T("A Space in the moment the time limit hides the cube is ignored, and "
-          "Space with no moves done doesn't finish.")}},
-      {T("Blind"),
-       AppMode::Blind,
-       {},
-       {T("Drill"), T("Key"), T("Action")},
-       {{T("Letter quiz, Setup moves, ready"), T("Space"),
-         T("show the first letter; it is timed from then (on opening the "
-           "drill or coming back to it)")},
-        {T("Letter quiz"), T("letter keys"), T("answer")},
-        {T("Letter quiz"), T("Enter / Backspace"),
-         T("answer a longer label / correct")},
-        {T("Letter quiz"), T("click a sticker on the net"),
-         T("answer a letter → sticker question")},
-        {T("Letter quiz, Setup moves"), T("Space"),
-         T("next letter; before an answer, give the letter up or skip it (not "
-           "for half a second after the quiz moved on by itself)")},
-        {T("Setup moves"), T("turning keys"), T("do the setup")},
-        {T("Setup moves"), T("Esc"),
-         T("start the setup again (after it: try the letter again)")},
-        {T("Setup moves, Type it"), T("Esc outside the field"),
-         T("give the letter up")},
-        {T("Memo tracing"), T("Space"), T("new scramble")},
-        {T("Memo tracing"), T("Enter (or Tab)"),
-         T("type the letters: Enter after the edges, Enter again to check")},
-        {T("Memo tracing"), T("turning keys"),
-         T("rotations, to look at the cube (also after the trace)")},
-        {T("Memo tracing"), T("Esc"), T("give the scramble up")},
-        {T("Blind solves, virtual"), T("Space"),
-         T("start the memo and the timer, start the execution (hides the "
-           "cube), stop")},
-        {T("Blind solves, virtual"), T("turning keys"),
-         T("rotations during the memo, any turn during the execution, "
-           "rotations afterwards")},
-        {T("Blind solves, physical"), T("Space / any key"),
-         T("start, end the memo / stop")},
-        {T("Blind solves, physical, after a solve"), T("Backspace"),
-         T("toggle DNF")},
-        {T("Blind solves, between solves"), T("Delete / Ctrl+Z"),
-         T("delete the last solve / put the last deleted solve back")},
-        {T("Blind solves"), T("Esc"), T("cancel")}},
-       {}},
       {T("Alg Lab"),
        AppMode::AlgLab,
        {T("The Search tab is used with the mouse: Enter in the field under the "
@@ -463,7 +444,7 @@ const std::vector<Section> &sections() {
 
 const char *const kTurningIntro = T(
     "The virtual cube (Learn, Drill on the virtual cube, the Solves modes' "
-    "virtual sessions, F2L, TSLE, Inspection, Blind, Alg Lab's virtual test "
+    "virtual sessions, EO Cross, F2L, TSLE, Alg Lab's virtual test "
     "sessions) "
     "is turned with cstimer's face keys. Shift and a face key turns the "
     "wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in "

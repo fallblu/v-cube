@@ -33,7 +33,7 @@ struct CubeLook {
 };
 
 // Marks drawn over stickers, by facelet index: a ring around some (e.g. the
-// sticker a drill asks about) and a short label on others (e.g. a blind
+// sticker a drill asks about) and a short label on others (e.g. a
 // lettering scheme's letters).
 struct StickerMarks {
   std::vector<int> rings;

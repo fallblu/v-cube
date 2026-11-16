@@ -4,14 +4,13 @@
 // QApplication exists, so the user's own data is never read or written.
 #include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
-#include "app/blind_page.hpp"
 #include "app/cube_view.hpp"
 #include "app/drill_page.hpp"
+#include "app/eo_cross_page.hpp"
 #include "app/f2l_page.hpp"
 #include "app/grip_view.hpp"
 #include "app/help_panel.hpp"
 #include "app/help_text.hpp"
-#include "app/inspection_page.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/main_window.hpp"
@@ -283,6 +282,7 @@ private slots:
   void fingertrickGuidance();
   void f2lDrills();
   void tsleDrills();
+  void eoCrossDrills();
   void timedModesWaitForSpace();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
@@ -351,10 +351,10 @@ void GuiTest::initTestCase() {
 
 void GuiTest::modesSwitch() {
   const std::array<ModePage *, AppMode::Count> pages = {
-      page<LearnPage>(),      page<DrillPage>(),   page<LibraryPage>(),
-      page<TimerPage>(),      page<UntimedPage>(), page<MoveCountPage>(),
-      page<InspectionPage>(), page<BlindPage>(),   page<AlgLabPage>(),
-      page<F2LPage>(),        page<TslePage>(),    page<TodayPage>()};
+      page<LearnPage>(),   page<DrillPage>(),   page<LibraryPage>(),
+      page<TimerPage>(),   page<UntimedPage>(), page<MoveCountPage>(),
+      page<EoCrossPage>(), page<AlgLabPage>(),  page<F2LPage>(),
+      page<TslePage>(),    page<TodayPage>()};
   for (int m : AppMode::sidebarOrder()) {
     QVERIFY2(switchTo(m, pages[static_cast<std::size_t>(m)]),
              qPrintable(AppMode::label(m)));
@@ -362,6 +362,20 @@ void GuiTest::modesSwitch() {
   }
   // And back to the first, from the last.
   QVERIFY(switchTo(AppMode::Learn, pages[AppMode::Learn]));
+
+  // Practice is EO Cross, F2L, TSLE, at the end of the sidebar.
+  const auto &order = AppMode::sidebarOrder();
+  QCOMPARE(order[order.size() - 3], AppMode::EoCross);
+  QCOMPARE(order[order.size() - 2], AppMode::F2L);
+  QCOMPARE(order[order.size() - 1], AppMode::Tsle);
+  QCOMPARE(AppMode::sidebarHeader(AppMode::EoCross), QString("PRACTICE"));
+  QCOMPARE(AppMode::shortcut(AppMode::EoCross),
+           QKeySequence(Qt::CTRL | Qt::Key_8));
+  QCOMPARE(AppMode::shortcut(AppMode::Tsle),
+           QKeySequence(Qt::CTRL | Qt::Key_Minus));
+  // A window last left in Inspection opens in EO Cross; Blind is gone.
+  QCOMPARE(AppMode::fromSettingsId("inspection"), int(AppMode::EoCross));
+  QCOMPARE(AppMode::fromSettingsId("blind"), -1);
 }
 
 void GuiTest::algLabTimesEachAlg() {
@@ -818,6 +832,200 @@ void GuiTest::tsleDrills() {
   tsle->selectDrill(TslePage::Drill::Intro);
 }
 
+void GuiTest::eoCrossDrills() {
+  using Phase = EoCrossPage::Phase;
+  auto *eo = page<EoCrossPage>();
+  QVERIFY(switchTo(AppMode::EoCross, eo));
+  const SolveStep step = SolveStep::EOCross;
+  auto begin = [&](EoDrill d) {
+    eo->selectDrill(d);
+    QCOMPARE(eo->phase(), Phase::Ready);
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+  };
+  auto tries = [&](EoDrill d) {
+    return eo->stats().tries({d, step, eo->roundBadEdges()});
+  };
+  auto *hint = eo->findChild<HintBar *>();
+  QVERIFY(hint);
+  eo->setStep(step);
+  eo->setPinnedBad(4);
+  eo->setLimitSeconds(0);
+  const std::vector<Hold> holds = eo->allowedHolds();
+  QCOMPARE(holds.size(), std::size_t{2}); // one cross, either EO axis
+
+  // Step solutions: the best hold's optimal solution ends the state and
+  // loses nothing.
+  begin(EoDrill::Solve);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  QCOMPARE(eo->roundBadEdges(), 4);
+  QCOMPARE(badEdgeCount(solverState(eo->scrambled(), eo->shownHold()), 0), 4);
+  QCOMPARE(eo->shownHold(), settings_.neutrality.main);
+  std::vector<HeldOptimum> ranked =
+      solveStepHeld(eo->scrambled(), step, holds, 1);
+  QCOMPARE(ranked.size(), std::size_t{2});
+  std::size_t before = tries(EoDrill::Solve).size();
+  QTest::keyClick(window_.get(), Qt::Key_Tab);
+  QVERIFY2(hint->message().startsWith("Hint:"), qPrintable(hint->message()));
+  typeMoves(holdRotation(ranked.front().hold));
+  typeMoves(ranked.front().optimum.solutions.front());
+  QCOMPARE(eo->phase(), Phase::Done);
+  QVERIFY(eo->analysisReady());
+  QCOMPARE(tries(EoDrill::Solve).size(), before + 1);
+  QCOMPARE(tries(EoDrill::Solve).back().excess, 0.0);
+  QCOMPARE(tries(EoDrill::Solve).back().moves, ranked.front().optimum.length);
+  QVERIFY(tries(EoDrill::Solve).back().hint);
+  QVERIFY2(eo->promptHtml().contains("optimal"), qPrintable(eo->promptHtml()));
+  QVERIFY(eo->resultHtml().contains("sol:0"));
+  // The solutions listed do the step from the start.
+  std::vector<EoCrossPage::Solution> shown = eo->shownSolutions();
+  QVERIFY(shown.size() >= 2);
+  QCOMPARE(shown.front().hold, ranked.front().hold);
+  QTest::keyClick(window_.get(), Qt::Key_2);
+  QVERIFY(doneHold(eo->cube(), step, {shown[1].hold}).has_value());
+  // A retry isn't recorded.
+  CubieCube state = eo->scrambled();
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  QVERIFY(eo->scrambled() == state);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QCOMPARE(eo->phase(), Phase::Done);
+  QCOMPARE(tries(EoDrill::Solve).size(), before + 1);
+  QVERIFY(eo->resultHtml().contains("not recorded"));
+
+  // Full EO Cross: EO first, then the rest, broken down afterwards.
+  begin(EoDrill::Full);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  {
+    CubieCube held = solverState(eo->scrambled(), eo->shownHold());
+    Alg first = solveStep(held, SolveStep::EO, 1)->solutions.front();
+    typeMoves(first);
+    QCOMPARE(eo->phase(), Phase::Solving);
+    held.apply(first);
+    typeMoves(solveStep(held, step, 1)->solutions.front());
+  }
+  QCOMPARE(eo->phase(), Phase::Done);
+  QCOMPARE(tries(EoDrill::Full).size(), std::size_t{1});
+  QVERIFY(eo->resultHtml().contains("Where the moves went"));
+
+  // Plan blind: only rotations while looking; the moves are done unseen.
+  begin(EoDrill::Plan);
+  QCOMPARE(eo->phase(), Phase::Inspecting);
+  FaceletCube looked = eo->cube();
+  typeMoves(parseAlgOrEmpty("R"));
+  QVERIFY(eo->cube() == looked);
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Executing);
+  QVERIFY(eo->cubeHidden());
+  QTest::keyClick(window_.get(), Qt::Key_Space); // no moves yet
+  QCOMPARE(eo->phase(), Phase::Executing);
+  ranked = solveStepHeld(eo->scrambled(), step, holds, 1);
+  std::size_t mine = *rankOfHold(ranked, eo->shownHold(), step);
+  typeMoves(holdRotation(ranked[mine].hold));
+  typeMoves(ranked[mine].optimum.solutions.front());
+  QCOMPARE(eo->phase(), Phase::Executing); // until Space says so
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Done);
+  QVERIFY(!eo->cubeHidden());
+  QCOMPARE(tries(EoDrill::Plan).size(), std::size_t{1});
+  QVERIFY(!tries(EoDrill::Plan).back().gaveUp);
+  QCOMPARE(tries(EoDrill::Plan).back().excess,
+           double(ranked[mine].optimum.length - ranked[0].optimum.length));
+  // A plan that doesn't do the step is a DNF.
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Inspecting);
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  typeMoves(parseAlgOrEmpty("R"));
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Done);
+  QVERIFY(tries(EoDrill::Plan).back().gaveUp);
+  QVERIFY(eo->displayText().contains("DNF"));
+  // The inspection time hides the cube by itself, and a Space just then
+  // was meant to hide it.
+  eo->setLimitSeconds(1);
+  QCOMPARE(eo->phase(), Phase::Ready);
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Inspecting);
+  QVERIFY(
+      QTest::qWaitFor([&] { return eo->phase() == Phase::Executing; }, 3000));
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Executing);
+  eo->setLimitSeconds(0);
+
+  // Axis choice: the hold the cube is turned to is ranked.
+  begin(EoDrill::Axis);
+  QCOMPARE(eo->phase(), Phase::Choosing);
+  QCOMPARE(eo->roundBadEdges(), -1);
+  typeMoves(parseAlgOrEmpty("z"));
+  QTest::keyClick(window_.get(), Qt::Key_Space); // not one of the holds
+  QCOMPARE(eo->phase(), Phase::Choosing);
+  typeMoves(parseAlgOrEmpty("z' y"));
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Done);
+  ranked = solveStepHeld(eo->scrambled(), step, holds, 1);
+  mine = *rankOfHold(ranked, holdAfter(parseAlgOrEmpty("y")), step);
+  QCOMPARE(tries(EoDrill::Axis).size(), std::size_t{1});
+  QCOMPARE(tries(EoDrill::Axis).back().excess,
+           double(ranked[mine].optimum.length - ranked[0].optimum.length));
+  QVERIFY(eo->resultHtml().contains("yours"));
+
+  // Bad edges: both axes typed; the wrong one is ringed.
+  eo->setBothAxes(true);
+  begin(EoDrill::Edges);
+  QCOMPARE(eo->phase(), Phase::Counting);
+  {
+    CubieCube held = solverState(eo->scrambled(), eo->shownHold());
+    int fb = badEdgeCount(held, 0), rl = badEdgeCount(held, 1);
+    QCOMPARE(fb, 4);
+    auto type = [&](int n) {
+      for (QChar c : QString::number(n)) {
+        QTest::keyClick(window_.get(),
+                        static_cast<Qt::Key>(Qt::Key_0 + c.digitValue()));
+      }
+      QTest::keyClick(window_.get(), Qt::Key_Return);
+    };
+    QTest::keyClick(window_.get(), Qt::Key_Return); // nothing typed yet
+    QCOMPARE(eo->phase(), Phase::Counting);
+    QTest::keyClick(window_.get(), Qt::Key_9);
+    QTest::keyClick(window_.get(), Qt::Key_Backspace);
+    type(fb);
+    QCOMPARE(eo->phase(), Phase::Counting);
+    int wrong = rl >= 2 ? rl - 2 : rl + 2;
+    type(wrong);
+    QCOMPARE(eo->phase(), Phase::Done);
+    QCOMPARE(tries(EoDrill::Edges).size(), std::size_t{1});
+    QCOMPARE(tries(EoDrill::Edges).back().excess, 2.0);
+    QVERIFY(eo->promptHtml().contains("Wrong"));
+    auto *view = eo->findChild<CubeView *>();
+    QVERIFY(view);
+    QCOMPARE(view->marks().rings.size(), std::size_t(2 * rl));
+    QTest::keyClick(window_.get(), Qt::Key_Tab);
+    QCOMPARE(view->marks().rings.size(), std::size_t(2 * fb));
+  }
+  eo->setBothAxes(false);
+
+  // The list has every kind of the step in hand; a double-click pins one.
+  auto *tree = eo->findChild<QTreeWidget *>("eoCrossKinds");
+  QVERIFY(tree);
+  int rows = 0;
+  for (int g = 0; g < tree->topLevelItemCount(); ++g) {
+    rows += tree->topLevelItem(g)->childCount();
+  }
+  QCOMPARE(rows, 7 + 5 + 7 + 7 + 7);
+  QTreeWidgetItem *full = tree->topLevelItem(4);
+  emit tree->itemDoubleClicked(full->child(3), 0);
+  QCOMPARE(eo->drill(), EoDrill::Full);
+  QCOMPARE(eo->pinnedBad(), 6);
+  QCOMPARE(eo->phase(), Phase::Ready);
+
+  finishBackgroundWrites();
+  EoCrossStore saved(QDir(dataDir_).filePath("eocross.json"));
+  QVERIFY(saved.load());
+  QVERIFY(saved.stats == eo->stats());
+  eo->setPinnedBad(-1);
+  eo->setLimitSeconds(15);
+  eo->selectDrill(EoDrill::Solve);
+}
+
 void GuiTest::timedModesWaitForSpace() {
   // F2L: a state left with its clock running is given up, and the ready
   // page is there on the way back; a result stays up.
@@ -860,26 +1068,22 @@ void GuiTest::timedModesWaitForSpace() {
   tsle->selectDrill(TslePage::Drill::Intro);
   QVERIFY(tsle->phase() != TslePage::Phase::Ready);
 
-  // Blind: the letter quiz and the setup drill ask (and time) nothing
-  // until Space.
-  auto *blind = page<BlindPage>();
-  QVERIFY(switchTo(AppMode::Blind, blind));
-  auto *tabs = blind->findChild<QTabBar *>();
-  auto *hint = blind->findChild<HintBar *>();
-  QVERIFY(tabs && hint);
-  for (int drill : {0, 2}) {
-    tabs->setCurrentIndex(drill);
-    QCOMPARE(hint->message(), QString("Ready when you are."));
+  // EO Cross: every drill shows (and times) nothing until Space.
+  auto *eo = page<EoCrossPage>();
+  QVERIFY(switchTo(AppMode::EoCross, eo));
+  for (int d = 0; d < kEoDrills; ++d) {
+    eo->selectDrill(static_cast<EoDrill>(d));
+    QCOMPARE(eo->phase(), EoCrossPage::Phase::Ready);
     QTest::keyClick(window_.get(), Qt::Key_A); // not Space: nothing starts
-    QCOMPARE(hint->message(), QString("Ready when you are."));
+    QCOMPARE(eo->phase(), EoCrossPage::Phase::Ready);
     QTest::keyClick(window_.get(), Qt::Key_Space);
-    QVERIFY(hint->message() != "Ready when you are.");
-    // Away and back: ready again.
+    QVERIFY(eo->phase() != EoCrossPage::Phase::Ready);
+    // Away and back: ready again, and nothing recorded.
     QVERIFY(switchTo(AppMode::F2L, f2l));
-    QVERIFY(switchTo(AppMode::Blind, blind));
-    QCOMPARE(hint->message(), QString("Ready when you are."));
+    QVERIFY(switchTo(AppMode::EoCross, eo));
+    QCOMPARE(eo->phase(), EoCrossPage::Phase::Ready);
   }
-  tabs->setCurrentIndex(0);
+  eo->selectDrill(EoDrill::Solve);
 }
 
 void GuiTest::timedPhysicalSolve() {

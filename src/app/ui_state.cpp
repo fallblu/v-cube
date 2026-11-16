@@ -133,15 +133,6 @@ Stored<QString> reviewPairSet() { return {"review/pairSet", "zz-f2l"}; }
 
 Stored<QStringList> timedHiddenColumns() { return {"timed/hiddenColumns"}; }
 Stored<QStringList> hiddenSessionColumns(const QString &key) { return {key}; }
-Stored<int> inspectionChart() { return {"inspection/chart", 0}; }
-Stored<int> blindDrill() { return {"blind/drill", 0}; }
-Stored<int> blindQuizPieces() { return {"blind/quizPieces", 0}; }
-Stored<int> blindQuizDirection() { return {"blind/quizDirection", 0}; }
-Stored<int> blindSetupPieces() { return {"blind/setupPieces", 0}; }
-Stored<int> blindSetupMode() { return {"blind/setupMode", 0}; }
-Stored<QStringList> blindList(const QString &name) { return {"blind/" + name}; }
-Stored<int> blindHoldTop(int fallback) { return {"blind/top", fallback}; }
-Stored<int> blindHoldFront(int fallback) { return {"blind/front", fallback}; }
 
 Stored<QVariant> lab(const char *name, const QVariant &fallback) {
   return {QStringLiteral("alglab/") + name, fallback};
@@ -151,6 +142,9 @@ Stored<QVariant> f2l(const char *name, const QVariant &fallback) {
   return {QStringLiteral("f2l/") + name, fallback};
 }
 
+Stored<QVariant> eoCross(const char *name, const QVariant &fallback) {
+  return {QStringLiteral("eocross/") + name, fallback};
+}
 Stored<QVariant> tsle(const char *name, const QVariant &fallback) {
   return {QStringLiteral("tsle/") + name, fallback};
 }

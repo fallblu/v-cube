@@ -1,6 +1,5 @@
-#include "io/blind_store.hpp"
 #include "io/data_file.hpp"
-#include "io/inspection_store.hpp"
+#include "io/eo_cross_store.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
@@ -99,14 +98,9 @@ TEST_CASE("files from a newer version are kept and not saved over") {
                    R"({"format": "v-cube.untimed", "version": 2})", s);
   }
   {
-    InspectionStore s(tmp.filePath("inspection.json"));
-    checkNewerKept(tmp.filePath("inspection.json"),
-                   R"({"format": "v-cube.inspection", "version": 2})", s);
-  }
-  {
-    BlindStore s(tmp.filePath("blind.json"));
-    checkNewerKept(tmp.filePath("blind.json"),
-                   R"({"format": "v-cube.blind", "version": 2})", s);
+    EoCrossStore s(tmp.filePath("eocross.json"));
+    checkNewerKept(tmp.filePath("eocross.json"),
+                   R"({"format": "v-cube.eocross", "version": 2})", s);
   }
 }
 

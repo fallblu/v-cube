@@ -18,8 +18,7 @@ constexpr std::array<ModeInfo, AppMode::Count> kModes = {{
     {"timed", QT_TRANSLATE_NOOP("MainWindow", "Timed")},
     {"untimed", QT_TRANSLATE_NOOP("MainWindow", "Untimed")},
     {"movecount", QT_TRANSLATE_NOOP("MainWindow", "Move Count")},
-    {"inspection", QT_TRANSLATE_NOOP("MainWindow", "Inspection")},
-    {"blind", QT_TRANSLATE_NOOP("MainWindow", "Blind")},
+    {"eocross", QT_TRANSLATE_NOOP("MainWindow", "EO Cross")},
     {"alglab", QT_TRANSLATE_NOOP("MainWindow", "Alg Lab")},
     {"f2l", QT_TRANSLATE_NOOP("MainWindow", "F2L")},
     {"tsle", QT_TRANSLATE_NOOP("MainWindow", "TSLE")},
@@ -34,8 +33,8 @@ const ModeInfo &info(int mode) {
 
 const std::array<AppMode::Id, AppMode::Count> &AppMode::sidebarOrder() {
   static constexpr std::array<Id, Count> order = {
-      Today,   Learn,     Drill, Library, AlgLab,     Timed,
-      Untimed, MoveCount, F2L,   Tsle,    Inspection, Blind};
+      Today,   Learn,     Drill,   Library, AlgLab, Timed,
+      Untimed, MoveCount, EoCross, F2L,     Tsle};
   return order;
 }
 
@@ -45,7 +44,7 @@ QString AppMode::sidebarHeader(int mode) {
     return QCoreApplication::translate("vcube::MainWindow", "ALGS");
   case Timed:
     return QCoreApplication::translate("vcube::MainWindow", "SOLVES");
-  case F2L:
+  case EoCross:
     return QCoreApplication::translate("vcube::MainWindow", "PRACTICE");
   default:
     return {};
@@ -64,8 +63,8 @@ QString AppMode::settingsId(int mode) { return info(mode).id; }
 
 QKeySequence AppMode::shortcut(int mode) {
   // The digit is the mode's place in the sidebar: Today 0, Learn 1, ...
-  // and the two keys after 9 on the keyboard, - and =, for the eleventh
-  // and twelfth.
+  // and the key after 9 on the keyboard, -, for the eleventh (= would be
+  // a twelfth's).
   const auto &order = sidebarOrder();
   for (std::size_t i = 0; i < order.size(); ++i) {
     if (order[i] == mode) {
@@ -92,6 +91,10 @@ int AppMode::fromSettingsId(const QString &id) {
   }
   if (id == "scramble" || id == "virtual") {
     return Untimed;
+  }
+  // Inspection's drills are EO Cross mode's now.
+  if (id == "inspection") {
+    return EoCross;
   }
   return -1;
 }
