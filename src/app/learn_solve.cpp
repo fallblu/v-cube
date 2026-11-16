@@ -87,8 +87,10 @@ void LearnPage::holdBack(std::function<void()> start) {
   idleTimer_.stop();
   current_.reset();
   attempt_.clear();
+  // No walkthrough is up. (Said to the stage directly: showGuide() right
+  // after the reset makes GCC warn about the guide it has just dropped.)
   guide_.reset();
-  showGuide();
+  stage_->showGuide(nullptr, false, false, false);
   reveal_->clear();
   gradeRow_->setVisible(false);
   stage_->hideFamily();
