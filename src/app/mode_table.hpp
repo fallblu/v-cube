@@ -10,8 +10,8 @@ namespace vcube {
 // The main window's modes, one page each.
 struct AppMode {
   // The order of the pages and of the Today page's activity. The sidebar
-  // has its own order (sidebarOrder), which Ctrl+0 to Ctrl+9 and Ctrl+-
-  // follow.
+  // has its own order (sidebarOrder), which Ctrl+0 to Ctrl+9, Ctrl+- and
+  // Ctrl+= follow.
   enum Id : int {
     Learn,
     Drill,
@@ -23,6 +23,7 @@ struct AppMode {
     Blind,
     AlgLab,
     F2L,
+    Tsle,
     Today,
     Count
   };

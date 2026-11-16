@@ -143,6 +143,10 @@ Stored<QVariant> lab(const char *name, const QVariant &fallback = {});
 // slots that may be left), dMoves, halfFB, wide, stage, slot and context.
 Stored<QVariant> f2l(const char *name, const QVariant &fallback = {});
 
+// TSLE mode's choices, kept as "tsle/<name>": drill, slots (the last
+// slots practised), allCases and slot (the Case explorer's).
+Stored<QVariant> tsle(const char *name, const QVariant &fallback = {});
+
 } // namespace saved
 
 } // namespace vcube

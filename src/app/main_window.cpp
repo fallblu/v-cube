@@ -20,6 +20,7 @@
 #include "app/sounds.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
+#include "app/tsle_page.hpp"
 #include "app/ui_state.hpp"
 #include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
@@ -97,12 +98,13 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   algLabPage_ = new AlgLabPage(settings_, data_.library, data_.lab, stack_);
   f2lPage_ =
       new F2LPage(settings_, data_.library, data_.lab, data_.dataDir(), stack_);
+  tslePage_ = new TslePage(settings_, data_.dataDir(), stack_);
   todayPage_ =
       new TodayPage(settings_, data_.library, data_.sessions, data_.untimed,
                     data_.moveCounts, data_.lab, data_.dataDir(), stack_);
   pages_ = {learnPage_,   drillPage_,     libraryPage_,    timedPage_,
             untimedPage_, moveCountPage_, inspectionPage_, blindPage_,
-            algLabPage_,  f2lPage_,       todayPage_};
+            algLabPage_,  f2lPage_,       tslePage_,       todayPage_};
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);

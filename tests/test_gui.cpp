@@ -21,6 +21,7 @@
 #include "app/single_instance.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
+#include "app/tsle_page.hpp"
 #include "app/untimed_page.hpp"
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
@@ -29,6 +30,7 @@
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
+#include "io/tsle_store.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -278,6 +280,7 @@ private slots:
   void algLabTimesEachAlg();
   void fingertrickGuidance();
   void f2lDrills();
+  void tsleDrills();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
@@ -348,7 +351,7 @@ void GuiTest::modesSwitch() {
       page<LearnPage>(),      page<DrillPage>(),   page<LibraryPage>(),
       page<TimerPage>(),      page<UntimedPage>(), page<MoveCountPage>(),
       page<InspectionPage>(), page<BlindPage>(),   page<AlgLabPage>(),
-      page<F2LPage>(),        page<TodayPage>()};
+      page<F2LPage>(),        page<TslePage>(),    page<TodayPage>()};
   for (int m : AppMode::sidebarOrder()) {
     QVERIFY2(switchTo(m, pages[static_cast<std::size_t>(m)]),
              qPrintable(AppMode::label(m)));
@@ -674,6 +677,123 @@ void GuiTest::f2lDrills() {
   QVERIFY(saved.load());
   QVERIFY(saved.stats == f2l->stats());
   f2l->selectDrill(F2LPage::Drill::Pair);
+}
+
+void GuiTest::tsleDrills() {
+  auto *tsle = page<TslePage>();
+  QVERIFY(switchTo(AppMode::Tsle, tsle));
+  // The front slots, as a new install has it, and Guided intro first.
+  QVERIFY((tsle->lastSlots() ==
+           std::array<bool, kSlots>{true, true, false, false}));
+  QCOMPARE(tsle->drill(), TslePage::Drill::Intro);
+  auto bestFrom = [tsle](TsleState s) {
+    return tsle->solver(tsle->slot()).options(s).front();
+  };
+
+  // Guided intro: each good trigger shown and done, then the picks.
+  QVERIFY(tsle->introCase());
+  TsleState first = *tsle->introCase();
+  QCOMPARE(tsleStepsLeft(first), 1);
+  QVERIFY(tsle->introTriggers() >= 1);
+  // A wrong trigger doesn't pass.
+  int stage = tsle->introStage();
+  for (const TsleOption &o :
+       tsle->solver(tsle->slot()).options(tsle->startState())) {
+    if (!o.good) {
+      typeMoves(o.alg);
+      break;
+    }
+  }
+  QCOMPARE(tsle->introStage(), stage);
+  while (tsle->introStage() < tsle->introTriggers()) {
+    QVERIFY(tsle->slot() == Slot::FR || tsle->slot() == Slot::FL);
+    Alg alg = tsle->introAlg();
+    QVERIFY(!alg.empty());
+    QVERIFY(tsle->promptHtml().contains(qs(toString(alg))));
+    typeMoves(alg);
+  }
+  for (int pick = 0; pick < TslePage::kIntroPicks; ++pick) {
+    QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
+    typeMoves(bestFrom(tsle->startState()).alg);
+  }
+  QCOMPARE(tsle->phase(), TslePage::Phase::Done);
+  QVERIFY(tsle->progress().introduced.contains(tsleKey(first)));
+  QCOMPARE(tsle->progress().cases.at(tsleKey(first)).size(),
+           std::size_t{TslePage::kIntroPicks});
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QVERIFY(tsle->introCase());
+  QVERIFY(*tsle->introCase() != first);
+
+  // Next trigger, with every case: the best trigger is judged the best.
+  tsle->setAllCases(true);
+  tsle->selectDrill(TslePage::Drill::Next);
+  for (int i = 0; i < 20 && tsle->startState().ocll(); ++i) {
+    tsle->selectDrill(TslePage::Drill::Next); // a case with a trigger
+  }
+  QVERIFY(!tsle->startState().ocll());
+  TsleState start = tsle->startState();
+  std::string key = tsleKey(tsleCase(start));
+  std::size_t before = tsle->progress().cases.contains(key)
+                           ? tsle->progress().cases.at(key).size()
+                           : 0;
+  TsleOption best = bestFrom(start);
+  typeMoves(best.alg);
+  QCOMPARE(tsle->phase(), TslePage::Phase::Done);
+  QVERIFY(tsle->currentState() == best.next);
+  QCOMPARE(tsle->progress().cases.at(key).size(), before + 1);
+  QCOMPARE(tsle->progress().cases.at(key).back().excess, 0.0);
+  QVERIFY(tsle->resultHtml().contains(qs(toString(best.alg))));
+  // A trigger that isn't good counts against the case; a retry doesn't.
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
+  QVERIFY(tsle->startState() == start);
+  QTest::keyClick(window_.get(), Qt::Key_Space); // nothing while solving
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QCOMPARE(tsle->progress().cases.at(key).size(), before + 1);
+
+  // Full TSLE: the best way, step by step, ends it.
+  tsle->selectDrill(TslePage::Drill::Full);
+  QVERIFY(tsleStepsLeft(tsle->startState()) >= 2);
+  int best_moves = tsle->solver(tsle->slot()).movesLeft(tsle->startState());
+  for (const Alg &step :
+       tsle->solver(tsle->slot()).bestPath(tsle->startState())) {
+    QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
+    typeMoves(step);
+  }
+  QCOMPARE(tsle->phase(), TslePage::Phase::Done);
+  QVERIFY(tsle->currentState() && tsle->currentState()->done());
+  QCOMPARE(tsle->progress().fulls.size(), std::size_t{1});
+  QVERIFY(tsle->progress().fulls.back().moves <= best_moves + 2);
+
+  // The Case explorer follows the cube down a chain.
+  TsleState deep = tsleCases().back();
+  QCOMPARE(tsleStepsLeft(deep), kTsleLevels);
+  tsle->exploreCase(deep);
+  QCOMPARE(tsle->phase(), TslePage::Phase::Explore);
+  QVERIFY(tsle->startState() == deep);
+  for (int steps = kTsleLevels; steps > 0; --steps) {
+    QVERIFY(tsle->currentState());
+    QCOMPARE(tsleStepsLeft(*tsle->currentState()), steps);
+    QTest::keyClick(window_.get(), Qt::Key_Return);
+  }
+  QVERIFY(tsle->currentState() && tsle->currentState()->done());
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QVERIFY(tsle->currentState() == deep);
+
+  auto *tree = tsle->findChild<QTreeWidget *>("tsleCases");
+  QVERIFY(tree);
+  int rows = 0;
+  for (int g = 0; g < tree->topLevelItemCount(); ++g) {
+    rows += tree->topLevelItem(g)->childCount();
+  }
+  QCOMPARE(rows, 104);
+
+  finishBackgroundWrites();
+  TsleStore saved(QDir(dataDir_).filePath("tsle.json"));
+  QVERIFY(saved.load());
+  QVERIFY(saved.progress == tsle->progress());
+  tsle->setAllCases(false);
+  tsle->selectDrill(TslePage::Drill::Intro);
 }
 
 void GuiTest::timedPhysicalSolve() {

@@ -9,18 +9,19 @@ lists every key, and `F1` in the app shows the current mode's.
   [getting algs into a set](#getting-algs-into-a-set), [Alg Lab](#alg-lab)
 - [Solves](#solves): [Timed](#timed), [Untimed](#untimed),
   [Move Count](#move-count), [Review](#review), [scramble types](#scramble-types)
-- [Practice](#practice): [F2L](#f2l), [Inspection](#inspection), [Blind](#blind)
+- [Practice](#practice): [F2L](#f2l), [TSLE](#tsle), [Inspection](#inspection),
+  [Blind](#blind)
 - [Colour neutrality](#colour-neutrality), [the virtual cube](#the-virtual-cube),
   [Settings](#settings)
 
 ## The window
 
 The sidebar lists the modes in three groups, Algs (Learn, Drill, Library,
-Alg Lab), Solves (Timed, Untimed, Move Count) and Practice (F2L,
-Inspection, Blind), under **Today**. `Ctrl+1` to `Ctrl+9` and `Ctrl+-`
-switch to them in the sidebar's order (Learn, Drill, Library, Alg Lab,
-Timed, Untimed, Move Count, F2L, Inspection, and Blind on `Ctrl+-`) and
-`Ctrl+0` to Today; the **Go** menu has them too. Switching is blocked while a
+Alg Lab), Solves (Timed, Untimed, Move Count) and Practice (F2L, TSLE,
+Inspection, Blind), under **Today**. `Ctrl+1` to `Ctrl+9`, `Ctrl+-` and
+`Ctrl+=` switch to them in the sidebar's order (Learn, Drill, Library, Alg
+Lab, Timed, Untimed, Move Count, F2L, TSLE, then Inspection on `Ctrl+-`
+and Blind on `Ctrl+=`) and `Ctrl+0` to Today; the **Go** menu has them too. Switching is blocked while a
 solve or inspection is running.
 
 - **Today** shows, for each alg set, the reviews due now or later today,
@@ -845,6 +846,71 @@ you haven't tried. Double-click a case to open it in the Case explorer.
 Above the list are your Pair choice record (how often you picked the best
 pair) and your Full F2L averages. `Esc` after a result gives the same
 state again without recording it.
+
+### TSLE
+
+ZZ-CT's last-slot step, practised a trigger at a time on the virtual cube.
+With EO done and three slots solved, TSLE puts the last slot's edge in and
+orients the five corners that are left (the last layer's and the slot's),
+wherever they are. It is done with the slot's three triggers (R U R',
+R U' R' and R U2 R' for the front-right slot, each after a U turn if it
+needs one) until the step is done or only an OCLL is left, which an OCLL
+alg then finishes.
+
+There are 104 cases (97 and the seven OCLLs). The mode doesn't hold one
+trigger per case. From every state it knows **every good trigger**:
+
+- A trigger is **good** when it is on a way to the end with the fewest
+  steps, where a step is a trigger or the OCLL that ends a chain. No case
+  needs more than three steps this way.
+- Of the good ones, the **best** is the one with the fewest moves to the
+  end from the AUF the cube is at: the trigger that needs no U turn first
+  usually wins, and what it leaves matters too (an OCLL alg that cancels
+  into the trigger, a short OCLL rather than a long one).
+- Where a way with one more step has fewer moves in all, the list says so
+  ("a step more, 2 moves fewer"); it isn't counted as good.
+
+**Last slot** picks the slots practised: FR and FL by default, BL and BR
+as well if you like. Each attempt has a random one of them, with that
+slot's triggers (L' U L for the front-left slot, and so on); a case is
+tracked once whatever the slot. OCLL algs are always shown as they are
+written, with the U turn they need, never mirrored. **OCLL algs…** changes
+them; when you solve, any alg that works counts. The cube is shown in the
+flat view by default.
+
+The drills are the tabs at the top:
+
+- **Guided intro** brings the cases in one at a time, fewest steps first.
+  For a new case each good trigger is shown in turn, with the cube turned
+  so that it needs no AUF: `Enter` shows it on the cube, then you do it.
+  After that you pick the best trigger from two random AUFs, and the case
+  is introduced. `Space` skips a case you know.
+- **Next trigger**: a state at a random AUF; do the next step (the AUF and
+  one trigger, or the OCLL alg). It is judged as the best trigger from
+  that AUF, a good one that costs more moves, or not a good one, and every
+  good trigger is listed with what it leaves and the moves to the end.
+  `Tab` shows the best step, `Backspace` gives up.
+- **Full TSLE**: the whole step, timed. Afterwards each trigger you did is
+  listed with its verdict and the best one at that point.
+- **Case explorer**: pick a case in the list (or `↑` `↓`); `Space` turns
+  it to its next AUF. The list of good triggers follows the cube: do a
+  trigger with `Enter`, its number, a click or the turning keys and the
+  list is that of the case you land in, down to the end. Nothing is
+  recorded.
+
+**Cases** (Next trigger and Full TSLE) is *Introduced* by default: only
+the cases Guided intro has been through come up, weak ones more often.
+*All* opens every case at once. The cases with two steps left open in
+Guided intro once the one-step cases are solid (all introduced, and three
+quarters of them tried and not weak), and likewise the three-step ones.
+
+**The case list** groups the cases by steps left and draws each for the
+front-right slot with the edge at UF. A name such as `UF CW 0120` gives
+the edge (UF, or FR for in the slot), the slot's corner place (N oriented,
+CW, CCW) and the twists at URF, UFL, ULB and UBR (0 oriented, 1 clockwise,
+2 anticlockwise); the OCLLs have their names. **Extra** is your moves over
+the best way lately, where a trigger that isn't good counts as 3, a hint
+as 2 more and giving up as 4.
 
 ### Inspection
 

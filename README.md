@@ -27,6 +27,7 @@ over the last 7 days.
 | Solves | **Untimed** | Solves with no timer, with their move counts |
 | Solves | **Move Count** | Move-efficiency practice for one step (EO to ZZ F2L, the cross, CFOP F2L) |
 | Practice | **F2L** | The F2L a part at a time (ZZ F2L - 1 for ZZ-CT, ZZ F2L, CFOP): solving a pair well, choosing the pair to do next, whole F2Ls, and a browser of the pair cases, each compared with solutions searched for the state on the cube |
+| Practice | **TSLE** | ZZ-CT's last-slot step a trigger at a time: every good trigger of each of the 104 cases, the best one for the AUF at hand, whole TSLEs, and a guided introduction of the cases |
 | Practice | **Inspection** | Planning EO to EO Cross in inspection and doing it blind, and counting bad edges |
 | Practice | **Blind** | Old Pochmann: letters, memo tracing, setup moves and blind solves |
 

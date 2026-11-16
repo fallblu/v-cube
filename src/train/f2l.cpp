@@ -18,10 +18,7 @@ constexpr std::array<const char *, kEdges> kEdgeNames = {
 constexpr std::array<const char *, 6> kFaceNames = {"U", "R", "F",
                                                     "D", "L", "B"};
 
-// The mirror image that brings a slot's pair to the front right.
-Mirror mirrorOf(Slot s) {
-  return {s == Slot::FL || s == Slot::BL, s == Slot::BL || s == Slot::BR};
-}
+Mirror mirrorOf(Slot s) { return slotMirror(s); }
 
 std::optional<Slot> slotOfCorner(int place) {
   for (Slot s : kF2LSlots) {
@@ -483,6 +480,10 @@ const std::vector<PairCase> &pairCases(bool eo) {
     return out;
   }();
   return cases[eo ? 1 : 0];
+}
+
+Mirror slotMirror(Slot s) {
+  return {s == Slot::FL || s == Slot::BL, s == Slot::BL || s == Slot::BR};
 }
 
 Slot slotSeenFrom(Slot seen, Slot target) {
