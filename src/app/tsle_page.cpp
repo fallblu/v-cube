@@ -294,6 +294,7 @@ void TslePage::setLastSlots(const std::array<bool, kSlots> &chosen) {
     return;
   }
   slots_ = chosen;
+  ready_ = false;
   saveChoices();
   showOptions();
   if (active_) {
@@ -303,6 +304,7 @@ void TslePage::setLastSlots(const std::array<bool, kSlots> &chosen) {
 
 void TslePage::setAllCases(bool on) {
   allCases_ = on;
+  ready_ = false;
   saveChoices();
   showOptions();
   if (active_ && (drill_ == Drill::Next || drill_ == Drill::Full)) {
@@ -335,6 +337,7 @@ Slot TslePage::randomSlot() {
 
 void TslePage::selectDrill(Drill d) {
   drill_ = d;
+  ready_ = false;
   {
     QSignalBlocker block(tabs_);
     tabs_->setCurrentIndex(static_cast<int>(d));
@@ -370,6 +373,7 @@ void TslePage::applySettings() {
 
 void TslePage::activated() {
   active_ = true;
+  ready_ = false; // a state left half done isn't taken up again
   if (round_.id == 0 || phase_ != Phase::Done) {
     newRound();
   }
@@ -379,6 +383,11 @@ void TslePage::deactivated() {
   active_ = false;
   clock_.stop();
   cubeView_->finishAnimations();
+  if (phase_ == Phase::Solving && timedDrill()) {
+    // The clock was running: the state is given up, unrecorded, and the
+    // ready page is there on the way back.
+    showReady();
+  }
 }
 
 void TslePage::focusModeChanged() {
@@ -427,7 +436,26 @@ TsleState TslePage::pickCase(bool deep) {
   return pool[pickWeighted(weights, rng_)];
 }
 
+void TslePage::showReady() {
+  round_ = {};
+  round_.id = ++rounds_;
+  phase_ = Phase::Ready;
+  clock_.stop();
+  display_->setVisible(false);
+  cube_ = FaceletCube();
+  cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
+  cubeView_->clearMarks();
+  cubeView_->setState(cube_);
+  showPrompt();
+  showKeys();
+  showResult();
+}
+
 void TslePage::newRound(bool sameState) {
+  if (!sameState && timedDrill() && !ready_) {
+    showReady();
+    return;
+  }
   if (sameState && round_.id != 0) {
     CubieCube cube = round_.startCube;
     startRound(round_.start, round_.slot, &cube, true);
@@ -825,6 +853,19 @@ void TslePage::showPrompt() {
     return t.isEmpty() ? QString()
                        : "<br><span style='font-size:small'>" + t + "</span>";
   };
+  if (phase_ == Phase::Ready) {
+    bool onlyOclls = !allCases_ && store_.progress.introduced.empty();
+    prompt_->setText(
+        tabs_->tabText(static_cast<int>(drill_)) +
+        small(tr("%1, timed from the moment the cube is shown. Press Space "
+                 "when you are ready.")
+                  .arg(drill_ == Drill::Next ? tr("One step at a time")
+                                             : tr("The whole step")) +
+              (onlyOclls ? " " + tr("Only the OCLLs so far: meet the cases "
+                                    "in Guided intro, or set Cases to All.")
+                         : QString())));
+    return;
+  }
   const QString slot = tr("last slot: %1").arg(slotText(round_.slot));
   switch (drill_) {
   case Drill::Intro: {
@@ -894,6 +935,10 @@ void TslePage::showKeys() {
   switch (phase_) {
   case Phase::Idle:
     break;
+  case Phase::Ready:
+    message = tr("Ready when you are.");
+    keys = {{"Space", tr("start")}};
+    break;
   case Phase::Explore:
     keys = {{"Enter", tr("do the best trigger")},
             {"1-9", tr("do that trigger")},
@@ -948,12 +993,22 @@ bool TslePage::handleKey(QKeyEvent *e, bool press) {
   if (!press || round_.id == 0) {
     return false;
   }
+  if (phase_ == Phase::Ready) {
+    // Only Space starts.
+    if (e->key() != Qt::Key_Space) {
+      return false;
+    }
+    ready_ = true;
+    newRound();
+    return true;
+  }
   switch (e->key()) {
   case Qt::Key_Space:
     if (phase_ == Phase::Done) {
       if (drill_ == Drill::Intro) {
         introCase_.reset();
       }
+      ready_ = true;
       newRound();
     } else if (phase_ == Phase::Explore) {
       exploreAuf_ = (exploreAuf_ + 1) % 4;

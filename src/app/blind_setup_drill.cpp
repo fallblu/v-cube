@@ -79,8 +79,7 @@ void SetupDrill::enter(bool changed) {
   piecesBox_->setCurrentIndex(saved::blindSetupPieces().get());
   modeBox_->setCurrentIndex(saved::blindSetupMode().get());
   flow_.setTyped(!onCube());
-  row_->setVisible(!onCube());
-  nextItem();
+  showReady();
 }
 
 void SetupDrill::leave() {
@@ -91,13 +90,29 @@ void SetupDrill::leave() {
 
 void SetupDrill::activated() {
   if (!flow_.item()) {
-    nextItem();
+    showReady();
   }
 }
 
 void SetupDrill::deactivated() {
   ctx_.cube->finishAnimations();
+  // Back on the page, the first letter waits for Space again.
+  flow_.reset();
+  edit_->clear();
+  showReady();
+}
+
+void SetupDrill::showReady() {
   edit_->clearFocus();
+  row_->setVisible(false);
+  ctx_.result->clear();
+  ctx_.cube->setState(FaceletCube());
+  ctx_.cube->clearMarks();
+  ctx_.prompt->setText(
+      tr("Setup moves: each letter is timed from the moment it is shown."));
+  ctx_.display->showText("–",
+                         ctx_.page->palette().color(QPalette::PlaceholderText));
+  showHint();
 }
 
 void SetupDrill::pause() { flow_.pause(monotonicMs()); }
@@ -105,6 +120,7 @@ void SetupDrill::pause() { flow_.pause(monotonicMs()); }
 void SetupDrill::resume() { flow_.resume(monotonicMs()); }
 
 void SetupDrill::nextItem() {
+  row_->setVisible(!onCube());
   BlindPieces p = pieces();
   std::vector<LetterChoice> pool =
       letterPool(p != BlindPieces::Corners, p != BlindPieces::Edges, true);
@@ -177,6 +193,16 @@ bool SetupDrill::eventFilter(QObject *obj, QEvent *event) {
 }
 
 bool SetupDrill::handleKey(QKeyEvent *e, bool press) {
+  if (!flow_.item()) {
+    // Ready: only Space starts.
+    if (e->key() != Qt::Key_Space) {
+      return false;
+    }
+    if (press && !e->isAutoRepeat()) {
+      nextItem();
+    }
+    return true;
+  }
   int key = e->key();
   std::optional<Move> move = ctx_.settings.keymap.lookup(e);
   using K = SetupFlow::Key;
@@ -305,7 +331,9 @@ void SetupDrill::refreshLeft() {
 
 void SetupDrill::showHint() {
   const std::optional<LetterItem> &it = flow_.item();
-  if (it && it->answered) {
+  if (!it) {
+    ctx_.hint->setHint(tr("Ready when you are."), {{tr("Space"), tr("start")}});
+  } else if (it->answered) {
     ctx_.hint->setHint({}, {{tr("Space"), tr("next letter")},
                             {tr("Esc"), tr("try it again")}});
   } else if (onCube()) {

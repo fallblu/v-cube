@@ -39,13 +39,17 @@ namespace vcube {
 //   Case explorer  the cases with their good triggers; the list follows
 //                  the cube as triggers are done
 //
+// Next trigger and Full TSLE are timed from the moment a state is shown,
+// so each opens on a ready page: nothing is shown until Space.
+//
 // How each case went is kept (tsle.json): weak cases come up more often,
 // and cases with more steps left open as the shallower ones are solid.
 class TslePage : public ModePage {
   Q_OBJECT
 public:
   enum class Drill { Intro, Next, Full, Explore };
-  enum class Phase { Solving, Done, Explore, Idle };
+  // Ready: a timed drill waits for Space before its first state is shown.
+  enum class Phase { Solving, Done, Explore, Idle, Ready };
 
   TslePage(AppSettings &settings, const QString &dataDir,
            QWidget *parent = nullptr);
@@ -129,6 +133,9 @@ private:
   std::array<std::unique_ptr<TsleSolver>, kSlots> solvers_;
   std::array<bool, kSlots> slots_{true, true, false, false};
   bool allCases_ = false;
+  // Space was pressed since the page, the drill or an option was chosen:
+  // states follow one another without the ready page.
+  bool ready_ = false;
   Drill drill_ = Drill::Intro;
   Phase phase_ = Phase::Idle;
   Round round_;
@@ -179,6 +186,10 @@ private:
 
   // --- rounds
   void newRound(bool sameState = false);
+  void showReady();
+  bool timedDrill() const {
+    return drill_ == Drill::Next || drill_ == Drill::Full;
+  }
   // `cube` (a cube in the state) and `retry` for the same cube again.
   void startRound(TsleState state, Slot slot, const CubieCube *cube = nullptr,
                   bool retry = false);

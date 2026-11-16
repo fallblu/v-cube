@@ -300,6 +300,7 @@ void F2LPage::buildOptions() {
   });
   for (QComboBox *box : {stageBox_, slotBox_, contextBox_}) {
     connect(box, &QComboBox::activated, this, [this] {
+      ready_ = false;
       saveChoices();
       if (active_) {
         newRound();
@@ -414,6 +415,7 @@ void F2LPage::showOptions() {
 }
 
 void F2LPage::configChanged() {
+  ready_ = false;
   saveChoices();
   fillStages();
   showOptions();
@@ -430,6 +432,7 @@ void F2LPage::setConfig(const F2LConfig &config) {
 
 void F2LPage::selectDrill(Drill d) {
   drill_ = d;
+  ready_ = false;
   {
     QSignalBlocker block(tabs_);
     tabs_->setCurrentIndex(static_cast<int>(d));
@@ -457,7 +460,7 @@ void F2LPage::applySettings() {
   cubeView_->setLook(look);
   cubeView_->setAnimationMs(settings_.animationMs);
   fillTree();
-  if (active_) {
+  if (active_ && round_.id != 0) {
     showPrompt();
   }
 }
@@ -472,6 +475,7 @@ void F2LPage::reloadSets() {
 
 void F2LPage::activated() {
   active_ = true;
+  ready_ = false; // a state left half done isn't taken up again
   reloadSets();
   if (round_.id == 0 || phase_ != Phase::Done) {
     newRound();
@@ -482,8 +486,10 @@ void F2LPage::deactivated() {
   active_ = false;
   clock_.stop();
   cubeView_->finishAnimations();
-  if (phase_ == Phase::Solving && stop_) {
-    stop_->store(true);
+  if (phase_ == Phase::Solving) {
+    // The clock was running: the state is given up, unrecorded, and the
+    // ready page is there on the way back.
+    showReady();
   }
 }
 
@@ -496,7 +502,29 @@ void F2LPage::focusModeChanged() {
 
 std::optional<Slot> F2LPage::target() const { return round_.target; }
 
+void F2LPage::showReady() {
+  if (stop_) {
+    stop_->store(true);
+  }
+  round_ = {};
+  round_.id = ++rounds_;
+  phase_ = Phase::Ready;
+  clock_.stop();
+  display_->setVisible(false);
+  cube_ = FaceletCube();
+  cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
+  cubeView_->clearMarks();
+  cubeView_->setState(cube_);
+  showPrompt();
+  showKeys();
+  showResult();
+}
+
 void F2LPage::newRound(bool sameState) {
+  if (!sameState && drill_ != Drill::Explore && !ready_) {
+    showReady();
+    return;
+  }
   if (sameState && round_.id != 0) {
     Round again;
     again.start = round_.start;
@@ -746,6 +774,20 @@ void F2LPage::showHintMove() {
 }
 
 void F2LPage::showPrompt() {
+  if (phase_ == Phase::Ready) {
+    QString what = drill_ == Drill::Pair ? tr("One pair to solve at a time")
+                   : drill_ == Drill::Choice
+                       ? tr("Solve the pair you would do first")
+                       : tr("The whole F2L");
+    prompt_->setText(
+        tabs_->tabText(static_cast<int>(drill_)) +
+        "<br><span style='font-size:small'>" +
+        tr("%1, timed from the moment the cube is shown. Press Space when "
+           "you are ready.")
+            .arg(what) +
+        "</span>");
+    return;
+  }
   QString leaving;
   if (config_.lastSlot) {
     QStringList names;
@@ -809,6 +851,10 @@ void F2LPage::showPrompt() {
 
 void F2LPage::showKeys() {
   const QString arrows = QStringLiteral("← →");
+  if (phase_ == Phase::Ready) {
+    hint_->setHint(tr("Ready when you are."), {{"Space", tr("start")}});
+    return;
+  }
   if (phase_ == Phase::Explore) {
     hint_->setHint({}, {{"Enter", tr("play the solution")},
                         {arrows, tr("step through it")},
@@ -925,10 +971,20 @@ bool F2LPage::handleKey(QKeyEvent *e, bool press) {
   if (!press || round_.id == 0) {
     return false;
   }
+  if (phase_ == Phase::Ready) {
+    // Only Space starts.
+    if (e->key() != Qt::Key_Space) {
+      return false;
+    }
+    ready_ = true;
+    newRound();
+    return true;
+  }
   const bool solving = phase_ == Phase::Solving;
   switch (e->key()) {
   case Qt::Key_Space:
     if (!solving) {
+      ready_ = true;
       newRound();
     }
     return true;

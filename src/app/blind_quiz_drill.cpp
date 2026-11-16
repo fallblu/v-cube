@@ -86,7 +86,7 @@ void QuizDrill::enter(bool changed) {
   flow_.reset();
   piecesBox_->setCurrentIndex(saved::blindQuizPieces().get());
   directionBox_->setCurrentIndex(saved::blindQuizDirection().get());
-  nextItem();
+  showReady();
 }
 
 void QuizDrill::leave() {
@@ -96,13 +96,27 @@ void QuizDrill::leave() {
 
 void QuizDrill::activated() {
   if (!flow_.item()) {
-    nextItem();
+    showReady();
   }
 }
 
 void QuizDrill::deactivated() {
   nextTimer_.stop();
   ctx_.cube->finishAnimations();
+  // Back on the page, the first letter waits for Space again.
+  flow_.reset();
+  showReady();
+}
+
+void QuizDrill::showReady() {
+  ctx_.result->clear();
+  ctx_.cube->setState(FaceletCube());
+  ctx_.cube->clearMarks();
+  ctx_.prompt->setText(
+      tr("Letter quiz: each letter is timed from the moment it is shown."));
+  ctx_.display->showText("–",
+                         ctx_.page->palette().color(QPalette::PlaceholderText));
+  showHint();
 }
 
 void QuizDrill::pause() { flow_.pause(monotonicMs()); }
@@ -154,6 +168,16 @@ void QuizDrill::showItem() {
 }
 
 bool QuizDrill::handleKey(QKeyEvent *e, bool press) {
+  if (!flow_.item()) {
+    // Ready: only Space starts.
+    if (e->key() != Qt::Key_Space) {
+      return false;
+    }
+    if (press && !e->isAutoRepeat()) {
+      nextItem();
+    }
+    return true;
+  }
   int key = e->key();
   QString text = e->text();
   bool space = key == Qt::Key_Space;
@@ -254,7 +278,9 @@ void QuizDrill::refreshLeft() {
 
 void QuizDrill::showHint() {
   const std::optional<LetterItem> &it = flow_.item();
-  if (it && it->answered) {
+  if (!it) {
+    ctx_.hint->setHint(tr("Ready when you are."), {{tr("Space"), tr("start")}});
+  } else if (it->answered) {
     ctx_.hint->setHint({}, {{tr("Space"), tr("next letter")}});
   } else if (it && it->toLetter) {
     ctx_.hint->setHint(tr("Type the ringed sticker's letter."),

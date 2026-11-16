@@ -217,6 +217,20 @@ private:
   bool nextAcrossSets();
   // Nothing to do: says why, and when to look again.
   void showIdle(const LearnPick &pick);
+  // A case is timed from the moment it is shown, so the first one waits
+  // for Space: on opening the page or coming back to it, after a set or a
+  // way of practising is picked with the mouse, and when a card falls due
+  // while nothing was up. Until then `pending_` is what Space starts, and
+  // nothing of the case is shown. Once started (`ready_`), the cases
+  // follow one another as they are graded.
+  bool ready_ = false;
+  std::function<void()> pending_;
+  void holdBack(std::function<void()> start);
+  // Whether a case is waiting for Space (for tests).
+public:
+  bool waitingForSpace() const { return static_cast<bool>(pending_); }
+
+private:
   void begin(const std::string &caseId, bool isNew, bool practice = false);
   // Sets the case up on the cube in a hold, world and AUF picked for it.
   CubieCube setUp(const std::string &caseId, Mirror world, bool scramble);

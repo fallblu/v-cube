@@ -39,6 +39,9 @@ namespace vcube {
 //   Case explorer   the pair cases with their ranked solutions to step
 //                   through; nothing is recorded
 //
+// The first three are timed from the moment a state is shown, so each
+// opens on a ready page: nothing is shown until Space.
+//
 // Solutions are searched for the state on the cube (see f2l.hpp) and
 // ranked by the Alg Lab's score profile. How each pair case went is kept
 // (f2l.json), and Pair solutions brings the weak cases up more often.
@@ -46,7 +49,8 @@ class F2LPage : public ModePage {
   Q_OBJECT
 public:
   enum class Drill { Pair, Choice, Full, Explore };
-  enum class Phase { Solving, Done, Explore };
+  // Ready: a timed drill waits for Space before its first state is shown.
+  enum class Phase { Ready, Solving, Done, Explore };
 
   F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
           const QString &dataDir, QWidget *parent = nullptr);
@@ -123,7 +127,10 @@ private:
   Rng rng_;
   F2LConfig config_;
   Drill drill_ = Drill::Pair;
-  Phase phase_ = Phase::Solving;
+  Phase phase_ = Phase::Ready;
+  // Space was pressed since the page, the drill or an option was chosen:
+  // states follow one another without the ready page.
+  bool ready_ = false;
   Round round_;
   int rounds_ = 0;
   bool active_ = false;
@@ -170,6 +177,7 @@ private:
 
   // --- rounds
   void newRound(bool sameState = false);
+  void showReady();
   void startRound(const CubieCube &state, std::optional<Slot> target);
   void showCube();
   void markPair();

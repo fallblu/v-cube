@@ -131,6 +131,10 @@ QString TslePage::resultHtml() const { return result_->text(); }
 
 void TslePage::showResult() {
   QString html;
+  if (phase_ == Phase::Ready) {
+    result_->setText(html);
+    return;
+  }
   switch (drill_) {
   case Drill::Intro:
     html = introHtml();
@@ -524,6 +528,7 @@ void TslePage::clearProgress() {
   TsleProgress fresh;
   fresh.ocll = store_.progress.ocll;
   store_.progress = fresh;
+  ready_ = false;
   save();
   refreshTree();
   introCase_.reset();
