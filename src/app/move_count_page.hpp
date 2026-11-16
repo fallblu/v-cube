@@ -70,7 +70,6 @@ private:
 
   bool hasOptimal() const;
   // The holds the Opt column is for.
-  std::vector<Hold> optimalHolds() const;
   // nullopt while it is being worked out, -1 if it can't be.
   std::optional<int> optimalOf(const MoveCountAttempt &a) const;
   // Works out the optimal lengths the attempt list is missing.

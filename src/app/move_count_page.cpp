@@ -1,4 +1,5 @@
 #include "app/move_count_page.hpp"
+#include "app/eo_cross_check.hpp"
 #include "app/page_parts.hpp"
 
 #include "app/flow_layout.hpp"
@@ -189,8 +190,9 @@ QString MoveCountPage::notReachedText() const {
 
 QString MoveCountPage::retryNote(const MoveCountAttempt &was) const {
   if (hasOptimal()) {
-    if (std::optional<int> best = heldDistance(
-            parseAlgOrEmpty(was.scramble), session().step, optimalHolds())) {
+    if (std::optional<int> best =
+            heldDistance(parseAlgOrEmpty(was.scramble), session().step,
+                         optimalHolds(settings_))) {
       return tr(", optimal %1").arg(*best);
     }
   }
@@ -273,13 +275,6 @@ bool MoveCountPage::hasOptimal() const {
   return hasOptimalSolver(session().step);
 }
 
-std::vector<Hold> MoveCountPage::optimalHolds() const {
-  if (settings_.optimalAnyHold) {
-    return {allHolds().begin(), allHolds().end()};
-  }
-  return withBothEoAxes(settings_.neutrality.holds);
-}
-
 std::optional<int> MoveCountPage::optimalOf(const MoveCountAttempt &a) const {
   return optimal_.lookup(session().step, a.scramble, settings_.optimalAnyHold);
 }
@@ -289,8 +284,8 @@ void MoveCountPage::requestOptimal() {
     return;
   }
   std::optional<OptimalCache::Job> job =
-      optimal_.missing(session().step, settings_.optimalAnyHold, optimalHolds(),
-                       session().attempts);
+      optimal_.missing(session().step, settings_.optimalAnyHold,
+                       optimalHolds(settings_), session().attempts);
   if (!job) {
     return;
   }

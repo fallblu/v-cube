@@ -17,7 +17,8 @@ namespace vcube {
 
 UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
                          AlgLibrary &library, QWidget *parent)
-    : AttemptPage(settings, store, library, "untimed", false, parent) {
+    : AttemptPage(settings, store, library, "untimed", false, parent),
+      eoCheck_(settings) {
   QWidget *right = cubeView_->parentWidget();
   algs_ = new ScrambleAlgs(library, "untimed/showAlgs", right);
   setTypeBox(new ScrambleTypeBox(library, stage()->options), algs_->button());
@@ -43,18 +44,13 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
   algLayout->addWidget(algError_);
   addBelowCentre(algPanel_);
 
-  connect(
-      &eoWatcher_, &QFutureWatcher<std::optional<int>>::finished, this, [this] {
-        std::optional<int> best = eoWatcher_.result();
-        if (!best || isBusy() || flow_.retry()) {
-          return;
-        }
-        QString yours = eoYours_ ? QString::number(*eoYours_) : tr("not done");
-        QString line =
-            tr("EO Cross: yours %1, optimal %2").arg(yours).arg(*best);
-        QString was = lastLabel_->text();
-        lastLabel_->setText(was.isEmpty() ? line : was + " · " + line);
-      });
+  connect(&eoCheck_, &EoCrossCheck::found, this, [this](const QString &line) {
+    if (isBusy() || flow_.retry()) {
+      return;
+    }
+    QString was = lastLabel_->text();
+    lastLabel_->setText(was.isEmpty() ? line : was + " · " + line);
+  });
   connect(algEdit_, &QLineEdit::returnPressed, this, &UntimedPage::applyAlg);
   connect(applyButton, &QPushButton::clicked, this, &UntimedPage::applyAlg);
   connect(algEdit_, &QLineEdit::textChanged, this,
@@ -63,7 +59,7 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
   start();
 }
 
-UntimedPage::~UntimedPage() { eoWatcher_.waitForFinished(); }
+UntimedPage::~UntimedPage() = default;
 
 bool UntimedPage::eventFilter(QObject *obj, QEvent *event) {
   if (obj == algEdit_ && event->type() == QEvent::KeyPress &&
@@ -202,26 +198,7 @@ void UntimedPage::pageFocusChanged(bool on) {
 bool UntimedPage::toggleAlgs() { return algs_->toggle(); }
 
 void UntimedPage::solveRecorded(const MoveCountAttempt &a) {
-  // The optimal EO Cross of the solve's scramble, and the solve's own.
-  ParseResult scramble = parseAlg(a.scramble);
-  ParseResult moves = parseAlg(a.solution);
-  if (!scramble || !moves || eoWatcher_.isRunning()) {
-    return;
-  }
-  FaceletCube start;
-  start.apply(scramble.alg);
-  eoYours_.reset();
-  for (const StepMark &m : stepMarks(start, moves.alg, {SolveStep::EOCross},
-                                     settings_.simplifiedCounts)) {
-    eoYours_ = m.htm;
-  }
-  std::vector<Hold> holds =
-      settings_.optimalAnyHold
-          ? std::vector<Hold>(allHolds().begin(), allHolds().end())
-          : withBothEoAxes(settings_.neutrality.holds);
-  Alg alg = scramble.alg;
-  eoWatcher_.setFuture(QtConcurrent::run(
-      [alg, holds] { return heldDistance(alg, SolveStep::EOCross, holds); }));
+  eoCheck_.start(a.scramble, a.solution);
 }
 
 void UntimedPage::forward() {

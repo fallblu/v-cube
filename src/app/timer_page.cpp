@@ -63,7 +63,7 @@ std::vector<AttemptColumn> columns(bool virt) {
 TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
                      AlgLibrary &library, QWidget *parent)
     : ModePage(parent), settings_(settings), store_(store), library_(library),
-      feed_(library) {
+      feed_(library), eoCheck_(settings) {
   // --- left column: sessions, stats, times ---
   panel_ = new SessionPanel(this);
   panel_->setMenuTip(
@@ -198,18 +198,13 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
             }
             refreshSolves();
           });
-  connect(
-      &eoWatcher_, &QFutureWatcher<std::optional<int>>::finished, this, [this] {
-        std::optional<int> best = eoWatcher_.result();
-        if (!best || isBusy()) {
-          return;
-        }
-        QString yours = eoYours_ ? QString::number(*eoYours_) : tr("not done");
-        QString line =
-            tr("EO Cross: yours %1, optimal %2").arg(yours).arg(*best);
-        QString was = statusLabel_->text();
-        statusLabel_->setText(was.isEmpty() ? line : was + "\n" + line);
-      });
+  connect(&eoCheck_, &EoCrossCheck::found, this, [this](const QString &line) {
+    if (isBusy()) {
+      return;
+    }
+    QString was = statusLabel_->text();
+    statusLabel_->setText(was.isEmpty() ? line : was + "\n" + line);
+  });
 
   applySettings();
   selectSession(store_.currentIndex());
@@ -217,10 +212,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   feed_.setType(typeBox_->currentType()); // if the type didn't change
 }
 
-TimerPage::~TimerPage() {
-  splitsWatcher_.waitForFinished();
-  eoWatcher_.waitForFinished();
-}
+TimerPage::~TimerPage() { splitsWatcher_.waitForFinished(); }
 
 bool TimerPage::isBusy() const { return flow_.isBusy(); }
 
@@ -412,6 +404,7 @@ void TimerPage::nextScramble() {
     return;
   }
   flow_.nextScramble();
+  eoCheck_.cancel();
   statusLabel_->clear();
   feed_.advance();
 }
@@ -615,29 +608,8 @@ void TimerPage::stopVirtual(std::int64_t now) {
     // Keep the cube as it was left, to look at.
     flow_.keepDnf();
   }
-  analyseEoCross(session().solves.back());
-}
-
-void TimerPage::analyseEoCross(const Solve &s) {
-  ParseResult scramble = parseAlg(s.scramble);
-  ParseResult moves = parseAlg(s.moves);
-  if (!scramble || !moves || eoWatcher_.isRunning()) {
-    return;
-  }
-  FaceletCube start;
-  start.apply(scramble.alg);
-  eoYours_.reset();
-  for (const StepMark &m : stepMarks(start, moves.alg, {SolveStep::EOCross},
-                                     settings_.simplifiedCounts)) {
-    eoYours_ = m.htm;
-  }
-  std::vector<Hold> holds =
-      settings_.optimalAnyHold
-          ? std::vector<Hold>(allHolds().begin(), allHolds().end())
-          : withBothEoAxes(settings_.neutrality.holds);
-  Alg alg = scramble.alg;
-  eoWatcher_.setFuture(QtConcurrent::run(
-      [alg, holds] { return heldDistance(alg, SolveStep::EOCross, holds); }));
+  eoCheck_.start(session().solves.back().scramble,
+                 session().solves.back().moves);
 }
 
 void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "app/attempt_page.hpp"
+#include "app/eo_cross_check.hpp"
 #include "train/scramble_history.hpp"
-
-#include <QFutureWatcher>
 
 #include <optional>
 #include <vector>
@@ -67,8 +66,7 @@ private:
   // On a physical cube: the scrambles done, to go back to.
   ScrambleHistory<GeneratedScramble> history_;
   // The optimal EO Cross after a solve, and the solve's own.
-  QFutureWatcher<std::optional<int>> eoWatcher_;
-  std::optional<int> eoYours_;
+  EoCrossCheck eoCheck_;
 
   QWidget *algPanel_;
   QLineEdit *algEdit_;
