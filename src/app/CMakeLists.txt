@@ -35,6 +35,8 @@ add_library(vcube_gui STATIC
   flow_layout.cpp
   help_panel.cpp
   help_text.cpp
+  f2l_page.cpp
+  f2l_page_results.cpp
   inspection_attempts.cpp
   inspection_page.cpp
   inspection_sessions.cpp

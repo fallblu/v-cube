@@ -1,0 +1,256 @@
+#pragma once
+
+#include "cube/cubie.hpp"
+#include "cube/facelet.hpp"
+#include "cube/move.hpp"
+#include "cube/scramble.hpp"
+#include "train/algset.hpp"
+#include "train/ergonomics.hpp"
+#include "train/f2l_search.hpp"
+#include "train/solve_review.hpp"
+
+#include <array>
+#include <atomic>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace vcube {
+
+// F2L mode's logic: what the F2L is for a method, the pair cases, the
+// states the drills start from, and how pairs and their solutions are
+// ranked. Everything is in the solver's frame (cross on D).
+
+// --- the F2L of a method -----------------------------------------------------
+
+struct F2LConfig {
+  // Every edge is oriented for the F/B axis and stays so (ZZ): solutions
+  // never use quarter turns of F or B, or wide turns.
+  bool eo = true;
+  // F2L - 1: one slot is left for the last-slot step (ZZ-CT's TSLE)...
+  bool lastSlot = true;
+  // ...which may be any of these (by Slot: FR, FL, BL, BR).
+  std::array<bool, kSlots> lsSlots{true, true, false, false};
+  // Moves besides R, U and L that solutions may use.
+  bool dMoves = true;
+  bool halfFB = true; // F2 and B2
+  bool wide = true;   // without EO only: r, l, u, d
+
+  PairMoves moves() const;
+  bool leaves(Slot s) const {
+    return lastSlot && lsSlots[static_cast<std::size_t>(s)];
+  }
+  friend bool operator==(const F2LConfig &, const F2LConfig &) = default;
+};
+
+// The methods offered: ZZ F2L - 1 (ZZ-CT), ZZ F2L (ZZ-OP, ZZ-A), CFOP F2L
+// and CFOP F2L - 1.
+enum class F2LMethod : std::uint8_t { ZZMinus1, ZZ, CFOP, CFOPMinus1 };
+inline constexpr int kF2LMethods = 4;
+std::string_view methodId(F2LMethod m); // "zz-1", "zz", "cfop", "cfop-1"
+std::optional<F2LMethod> methodFromId(std::string_view id);
+std::string_view methodName(F2LMethod m);
+// Sets `eo` and `lastSlot` for the method; the rest is kept.
+void applyMethod(F2LConfig &config, F2LMethod m);
+F2LMethod methodOf(const F2LConfig &config);
+
+inline constexpr std::array<Slot, kSlots> kF2LSlots = {Slot::FR, Slot::FL,
+                                                       Slot::BL, Slot::BR};
+
+bool crossSolved(const CubieCube &c);
+bool edgesOriented(const CubieCube &c);
+// The cross is done, and EO with it when the method has EO.
+bool f2lBase(const CubieCube &c, const F2LConfig &config);
+std::vector<Slot> unsolvedSlots(const CubieCube &c);
+int solvedSlotCount(const CubieCube &c);
+// The method's F2L is done: the base holds and every slot is solved, or
+// (F2L - 1) all but one that may be left.
+bool f2lDone(const CubieCube &c, const F2LConfig &config);
+// The pairs still to solve at least: the unsolved slots, less the one
+// that can be left.
+int pairsLeft(const CubieCube &c, const F2LConfig &config);
+
+// A cube turned any way round (e.g. after rotations while solving), as
+// the solver sees it with the centres in their places.
+std::optional<CubieCube> centredCubie(const FaceletCube &cube);
+
+// --- pair cases --------------------------------------------------------------
+
+// Where a slot's corner and edge are, as seen for the front-right slot
+// (other slots are mirrored onto it) and up to a U turn: `corner` is the
+// corner's place * 3 + twist, `edge` the edge's place * 2 + flip. With
+// the corner in the top layer it is at URF; with only the edge there, the
+// edge is at UF.
+struct PairCase {
+  std::uint8_t corner = DFR * 3;
+  std::uint8_t edge = FR * 2;
+  friend auto operator<=>(const PairCase &, const PairCase &) = default;
+
+  bool solved() const { return corner == DFR * 3 && edge == FR * 2; }
+  bool cornerOnTop() const { return corner / 3 < 4; }
+  bool edgeOnTop() const { return edge / 2 < 4; }
+  // The slot the piece sits in (FR is the pair's own), if it is in one.
+  std::optional<Slot> cornerSlot() const;
+  std::optional<Slot> edgeSlot() const;
+};
+
+// The case of `target`'s pair in a state.
+PairCase pairCaseOf(const CubieCube &state, Slot target);
+// "URF1-UB0": the places and the twist and flip.
+std::string caseKey(PairCase c);
+std::optional<PairCase> caseFromKey(std::string_view key);
+// A few words: "Corner up, edge UB" or "Corner in FL slot, edge in slot
+// (flipped)".
+std::string caseName(PairCase c);
+
+// The groups the cases are listed in.
+enum class PairGroup : std::uint8_t {
+  BothTop,
+  CornerTopEdgeSlot,
+  EdgeTopCornerSlot,
+  BothSlot,
+  CornerElsewhere,
+  EdgeElsewhere,
+  BothElsewhere,
+};
+inline constexpr int kPairGroups = 7;
+PairGroup groupOf(PairCase c);
+std::string_view groupName(PairGroup g);
+
+// Every case but the solved one, by group: 83 with EO (no edge is
+// flipped), 167 without.
+const std::vector<PairCase> &pairCases(bool eo);
+
+// The slot a slot of the front-right view is for `target`'s pair: where a
+// case's "FL slot" is when the pair is, say, the back-left one.
+Slot slotSeenFrom(Slot seen, Slot target);
+
+// A picture of a case: the cross, the centres and the pair's two pieces
+// where the case has them, the rest masked.
+FaceletCube caseDiagram(PairCase c);
+
+// --- starting states ---------------------------------------------------------
+
+// A random state with the cross (and EO, for `eo`) done, the `open` slots
+// unsolved and the others solved.
+CubieCube randomF2LState(const std::vector<Slot> &open, bool eo, Rng &rng);
+
+// One pair to solve.
+struct PairSetup {
+  CubieCube state;
+  Slot target = Slot::FR;
+  PairCase pcase;
+};
+// A state for Pair solutions: `stage` is the pair's place in the solve (1
+// first, with every slot open; 0 any), brought down when the case needs
+// more slots open than that leaves. With `wanted` the target pair is that
+// case (in a random slot); nullopt when it can't be set up.
+std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
+                                         std::optional<PairCase> wanted,
+                                         Rng &rng);
+// The same for a slot of the caller's choice, with the slots in `solved`
+// solved if the case lets them be (Case explorer).
+std::optional<PairSetup> casePairSetup(const F2LConfig &config, PairCase wanted,
+                                       Slot target, bool othersSolved,
+                                       Rng &rng);
+// The most pairs a solve of the method has (3 for F2L - 1, else 4).
+int stageCount(const F2LConfig &config);
+
+// A state for Pair choice: two or more pairs that could be solved next,
+// with more than one left to do or a choice of which to leave.
+CubieCube randomChoiceState(const F2LConfig &config, Rng &rng);
+// A state for Full F2L: every slot open.
+CubieCube randomFullState(const F2LConfig &config, Rng &rng);
+
+// --- blind spots -------------------------------------------------------------
+
+// How many stickers of a piece the flat view shows (U, F and the strips
+// of L and R beside them): `corner` at `place`.
+int flatStickers(bool corner, int place);
+// What looking for a slot's pair costs in a state: 0 when both pieces can
+// be told from what the flat view shows, more for each piece that shows
+// one sticker too few (kPartlyHidden) or none (kHidden).
+inline constexpr double kHidden = 2.0;
+inline constexpr double kPartlyHidden = 1.0;
+double hiddenCost(const CubieCube &state, Slot slot);
+
+// --- ranking -----------------------------------------------------------------
+
+struct RankedSolution {
+  Alg alg;
+  std::string text;
+  int htm = 0;
+  double cost = 0.0;    // the profile's cost (and the wide-turn penalty)
+  bool computed = true; // found by the search
+  std::string setCase;  // the reference set's case it is the alg of
+  bool fromSet() const { return !setCase.empty(); }
+};
+
+struct AnalysisOptions {
+  F2LConfig config;
+  ErgoProfile profile;
+  // A set of pair cases (see isPairSet()) whose alg for the pair is shown
+  // beside the computed solutions; may be null.
+  std::shared_ptr<const AlgSet> reference;
+  std::size_t keep = 8;     // solutions kept per pair
+  int extra = 2;            // moves over the shortest that are ranked
+  int maxResults = 600;     // solutions costed per pair, shortest first
+  double widePenalty = 1.0; // added for each wide turn
+};
+
+// What a way of solving a pair costs: the profile's cost of the moves as
+// simplified, and the penalty for each wide turn.
+double solutionCost(const Alg &alg, const AnalysisOptions &options);
+
+struct PairAnalysis {
+  Slot slot = Slot::FR;
+  PairCase pcase;
+  // Cheapest first: the solutions within `extra` moves of the shortest,
+  // by cost, and the reference set's alg for the pair (marked, and not
+  // `computed` when the search didn't find it), wherever its cost puts it.
+  std::vector<RankedSolution> solutions;
+  int shortest = 0;
+  bool found() const { return !solutions.empty(); }
+  const RankedSolution *best() const {
+    return solutions.empty() ? nullptr : &solutions.front();
+  }
+};
+
+PairAnalysis analysePair(const CubieCube &state, Slot slot,
+                         const AnalysisOptions &options,
+                         const std::atomic<bool> *stop = nullptr);
+
+// A pair as the one to solve next.
+struct PairRank {
+  PairAnalysis pair;
+  double rest = 0.0;       // the cheapest way through the pairs after it
+  double hidden = 0.0;     // hiddenCost() of the pair at the start
+  double total = 0.0;      // pair cost + rest + hidden
+  std::vector<Slot> order; // that way: this pair first
+  int moves = 0;           // its moves in all
+};
+
+// Every pair that could be solved next, best first: each with its best
+// solution followed by the cheapest way through the pairs the method
+// still needs after it (each solved with its own best solution).
+std::vector<PairRank> rankPairs(const CubieCube &state,
+                                const AnalysisOptions &options,
+                                const std::atomic<bool> *stop = nullptr);
+
+// --- a solve's pairs ---------------------------------------------------------
+
+// A stretch of moves that solved one or more slots: from the state
+// `before` (as the solver sees it), ending with the base intact and more
+// slots solved than at any time before.
+struct F2LSegment {
+  std::size_t begin = 0;
+  std::size_t end = 0;
+  std::vector<Slot> solved;
+  CubieCube before;
+};
+std::vector<F2LSegment> f2lSegments(const CubieCube &start, const Alg &moves,
+                                    const F2LConfig &config);
+
+} // namespace vcube

@@ -4,6 +4,7 @@ add_library(vcube_io
   backup.cpp
   blind_store.cpp
   data_file.cpp
+  f2l_store.cpp
   inspection_store.cpp
   library.cpp
   move_counts.cpp

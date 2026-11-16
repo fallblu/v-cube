@@ -5,6 +5,7 @@
 #include "app/widgets.hpp"
 #include "io/blind_store.hpp"
 #include "io/data_file.hpp"
+#include "io/f2l_store.hpp"
 #include "io/inspection_store.hpp"
 
 #include <QDate>
@@ -221,6 +222,22 @@ std::vector<ActivityEvent> TodayPage::events() {
       }
     }
   }
+  FileRead f2l = readDataFile(QDir(dataDir_).filePath("f2l.json"), kF2LFile);
+  if (f2l.status == FileStatus::Read) {
+    // A Full F2L solve's pairs are also kept as pair attempts: the solve
+    // itself is what counts.
+    F2LStats stats = f2lFromJson(f2l.object);
+    for (const auto &[key, attempts] : stats.cases) {
+      for (const PairAttempt &a : attempts) {
+        if (a.drill != F2LDrill::Full) {
+          add(AppMode::F2L, a.timestamp, a.ms);
+        }
+      }
+    }
+    for (const FullAttempt &a : stats.fulls) {
+      add(AppMode::F2L, a.timestamp, a.ms);
+    }
+  }
   FileRead blind =
       readDataFile(QDir(dataDir_).filePath("blind.json"), kBlindFile);
   if (blind.status == FileStatus::Read) {
@@ -286,6 +303,7 @@ void TodayPage::refresh() {
       {AppMode::Timed, QT_TR_NOOP("Timed (solves)")},
       {AppMode::Untimed, QT_TR_NOOP("Untimed (solves)")},
       {AppMode::MoveCount, QT_TR_NOOP("Move Count (solves)")},
+      {AppMode::F2L, QT_TR_NOOP("F2L (pairs and solves)")},
       {AppMode::Inspection, QT_TR_NOOP("Inspection (scrambles)")},
       {AppMode::Blind, QT_TR_NOOP("Blind (solves and traces)")},
   };

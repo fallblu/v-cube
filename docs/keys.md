@@ -10,7 +10,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 
 | Key | Action |
 | --- | --- |
-| Ctrl+1 … Ctrl+9 | Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, Inspection, Blind, in the sidebar's order (not while a solve or inspection is running) |
+| Ctrl+1 … Ctrl+9, Ctrl+- | Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, F2L, Inspection, Blind, in the sidebar's order (not while a solve or inspection is running) |
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
@@ -24,7 +24,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 
 ## Turning keys
 
-The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Cube and keys: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
+The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, F2L, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Cube and keys: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
 
 | Key | Move | Key | Move | Key | Move | Key | Move |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -184,6 +184,27 @@ In the solve review (Alt+R, or double-click a solve):
 | --- | --- |
 | ← / → | step the replay back / forward |
 | Home / End | to the scramble / to the end |
+
+## F2L
+
+| When | Key | Action |
+| --- | --- | --- |
+| solving | turning keys | any turn; the clock runs from the first look |
+| Pair solutions, solving | Tab | show the best solution's next move, done from the start (the try counts as hinted) |
+| Pair choice, solving | Tab | name the best pair to start with (the pick isn't counted) |
+| solving | Backspace | give up and see the solutions |
+| solving | Esc | put the cube back as it started |
+| afterwards | Space | next |
+| afterwards | Esc | the same state again, not recorded |
+| afterwards, Case explorer | Enter | play the chosen solution from the start |
+| afterwards, Case explorer | ← / → | step back / forward through it |
+| afterwards, Case explorer | 1-9 | choose a solution of the list (or click it to play it) |
+| afterwards, Case explorer | turning keys | turn the cube freely |
+| Case explorer | ↑ / ↓ | the case before / after |
+| Case explorer | Space | another example of the case |
+| Case explorer | Esc | put the cube back |
+
+Full F2L has no hint and nothing to step through: its pairs are compared in a table.
 
 ## Inspection
 

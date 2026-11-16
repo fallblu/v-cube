@@ -52,8 +52,8 @@ const std::vector<Section> &sections() {
        kNoMode,
        {},
        {T("Key"), T("Action")},
-       {{T("Ctrl+1 … Ctrl+9"),
-         T("Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, "
+       {{T("Ctrl+1 … Ctrl+9, Ctrl+-"),
+         T("Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, F2L, "
            "Inspection, Blind, in the sidebar's order (not while a solve or "
            "inspection is running)")},
         {T("Ctrl+0"), T("Today")},
@@ -291,6 +291,34 @@ const std::vector<Section> &sections() {
        {{T("← / →"), T("step the replay back / forward")},
         {T("Home / End"), T("to the scramble / to the end")}},
        {}},
+      {T("F2L"),
+       AppMode::F2L,
+       {},
+       {T("When"), T("Key"), T("Action")},
+       {{T("solving"), T("turning keys"),
+         T("any turn; the clock runs from the first look")},
+        {T("Pair solutions, solving"), T("Tab"),
+         T("show the best solution's next move, done from the start (the "
+           "try counts as hinted)")},
+        {T("Pair choice, solving"), T("Tab"),
+         T("name the best pair to start with (the pick isn't counted)")},
+        {T("solving"), T("Backspace"), T("give up and see the solutions")},
+        {T("solving"), T("Esc"), T("put the cube back as it started")},
+        {T("afterwards"), T("Space"), T("next")},
+        {T("afterwards"), T("Esc"), T("the same state again, not recorded")},
+        {T("afterwards, Case explorer"), T("Enter"),
+         T("play the chosen solution from the start")},
+        {T("afterwards, Case explorer"), T("← / →"),
+         T("step back / forward through it")},
+        {T("afterwards, Case explorer"), T("1-9"),
+         T("choose a solution of the list (or click it to play it)")},
+        {T("afterwards, Case explorer"), T("turning keys"),
+         T("turn the cube freely")},
+        {T("Case explorer"), T("↑ / ↓"), T("the case before / after")},
+        {T("Case explorer"), T("Space"), T("another example of the case")},
+        {T("Case explorer"), T("Esc"), T("put the cube back")}},
+       {T("Full F2L has no hint and nothing to step through: its pairs are "
+          "compared in a table.")}},
       {T("Inspection"),
        AppMode::Inspection,
        {},
@@ -394,7 +422,8 @@ const std::vector<Section> &sections() {
 
 const char *const kTurningIntro = T(
     "The virtual cube (Learn, Drill on the virtual cube, the Solves modes' "
-    "virtual sessions, Inspection, Blind, Alg Lab's virtual test sessions) "
+    "virtual sessions, F2L, Inspection, Blind, Alg Lab's virtual test "
+    "sessions) "
     "is turned with cstimer's face keys. Shift and a face key turns the "
     "wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in "
     "Settings > Cube and keys: select a row and **Change** its key or move, or "

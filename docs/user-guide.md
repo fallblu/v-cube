@@ -9,18 +9,18 @@ lists every key, and `F1` in the app shows the current mode's.
   [getting algs into a set](#getting-algs-into-a-set), [Alg Lab](#alg-lab)
 - [Solves](#solves): [Timed](#timed), [Untimed](#untimed),
   [Move Count](#move-count), [Review](#review), [scramble types](#scramble-types)
-- [Practice](#practice): [Inspection](#inspection), [Blind](#blind)
+- [Practice](#practice): [F2L](#f2l), [Inspection](#inspection), [Blind](#blind)
 - [Colour neutrality](#colour-neutrality), [the virtual cube](#the-virtual-cube),
   [Settings](#settings)
 
 ## The window
 
 The sidebar lists the modes in three groups, Algs (Learn, Drill, Library,
-Alg Lab), Solves (Timed, Untimed, Move Count) and Practice (Inspection,
-Blind), under **Today**. `Ctrl+1` to `Ctrl+9` switch to them in the
-sidebar's order (Learn, Drill, Library, Alg Lab, Timed, Untimed, Move
-Count, Inspection, Blind) and `Ctrl+0` to Today; the **Go** menu has them
-too. Switching is blocked while a
+Alg Lab), Solves (Timed, Untimed, Move Count) and Practice (F2L,
+Inspection, Blind), under **Today**. `Ctrl+1` to `Ctrl+9` and `Ctrl+-`
+switch to them in the sidebar's order (Learn, Drill, Library, Alg Lab,
+Timed, Untimed, Move Count, F2L, Inspection, and Blind on `Ctrl+-`) and
+`Ctrl+0` to Today; the **Go** menu has them too. Switching is blocked while a
 solve or inspection is running.
 
 - **Today** shows, for each alg set, the reviews due now or later today,
@@ -779,6 +779,72 @@ In Timed and Untimed:
   solved a step at a time); nothing is graded or recorded.
 
 ## Practice
+
+### F2L
+
+The F2L practised a part at a time on the virtual cube, instead of as a
+set of algs to memorise. Every state has the cross done; your moves are
+compared with solutions searched for that very state, so open slots get
+used and nothing depends on a case list.
+
+**The F2L of your method** is chosen in the bar:
+
+- **F2L**: *ZZ F2L - 1 (ZZ-CT)*, the default, leaves one slot for the
+  last-slot step; *ZZ F2L (ZZ-OP, ZZ-A)* solves all four; *CFOP F2L* and
+  *CFOP F2L - 1* are the same without EO. In the ZZ methods every edge
+  starts oriented and no solution shown ever changes that.
+- **Last slot** (F2L - 1): the slots that may be the one left, FR and FL
+  by default. The F2L is done when all but one of those is solved.
+- **Solutions use**: R, U and L always; **D turns** and **F2 and B2** as
+  well by default (both keep EO). Without EO, F and B turn freely and
+  **wide turns** can be allowed, at a cost of 1.0 each on top of what your
+  profile says. No solution ever has a slice turn or a rotation.
+
+The cube is shown in the **flat view** by default, which hides what a real
+cube hides: the back slots and the back of the top layer. Pair choice
+counts that.
+
+Solutions are ranked by **cost**: the fingertrick cost of the score profile
+chosen in Alg Lab, among the solutions within two moves of the shortest.
+The matching alg of your ZZ F2L set (the set the solve review uses) is
+listed with them and marked, so you can see when the alg you know is
+already the best and when the state offers something better.
+
+The four drills are the tabs at the top:
+
+- **Pair solutions**: one pair to solve, ringed on the cube and named in
+  the prompt. The clock runs from the moment the state is shown. Afterwards
+  your moves and their cost stand beside the best solutions; click one, or
+  press its number, to see it, `Enter` to play it and `←` `→` to step
+  through it. `Tab` while solving shows the best solution's next move (the
+  try then counts as hinted); `Backspace` gives up. **Pair** picks where in
+  the solve the pair comes: *Any* mixes first pairs, with every slot open,
+  up to last pairs.
+- **Pair choice**: several pairs are open; solve the one you would do
+  first. The pairs are then ranked by **total**: the pair's best solution,
+  plus the cheapest way through the pairs still needed after it, plus a
+  penalty for a pair whose pieces the flat view hides at the start (2.0
+  for a piece that can't be seen at all, 1.0 for one that shows too little
+  to tell which it is). Your pick and how you solved it are judged
+  separately. `Tab` names the best pair; the pick then isn't counted.
+- **Full F2L**: the whole F2L of the method. Afterwards each pair you
+  solved is listed with your moves, the best solution for it from where
+  you were, and the pair that would have been the best one to do then.
+- **Case explorer**: the pair cases with their ranked solutions, set up in
+  a slot of your choice with the other slots solved or open. `↑` `↓` move
+  through the cases, `Space` gives another example. Nothing is recorded.
+
+**The case list** on the left has the 83 pair cases of a ZZ F2L (167
+without EO): where the corner and the edge are, seen for the front-right
+slot; the other slots' cases are its mirror images. For each it shows how
+many times you solved it in any drill, how far over the best solution you
+were lately (a hint counts as 2.0 over, giving up as 4.0) and your time.
+A case that is costly or slow against your other cases is **weak**: it is
+marked, and Pair solutions brings it up more often, along with the cases
+you haven't tried. Double-click a case to open it in the Case explorer.
+Above the list are your Pair choice record (how often you picked the best
+pair) and your Full F2L averages. `Esc` after a result gives the same
+state again without recording it.
 
 ### Inspection
 

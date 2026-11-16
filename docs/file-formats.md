@@ -15,6 +15,7 @@ anyone who wants to back them up, move them, or edit an alg set by hand.
 | Untimed sessions | `~/.local/share/v-cube/untimed.json` | `%LOCALAPPDATA%\v-cube\untimed.json` |
 | Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
 | Inspection sessions | `~/.local/share/v-cube/inspection.json` | `%LOCALAPPDATA%\v-cube\inspection.json` |
+| F2L statistics | `~/.local/share/v-cube/f2l.json` | `%LOCALAPPDATA%\v-cube\f2l.json` |
 | Blind sessions and drill statistics | `~/.local/share/v-cube/blind.json` | `%LOCALAPPDATA%\v-cube\blind.json` |
 | Alg Lab (lab cases, candidates, test sessions, times, profiles) | `~/.local/share/v-cube/alglab.json` | `%LOCALAPPDATA%\v-cube\alglab.json` |
 | Daily backups | `~/.local/share/v-cube/backups/` | `%LOCALAPPDATA%\v-cube\backups\` |
@@ -89,6 +90,7 @@ Every data file is a JSON object that starts with a `format` and a
 | Untimed sessions | `v-cube.untimed` | no |
 | Move Count sessions | `v-cube.movecount` | no |
 | Inspection sessions | `v-cube.inspection` | no |
+| F2L | `v-cube.f2l` | no |
 | Blind | `v-cube.blind` | no |
 | Alg Lab | `v-cube.alglab` | no |
 
@@ -398,6 +400,44 @@ top, blue front.
 
 A new file starts with EO, EO+2 and EO Cross Plan sessions (WCA inspection)
 and a Bad edges session for both axes.
+
+## F2L
+
+`f2l.json` (`"v-cube.f2l"`), F2L mode's statistics:
+
+```json
+{
+  "format": "v-cube.f2l", "version": 1,
+  "cases": {
+    "URF1-UB0": [
+      {"timestamp": 1794000000, "ms": 2310, "moves": 8, "best": 7,
+       "excess": 0.45, "hint": true, "drill": "choice"}
+    ]
+  },
+  "choices": [{"timestamp": 1794000000, "rank": 2, "of": 3, "regret": 1.2}],
+  "fulls": [{"timestamp": 1794000000, "ms": 14200, "moves": 31, "pairs": 3,
+             "excess": 4.1}]
+}
+```
+
+- `cases`: the last 50 tries of each pair case. A case's key is where the
+  pair's corner and edge are, seen for the front-right slot (other slots
+  are mirrored onto it) and up to a U turn: the corner's place and twist
+  (0 to 2), then the edge's place and flip (0 or 1). With the corner in the
+  top layer it is at URF; with only the edge there, the edge is at UF. A
+  try has its time `ms` (from the state being shown to the pair solved),
+  its `moves` (HTM), the `best` solution's moves, the `excess` (its cost
+  over the best solution's, by the Alg Lab score profile then chosen), and
+  optionally `hint` (a hint was shown), `gaveUp`, and the `drill` it was
+  done in when that isn't Pair solutions (`choice` or `full`).
+- `choices`: the last 500 pairs picked in Pair choice: the pick's `rank`
+  among the `of` pairs that could be solved (1 the best) and its `regret`,
+  the cost of the way on from it over the best pair's.
+- `fulls`: the last 500 Full F2L solves: time, moves (HTM), the `pairs`
+  solved and the summed `excess` of the pairs over their best solutions.
+
+The mode's choices (drill, method, the slots that may be left, the moves
+solutions use, the stage) are in the settings file under `[f2l]`.
 
 ## Blind
 

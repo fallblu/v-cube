@@ -147,4 +147,8 @@ Stored<QVariant> lab(const char *name, const QVariant &fallback) {
   return {QStringLiteral("alglab/") + name, fallback};
 }
 
+Stored<QVariant> f2l(const char *name, const QVariant &fallback) {
+  return {QStringLiteral("f2l/") + name, fallback};
+}
+
 } // namespace vcube::saved

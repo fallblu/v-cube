@@ -139,6 +139,10 @@ Stored<int> blindHoldFront(int fallback);
 // and scoreProfile (the profile the Score column uses).
 Stored<QVariant> lab(const char *name, const QVariant &fallback = {});
 
+// F2L mode's choices, kept as "f2l/<name>": drill, method, leave (the
+// slots that may be left), dMoves, halfFB, wide, stage, slot and context.
+Stored<QVariant> f2l(const char *name, const QVariant &fallback = {});
+
 } // namespace saved
 
 } // namespace vcube

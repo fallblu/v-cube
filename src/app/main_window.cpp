@@ -7,6 +7,7 @@
 #include "app/blind_page.hpp"
 #include "app/command_palette.hpp"
 #include "app/drill_page.hpp"
+#include "app/f2l_page.hpp"
 #include "app/help_panel.hpp"
 #include "app/inspection_page.hpp"
 #include "app/key_router.hpp"
@@ -94,12 +95,14 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   inspectionPage_ = new InspectionPage(settings_, data_.dataDir(), stack_);
   blindPage_ = new BlindPage(settings_, data_.dataDir(), stack_);
   algLabPage_ = new AlgLabPage(settings_, data_.library, data_.lab, stack_);
+  f2lPage_ =
+      new F2LPage(settings_, data_.library, data_.lab, data_.dataDir(), stack_);
   todayPage_ =
       new TodayPage(settings_, data_.library, data_.sessions, data_.untimed,
                     data_.moveCounts, data_.lab, data_.dataDir(), stack_);
   pages_ = {learnPage_,   drillPage_,     libraryPage_,    timedPage_,
             untimedPage_, moveCountPage_, inspectionPage_, blindPage_,
-            algLabPage_,  todayPage_};
+            algLabPage_,  f2lPage_,       todayPage_};
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
@@ -111,6 +114,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
             timedPage_->refreshScrambleTypes(setId);
             untimedPage_->refreshScrambleTypes(setId);
             algLabPage_->reloadSets();
+            f2lPage_->reloadSets();
             updateBadges();
           });
   libraryPage_->setLab(&data_.lab);
