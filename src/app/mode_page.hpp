@@ -10,8 +10,8 @@ class QMenu;
 namespace vcube {
 
 // A page of the main window, one per mode (Learn, Drill, Library, Timed,
-// Untimed, Move Count, Inspection, Blind, Today). The main window forwards
-// the keyboard to the active page (see KeyRouter) and tells pages when
+// Untimed, Move Count, EO Cross, F2L, TSLE, Alg Lab, Today). The main window
+// forwards the keyboard to the active page (see KeyRouter) and tells pages when
 // they are shown and hidden, when the settings change and when focus mode
 // is turned on or off.
 class ModePage : public QWidget {

@@ -31,19 +31,16 @@ add_executable(vcube_tests
   test_solve_review.cpp
   test_families.cpp
   test_reduction.cpp
-  test_bld.cpp
-  test_inspection_io.cpp
-  test_blind_io.cpp
   test_data_file.cpp
   test_today.cpp
   test_backup.cpp
   test_timed_flow.cpp
   test_attempt_flow.cpp
-  test_inspection_flow.cpp
-  test_blind_flow.cpp
   test_alg_search.cpp
   test_alg_lab.cpp
   test_grips.cpp
+  test_eo_cross.cpp
+  test_eo_cross_io.cpp
   test_f2l.cpp
   test_f2l_io.cpp
   test_tsle.cpp

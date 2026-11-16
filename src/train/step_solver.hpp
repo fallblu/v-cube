@@ -12,7 +12,7 @@
 
 namespace vcube {
 
-// Optimal solutions for the inspection steps of ZZ: EO, EO+1, EO+2, EOLine
+// Optimal solutions for the first steps of ZZ: EO, EO+1, EO+2, EOLine
 // and EO Cross, and for CFOP's cross. XEOCross and the F2L are far too long
 // to solve optimally here, so they have no solver.
 //
@@ -68,6 +68,14 @@ struct HeldOptimum {
 std::vector<HeldOptimum> solveStepHeld(const Alg &scramble, SolveStep step,
                                        const std::vector<Hold> &holds,
                                        int maxSolutions = 8);
+
+// The same for a scrambled state (as it is holding white top, green front).
+std::vector<HeldOptimum> solveStepHeld(const CubieCube &scrambled,
+                                       SolveStep step,
+                                       const std::vector<Hold> &holds,
+                                       int maxSolutions = 8);
+// Whether two holds pose the same problem for the step (see solveStepHeld).
+bool sameStepProblem(Hold a, Hold b, SolveStep step);
 
 // The optimal length for a scramble over `holds` (the best of
 // solveStepHeld's lengths), stopping at first solutions; nullopt for ZZ

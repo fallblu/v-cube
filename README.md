@@ -6,13 +6,13 @@ algs on a virtual cube turned from the keyboard, then drill and time them
 on the virtual cube or on a normal (non-smart) cube with the space-bar
 timer. Solves can be timed, untimed or move-counted, on the virtual cube or
 a physical one, and reviewed against the optimal solutions and your own F2L
-algs. Practice modes train ZZ inspection planning and Old Pochmann
-blindfolded solving.
+algs. Practice modes train a ZZ solve a part at a time: EO Cross, the
+F2L and ZZ-CT's last slot.
 
 ## Modes
 
-The sidebar lists nine modes in three groups (`Ctrl+1` to `Ctrl+9`, in the
-sidebar's order), under
+The sidebar lists ten modes in three groups (`Ctrl+1` to `Ctrl+9` and
+`Ctrl+-`, in the sidebar's order), under
 a **Today** view (`Ctrl+0`) that shows each alg set's reviews due and new
 cases left, your practice streak, and what you did in each mode today and
 over the last 7 days.
@@ -26,10 +26,9 @@ over the last 7 days.
 | Solves | **Timed** | Timed solves, with sessions, statistics and cstimer import and export |
 | Solves | **Untimed** | Solves with no timer, with their move counts |
 | Solves | **Move Count** | Move-efficiency practice for one step (EO to ZZ F2L, the cross, CFOP F2L) |
+| Practice | **EO Cross** | The start of a ZZ solve a part at a time (EO, EOLine, EO+1, EO+2, EO Cross): counting bad edges, choosing the cross colour and EO axis, planning in inspection and doing the plan unseen, solving a step efficiently, and whole EO Crosses broken down by where the moves went, each compared with the optimal solutions for the state on the cube |
 | Practice | **F2L** | The F2L a part at a time (ZZ F2L - 1 for ZZ-CT, ZZ F2L, CFOP): solving a pair well, choosing the pair to do next, whole F2Ls, and a browser of the pair cases, each compared with solutions searched for the state on the cube |
 | Practice | **TSLE** | ZZ-CT's last-slot step a trigger at a time: every good trigger of each of the 104 cases, the best one for the AUF at hand, whole TSLEs, and a guided introduction of the cases |
-| Practice | **Inspection** | Planning EO to EO Cross in inspection and doing it blind, and counting bad edges |
-| Practice | **Blind** | Old Pochmann: letters, memo tracing, setup moves and blind solves |
 
 Some of what runs through every mode:
 

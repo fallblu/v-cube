@@ -4,12 +4,11 @@
 #include "io/data_file.hpp"
 
 #include "app/alglab_page.hpp"
-#include "app/blind_page.hpp"
 #include "app/command_palette.hpp"
 #include "app/drill_page.hpp"
+#include "app/eo_cross_page.hpp"
 #include "app/f2l_page.hpp"
 #include "app/help_panel.hpp"
-#include "app/inspection_page.hpp"
 #include "app/key_router.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
@@ -93,8 +92,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       new UntimedPage(settings_, data_.untimed, data_.library, stack_);
   moveCountPage_ =
       new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_);
-  inspectionPage_ = new InspectionPage(settings_, data_.dataDir(), stack_);
-  blindPage_ = new BlindPage(settings_, data_.dataDir(), stack_);
+  eoCrossPage_ = new EoCrossPage(settings_, data_.dataDir(), stack_);
   algLabPage_ = new AlgLabPage(settings_, data_.library, data_.lab, stack_);
   f2lPage_ =
       new F2LPage(settings_, data_.library, data_.lab, data_.dataDir(), stack_);
@@ -102,9 +100,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   todayPage_ =
       new TodayPage(settings_, data_.library, data_.sessions, data_.untimed,
                     data_.moveCounts, data_.lab, data_.dataDir(), stack_);
-  pages_ = {learnPage_,   drillPage_,     libraryPage_,    timedPage_,
-            untimedPage_, moveCountPage_, inspectionPage_, blindPage_,
-            algLabPage_,  f2lPage_,       tslePage_,       todayPage_};
+  pages_ = {learnPage_,   drillPage_,     libraryPage_, timedPage_,
+            untimedPage_, moveCountPage_, eoCrossPage_, algLabPage_,
+            f2lPage_,     tslePage_,      todayPage_};
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
@@ -152,31 +150,6 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
           });
   connect(todayPage_, &TodayPage::learnSetRequested, this,
           &MainWindow::learnSet);
-  connect(inspectionPage_, &InspectionPage::reviewRequested, this,
-          [this](const QString &scramble, const QString &solution, int step,
-                 int index) {
-            ReviewedSolve solve;
-            auto s = static_cast<SolveStep>(step);
-            solve.title = tr("Inspection: %1 #%2")
-                              .arg(qs(std::string(stepName(s))))
-                              .arg(index + 1);
-            solve.scramble = parseAlgOrEmpty(ss(scramble));
-            solve.solution = parseAlgOrEmpty(ss(solution));
-            solve.step = s;
-            solve.dnf = !stepReached(
-                [&] {
-                  FaceletCube f;
-                  f.apply(solve.scramble);
-                  f.apply(solve.solution);
-                  return f;
-                }(),
-                s);
-            ReviewDialog dialog(solve, settings_, &data_.library, this);
-            dialog.setRetryEnabled(true);
-            connect(&dialog, &ReviewDialog::retryRequested, inspectionPage_,
-                    [this, index] { inspectionPage_->startRetry(index); });
-            dialog.exec();
-          });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
                          static_cast<CasePage *>(drillPage_)}) {
     connect(page, &CasePage::editCaseRequested, this,
@@ -452,8 +425,7 @@ bool MainWindow::setMode(int mode) {
     pageUndoAction_->setVisible(
         mode == AppMode::Learn || mode == AppMode::Drill ||
         mode == AppMode::Timed || mode == AppMode::Untimed ||
-        mode == AppMode::MoveCount || mode == AppMode::Inspection ||
-        mode == AppMode::AlgLab);
+        mode == AppMode::MoveCount || mode == AppMode::AlgLab);
   }
   updateHelp();
   updateBadges();

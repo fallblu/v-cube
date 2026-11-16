@@ -4,8 +4,6 @@ add_library(vcube_train
   attempt_flow.cpp
   algset.cpp
   alg_lab.cpp
-  bld.cpp
-  blind_flow.cpp
   case_logic.cpp
   drill_flow.cpp
   lab_flow.cpp
@@ -13,8 +11,8 @@ add_library(vcube_train
   drill_session.cpp
   ergonomics.cpp
   grips.cpp
-  inspection_flow.cpp
   families.cpp
+  eo_cross.cpp
   f2l.cpp
   f2l_stats.cpp
   tsle.cpp

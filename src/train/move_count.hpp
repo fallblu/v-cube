@@ -49,7 +49,7 @@ enum class SolveStep : std::uint8_t {
 // Cross, XEOCross, ZZ F2L, Cross, CFOP F2L.
 const std::vector<SolveStep> &solveSteps();
 // The ZZ steps in the order a solve does them: EO, EOLine, EO+1, EO+2, EO
-// Cross, ZZ F2L (the steps Inspection can plan, and ZZ F2L).
+// Cross, ZZ F2L.
 const std::vector<SolveStep> &allSteps();
 // "eo", "eo+1", "eo+2", "eoline", "eocross", "xeocross", "zzf2l", "cross",
 // "cfopf2l".

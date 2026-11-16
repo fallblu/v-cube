@@ -9,31 +9,30 @@ lists every key, and `F1` in the app shows the current mode's.
   [getting algs into a set](#getting-algs-into-a-set), [Alg Lab](#alg-lab)
 - [Solves](#solves): [Timed](#timed), [Untimed](#untimed),
   [Move Count](#move-count), [Review](#review), [scramble types](#scramble-types)
-- [Practice](#practice): [F2L](#f2l), [TSLE](#tsle), [Inspection](#inspection),
-  [Blind](#blind)
+- [Practice](#practice): [EO Cross](#eo-cross), [F2L](#f2l), [TSLE](#tsle)
 - [Colour neutrality](#colour-neutrality), [the virtual cube](#the-virtual-cube),
   [Settings](#settings)
 
 ## The window
 
 The sidebar lists the modes in three groups, Algs (Learn, Drill, Library,
-Alg Lab), Solves (Timed, Untimed, Move Count) and Practice (F2L, TSLE,
-Inspection, Blind), under **Today**. `Ctrl+1` to `Ctrl+9`, `Ctrl+-` and
-`Ctrl+=` switch to them in the sidebar's order (Learn, Drill, Library, Alg
-Lab, Timed, Untimed, Move Count, F2L, TSLE, then Inspection on `Ctrl+-`
-and Blind on `Ctrl+=`) and `Ctrl+0` to Today; the **Go** menu has them too. Switching is blocked while a
-solve or inspection is running.
+Alg Lab), Solves (Timed, Untimed, Move Count) and Practice (EO Cross, F2L,
+TSLE), under **Today**. `Ctrl+1` to `Ctrl+9` and `Ctrl+-` switch to them
+in the sidebar's order (Learn, Drill, Library, Alg Lab, Timed, Untimed,
+Move Count, EO Cross, F2L, then TSLE on `Ctrl+-`) and `Ctrl+0` to Today;
+the **Go** menu has them too. Switching is blocked while a solve or
+inspection is running.
 
 **Nothing timed starts by itself.** Wherever a case is timed from the
 moment it is shown, the mode opens on a ready page and shows nothing until
-you press `Space`: Learn (a case's recognition time), F2L's Pair solutions,
-Pair choice and Full F2L, TSLE's Next trigger and Full TSLE, and Blind's
-Letter quiz and Setup moves. The ready page comes back when you return to
+you press `Space`: Learn (a case's recognition time), every drill of EO
+Cross, F2L's Pair solutions, Pair choice and Full F2L, and TSLE's Next
+trigger and Full TSLE. The ready page comes back when you return to
 the mode, and after you pick a drill, a set or an option with the mouse;
 a case whose clock was running when you left is put away, unrecorded.
 Once started, the cases follow one another as before. The other timed
 modes already waited for a key: Timed, Drill and Alg Lab start on Space
-or the first turn, Inspection and Blind's tracing and solves on Space.
+or the first turn.
 
 - **Today** shows, for each alg set, the reviews due now or later today,
   the new cases Learn can still bring in today from the learn queue, the
@@ -57,8 +56,8 @@ or the first turn, Inspection and Blind's tracing and solves on Space.
   `Ctrl+B` (View > Sidebar) hides just the sidebar.
 - **Side panel**: `F9` (View > Side panel) hides or shows the current
   mode's side panel (the case list in Learn and Drill, the session and
-  its attempts in the solve modes, Inspection and Blind, the case browser
-  in Alg Lab), giving the cube the whole page. Each mode remembers it.
+  its attempts in the solve modes, the lists of EO Cross, F2L and TSLE,
+  the case browser in Alg Lab), giving the cube the whole page. Each mode remembers it.
 - **The mode's menu**: in Learn, Drill and Alg Lab the menu bar has a menu
   named after the mode with what its list offers on a right-click, for
   the case or alg selected.
@@ -795,6 +794,74 @@ In Timed and Untimed:
 
 ## Practice
 
+### EO Cross
+
+The start of a ZZ solve practised a part at a time on the virtual cube.
+Each drill has a tab at the top of the page; every one is timed from the
+moment its state is shown, so each opens on the ready page.
+
+**What counts.** A step (EO, EOLine, EO+1, EO+2 or EO Cross, chosen under
+**Step**) is done in any hold your [colour neutrality](#colour-neutrality)
+allows, on either EO axis: with white-or-yellow crosses that is four ways
+to do EO Cross. The cube is first shown in your main hold; turn it as a
+whole to solve from another. Your moves are counted in HTM and compared
+with the **optimum**: the shortest solution over all of those holds,
+searched for the state on the cube. A step done in a hold that isn't one
+of yours doesn't count.
+
+**The states** are random ones, grouped by **kind**: the number of edges
+bad for the front-back axis as the cube is first shown (0, 2, ... 12). The
+kinds come up roughly as often as a scramble would give them, the rare
+ones a little more, and the kinds that have gone badly lately more often
+still. **Bad edges** in the bar pins one kind instead.
+
+- **Bad edges**: a state is shown in one of your holds. Type how many edges
+  are bad for the F/B axis (the ZZ axis as held; the prompt names its two
+  colours), then Enter; with **Axes** set to *F/B and R/L*, the R/L count
+  follows. Rotations turn the cube to look at it. The counts are checked
+  and the bad edges ringed; Tab rings the other axis's.
+- **Axis choice**: turn the cube to the hold you would do the step from
+  (the cross colour on the bottom, the EO axis front to back) and press
+  Space, within the inspection time. Every hold is then listed with its
+  optimum, yours marked: the try records how many moves your pick costs
+  over the best hold.
+- **Plan blind**: look at the cube (rotations only) within the inspection
+  time and plan the step. Space hides the cube (so does the time running
+  out; a Space just then is ignored), and you do the plan with the turning
+  keys without seeing it. Space shows the cube again: the step is checked
+  (a DNF if it isn't done, with how far it got), and the moves compared
+  with the optimum. Esc while hidden starts the moves again; Space with no
+  moves done doesn't finish. The time kept is the inspection time used.
+- **Step solutions**: solve the step in view. The state ends by itself when
+  the step is done in one of your holds, and your moves are shown beside
+  the optimal solutions. Tab gives a hint: the hold nearest the step if
+  the cube isn't in it, else the next move of an optimal solution from
+  where the cube is (the try counts as hinted). Esc puts the cube back,
+  Backspace gives up.
+- **Full EO Cross**: a whole EO Cross, solved the same way, then **where
+  the moves went**: the solve is cut where EO, EO+1, EO+2 and EO Cross
+  were first done in the hold you solved in, and each part is shown with
+  its moves, how far EO Cross then was at best, and what it **lost**: its
+  moves less how much nearer EO Cross it brought the cube. An optimal EO
+  followed by a long cross shows as a loss in the EO part, where the
+  choice was made.
+
+**Inspection** (Axis choice and Plan blind): WCA (15 s, the countdown
+turning colour at 8 and 12 seconds, with the calls as beeps if Settings >
+Timing and solves has them on), 5 to 30 s, or no limit.
+
+**Afterwards** every hold is listed with its optimum and a few optimal
+solutions that aren't reorderings of one another. Click one, or press its
+number (Enter for the first), to play it from the start in its hold; the
+turning keys turn the cube freely; Esc gives the same state again,
+unrecorded; Space goes on.
+
+**The list** on the left has the drills with their kinds for the step in
+hand: tries, **Extra** (your moves over the optimum lately; for Bad edges
+how far off the counts were, for Axis choice what your hold cost over the
+best; a hint counts 2 more, giving up or a DNF 4) and mean time. Kinds
+that go badly are marked. Double-click a kind to practise only it.
+
 ### F2L
 
 The F2L practised a part at a time on the virtual cube, instead of as a
@@ -927,110 +994,6 @@ CW, CCW) and the twists at URF, UFL, ULB and UBR (0 oriented, 1 clockwise,
 2 anticlockwise); the OCLLs have their names. **Extra** is your moves over
 the best way lately, where a trigger that isn't good counts as 3, a hint
 as 2 more and giving up as 4.
-
-### Inspection
-
-Practise the inspection of a ZZ solve on the virtual cube, in sessions of
-its own. New installs start with EO, EO+2 and EO Cross sessions (WCA
-inspection) and a Bad edges session.
-
-- **Plan sessions** are for one step: EO, EOLine, EO+1, EO+2 or EO Cross.
-  Space shows the scrambled cube, which only turns as a whole while you
-  plan. Space again hides it, and you do your plan with the turning keys
-  without seeing the cube; Space then reveals it. The step is checked (DNF
-  if it isn't done, with how far it got: bad edges left, cross edges
-  solved), the moves are counted in HTM, the hold you did it in is kept,
-  and your count is compared with the optimal in your colour neutrality's
-  holds (either EO axis) and in any hold, with up to three optimal
-  solutions that aren't reorderings of one another, such as
-  `yellow cross, green front: z2 · R' B D2 L' F`. After an attempt,
-  rotations turn the cube to look at it. **Review last**, double-click or
-  right-click > Review… replays an attempt; **Retry** (or Retry in the
-  review) plans its scramble again without recording it; **Delete last**
-  (or Delete) deletes the last attempt and Ctrl+Z puts it back. Alt+R
-  reviews the last attempt and Ctrl+→ skips the scramble, as in the solve
-  modes. A scramble you have seen is never served again (Esc during an
-  attempt puts it back, unrecorded).
-- What a session practises (its drill, step, pair and axes) is fixed once
-  it has attempts: the pickers then only show it, and **New session…**
-  beside them starts one for something else. A new session is set up in
-  one form (drill, step or axes, pair, name), and while the cube waits to
-  be shown the page says what the session is for and how the last attempt
-  went.
-- An EO Cross session can **track a pair**: pick it under **Then** (FL,
-  BL, FR or BR, as you hold the cube when the cross is done) and solve that
-  pair blind after the cross. The moves to EO Cross are compared with the
-  optimum, and whether the pair was solved (and in how many more moves) is
-  kept.
-- Each Plan session has an **inspection limit**: WCA (15 s, with calls at 8
-  and 12 seconds), 10, 20 or 30 s, a custom one, or none. With a limit the
-  seconds left are counted down, as in Timed mode. The cube is hidden when
-  it runs out (a Space just then is ignored, and Space with no moves done
-  doesn't finish), and the time used is kept with each attempt.
-- **Bad edges sessions** show the scrambled cube in a hold from your colour
-  neutrality. Type how many edges are bad for the F/B axis (the ZZ axis, as
-  held), then Enter, and for the R/L axis too if the session asks for both.
-  The counts are checked and the bad edges ringed; Tab rings the other
-  axis's.
-- **Statistics**: for Plan sessions, mo3/ao5/ao12 over move counts, moves
-  over optimal, how often you were optimal, and mean inspection time,
-  broken down by the scramble's optimal length and by the inspection time
-  used. The chart shows moves over optimal, the optimal rate over the last
-  12 attempts, or move counts. For Bad edges: accuracy, mean time when
-  right, and ao5/ao12 of times with a wrong count as DNF. Right-click an
-  attempt to comment, copy its scramble or solution, review it, or delete
-  it.
-
-### Blind
-
-Blindfolded solving with Old Pochmann. Edges use buffer UR, swapped with UL
-by the T-perm. Corners use buffer UBL, swapped with RDF (its R sticker) by
-the modified Y-perm. After an odd number of edge targets, the parity alg
-goes before the corners. Each drill has a tab at the top of the page, shown
-in focus mode too.
-
-- **Letter quiz**: a sticker of the solved cube is ringed on the net and
-  you type its letter, or a letter is shown and you click its sticker.
-  Mixed does both in turn. Choose edges, corners or both. Each letter keeps
-  its tries, right answers and mean time (an answer counts for at most
-  30 s, and the clock stops while you are away from the page or the
-  window), and slow or missed letters come up more often. Letters are
-  matched ignoring the case of A-Z, as the scheme checks them.
-- **Memo tracing**: a scrambled cube is shown (turn it as a whole to look
-  around) and the timer runs. Press Enter, type the edge letters, Enter,
-  the corner letters, and Enter again. The memo is checked by doing it, so
-  any valid cycle break counts (letters that can't be read are pointed out
-  to fix, not graded). The first wrong letter is marked with what should
-  have come there and ringed on the cube, next to the memo traced by the
-  app and whether there is parity; rotations still turn the cube. A
-  scramble traced is never one of the blind solves. Right-click a trace to
-  delete it.
-- **Setup moves**: a letter is given and its sticker ringed. Turn the cube
-  to bring that sticker to the swap spot (◎) without moving the buffer or
-  the other pieces the swap alg turns. The drill finishes the moment it's
-  there, and shows your setup next to the one in your scheme. Or choose
-  "Type it" to type the setup instead: keys pressed outside the field go
-  back to it, Esc there gives the letter up, and an empty Enter isn't an
-  answer. Statistics per letter, as in the quiz.
-- **Blind solves**: sessions on the virtual cube or a physical one.
-  - Virtual: Space starts the memo and the timer, with the cube turning
-    only as a whole. Space hides the cube for the execution, and Space
-    stops the timer. A cube that isn't solved is a DNF, with how many edges
-    and corners are off and the traced memo; rotations turn the cube to
-    look at it.
-  - Physical: Space starts the timer, Space again ends the memo, any key
-    stops. Backspace toggles DNF on the solve just done.
-  - A solve cancelled (Esc) after the memo started gets a new scramble.
-  - Between solves, Delete deletes the last solve and Ctrl+Z puts it back.
-  - Statistics: mo3, ao5, ao12, success rate, mean of successes and mean
-    memo, plus a trend chart.
-- **Lettering & setups…**: the blind hold (the colours on top and in front
-  that the letters belong to; white top, green front by default), a net
-  with every sticker's letter, and for each sticker its letter and setup.
-  Setups are worked out by the app (edges with L, D, M, E, l and d; corners
-  with R, D and F) and can be replaced with your own, which are checked;
-  one that doesn't work isn't used (the computed one is, until it is
-  fixed). Speffz letters by default; every letter can be changed.
 
 ## Colour neutrality
 

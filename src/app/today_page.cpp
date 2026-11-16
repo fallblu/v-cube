@@ -3,10 +3,9 @@
 
 #include "app/mode_table.hpp"
 #include "app/widgets.hpp"
-#include "io/blind_store.hpp"
 #include "io/data_file.hpp"
+#include "io/eo_cross_store.hpp"
 #include "io/f2l_store.hpp"
-#include "io/inspection_store.hpp"
 #include "io/tsle_store.hpp"
 
 #include <QDate>
@@ -24,11 +23,6 @@ namespace vcube {
 namespace {
 
 constexpr int kSetIdRole = Qt::UserRole;
-
-// Read-only copies of the files the Inspection and Blind pages keep.
-constexpr FileFormat kInspectionFile{"v-cube.inspection", 1, false,
-                                     "inspection file"};
-constexpr FileFormat kBlindFile{"v-cube.blind", 1, false, "blind file"};
 
 QString duration(std::int64_t ms) {
   std::int64_t s = ms / 1000;
@@ -214,12 +208,12 @@ std::vector<ActivityEvent> TodayPage::events() {
   for (const LabAttempt &a : lab_.attempts()) {
     add(AppMode::AlgLab, a.timestamp, a.timeMs);
   }
-  FileRead inspection =
-      readDataFile(QDir(dataDir_).filePath("inspection.json"), kInspectionFile);
-  if (inspection.status == FileStatus::Read) {
-    for (const InspectionSession &s : inspectionFromJson(inspection.object)) {
-      for (const InspectionAttempt &a : s.attempts) {
-        add(AppMode::Inspection, a.timestamp, a.ms);
+  FileRead eoCross =
+      readDataFile(QDir(dataDir_).filePath("eocross.json"), kEoCrossFile);
+  if (eoCross.status == FileStatus::Read) {
+    for (const auto &[key, attempts] : eoCrossFromJson(eoCross.object).kinds) {
+      for (const PairAttempt &a : attempts) {
+        add(AppMode::EoCross, a.timestamp, a.ms);
       }
     }
   }
@@ -251,19 +245,6 @@ std::vector<ActivityEvent> TodayPage::events() {
     }
     for (const FullAttempt &a : progress.fulls) {
       add(AppMode::Tsle, a.timestamp, a.ms);
-    }
-  }
-  FileRead blind =
-      readDataFile(QDir(dataDir_).filePath("blind.json"), kBlindFile);
-  if (blind.status == FileStatus::Read) {
-    BlindData blindData = blindFromJson(blind.object);
-    for (const BlindSession &s : blindData.sessions) {
-      for (const BlindAttempt &a : s.attempts) {
-        add(AppMode::Blind, a.timestamp, a.timeMs);
-      }
-    }
-    for (const TraceAttempt &t : blindData.traces) {
-      add(AppMode::Blind, t.timestamp, t.timeMs);
     }
   }
   return out;
@@ -318,10 +299,9 @@ void TodayPage::refresh() {
       {AppMode::Timed, QT_TR_NOOP("Timed (solves)")},
       {AppMode::Untimed, QT_TR_NOOP("Untimed (solves)")},
       {AppMode::MoveCount, QT_TR_NOOP("Move Count (solves)")},
+      {AppMode::EoCross, QT_TR_NOOP("EO Cross (states)")},
       {AppMode::F2L, QT_TR_NOOP("F2L (pairs and solves)")},
       {AppMode::Tsle, QT_TR_NOOP("TSLE (triggers and solves)")},
-      {AppMode::Inspection, QT_TR_NOOP("Inspection (scrambles)")},
-      {AppMode::Blind, QT_TR_NOOP("Blind (solves and traces)")},
   };
   ActivityTotals dayTotal, weekTotal;
   for (const auto &[mode, label] : rows) {

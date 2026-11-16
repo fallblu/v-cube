@@ -130,7 +130,7 @@ QString Keymap::reservedReason(int key) {
   if (key >= Qt::Key_0 && key <= Qt::Key_9) {
     return QCoreApplication::translate(
         "vcube::Keymap", "The digits grade cases in Learn and type counts in "
-                         "Move Count and Inspection.");
+                         "Move Count and EO Cross.");
   }
   if (key >= Qt::Key_F1 && key <= Qt::Key_F35) {
     return QCoreApplication::translate(

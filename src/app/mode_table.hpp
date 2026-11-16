@@ -10,8 +10,8 @@ namespace vcube {
 // The main window's modes, one page each.
 struct AppMode {
   // The order of the pages and of the Today page's activity. The sidebar
-  // has its own order (sidebarOrder), which Ctrl+0 to Ctrl+9, Ctrl+- and
-  // Ctrl+= follow.
+  // has its own order (sidebarOrder), which Ctrl+0 to Ctrl+9 and Ctrl+-
+  // follow.
   enum Id : int {
     Learn,
     Drill,
@@ -19,8 +19,7 @@ struct AppMode {
     Timed,
     Untimed,
     MoveCount,
-    Inspection,
-    Blind,
+    EoCross,
     AlgLab,
     F2L,
     Tsle,
@@ -41,7 +40,7 @@ struct AppMode {
   static QString settingsId(int mode);
   static QKeySequence shortcut(int mode);
   // The mode with that settings id, also those of earlier versions
-  // ("timer", "scramble", "virtual"); -1 for none.
+  // ("timer", "scramble", "virtual", "inspection"); -1 for none.
   static int fromSettingsId(const QString &id);
   // Earlier versions saved a tab instead: Timer, Trainer or Library.
   static int fromSavedTab(int tab);

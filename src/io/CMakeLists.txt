@@ -2,10 +2,9 @@ add_library(vcube_io
   algset_json.cpp
   alglab_store.cpp
   backup.cpp
-  blind_store.cpp
   data_file.cpp
+  eo_cross_store.cpp
   f2l_store.cpp
-  inspection_store.cpp
   library.cpp
   move_counts.cpp
   sessions.cpp

@@ -10,7 +10,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 
 | Key | Action |
 | --- | --- |
-| Ctrl+1 … Ctrl+9, Ctrl+-, Ctrl+= | Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, F2L, TSLE, Inspection, Blind, in the sidebar's order (not while a solve or inspection is running) |
+| Ctrl+1 … Ctrl+9, Ctrl+- | Learn, Drill, Library, Alg Lab, Timed, Untimed, Move Count, EO Cross, F2L, TSLE, in the sidebar's order (not while a solve or inspection is running) |
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
@@ -24,7 +24,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 
 ## Turning keys
 
-The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, F2L, TSLE, Inspection, Blind, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Cube and keys: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
+The virtual cube (Learn, Drill on the virtual cube, the Solves modes' virtual sessions, EO Cross, F2L, TSLE, Alg Lab's virtual test sessions) is turned with cstimer's face keys. Shift and a face key turns the wide layer, e.g. Shift+I is `r` and Shift+G is `f'`. Remap them in Settings > Cube and keys: select a row and **Change** its key or move, or **Add** one. A turning key may be held with Shift but not Ctrl or Alt; the digits, arrows, function keys and the modes' own keys can't be bound.
 
 | Key | Move | Key | Move | Key | Move | Key | Move |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -186,6 +186,32 @@ In the solve review (Alt+R, or double-click a solve):
 | ← / → | step the replay back / forward |
 | Home / End | to the scramble / to the end |
 
+## EO Cross
+
+| When | Key | Action |
+| --- | --- | --- |
+| ready (every drill) | Space | show the first state; the clock starts then (on opening EO Cross or coming back to it, and after picking a drill or an option) |
+| Bad edges | 0-9 / Backspace / Enter | type a count / correct it / give it (F/B first, then R/L if asked) |
+| Bad edges | turning keys | rotations, to look at the cube (also afterwards) |
+| Bad edges, afterwards | Tab | ring the other axis's bad edges |
+| Axis choice | turning keys | rotations only: turn the cube to the hold you would solve from |
+| Axis choice | Space | take the hold the cube is in (the inspection time takes it for you when it runs out) |
+| Plan blind, looking | turning keys | rotations only |
+| Plan blind, looking | Space | hide the cube and do the plan (the inspection time hides it when it runs out) |
+| Plan blind, cube hidden | turning keys | any turn, unseen |
+| Plan blind, cube hidden | Space | done: show the cube and how the plan went |
+| Plan blind, cube hidden | Esc | start the moves again from where the cube was hidden |
+| Step solutions, Full EO Cross | turning keys | any turn; the state ends by itself when the step is done in one of your holds |
+| Step solutions, Full EO Cross | Tab | a hint: the hold nearest the step, or the next move of an optimal solution from here (the try counts as hinted) |
+| Step solutions, Full EO Cross | Esc | put the cube back as it started |
+| Axis choice, Plan blind, solving | Backspace | give up and see the solutions |
+| afterwards | Space | next |
+| afterwards | Enter / 1-9 | play the best solution / the solution with that number from the start (or click it) |
+| afterwards | turning keys | turn the cube freely |
+| afterwards | Esc | the same state again, not recorded |
+
+A Space in the moment the inspection time hides the cube is ignored, and Space with no moves done doesn't finish a plan.
+
 ## F2L
 
 | When | Key | Action |
@@ -227,47 +253,6 @@ Full F2L has no hint and nothing to step through: its pairs are compared in a ta
 | Case explorer | ↑ / ↓ | the case before / after |
 | Case explorer | Space | the case at its next AUF |
 | Case explorer | Esc | back to the case |
-
-## Inspection
-
-| When | Key | Action |
-| --- | --- | --- |
-| Plan | Space | start inspection (the cube is shown), hide the cube, reveal it, then the next scramble |
-| Plan, inspecting | turning keys | rotations only |
-| Plan, cube hidden | turning keys | any turn, unseen |
-| Plan, afterwards | turning keys | rotations, to look at the cube |
-| any | Esc | put the scramble back (nothing is recorded), or end a retry |
-| Bad edges | Space | show the cube; afterwards, the next scramble |
-| Bad edges | 0-9 / Backspace / Enter | type a count / correct it / give it (F/B first, then R/L if asked) |
-| Bad edges, afterwards | Tab | ring the other axis's bad edges |
-| between attempts | Delete / Ctrl+Z | delete the last attempt / put the last deleted attempt back |
-| between attempts | Alt+R | review the last Plan attempt |
-| between attempts | Ctrl+→ | skip the scramble |
-
-A Space in the moment the time limit hides the cube is ignored, and Space with no moves done doesn't finish.
-
-## Blind
-
-| Drill | Key | Action |
-| --- | --- | --- |
-| Letter quiz, Setup moves, ready | Space | show the first letter; it is timed from then (on opening the drill or coming back to it) |
-| Letter quiz | letter keys | answer |
-| Letter quiz | Enter / Backspace | answer a longer label / correct |
-| Letter quiz | click a sticker on the net | answer a letter → sticker question |
-| Letter quiz, Setup moves | Space | next letter; before an answer, give the letter up or skip it (not for half a second after the quiz moved on by itself) |
-| Setup moves | turning keys | do the setup |
-| Setup moves | Esc | start the setup again (after it: try the letter again) |
-| Setup moves, Type it | Esc outside the field | give the letter up |
-| Memo tracing | Space | new scramble |
-| Memo tracing | Enter (or Tab) | type the letters: Enter after the edges, Enter again to check |
-| Memo tracing | turning keys | rotations, to look at the cube (also after the trace) |
-| Memo tracing | Esc | give the scramble up |
-| Blind solves, virtual | Space | start the memo and the timer, start the execution (hides the cube), stop |
-| Blind solves, virtual | turning keys | rotations during the memo, any turn during the execution, rotations afterwards |
-| Blind solves, physical | Space / any key | start, end the memo / stop |
-| Blind solves, physical, after a solve | Backspace | toggle DNF |
-| Blind solves, between solves | Delete / Ctrl+Z | delete the last solve / put the last deleted solve back |
-| Blind solves | Esc | cancel |
 
 ## Alg Lab
 
