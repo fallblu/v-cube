@@ -72,10 +72,9 @@ std::vector<std::uint8_t> distances(std::array<int, 4> start,
   for (std::uint8_t depth = 0; !frontier.empty(); ++depth) {
     std::vector<std::uint32_t> next;
     for (std::uint32_t idx : frontier) {
-      std::array<int, 4> v = {static_cast<int>(idx / 13824),
-                              static_cast<int>(idx / 576 % 24),
-                              static_cast<int>(idx / 24 % 24),
-                              static_cast<int>(idx % 24)};
+      std::array<int, 4> v = {
+          static_cast<int>(idx / 13824), static_cast<int>(idx / 576 % 24),
+          static_cast<int>(idx / 24 % 24), static_cast<int>(idx % 24)};
       for (int m : moves) {
         std::array<int, 4> n{};
         for (std::size_t i = 0; i < 4; ++i) {
@@ -167,7 +166,7 @@ Frame afterY(const Frame &f) {
 }
 
 struct Frames {
-  std::vector<Frame> frames;         // [0] is the cube as it starts
+  std::vector<Frame> frames;            // [0] is the cube as it starts
   std::vector<std::array<int, 2>> next; // [frame][0 x, 1 y]
 
   Frames() {
@@ -188,8 +187,8 @@ struct Frames {
   }
   int turned(int frame, int axis, int quarters) const {
     for (int i = 0; i < quarters; ++i) {
-      frame = next[static_cast<std::size_t>(frame)][static_cast<std::size_t>(
-          axis)];
+      frame =
+          next[static_cast<std::size_t>(frame)][static_cast<std::size_t>(axis)];
     }
     return frame;
   }
@@ -279,13 +278,14 @@ public:
     }
     tables_ = &tablesFor(mask);
     for (std::size_t i = 0; i < slots_.size(); ++i) {
-      start_.c[i] =
-          static_cast<std::uint8_t>(valueOfCorner(state, slotCorner(slots_[i])));
+      start_.c[i] = static_cast<std::uint8_t>(
+          valueOfCorner(state, slotCorner(slots_[i])));
       start_.e[i] =
           static_cast<std::uint8_t>(valueOfEdge(state, slotEdge(slots_[i])));
     }
     for (std::size_t i = 0; i < 4; ++i) {
-      start_.x[i] = static_cast<std::uint8_t>(valueOfEdge(state, kCrossEdges[i]));
+      start_.x[i] =
+          static_cast<std::uint8_t>(valueOfEdge(state, kCrossEdges[i]));
     }
     // What each written move is in each frame.
     const std::size_t nf = fr_.frames.size();
@@ -359,16 +359,15 @@ private:
     for (std::size_t i = 0; i < slots_.size(); ++i) {
       auto s = static_cast<std::size_t>(slots_[i]);
       h = std::max<int>(
-          h, tables_->slot[s][indexOf(n.c[i], n.e[i],
-                                      crossAt(n, kSlotCross[s][0]),
-                                      crossAt(n, kSlotCross[s][1]))]);
+          h,
+          tables_->slot[s][indexOf(n.c[i], n.e[i], crossAt(n, kSlotCross[s][0]),
+                                   crossAt(n, kSlotCross[s][1]))]);
       for (std::size_t j = i + 1; j < slots_.size(); ++j) {
         auto o = static_cast<std::size_t>(slots_[j]);
         const auto &two = s < o ? tables_->two[s][o] : tables_->two[o][s];
-        h = std::max<int>(h, s < o ? two[indexOf(n.c[i], n.e[i], n.c[j],
-                                                 n.e[j])]
-                                   : two[indexOf(n.c[j], n.e[j], n.c[i],
-                                                 n.e[i])]);
+        h = std::max<int>(h,
+                          s < o ? two[indexOf(n.c[i], n.e[i], n.c[j], n.e[j])]
+                                : two[indexOf(n.c[j], n.e[j], n.c[i], n.e[i])]);
       }
     }
     return h;
@@ -405,10 +404,14 @@ private:
     const std::size_t nw = written_.size();
     for (std::size_t i = 0; i < nw; ++i) {
       const Written &w = written_[i];
-      if (lastWritten >= 0 &&
-          written_[static_cast<std::size_t>(lastWritten)].move.type ==
-              w.move.type) {
-        continue;
+      if (lastWritten >= 0) {
+        const Written &before = written_[static_cast<std::size_t>(lastWritten)];
+        // Never the same layer twice, nor a wide turn beside a turn about
+        // its axis: together those are a slice turn, or cancel.
+        if (before.move.type == w.move.type ||
+            ((before.wide || w.wide) && before.face % 3 == w.face % 3)) {
+          continue;
+        }
       }
       int m = centre_[static_cast<std::size_t>(frame) * nw + i];
       int face = m / 3;

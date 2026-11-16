@@ -25,6 +25,7 @@ class DrillPage;
 class LibraryPage;
 class TimerPage;
 class UntimedPage;
+class F2LPage;
 class MoveCountPage;
 class InspectionPage;
 class AlgLabPage;
@@ -72,6 +73,7 @@ private:
   TimerPage *timedPage_;
   UntimedPage *untimedPage_;
   MoveCountPage *moveCountPage_;
+  F2LPage *f2lPage_;
   InspectionPage *inspectionPage_;
   BlindPage *blindPage_;
   AlgLabPage *algLabPage_;

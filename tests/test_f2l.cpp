@@ -61,8 +61,8 @@ TEST_CASE("the methods' F2L is done as they define it", "[f2l]") {
   CHECK(ct.eo);
   CHECK(methodOf(ct) == F2LMethod::ZZMinus1);
   CHECK(f2lDone(CubieCube{}, ct));
-  CHECK(f2lDone(cubieOf(parseAlgOrEmpty("R U R' U'")), ct)); // FR left
-  CHECK(f2lDone(cubieOf(parseAlgOrEmpty("L' U' L")), ct));   // FL left
+  CHECK(f2lDone(cubieOf(parseAlgOrEmpty("R U R' U'")), ct));     // FR left
+  CHECK(f2lDone(cubieOf(parseAlgOrEmpty("L' U' L")), ct));       // FL left
   CHECK_FALSE(f2lDone(cubieOf(parseAlgOrEmpty("R' U' R")), ct)); // BR open
   CHECK(pairsLeft(cubieOf(parseAlgOrEmpty("R' U' R")), ct) == 1);
   CHECK(pairsLeft(cubieOf(parseAlgOrEmpty("R U R' L' U L")), ct) == 1);
@@ -306,13 +306,13 @@ TEST_CASE("pair searches are quick enough", "[.f2lperf]") {
         PairSearchOptions o;
         o.moves = config.moves();
         PairSearchResult r = searchPair(setup->state, setup->target, o);
-        double s1 = std::chrono::duration<double>(
-                        std::chrono::steady_clock::now() - t0)
-                        .count();
+        double s1 =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - t0)
+                .count();
         PairAnalysis a = analysePair(setup->state, setup->target, options);
-        double s = std::chrono::duration<double>(
-                       std::chrono::steady_clock::now() - t0)
-                       .count();
+        double s =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - t0)
+                .count();
         worst = std::max(worst, s);
         sum += s;
         most = std::max(most, r.algs.size());
@@ -327,18 +327,18 @@ TEST_CASE("pair searches are quick enough", "[.f2lperf]") {
       }
       std::printf("%s stage %d: mean %.3fs worst %.3fs, most algs %zu, "
                   "longest %d\n",
-                  std::string(methodName(methodOf(config))).c_str(),
-                  stage, sum / 12, worst, most, longest);
+                  std::string(methodName(methodOf(config))).c_str(), stage,
+                  sum / 12, worst, most, longest);
     }
     auto t0 = std::chrono::steady_clock::now();
     for (int i = 0; i < 3; ++i) {
       CubieCube state = randomFullState(config, rng);
       rankPairs(state, options);
     }
-    std::printf("  full plan: %.3fs each\n",
-                std::chrono::duration<double>(std::chrono::steady_clock::now() -
-                                              t0)
-                        .count() /
-                    3);
+    std::printf(
+        "  full plan: %.3fs each\n",
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - t0)
+                .count() /
+            3);
   }
 }

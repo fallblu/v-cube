@@ -7,8 +7,8 @@ namespace vcube {
 
 namespace {
 
-template <typename T> void addCapped(std::vector<T> &to, const T &a,
-                                     std::size_t cap) {
+template <typename T>
+void addCapped(std::vector<T> &to, const T &a, std::size_t cap) {
   to.push_back(a);
   if (to.size() > cap) {
     to.erase(to.begin(),
@@ -54,8 +54,8 @@ CaseSummary summarizeCase(const std::vector<PairAttempt> &attempts,
   int n = 0, timed = 0, helped = 0;
   for (std::size_t i = from; i < attempts.size(); ++i) {
     const PairAttempt &a = attempts[i];
-    excess += a.gaveUp ? kGaveUpExcess
-                       : a.excess + (a.hint ? kHintExcess : 0.0);
+    excess +=
+        a.gaveUp ? kGaveUpExcess : a.excess + (a.hint ? kHintExcess : 0.0);
     helped += a.gaveUp || a.hint ? 1 : 0;
     if (!a.gaveUp) {
       ms += static_cast<double>(a.ms);

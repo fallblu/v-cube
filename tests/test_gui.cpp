@@ -7,6 +7,7 @@
 #include "app/blind_page.hpp"
 #include "app/cube_view.hpp"
 #include "app/drill_page.hpp"
+#include "app/f2l_page.hpp"
 #include "app/grip_view.hpp"
 #include "app/help_panel.hpp"
 #include "app/help_text.hpp"
@@ -24,6 +25,7 @@
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
 #include "io/data_file.hpp"
+#include "io/f2l_store.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
@@ -49,6 +51,7 @@
 #include <QTextBrowser>
 #include <QThreadPool>
 #include <QTimer>
+#include <QTreeWidget>
 
 #include <array>
 #include <functional>
@@ -274,6 +277,7 @@ private slots:
   void libraryAddsAnAlgAndUndoes();
   void algLabTimesEachAlg();
   void fingertrickGuidance();
+  void f2lDrills();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
@@ -344,7 +348,7 @@ void GuiTest::modesSwitch() {
       page<LearnPage>(),      page<DrillPage>(),   page<LibraryPage>(),
       page<TimerPage>(),      page<UntimedPage>(), page<MoveCountPage>(),
       page<InspectionPage>(), page<BlindPage>(),   page<AlgLabPage>(),
-      page<TodayPage>()};
+      page<F2LPage>(),        page<TodayPage>()};
   for (int m : AppMode::sidebarOrder()) {
     QVERIFY2(switchTo(m, pages[static_cast<std::size_t>(m)]),
              qPrintable(AppMode::label(m)));
@@ -540,6 +544,136 @@ void GuiTest::fingertrickGuidance() {
   QVERIFY(libView && libView->isVisible());
   QVERIFY(libView->findChild<QLabel *>()->text().contains("Start:"));
   QCOMPARE(libView->findChild<QTableWidget *>()->columnCount(), 14);
+}
+
+void GuiTest::f2lDrills() {
+  auto *f2l = page<F2LPage>();
+  QVERIFY(switchTo(AppMode::F2L, f2l));
+  // ZZ F2L - 1 leaving FR or FL, as a new install has it.
+  QVERIFY(f2l->config().eo);
+  QVERIFY(f2l->config().lastSlot);
+  QVERIFY(f2l->config().leaves(Slot::FR) && f2l->config().leaves(Slot::FL));
+  QVERIFY(!f2l->config().leaves(Slot::BL));
+  auto shownCube = [f2l] {
+    CubeView *view = f2l->findChild<CubeView *>();
+    view->finishAnimations();
+    return centredCubie(view->displayedState());
+  };
+
+  // Pair solutions: the best solution solves the pair and keeps EO.
+  f2l->selectDrill(F2LPage::Drill::Pair);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+  QVERIFY(f2l->target());
+  QVERIFY(f2lBase(f2l->startState(), f2l->config()));
+  QVERIFY(!slotSolved(f2l->startState(), *f2l->target()));
+  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 30000);
+  std::vector<RankedSolution> solutions = f2l->shownSolutions();
+  QVERIFY(!solutions.empty());
+  std::string key = caseKey(pairCaseOf(f2l->startState(), *f2l->target()));
+  typeMoves(solutions.front().alg);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
+  auto done = shownCube();
+  QVERIFY(done);
+  QVERIFY(slotSolved(*done, *f2l->target()));
+  QVERIFY(edgesOriented(*done));
+  QVERIFY(crossSolved(*done));
+  QVERIFY(f2l->resultHtml().contains(qs(solutions.front().text)));
+  QCOMPARE(f2l->stats().cases.count(key), std::size_t{1});
+  const PairAttempt &tried = f2l->stats().cases.at(key).back();
+  QVERIFY(!tried.hint && !tried.gaveUp);
+  QCOMPARE(tried.excess, 0.0);
+  QCOMPARE(tried.moves, solutions.front().htm);
+
+  // The same state again isn't recorded; a hint does the first move.
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+  QTest::keyClick(window_.get(), Qt::Key_Tab);
+  auto hinted = shownCube();
+  CubieCube first = f2l->startState();
+  first.apply(Alg{solutions.front().alg.front()});
+  QVERIFY(hinted && *hinted == first);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
+  QCOMPARE(f2l->stats().cases.at(key).size(), std::size_t{1});
+
+  // Pair choice: solving the best pair is rank 1.
+  f2l->selectDrill(F2LPage::Drill::Choice);
+  QVERIFY(!f2l->target());
+  QVERIFY(unsolvedSlots(f2l->startState()).size() >= 2);
+  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
+  solutions = f2l->shownSolutions();
+  QVERIFY(!solutions.empty());
+  typeMoves(solutions.front().alg);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
+  QCOMPARE(f2l->stats().choices.size(), std::size_t{1});
+  QCOMPARE(f2l->stats().choices.back().rank, 1);
+  QCOMPARE(f2l->stats().choices.back().regret, 0.0);
+
+  // Full F2L: every slot open; the F2L is done with a front slot left.
+  f2l->selectDrill(F2LPage::Drill::Full);
+  QCOMPARE(unsolvedSlots(f2l->startState()).size(), std::size_t{4});
+  AnalysisOptions options;
+  options.config = f2l->config();
+  options.profile = builtinErgoProfiles().front();
+  CubieCube state = f2l->startState();
+  for (int pairs = 0; !f2lDone(state, options.config); ++pairs) {
+    QVERIFY(pairs < 4);
+    std::vector<PairRank> ranks = rankPairs(state, options);
+    QVERIFY(!ranks.empty());
+    const Alg &alg = ranks.front().pair.best()->alg;
+    QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+    typeMoves(alg);
+    state.apply(alg);
+  }
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
+  QCOMPARE(unsolvedSlots(state).size(), std::size_t{1});
+  QVERIFY(f2l->config().leaves(unsolvedSlots(state).front()));
+  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
+  QCOMPARE(f2l->stats().fulls.size(), std::size_t{1});
+  QCOMPARE(f2l->stats().fulls.back().pairs, 3);
+
+  // The Case explorer sets the chosen case up and records nothing.
+  std::size_t tries = 0;
+  for (const auto &[k, attempts] : f2l->stats().cases) {
+    tries += attempts.size();
+  }
+  PairCase wanted = pairCases(true)[20];
+  f2l->exploreCase(wanted);
+  QCOMPARE(f2l->drill(), F2LPage::Drill::Explore);
+  QCOMPARE(f2l->phase(), F2LPage::Phase::Explore);
+  QVERIFY(f2l->target());
+  QVERIFY(pairCaseOf(f2l->startState(), *f2l->target()) == wanted);
+  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 30000);
+  QVERIFY(!f2l->shownSolutions().empty());
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  auto played = shownCube();
+  QVERIFY(played && slotSolved(*played, *f2l->target()));
+  std::size_t after = 0;
+  for (const auto &[k, attempts] : f2l->stats().cases) {
+    after += attempts.size();
+  }
+  QCOMPARE(after, tries);
+
+  // CFOP has the cases with flipped edges too, and no slot left.
+  F2LConfig cfop = f2l->config();
+  applyMethod(cfop, F2LMethod::CFOP);
+  f2l->setConfig(cfop);
+  auto *tree = f2l->findChild<QTreeWidget *>("f2lCases");
+  QVERIFY(tree);
+  int rows = 0;
+  for (int g = 0; g < tree->topLevelItemCount(); ++g) {
+    rows += tree->topLevelItem(g)->childCount();
+  }
+  QCOMPARE(rows, 167);
+  applyMethod(cfop, F2LMethod::ZZMinus1);
+  f2l->setConfig(cfop);
+
+  // What was recorded is in the file.
+  finishBackgroundWrites();
+  F2LStore saved(QDir(dataDir_).filePath("f2l.json"));
+  QVERIFY(saved.load());
+  QVERIFY(saved.stats == f2l->stats());
+  f2l->selectDrill(F2LPage::Drill::Pair);
 }
 
 void GuiTest::timedPhysicalSolve() {

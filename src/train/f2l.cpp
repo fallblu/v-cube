@@ -75,8 +75,8 @@ PairCase normalized(int corner, int edge) {
   PairCase c{static_cast<std::uint8_t>(corner),
              static_cast<std::uint8_t>(edge)};
   for (int i = 0; i < 4; ++i) {
-    bool there =
-        c.cornerOnTop() ? c.corner / 3 == URF : !c.edgeOnTop() || c.edge / 2 == UF;
+    bool there = c.cornerOnTop() ? c.corner / 3 == URF
+                                 : !c.edgeOnTop() || c.edge / 2 == UF;
     if (there) {
       break;
     }
@@ -151,6 +151,24 @@ int wideTurns(const Alg &alg) {
     return t >= static_cast<int>(MoveType::Uw) &&
            t <= static_cast<int>(MoveType::Bw);
   }));
+}
+
+// Turns of opposite faces in a row in one order (U before D, R before L,
+// F before B), as the search writes them, so that the same solution
+// written the other way round compares equal.
+Alg ordered(Alg alg) {
+  for (bool swapped = true; swapped;) {
+    swapped = false;
+    for (std::size_t i = 0; i + 1 < alg.size(); ++i) {
+      auto a = static_cast<int>(alg[i].type),
+           b = static_cast<int>(alg[i + 1].type);
+      if (a < 6 && b < 6 && a % 3 == b % 3 && b < a) {
+        std::swap(alg[i], alg[i + 1]);
+        swapped = true;
+      }
+    }
+  }
+  return alg;
 }
 
 struct Plan {
@@ -320,8 +338,9 @@ PairCase pairCaseOf(const CubieCube &state, Slot target) {
 }
 
 std::string caseKey(PairCase c) {
-  return std::string(kCornerNames[c.corner / 3]) + std::to_string(c.corner % 3) +
-         "-" + kEdgeNames[c.edge / 2] + std::to_string(c.edge % 2);
+  return std::string(kCornerNames[c.corner / 3]) +
+         std::to_string(c.corner % 3) + "-" + kEdgeNames[c.edge / 2] +
+         std::to_string(c.edge % 2);
 }
 
 std::optional<PairCase> caseFromKey(std::string_view key) {
@@ -432,10 +451,9 @@ const std::vector<PairCase> &pairCases(bool eo) {
         }
       }
       out[withEo].assign(seen.begin(), seen.end());
-      std::stable_sort(out[withEo].begin(), out[withEo].end(),
-                       [](PairCase a, PairCase b) {
-                         return groupOf(a) < groupOf(b);
-                       });
+      std::stable_sort(
+          out[withEo].begin(), out[withEo].end(),
+          [](PairCase a, PairCase b) { return groupOf(a) < groupOf(b); });
     }
     return out;
   }();
@@ -532,8 +550,9 @@ std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
       }
     }
     int stages = stageCount(config);
-    int before = stage > 0 ? std::min(stage, stages) - 1
-                           : std::uniform_int_distribution<int>(0, stages - 1)(rng);
+    int before = stage > 0
+                     ? std::min(stage, stages) - 1
+                     : std::uniform_int_distribution<int>(0, stages - 1)(rng);
     before = std::min(before, kSlots - static_cast<int>(needed.size()));
     std::vector<Slot> others;
     for (Slot s : kF2LSlots) {
@@ -699,6 +718,9 @@ PairAnalysis analysePair(const CubieCube &state, Slot slot,
   std::vector<RankedSolution> ranked;
   ranked.reserve(found.algs.size());
   for (Alg &alg : found.algs) {
+    if (simplify(alg).size() != alg.size()) {
+      continue; // turns that cancel: a shorter solution written long
+    }
     RankedSolution r;
     r.htm = htmCount(alg);
     r.cost = solutionCost(alg, options);
@@ -722,7 +744,7 @@ PairAnalysis analysePair(const CubieCube &state, Slot slot,
       if (o.slot != slot || o.caseId.empty()) {
         continue;
       }
-      Alg alg = simplify(parseAlgOrEmpty(o.alg));
+      Alg alg = ordered(simplify(parseAlgOrEmpty(o.alg)));
       std::string name = o.caseName.empty() ? o.caseId : o.caseName;
       auto same = std::find_if(
           out.solutions.begin(), out.solutions.end(),

@@ -62,11 +62,11 @@ struct F2LStats {
 
 // How a case has gone lately (its last kRecent attempts).
 struct CaseSummary {
-  int attempts = 0;     // in all
-  double excess = 0.0;  // mean cost over the best; a hint or giving up adds
-  double meanMs = 0.0;  // of the attempts not given up
-  double hints = 0.0;   // share with a hint or given up
-  double weight = 0.0;  // how often it should come up
+  int attempts = 0;    // in all
+  double excess = 0.0; // mean cost over the best; a hint or giving up adds
+  double meanMs = 0.0; // of the attempts not given up
+  double hints = 0.0;  // share with a hint or given up
+  double weight = 0.0; // how often it should come up
   bool weak = false;
 };
 inline constexpr std::size_t kRecentAttempts = 8;
