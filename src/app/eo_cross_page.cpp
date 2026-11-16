@@ -559,7 +559,7 @@ void EoCrossPage::turn(Move m) {
     cube_.apply(m);
     cubeView_->animateMove(m);
     round_.moves.push_back(m);
-    if (std::optional<Hold> h = doneHold(cube_, roundStep(), allowedHolds())) {
+    if (doneHold(cube_, roundStep(), allowedHolds())) {
       finish(false);
     }
     return;

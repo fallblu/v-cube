@@ -5,7 +5,6 @@
 
 #include <QFutureWatcher>
 #include <QMessageBox>
-#include <QPushButton>
 #include <QSignalBlocker>
 #include <QTabBar>
 #include <QTreeWidget>
@@ -366,7 +365,10 @@ QString EoCrossPage::solveResultHtml() const {
     html += "<p>" + line + "</p>";
   }
   if (!round_.solvedIn) {
-    html += "<p>" + coloured(kFailColour, progressText(cube_, step)) + "</p>";
+    // As the try left the cube, which may have been turned since.
+    FaceletCube ended = round_.start;
+    ended.apply(round_.moves);
+    html += "<p>" + coloured(kFailColour, progressText(ended, step)) + "</p>";
   } else if (auto mine = rankOfHold(round_.ranked, *round_.solvedIn, step);
              mine && !round_.ranked.empty()) {
     int inHold = round_.ranked[*mine].optimum.length;

@@ -353,8 +353,12 @@ QString TslePage::introHtml() const {
     return {};
   }
   if (phase_ == Phase::Done) {
-    return "<p>" + tr("Its good triggers, with the edge at UF:") + "</p>" +
-           optionsHtml(*introCase_, Slot::FR) + pathHtml(*introCase_, Slot::FR);
+    // As the last pick had it, which is what a click or a number plays.
+    return "<p>" +
+           tr("%1, %2 slot. Every good trigger from this AUF:")
+               .arg(caseText(round_.start), slotText(round_.slot)) +
+           "</p>" + optionsHtml(round_.start, round_.slot) +
+           pathHtml(round_.start, round_.slot);
   }
   if (introStage_ < introTriggers()) {
     // While the triggers are shown one by one, the whole list is in view.

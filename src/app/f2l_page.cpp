@@ -7,7 +7,6 @@
 
 #include <QComboBox>
 #include <QDir>
-#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QLabel>
@@ -165,7 +164,6 @@ F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
 
   loadChoices();
   applySettings();
-  fillTree();
   showOptions();
 }
 
@@ -502,7 +500,16 @@ void F2LPage::focusModeChanged() {
 
 std::optional<Slot> F2LPage::target() const { return round_.target; }
 
+void F2LPage::keepUnrecorded() {
+  if (phase_ == Phase::Done && round_.id != 0 && !round_.recorded &&
+      !round_.retry && !round_.analysed && stop_) {
+    waiting_.push_back(round_);
+    stop_.reset(); // its search runs on
+  }
+}
+
 void F2LPage::showReady() {
+  keepUnrecorded();
   if (stop_) {
     stop_->store(true);
   }
@@ -525,6 +532,7 @@ void F2LPage::newRound(bool sameState) {
     showReady();
     return;
   }
+  keepUnrecorded();
   if (sameState && round_.id != 0) {
     Round again;
     again.start = round_.start;
@@ -703,6 +711,7 @@ void F2LPage::finish(bool gaveUp) {
     return;
   }
   round_.gaveUp = gaveUp;
+  round_.drill = drill_;
   round_.ms = monotonicMs() - round_.began;
   clock_.stop();
   phase_ = Phase::Done;
@@ -717,7 +726,7 @@ void F2LPage::finish(bool gaveUp) {
     round_.segments = f2lSegments(round_.start, round_.moves, config_);
     requestAnalysis();
   } else if (round_.analysed) {
-    record();
+    record(round_);
   }
   showPrompt();
   showKeys();
@@ -733,6 +742,9 @@ void F2LPage::resetCube() {
   if (phase_ == Phase::Solving) {
     round_.moves.clear();
     round_.moveMs.clear();
+    // The hint starts again too; the try still counts as hinted.
+    round_.hintMoves = 0;
+    showKeys();
   }
 }
 
@@ -758,9 +770,10 @@ void F2LPage::showHintMove() {
   // The best solution's next move, done from the start.
   const Alg &best = pair.best()->alg;
   round_.hint = true;
-  round_.hintMoves =
+  const int moves =
       std::min(round_.hintMoves + 1, static_cast<int>(best.size()));
   resetCube();
+  round_.hintMoves = moves;
   Alg shown(best.begin(), best.begin() + round_.hintMoves);
   cubeView_->animateSequence(shown);
   for (Move m : shown) {
@@ -878,7 +891,8 @@ void F2LPage::showKeys() {
   QString message;
   QList<KeyHint> keys;
   if (drill_ == Drill::Pair) {
-    if (round_.hint && round_.analysed && round_.analysis.pair->best()) {
+    if (round_.hintMoves > 0 && round_.analysed &&
+        round_.analysis.pair->best()) {
       const Alg &best = round_.analysis.pair->best()->alg;
       Alg shown(best.begin(), best.begin() + round_.hintMoves);
       message = tr("Hint: %1 (%2 of %3 moves)")

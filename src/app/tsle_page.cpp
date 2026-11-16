@@ -527,6 +527,7 @@ void TslePage::startRound(TsleState state, Slot slot, const CubieCube *cube,
 }
 
 void TslePage::turn(Move m) {
+  endDemo();
   cube_.apply(m);
   cubeView_->animateMove(m);
   if (phase_ == Phase::Done || phase_ == Phase::Idle) {
@@ -634,7 +635,16 @@ void TslePage::finish(bool gaveUp) {
   showResult();
 }
 
+void TslePage::endDemo() {
+  if (demo_) {
+    demo_ = false;
+    cubeView_->finishAnimations();
+    cubeView_->setState(cube_);
+  }
+}
+
 void TslePage::resetCube() {
+  demo_ = false;
   cubeView_->finishAnimations();
   cube_ = round_.startCube.toFacelets();
   cubeView_->setState(cube_);
@@ -645,6 +655,8 @@ void TslePage::resetCube() {
     round_.steps.clear();
     round_.stepBegin = 0;
     round_.stepState = round_.start;
+    round_.stepHint = false;
+    showKeys();
   }
 }
 
@@ -1040,14 +1052,16 @@ bool TslePage::handleKey(QKeyEvent *e, bool press) {
       // Shows the trigger, then puts the cube back to do it.
       Alg alg = introAlg();
       if (!alg.empty()) {
+        // Only the picture turns; a turn of yours ends the show early.
         resetCube();
         cubeView_->animateSequence(alg);
+        demo_ = true;
         const int id = round_.id;
         QTimer::singleShot(
             static_cast<int>(alg.size()) * settings_.animationMs * 2 + 900,
             this, [this, id] {
-              if (id == round_.id && round_.moves.empty()) {
-                cubeView_->setState(cube_);
+              if (id == round_.id) {
+                endDemo();
               }
             });
       }

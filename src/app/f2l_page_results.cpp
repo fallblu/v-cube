@@ -9,7 +9,6 @@
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QMessageBox>
-#include <QPushButton>
 #include <QSignalBlocker>
 #include <QTreeWidget>
 #include <QtConcurrent/QtConcurrentRun>
@@ -143,12 +142,22 @@ void F2LPage::requestAnalysis() {
 
 void F2LPage::analysisArrived(const Analysis &a) {
   if (a.round != round_.id) {
-    return; // for a round that is over
+    // For a round that is over: a finished one is recorded now.
+    auto waiting =
+        std::find_if(waiting_.begin(), waiting_.end(),
+                     [&a](const Round &w) { return w.id == a.round; });
+    if (waiting != waiting_.end()) {
+      waiting->analysis = a;
+      waiting->analysed = true;
+      record(*waiting);
+      waiting_.erase(waiting);
+    }
+    return;
   }
   round_.analysis = a;
   round_.analysed = true;
   if (phase_ == Phase::Done) {
-    record();
+    record(round_);
   }
   showKeys();
   showResult();
@@ -171,11 +180,11 @@ std::vector<RankedSolution> F2LPage::shownSolutions() const {
 
 // --- recording ---------------------------------------------------------------
 
-void F2LPage::record() {
-  if (round_.recorded || round_.retry || !round_.analysed) {
+void F2LPage::record(Round &round) {
+  if (round.recorded || round.retry || !round.analysed) {
     return;
   }
-  round_.recorded = true;
+  round.recorded = true;
   const std::int64_t now = unixNow();
   auto pairAttempt = [&](const PairAnalysis &pair, const Alg &moves,
                          std::int64_t ms, F2LDrill drill) {
@@ -191,67 +200,66 @@ void F2LPage::record() {
     a.drill = drill;
     store_.data.add(caseKey(pair.pcase), a);
   };
-  switch (drill_) {
+  switch (round.drill) {
   case Drill::Pair: {
-    const PairAnalysis &pair = *round_.analysis.pair;
+    const PairAnalysis &pair = *round.analysis.pair;
     if (!pair.best()) {
       return;
     }
     PairAttempt a;
     a.timestamp = now;
-    a.ms = round_.ms;
-    a.moves = htmCount(simplify(round_.moves));
+    a.ms = round.ms;
+    a.moves = htmCount(simplify(round.moves));
     a.bestMoves = pair.best()->htm;
-    a.gaveUp = round_.gaveUp;
-    a.hint = round_.hint;
-    a.excess = round_.gaveUp
+    a.gaveUp = round.gaveUp;
+    a.hint = round.hint;
+    a.excess = round.gaveUp
                    ? 0.0
-                   : std::max(0.0, costOf(round_.moves) - pair.best()->cost);
+                   : std::max(0.0, costOf(round.moves) - pair.best()->cost);
     store_.data.add(caseKey(pair.pcase), a);
     break;
   }
   case Drill::Choice: {
-    const std::vector<PairRank> &ranks = round_.analysis.ranks;
+    const std::vector<PairRank> &ranks = round.analysis.ranks;
     const PairRank *picked =
-        round_.picked ? rankOf(ranks, *round_.picked) : nullptr;
-    if (round_.gaveUp || !picked) {
+        round.picked ? rankOf(ranks, *round.picked) : nullptr;
+    if (round.gaveUp || !picked) {
       return;
     }
-    if (!round_.hint) {
+    if (!round.hint) {
       ChoiceAttempt c;
       c.timestamp = now;
-      c.rank = placeOf(ranks, *round_.picked);
+      c.rank = placeOf(ranks, *round.picked);
       c.of = static_cast<int>(ranks.size());
       c.regret = std::max(0.0, picked->total - ranks.front().total);
       store_.data.add(c);
     }
-    pairAttempt(picked->pair, round_.moves, round_.ms, F2LDrill::Choice);
+    pairAttempt(picked->pair, round.moves, round.ms, F2LDrill::Choice);
     break;
   }
   case Drill::Full: {
-    if (round_.gaveUp) {
+    if (round.gaveUp) {
       return;
     }
     FullAttempt f;
     f.timestamp = now;
-    f.ms = round_.ms;
-    f.moves = htmCount(simplify(round_.moves));
-    f.pairs = static_cast<int>(round_.segments.size());
+    f.ms = round.ms;
+    f.moves = htmCount(simplify(round.moves));
+    f.pairs = static_cast<int>(round.segments.size());
     for (std::size_t i = 0;
-         i < round_.segments.size() && i < round_.analysis.segments.size();
-         ++i) {
-      const F2LSegment &seg = round_.segments[i];
+         i < round.segments.size() && i < round.analysis.segments.size(); ++i) {
+      const F2LSegment &seg = round.segments[i];
       if (seg.solved.size() != 1) {
         continue;
       }
-      const PairRank *r = rankOf(round_.analysis.segments[i], seg.solved[0]);
+      const PairRank *r = rankOf(round.analysis.segments[i], seg.solved[0]);
       if (!r || !r->pair.best()) {
         continue;
       }
-      Alg moves(round_.moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
-                round_.moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
-      std::int64_t from = seg.begin ? round_.moveMs[seg.begin - 1] : 0;
-      pairAttempt(r->pair, moves, round_.moveMs[seg.end - 1] - from,
+      Alg moves(round.moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
+                round.moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
+      std::int64_t from = seg.begin ? round.moveMs[seg.begin - 1] : 0;
+      pairAttempt(r->pair, moves, round.moveMs[seg.end - 1] - from,
                   F2LDrill::Full);
       f.excess += std::max(0.0, costOf(moves) - r->pair.best()->cost);
     }
@@ -609,6 +617,7 @@ void F2LPage::refreshTree() {
           item->setText(col, col == 1 ? QString() : kNoValue);
         }
         item->setForeground(0, normal);
+        item->setForeground(2, normal);
         continue;
       }
       CaseSummary s = summarizeCase(it->second, overall);
