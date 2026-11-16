@@ -92,7 +92,7 @@ private:
 // A session id: 12 hex digits, random.
 std::string newLabSessionId();
 
-// {"format": "v-cube.alglab", "version": 1, "current": 0,
+// {"format": "v-cube.alglab", "version": 2, "current": 0,
 //  "sessions": [{"id": "3fa2...", "name": ..., "cube": "physical",
 //    "order": "interleaved", "reps": 12, "warmup": 1, "trim": 0,
 //    "randomAuf": false, "entries": [{"case": "set:pll/T", "alg": ...}]}],
@@ -106,7 +106,7 @@ std::string newLabSessionId();
 //  "profiles": [{"name": ..., "moves": {"R": 1.0, ...}, "other": 2.5,
 //    "axis": 0.15, "rules": [{"first": "R2", "second": "F*", "cost": 0.6}],
 //    "grips": {"other": 2.5, "regrip": 1.2, "hiddenRegrip": 0.4,
-//      "regripStep": 0.3, "strain": 1.5, "start": 0.25, "sameFinger": 0.4,
+//      "regripStep": 0.3, "strain": 0.5, "start": 0.25, "sameFinger": 0.4,
 //      "tricks": [{"move": "U", "hand": "right", "finger": "index",
 //        "how": "flick", "from": "home, up", "turn": 0, "cost": 1.0,
 //        "reset": true, "off": true}]}}],

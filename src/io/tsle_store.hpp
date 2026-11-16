@@ -17,7 +17,7 @@ namespace vcube {
 //  "introduced": ["UF-N-0120", ...],
 //  "fulls": [{"timestamp": ..., "ms": 6100, "moves": 14, "pairs": 3,
 //    "excess": 2}],
-//  "ocll": {"pi": "R U2 R2 U' R2 U' R2 U2 R"}}
+//  "ocll": {"sune": "L' U2 L U L' U L"}}
 // A try is written as in F2L mode's file (its "excess" is in moves; a
 // whole solve's "pairs" are its steps). "ocll" has only the OCLL algs
 // changed from the default ones.
@@ -26,21 +26,6 @@ TsleProgress tsleFromJson(const QJsonObject &o);
 
 inline constexpr FileFormat kTsleFile{"v-cube.tsle", 1, false, "TSLE file"};
 
-class TsleStore {
-public:
-  explicit TsleStore(QString path);
-
-  // A missing file gives empty progress. A file that can't be read is
-  // set aside (see DataFile) and also gives empty progress.
-  bool load(QString *error = nullptr);
-  bool save(QString *error = nullptr) const;
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-  QString path() const { return file_.path(); }
-
-  TsleProgress progress;
-
-private:
-  DataFile file_;
-};
+using TsleStore = JsonStore<TsleProgress, kTsleFile, tsleToJson, tsleFromJson>;
 
 } // namespace vcube

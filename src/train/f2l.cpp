@@ -785,7 +785,6 @@ PairAnalysis analysePair(const CubieCube &state, Slot slot,
         r.htm = htmCount(alg);
         r.cost = solutionCost(alg, options);
         r.alg = std::move(alg);
-        r.computed = false;
         r.setCase = name;
         auto at = std::find_if(
             out.solutions.begin(), out.solutions.end(),

@@ -98,7 +98,6 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   setBox_ = panel_->setBox;
   filter_ = panel_->filter;
   tree_ = panel_->tree;
-  tickRow_ = panel_->tickRow;
   summary_ = panel_->summary;
 
   connect(setBox_, &QComboBox::activated, this, [this](int i) {
@@ -124,7 +123,6 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
               startCaseFromList(ss(id.toString()));
             }
           });
-  connect(panel_, &CaseListPanel::sorted, this, [this] { sortChanged(); });
   neutrality_ = settings_.neutrality;
 }
 

@@ -1,4 +1,5 @@
 #include "io/backup.hpp"
+#include "test_files.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -7,44 +8,29 @@
 #include <catch2/catch_test_macros.hpp>
 
 using namespace vcube;
-
-namespace {
-
-void write(const QString &path, const QByteArray &data) {
-  QDir().mkpath(QFileInfo(path).absolutePath());
-  QFile f(path);
-  REQUIRE(f.open(QIODevice::WriteOnly));
-  f.write(data);
-}
-
-QByteArray read(const QString &path) {
-  QFile f(path);
-  return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
-}
-
-} // namespace
+using namespace vcube::testing;
 
 TEST_CASE("a daily backup copies the data files once a day") {
   QTemporaryDir tmp;
   QDir d(tmp.path());
-  write(d.filePath("sessions.json"), "s1");
-  write(d.filePath("algsets/pll.json"), "pll");
-  write(d.filePath("algsets/progress/pll.json"), "progress");
-  write(d.filePath("algsets/deleted/old.20260101-000000.json"), "old");
+  writeText(d.filePath("sessions.json"), "s1");
+  writeText(d.filePath("algsets/pll.json"), "pll");
+  writeText(d.filePath("algsets/progress/pll.json"), "progress");
+  writeText(d.filePath("algsets/deleted/old.20260101-000000.json"), "old");
 
   QDate day(2026, 11, 10);
   REQUIRE(makeDailyBackup(d.path(), day, 3));
   QDir b(d.filePath("backups/2026-11-10"));
-  CHECK(read(b.filePath("sessions.json")) == "s1");
-  CHECK(read(b.filePath("algsets/progress/pll.json")) == "progress");
+  CHECK(readText(b.filePath("sessions.json")) == "s1");
+  CHECK(readText(b.filePath("algsets/progress/pll.json")) == "progress");
   CHECK_FALSE(QFile::exists(b.filePath("algsets/deleted")));
 
   // The same day again leaves the first copy; the backups are not copied.
-  write(d.filePath("sessions.json"), "s2");
+  writeText(d.filePath("sessions.json"), "s2");
   REQUIRE(makeDailyBackup(d.path(), day, 3));
-  CHECK(read(b.filePath("sessions.json")) == "s1");
+  CHECK(readText(b.filePath("sessions.json")) == "s1");
   REQUIRE(makeDailyBackup(d.path(), day.addDays(1), 3));
-  CHECK(read(d.filePath("backups/2026-11-11/sessions.json")) == "s2");
+  CHECK(readText(d.filePath("backups/2026-11-11/sessions.json")) == "s2");
   CHECK_FALSE(QFile::exists(d.filePath("backups/2026-11-11/backups")));
 
   // Only the newest days are kept.
@@ -54,22 +40,33 @@ TEST_CASE("a daily backup copies the data files once a day") {
   CHECK(QFile::exists(d.filePath("backups/2026-11-12")));
 }
 
+TEST_CASE("a data folder with nothing in it yet is backed up as empty") {
+  QTemporaryDir tmp;
+  QDir d(tmp.path());
+  writeText(d.filePath("v-cube.lock"), "pid"); // never copied
+  QString error;
+  REQUIRE(makeDailyBackup(d.path(), QDate(2026, 11, 10), 3, &error));
+  CHECK(error.isEmpty());
+  CHECK(QDir(d.filePath("backups/2026-11-10")).exists());
+  CHECK(QDir(d.filePath("backups/2026-11-10")).isEmpty());
+}
+
 TEST_CASE("a deleted file is moved aside with the date") {
   QTemporaryDir tmp;
   QDir d(tmp.path());
-  write(d.filePath("zz.json"), "zz");
+  writeText(d.filePath("zz.json"), "zz");
   QDateTime when(QDate(2026, 11, 10), QTime(9, 30, 5));
   QString moved =
       moveToDeleted(d.filePath("zz.json"), d.filePath("deleted"), when);
   CHECK(moved == d.filePath("deleted/zz.20261110-093005.json"));
-  CHECK(read(moved) == "zz");
+  CHECK(readText(moved) == "zz");
   CHECK_FALSE(QFile::exists(d.filePath("zz.json")));
   // A second one at the same second doesn't overwrite it.
-  write(d.filePath("zz.json"), "again");
+  writeText(d.filePath("zz.json"), "again");
   QString second =
       moveToDeleted(d.filePath("zz.json"), d.filePath("deleted"), when);
   CHECK(second != moved);
-  CHECK(read(second) == "again");
+  CHECK(readText(second) == "again");
   CHECK(moveToDeleted(d.filePath("missing.json"), d.filePath("deleted"), when)
             .isEmpty());
 }
@@ -77,16 +74,23 @@ TEST_CASE("a deleted file is moved aside with the date") {
 TEST_CASE("export copies the data and the settings to a new folder") {
   QTemporaryDir tmp;
   QDir d(tmp.path());
-  write(d.filePath("data/sessions.json"), "s");
-  write(d.filePath("data/backups/2026-11-10/sessions.json"), "old");
-  write(d.filePath("config/v-cube.ini"), "ini");
+  writeText(d.filePath("data/sessions.json"), "s");
+  writeText(d.filePath("data/backups/2026-11-10/sessions.json"), "old");
+  writeText(d.filePath("config/v-cube.ini"), "ini");
   QString target = d.filePath("export");
   REQUIRE(exportAllData(d.filePath("data"), d.filePath("config/v-cube.ini"),
                         target));
-  CHECK(read(target + "/data/sessions.json") == "s");
-  CHECK(read(target + "/settings/v-cube.ini") == "ini");
+  CHECK(readText(target + "/data/sessions.json") == "s");
+  CHECK(readText(target + "/settings/v-cube.ini") == "ini");
   CHECK_FALSE(QFile::exists(target + "/data/backups"));
   QString error;
   CHECK_FALSE(exportAllData(d.filePath("data"), {}, target, &error));
   CHECK_FALSE(error.isEmpty());
+
+  // Not into the data folder itself: the copy would find its own files.
+  error.clear();
+  CHECK_FALSE(
+      exportAllData(d.filePath("data"), {}, d.filePath("data/out"), &error));
+  CHECK_FALSE(error.isEmpty());
+  CHECK_FALSE(QFile::exists(d.filePath("data/out")));
 }

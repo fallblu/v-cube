@@ -360,18 +360,6 @@ void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
   p.restore();
 }
 
-std::optional<int> netFaceletAt(const QRectF &area, QPointF pos) {
-  NetGeometry net(area);
-  for (int i = 0; i < kFaceletCount; ++i) {
-    if (net.sticker(i)
-            .adjusted(-net.gap / 2, -net.gap / 2, net.gap / 2, net.gap / 2)
-            .contains(pos)) {
-      return i;
-    }
-  }
-  return std::nullopt;
-}
-
 void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
                const CubeLook &look, const StickerMarks *marks) {
   p.save();

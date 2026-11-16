@@ -12,9 +12,6 @@ namespace {
 constexpr std::array<std::string_view, kEoDrills> kDrillIds = {
     "edges", "axis", "plan", "solve", "full"};
 
-bool hasStep(EoDrill d) {
-  return d == EoDrill::Axis || d == EoDrill::Plan || d == EoDrill::Solve;
-}
 bool hasKinds(EoDrill d) { return d != EoDrill::Axis; }
 
 std::optional<int> toInt(std::string_view s) {
@@ -27,6 +24,10 @@ std::optional<int> toInt(std::string_view s) {
 }
 
 } // namespace
+
+bool hasStep(EoDrill d) {
+  return d == EoDrill::Axis || d == EoDrill::Plan || d == EoDrill::Solve;
+}
 
 std::string_view eoDrillId(EoDrill d) {
   return kDrillIds[static_cast<std::size_t>(d)];

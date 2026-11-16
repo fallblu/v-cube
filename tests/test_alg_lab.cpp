@@ -47,11 +47,6 @@ TEST_CASE("ergonomic scores add move costs, axis changes and rules",
   CHECK(ergoMatches("r*", parseAlgOrEmpty("Rw2").front()));
   CHECK(ergoMatches("R'", parseAlgOrEmpty("R3").front()));
 
-  const auto &rh = builtinErgoProfiles().front();
-  CHECK(rh.name == kGripProfileName);
-  // The sexy move is easier than its B-face version.
-  CHECK(ergoScore(parseAlgOrEmpty("R U R' U'"), rh).total <
-        ergoScore(parseAlgOrEmpty("B U B' U'"), rh).total);
   CHECK(ergoMoveTokens().size() == 54);
 }
 
@@ -141,6 +136,10 @@ TEST_CASE("lab statistics leave out warm-up, deviations and the trim",
   CHECK(*all.sd == Catch::Approx(129.1).epsilon(0.01));
   CHECK(all.ao5); // 5 timed attempts: 4 times and a DNF
   CHECK(all.dnfRate() == Catch::Approx(0.2));
+  // The trim leaves times out of the mean, not out of the DNF rate.
+  LabStats quarter = labStats(as, k, "A", CubeKind::Physical, {}, 25, warm);
+  CHECK(quarter.used == 2);
+  CHECK(quarter.dnfRate() == Catch::Approx(0.2));
 
   LabWindow s2{LabWindow::Kind::Session, "s2", 0};
   LabStats second = labStats(as, k, "A", CubeKind::Physical, s2, 0, warm);

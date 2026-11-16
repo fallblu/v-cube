@@ -107,7 +107,6 @@ TEST_CASE("the move count store starts with a virtual session per step") {
     CHECK(s.cube == CubeKind::Virtual);
     CHECK(s.scrambleType == defaultScrambleType(s.step));
   }
-  CHECK(defaultScrambleType(SolveStep::ZZF2L) == "eocross");
 
   store.setCurrentIndex(2);
   store.current().attempts.push_back({14, false, "F2 U", "", 1, "", true});

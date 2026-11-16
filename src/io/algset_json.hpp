@@ -17,9 +17,10 @@ inline QString qs(const std::string &s) { return QString::fromStdString(s); }
 inline std::string ss(const QString &s) { return s.toStdString(); }
 
 // Alg-set files ("format": "v-cube.algset", version 1). Case states are
-// 54-character facelet strings (URFDLB order). A set is refused if a case
-// has no id or the id of another case, an alg isn't text, or the target
-// time isn't a positive number.
+// 54-character facelet strings (URFDLB order). A set is refused if it
+// has no id, its "free" can't be read, a case has no id, the id of another
+// case or a state no cube has, an alg isn't text, or the target time isn't
+// a positive number.
 std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error);
 QJsonObject algSetToJson(const AlgSet &set);
 

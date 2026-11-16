@@ -1,9 +1,8 @@
 #pragma once
 
 #include "app/attempt_page.hpp"
+#include "app/eo_cross_check.hpp"
 #include "train/scramble_history.hpp"
-
-#include <QFutureWatcher>
 
 #include <optional>
 #include <vector>
@@ -39,7 +38,6 @@ protected:
   Hint solvingHint() const override;
   bool reached(const FaceletCube &cube) const override;
   QString notReachedText() const override;
-  QString retryWorstTip() const override;
   void describeReview(ReviewedSolve &solve, int index) const override;
   QString suggestedName() const override;
   QString newSessionLabel() const override;
@@ -67,8 +65,7 @@ private:
   // On a physical cube: the scrambles done, to go back to.
   ScrambleHistory<GeneratedScramble> history_;
   // The optimal EO Cross after a solve, and the solve's own.
-  QFutureWatcher<std::optional<int>> eoWatcher_;
-  std::optional<int> eoYours_;
+  EoCrossCheck eoCheck_;
 
   QWidget *algPanel_;
   QLineEdit *algEdit_;

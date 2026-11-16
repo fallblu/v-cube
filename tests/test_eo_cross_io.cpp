@@ -33,12 +33,12 @@ TEST_CASE("EO Cross statistics survive the file", "[eocross][io]") {
   QString path = QDir(dir.path()).filePath("eocross.json");
   EoCrossStore store(path);
   CHECK(store.load());
-  CHECK(store.stats == EoCrossStats{});
-  store.stats = s;
+  CHECK(store.data == EoCrossStats{});
+  store.data = s;
   REQUIRE(store.save());
   EoCrossStore again(path);
   REQUIRE(again.load());
-  CHECK(again.stats == s);
+  CHECK(again.data == s);
 }
 
 TEST_CASE("an EO Cross file is read with care", "[eocross][io]") {
@@ -71,5 +71,5 @@ TEST_CASE("an EO Cross file is read with care", "[eocross][io]") {
   QString error;
   CHECK_FALSE(store.load(&error));
   CHECK_FALSE(error.isEmpty());
-  CHECK(store.stats == EoCrossStats{});
+  CHECK(store.data == EoCrossStats{});
 }

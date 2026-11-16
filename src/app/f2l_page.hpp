@@ -23,7 +23,6 @@ class QPushButton;
 class QTabBar;
 class QToolButton;
 class QTreeWidget;
-class QTreeWidgetItem;
 
 namespace vcube {
 
@@ -84,7 +83,7 @@ public:
   QString resultHtml() const;
   // The solutions shown (best first); empty until worked out.
   std::vector<RankedSolution> shownSolutions() const;
-  const F2LStats &stats() const { return store_.stats; }
+  const F2LStats &stats() const { return store_.data; }
   // Shows a case in the Case explorer.
   void exploreCase(PairCase c);
 
@@ -118,6 +117,7 @@ private:
     std::vector<F2LSegment> segments; // Full
     Analysis analysis;
     bool analysed = false;
+    Drill drill = Drill::Pair; // once done
   };
 
   AppSettings &settings_;
@@ -135,6 +135,7 @@ private:
   int rounds_ = 0;
   bool active_ = false;
   std::shared_ptr<std::atomic<bool>> stop_;
+  std::vector<Round> waiting_; // finished, not yet recorded
   std::shared_ptr<const AlgSet> reference_;
   FaceletCube cube_;
   // The solution being stepped through once a round is done.
@@ -201,7 +202,11 @@ private:
   AnalysisOptions analysisOptions() const;
   void requestAnalysis();
   void analysisArrived(const Analysis &a);
-  void record();
+  // Records a finished round whose solutions are worked out.
+  void record(Round &round);
+  // Sets a finished round aside whose solutions are still being worked
+  // out, to be recorded when they arrive.
+  void keepUnrecorded();
   void showResult();
   QString pairResultHtml() const;
   QString choiceResultHtml() const;

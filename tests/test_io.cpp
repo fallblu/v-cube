@@ -2,6 +2,7 @@
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
+#include "test_files.hpp"
 #include "train/case_logic.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -17,13 +18,9 @@
 #include <vector>
 
 using namespace vcube;
-
-namespace {
-const QString kBuiltins = QStringLiteral(VCUBE_SOURCE_DIR "/resources/algsets");
-}
+using namespace vcube::testing;
 
 TEST_CASE("built-in sets load with the expected cases and no algs") {
-  AlgLibrary lib(QTemporaryDir().path() + "/never-used", kBuiltins);
   std::map<std::string, int> expected = {
       {"pll", 21}, {"oll", 57}, {"2look-oll", 10}, {"2look-pll", 6}};
   for (const QString &file : QDir(kBuiltins).entryList({"*.json"})) {
@@ -259,26 +256,6 @@ TEST_CASE("library installs built-ins once and saves changes") {
   CHECK(lib.find("pll")->findCase("T")->algs.size() == 1);
 }
 
-namespace {
-
-void writeText(const QString &path, const QByteArray &text) {
-  QFile f(path);
-  REQUIRE(f.open(QIODevice::WriteOnly));
-  f.write(text);
-}
-
-QByteArray readText(const QString &path) {
-  QFile f(path);
-  return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
-}
-
-// Files in `dir` whose names start with `prefix`.
-QStringList filesStarting(const QString &dir, const QString &prefix) {
-  return QDir(dir).entryList({prefix + "*"}, QDir::Files);
-}
-
-} // namespace
-
 TEST_CASE("unreadable session files are set aside, not saved over") {
   QTemporaryDir tmp;
   QString path = tmp.filePath("sessions.json");
@@ -471,6 +448,41 @@ TEST_CASE("deleted built-in sets can be restored") {
   CHECK(lib.find("oll")->builtin);
   CHECK(lib.progress("oll").empty());
   CHECK(lib.missingBuiltins().empty());
+}
+
+TEST_CASE("restoring a built-in keeps progress its set left behind") {
+  QTemporaryDir tmp;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    lib.progress("oll")["oll27"].record({100, 1500, false});
+    lib.saveProgress("oll");
+    finishBackgroundWrites();
+  }
+  // The set's file is lost; its progress file stays.
+  REQUIRE(QFile::remove(tmp.filePath("oll.json")));
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.missingBuiltins().size() == 1);
+  REQUIRE(lib.restoreBuiltin("oll"));
+  CHECK(lib.progress("oll").empty());
+  CHECK_FALSE(QFile::exists(tmp.filePath("progress/oll.json")));
+  CHECK(filesStarting(tmp.filePath("deleted/progress"), "oll.").size() == 1);
+}
+
+TEST_CASE("removing an earlier session keeps the current one current") {
+  SessionStore store(QTemporaryDir().filePath("sessions.json"));
+  store.sessions()[0].name = "a";
+  store.addSession("b");
+  store.addSession("c");
+  store.setCurrentIndex(1);
+  store.removeSession(0);
+  CHECK(store.current().name == "b");
+  store.removeSession(1); // a later one
+  CHECK(store.current().name == "b");
+  store.removeSession(0); // the last one: an empty session is left
+  CHECK(store.sessions().size() == 1);
+  CHECK(store.currentIndex() == 0);
 }
 
 TEST_CASE("a lost install marker doesn't bring deleted built-ins back") {

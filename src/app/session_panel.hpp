@@ -29,7 +29,6 @@ class TrendChart;
 struct AttemptColumn {
   QString id;    // names it in the hidden-columns setting
   QString title; // the header
-  QString tip;   // the header's tooltip
   // Sized to its contents; otherwise the columns share the width.
   bool fit = false;
   // Offered in the header's menu, to hide or show.
@@ -43,7 +42,6 @@ struct AttemptColumn {
 struct AttemptCell {
   QString text;
   QColor colour; // the text's, when valid
-  QString tip;
   bool alignRight = true;
 };
 
@@ -87,7 +85,6 @@ public:
 
   // --- the session menu ---
   void setSessionName(const QString &name); // "Session: <name>"
-  void setMenuTip(const QString &tip);
   QToolButton *sessionButton() const { return sessionButton_; }
   // The menu is filled when it opens: the page answers menuAboutToShow()
   // with fillSessionMenu() and may add its own actions to menu() after.
@@ -106,7 +103,6 @@ public:
   // statActivated()) don't wrap; the others do.
   void setStatsClickable(bool on);
   void setStatsHtml(const QString &html);
-  QLabel *statsLabel() const { return stats_; }
 
   // --- the attempt table ---
   void setColumns(std::vector<AttemptColumn> columns);
@@ -116,8 +112,6 @@ public:
   // Lets the header's context menu hide the hideable columns, kept under
   // this QSettings key.
   void setHiddenColumnsKey(const QString &key);
-  QTableView *table() const { return table_; }
-  AttemptTableModel *model() const { return model_; }
 
   // --- the delete and undo buttons (hidden until shown) ---
   void setDeleteRowVisible(bool on);

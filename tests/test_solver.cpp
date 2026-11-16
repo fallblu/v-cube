@@ -7,7 +7,7 @@
 
 using namespace vcube;
 
-TEST_CASE("two-phase solver solves random states in at most 21-24 moves") {
+TEST_CASE("two-phase solver solves random states in at most 24 moves") {
   std::mt19937 rng(42);
   for (int i = 0; i < 25; ++i) {
     CubieCube s;
@@ -47,8 +47,8 @@ TEST_CASE("near-solved states get short solutions without using the budget") {
   c.apply(sol);
   CHECK(c.isSolved());
   CHECK(sol.size() <= 14);
-  // It stops once shorter solutions stop coming, long before the fifth of
-  // the budget that used to be spent looking for them.
+  // It stops once shorter solutions stop coming, long before the budget
+  // is spent.
   CHECK(took < std::chrono::milliseconds(300));
 }
 

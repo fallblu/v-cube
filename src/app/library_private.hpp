@@ -49,10 +49,6 @@ namespace {
 constexpr int kCaseRole = Qt::UserRole;
 constexpr int kGroupRole = Qt::UserRole + 1;
 
-const auto &kPass = kPassColour;
-const auto &kWarn = kWarnColour;
-const auto &kFail = kFailColour;
-
 constexpr int kDiagramSize = 160;
 
 } // namespace

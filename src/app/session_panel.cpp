@@ -66,8 +66,6 @@ QVariant AttemptTableModel::data(const QModelIndex &index, int role) const {
   switch (role) {
   case Qt::DisplayRole:
     return cell.text;
-  case Qt::ToolTipRole:
-    return cell.tip.isEmpty() ? QVariant() : QVariant(cell.tip);
   case Qt::ForegroundRole:
     return cell.colour.isValid() ? QVariant(cell.colour) : QVariant();
   case Qt::TextAlignmentRole:
@@ -88,9 +86,6 @@ QVariant AttemptTableModel::headerData(int section, Qt::Orientation orientation,
   const AttemptColumn &c = columns_[static_cast<std::size_t>(section)];
   if (role == Qt::DisplayRole) {
     return c.title;
-  }
-  if (role == Qt::ToolTipRole && !c.tip.isEmpty()) {
-    return c.tip;
   }
   return {};
 }
@@ -169,10 +164,6 @@ SessionPanel::SessionPanel(QWidget *parent) : QWidget(parent) {
 
 void SessionPanel::setSessionName(const QString &name) {
   sessionButton_->setText(tr("Session: %1").arg(name));
-}
-
-void SessionPanel::setMenuTip(const QString &tip) {
-  sessionButton_->setToolTip(tip);
 }
 
 void SessionPanel::fillSessionMenu(const std::vector<MenuSession> &sessions,

@@ -48,9 +48,6 @@ enum class SolveStep : std::uint8_t {
 // Every step, in the order they are offered: EO, EO+1, EO+2, EOLine, EO
 // Cross, XEOCross, ZZ F2L, Cross, CFOP F2L.
 const std::vector<SolveStep> &solveSteps();
-// The ZZ steps in the order a solve does them: EO, EOLine, EO+1, EO+2, EO
-// Cross, ZZ F2L.
-const std::vector<SolveStep> &allSteps();
 // "eo", "eo+1", "eo+2", "eoline", "eocross", "xeocross", "zzf2l", "cross",
 // "cfopf2l".
 std::string_view stepId(SolveStep step);
@@ -79,7 +76,7 @@ bool stepDoneAsHeld(const CubieCube &cube, SolveStep step);
 // for the front-back axis), sorted; empty if none.
 std::vector<Hold> stepReachedHolds(const FaceletCube &cube, SolveStep step);
 
-// How far a cube got towards the inspection steps, in the hold that got
+// How far a cube got towards EO Cross, in the hold that got
 // furthest: the fewest edges left bad for its front-back axis, then the
 // most cross edges solved (DF, DR, DB, DL as held), then the line (DF and
 // DB) solved.

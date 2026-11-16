@@ -14,7 +14,7 @@ namespace vcube {
 // One value the app remembers in QSettings, with its key and the value it
 // has when nothing was saved yet. The preferences of the Settings dialog
 // are AppSettings; this is everything else: the window's layout, the last
-// choices in each mode, and so on. Every key is named in ui_state.cpp, so
+// choices in each mode, and so on. Most keys are named in ui_state.cpp, so
 // that what is stored where can be seen in one place.
 template <typename T> class Stored {
 public:
@@ -83,7 +83,6 @@ Stored<QStringList> hiddenColumns(const QString &mode,
 // --- Learn
 Stored<QByteArray> learnSplitter();
 Stored<QByteArray> learnRightSplitter();
-Stored<bool> learnListHidden();
 // A mode's side panel (its list or session) is hidden.
 Stored<bool> sideHidden(const QString &modeId);
 // How reviews are done: "solve", "recognise" or "quiz".

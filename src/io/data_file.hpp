@@ -4,6 +4,7 @@
 #include <QString>
 
 #include <functional>
+#include <utility>
 
 class QObject;
 
@@ -97,5 +98,36 @@ using WriteReporter =
 void setWriteReporter(WriteReporter reporter);
 // Reports a write done directly; from any thread.
 void reportWrite(const QString &path, bool ok, const QString &error = {});
+
+// One value saved as a JSON data file: `ToJson` writes the whole file from
+// it and `FromJson` reads it back.
+template <typename Data, const FileFormat &Format, auto ToJson, auto FromJson>
+class JsonStore {
+public:
+  explicit JsonStore(QString path) : file_(std::move(path), Format) {}
+
+  // A missing file gives an empty value. A file that can't be read is set
+  // aside (see DataFile) and also gives an empty one.
+  bool load(QString *error = nullptr) {
+    data = {};
+    QJsonObject o;
+    FileStatus status = file_.load(o, error);
+    if (status != FileStatus::Read) {
+      return status == FileStatus::Missing;
+    }
+    data = FromJson(o);
+    return true;
+  }
+  bool save(QString *error = nullptr) const {
+    return file_.save(ToJson(data), error);
+  }
+  const QString &setAsidePath() const { return file_.setAsidePath(); }
+  QString path() const { return file_.path(); }
+
+  Data data;
+
+private:
+  DataFile file_;
+};
 
 } // namespace vcube

@@ -1,4 +1,5 @@
 #include "app/learn_page.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/case_history_dialog.hpp"
 #include "app/ui_state.hpp"
@@ -27,8 +28,6 @@
 namespace vcube {
 
 namespace {
-
-const StatusColour kLearning{Status::Warning};
 
 // Choices in "which case is this?".
 constexpr std::size_t kQuizChoices = 6;
@@ -197,7 +196,8 @@ void LearnPage::answerQuiz(std::size_t choice) {
   say(right ? tr("Right, in %1 s.").arg(secondsText(static_cast<double>(ms)))
             : tr("It was %1.").arg(c ? qs(c->name) : QString()),
       {{tr("Space"), tr("another one")}});
-  statusLabel_->setStyleSheet(right ? QString() : "color: " + kLearning.name());
+  statusLabel_->setStyleSheet(right ? QString()
+                                    : "color: " + kWarnColour.name());
   updateHeader();
 }
 

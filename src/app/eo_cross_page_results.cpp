@@ -5,7 +5,6 @@
 
 #include <QFutureWatcher>
 #include <QMessageBox>
-#include <QPushButton>
 #include <QSignalBlocker>
 #include <QTabBar>
 #include <QTreeWidget>
@@ -20,23 +19,6 @@ namespace {
 
 // Optimal solutions worked out per hold, to list a few that differ.
 constexpr int kSolutionsPerHold = 12;
-
-const StatusColour kGood{Status::Good};
-const StatusColour kWeak{Status::Warning};
-
-QString movesText(int n) {
-  return n == 1 ? QObject::tr("1 move") : QObject::tr("%1 moves").arg(n);
-}
-
-QString algText(const Alg &alg) { return qs(toString(alg)).toHtmlEscaped(); }
-
-QString coloured(const QColor &colour, const QString &text) {
-  return QString("<span style='color:%1'>%2</span>").arg(colour.name(), text);
-}
-
-bool hasStep(EoDrill d) {
-  return d == EoDrill::Axis || d == EoDrill::Plan || d == EoDrill::Solve;
-}
 
 // How far a cube that didn't reach the step got: "EO not done (2 bad edges
 // left); 3 of 4 cross edges solved".
@@ -136,7 +118,7 @@ void EoCrossPage::record() {
     }
     break;
   }
-  store_.stats.add(round_.kind, a);
+  store_.data.add(round_.kind, a);
   save();
   refreshTree();
 }
@@ -191,7 +173,7 @@ QString EoCrossPage::verdictHtml() const {
                                        .arg(round_.correct[0])
                                        .arg(round_.correct[1])
                                  : tr("%1 bad edges").arg(round_.correct[0]);
-    return right ? coloured(kGood, tr("Right: %1").arg(counts))
+    return right ? coloured(kPassColour, tr("Right: %1").arg(counts))
                  : coloured(kFailColour, tr("Wrong: %1").arg(counts));
   }
   case Drill::Axis: {
@@ -201,9 +183,9 @@ QString EoCrossPage::verdictHtml() const {
     int over = round_.ranked[*round_.picked].optimum.length - best;
     return over == 0
                ? coloured(
-                     kGood,
+                     kPassColour,
                      tr("The best hold: %1 in %2").arg(step, movesText(best)))
-               : coloured(over >= 2 ? QColor(kFailColour) : QColor(kWeak),
+               : coloured(over >= 2 ? QColor(kFailColour) : QColor(kWarnColour),
                           tr("Not the best hold: +%1").arg(movesText(over)));
   }
   case Drill::Plan:
@@ -218,9 +200,10 @@ QString EoCrossPage::verdictHtml() const {
     QString done = tr("%1 done in %2").arg(step, movesText(moves));
     int over = std::max(0, moves - best);
     QString against =
-        over == 0 ? coloured(kGood, tr("optimal"))
-                  : coloured(over >= 3 ? QColor(kFailColour) : QColor(kWeak),
-                             tr("+%1 over the optimum").arg(over));
+        over == 0
+            ? coloured(kPassColour, tr("optimal"))
+            : coloured(over >= 3 ? QColor(kFailColour) : QColor(kWarnColour),
+                       tr("+%1 over the optimum").arg(over));
     return done + " · " + against;
   }
   }
@@ -237,7 +220,7 @@ QString EoCrossPage::edgesResultHtml() const {
     bool right = round_.answers[i] == round_.correct[i];
     QString what = axisText(axis, true);
     lines << (right ? "<b>" +
-                          coloured(kGood,
+                          coloured(kPassColour,
                                    tr("right: %1").arg(round_.answers[i])) +
                           "</b> · " + what
                     : "<b>" +
@@ -289,7 +272,7 @@ QString EoCrossPage::holdsHtml() const {
     QString hold = stepHoldHtml(r.hold, eoOnly, settings_.scheme);
     QString mark = mine == i ? tr("yours") : QString();
     QString length = r.optimum.length == best
-                         ? coloured(kGood, movesText(r.optimum.length))
+                         ? coloured(kPassColour, movesText(r.optimum.length))
                          : movesText(r.optimum.length);
     html += QString("<tr><td>%1</td><td align='right'>%2</td><td>%3</td>"
                     "<td style='color:%4'>%5</td></tr>")
@@ -332,9 +315,9 @@ QString EoCrossPage::breakdownHtml() const {
   for (const EoPart &p : b.parts) {
     Alg moves(round_.moves.begin() + static_cast<std::ptrdiff_t>(p.begin),
               round_.moves.begin() + static_cast<std::ptrdiff_t>(p.end));
-    QString lost = p.lost <= 0 ? coloured(kGood, tr("nothing"))
+    QString lost = p.lost <= 0 ? coloured(kPassColour, tr("nothing"))
                                : coloured(p.lost >= 3 ? QColor(kFailColour)
-                                                      : QColor(kWeak),
+                                                      : QColor(kWarnColour),
                                           "+" + QString::number(p.lost));
     html += QString("<tr><td>%1</td><td><b>%2</b></td><td align='right'>%3"
                     "</td><td align='right'>%4</td><td align='right'>%5</td>"
@@ -366,7 +349,10 @@ QString EoCrossPage::solveResultHtml() const {
     html += "<p>" + line + "</p>";
   }
   if (!round_.solvedIn) {
-    html += "<p>" + coloured(kFailColour, progressText(cube_, step)) + "</p>";
+    // As the try left the cube, which may have been turned since.
+    FaceletCube ended = round_.start;
+    ended.apply(round_.moves);
+    html += "<p>" + coloured(kFailColour, progressText(ended, step)) + "</p>";
   } else if (auto mine = rankOfHold(round_.ranked, *round_.solvedIn, step);
              mine && !round_.ranked.empty()) {
     int inHold = round_.ranked[*mine].optimum.length;
@@ -446,7 +432,7 @@ void EoCrossPage::refreshTree() {
       QTreeWidgetItem *item = group->child(i);
       std::optional<EoKind> kind =
           eoKindFromKey(item->data(0, Qt::UserRole).toString().toStdString());
-      if (!kind || store_.stats.tries(*kind).empty()) {
+      if (!kind || store_.data.tries(*kind).empty()) {
         item->setText(1, QString());
         item->setText(2, kNoValue);
         item->setText(3, kNoValue);
@@ -454,14 +440,14 @@ void EoCrossPage::refreshTree() {
         item->setForeground(2, normal);
         continue;
       }
-      CaseSummary s = eoSummary(store_.stats, *kind);
+      CaseSummary s = eoSummary(store_.data, *kind);
       item->setText(1, QString::number(s.attempts));
       item->setText(2, "+" + QString::number(s.excess, 'f', 1));
       item->setText(3, s.meanMs > 0
                            ? clockText(static_cast<std::int64_t>(s.meanMs))
                            : kNoValue);
-      item->setForeground(0, s.weak ? QBrush(kWeak) : normal);
-      item->setForeground(2, s.weak ? QBrush(kWeak) : normal);
+      item->setForeground(0, s.weak ? QBrush(kWarnColour) : normal);
+      item->setForeground(2, s.weak ? QBrush(kWarnColour) : normal);
     }
   }
   showSummary();
@@ -469,10 +455,10 @@ void EoCrossPage::refreshTree() {
 
 void EoCrossPage::showSummary() {
   int tries = 0, weak = 0;
-  for (const auto &[key, attempts] : store_.stats.kinds) {
+  for (const auto &[key, attempts] : store_.data.kinds) {
     tries += static_cast<int>(attempts.size());
     std::optional<EoKind> kind = eoKindFromKey(key);
-    if (kind && eoSummary(store_.stats, *kind).weak) {
+    if (kind && eoSummary(store_.data, *kind).weak) {
       ++weak;
     }
   }
@@ -483,11 +469,11 @@ void EoCrossPage::showSummary() {
   EoKind kind = normalized({drill_, step_, -1});
   std::vector<PairAttempt> all;
   if (drill_ == Drill::Axis) {
-    all = store_.stats.tries(kind);
+    all = store_.data.tries(kind);
   } else {
     for (int bad : kBadEdgeKinds) {
       kind.bad = bad;
-      const std::vector<PairAttempt> &t = store_.stats.tries(kind);
+      const std::vector<PairAttempt> &t = store_.data.tries(kind);
       all.insert(all.end(), t.begin(), t.end());
     }
     std::stable_sort(all.begin(), all.end(),
@@ -555,7 +541,7 @@ void EoCrossPage::clearStats() {
              "drill?")) != QMessageBox::Yes) {
     return;
   }
-  store_.stats = {};
+  store_.data = {};
   save();
   refreshTree();
   ready_ = false;

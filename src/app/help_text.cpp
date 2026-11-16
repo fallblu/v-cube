@@ -61,8 +61,8 @@ const std::vector<Section> &sections() {
                         "choice on the page (alg set, session, scramble type, "
                         "cube, view, ...), then Enter")},
         {T("F1"), T("show or hide the keyboard controls")},
-        {T("F9"), T("show or hide the mode's side panel (the case list or the "
-                    "session)")},
+        {T("F9"), T("show or hide the mode's side panel (the case list, the "
+                    "session or the case browser)")},
         {T("F11"), T("full screen")},
         {T("F10"),
          T("focus mode (right-click outside the scramble, timer, cube and algs "
@@ -131,14 +131,13 @@ const std::vector<Section> &sections() {
        {T("When"), T("Key"), T("Action")},
        {{T("virtual, waiting"), T("tap Space, then turn"),
          T("arm the timer; the first face turn starts it (Settings > Timing "
-           "and solves can "
-           "have Space held and let go instead; a turn made while Space is "
-           "held and green starts it too)")},
+           "and solves can have Space held and let go instead; a turn made "
+           "while Space is held and green starts it too)")},
         {T("virtual, waiting"), T("turning keys"),
          T("rotations only until the timer starts")},
         {T("physical, waiting"), T("hold Space, release"),
          T("start, once the time turns green (Drill's own hold time, Settings "
-           "> Drill)")},
+           "> Timing and solves)")},
         {T("waiting"), T("Esc"),
          T("disarm the timer and set the case up as it was")},
         {T("waiting, running"), T("Shift+Space"),
@@ -212,7 +211,7 @@ const std::vector<Section> &sections() {
        {T("When"), T("Key"), T("Action")},
        {{T("before a solve"), T("hold Space, release"),
          T("start, once the time turns green (the hold time is in Settings > "
-           "Solves). With inspection on, tap Space first to start "
+           "Timing and solves). With inspection on, tap Space first to start "
            "inspecting.")},
         {T("before a solve, virtual"), T("turning keys"), T("rotations only")},
         {T("inspection, hold, solve"), T("Esc"),
@@ -533,9 +532,9 @@ QString controlsHtml(int mode, const Keymap &keymap) {
 }
 
 QString controlsMarkdown() {
-  QString md = "# Keys\n\n<!-- Written from src/app/help_text.cpp by the test "
-               "\"keys.md matches the key table\": edit the table, not this "
-               "file. -->\n\n";
+  QString md = "# Keys\n\n<!-- Written from src/app/help_text.cpp by the GUI "
+               "test (run it with VCUBE_WRITE_DOCS=1): edit the table, not "
+               "this file. -->\n\n";
   auto paragraphs = [&](const std::vector<const char *> &list) {
     for (const char *p : list) {
       md += QString::fromUtf8(p) + "\n\n";

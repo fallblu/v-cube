@@ -536,7 +536,6 @@ SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
   for (const SolvePhase &p : out.phases) {
     switch (p.kind) {
     case SolvePhase::Kind::Cross:
-      out.crossHtm = p.htm;
       if (timed) {
         out.crossMs = p.ms;
       }
@@ -547,7 +546,6 @@ SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
       break;
     case SolvePhase::Kind::LastLayer:
       f2lDone = true;
-      out.llHtm = p.htm;
       if (timed) {
         out.llMs = p.ms;
       }

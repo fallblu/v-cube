@@ -33,11 +33,6 @@ constexpr std::int64_t kHideGraceMs = 600;
 // The inspection times offered, in seconds (0: none).
 constexpr std::array<int, 7> kLimits = {0, 5, 8, 10, 15, 20, 30};
 
-const StatusColour kWarn{Status::Warning};
-
-bool hasStep(EoDrill d) {
-  return d == EoDrill::Axis || d == EoDrill::Plan || d == EoDrill::Solve;
-}
 bool hasLimit(EoDrill d) { return d == EoDrill::Axis || d == EoDrill::Plan; }
 
 // A hold in plain words, for the hint line: "yellow cross, green front",
@@ -468,7 +463,7 @@ void EoCrossPage::newRound(bool sameState) {
       // way to the others.
       kind.bad = pinned_ >= 0 && tries < 30
                      ? pinned_
-                     : pickBadEdges(store_.stats, drill_, kind.step, rng_);
+                     : pickBadEdges(store_.data, drill_, kind.step, rng_);
     }
     scrambled = heldState(randomEoState(kind.bad, rng_), shown);
     // Not a state with the step already done in one of the holds.
@@ -559,7 +554,7 @@ void EoCrossPage::turn(Move m) {
     cube_.apply(m);
     cubeView_->animateMove(m);
     round_.moves.push_back(m);
-    if (std::optional<Hold> h = doneHold(cube_, roundStep(), allowedHolds())) {
+    if (doneHold(cube_, roundStep(), allowedHolds())) {
       finish(false);
     }
     return;
@@ -913,7 +908,7 @@ void EoCrossPage::showClock() {
         }
       }
       colour = elapsed >= 12000  ? kFailColour.name()
-               : elapsed >= 8000 ? kWarn.name()
+               : elapsed >= 8000 ? kWarnColour.name()
                                  : QString();
     } else if (left <= 3000) {
       colour = kFailColour.name();

@@ -1,121 +1,101 @@
 # Data and file formats
 
-v-cube saves everything as you go: there is no Save command. This page says
-where the files are, how they are kept safe, and what is in them, for
-anyone who wants to back them up, move them, or edit an alg set by hand.
+v-cube saves as you go; there is no Save command. This page says where the
+files are, how they are protected, and what is in them.
 
 ## Where the data is
 
-| What | Linux | Windows |
-| --- | --- | --- |
-| Alg sets (one JSON file each) | `~/.local/share/v-cube/algsets/` | `%LOCALAPPDATA%\v-cube\algsets\` |
-| Learn and Drill progress, per set | `~/.local/share/v-cube/algsets/progress/` | `%LOCALAPPDATA%\v-cube\algsets\progress\` |
-| Deleted alg sets and their progress | `~/.local/share/v-cube/algsets/deleted/` | `%LOCALAPPDATA%\v-cube\algsets\deleted\` |
-| Timed sessions | `~/.local/share/v-cube/sessions.json` | `%LOCALAPPDATA%\v-cube\sessions.json` |
-| Untimed sessions | `~/.local/share/v-cube/untimed.json` | `%LOCALAPPDATA%\v-cube\untimed.json` |
-| Move Count sessions | `~/.local/share/v-cube/movecounts.json` | `%LOCALAPPDATA%\v-cube\movecounts.json` |
-| EO Cross statistics | `~/.local/share/v-cube/eocross.json` | `%LOCALAPPDATA%\v-cube\eocross.json` |
-| F2L statistics | `~/.local/share/v-cube/f2l.json` | `%LOCALAPPDATA%\v-cube\f2l.json` |
-| TSLE progress | `~/.local/share/v-cube/tsle.json` | `%LOCALAPPDATA%\v-cube\tsle.json` |
-| Alg Lab (lab cases, candidates, test sessions, times, profiles) | `~/.local/share/v-cube/alglab.json` | `%LOCALAPPDATA%\v-cube\alglab.json` |
-| Daily backups | `~/.local/share/v-cube/backups/` | `%LOCALAPPDATA%\v-cube\backups\` |
-| Settings (theme, colours, keys, per-set and per-mode choices) | `~/.config/v-cube/v-cube.ini` | `%APPDATA%\v-cube\v-cube.ini` |
+Data is in `~/.local/share/v-cube/` on Linux (following `XDG_DATA_HOME`)
+and `%LOCALAPPDATA%\v-cube\` on Windows.
 
-The data folder is Qt's generic data location plus `v-cube`, so on Linux it
-follows `XDG_DATA_HOME`, and the settings folder follows `XDG_CONFIG_HOME`.
+| File or folder | Contents |
+| --- | --- |
+| `algsets/` | Alg sets, one JSON file each |
+| `algsets/progress/` | Learn and Drill progress, one file per set |
+| `algsets/deleted/` | Deleted alg sets and their progress |
+| `sessions.json` | Timed sessions |
+| `untimed.json` | Untimed sessions |
+| `movecounts.json` | Move Count sessions |
+| `eocross.json` | EO Cross statistics |
+| `f2l.json` | F2L statistics |
+| `tsle.json` | TSLE progress |
+| `alglab.json` | Alg Lab: lab cases, candidates, test sessions, times, profiles |
+| `backups/` | Daily backups |
+| `v-cube.lock` | Marks the running copy, so a second one hands over to it |
+
+Settings (theme, colours, keys, and per-set and per-mode choices) are in
+`~/.config/v-cube/v-cube.ini` on Linux (following `XDG_CONFIG_HOME`) and
+`%APPDATA%\v-cube\v-cube.ini` on Windows.
 
 **File > Open data folder** opens the data folder in your file manager
-(Windows Explorer under WSL, through `wslpath` and `explorer.exe`). If no
-file manager can be started, it shows the data folder and settings file
-paths with buttons to copy them.
-
-Starting v-cube while it is running brings the running window to the front
-instead, so two copies never save over each other (`v-cube.lock` in the
-data folder tells them apart; one left by a copy that crashed is taken
-over).
+(Windows Explorer under WSL). If none can be started, it shows both paths
+with buttons to copy them.
 
 ## Keeping the data safe
 
 - **Atomic saves**: every file is written to a temporary file and renamed
   over the old one, so a crash mid-save leaves the old file whole.
-- **A file that can't be read** (cut short, not JSON, not the kind of file
-  it should be, a version that isn't a number) is never saved over: it is
-  renamed to `<name>.unreadable-<yyyyMMdd>-<HHmmss>` next to where it was,
-  the app says so when it starts, and that data starts afresh. If it can't
-  even be renamed, it is left in place and nothing is saved over it.
-- **A file written by a newer version** of v-cube (a `version` higher than
-  this version reads) is left as it is and never saved over; the app says
-  so, and that data starts afresh until you update.
-- **An alg set with a problem in its cases** (stickers no real cube has,
-  e.g. from a typo in a hand-edited file, a missing or repeated case id, or
-  an alg that isn't text) is left out, and the app names the problem when
-  it starts. If two alg-set files hold the same set id (such as a copy made
-  in a file manager), the one named after the id is loaded, the other is
-  left alone, and the app says so.
-- **A save that fails** (a full disk, a folder that can't be written)
-  shows a red banner naming the file, which stays until a later save of
-  that file works or you dismiss it.
-- **Daily backups**: the first time the app starts each day, it copies the
-  data folder into `backups/<yyyy-MM-dd>/` (without the backups and deleted
-  folders) and keeps the newest 14 days. A copy is written as
-  `<date>.partial` first, so a copy cut short is never taken for a day's
-  backup. The settings file isn't in the backups.
-- **Deleted alg sets**: deleting a set (Library, **Set > Delete set…**)
-  moves its file to `algsets/deleted/<id>.<yyyyMMdd-hhmmss>.json` and its
-  progress to `algsets/deleted/progress/` instead of deleting them. To bring
-  one back, move the files back (into `algsets/` and `algsets/progress/`,
-  named `<id>.json`) while v-cube is closed. Deleting a set in the app can
-  also be undone (Ctrl+Z) while v-cube is open.
-- **Export all data** (File > Export all data…) copies the data folder
-  (without backups and deleted sets) into `v-cube-export-<date>/data/` and
-  the settings file into `v-cube-export-<date>/settings/`, in a folder you
-  choose. To move to another computer, copy the `data` folder's contents
-  into that computer's data folder, and the settings file into its settings
-  folder, while v-cube is closed there.
+- **A file that can't be read** (cut short, not JSON, the wrong kind of
+  file) is never saved over. It is renamed to
+  `<name>.unreadable-<yyyyMMdd>-<HHmmss>`, the app says so at startup, and
+  that data starts afresh. If it can't be renamed, it is left in place and
+  nothing is saved over it.
+- **A file from a newer version** of v-cube (a higher `version` than this
+  one reads) is left alone and never saved over. That data starts afresh
+  until you update.
+- **An alg set with a problem** is left out, and the app names the problem
+  at startup. Problems are: no `id`, a `free` or `targetSeconds` that can't
+  be read, a case state no real cube has, a missing or repeated case id, or
+  an alg that isn't text. If two files hold the same set id, the one named
+  after the id is loaded and the other is left alone.
+- **A save that fails** (a full disk, say) shows a red banner naming the
+  file until a later save works or you dismiss it.
+- **Daily backups**: the first start of each day copies the data folder
+  into `backups/<yyyy-MM-dd>/`, without the backups, the deleted sets and
+  the lock file, and keeps the newest 14 days. The settings file isn't
+  backed up.
+- **Deleted alg sets**: deleting a set moves its file to
+  `algsets/deleted/<id>.<yyyyMMdd-hhmmss>.json` and its progress to
+  `algsets/deleted/progress/`. To bring one back, move the files back
+  (named `<id>.json`) while v-cube is closed. In the app, Ctrl+Z undoes the
+  delete while v-cube is open.
+- **Export all data** (File menu) copies the data folder (as a backup
+  does) into `v-cube-export-<date>/data/` and the settings file into
+  `v-cube-export-<date>/settings/`, in a folder you choose. To move to
+  another computer, copy both into place there while v-cube is closed.
 
 ## Format and version
 
-Every data file is a JSON object that starts with a `format` and a
-`version`:
+Every data file is a JSON object with a `format` and a `version`:
 
 ```json
 {"format": "v-cube.sessions", "version": 1, ...}
 ```
 
-| File | `format` | May the format be missing? |
+| File | `format` | Version |
 | --- | --- | --- |
-| Alg set | `v-cube.algset` | no |
-| Progress | `v-cube.progress` | yes (older files have none) |
-| Timed sessions | `v-cube.sessions` | yes (older files have none) |
-| Untimed sessions | `v-cube.untimed` | no |
-| Move Count sessions | `v-cube.movecount` | no |
-| EO Cross | `v-cube.eocross` | no |
-| F2L | `v-cube.f2l` | no |
-| TSLE | `v-cube.tsle` | no |
-| Alg Lab | `v-cube.alglab` | no |
+| Alg set | `v-cube.algset` | 1 |
+| Progress | `v-cube.progress` (may be missing) | 1 |
+| Timed sessions | `v-cube.sessions` (may be missing) | 1 |
+| Untimed sessions | `v-cube.untimed` | 1 |
+| Move Count sessions | `v-cube.movecount` | 1 |
+| EO Cross | `v-cube.eocross` | 1 |
+| F2L | `v-cube.f2l` | 1 |
+| TSLE | `v-cube.tsle` | 1 |
+| Alg Lab | `v-cube.alglab` | 2 (added grip profiles; a version 1 file gets the built-in one) |
 
-Every format is at version 1 but Alg Lab's, at version 2 (version 2 added
-grip profiles; a version 1 file is read and gets the built-in grip profile
-first). A file whose `format` is another v-cube
-format, or not a v-cube format, can't be read. `version` may be left out
-(read as 1); otherwise it must be a whole number of at least 1, and a
-higher number than the app reads makes the file "newer" (see above).
-Unknown keys are ignored, and keys that are left out take the defaults
-below, so files from earlier versions load.
+A file with another `format` can't be read. A missing `version` is read as
+1. Unknown keys are ignored and missing keys take the defaults below.
 
-Times are milliseconds and timestamps are Unix seconds, unless said
-otherwise. Scrambles, algs and solutions are move text in v-cube's notation
-(`R U R' U'`, `r`, `M2`, `x`, ...).
+Times are in milliseconds and timestamps in Unix seconds unless said
+otherwise. Scrambles, algs and solutions are move text (`R U R' U'`, `r`,
+`M2`, `x`).
 
 ## Alg sets
 
 `algsets/<id>.json`, one file per set. Built-in sets are copied in on first
-run and are then yours to edit (`algsets/installed-builtins.json` lists the
-ones that were copied, so that a built-in set you deleted isn't copied in
-again). **Set > Restore built-in cases…** brings back a built-in set's
-shipped cases (their names and states, and any you deleted) and keeps your
-algs, the cases and groups you added and the set's settings; **Set >
-Restore a built-in set** brings back a deleted one.
+run and are then yours to edit. `algsets/installed-builtins.json` lists the
+ones copied, so a built-in set you deleted isn't copied in again.
 
 ```json
 {
@@ -199,7 +179,7 @@ anything).
 Pieces whose places are free trade places, so they share what may be left
 unsolved: if one of them may also be left twisted or flipped, all of them
 may. `LLE:p UF:o` is read as `LLE:po`, as the drill scrambles have it.
-A token that can't be read makes the file unreadable.
+A token that can't be read leaves the set out.
 
 ### `mask` and `view`: how diagrams look
 
@@ -218,8 +198,7 @@ free.
 
 ## Progress
 
-`algsets/progress/<id>.json`, one per set, written as the set is learned
-and drilled. A set's progress goes with it when it is deleted.
+`algsets/progress/<id>.json`, one per set.
 
 ```json
 {
@@ -257,8 +236,7 @@ pieces are), not under one of its cases.
 | `suspended` | Optional, `true`: left out of Learn |
 | `buriedUntil` | Optional: left out of Learn until then (Unix seconds) |
 
-Files from before `introduced` existed get it worked out from the
-attempts.
+A card without `introduced` gets it worked out from its attempts.
 
 **`attempts`**: the case's attempts, oldest first, at most 100 per mode.
 Each is an array `[timestamp, timeMs, failed, mode, recognitionMs,
@@ -299,8 +277,7 @@ set, are in the settings file, not here.
 
 `current` is the index of the session shown. Each session has a `name`, a
 `scrambleType` (below; default `"333"`), a `cube` (`"virtual"` or
-`"physical"`; sessions from before there was a choice are physical), and
-`solves`, each an array:
+`"physical"`; physical if missing), and `solves`, each an array:
 
 | Index | Meaning |
 | --- | --- |
@@ -316,14 +293,11 @@ Scramble types: `333` (WCA random state), `f2l`, `xcross`, `eoline`,
 `eocross`, `lsll`, `ll`, `zbll`, `cll`, `ell`, `pll`, `epll`, `corners`,
 `edges`, or `set:<alg set id>` for an alg set's ticked cases.
 
-**cstimer**: the Timed session menu imports cstimer's export files (every
-3x3 session with solves; other puzzles' sessions and empty ones are left
-out, and come in as physical sessions, with any virtual or smart cube
-solutions and their move times) and exports sessions in cstimer's format,
-keeping its scramble types where cstimer has the same one (`333`
-otherwise) and the solutions. In cstimer, import the file with **Import
-session(s) from other timers**, which adds the sessions to yours;
-cstimer's "Import from file" would replace all your data.
+**cstimer**: the Timed session menu imports cstimer's export files. Every
+3x3 session with solves comes in as a physical session, with any solutions
+and their move times. The export keeps the solutions and the scramble
+types cstimer shares (`lsll` becomes its `lsll2`); `xcross`, `epll` and
+alg-set types become `333`.
 
 ## Untimed and Move Count sessions
 
@@ -345,7 +319,7 @@ cstimer's "Import from file" would replace all your data.
 | Session key | Meaning |
 | --- | --- |
 | `name`, `scrambleType`, `cube` | As for Timed sessions. Move Count accepts only `333`, `eoline`, `eocross` and `f2l`; any other is read as `333`. |
-| `step` | Move Count only: `eo`, `eo+1`, `eo+2`, `eoline`, `eocross`, `xeocross`, `zzf2l`, `cross` or `cfopf2l`. Older files without it get the step from the session's name, or else EO Cross (ZZ F2L for an `eocross` scramble type). |
+| `step` | Move Count only: `eo`, `eo+1`, `eo+2`, `eoline`, `eocross`, `xeocross`, `zzf2l`, `cross` or `cfopf2l`. If missing, the step is taken from the session's name, or else is EO Cross (ZZ F2L for an `eocross` scramble type). |
 | `attempts` | The solves, oldest first. |
 
 | Attempt key | Meaning |
@@ -371,8 +345,8 @@ virtual-cube session per step.
       {"timestamp": 1794000000, "ms": 9310, "moves": 13, "best": 11,
        "excess": 2, "hint": true}
     ],
-    "plan/eo+2/4": [{"timestamp": 1794000000, "ms": 7200, "best": 6,
-                     "gaveUp": true}],
+    "plan/eo+2/4": [{"timestamp": 1794000000, "ms": 7200, "moves": 0,
+                     "best": 6, "excess": 0, "gaveUp": true}],
     "full/8": [], "edges/4": [], "axis/eoline": []
   }
 }
@@ -394,14 +368,13 @@ front-back axis as the cube was first shown (0, 2, ... 12; not for
 
 `gaveUp` is also written for a plan that didn't do its step and for an
 Axis choice that ran out of time off your holds; `moves` and `excess` are
-then left out. Keys that aren't kinds are dropped on reading.
+then 0. Keys that aren't kinds are dropped on reading.
 
 The mode's choices (drill, step, the bad edges pinned, axes, inspection
 time) are in the settings file under `[eocross]`.
 
-`inspection.json` and `blind.json`, the files of the Inspection and Blind
-modes of earlier versions, are no longer read or written; they are left
-where they are.
+`inspection.json` and `blind.json`, from the removed Inspection and Blind
+modes, are no longer read or written.
 
 ## F2L
 
@@ -439,7 +412,8 @@ where they are.
   solved and the summed `excess` of the pairs over their best solutions.
 
 The mode's choices (drill, method, the slots that may be left, the moves
-solutions use, the stage) are in the settings file under `[f2l]`.
+solutions use, the stage, and the Case explorer's slot and context) are in
+the settings file under `[f2l]`.
 
 ## TSLE
 
@@ -457,7 +431,7 @@ solutions use, the stage) are in the settings file under `[f2l]`.
   "introduced": ["UF-CW-0120"],
   "fulls": [{"timestamp": 1794000000, "ms": 6100, "moves": 14, "pairs": 3,
              "excess": 2}],
-  "ocll": {"pi": "R U2 R2 U' R2 U' R2 U2 R"}
+  "ocll": {"sune": "L' U2 L U L' U L"}
 }
 ```
 
@@ -473,12 +447,12 @@ solutions use, the stage) are in the settings file under `[f2l]`.
   need none).
 - `fulls`: the last 500 Full TSLE solves: time, moves (step by step, as
   done), the steps taken (`pairs`) and their summed `excess`.
-- `ocll`: the OCLL algs changed from the default ones, by `sune`,
-  `antisune`, `h`, `pi`, `headlights`, `chameleon` or `bowtie`. An alg
-  that doesn't solve its OCLL is dropped on reading.
+- `ocll`: the OCLL algs that differ from the default ones, by `sune`,
+  `antisune`, `h`, `pi`, `headlights`, `chameleon` or `bowtie` (empty if
+  none do). An alg that doesn't solve its OCLL is dropped on reading.
 
-The mode's choices (drill, last slots, cases) are in the settings file
-under `[tsle]`.
+The mode's choices (drill, last slots, cases, the Case explorer's slot) are
+in the settings file under `[tsle]`.
 
 ## Alg Lab
 
@@ -537,25 +511,41 @@ under `[tsle]`.
   left the alg) and `include` (counted although it left the alg), the
   physical `scramble` and the virtual `moves` are left out when false or
   empty.
-- `profiles`: the ergonomic profiles. A move profile has the cost of each
-  move (`moves`), of a move not listed (`other`) and of a turn on another
-  axis (`axis`), and the `rules` for pairs of moves. A grip profile also
-  has `grips`, which it scores with instead: the costs of a regrip
-  (`regrip`), a regrip while the other hand turns (`hiddenRegrip`), each
-  regrip step past the first (`regripStep`), each move ending with a hand
-  far up or down (`strain`), each step from home of the starting grips
-  (`start`), a finger turning two moves in a row (`sameFinger`) and a move
-  no trick turns (`other`), and its `tricks`: the `move` each turns (as
-  written, `R2`), the `hand` (`right`, `left`, `both`, `either`), the
-  `finger` (`thumb`, `index`, `middle`, `ring`, `wrist`, `hands`), `how`
-  (shown with them), the grips it starts `from` (`far down`, `down`,
-  `home`, `up`, `far up`, comma-separated, or `any`), the steps its
-  hand's thumb moves (`turn`, R is 1), its `cost`, `reset` (both hands
-  end home, for rotations) and `off` (never chosen); `reset` and `off`
-  are left out when false and a trick that can't be read is left out. A
-  file without `profiles` gets the built-in ones.
+- `profiles`: the score profiles. A file without any gets the built-in
+  ones. A move profile has the cost of each move (`moves`), of a move not
+  listed (`other`) and of a turn on another axis (`axis`), and `rules` for
+  pairs of moves. A grip profile also has `grips`, which it scores with
+  instead (below).
 - `moveSets`: your own move-set presets, as text (a layer for quarter and
   half turns, `2` for half turns only, `1` for quarter turns only).
+
+`grips` has these costs:
+
+| Key | Cost of |
+| --- | --- |
+| `regrip` | a regrip |
+| `hiddenRegrip` | a regrip while the other hand turns |
+| `regripStep` | each regrip step past the first |
+| `strain` | each move ending with a hand far up or down |
+| `start` | each step from home of the starting grips |
+| `sameFinger` | a finger turning two moves in a row |
+| `other` | a move no trick turns |
+
+and its `tricks`, each with:
+
+| Key | Meaning |
+| --- | --- |
+| `move` | the move it turns, as written (`R2`) |
+| `hand` | `right`, `left`, `both` or `either` |
+| `finger` | `thumb`, `index`, `middle`, `ring`, `wrist` or `hands` |
+| `how` | shown with them (`flick`, `push`) |
+| `from` | the grips it starts from: `far down`, `down`, `home`, `up`, `far up`, comma-separated, or `any` |
+| `turn` | the steps its hand's thumb moves (R is 1) |
+| `cost` | its cost |
+| `reset` | optional, `true`: both hands end at home (rotations) |
+| `off` | optional, `true`: never chosen |
+
+A trick that can't be read is left out.
 
 Entries, candidates and attempts whose case key can't be read are left
 out. The Alg Lab page's own choices (the case shown, the generator's
@@ -564,14 +554,13 @@ file under `[alglab]`.
 
 ## Settings
 
-The settings file is an INI file on every platform; Windows doesn't use
-the registry. Earlier versions kept them in the platform's native place
-(`~/.config/v-cube/v-cube.conf` on Linux, the registry on Windows); those
-settings are copied to `v-cube.ini` the first time a newer version runs,
-and the old ones are left in place.
+`v-cube.ini` is an INI file on every platform; Windows doesn't use the
+registry. Settings kept in the platform's native place by an early version
+(`~/.config/v-cube/v-cube.conf`, or the registry) are copied to
+`v-cube.ini` on first run and left in place.
 
-Besides what Edit > Settings shows, it remembers the window's size and
-place, the lists' widths and columns, and each mode's choices: for each
-alg set, under `[trainer]` as `sets\<id>\...`, the cases that are unticked
-(`unticked`), Learn's order for new cases and view, and Drill's cube,
-cases and order. Edit it by hand only while v-cube is closed.
+Besides what Edit > Settings… shows, the file remembers the window's size
+and place, list widths and columns, and each mode's choices. Per alg set,
+under `[trainer]` as `sets\<id>\...`, it has the unticked cases
+(`unticked`), Learn's order for new cases and view, and Drill's cube, cases
+and order. Edit it only while v-cube is closed.

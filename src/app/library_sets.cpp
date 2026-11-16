@@ -299,7 +299,7 @@ void LibraryPage::checkAlgs() {
         auto *item = new QTreeWidgetItem(
             tree, {qs(c.name), qs(c.algs[i]), qs(describeCheck(a->checks[i]))});
         item->setData(0, kCaseRole, qs(c.id));
-        item->setForeground(2, kFail);
+        item->setForeground(2, kFailColour);
       }
     }
   }

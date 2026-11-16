@@ -90,7 +90,7 @@ DiagramView viewFromName(const QString &s) {
   return DiagramView::TopLayer;
 }
 
-// Reads free/mask/view keys present in `o` over `base`.
+// Reads the free/mask/view keys present in `o` over those of `spec`.
 bool readSpec(const QJsonObject &o, StepSpec &spec, QString *error) {
   if (o.contains("free")) {
     auto m = parseFree(ss(o.value("free").toString()));

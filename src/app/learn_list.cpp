@@ -1,6 +1,7 @@
 // LearnPage's case list: its columns and statuses, the header above the
 // cube, the right-click menu and the learn queue.
 #include "app/learn_page.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/case_history_dialog.hpp"
 #include "app/widgets.hpp"
@@ -20,7 +21,6 @@ namespace vcube {
 
 namespace {
 
-const StatusColour kLearning{Status::Warning};
 const StatusColour kLearned{Status::Good};
 const StatusColour kLeech{Status::Bad};
 
@@ -93,7 +93,7 @@ void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
     status = tr("no alg");
   } else if (cp && isQueued(cp->card)) {
     status = tr("queued");
-    colour = kLearning;
+    colour = kWarnColour;
   } else {
     switch (statusOf(cp)) {
     case CaseStatus::Unstarted:
@@ -101,7 +101,7 @@ void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
       break;
     case CaseStatus::Learning:
       status = tr("learning");
-      colour = kLearning;
+      colour = kWarnColour;
       break;
     case CaseStatus::Learned:
       status = tr("learned");
@@ -132,7 +132,7 @@ void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
   std::optional<double> recog = recognitionMean(attemptsOf(caseId));
   item->setText(3, secondsText(recog));
   item->setForeground(
-      3, recog && *recog > settings_.slowRecognitionMs ? kLearning : text);
+      3, recog && *recog > settings_.slowRecognitionMs ? kWarnColour : text);
   item->setToolTip(3, tr("Mean recognition time of the last 5 attempts that "
                          "measured it, in Learn and on the virtual cube in "
                          "Drill: from the case being set up to the first "
@@ -179,7 +179,7 @@ void LearnPage::updateHeader() {
   if (!acrossSets()) {
     parts << part(tr("Queued"), n.queued, muted);
   }
-  parts << part(tr("Learning"), n.learning, kLearning.name())
+  parts << part(tr("Learning"), n.learning, kWarnColour.name())
         << part(tr("Due"), n.due, "#5aa0ff")
         << part(tr("Done today"), n.doneToday, kLearned.name());
   if (n.againToday > 0) {

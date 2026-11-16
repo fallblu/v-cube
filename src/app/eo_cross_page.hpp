@@ -90,16 +90,13 @@ public:
   Drill drill() const { return drill_; }
   Phase phase() const { return phase_; }
   void selectDrill(Drill d);
-  SolveStep step() const { return step_; }
   void setStep(SolveStep step);
   // The bad edges every state has (-1: any, the weak kinds more often).
   int pinnedBad() const { return pinned_; }
   void setPinnedBad(int bad);
   // Bad edges asks for the R/L axis too.
-  bool bothAxes() const { return bothAxes_; }
   void setBothAxes(bool on);
   // The inspection time of Plan blind and Axis choice (0: no limit).
-  int limitSeconds() const { return limit_; }
   void setLimitSeconds(int seconds);
   // The round's state as scrambled (white top, green front), the hold it
   // was first shown in, and the cube as it is now.
@@ -112,14 +109,12 @@ public:
   std::vector<Hold> allowedHolds() const;
   // The round's optima have been worked out.
   bool analysisReady() const { return round_.analysed; }
-  // The holds ranked by their optimum (empty until worked out).
-  const std::vector<HeldOptimum> &ranked() const { return round_.ranked; }
   // The solutions listed once the round is done, best hold first.
   std::vector<Solution> shownSolutions() const;
   QString promptHtml() const;
   QString resultHtml() const;
   QString displayText() const;
-  const EoCrossStats &stats() const { return store_.stats; }
+  const EoCrossStats &stats() const { return store_.data; }
 
 protected:
   void focusModeChanged() override;

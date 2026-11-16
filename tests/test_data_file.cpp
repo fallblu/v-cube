@@ -3,6 +3,7 @@
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
+#include "test_files.hpp"
 
 #include <algorithm>
 
@@ -18,26 +19,9 @@
 #include <string>
 
 using namespace vcube;
+using namespace vcube::testing;
 
 namespace {
-
-const QString kBuiltins = QStringLiteral(VCUBE_SOURCE_DIR "/resources/algsets");
-
-void writeText(const QString &path, const QByteArray &text) {
-  QFile f(path);
-  REQUIRE(f.open(QIODevice::WriteOnly));
-  f.write(text);
-}
-
-QByteArray readText(const QString &path) {
-  QFile f(path);
-  REQUIRE(f.open(QIODevice::ReadOnly));
-  return f.readAll();
-}
-
-QStringList filesStarting(const QString &dir, const QString &prefix) {
-  return QDir(dir).entryList({prefix + "*"}, QDir::Files);
-}
 
 // A newer file is refused, left as it is and never saved over.
 template <typename Store>

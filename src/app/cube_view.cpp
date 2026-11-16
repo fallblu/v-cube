@@ -2,7 +2,6 @@
 
 #include "app/ui_state.hpp"
 #include <QComboBox>
-#include <QMouseEvent>
 #include <QPainter>
 
 #include <algorithm>
@@ -137,12 +136,6 @@ void CubeView::setMode(Mode m) {
   }
   mode_ = m;
   update();
-  emit modeChanged(m);
-}
-
-void CubeView::setHiddenText(const QString &text) {
-  hiddenText_ = text;
-  update();
 }
 
 void CubeView::setMarks(const StickerMarks &marks) {
@@ -204,16 +197,6 @@ QRectF CubeView::drawArea() const {
   return QRectF(rect()).adjusted(6, 6, -6, -6);
 }
 
-void CubeView::mousePressEvent(QMouseEvent *e) {
-  if (mode_ == Mode::Net && e->button() == Qt::LeftButton) {
-    if (auto f = cube_painter::netFaceletAt(drawArea(), e->position())) {
-      emit stickerClicked(*f);
-      return;
-    }
-  }
-  QWidget::mousePressEvent(e);
-}
-
 void CubeView::paintEvent(QPaintEvent *) {
   QPainter p(this);
   QRectF area = drawArea();
@@ -245,8 +228,7 @@ void CubeView::paintEvent(QPaintEvent *) {
     break;
   case Mode::Hidden:
     p.setPen(palette().color(QPalette::PlaceholderText));
-    p.drawText(area, Qt::AlignCenter,
-               hiddenText_.isEmpty() ? tr("Cube hidden") : hiddenText_);
+    p.drawText(area, Qt::AlignCenter, tr("Cube hidden"));
     break;
   }
 }

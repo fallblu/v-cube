@@ -122,13 +122,6 @@ const std::vector<SolveStep> &solveSteps() {
   return steps;
 }
 
-const std::vector<SolveStep> &allSteps() {
-  static const std::vector<SolveStep> steps = {
-      SolveStep::EO,      SolveStep::EOLine,  SolveStep::EOPlus1,
-      SolveStep::EOPlus2, SolveStep::EOCross, SolveStep::ZZF2L};
-  return steps;
-}
-
 bool stepNeedsEo(SolveStep step) {
   return step != SolveStep::Cross && step != SolveStep::CFOPF2L;
 }

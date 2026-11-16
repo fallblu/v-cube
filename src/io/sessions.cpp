@@ -3,9 +3,6 @@
 #include "cube/scramble.hpp"
 #include "io/algset_json.hpp"
 
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 

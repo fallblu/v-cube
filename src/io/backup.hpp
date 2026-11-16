@@ -16,9 +16,9 @@ inline constexpr const char *kBackupsFolder = "backups";
 inline constexpr const char *kDeletedFolder = "deleted";
 
 // Copies every file in `dataDir` (and its subfolders, but not the backup
-// and deleted folders) to <dataDir>/backups/<yyyy-MM-dd>/, keeping the
-// folder layout, unless today's copy exists. Only the newest `keep` dated
-// copies are kept. Returns false, with the reason in `error`, if a file
+// and deleted folders or lock files) to <dataDir>/backups/<yyyy-MM-dd>/,
+// keeping the folder layout, unless today's copy exists. Only the newest `keep`
+// dated copies are kept. Returns false, with the reason in `error`, if a file
 // couldn't be copied.
 bool makeDailyBackup(const QString &dataDir, const QDate &today, int keep,
                      QString *error = nullptr);
@@ -30,9 +30,9 @@ bool makeDailyBackup(const QString &dataDir, const QDate &today, int keep,
 QString moveToDeleted(const QString &file, const QString &folder,
                       const QDateTime &when, QString *error = nullptr);
 
-// Copies the data folder (without its backups) and `settingsFile` into a
-// new folder `target`. Returns false, with the reason in `error`, if
-// something couldn't be copied.
+// Copies the data folder (as a backup does) and `settingsFile` into a new
+// folder `target`, which can't be inside the data folder. Returns false, with
+// the reason in `error`, if something couldn't be copied.
 bool exportAllData(const QString &dataDir, const QString &settingsFile,
                    const QString &target, QString *error = nullptr);
 

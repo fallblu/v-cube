@@ -306,7 +306,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   lapseSpin_->setSuffix(" %");
   lapseSpin_->setValue(static_cast<int>(std::lround(srs.lapseFactor * 100)));
   lapseSpin_->setToolTip(tr("How much of its interval a forgotten case keeps "
-                            "once it is relearned (earlier versions: 50 %)"));
+                            "once it is relearned"));
   lForm->addRow(tr("Interval kept after a miss:"), lapseSpin_);
   easeRecoverySpin_ = new QDoubleSpinBox(learning);
   easeRecoverySpin_->setRange(0, 0.3);
@@ -317,7 +317,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   easeRecoverySpin_->setToolTip(
       tr("A Good review raises a case's ease by this much, up to where it "
          "started, so that a case once missed can be spaced out as far "
-         "again (Off: as in earlier versions, only Easy raises it)"));
+         "again (Off: only Easy raises it)"));
   lForm->addRow(tr("Ease regained per Good review:"), easeRecoverySpin_);
   lateBox_ =
       new QCheckBox(tr("A late review counts part of the delay"), learning);
@@ -329,8 +329,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
       new QCheckBox(tr("Hard moves on to the next learning step"), learning);
   hardBox_->setChecked(srs.hardAdvancesSteps);
   hardBox_->setToolTip(tr("Otherwise Hard (the next-move hint) repeats the "
-                          "step, as in earlier versions. Hard never "
-                          "finishes the steps."));
+                          "step. Hard never finishes the steps."));
   lForm->addRow(tr("Hard:"), hardBox_);
   maxLearningSpin_ = new QSpinBox(learning);
   maxLearningSpin_->setRange(0, 50);
@@ -347,7 +346,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   learnAheadSpin_->setValue(static_cast<int>(srs.learnAheadSeconds / 60));
   learnAheadSpin_->setToolTip(
       tr("With nothing else to do, cases due this soon in their learning "
-         "steps come up early (earlier versions: 20 min). Space on the idle "
+         "steps come up early. Space on the idle "
          "screen always takes the next one early."));
   lForm->addRow(tr("Learn ahead:"), learnAheadSpin_);
   leechSpin_ = new QSpinBox(learning);

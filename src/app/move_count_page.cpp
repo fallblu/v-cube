@@ -1,4 +1,5 @@
 #include "app/move_count_page.hpp"
+#include "app/eo_cross_check.hpp"
 #include "app/page_parts.hpp"
 
 #include "app/flow_layout.hpp"
@@ -122,11 +123,6 @@ std::vector<AttemptColumn> MoveCountPage::columns() const {
   };
   AttemptColumn opt = col(tr("Opt"));
   opt.available = hasOptimal();
-  opt.tip = settings_.optimalAnyHold
-                ? tr("The optimal move count for the scramble's step in any "
-                     "hold, as the step is checked")
-                : tr("The optimal move count for the scramble's step in the "
-                     "holds of your colour neutrality (either EO axis)");
   return {col("#", true), col(tr("Moves")), opt, col("ao5"), col("ao12")};
 }
 
@@ -189,17 +185,13 @@ QString MoveCountPage::notReachedText() const {
 
 QString MoveCountPage::retryNote(const MoveCountAttempt &was) const {
   if (hasOptimal()) {
-    if (std::optional<int> best = heldDistance(
-            parseAlgOrEmpty(was.scramble), session().step, optimalHolds())) {
+    if (std::optional<int> best =
+            heldDistance(parseAlgOrEmpty(was.scramble), session().step,
+                         optimalHolds(settings_))) {
       return tr(", optimal %1").arg(*best);
     }
   }
   return {};
-}
-
-QString MoveCountPage::retryWorstTip() const {
-  return tr("Retry the DNFs and the solves furthest over the optimal, one "
-            "after another");
 }
 
 bool MoveCountPage::reviewable(const MoveCountAttempt &a) const {
@@ -273,13 +265,6 @@ bool MoveCountPage::hasOptimal() const {
   return hasOptimalSolver(session().step);
 }
 
-std::vector<Hold> MoveCountPage::optimalHolds() const {
-  if (settings_.optimalAnyHold) {
-    return {allHolds().begin(), allHolds().end()};
-  }
-  return withBothEoAxes(settings_.neutrality.holds);
-}
-
 std::optional<int> MoveCountPage::optimalOf(const MoveCountAttempt &a) const {
   return optimal_.lookup(session().step, a.scramble, settings_.optimalAnyHold);
 }
@@ -289,8 +274,8 @@ void MoveCountPage::requestOptimal() {
     return;
   }
   std::optional<OptimalCache::Job> job =
-      optimal_.missing(session().step, settings_.optimalAnyHold, optimalHolds(),
-                       session().attempts);
+      optimal_.missing(session().step, settings_.optimalAnyHold,
+                       optimalHolds(settings_), session().attempts);
   if (!job) {
     return;
   }

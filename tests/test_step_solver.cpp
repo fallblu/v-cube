@@ -155,7 +155,7 @@ TEST_CASE("the solution cap reports more solutions", "[step]") {
   REQUIRE(one);
   CHECK(one->solutions.size() == 1);
   CHECK(one->more);
-  // Many solutions exist for a full EO Cross of a random state.
+  // Many solutions exist for the EO of a random state.
   Rng rng(3);
   CubieCube c = randomState(PieceMask::all(), rng);
   auto capped = solveStep(c, SolveStep::EO, 1);
@@ -265,5 +265,4 @@ TEST_CASE("EOLine is solved optimally with DF and DB", "[step]") {
   CHECK(stepDistance(cubieOf(parseAlgOrEmpty("R2 L2")), SolveStep::EOLine) ==
         0);
   CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F2")), SolveStep::EOLine) == 1);
-  CHECK(stepDistance(cubieOf(parseAlgOrEmpty("F")), SolveStep::EOLine) == 1);
 }

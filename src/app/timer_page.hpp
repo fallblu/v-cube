@@ -2,6 +2,7 @@
 
 #include "app/app_settings.hpp"
 #include "app/cube_view.hpp"
+#include "app/eo_cross_check.hpp"
 #include "app/mode_page.hpp"
 #include "app/scramble_source.hpp"
 #include "app/session_panel.hpp"
@@ -29,6 +30,8 @@ class QPushButton;
 
 namespace vcube {
 
+class SolveStage;
+
 // Timed mode, a cstimer-like timer: scrambles, a space-bar timer with
 // optional inspection, sessions, statistics and a trend chart. Each
 // session is for the virtual cube or a physical one, fixed once it has
@@ -40,8 +43,6 @@ namespace vcube {
 // until Space. Each virtual solve keeps its solution and when each move
 // was turned, which give its step splits (cross, pairs, last layer) and a
 // review.
-class SolveStage;
-
 class TimerPage : public ModePage {
   Q_OBJECT
 public:
@@ -86,8 +87,7 @@ private:
   std::map<std::string, SolveSplits> splits_;
   QFutureWatcher<SplitResults> splitsWatcher_;
   // After a virtual solve: the optimal EO Cross of its scramble.
-  QFutureWatcher<std::optional<int>> eoWatcher_;
-  std::optional<int> eoYours_; // the solve's own EO Cross count
+  EoCrossCheck eoCheck_;
 
   SessionPanel *panel_;
   SolveStage *stage_;
@@ -155,7 +155,6 @@ private:
   const SolveSplits *splitsOf(const Solve &s) const;
   void requestSplits();
   // Works out the optimal EO Cross of the solve just done.
-  void analyseEoCross(const Solve &s);
 };
 
 } // namespace vcube

@@ -96,7 +96,7 @@ TEST_CASE("drill: auto-stop off, Space stops; a DNF unless done") {
   c.autoStop = false;
   DrillFlow f = flow(c);
   f.key(press(Key::Space), 1100);
-  // Space before any face turn: a stray press, cancelled.
+  // Armed by Space, the first face turn starts the solve.
   REQUIRE(f.key(turn(kR), 1200).action == Action::Start);
   DrillFlow g = flow(c);
   g.key(press(Key::Space), 1100);

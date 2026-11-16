@@ -43,8 +43,6 @@ class MoveCountStore : public SessionFileStore<MoveCountSession> {
 public:
   explicit MoveCountStore(QString path, SolveLog mode = SolveLog::MoveCount);
 
-  SolveLog mode() const { return mode_; }
-
 protected:
   std::vector<MoveCountSession> defaults() const override;
   QJsonObject toJson() const override;

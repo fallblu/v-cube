@@ -9,7 +9,6 @@
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QMessageBox>
-#include <QPushButton>
 #include <QSignalBlocker>
 #include <QTreeWidget>
 #include <QtConcurrent/QtConcurrentRun>
@@ -19,12 +18,6 @@
 namespace vcube {
 
 namespace {
-
-QString slotText(Slot s) { return qs(slotName(s)); }
-
-QString movesText(int n) {
-  return n == 1 ? QObject::tr("1 move") : QObject::tr("%1 moves").arg(n);
-}
 
 QString costText(double cost) { return QString::number(cost, 'f', 1); }
 
@@ -78,9 +71,6 @@ DiagramView viewOf(PairCase c) {
   }
   return DiagramView::Iso3D;
 }
-
-const StatusColour kGood{Status::Good};
-const StatusColour kWeak{Status::Warning};
 
 } // namespace
 
@@ -143,12 +133,22 @@ void F2LPage::requestAnalysis() {
 
 void F2LPage::analysisArrived(const Analysis &a) {
   if (a.round != round_.id) {
-    return; // for a round that is over
+    // For a round that is over: a finished one is recorded now.
+    auto waiting =
+        std::find_if(waiting_.begin(), waiting_.end(),
+                     [&a](const Round &w) { return w.id == a.round; });
+    if (waiting != waiting_.end()) {
+      waiting->analysis = a;
+      waiting->analysed = true;
+      record(*waiting);
+      waiting_.erase(waiting);
+    }
+    return;
   }
   round_.analysis = a;
   round_.analysed = true;
   if (phase_ == Phase::Done) {
-    record();
+    record(round_);
   }
   showKeys();
   showResult();
@@ -171,11 +171,11 @@ std::vector<RankedSolution> F2LPage::shownSolutions() const {
 
 // --- recording ---------------------------------------------------------------
 
-void F2LPage::record() {
-  if (round_.recorded || round_.retry || !round_.analysed) {
+void F2LPage::record(Round &round) {
+  if (round.recorded || round.retry || !round.analysed) {
     return;
   }
-  round_.recorded = true;
+  round.recorded = true;
   const std::int64_t now = unixNow();
   auto pairAttempt = [&](const PairAnalysis &pair, const Alg &moves,
                          std::int64_t ms, F2LDrill drill) {
@@ -189,73 +189,72 @@ void F2LPage::record() {
     a.bestMoves = pair.best()->htm;
     a.excess = std::max(0.0, costOf(moves) - pair.best()->cost);
     a.drill = drill;
-    store_.stats.add(caseKey(pair.pcase), a);
+    store_.data.add(caseKey(pair.pcase), a);
   };
-  switch (drill_) {
+  switch (round.drill) {
   case Drill::Pair: {
-    const PairAnalysis &pair = *round_.analysis.pair;
+    const PairAnalysis &pair = *round.analysis.pair;
     if (!pair.best()) {
       return;
     }
     PairAttempt a;
     a.timestamp = now;
-    a.ms = round_.ms;
-    a.moves = htmCount(simplify(round_.moves));
+    a.ms = round.ms;
+    a.moves = htmCount(simplify(round.moves));
     a.bestMoves = pair.best()->htm;
-    a.gaveUp = round_.gaveUp;
-    a.hint = round_.hint;
-    a.excess = round_.gaveUp
+    a.gaveUp = round.gaveUp;
+    a.hint = round.hint;
+    a.excess = round.gaveUp
                    ? 0.0
-                   : std::max(0.0, costOf(round_.moves) - pair.best()->cost);
-    store_.stats.add(caseKey(pair.pcase), a);
+                   : std::max(0.0, costOf(round.moves) - pair.best()->cost);
+    store_.data.add(caseKey(pair.pcase), a);
     break;
   }
   case Drill::Choice: {
-    const std::vector<PairRank> &ranks = round_.analysis.ranks;
+    const std::vector<PairRank> &ranks = round.analysis.ranks;
     const PairRank *picked =
-        round_.picked ? rankOf(ranks, *round_.picked) : nullptr;
-    if (round_.gaveUp || !picked) {
+        round.picked ? rankOf(ranks, *round.picked) : nullptr;
+    if (round.gaveUp || !picked) {
       return;
     }
-    if (!round_.hint) {
+    if (!round.hint) {
       ChoiceAttempt c;
       c.timestamp = now;
-      c.rank = placeOf(ranks, *round_.picked);
+      c.rank = placeOf(ranks, *round.picked);
       c.of = static_cast<int>(ranks.size());
       c.regret = std::max(0.0, picked->total - ranks.front().total);
-      store_.stats.add(c);
+      store_.data.add(c);
     }
-    pairAttempt(picked->pair, round_.moves, round_.ms, F2LDrill::Choice);
+    pairAttempt(picked->pair, round.moves, round.ms, F2LDrill::Choice);
     break;
   }
   case Drill::Full: {
-    if (round_.gaveUp) {
+    if (round.gaveUp) {
       return;
     }
     FullAttempt f;
     f.timestamp = now;
-    f.ms = round_.ms;
-    f.moves = htmCount(simplify(round_.moves));
-    f.pairs = static_cast<int>(round_.segments.size());
+    f.ms = round.ms;
+    f.moves = htmCount(simplify(round.moves));
+    f.pairs = static_cast<int>(round.segments.size());
     for (std::size_t i = 0;
-         i < round_.segments.size() && i < round_.analysis.segments.size();
-         ++i) {
-      const F2LSegment &seg = round_.segments[i];
+         i < round.segments.size() && i < round.analysis.segments.size(); ++i) {
+      const F2LSegment &seg = round.segments[i];
       if (seg.solved.size() != 1) {
         continue;
       }
-      const PairRank *r = rankOf(round_.analysis.segments[i], seg.solved[0]);
+      const PairRank *r = rankOf(round.analysis.segments[i], seg.solved[0]);
       if (!r || !r->pair.best()) {
         continue;
       }
-      Alg moves(round_.moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
-                round_.moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
-      std::int64_t from = seg.begin ? round_.moveMs[seg.begin - 1] : 0;
-      pairAttempt(r->pair, moves, round_.moveMs[seg.end - 1] - from,
+      Alg moves(round.moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
+                round.moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
+      std::int64_t from = seg.begin ? round.moveMs[seg.begin - 1] : 0;
+      pairAttempt(r->pair, moves, round.moveMs[seg.end - 1] - from,
                   F2LDrill::Full);
       f.excess += std::max(0.0, costOf(moves) - r->pair.best()->cost);
     }
-    store_.stats.add(f);
+    store_.data.add(f);
     break;
   }
   case Drill::Explore:
@@ -338,12 +337,13 @@ QString F2LPage::pairResultHtml() const {
     QString verdict;
     if (pair.best()) {
       double over = cost - pair.best()->cost;
-      verdict = over < 0.05
-                    ? QString("<span style='color:%1'>%2</span>")
-                          .arg(kGood.name(), tr("as good as the best"))
-                    : QString("<span style='color:%1'>%2</span>")
-                          .arg(over >= 2.0 ? kFailColour.name() : kWeak.name(),
-                               tr("+%1 over the best").arg(costText(over)));
+      verdict =
+          over < 0.05
+              ? QString("<span style='color:%1'>%2</span>")
+                    .arg(kPassColour.name(), tr("as good as the best"))
+              : QString("<span style='color:%1'>%2</span>")
+                    .arg(over >= 2.0 ? kFailColour.name() : kWarnColour.name(),
+                         tr("+%1 over the best").arg(costText(over)));
     }
     html += "<p><b>" + tr("You: %1").arg(qs(toString(moves)).toHtmlEscaped()) +
             "</b><br>" +
@@ -381,10 +381,10 @@ QString F2LPage::choiceResultHtml() const {
     QString verdict =
         place == 1 || regret < 0.05
             ? QString("<span style='color:%1'>%2</span>")
-                  .arg(kGood.name(), tr("%1: the best pair to start with")
-                                         .arg(slotText(*round_.picked)))
+                  .arg(kPassColour.name(), tr("%1: the best pair to start with")
+                                               .arg(slotText(*round_.picked)))
             : QString("<span style='color:%1'>%2</span>")
-                  .arg(regret >= 2.0 ? kFailColour.name() : kWeak.name(),
+                  .arg(regret >= 2.0 ? kFailColour.name() : kWarnColour.name(),
                        tr("%1: the %2 best of %3 pairs, +%4 over starting "
                           "with %5")
                            .arg(slotText(*round_.picked), ordinal(place))
@@ -495,20 +495,20 @@ QString F2LPage::fullResultHtml() const {
                         movesText(r->pair.best()->htm),
                         costText(r->pair.best()->cost));
         double d = cost - r->pair.best()->cost;
-        over =
-            d < 0.05
-                ? QString("<span style='color:%1'>✓</span>").arg(kGood.name())
-                : QString("<span style='color:%1'>+%2</span>")
-                      .arg(d >= 2.0 ? kFailColour.name() : kWeak.name(),
-                           costText(d));
+        over = d < 0.05 ? QString("<span style='color:%1'>✓</span>")
+                              .arg(kPassColour.name())
+                        : QString("<span style='color:%1'>+%2</span>")
+                              .arg(d >= 2.0 ? kFailColour.name()
+                                            : kWarnColour.name(),
+                                   costText(d));
         double regret = r->total - ranks.front().total;
-        pick =
-            regret < 0.05
-                ? QString("<span style='color:%1'>✓</span>").arg(kGood.name())
-                : QString("%1 <span style='color:%2'>(%3)</span>")
-                      .arg(slotText(ranks.front().pair.slot),
-                           regret >= 2.0 ? kFailColour.name() : kWeak.name(),
-                           tr("−%1").arg(costText(regret)));
+        pick = regret < 0.05 ? QString("<span style='color:%1'>✓</span>")
+                                   .arg(kPassColour.name())
+                             : QString("%1 <span style='color:%2'>(%3)</span>")
+                                   .arg(slotText(ranks.front().pair.slot),
+                                        regret >= 2.0 ? kFailColour.name()
+                                                      : kWarnColour.name(),
+                                        tr("−%1").arg(costText(regret)));
       }
     }
     html +=
@@ -546,9 +546,9 @@ QString F2LPage::exploreHtml() const {
                  tr("The best solutions from this state (cost by "
                     "your Alg Lab score profile):") +
                  "</p>" + solutionsHtml(pair, 0);
-  auto it = store_.stats.cases.find(caseKey(pair.pcase));
-  if (it != store_.stats.cases.end()) {
-    CaseSummary s = summarizeCase(it->second, meanPairMs(store_.stats));
+  auto it = store_.data.cases.find(caseKey(pair.pcase));
+  if (it != store_.data.cases.end()) {
+    CaseSummary s = summarizeCase(it->second, meanPairMs(store_.data));
     html += QString("<p style='color:%1'>%2</p>")
                 .arg(muted,
                      tr("%1 tries; lately +%2 over the best, %3 s")
@@ -596,19 +596,20 @@ void F2LPage::fillTree() {
 }
 
 void F2LPage::refreshTree() {
-  const double overall = meanPairMs(store_.stats);
+  const double overall = meanPairMs(store_.data);
   const QBrush normal = palette().brush(QPalette::Text);
   for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
     QTreeWidgetItem *group = tree_->topLevelItem(g);
     for (int i = 0; i < group->childCount(); ++i) {
       QTreeWidgetItem *item = group->child(i);
-      auto it = store_.stats.cases.find(
+      auto it = store_.data.cases.find(
           item->data(0, Qt::UserRole).toString().toStdString());
-      if (it == store_.stats.cases.end()) {
+      if (it == store_.data.cases.end()) {
         for (int col = 1; col < 4; ++col) {
           item->setText(col, col == 1 ? QString() : kNoValue);
         }
         item->setForeground(0, normal);
+        item->setForeground(2, normal);
         continue;
       }
       CaseSummary s = summarizeCase(it->second, overall);
@@ -618,15 +619,15 @@ void F2LPage::refreshTree() {
                            ? secondsText(static_cast<std::int64_t>(s.meanMs),
                                          settings_.decimals)
                            : kNoValue);
-      item->setForeground(0, s.weak ? QBrush(kWeak) : normal);
-      item->setForeground(2, s.weak ? QBrush(kWeak) : normal);
+      item->setForeground(0, s.weak ? QBrush(kWarnColour) : normal);
+      item->setForeground(2, s.weak ? QBrush(kWarnColour) : normal);
     }
   }
   showSummary();
 }
 
 void F2LPage::showSummary() {
-  const F2LStats &stats = store_.stats;
+  const F2LStats &stats = store_.data;
   int tried = 0, weak = 0;
   const double overall = meanPairMs(stats);
   for (PairCase c : pairCases(config_.eo)) {
@@ -710,7 +711,7 @@ void F2LPage::clearStats() {
              "and the Full F2L solves?")) != QMessageBox::Yes) {
     return;
   }
-  store_.stats = {};
+  store_.data = {};
   save();
   refreshTree();
 }

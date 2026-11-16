@@ -118,7 +118,6 @@ protected:
     (void)was;
     return {};
   }
-  virtual QString retryWorstTip() const = 0;
   virtual bool reviewable(const MoveCountAttempt &a) const {
     return !a.solution.empty();
   }

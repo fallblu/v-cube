@@ -58,7 +58,9 @@ bool makeDailyBackup(const QString &dataDir, const QDate &today, int keep,
     // never taken for today's.
     QString partial = backups.filePath(name + ".partial");
     QDir(partial).removeRecursively();
-    ok = copyTree(dataDir, partial, error) &&
+    // Made first: a data folder with nothing to copy yet is backed up as
+    // an empty one.
+    ok = QDir().mkpath(partial) && copyTree(dataDir, partial, error) &&
          (backups.rename(name + ".partial", name) ||
           fail(error, QString("%1 couldn't be renamed")
                           .arg(QDir::toNativeSeparators(partial))));
@@ -111,6 +113,13 @@ bool exportAllData(const QString &dataDir, const QString &settingsFile,
     return fail(
         error,
         QString("%1 already exists").arg(QDir::toNativeSeparators(target)));
+  }
+  // The copy would find its own files to copy.
+  QString data = QDir::cleanPath(QDir(dataDir).absolutePath());
+  QString to = QDir::cleanPath(QDir(target).absolutePath());
+  if (to == data || to.startsWith(data + "/")) {
+    return fail(error, QString("%1 is inside the data folder")
+                           .arg(QDir::toNativeSeparators(target)));
   }
   if (!QDir().mkpath(target)) {
     return fail(

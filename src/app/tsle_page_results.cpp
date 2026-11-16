@@ -22,18 +22,6 @@ namespace vcube {
 
 namespace {
 
-QString slotText(Slot s) { return qs(slotName(s)); }
-
-QString movesText(int n) {
-  return n == 1 ? QObject::tr("1 move") : QObject::tr("%1 moves").arg(n);
-}
-
-QString algText(const Alg &alg) { return qs(toString(alg)).toHtmlEscaped(); }
-
-QString coloured(const QColor &colour, const QString &text) {
-  return QString("<span style='color:%1'>%2</span>").arg(colour.name(), text);
-}
-
 double meanMs(const TsleProgress &p) {
   double sum = 0.0;
   int n = 0;
@@ -50,9 +38,6 @@ double meanMs(const TsleProgress &p) {
 
 // The group a case is listed in: 0 the OCLLs, else its steps left.
 int groupOf(TsleState c) { return c.ocll() ? 0 : tsleStepsLeft(c); }
-
-const StatusColour kGood{Status::Good};
-const StatusColour kWeak{Status::Warning};
 
 } // namespace
 
@@ -94,7 +79,7 @@ void TslePage::record() {
     } else {
       a = attemptOf(round_.steps.front(), round_.ms, F2LDrill::Pair);
     }
-    store_.progress.add(tsleKey(tsleCase(round_.start)), a);
+    store_.data.add(tsleKey(tsleCase(round_.start)), a);
   } else if (drill_ == Drill::Full) {
     if (round_.gaveUp) {
       return;
@@ -109,9 +94,9 @@ void TslePage::record() {
       PairAttempt a =
           attemptOf(step, round_.moveMs[step.end - 1] - from, F2LDrill::Full);
       f.excess += a.excess;
-      store_.progress.add(tsleKey(tsleCase(step.before)), a);
+      store_.data.add(tsleKey(tsleCase(step.before)), a);
     }
-    store_.progress.add(f);
+    store_.data.add(f);
   } else {
     return;
   }
@@ -187,12 +172,12 @@ QString TslePage::optionsHtml(TsleState state, Slot slot) const {
     if (o.finish) {
       leaves += " · " + algText(o.finish->alg);
     }
-    QString mark = o.best ? coloured(kGood, tr("best from this AUF"))
-                   : o.good
-                       ? coloured(kWeak, tr("good, +%1").arg(o.total - best))
-                       : QString("<span style='color:%1'>%2</span>")
-                             .arg(muted, tr("a step more, %1 fewer")
-                                             .arg(movesText(best - o.total)));
+    QString mark =
+        o.best   ? coloured(kPassColour, tr("best from this AUF"))
+        : o.good ? coloured(kWarnColour, tr("good, +%1").arg(o.total - best))
+                 : QString("<span style='color:%1'>%2</span>")
+                       .arg(muted, tr("a step more, %1 fewer")
+                                       .arg(movesText(best - o.total)));
     QString alg = QString("<a href='opt:%1'>%2</a>").arg(i).arg(algText(o.alg));
     html += QString("<tr><td align='right' style='color:%1'>%2</td>"
                     "<td>%3</td><td>%4</td><td align='right'>%5</td>"
@@ -224,9 +209,9 @@ QString TslePage::pathHtml(TsleState state, Slot slot) const {
 QString TslePage::verdictHtml(const Step &step) const {
   if (step.before.ocll()) {
     return step.extra == 0
-               ? coloured(kGood, tr("OCLL solved"))
-               : coloured(kWeak, tr("OCLL solved, +%1 over your alg")
-                                     .arg(movesText(step.extra)));
+               ? coloured(kPassColour, tr("OCLL solved"))
+               : coloured(kWarnColour, tr("OCLL solved, +%1 over your alg")
+                                           .arg(movesText(step.extra)));
   }
   if (!step.good) {
     int before = tsleStepsLeft(step.before), after = tsleStepsLeft(step.after);
@@ -237,10 +222,10 @@ QString TslePage::verdictHtml(const Step &step) const {
             .arg(before));
   }
   return step.extra == 0
-             ? coloured(kGood, tr("The best trigger from this AUF"))
-             : coloured(kWeak, tr("A good trigger, but +%1 over the best "
-                                  "from this AUF")
-                                   .arg(movesText(step.extra)));
+             ? coloured(kPassColour, tr("The best trigger from this AUF"))
+             : coloured(kWarnColour, tr("A good trigger, but +%1 over the best "
+                                        "from this AUF")
+                                         .arg(movesText(step.extra)));
 }
 
 QString TslePage::nextResultHtml() const {
@@ -284,10 +269,10 @@ QString TslePage::fullResultHtml() const {
       moves += step.moves;
     }
     QString over =
-        moves <= best
-            ? coloured(kGood, tr("as short as the best way"))
-            : coloured(moves - best >= 3 ? QColor(kFailColour) : QColor(kWeak),
-                       tr("+%1 over the best way").arg(moves - best));
+        moves <= best ? coloured(kPassColour, tr("as short as the best way"))
+                      : coloured(moves - best >= 3 ? QColor(kFailColour)
+                                                   : QColor(kWarnColour),
+                                 tr("+%1 over the best way").arg(moves - best));
     html += "<p><b>" + tr("TSLE done in %1").arg(movesText(moves)) + "</b> · " +
             over + "</p>";
   }
@@ -333,9 +318,9 @@ QString TslePage::exploreHtml() const {
     html += "<p>" + tr("Every good trigger from this AUF:") + "</p>";
   }
   html += optionsHtml(anchor_, round_.slot) + pathHtml(anchor_, round_.slot);
-  auto it = store_.progress.cases.find(tsleKey(tsleCase(anchor_)));
-  if (it != store_.progress.cases.end()) {
-    CaseSummary sum = summarizeCase(it->second, meanMs(store_.progress));
+  auto it = store_.data.cases.find(tsleKey(tsleCase(anchor_)));
+  if (it != store_.data.cases.end()) {
+    CaseSummary sum = summarizeCase(it->second, meanMs(store_.data));
     html +=
         QString("<p style='color:%1'>%2</p>")
             .arg(muted,
@@ -353,8 +338,12 @@ QString TslePage::introHtml() const {
     return {};
   }
   if (phase_ == Phase::Done) {
-    return "<p>" + tr("Its good triggers, with the edge at UF:") + "</p>" +
-           optionsHtml(*introCase_, Slot::FR) + pathHtml(*introCase_, Slot::FR);
+    // As the last pick had it, which is what a click or a number plays.
+    return "<p>" +
+           tr("%1, %2 slot. Every good trigger from this AUF:")
+               .arg(caseText(round_.start), slotText(round_.slot)) +
+           "</p>" + optionsHtml(round_.start, round_.slot) +
+           pathHtml(round_.start, round_.slot);
   }
   if (introStage_ < introTriggers()) {
     // While the triggers are shown one by one, the whole list is in view.
@@ -407,7 +396,7 @@ void TslePage::fillTree() {
 }
 
 void TslePage::refreshTree() {
-  const TsleProgress &p = store_.progress;
+  const TsleProgress &p = store_.data;
   const double overall = meanMs(p);
   const QBrush normal = palette().brush(QPalette::Text);
   const QBrush muted = palette().brush(QPalette::PlaceholderText);
@@ -442,16 +431,16 @@ void TslePage::refreshTree() {
       item->setText(3, s.meanMs > 0
                            ? clockText(static_cast<std::int64_t>(s.meanMs))
                            : kNoValue);
-      item->setForeground(0, s.weak ? QBrush(kWeak) : normal);
+      item->setForeground(0, s.weak ? QBrush(kWarnColour) : normal);
       item->setForeground(1, normal);
-      item->setForeground(2, s.weak ? QBrush(kWeak) : normal);
+      item->setForeground(2, s.weak ? QBrush(kWarnColour) : normal);
     }
   }
   showSummary();
 }
 
 void TslePage::showSummary() {
-  const TsleProgress &p = store_.progress;
+  const TsleProgress &p = store_.data;
   const double overall = meanMs(p);
   int toIntroduce = 0, introduced = 0, weak = 0;
   for (TsleState c : tsleCases()) {
@@ -526,8 +515,8 @@ void TslePage::clearProgress() {
     return;
   }
   TsleProgress fresh;
-  fresh.ocll = store_.progress.ocll;
-  store_.progress = fresh;
+  fresh.ocll = store_.data.ocll;
+  store_.data = fresh;
   ready_ = false;
   save();
   refreshTree();
@@ -547,7 +536,7 @@ void TslePage::editOcllAlgs() {
          "you solve, any alg that works counts."),
       &dialog));
   auto *form = new QFormLayout;
-  std::vector<OcllAlg> algs = store_.progress.ocllAlgs();
+  std::vector<OcllAlg> algs = store_.data.ocllAlgs();
   std::vector<QLineEdit *> edits;
   for (const OcllAlg &a : algs) {
     auto *edit = new QLineEdit(qs(a.alg), &dialog);
@@ -591,11 +580,11 @@ void TslePage::editOcllAlgs() {
     return;
   }
   const std::vector<OcllAlg> &defaults = defaultOcllAlgs();
-  store_.progress.ocll.clear();
+  store_.data.ocll.clear();
   for (std::size_t i = 0; i < edits.size(); ++i) {
     std::string text = cleanAlgText(edits[i]->text().toStdString());
     if (text != defaults[i].alg) {
-      store_.progress.ocll[defaults[i].id] = text;
+      store_.data.ocll[defaults[i].id] = text;
     }
   }
   save();

@@ -235,7 +235,7 @@ void LibraryPage::refreshAlgList() {
       if (check.passes()) {
         bool isMain = a->main == i;
         item->setText(1, (isMain ? tr("✓ main · %1") : tr("✓ %1")).arg(result));
-        item->setForeground(1, kPass);
+        item->setForeground(1, kPassColour);
         if (isMain) {
           QFont f = item->font(0);
           f.setBold(true);
@@ -243,8 +243,8 @@ void LibraryPage::refreshAlgList() {
         }
       } else {
         item->setText(1, tr("✗ %1").arg(result));
-        item->setForeground(1, kFail);
-        item->setForeground(0, kFail);
+        item->setForeground(1, kFailColour);
+        item->setForeground(0, kFailColour);
       }
       if (check.parseError) {
         item->setToolTip(1, qs(check.parseError->message));

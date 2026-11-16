@@ -288,7 +288,6 @@ AlgSet *AlgLibrary::add(AlgSet set, QString *error) {
     set.id = uniqueId(set.id.empty() ? set.name : set.id);
   }
   if (!save(set, error)) {
-    paths_.erase(set.id);
     return nullptr;
   }
   std::string id = set.id;
@@ -351,8 +350,23 @@ bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
   }
   AlgSet *current = find(id);
   if (!current) {
+    // Progress left behind (its set's file was set aside, or removed by
+    // hand) goes where a deleted set's does, so the restored set starts
+    // afresh without losing it.
     progress_.erase(id);
-    QFile::remove(progressPathFor(id)); // left by an older version
+    if (QFile::exists(progressPathFor(id))) {
+      finishBackgroundWrites(progressPathFor(id));
+      QString why;
+      if (moveToDeleted(progressPathFor(id),
+                        QDir(deletedDirectory()).filePath("progress"),
+                        QDateTime::currentDateTime(), &why)
+              .isEmpty()) {
+        if (error) {
+          *error = why;
+        }
+        return false;
+      }
+    }
     return add(*ship, error) != nullptr;
   }
   AlgSet restored = *current;

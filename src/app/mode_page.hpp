@@ -40,8 +40,8 @@ public:
   virtual void applySettings() {}
 
   // Busy: an attempt is under way that leaving the page would cancel and
-  // that must keep the keyboard: Space held to start a timer, inspection,
-  // memo or a solve running. While a page is busy the mode can't be
+  // that must keep the keyboard: Space held to start a timer, inspection
+  // or a solve running. While a page is busy the mode can't be
   // switched, the settings and the command list don't open, and quitting
   // asks first. A timer only armed (waiting for the first turn) is not
   // busy: leaving disarms it.

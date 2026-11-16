@@ -7,7 +7,6 @@
 
 #include <QComboBox>
 #include <QDir>
-#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QLabel>
@@ -27,8 +26,6 @@
 namespace vcube {
 
 namespace {
-
-QString slotText(Slot s) { return qs(slotName(s)); }
 
 // The stickers of a slot's corner and edge, wherever they are on a cube
 // held any way.
@@ -165,7 +162,6 @@ F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
 
   loadChoices();
   applySettings();
-  fillTree();
   showOptions();
 }
 
@@ -502,7 +498,16 @@ void F2LPage::focusModeChanged() {
 
 std::optional<Slot> F2LPage::target() const { return round_.target; }
 
+void F2LPage::keepUnrecorded() {
+  if (phase_ == Phase::Done && round_.id != 0 && !round_.recorded &&
+      !round_.retry && !round_.analysed && stop_) {
+    waiting_.push_back(round_);
+    stop_.reset(); // its search runs on
+  }
+}
+
 void F2LPage::showReady() {
+  keepUnrecorded();
   if (stop_) {
     stop_->store(true);
   }
@@ -525,6 +530,7 @@ void F2LPage::newRound(bool sameState) {
     showReady();
     return;
   }
+  keepUnrecorded();
   if (sameState && round_.id != 0) {
     Round again;
     again.start = round_.start;
@@ -549,11 +555,11 @@ void F2LPage::newRound(bool sameState) {
   case Drill::Pair: {
     // Weak cases, and cases not tried yet, come up more often.
     const std::vector<PairCase> &cases = pairCases(config_.eo);
-    double overall = meanPairMs(store_.stats);
+    double overall = meanPairMs(store_.data);
     std::vector<double> weights;
     for (PairCase c : cases) {
-      auto it = store_.stats.cases.find(caseKey(c));
-      weights.push_back(summarizeCase(it == store_.stats.cases.end()
+      auto it = store_.data.cases.find(caseKey(c));
+      weights.push_back(summarizeCase(it == store_.data.cases.end()
                                           ? std::vector<PairAttempt>{}
                                           : it->second,
                                       overall)
@@ -703,6 +709,7 @@ void F2LPage::finish(bool gaveUp) {
     return;
   }
   round_.gaveUp = gaveUp;
+  round_.drill = drill_;
   round_.ms = monotonicMs() - round_.began;
   clock_.stop();
   phase_ = Phase::Done;
@@ -717,7 +724,7 @@ void F2LPage::finish(bool gaveUp) {
     round_.segments = f2lSegments(round_.start, round_.moves, config_);
     requestAnalysis();
   } else if (round_.analysed) {
-    record();
+    record(round_);
   }
   showPrompt();
   showKeys();
@@ -733,6 +740,9 @@ void F2LPage::resetCube() {
   if (phase_ == Phase::Solving) {
     round_.moves.clear();
     round_.moveMs.clear();
+    // The hint starts again too; the try still counts as hinted.
+    round_.hintMoves = 0;
+    showKeys();
   }
 }
 
@@ -758,9 +768,10 @@ void F2LPage::showHintMove() {
   // The best solution's next move, done from the start.
   const Alg &best = pair.best()->alg;
   round_.hint = true;
-  round_.hintMoves =
+  const int moves =
       std::min(round_.hintMoves + 1, static_cast<int>(best.size()));
   resetCube();
+  round_.hintMoves = moves;
   Alg shown(best.begin(), best.begin() + round_.hintMoves);
   cubeView_->animateSequence(shown);
   for (Move m : shown) {
@@ -878,7 +889,8 @@ void F2LPage::showKeys() {
   QString message;
   QList<KeyHint> keys;
   if (drill_ == Drill::Pair) {
-    if (round_.hint && round_.analysed && round_.analysis.pair->best()) {
+    if (round_.hintMoves > 0 && round_.analysed &&
+        round_.analysis.pair->best()) {
       const Alg &best = round_.analysis.pair->best()->alg;
       Alg shown(best.begin(), best.begin() + round_.hintMoves);
       message = tr("Hint: %1 (%2 of %3 moves)")

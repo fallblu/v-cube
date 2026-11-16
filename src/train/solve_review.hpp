@@ -136,7 +136,7 @@ struct SolveSplits {
   // The sums by kind; nullopt when a kind wasn't reached (the F2L counts
   // only when it was finished).
   std::optional<std::int64_t> crossMs, f2lMs, llMs;
-  int crossHtm = 0, f2lHtm = 0, llHtm = 0;
+  int f2lHtm = 0;
 };
 // `times` are milliseconds from the start of the solve to each move of the
 // solution (as VirtualAttempt::solutionTimes() keeps them), and `totalMs`

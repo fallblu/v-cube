@@ -87,7 +87,4 @@ SearchOutcome searchAlgs(const SearchGoal &goal, const SearchOptions &options,
                          const std::atomic<bool> &stop,
                          const SearchCallbacks &callbacks = {});
 
-// Drops the pattern databases kept between searches.
-void clearSearchTables();
-
 } // namespace vcube

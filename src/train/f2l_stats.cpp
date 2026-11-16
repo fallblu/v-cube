@@ -51,12 +51,11 @@ CaseSummary summarizeCase(const std::vector<PairAttempt> &attempts,
   std::size_t from =
       attempts.size() > kRecentAttempts ? attempts.size() - kRecentAttempts : 0;
   double excess = 0.0, ms = 0.0;
-  int n = 0, timed = 0, helped = 0;
+  int n = 0, timed = 0;
   for (std::size_t i = from; i < attempts.size(); ++i) {
     const PairAttempt &a = attempts[i];
     excess +=
         a.gaveUp ? kGaveUpExcess : a.excess + (a.hint ? kHintExcess : 0.0);
-    helped += a.gaveUp || a.hint ? 1 : 0;
     if (!a.gaveUp) {
       ms += static_cast<double>(a.ms);
       ++timed;
@@ -64,7 +63,6 @@ CaseSummary summarizeCase(const std::vector<PairAttempt> &attempts,
     ++n;
   }
   s.excess = excess / n;
-  s.hints = static_cast<double>(helped) / n;
   s.meanMs = timed ? ms / timed : 0.0;
   double slow = overallMs > 0.0 && timed
                     ? std::max(0.0, s.meanMs / overallMs - 1.0)

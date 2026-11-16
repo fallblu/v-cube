@@ -459,8 +459,6 @@ void LibraryPage::buildActions() {
              QKeySequence(Qt::ALT | Qt::Key_Return));
   checkAction_ = action(tr("&Check algs…"), &LibraryPage::checkAlgs,
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K));
-  importAction_ = action(tr("&Import set…"), &LibraryPage::importSetFile);
-  exportAction_ = action(tr("&Export set…"), &LibraryPage::exportSetFile);
   restoreCasesAction_ =
       action(tr("&Restore built-in cases…"), &LibraryPage::restoreSet);
   restoreCasesAction_->setToolTip(
@@ -540,7 +538,6 @@ void LibraryPage::updateActions() {
   deleteSetAction_->setEnabled(s);
   propertiesAction_->setEnabled(s);
   checkAction_->setEnabled(s);
-  exportAction_->setEnabled(s);
   restoreCasesAction_->setEnabled(s &&
                                   library_.builtinIds().contains(qs(s->id)));
   newGroupAction_->setEnabled(s);
@@ -660,7 +657,7 @@ void LibraryPage::refreshSetList() {
     auto *item = new QListWidgetItem(setList_);
     if (failing > 0) {
       details += "  " + tr("⚠ %1 failing").arg(failing);
-      item->setForeground(kWarn);
+      item->setForeground(kWarnColour);
       tips << (failing == 1
                    ? tr("1 alg doesn't solve its case.")
                    : tr("%1 algs don't solve their cases.").arg(failing))
@@ -702,16 +699,16 @@ void LibraryPage::fillCaseItem(QTreeWidgetItem *item, const AlgSet &s,
     item->setForeground(3, muted);
   } else if (!a || !a->main) {
     item->setText(2, tr("✗ no passing alg"));
-    item->setForeground(2, kFail);
+    item->setForeground(2, kFailColour);
     item->setText(3, tr("(no alg solves this case)"));
-    item->setForeground(3, kFail);
+    item->setForeground(3, kFailColour);
   } else {
     if (failing > 0) {
       item->setText(2, tr("⚠ %1 failing").arg(failing));
-      item->setForeground(2, kWarn);
+      item->setForeground(2, kWarnColour);
     } else {
       item->setText(2, "✓");
-      item->setForeground(2, kPass);
+      item->setForeground(2, kPassColour);
     }
     item->setText(3, qs(c.algs[*a->main]));
     item->setForeground(3, normal);
@@ -735,7 +732,7 @@ void LibraryPage::fillGroupItem(QTreeWidgetItem *item, const AlgSet &s,
     }
   }
   item->setText(2, failing > 0 ? tr("⚠ %1 failing").arg(failing) : QString());
-  item->setForeground(2, kWarn);
+  item->setForeground(2, kWarnColour);
   item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled |
                  Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
 }

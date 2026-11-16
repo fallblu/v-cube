@@ -27,8 +27,6 @@ namespace vcube {
 
 namespace {
 
-QString slotText(Slot s) { return qs(slotName(s)); }
-
 // Whether the moves turn anything but the top layer and the whole cube.
 bool turnsTheSlot(const Alg &moves) {
   Alg simple = simplify(moves);
@@ -313,7 +311,7 @@ void TslePage::setAllCases(bool on) {
 }
 
 void TslePage::rebuildSolvers() {
-  std::vector<OcllAlg> algs = store_.progress.ocllAlgs();
+  std::vector<OcllAlg> algs = store_.data.ocllAlgs();
   for (Slot s : kF2LSlots) {
     solvers_[static_cast<std::size_t>(s)] =
         std::make_unique<TsleSolver>(s, algs);
@@ -403,7 +401,7 @@ std::optional<TsleState> TslePage::currentState() const {
 }
 
 TsleState TslePage::pickCase(bool deep) {
-  const TsleProgress &p = store_.progress;
+  const TsleProgress &p = store_.data;
   double sum = 0.0;
   int n = 0;
   for (const auto &[key, attempts] : p.cases) {
@@ -527,6 +525,7 @@ void TslePage::startRound(TsleState state, Slot slot, const CubieCube *cube,
 }
 
 void TslePage::turn(Move m) {
+  endDemo();
   cube_.apply(m);
   cubeView_->animateMove(m);
   if (phase_ == Phase::Done || phase_ == Phase::Idle) {
@@ -634,7 +633,16 @@ void TslePage::finish(bool gaveUp) {
   showResult();
 }
 
+void TslePage::endDemo() {
+  if (demo_) {
+    demo_ = false;
+    cubeView_->finishAnimations();
+    cubeView_->setState(cube_);
+  }
+}
+
 void TslePage::resetCube() {
+  demo_ = false;
   cubeView_->finishAnimations();
   cube_ = round_.startCube.toFacelets();
   cubeView_->setState(cube_);
@@ -645,6 +653,8 @@ void TslePage::resetCube() {
     round_.steps.clear();
     round_.stepBegin = 0;
     round_.stepState = round_.start;
+    round_.stepHint = false;
+    showKeys();
   }
 }
 
@@ -718,7 +728,7 @@ void TslePage::showClock() {
 // --- Guided intro ------------------------------------------------------------
 
 void TslePage::introBegin() {
-  introCase_ = tsleNextNew(store_.progress);
+  introCase_ = tsleNextNew(store_.data);
   introStage_ = 0;
   introNote_.clear();
   introGood_.clear();
@@ -792,14 +802,14 @@ void TslePage::introStepDone(const Step &step) {
   tried.moves = step.moves;
   tried.bestMoves = solver(round_.slot).options(round_.start).front().moves;
   tried.excess = step.good ? step.extra : kWrongTrigger;
-  store_.progress.add(tsleKey(*introCase_), tried);
+  store_.data.add(tsleKey(*introCase_), tried);
   save();
   refreshTree();
   if (step.good && step.extra == 0) {
     ++introStage_;
     introNote_.clear();
     if (introStage_ >= introTriggers() + kIntroPicks) {
-      store_.progress.introduced.insert(tsleKey(*introCase_));
+      store_.data.introduced.insert(tsleKey(*introCase_));
       save();
       refreshTree();
       phase_ = Phase::Done;
@@ -823,7 +833,7 @@ void TslePage::introStepDone(const Step &step) {
 
 void TslePage::introSkip() {
   if (introCase_) {
-    store_.progress.introduced.insert(tsleKey(*introCase_));
+    store_.data.introduced.insert(tsleKey(*introCase_));
     save();
     refreshTree();
   }
@@ -854,7 +864,7 @@ void TslePage::showPrompt() {
                        : "<br><span style='font-size:small'>" + t + "</span>";
   };
   if (phase_ == Phase::Ready) {
-    bool onlyOclls = !allCases_ && store_.progress.introduced.empty();
+    bool onlyOclls = !allCases_ && store_.data.introduced.empty();
     prompt_->setText(
         tabs_->tabText(static_cast<int>(drill_)) +
         small(tr("%1, timed from the moment the cube is shown. Press Space "
@@ -872,8 +882,8 @@ void TslePage::showPrompt() {
     if (phase_ == Phase::Idle) {
       bool all = std::all_of(
           tsleCases().begin(), tsleCases().end(),
-          [this](TsleState c) { return store_.progress.isIntroduced(c); });
-      int open = tsleOpenLevel(store_.progress);
+          [this](TsleState c) { return store_.data.isIntroduced(c); });
+      int open = tsleOpenLevel(store_.data);
       prompt_->setText(
           all ? tr("Every case has been introduced")
               : tr("Nothing new for now") +
@@ -910,7 +920,7 @@ void TslePage::showPrompt() {
     break;
   }
   case Drill::Next: {
-    bool onlyOclls = !allCases_ && store_.progress.introduced.empty();
+    bool onlyOclls = !allCases_ && store_.data.introduced.empty();
     prompt_->setText(
         tr("Do the next step") +
         small(onlyOclls ? slot + "; " +
@@ -1040,14 +1050,16 @@ bool TslePage::handleKey(QKeyEvent *e, bool press) {
       // Shows the trigger, then puts the cube back to do it.
       Alg alg = introAlg();
       if (!alg.empty()) {
+        // Only the picture turns; a turn of yours ends the show early.
         resetCube();
         cubeView_->animateSequence(alg);
+        demo_ = true;
         const int id = round_.id;
         QTimer::singleShot(
             static_cast<int>(alg.size()) * settings_.animationMs * 2 + 900,
             this, [this, id] {
-              if (id == round_.id && round_.moves.empty()) {
-                cubeView_->setState(cube_);
+              if (id == round_.id) {
+                endDemo();
               }
             });
       }

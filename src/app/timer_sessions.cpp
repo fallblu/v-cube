@@ -175,20 +175,6 @@ void TimerPage::refreshSolves() {
     set(kCross, cross);
     set(kF2l, f2l);
     set(kLl, ll);
-    QStringList tip;
-    if (!s.comment.empty()) {
-      tip << tr("Comment: %1").arg(qs(s.comment));
-    }
-    tip << dateText(s.timestamp);
-    if (!s.scramble.empty()) {
-      tip << tr("Scramble: %1").arg(qs(s.scramble));
-    }
-    if (!s.moves.empty()) {
-      tip << tr("Solution: %1").arg(qs(s.moves));
-    }
-    for (AttemptCell &cell : row.cells) {
-      cell.tip = tip.join("\n");
-    }
     rows.push_back(std::move(row));
   }
   panel_->setRows(std::move(rows));

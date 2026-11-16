@@ -21,7 +21,6 @@ class QPushButton;
 class QTabBar;
 class QToolButton;
 class QTreeWidget;
-class QTreeWidgetItem;
 
 namespace vcube {
 
@@ -36,8 +35,8 @@ namespace vcube {
 //   Next trigger   a state at a random AUF: do the next step; it is
 //                  judged as good or not, and against the best one
 //   Full TSLE      the whole step, compared trigger by trigger
-//   Case explorer  the cases with their good triggers; the list follows
-//                  the cube as triggers are done
+//   Case explorer  the cases with their good triggers; the triggers
+//                  listed follow the cube as they are done
 //
 // Next trigger and Full TSLE are timed from the moment a state is shown,
 // so each opens on a ready page: nothing is shown until Space.
@@ -75,10 +74,9 @@ public:
   TsleState startState() const { return round_.start; }
   std::optional<TsleState> currentState() const;
   const TsleSolver &solver(Slot slot) const;
-  const TsleProgress &progress() const { return store_.progress; }
+  const TsleProgress &progress() const { return store_.data; }
   std::array<bool, kSlots> lastSlots() const { return slots_; }
   void setLastSlots(const std::array<bool, kSlots> &chosen);
-  bool allCases() const { return allCases_; }
   void setAllCases(bool on);
   void exploreCase(TsleState c);
   // Guided intro: the case being introduced, how many of its good
@@ -146,6 +144,7 @@ private:
   // state the cube is in (the trigger table is for that).
   TsleState explored_;
   int exploreAuf_ = 0;
+  bool demo_ = false; // the picture is ahead of the cube, showing a trigger
   TsleState anchor_;
   // Guided intro.
   std::optional<TsleState> introCase_;
@@ -198,6 +197,8 @@ private:
   Step judged(TsleState before, TsleState after, const Alg &moves) const;
   void finish(bool gaveUp);
   void resetCube();
+  // Puts the picture back on the cube after a trigger was shown on it.
+  void endDemo();
   void showHint();
   void showPrompt();
   void showKeys();

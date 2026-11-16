@@ -39,7 +39,6 @@ protected:
   bool reached(const FaceletCube &cube) const override;
   QString notReachedText() const override;
   QString retryNote(const MoveCountAttempt &was) const override;
-  QString retryWorstTip() const override;
   bool reviewable(const MoveCountAttempt &a) const override;
   void describeReview(ReviewedSolve &solve, int index) const override;
   void addDetails(QList<QPair<QString, QString>> &rows,
@@ -70,7 +69,6 @@ private:
 
   bool hasOptimal() const;
   // The holds the Opt column is for.
-  std::vector<Hold> optimalHolds() const;
   // nullopt while it is being worked out, -1 if it can't be.
   std::optional<int> optimalOf(const MoveCountAttempt &a) const;
   // Works out the optimal lengths the attempt list is missing.

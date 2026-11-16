@@ -409,7 +409,7 @@ TEST_CASE("random pair states have EO Cross and the open slots open",
   CHECK(slotSolved(c, Slot::FR));
 }
 
-TEST_CASE("pair options are quick on a full slot set", "[review]") {
+TEST_CASE("the cheapest pair order is quick on a full slot set", "[review]") {
   AlgSet set = pairSet();
   Rng rng(3);
   auto begin = std::chrono::steady_clock::now();

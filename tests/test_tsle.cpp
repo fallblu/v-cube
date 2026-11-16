@@ -46,8 +46,7 @@ TEST_CASE("TSLE has the sheet's cases", "[tsle]") {
     }
   }
   CHECK(oclls == 7);
-  // Fewer steps than the user's sheet, which follows one trigger per
-  // case and needs up to four: with every trigger to choose from, three.
+  // With every trigger to choose from, no case needs more than three.
   CHECK(byLevel == std::map<int, int>{{1, 3}, {2, 54}, {3, 40}});
   CHECK(tsleStepsLeft(TsleState{}) == 0);
   CHECK(TsleState{}.done());
@@ -233,35 +232,4 @@ TEST_CASE("TSLE levels open as the ones before are solid", "[tsle]") {
   CHECK(weak.ocllAlgs() == defaultOcllAlgs());
   weak.ocll["pi"] = "R U2 R2 U' R2 U' R2 U2 R U4";
   CHECK(weak.ocllAlgs()[3].alg == "R U2 R2 U' R2 U' R2 U2 R U4");
-}
-
-TEST_CASE("TSLE good triggers per case", "[.tsleinfo]") {
-  TsleSolver solver(Slot::FR);
-  std::map<int, int> goodCounts, bestCounts;
-  int shorter = 0;
-  for (TsleState c : tsleCases()) {
-    if (c.ocll()) {
-      continue;
-    }
-    int good = 0, best = 0;
-    for (const TsleOption &o : solver.options(c)) {
-      good += o.good;
-      best += o.best;
-    }
-    ++goodCounts[good];
-    ++bestCounts[best];
-    for (const TsleOption &o : solver.options(c)) {
-      if (!o.good && o.total < solver.movesLeft(c)) {
-        ++shorter;
-        break;
-      }
-    }
-  }
-  std::printf("%d cases have a way with more steps and fewer moves\n", shorter);
-  for (auto [n, cases] : goodCounts) {
-    std::printf("%d good triggers: %d cases\n", n, cases);
-  }
-  for (auto [n, cases] : bestCounts) {
-    std::printf("%d best at the named AUF: %d cases\n", n, cases);
-  }
 }

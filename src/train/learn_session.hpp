@@ -115,7 +115,6 @@ public:
   void setPhase(Phase p) { phase_ = p; }
   // The quiz's choices, for its keys.
   void setQuizChoices(std::size_t n) { quizChoices_ = n; }
-  std::size_t quizChoices() const { return quizChoices_; }
 
   Step key(const KeyEvent &k) const;
 
