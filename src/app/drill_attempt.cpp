@@ -1,7 +1,7 @@
 #include "app/drill_page.hpp"
 #include "app/drill_private.hpp"
-#include "app/key_router.hpp"
 #include "app/page_parts.hpp"
+#include "app/train_keys.hpp"
 #include "app/ui_text.hpp"
 
 #include "app/drill_history_dialog.hpp"
@@ -48,38 +48,7 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
 }
 
 DrillFlow::KeyEvent DrillPage::flowKey(const QKeyEvent *e, bool press) const {
-  using Key = DrillFlow::Key;
-  DrillFlow::KeyEvent k;
-  k.press = press;
-  k.shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  const bool ctrl = e->modifiers().testFlag(Qt::ControlModifier);
-  switch (e->key()) {
-  case Qt::Key_Space:
-    k.key = Key::Space;
-    break;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    k.key = Key::Enter;
-    break;
-  case Qt::Key_Tab:
-    k.key = Key::Tab;
-    break;
-  case Qt::Key_Backspace:
-    k.key = Key::Backspace;
-    break;
-  case Qt::Key_Delete:
-    k.key = Key::Delete;
-    break;
-  case Qt::Key_Escape:
-    k.key = Key::Escape;
-    break;
-  case Qt::Key_Z:
-    k.key = ctrl ? Key::Undo : Key::Other;
-    break;
-  default:
-    k.key = isModifierKey(e->key()) ? Key::Modifier : Key::Other;
-    break;
-  }
+  DrillFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
   if (onVirtualCube()) {
     k.move = settings_.keymap.lookup(e);
   }

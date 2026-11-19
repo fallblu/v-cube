@@ -1,8 +1,8 @@
 #include "app/practice_page.hpp"
 
-#include "app/key_router.hpp"
 #include "app/session_panel.hpp"
 #include "app/text_style.hpp"
+#include "app/train_keys.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "io/session_store.hpp"
@@ -1179,34 +1179,7 @@ std::string PracticePage::timedGroupKey() const {
 
 DrillFlow::KeyEvent PracticePage::flowKey(const QKeyEvent *e,
                                           bool press) const {
-  using Key = DrillFlow::Key;
-  DrillFlow::KeyEvent k;
-  k.press = press;
-  k.shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  switch (e->key()) {
-  case Qt::Key_Space:
-    k.key = Key::Space;
-    break;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    k.key = Key::Enter;
-    break;
-  case Qt::Key_Tab:
-    k.key = Key::Tab;
-    break;
-  case Qt::Key_Backspace:
-    k.key = Key::Backspace;
-    break;
-  case Qt::Key_Delete:
-    k.key = Key::Delete;
-    break;
-  case Qt::Key_Escape:
-    k.key = Key::Escape;
-    break;
-  default:
-    k.key = isModifierKey(e->key()) ? Key::Modifier : Key::Other;
-    break;
-  }
+  DrillFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::None);
   if (!physical_) {
     k.move = settings_.keymap.lookup(e);
   }
