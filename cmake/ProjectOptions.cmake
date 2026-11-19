@@ -29,6 +29,12 @@ else()
     $<$<BOOL:${VCUBE_WARNINGS_AS_ERRORS}>:-Werror>)
 endif()
 
+# <windows.h>, should anything include it, defines min and max as macros,
+# which break std::min and std::max.
+if(WIN32)
+  target_compile_definitions(vcube_warnings INTERFACE NOMINMAX)
+endif()
+
 add_library(vcube_strict INTERFACE)
 target_link_libraries(vcube_strict INTERFACE vcube_warnings)
 if(NOT MSVC)
