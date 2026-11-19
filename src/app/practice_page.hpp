@@ -291,7 +291,7 @@ protected:
     std::optional<Outcome> outcome;
     std::optional<Grade> grade;
     bool gradedByHand = false; // with 1-4, not as judged
-    SrsCard cardBefore; // as it was before the grade
+    SrsCard cardBefore;        // as it was before the grade
   };
   const Item &item() const { return item_; }
   AppSettings &settings() { return settings_; }
