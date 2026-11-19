@@ -27,39 +27,39 @@
 
 namespace vcube {
 
-namespace {
-
-QString poolName(int i) {
-  static const char *names[] = {"learned", "ticked", "learning", "queue",
-                                "weakest"};
-  return names[std::clamp(i, 0, 4)];
-}
-
-QString cubeName(bool virt) { return virt ? "virtual" : "physical"; }
-
-QString orderName(PickMode m) {
-  switch (m) {
-  case PickMode::Random:
-    return "random";
-  case PickMode::Weighted:
-    return "weighted";
-  case PickMode::InOrder:
-    return "inorder";
-  case PickMode::Recap:
-    return "recap";
+QString DrillPage::poolId(Pool pool) {
+  switch (pool) {
+  case Pool::Learned:
+    return "learned";
+  case Pool::All:
+    return "ticked";
+  case Pool::Learning:
+    return "learning";
+  case Pool::Queue:
+    return "queue";
+  case Pool::Weakest:
+    return "weakest";
   }
-  return "random";
+  return "learned";
 }
 
-} // namespace
+std::optional<DrillPage::Pool> DrillPage::poolFromId(const QString &id) {
+  for (Pool pool :
+       {Pool::Learned, Pool::All, Pool::Learning, Pool::Queue, Pool::Weakest}) {
+    if (id == poolId(pool)) {
+      return pool;
+    }
+  }
+  return std::nullopt;
+}
 
 DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
                      QWidget *parent)
     : CasePage(settings, library, "drill", parent) {
   cubeBox_ = new QComboBox(left_);
   cubeBox_->setFocusPolicy(Qt::NoFocus);
-  cubeBox_->addItem(tr("Virtual cube"), cubeName(true));
-  cubeBox_->addItem(tr("Physical cube"), cubeName(false));
+  cubeBox_->addItem(tr("Virtual cube"), enumData(CubeKind::Virtual));
+  cubeBox_->addItem(tr("Physical cube"), enumData(CubeKind::Physical));
   cubeBox_->setToolTip(
       tr("The cube the cases are drilled on. Each keeps its own times."));
   scopeBox_ = new QComboBox(left_);
@@ -70,23 +70,24 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
          "filtered), or one group"));
   poolBox_ = new QComboBox(left_);
   poolBox_->setFocusPolicy(Qt::NoFocus);
-  poolBox_->addItem(tr("Learned in Learn"), poolName(0));
-  poolBox_->addItem(tr("All"), poolName(1));
-  poolBox_->addItem(tr("Being learned"), poolName(2));
-  poolBox_->addItem(tr("In the learn queue"), poolName(3));
-  poolBox_->addItem(QString(), poolName(4)); // named in applySettings()
+  poolBox_->addItem(tr("Learned in Learn"), enumData(Pool::Learned));
+  poolBox_->addItem(tr("All"), enumData(Pool::All));
+  poolBox_->addItem(tr("Being learned"), enumData(Pool::Learning));
+  poolBox_->addItem(tr("In the learn queue"), enumData(Pool::Queue));
+  // Named in applySettings().
+  poolBox_->addItem(QString(), enumData(Pool::Weakest));
   poolBox_->setToolTip(
       tr("Which of those to drill: the ones learned in Learn mode, all of "
          "them, those in their learning steps, those waiting in Learn's "
          "queue, or the weakest drilled ones (as the Weak column has it)"));
   orderBox_ = new QComboBox(left_);
   orderBox_->setFocusPolicy(Qt::NoFocus);
-  orderBox_->addItem(tr("Random"), orderName(PickMode::Random));
+  orderBox_->addItem(tr("Random"), enumData(PickMode::Random));
   orderBox_->addItem(tr("Weighted (slow and failed cases more often)"),
-                     orderName(PickMode::Weighted));
-  orderBox_->addItem(tr("In list order"), orderName(PickMode::InOrder));
+                     enumData(PickMode::Weighted));
+  orderBox_->addItem(tr("In list order"), enumData(PickMode::InOrder));
   orderBox_->addItem(tr("Recap (each case once, then a summary)"),
-                     orderName(PickMode::Recap));
+                     enumData(PickMode::Recap));
   // What is drilled is one choice on the page: the scope and the pool
   // are picked from one menu (the two boxes only hold the choices).
   scopeBox_->hide();
@@ -241,7 +242,8 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   connect(&watcher_, &QFutureWatcher<GeneratedScramble>::finished, this,
           &DrillPage::scrambleReady);
   connect(cubeBox_, &QComboBox::activated, this, [this] {
-    saved::drillCube(setId_).set(cubeBox_->currentData().toString());
+    CubeKind cube = currentEnum(cubeBox_, CubeKind::Virtual);
+    saved::drillCube(setId_).set(qs(std::string(cubeKindId(cube))));
     picker_.setAttemptMode(attemptMode());
     showCubeKind();
     session_.clear(); // the other cube's times
@@ -262,15 +264,16 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
     nextCase();
   });
   connect(poolBox_, &QComboBox::activated, this, [this] {
-    saved::drillPool(setId_).set(poolBox_->currentData().toString());
+    saved::drillPool(setId_).set(poolId(poolChoice()));
     picker_.restartRecap();
     recapFrom_ = session_.size();
     updateSummary();
     nextCase();
   });
   connect(orderBox_, &QComboBox::activated, this, [this] {
-    saved::drillOrder(setId_).set(orderBox_->currentData().toString());
-    picker_.setMode(static_cast<PickMode>(orderBox_->currentIndex()));
+    PickMode order = currentEnum(orderBox_, PickMode::Random);
+    saved::drillOrder(setId_).set(qs(std::string(pickModeId(order))));
+    picker_.setMode(order);
     picker_.restartRecap();
     recapFrom_ = session_.size();
     updateSummary();
@@ -288,7 +291,7 @@ void DrillPage::drillSet(const QString &setId, bool weakest) {
     return;
   }
   chooseSet(ss(setId));
-  int i = poolBox_->findData(poolName(weakest ? 4 : 0));
+  int i = poolBox_->findData(enumData(weakest ? Pool::Weakest : Pool::Learned));
   if (i >= 0 && setId_ == ss(setId)) {
     poolBox_->setCurrentIndex(i);
     emit poolBox_->activated(i);
@@ -307,7 +310,9 @@ void DrillPage::extendModeMenu(QMenu &menu) {
   menu.addAction(tr("Reset tally"), this, &DrillPage::resetTally);
 }
 
-bool DrillPage::onVirtualCube() const { return cubeBox_->currentIndex() == 0; }
+bool DrillPage::onVirtualCube() const {
+  return currentEnum(cubeBox_, CubeKind::Virtual) == CubeKind::Virtual;
+}
 
 AttemptMode DrillPage::attemptMode() const {
   return onVirtualCube() ? AttemptMode::VirtualDrill
@@ -347,7 +352,8 @@ void DrillPage::applySettings() {
   cubeView_->setLook(look);
   cubeView_->setAnimationMs(settings_.animationMs);
   poolBox_->setItemText(
-      4, tr("Weakest %1 (drilled)").arg(settings_.drill.weakestCount));
+      poolBox_->findData(enumData(Pool::Weakest)),
+      tr("Weakest %1 (drilled)").arg(settings_.drill.weakestCount));
   CasePage::applySettings();
   if (current_ && flow_.resultShown()) {
     if (flow_.phase() != Phase::Unaided) {

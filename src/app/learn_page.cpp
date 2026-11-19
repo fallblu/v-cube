@@ -140,9 +140,9 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   OptionBar *options = stage_->options;
   options->addPicker(tr("Alg set:"), panel_->takeSetBox(), 1);
   practiceBox_ = new SegmentedPicker(options);
-  practiceBox_->addOption(tr("Solve"), "solve");
-  practiceBox_->addOption(tr("Recognise"), "recognise");
-  practiceBox_->addOption(tr("Which case?"), "quiz");
+  practiceBox_->addOption(tr("Solve"), enumData(Practice::Solve));
+  practiceBox_->addOption(tr("Recognise"), enumData(Practice::Recognise));
+  practiceBox_->addOption(tr("Which case?"), enumData(Practice::Quiz));
   practiceBox_->setToolTip(
       tr("Solve: solve each case from memory. Recognise: reviews only show "
          "the case; press Space once you recall its alg, then grade "
@@ -201,8 +201,9 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   connect(right, &QSplitter::splitterMoved, this,
           [right] { saved::learnRightSplitter().set(right->saveState()); });
   sideHiddenChanged();
-  int p = practiceBox_->findData(saved::learnPractice().get());
-  practiceBox_->setCurrentIndex(std::max(0, p));
+  selectEnum(
+      practiceBox_,
+      practiceFromId(saved::learnPractice().get()).value_or(Practice::Solve));
 
   idleTimer_.setSingleShot(true);
   connect(&idleTimer_, &QTimer::timeout, this, [this] {
@@ -222,7 +223,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
     }
   });
   connect(practiceBox_, &SegmentedPicker::activated, this, [this] {
-    saved::learnPractice().set(practiceBox_->currentData().toString());
+    saved::learnPractice().set(practiceId(practice()));
     if (context_) {
       return; // applies when back to learning
     }
@@ -408,8 +409,31 @@ void LearnPage::adoptSet() {
   updateQueue();
 }
 
+QString LearnPage::practiceId(Practice practice) {
+  switch (practice) {
+  case Practice::Solve:
+    return "solve";
+  case Practice::Recognise:
+    return "recognise";
+  case Practice::Quiz:
+    return "quiz";
+  }
+  return "solve";
+}
+
+std::optional<LearnPage::Practice>
+LearnPage::practiceFromId(const QString &id) {
+  for (Practice practice :
+       {Practice::Solve, Practice::Recognise, Practice::Quiz}) {
+    if (id == practiceId(practice)) {
+      return practice;
+    }
+  }
+  return std::nullopt;
+}
+
 LearnPage::Practice LearnPage::practice() const {
-  return static_cast<Practice>(std::max(0, practiceBox_->currentIndex()));
+  return currentEnum(practiceBox_, Practice::Solve);
 }
 
 void LearnPage::startSet() {

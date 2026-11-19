@@ -183,7 +183,7 @@ void DrillPage::updateSummary() {
 }
 
 DrillPage::Pool DrillPage::poolChoice() const {
-  return static_cast<Pool>(std::max(0, poolBox_->currentIndex()));
+  return currentEnum(poolBox_, Pool::Learned);
 }
 
 bool DrillPage::drillable(const std::string &caseId) const {
@@ -259,16 +259,18 @@ void DrillPage::fillScopes() {
 }
 
 void DrillPage::loadChoices() {
-  int c = cubeBox_->findData(saved::drillCube(setId_).get());
-  cubeBox_->setCurrentIndex(std::max(0, c));
+  selectEnum(cubeBox_, cubeKindFromId(ss(saved::drillCube(setId_).get()))
+                           .value_or(CubeKind::Virtual));
   picker_.setAttemptMode(attemptMode());
   showCubeKind();
   fillScopes();
-  int p = poolBox_->findData(saved::drillPool(setId_).get());
-  poolBox_->setCurrentIndex(std::max(0, p));
-  int o = orderBox_->findData(saved::drillOrder(setId_).get());
-  orderBox_->setCurrentIndex(std::max(0, o));
-  picker_.setMode(static_cast<PickMode>(orderBox_->currentIndex()));
+  selectEnum(
+      poolBox_,
+      poolFromId(saved::drillPool(setId_).get()).value_or(Pool::Learned));
+  PickMode order = pickModeFromId(ss(saved::drillOrder(setId_).get()))
+                       .value_or(PickMode::Random);
+  selectEnum(orderBox_, order);
+  picker_.setMode(order);
   picker_.restartRecap();
 }
 

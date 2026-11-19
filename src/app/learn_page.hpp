@@ -101,6 +101,10 @@ private:
   using Phase = LearnSession::Phase;
   // How reviews are done (the drop-down above the cube).
   enum class Practice { Solve, Recognise, Quiz };
+  // "solve", "recognise" or "quiz", as settings keep it.
+  static QString practiceId(Practice practice);
+  // nullopt for any other text.
+  static std::optional<Practice> practiceFromId(const QString &id);
 
   struct Current {
     std::string caseId;

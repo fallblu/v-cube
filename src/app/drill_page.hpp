@@ -8,6 +8,7 @@
 #include "train/drill_flow.hpp"
 #include "train/drill_session.hpp"
 #include "train/move_count.hpp"
+#include "train/stats.hpp"
 
 #include <QFutureWatcher>
 #include <QStringList>
@@ -112,6 +113,11 @@ private:
   std::function<void()> offerRun_;
   using Phase = DrillFlow::Phase;
   enum class Pool { Learned, All, Learning, Queue, Weakest };
+  // "learned", "ticked" (for All, as saved settings have it), "learning",
+  // "queue" or "weakest", as settings keep it.
+  static QString poolId(Pool pool);
+  // nullopt for any other text.
+  static std::optional<Pool> poolFromId(const QString &id);
   // The scope drop-down's values: the ticked cases, those shown, a group.
   static inline const QString kScopeTicked = "ticked";
   static inline const QString kScopeShown = "shown";
