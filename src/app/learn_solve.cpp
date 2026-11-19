@@ -91,7 +91,7 @@ void LearnPage::holdBack(std::function<void()> start) {
   // No walkthrough is up. (Said to the stage directly: showGuide() right
   // after the reset makes GCC warn about the guide it has just dropped.)
   guide_.reset();
-  stage_->showGuide(nullptr, false, false, false);
+  stage_->showGuide(nullptr);
   reveal_->clear();
   gradeRow_->setVisible(false);
   stage_->hideFamily();
@@ -355,8 +355,9 @@ void LearnPage::showGuide() {
                                             (guide_->follow || guide_->next)));
   const bool solving = phase() == Phase::Solving;
   stage_->showGuide(shown ? &*guide_ : nullptr,
-                    shown && solving && !guide_->follow, solving,
-                    attempt_.follower().deviated());
+                    {.nextOnly = shown && solving && !guide_->follow,
+                     .solving = solving,
+                     .deviated = attempt_.follower().deviated()});
 }
 
 void LearnPage::resetCube() {
