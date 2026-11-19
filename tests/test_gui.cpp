@@ -24,6 +24,7 @@
 #include "app/single_instance.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
+#include "app/train_keys.hpp"
 #include "app/tsle_page.hpp"
 #include "app/untimed_page.hpp"
 #include "cube/solver.hpp"
@@ -299,6 +300,7 @@ private slots:
   void practiceModesComeBackAsLeft();
   void themeColoursAreReadable();
   void pagesTakeTheKeyboard();
+  void keysAreReadTheSameForEveryPage();
   void commandListGroupsAndRemembers();
   void settingsDialogOpensAndCloses();
   void interfaceTextSizeScalesTheText();
@@ -1813,6 +1815,96 @@ void GuiTest::pagesTakeTheKeyboard() {
 
 // The command list: headings that can't be selected, keys on the right,
 // and the commands last run first when nothing is typed.
+void GuiTest::keysAreReadTheSameForEveryPage() {
+  using K = TrainKey;
+  auto read = [](int key, Qt::KeyboardModifiers mods, KeyChords chords) {
+    QKeyEvent e(QEvent::KeyPress, key, mods);
+    return trainKeyEvent(&e, true, chords);
+  };
+  const auto all = {KeyChords::None, KeyChords::Undo, KeyChords::Attempt};
+  // The keys by themselves are the same keys whatever the page's chords.
+  const std::vector<std::pair<int, K>> plain = {
+      {Qt::Key_Space, K::Space},
+      {Qt::Key_Return, K::Enter},
+      {Qt::Key_Enter, K::Enter},
+      {Qt::Key_Tab, K::Tab},
+      {Qt::Key_Backspace, K::Backspace},
+      {Qt::Key_Delete, K::Delete},
+      {Qt::Key_Escape, K::Escape},
+      {Qt::Key_Left, K::Left},
+      {Qt::Key_Right, K::Right},
+      {Qt::Key_Home, K::Home},
+      {Qt::Key_Shift, K::Modifier},
+      {Qt::Key_Control, K::Modifier},
+      {Qt::Key_Z, K::Other},
+      {Qt::Key_F9, K::Other}};
+  for (KeyChords chords : all) {
+    for (const auto &[key, expected] : plain) {
+      QCOMPARE(read(key, Qt::NoModifier, chords).key, expected);
+    }
+    for (int d = 0; d <= 9; ++d) {
+      const TrainKeyEvent k = read(Qt::Key_0 + d, Qt::NoModifier, chords);
+      QCOMPARE(k.key, K::Digit);
+      QCOMPARE(k.digit, d);
+      QVERIFY(!k.modified && !k.shift && k.press && !k.autoRepeat);
+    }
+    // The number pad's keys are the keys they show.
+    QCOMPARE(read(Qt::Key_Enter, Qt::KeypadModifier, chords).key, K::Enter);
+    QCOMPARE(read(Qt::Key_Delete, Qt::KeypadModifier, chords).key, K::Delete);
+    // What is held is told apart from the key.
+    const TrainKeyEvent shifted =
+        read(Qt::Key_Space, Qt::ShiftModifier, chords);
+    QCOMPARE(shifted.key, K::Space);
+    QVERIFY(shifted.shift && !shifted.modified);
+    const TrainKeyEvent ctrl = read(Qt::Key_Space, Qt::ControlModifier, chords);
+    QCOMPARE(ctrl.key, K::Space);
+    QVERIFY(ctrl.modified && !ctrl.shift);
+    QVERIFY(read(Qt::Key_1, Qt::AltModifier, chords).modified);
+    QVERIFY(read(Qt::Key_1, Qt::MetaModifier, chords).modified);
+  }
+  QKeyEvent repeat(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier, {},
+                   true);
+  QVERIFY(trainKeyEvent(&repeat, true, KeyChords::Attempt).autoRepeat);
+  QVERIFY(!trainKeyEvent(&repeat, false, KeyChords::Attempt).press);
+
+  // Ctrl+Z: nothing to the practice modes and Alg Lab, Undo in Drill and
+  // Learn whatever else is held, Undo in Untimed and Move Count only by
+  // itself.
+  const Qt::KeyboardModifiers ctrlShift =
+      Qt::ControlModifier | Qt::ShiftModifier;
+  QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::None).key, K::Other);
+  QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::Undo).key, K::Undo);
+  QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Undo).key, K::Undo);
+  QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::Attempt).key,
+           K::Undo);
+  QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Attempt).key, K::Other);
+
+  // The chords of Untimed and Move Count are theirs alone: in Learn Alt+3
+  // is the digit and Ctrl+Right the arrow.
+  QCOMPARE(read(Qt::Key_3, Qt::AltModifier, KeyChords::Attempt).key, K::Dnf);
+  QCOMPARE(read(Qt::Key_C, Qt::AltModifier, KeyChords::Attempt).key,
+           K::Comment);
+  QCOMPARE(read(Qt::Key_R, Qt::AltModifier, KeyChords::Attempt).key, K::Review);
+  QCOMPARE(read(Qt::Key_Right, Qt::ControlModifier, KeyChords::Attempt).key,
+           K::Skip);
+  QCOMPARE(
+      read(Qt::Key_3, Qt::AltModifier | Qt::ShiftModifier, KeyChords::Attempt)
+          .key,
+      K::Digit);
+  for (KeyChords chords : {KeyChords::None, KeyChords::Undo}) {
+    const TrainKeyEvent three = read(Qt::Key_3, Qt::AltModifier, chords);
+    QCOMPARE(three.key, K::Digit);
+    QCOMPARE(three.digit, 3);
+    QCOMPARE(read(Qt::Key_C, Qt::AltModifier, chords).key, K::Other);
+    QCOMPARE(read(Qt::Key_Right, Qt::ControlModifier, chords).key, K::Right);
+    // Delete deletes with anything held; in Untimed and Move Count only
+    // by itself.
+    QCOMPARE(read(Qt::Key_Delete, Qt::ShiftModifier, chords).key, K::Delete);
+  }
+  QCOMPARE(read(Qt::Key_Delete, Qt::ShiftModifier, KeyChords::Attempt).key,
+           K::Other);
+}
+
 void GuiTest::commandListGroupsAndRemembers() {
   int ran = 0;
   auto commands = [&ran] {
