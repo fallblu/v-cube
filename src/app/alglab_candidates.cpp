@@ -263,7 +263,8 @@ void AlgLabPage::pasteCandidates() {
                    .arg(plural(have, tr("%n was"), tr("%n were"))));
 }
 
-void AlgLabPage::addToSet(bool makeMain) {
+void AlgLabPage::addToSet(SetAlg how) {
+  const bool makeMain = how == SetAlg::MakeMain;
   if (!case_) {
     return;
   }
@@ -412,8 +413,9 @@ void AlgLabPage::fillModeMenu(QMenu &menu) {
   }
   menu.addAction(tr("Add to session"), this, &AlgLabPage::addToSession);
   if (case_ && !case_->key.isLab()) {
-    menu.addAction(tr("Add to set"), this, [this] { addToSet(false); });
-    menu.addAction(tr("Make main alg"), this, [this] { addToSet(true); });
+    menu.addAction(tr("Add to set"), this, [this] { addToSet(SetAlg::Add); });
+    menu.addAction(tr("Make main alg"), this,
+                   [this] { addToSet(SetAlg::MakeMain); });
   }
   menu.addAction(tr("Copy"), this, [this] {
     QStringList lines;

@@ -36,10 +36,11 @@ namespace {
 
 constexpr int kDiagramSize = 120;
 
-QTableWidgetItem *item(const QString &text, bool number = false) {
+enum class Cell { Text, Number }; // numbers are set to the right
+QTableWidgetItem *item(const QString &text, Cell cell = Cell::Text) {
   auto *it = new QTableWidgetItem(text);
   it->setFlags(it->flags() & ~Qt::ItemIsEditable);
-  if (number) {
+  if (cell == Cell::Number) {
     it->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
   }
   return it;
@@ -424,8 +425,8 @@ void LabTestPanel::fillEntries(CaseNames &names) {
     int row = static_cast<int>(i);
     entries_->setItem(row, 0, item(name ? *name : tr("(case gone)")));
     entries_->setItem(row, 1, item(qs(e.alg)));
-    entries_->setItem(row, 2,
-                      item(QString("%1/%2").arg(done[i]).arg(s.reps), true));
+    entries_->setItem(
+        row, 2, item(QString("%1/%2").arg(done[i]).arg(s.reps), Cell::Number));
   }
   entries_->resizeColumnToContents(0);
   entries_->resizeColumnToContents(2);
@@ -508,7 +509,7 @@ void LabTestPanel::fillTimes(CaseNames &names) {
     const LabAttempt &a = store_.attempts()[i];
     const auto &name = caseName(names, a.key);
     int row = static_cast<int>(r);
-    auto *num = item(QString::number(rows.size() - r), true);
+    auto *num = item(QString::number(rows.size() - r), Cell::Number);
     num->setData(Qt::UserRole, static_cast<qulonglong>(i));
     times_->setItem(row, 0, num);
     times_->setItem(row, 1, item(name ? *name : QString()));
@@ -516,7 +517,7 @@ void LabTestPanel::fillTimes(CaseNames &names) {
     times_->setItem(row, 3,
                     item(a.dnf ? "DNF(" + qs(formatTime(a.timeMs, d)) + ")"
                                : qs(formatTime(a.timeMs, d)),
-                         true));
+                         Cell::Number));
     QStringList notes;
     if (a.deviated) {
       notes << (a.include ? tr("left the alg (counted)")
@@ -888,11 +889,12 @@ void LabTestPanel::virtualTurn(Move m, std::int64_t now) {
   cubeView_->animateMove(m);
   if (flow_.phase() == Phase::Running && stepDone()) {
     timer_.stopNow(now);
-    finish(timer_.elapsed(now), false);
+    finish(timer_.elapsed(now), Result::Solved);
   }
 }
 
-void LabTestPanel::finish(std::int64_t ms, bool dnf) {
+void LabTestPanel::finish(std::int64_t ms, Result result) {
+  const bool dnf = result == Result::Dnf;
   tick_.stop();
   flow_.stopped(monotonicMs());
   if (!current_) {
@@ -1009,14 +1011,14 @@ bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
     break;
   case A::StopVirtual:
     timer_.stopNow(now);
-    finish(timer_.elapsed(now), !stepDone());
+    finish(timer_.elapsed(now), stepDone() ? Result::Solved : Result::Dnf);
     break;
   case A::StopPhysical:
     timer_.pressStop(now);
     if (auto r = timer_.takeResult()) {
-      finish(r->timeMs, false);
+      finish(r->timeMs, Result::Solved);
     } else {
-      finish(timer_.elapsed(now), false);
+      finish(timer_.elapsed(now), Result::Solved);
     }
     break;
   case A::Cancel:

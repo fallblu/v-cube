@@ -153,7 +153,8 @@ void AlgLabPage::runSearch(std::vector<ResolvedCase> cases) {
   });
 }
 
-void AlgLabPage::runBatch(bool wholeSet) {
+void AlgLabPage::runBatch(Batch batch) {
+  const bool wholeSet = batch == Batch::WholeSet;
   if (!case_ || case_->key.isLab()) {
     return;
   }

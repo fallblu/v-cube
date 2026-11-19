@@ -158,7 +158,9 @@ private:
   void showStatus();
   bool stepDone() const;
   void virtualTurn(Move m, std::int64_t now);
-  void finish(std::int64_t ms, bool dnf);
+  // How a test solve ended: the step done, or (virtual cube) not: a DNF.
+  enum class Result { Solved, Dnf };
+  void finish(std::int64_t ms, Result result);
   void resetCube();
   void toggleDnf();
   void deleteLast();
