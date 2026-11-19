@@ -684,12 +684,12 @@ void GuiTest::fingertrickGuidance() {
   // The default score is the grip profile's.
   QComboBox *profiles = nullptr;
   for (QComboBox *b : lab->findChildren<QComboBox *>()) {
-    if (b->findText(qs(std::string(kGripProfileName))) >= 0) {
+    if (b->findText(qs(kGripProfileName)) >= 0) {
       profiles = b;
     }
   }
   QVERIFY(profiles);
-  QCOMPARE(profiles->currentText(), qs(std::string(kGripProfileName)));
+  QCOMPARE(profiles->currentText(), qs(kGripProfileName));
   GripModel model = standardGripModel();
   double best = gripCost(parseAlgOrEmpty(kTPerm), model);
   QCOMPARE(candidates->item(0, 5)->text(), QString::number(best, 'f', 1));

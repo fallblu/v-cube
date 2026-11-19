@@ -370,8 +370,9 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
         alg.insert(alg.end(), turn.begin(), turn.end());
         Alg pair = parseAlgOrEmpty(seg.options[o].alg);
         alg.insert(alg.end(), pair.begin(), pair.end());
-        play(alg, tr("%1 with the set's alg")
-                      .arg(qs(std::string(slotName(seg.options[o].slot)))));
+        play(
+            alg,
+            tr("%1 with the set's alg").arg(qs(slotName(seg.options[o].slot))));
         showPosition(seg.begin + turn.size());
       }
     }
@@ -595,7 +596,7 @@ void ReviewDialog::showMoves() {
     QStringList steps;
     for (const StepMark &m : marks_) {
       if (m.moves == i && i > 0) {
-        steps << qs(std::string(stepName(m.step)));
+        steps << qs(stepName(m.step));
       }
     }
     if (!steps.isEmpty()) {
@@ -633,12 +634,12 @@ void ReviewDialog::showMarks() {
   QStringList byScramble; // steps the scramble left done
   for (const StepMark &m : marks_) {
     if (m.moves == 0) {
-      byScramble << qs(std::string(stepName(m.step)));
+      byScramble << qs(stepName(m.step));
       continue;
     }
     html += QString("<tr><td><b>%1</b></td><td align='right'>%2</td>"
                     "<td>%3</td><td>%4</td></tr>")
-                .arg(qs(std::string(stepName(m.step))))
+                .arg(qs(stepName(m.step)))
                 .arg(moveWord(m.htm))
                 .arg(m.htm > before ? muted(tr("(+%1)").arg(m.htm - before))
                                     : QString())
@@ -675,7 +676,7 @@ void ReviewDialog::showOptima() {
     return;
   }
   SolveStep step = solve_.step.value_or(SolveStep::EOCross);
-  QString stepText = qs(std::string(stepName(step)));
+  QString stepText = qs(stepName(step));
   // The solve's own count for the step: where it was first done.
   std::optional<int> yours;
   for (const StepMark &m : marks_) {
@@ -780,7 +781,7 @@ void ReviewDialog::showPairs() {
     const PairSegment &seg = b.segments[n];
     QStringList solved;
     for (Slot s : seg.solved) {
-      solved << qs(std::string(slotName(s)));
+      solved << qs(slotName(s));
     }
     yourTotal += seg.htm;
     html += "<p><b>" + tr("Pair %1: %2").arg(n + 1).arg(solved.join(" + ")) +
@@ -803,7 +804,7 @@ void ReviewDialog::showPairs() {
     auto optionHtml = [&](const PairOption &o) {
       auto index = static_cast<std::size_t>(&o - seg.options.data());
       return tr("%1 (%2): %3 %4 <a href='pair:%5:%6'>%7</a>")
-          .arg(qs(std::string(slotName(o.slot))), escaped(o.caseName))
+          .arg(qs(slotName(o.slot)), escaped(o.caseName))
           .arg(moveWord(o.moves))
           .arg(muted(escaped(o.alg)))
           .arg(n)
@@ -863,7 +864,7 @@ void ReviewDialog::showPairs() {
       if (plan.complete && !plan.steps.empty()) {
         QStringList order;
         for (const PairOption &o : plan.steps) {
-          order << qs(std::string(slotName(o.slot)));
+          order << qs(slotName(o.slot));
         }
         html += tr(", the set's cheapest order %1 (%2)")
                     .arg(plan.moves)

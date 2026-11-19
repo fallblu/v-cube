@@ -452,13 +452,13 @@ void GripProfileDialog::addTrickRow(const GripTrick &t) {
   tricks_->setItem(row, TMove, new QTableWidgetItem(qs(t.move)));
   auto *hand = new QComboBox(tricks_);
   for (Hand h : {Hand::Right, Hand::Left, Hand::Both, Hand::Either}) {
-    hand->addItem(qs(std::string(handId(h))));
+    hand->addItem(qs(handId(h)));
   }
   hand->setCurrentIndex(static_cast<int>(t.hand));
   tricks_->setCellWidget(row, THand, hand);
   auto *finger = new QComboBox(tricks_);
   for (int f = 0; f <= static_cast<int>(Finger::Hands); ++f) {
-    finger->addItem(qs(std::string(fingerId(static_cast<Finger>(f)))));
+    finger->addItem(qs(fingerId(static_cast<Finger>(f))));
   }
   finger->setCurrentIndex(static_cast<int>(t.finger));
   tricks_->setCellWidget(row, TFinger, finger);
