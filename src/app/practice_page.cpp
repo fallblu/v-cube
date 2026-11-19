@@ -844,8 +844,7 @@ void PracticePage::showCubeKind() {
 }
 
 void PracticePage::requestScramble() {
-  const int request = ++scrambleRequest_;
-  scrambles_.setProperty("request", request);
+  // setFuture() drops the result of a request still on its way.
   ColourNeutrality hold;
   hold.main = item_.scrambleHold;
   hold.holds = {item_.scrambleHold};
@@ -857,12 +856,6 @@ void PracticePage::requestScramble() {
 
 void PracticePage::scrambleReady() {
   if (tab_ != Tab::Timed || !physical_ || item_.id == 0) {
-    return;
-  }
-  if (scrambles_.property("request").toInt() != scrambleRequest_) {
-    if (item_.scramble.isEmpty()) {
-      requestScramble();
-    }
     return;
   }
   item_.scramble = scrambles_.result().text;

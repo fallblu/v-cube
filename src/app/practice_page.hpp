@@ -346,7 +346,6 @@ private:
   QString note_; // said once under the verdict (a cancelled solve, ...)
   std::int64_t sittingStart_ = 0;
   QFutureWatcher<GeneratedScramble> scrambles_;
-  int scrambleRequest_ = 0;
 
   QWidget *side_ = nullptr;
   QLabel *summary_ = nullptr;

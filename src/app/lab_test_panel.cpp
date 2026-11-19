@@ -747,8 +747,7 @@ void LabTestPanel::requestScramble() {
   if (!current_) {
     return;
   }
-  int request = ++scrambleRequest_;
-  watcher_.setProperty("request", request);
+  // setFuture() drops the result of a request still on its way.
   CubieCube state = current_->setup;
   ColourNeutrality hold;
   watcher_.setFuture(generateScramble(
@@ -756,8 +755,7 @@ void LabTestPanel::requestScramble() {
 }
 
 void LabTestPanel::scrambleReady() {
-  if (watcher_.property("request").toInt() != scrambleRequest_ || !current_ ||
-      onVirtual()) {
+  if (!current_ || onVirtual()) {
     return;
   }
   current_->scramble = watcher_.result().text;

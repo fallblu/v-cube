@@ -132,7 +132,6 @@ private:
   QTimer tick_;
   std::optional<Current> current_;
   QFutureWatcher<GeneratedScramble> watcher_;
-  int scrambleRequest_ = 0;
   VirtualAttempt attempt_;
   QString missText_; // why a virtual attempt was a DNF
   DrillSession session_;

@@ -96,7 +96,6 @@ private:
   VirtualAttempt attempt_;
   AlgFollower follower_;
   QFutureWatcher<GeneratedScramble> watcher_;
-  int scrambleRequest_ = 0;
   bool loading_ = false;
 
   QComboBox *sessionBox_;
