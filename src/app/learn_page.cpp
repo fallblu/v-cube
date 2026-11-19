@@ -88,6 +88,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
          "limit"));
   auto *more = new QToolButton(left_);
   more->setText(QStringLiteral("⋯"));
+  more->setAccessibleName(tr("More"));
   more->setFocusPolicy(Qt::NoFocus);
   more->setPopupMode(QToolButton::InstantPopup);
   more->setToolTip(tr("More: the order of new cases, the queue, ticks"));
@@ -717,6 +718,7 @@ void LearnPage::showIdle(const LearnPick &pick) {
   std::int64_t dayStart = localDayStart(), dayEnd = localDayEnd();
   std::vector<std::string> cases = pool();
   QStringList lines;
+  QString heading; // set: the lines are shown under it, one per line
   QList<KeyHint> keys;
   std::vector<CaseStage::Action> actions;
   if (tickedCount() == 0) {
@@ -724,20 +726,24 @@ void LearnPage::showIdle(const LearnPick &pick) {
   } else if (cases.empty() && excludedCount() > 0) {
     lines << tr("None of the ticked cases has an alg that solves it yet. Add "
                 "algs in Library mode, e.g. with Paste algs.");
+    actions.push_back({tr("Paste algs in Library…"),
+                       [this] { emit pasteAlgsRequested(qs(setId_)); }});
   } else if (cases.empty()) {
     lines << tr("Tick some cases that have algs to learn them.");
   } else {
     LearnCounts n =
         learnCounts(cases, progress(), now, dayStart, settings_.srs, dayEnd);
+    // A heading, then the numbers and what comes next a line each.
+    const bool laterToday = pick.nextDue && *pick.nextDue < dayEnd;
     if (n.doneToday > 0) {
-      lines << tr("Done for now: %1 reviewed today, %2 Again (%3%). Due "
-                  "tomorrow: %4.")
-                   .arg(n.doneToday)
+      heading = laterToday ? tr("Done for now") : tr("Done for today");
+      lines << tr("Reviewed today: %1").arg(n.doneToday)
+            << tr("Again: %1 (%2%)")
                    .arg(n.againToday)
                    .arg(std::lround(100.0 * n.againToday / n.doneToday))
-                   .arg(n.dueTomorrow);
+            << tr("Due tomorrow: %1").arg(n.dueTomorrow);
     } else {
-      lines << tr("All caught up.");
+      heading = tr("All caught up");
     }
     if (acrossSets()) {
       lines << tr("Nothing is due in any set.");
@@ -787,6 +793,22 @@ void LearnPage::showIdle(const LearnPick &pick) {
       actions.push_back(
           {tr("Learn the next one anyway"), [this] { learnQueueHead(); }});
     }
+    // Drilling what was learned: its weakest cases once it was drilled.
+    if (!acrossSets() && n.doneToday > 0) {
+      bool drilled = false;
+      for (const auto &[id, p] : progress()) {
+        drilled = drilled ||
+                  std::any_of(p.attempts.begin(), p.attempts.end(),
+                              [](const Attempt &a) {
+                                return a.mode == AttemptMode::VirtualDrill ||
+                                       a.mode == AttemptMode::PhysicalDrill;
+                              });
+      }
+      actions.push_back(
+          {drilled ? tr("Drill the weakest cases")
+                   : tr("Drill the learned cases"),
+           [this, drilled] { emit drillSetRequested(qs(setId_), drilled); }});
+    }
   }
   if (!acrossSets()) {
     // Reviews due in the other sets.
@@ -814,7 +836,17 @@ void LearnPage::showIdle(const LearnPick &pick) {
                          [this] { chooseAcrossSets(); }});
     }
   }
-  say(lines.join(' '), keys);
+  if (heading.isEmpty()) {
+    say(lines.join(' '), keys);
+  } else {
+    QStringList escaped;
+    for (const QString &line : lines) {
+      escaped << line.toHtmlEscaped();
+    }
+    say(QString("<p style=\"font-size:large\"><b>%1</b></p>%2")
+            .arg(heading.toHtmlEscaped(), escaped.join("<br>")),
+        keys);
+  }
   setPhase(Phase::NoCase);
   stage_->setActions(actions);
   // Look again when the next card falls due (learn-ahead included), or

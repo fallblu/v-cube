@@ -128,7 +128,8 @@ QString LibraryPage::historyHtml(const AlgCase &c) const {
 
 void LibraryPage::loadCase() {
   AlgCase *c = currentCase();
-  caseBox_->setEnabled(c != nullptr);
+  caseEmpty_->setVisible(c == nullptr);
+  caseContent_->setVisible(c != nullptr);
   loading_ = true;
   caseNameEdit_->setText(c ? qs(c->name) : QString());
   loading_ = false;
@@ -141,7 +142,7 @@ void LibraryPage::loadCase() {
     caseHistory_->clear();
     QSignalBlocker block(algList_);
     algList_->clear();
-    caseBox_->setTitle(tr("Select a case to see and edit its algs"));
+    caseBox_->setTitle(tr("Case"));
     updateActions();
     return;
   }

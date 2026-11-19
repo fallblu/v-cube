@@ -673,6 +673,18 @@ void CasePage::fillModeMenu(QMenu &menu) {
   if (!fillCaseMenu(menu, item)) {
     menu.addAction(tr("Select a case in the list"))->setEnabled(false);
   }
+  // What the list offers on its buttons and header, so that the command
+  // list finds it too.
+  if (!set()) {
+    return;
+  }
+  menu.addSeparator();
+  menu.addAction(panel_->tickAllText(), this,
+                 [this] { panel_->tickShown(true); });
+  menu.addAction(panel_->tickNoneText(), this,
+                 [this] { panel_->tickShown(false); });
+  panel_->fillColumnMenu(*menu.addMenu(tr("Columns")));
+  extendModeMenu(menu);
 }
 
 bool CasePage::fillCaseMenu(QMenu &menu, QTreeWidgetItem *item) {

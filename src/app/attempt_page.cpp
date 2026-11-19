@@ -13,6 +13,7 @@
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
 #include <QSplitter>
 #include <QToolButton>
@@ -1016,5 +1017,7 @@ void AttemptPage::save() {
     emit message(tr("Could not save sessions: %1").arg(error));
   });
 }
+
+void AttemptPage::fillModeMenu(QMenu &menu) { panel_->fillMenu(menu); }
 
 } // namespace vcube

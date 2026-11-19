@@ -93,6 +93,9 @@ public:
   void applySettings() override;
   void importSetFile();
   void exportSetFile();
+  // Selects the set and opens Paste algs for it (from another mode's
+  // empty state).
+  void pasteAlgsInto(const QString &setId);
   void activated() override;
   void deactivated() override;
 
@@ -129,6 +132,8 @@ private:
   CaseFilter *caseFilter_;
   CaseTreeWidget *caseTree_ = nullptr;
   QGroupBox *caseBox_;
+  QLabel *caseEmpty_;    // shown instead of the editor with no case
+  QWidget *caseContent_; // the editor
   QLineEdit *caseNameEdit_;
   QLabel *caseDiagram_;
   QLabel *caseGroup_;

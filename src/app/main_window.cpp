@@ -24,6 +24,7 @@
 #include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
 
+#include <QAbstractButton>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QClipboard>
@@ -48,9 +49,13 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
+#include <QStyleOptionToolButton>
+#include <QStylePainter>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace vcube {
 
@@ -65,6 +70,78 @@ protected:
   bool eventFilter(QObject *, QEvent *e) override {
     return e->type() == QEvent::ToolTip;
   }
+};
+
+// Names every button that shows only an icon, a colour or "…" by what its
+// tooltip says, as it is first shown, so that assistive technology can
+// say what it is (the tooltip itself is never shown, see NoToolTips).
+class AccessibleNames : public QObject {
+public:
+  using QObject::QObject;
+
+protected:
+  bool eventFilter(QObject *obj, QEvent *e) override {
+    if (e->type() == QEvent::Polish) {
+      if (auto *b = qobject_cast<QAbstractButton *>(obj);
+          b && b->accessibleName().isEmpty() && !b->toolTip().isEmpty()) {
+        QString text = b->text().remove('&').trimmed();
+        static const QStringList noWords = {"…", "⋯", "...", "▾", "▸"};
+        if (text.isEmpty() || noWords.contains(text)) {
+          b->setAccessibleName(b->toolTip());
+        }
+      }
+    }
+    return false;
+  }
+};
+
+// A mode's button in the sidebar: its name on the left and the reviews
+// due, if any, on the right, so that the names form one edge to scan.
+class SidebarButton : public QToolButton {
+public:
+  using QToolButton::QToolButton;
+
+  void setBadge(const QString &badge) {
+    badge_ = badge;
+    updateGeometry();
+    update();
+  }
+
+  QSize sizeHint() const override {
+    QSize s = QToolButton::sizeHint();
+    if (!badge_.isEmpty()) {
+      s.rwidth() += fontMetrics().horizontalAdvance(badge_) + kGap;
+    }
+    return s;
+  }
+
+protected:
+  void paintEvent(QPaintEvent *) override {
+    QStylePainter p(this);
+    QStyleOptionToolButton opt;
+    initStyleOption(&opt);
+    opt.text.clear(); // the background and frame only
+    p.drawComplexControl(QStyle::CC_ToolButton, opt);
+    // As the style sheet's padding: 14 px on the left, 18 on the right.
+    QRect r = rect().adjusted(14, 0, -18, 0);
+    p.setPen(palette().color(isChecked() ? QPalette::HighlightedText
+                                         : QPalette::Text));
+    if (!badge_.isEmpty()) {
+      QFont bold = font();
+      bold.setBold(true);
+      p.setFont(bold);
+      p.drawText(r, Qt::AlignRight | Qt::AlignVCenter, badge_);
+      r.setRight(r.right() - QFontMetrics(bold).horizontalAdvance(badge_) -
+                 kGap);
+      p.setFont(font());
+    }
+    p.drawText(r, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextShowMnemonic,
+               text());
+  }
+
+private:
+  static constexpr int kGap = 12;
+  QString badge_;
 };
 
 } // namespace
@@ -166,7 +243,20 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
                 libraryPage_->selectCase(setId, caseId);
               }
             });
+    connect(page, &CasePage::pasteAlgsRequested, this,
+            [this](const QString &setId) {
+              if (setMode(AppMode::Library)) {
+                libraryPage_->pasteAlgsInto(setId);
+              }
+            });
+    connect(page, &CasePage::learnSetRequested, this, &MainWindow::learnSet);
   }
+  connect(learnPage_, &LearnPage::drillSetRequested, this,
+          [this](const QString &setId, bool weakest) {
+            if (setMode(AppMode::Drill)) {
+              drillPage_->drillSet(setId, weakest);
+            }
+          });
 
   auto *central = new QWidget(this);
   auto *layout = new QHBoxLayout(central);
@@ -217,6 +307,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   help_->hide();
   buildMenus();
   qApp->installEventFilter(new NoToolTips(this));
+  qApp->installEventFilter(new AccessibleNames(this));
   qApp->installEventFilter(
       new KeyRouter(this, [this] { return currentPage(); }, this));
 
@@ -273,7 +364,6 @@ QWidget *MainWindow::buildSidebar() {
     auto *label = new QLabel(text, bar);
     QFont f = label->font();
     f.setBold(true);
-    f.setPointSizeF(f.pointSizeF() * 0.85);
     label->setFont(f);
     label->setForegroundRole(QPalette::PlaceholderText);
     label->setContentsMargins(6, 10, 0, 4);
@@ -283,8 +373,9 @@ QWidget *MainWindow::buildSidebar() {
     if (QString h = AppMode::sidebarHeader(m); !h.isEmpty()) {
       header(h);
     }
-    auto *b = new QToolButton(bar);
+    auto *b = new SidebarButton(bar);
     b->setText(AppMode::label(m));
+    b->setAccessibleName(AppMode::label(m));
     b->setToolTip(tr("%1 (%2)").arg(
         AppMode::label(m),
         AppMode::shortcut(m).toString(QKeySequence::NativeText)));
@@ -404,6 +495,8 @@ bool MainWindow::setMode(int mode) {
     old->deactivated();
   }
   bool switching = mode_ >= 0;
+  // What the last page said is about that page, not this one.
+  statusBar()->clearMessage();
   mode_ = mode;
   modeButtons_->button(mode)->setChecked(true);
   // Only the page shown sets the window's minimum size: the stack would
@@ -442,16 +535,12 @@ bool MainWindow::setMode(int mode) {
 
 void MainWindow::updateBadges() {
   TodayPage::Totals t = todayPage_->totals();
-  auto label = [&t](int m) {
-    QString text = AppMode::label(m);
-    if (t.due > 0) {
-      text += QString("  (%1)").arg(t.due);
-    }
-    return text;
-  };
   for (int m : {AppMode::Today, AppMode::Learn}) {
-    auto *b = modeButtons_->button(m);
-    b->setText(label(m));
+    auto *b = static_cast<SidebarButton *>(modeButtons_->button(m));
+    b->setBadge(t.due > 0 ? QString::number(t.due) : QString());
+    b->setAccessibleName(
+        t.due > 0 ? tr("%1, %n review(s) due", "", t.due).arg(AppMode::label(m))
+                  : AppMode::label(m));
     b->setToolTip(
         tr("%1 (%2): %n review(s) due", "", t.due)
             .arg(AppMode::label(m),
@@ -747,9 +836,42 @@ void MainWindow::openCommandPalette() {
   if (currentPage() && currentPage()->isBusy()) {
     return;
   }
-  std::vector<CommandPalette::Command> commands =
-      CommandPalette::fromMenus(menuBar());
+  // The mode's menu is filled as it opens: fill it now, so that what it
+  // offers can be found too.
+  if (modeMenu_ && currentPage()->hasModeMenu()) {
+    modeMenu_->clear();
+    currentPage()->fillModeMenu(*modeMenu_);
+  }
+  // Under three headings: the modes, what the page offers (its own menus
+  // and controls), and the other menus.
+  const QString go = tr("Go"), page = tr("This page"), menus = tr("Menus");
+  QStringList pageMenus;
+  if (modeMenu_ && currentPage()->hasModeMenu()) {
+    pageMenus << QString(modeMenu_->title()).remove('&');
+  }
+  if (mode_ == AppMode::Library) {
+    for (QMenu *menu : libraryPage_->menus()) {
+      pageMenus << QString(menu->title()).remove('&');
+    }
+  }
+  std::vector<CommandPalette::Command> commands;
+  std::vector<CommandPalette::Command> others;
+  for (auto &c : CommandPalette::fromMenus(menuBar())) {
+    if (c.group == QString(tr("&Go")).remove('&')) {
+      c.group = go;
+      commands.push_back(std::move(c));
+    } else {
+      c.group = pageMenus.contains(c.group) ? page : menus;
+      others.push_back(std::move(c));
+    }
+  }
   for (auto &c : CommandPalette::fromControls(currentPage())) {
+    c.group = page;
+    commands.push_back(std::move(c));
+  }
+  std::stable_partition(others.begin(), others.end(),
+                        [&](const auto &c) { return c.group == page; });
+  for (auto &c : others) {
     commands.push_back(std::move(c));
   }
   CommandPalette palette(std::move(commands), this);

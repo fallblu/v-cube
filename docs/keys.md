@@ -124,6 +124,8 @@ Ctrl- or Shift-click selects several cases.
 | search box | Enter | give the keys back to the cube |
 | search box | Esc | clear the search |
 
+In Learn and Drill, the mode's menu in the menu bar has the selected cases' actions, Tick all, Tick none and the list's columns (and Drill's Reset tally), so the command list (Ctrl+K) finds them. In Timed, Untimed and Move Count, it has the session table's columns and each statistic's solves.
+
 ## Timed
 
 | When | Key | Action |
@@ -185,6 +187,7 @@ In the solve review (Alt+R, or double-click a solve):
 | --- | --- |
 | ← / → | step the replay back / forward |
 | Home / End | to the scramble / to the end |
+| Space | play the replay a move at a time, or pause it |
 
 ## EO Cross
 
@@ -289,10 +292,14 @@ EO Cross, F2L and TSLE share their keys. EO Cross has the Inspection, Untimed an
 
 ## Alg Lab
 
-The Search tab is used with the mouse: Enter in the field under the list adds the alg typed. These keys are for the Test tab.
+In the Search tab the list of algs takes the arrow keys while the case list doesn't have the keyboard. The other keys are for the Test tab.
 
 | When | Key | Action |
 | --- | --- | --- |
+| Search tab | ↑ / ↓, Page Up / Page Down, Home / End | select an alg (with Shift, several) |
+| Search tab | Enter | add the selected algs to the session |
+| Search tab | Delete | remove the selected algs |
+| Search tab, alg field | Enter | add the alg typed |
 | Before the session or after its last rep | Space | start: the next alg is set up |
 | Physical, case set up | Space held, then let go | start the timer (hold until the time turns green) |
 | Physical, timer running | any key but Shift, Ctrl, Alt | stop |
@@ -308,4 +315,11 @@ Keys are ignored for a moment after the timer stops. Double-click an alg in the 
 
 ## Today
 
-Each set has a button to review or learn it; Review all sets reviews every set's due cases together.
+The button at the top does what is next: review what is due, else learn new cases. Each set has a button to review or learn it.
+
+| Key | Action |
+| --- | --- |
+| ↑ / ↓, Home / End | pick a set (or F2L or TSLE's cards) |
+| Enter | open the set picked in Learn (with none picked, the button at the top) |
+| R | review every set's due cases together |
+| Space | the button at the top |

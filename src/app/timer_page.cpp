@@ -640,4 +640,6 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
   }
 }
 
+void TimerPage::fillModeMenu(QMenu &menu) { panel_->fillMenu(menu); }
+
 } // namespace vcube
