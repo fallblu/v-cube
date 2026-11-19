@@ -190,7 +190,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   split_->addWidget(left_);
   split_->addWidget(stage_);
   split_->setStretchFactor(1, 1);
-  left_->setMinimumWidth(300);
+  left_->setMinimumWidth(240);
   split_->setSizes({340, 860});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split_);
@@ -322,10 +322,10 @@ void LearnPage::focusModeChanged() {
   stage_->options->setVisible(!focusMode());
 }
 
-void LearnPage::toggleList() { setSideHidden(!sideHidden()); }
+void LearnPage::toggleList() { setSideShown(!sideShown()); }
 
 void LearnPage::sideHiddenChanged() {
-  listButton_->setText(sideHidden() ? tr("Show list") : tr("Hide list"));
+  listButton_->setText(sideShown() ? tr("Hide list") : tr("Show list"));
 }
 
 void LearnPage::deactivated() {

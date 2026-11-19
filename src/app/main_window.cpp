@@ -198,12 +198,12 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     QString id = AppMode::settingsId(m);
     page->setSideHidden(saved::sideHidden(id).get());
     connect(page, &ModePage::sideHiddenToggled, this,
-            [this, page, id](bool hidden) {
-              saved::sideHidden(id).set(hidden);
-              if (page == currentPage() && sidePanelAction_) {
-                sidePanelAction_->setChecked(!hidden);
-              }
-            });
+            [id](bool hidden) { saved::sideHidden(id).set(hidden); });
+    connect(page, &ModePage::sideShownChanged, this, [this, page](bool shown) {
+      if (page == currentPage() && sidePanelAction_) {
+        sidePanelAction_->setChecked(shown);
+      }
+    });
   }
 
   badgeTimer_ = new QTimer(this);
@@ -406,6 +406,11 @@ bool MainWindow::setMode(int mode) {
   bool switching = mode_ >= 0;
   mode_ = mode;
   modeButtons_->button(mode)->setChecked(true);
+  // The page gets the width of the one before: in a narrow window its side
+  // panel is hidden before it can widen the window.
+  if (old) {
+    currentPage()->setNarrow(stack_->width() < ModePage::kNarrowWidth);
+  }
   // Only the page shown sets the window's minimum size: the stack would
   // otherwise take the largest minimum of all of them.
   for (ModePage *page : pages_) {
@@ -426,7 +431,7 @@ bool MainWindow::setMode(int mode) {
   }
   if (sidePanelAction_) {
     sidePanelAction_->setEnabled(currentPage()->sidePanel() != nullptr);
-    sidePanelAction_->setChecked(!currentPage()->sideHidden());
+    sidePanelAction_->setChecked(currentPage()->sideShown());
   }
   if (pageUndoAction_) {
     // Library has its own Undo and Redo; these modes take Ctrl+Z.
@@ -687,7 +692,8 @@ void MainWindow::buildMenus() {
       tr("The mode's case list or session, beside the cube"));
   connect(sidePanelAction_, &QAction::triggered, this, [this](bool on) {
     if (ModePage *page = currentPage()) {
-      page->setSideHidden(!on);
+      page->setSideShown(on);
+      sidePanelAction_->setChecked(page->sideShown());
     }
   });
   QAction *help = help_->toggleViewAction();
