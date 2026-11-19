@@ -406,16 +406,23 @@ bool F2LPage::turned() {
     return slotSolved(*c, *target_) && initiallySolvedKept(*c);
   }
   std::vector<F2LSegment> segments = f2lSegments(start_, item().moves, config_);
+  const bool done = f2lDone(*c, config_);
   if (segments.size() > segments_.size()) {
     segments_ = std::move(segments);
     // The next pair is begun from here: the way on is worked out now, for
-    // its line once it is in.
-    if (!f2lDone(*c, config_)) {
+    // its line once it is in. Timed has no lines: it waits for the end,
+    // so as not to slow the solve.
+    if (!done && tab() != Tab::Timed) {
       requestRanks(segments_.size(), *c);
     }
     updateProgress();
   }
-  return f2lDone(*c, config_);
+  if (done && tab() == Tab::Timed) {
+    for (std::size_t i = 1; i < segments_.size(); ++i) {
+      requestRanks(i, segments_[i].before);
+    }
+  }
+  return done;
 }
 
 void F2LPage::cubeChanged() {
