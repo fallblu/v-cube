@@ -1,6 +1,5 @@
 #include "app/quiz_practice.hpp"
 
-#include "app/case_page.hpp"
 #include "app/ui_text.hpp"
 #include "train/algset.hpp"
 

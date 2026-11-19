@@ -303,10 +303,6 @@ private:
   void toggleList();
   void sideHiddenChanged() override;
   void updateHeader();
-  // The interval a grade gives, for the buttons: "1 min", "4 d".
-  static QString intervalText(std::int64_t seconds);
-  // "tomorrow", "Wed 12 Nov" or "in 4 min".
-  QString whenText(std::int64_t due) const;
 };
 
 } // namespace vcube

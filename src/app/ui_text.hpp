@@ -4,6 +4,7 @@
 #include "cube/move.hpp"
 #include "io/qt_text.hpp"
 #include "train/solve_review.hpp"
+#include "train/srs.hpp"
 
 #include <QDate>
 #include <QDateTime>
@@ -11,6 +12,9 @@
 #include <QObject>
 #include <QString>
 
+#include <cmath>
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -82,6 +86,70 @@ inline QString overMarked(const QString &text, bool far = false) {
   const QString marked = kOverMark + "&nbsp;" + text;
   return far ? coloured(kFailColour, "<b>" + marked + "</b>")
              : coloured(kWarnColour, marked);
+}
+
+// A length of time, rounded the one way every page words it: minutes
+// rounded up, hours and days to the nearest: "<1 min", "2 min", "3 h",
+// "4 d".
+inline QString durationText(std::int64_t seconds) {
+  if (seconds < 60) {
+    return QObject::tr("<1 min");
+  }
+  if (seconds < 3600) {
+    return QObject::tr("%1 min").arg((seconds + 59) / 60);
+  }
+  if (seconds < kSecondsPerDay) {
+    return QObject::tr("%1 h").arg((seconds + 1799) / 3600);
+  }
+  return QObject::tr("%1 d").arg((seconds + kSecondsPerDay / 2) /
+                                 kSecondsPerDay);
+}
+
+// When a case is due, as a table cell: "-" for none or a new card, "now",
+// "today" for a review due before `dayEnd` (reviews are due all day), or
+// how long until then (durationText()).
+inline QString dueCell(const CaseProgress *p, std::int64_t now,
+                       std::int64_t dayEnd) {
+  if (!p || p->card.state == CardState::New) {
+    return QStringLiteral("-");
+  }
+  const std::int64_t in = p->card.due - now;
+  if (in <= 0) {
+    return QObject::tr("now");
+  }
+  if (p->card.state == CardState::Review && p->card.due < dayEnd) {
+    return QObject::tr("today");
+  }
+  return durationText(in);
+}
+
+// When something is due, in a sentence: "now", "in 2 min" or "in 3 h"
+// before `dayEnd`, then "tomorrow" or "in 4 d".
+inline QString dueSentence(std::int64_t due, std::int64_t now,
+                           std::int64_t dayEnd) {
+  const std::int64_t in = due - now;
+  if (in <= 0) {
+    return QObject::tr("now");
+  }
+  if (due < dayEnd) {
+    return QObject::tr("in %1").arg(durationText(in));
+  }
+  const std::int64_t days = (due - dayEnd) / kSecondsPerDay + 1;
+  return days == 1 ? QObject::tr("tomorrow") : QObject::tr("in %1 d").arg(days);
+}
+
+// "1 case without a passing alg is skipped." and the plural.
+inline QString skippedText(int cases) {
+  return cases == 1 ? QObject::tr("1 case without a passing alg is skipped.")
+                    : QObject::tr("%1 cases without a passing alg are skipped.")
+                          .arg(cases);
+}
+
+// Seconds with two decimals, truncated to hundredths as the timer shows
+// times, or "-".
+inline QString secondsText(std::optional<double> ms) {
+  return ms ? QString::number(std::floor(*ms / 10.0) / 100.0, 'f', 2)
+            : QString("-");
 }
 
 } // namespace vcube

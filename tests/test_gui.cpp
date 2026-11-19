@@ -32,6 +32,7 @@
 #include "app/train_keys.hpp"
 #include "app/tsle_page.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
 #include "cube/solver.hpp"
@@ -2034,11 +2035,27 @@ void GuiTest::practiceResultsAreWorded() {
 
   // When a card comes back.
   const std::int64_t now = 1000000, dayEnd = now + 7200;
-  QCOMPARE(dueText(now, now, dayEnd), QString("now"));
-  QCOMPARE(dueText(now + 30, now, dayEnd), QString("in 1 min"));
-  QCOMPARE(dueText(now + 3600, now, dayEnd), QString("in 1 h"));
-  QCOMPARE(dueText(dayEnd, now, dayEnd), QString("tomorrow"));
-  QCOMPARE(dueText(dayEnd + 3 * 86400, now, dayEnd), QString("in 4 d"));
+  QCOMPARE(dueSentence(now, now, dayEnd), QString("now"));
+  QCOMPARE(dueSentence(now + 30, now, dayEnd), QString("in <1 min"));
+  QCOMPARE(dueSentence(now + 90, now, dayEnd), QString("in 2 min"));
+  QCOMPARE(dueSentence(now + 3600, now, dayEnd), QString("in 1 h"));
+  QCOMPARE(dueSentence(dayEnd, now, dayEnd), QString("tomorrow"));
+  QCOMPARE(dueSentence(dayEnd + 3 * 86400, now, dayEnd), QString("in 4 d"));
+  // Every page rounds a length of time the same way.
+  QCOMPARE(durationText(59), QString("<1 min"));
+  QCOMPARE(durationText(90), QString("2 min"));
+  QCOMPARE(durationText(5500), QString("2 h"));
+  QCOMPARE(durationText(3 * 86400 + 3600), QString("3 d"));
+  CaseProgress card;
+  QCOMPARE(dueCell(nullptr, now, dayEnd), QString("-"));
+  QCOMPARE(dueCell(&card, now, dayEnd), QString("-"));
+  card.card.state = CardState::Learning;
+  card.card.due = now + 90;
+  QCOMPARE(dueCell(&card, now, dayEnd), QString("2 min"));
+  card.card.state = CardState::Review;
+  QCOMPARE(dueCell(&card, now, dayEnd), QString("today"));
+  card.card.due = dayEnd + 86400;
+  QCOMPARE(dueCell(&card, now, dayEnd), QString("1 d"));
 }
 
 void GuiTest::practiceKeysFollowThePhase() {

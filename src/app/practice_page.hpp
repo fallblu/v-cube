@@ -204,7 +204,7 @@ protected:
   virtual QString taskNote() const { return {}; }
   // Hide the cube from the first face turn of a solve; Space shows it
   // again, and only then is the solve judged (Inspection).
-  virtual bool blind() const { return tab() == Tab::Inspection; }
+  bool blind() const { return tab() == Tab::Inspection; }
   // Inspection's limit; 0 for none.
   virtual std::int64_t inspectionLimitMs() const { return 0; }
 

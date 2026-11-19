@@ -4,6 +4,7 @@
 
 #include "app/app_settings.hpp"
 #include "app/mode_page.hpp"
+#include "app/mode_table.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
@@ -65,7 +66,7 @@ signals:
   void learnSetRequested(const QString &setId);
   // The cards of a practice mode (F2L, TSLE) were asked for: its Learn
   // tab, one unit at a time.
-  void practiceRequested(int mode);
+  void practiceRequested(AppMode::Id mode);
 
 private:
   AppSettings &settings_;

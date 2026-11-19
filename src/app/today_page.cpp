@@ -1,5 +1,4 @@
 #include "app/today_page.hpp"
-#include "app/case_page.hpp"
 
 #include "app/mode_table.hpp"
 #include "app/page_parts.hpp"
@@ -24,7 +23,13 @@ namespace {
 
 constexpr int kSetIdRole = Qt::UserRole;
 // A row of a practice mode's cards (F2L, TSLE): the mode, else -1.
+// A practice mode's row keeps its mode here; a set's row has none.
 constexpr int kModeRole = Qt::UserRole + 1;
+
+std::optional<AppMode::Id> rowMode(const QTreeWidgetItem *item) {
+  const QVariant v = item->data(0, kModeRole);
+  return v.isValid() ? AppMode::fromIndex(v.toInt()) : std::nullopt;
+}
 
 QString duration(std::int64_t ms) {
   std::int64_t s = ms / 1000;
@@ -206,8 +211,8 @@ void TodayPage::open(QTreeWidgetItem *item) {
   if (!item) {
     return;
   }
-  if (int mode = item->data(0, kModeRole).toInt(); mode >= 0) {
-    emit practiceRequested(mode);
+  if (std::optional<AppMode::Id> mode = rowMode(item)) {
+    emit practiceRequested(*mode);
   } else {
     emit learnSetRequested(item->data(0, kSetIdRole).toString());
   }
@@ -215,7 +220,7 @@ void TodayPage::open(QTreeWidgetItem *item) {
 
 void TodayPage::reviewAll() {
   if (dueTotal_ > 0) {
-    emit learnSetRequested(QString(CasePage::kAcrossSetsId));
+    emit learnSetRequested(QString(saved::kAcrossSetsId));
   } else {
     emit message(tr("No reviews are due in any set."));
   }
@@ -370,7 +375,7 @@ void TodayPage::refresh() {
   // mode, which come in by themselves.
   struct Row {
     QString setId;
-    int mode = -1; // the practice mode's, or -1 for a set
+    std::optional<AppMode::Id> mode; // the practice mode's; none for a set
     QString name;
     int due = 0, newLeft = 0, queued = 0, learned = 0;
     QString go; // what its button says
@@ -379,12 +384,14 @@ void TodayPage::refresh() {
   // What to do next: the first set or practice mode with new cases, and
   // the practice mode with the most due.
   QString firstNewSet, firstNewName;
-  int practiceDue = 0, practiceDueMode = -1, firstNewMode = -1;
+  int practiceDue = 0;
+  AppMode::Id practiceDueMode = AppMode::F2L;
+  std::optional<AppMode::Id> firstNewMode;
   QString practiceDueName, firstNewModeName;
   for (const AlgSet &set : library_.sets()) {
     const SetWaiting &d = due[set.id];
-    rows.push_back({qs(set.id), -1, qs(set.name), d.due, d.newLeft, d.queued,
-                    d.learned,
+    rows.push_back({qs(set.id), std::nullopt, qs(set.name), d.due, d.newLeft,
+                    d.queued, d.learned,
                     d.due > 0                       ? tr("Review due")
                     : d.newLeft > 0 || d.queued > 0 ? tr("Learn new")
                                                     : tr("Open")});
@@ -395,7 +402,7 @@ void TodayPage::refresh() {
     }
   }
   struct Practice {
-    int mode;
+    AppMode::Id mode;
     QString name;
     const PracticeData &data;
     const CardPool &pool;
@@ -421,7 +428,7 @@ void TodayPage::refresh() {
       practiceDueMode = p.mode;
       practiceDueName = p.name;
     }
-    if (firstNewMode < 0 && w.newLeft > 0) {
+    if (!firstNewMode && w.newLeft > 0) {
       firstNewMode = p.mode;
       firstNewModeName = p.name;
     }
@@ -435,24 +442,28 @@ void TodayPage::refresh() {
   for (int i = 0; same && i < sets_->topLevelItemCount(); ++i) {
     const QTreeWidgetItem *item = sets_->topLevelItem(i);
     const Row &r = rows[static_cast<std::size_t>(i)];
-    same = item->data(0, kModeRole).toInt() == r.mode &&
+    same = rowMode(item) == r.mode &&
            item->data(0, kSetIdRole).toString() == r.setId;
   }
   if (!same) {
     // The row picked stays picked.
     QString pickedSet;
-    int pickedMode = -2;
+    bool picked = false;
+    std::optional<AppMode::Id> pickedMode;
     if (QTreeWidgetItem *item = sets_->currentItem();
         item && item->isSelected()) {
+      picked = true;
       pickedSet = item->data(0, kSetIdRole).toString();
-      pickedMode = item->data(0, kModeRole).toInt();
+      pickedMode = rowMode(item);
     }
     const int rowH = rowHeight(this);
     sets_->clear();
     for (const Row &r : rows) {
       auto *item = new QTreeWidgetItem(sets_);
       item->setData(0, kSetIdRole, r.setId);
-      item->setData(0, kModeRole, r.mode);
+      if (r.mode) {
+        item->setData(0, kModeRole, static_cast<int>(*r.mode));
+      }
       for (int c = 1; c < 5; ++c) {
         item->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
       }
@@ -460,19 +471,19 @@ void TodayPage::refresh() {
       // What the row has waiting, as a button.
       auto *button = new QPushButton(sets_);
       button->setFocusPolicy(Qt::NoFocus);
-      if (r.mode < 0) {
+      if (r.mode) {
         connect(button, &QPushButton::clicked, this,
-                [this, id = r.setId] { emit learnSetRequested(id); });
+                [this, mode = *r.mode] { emit practiceRequested(mode); });
       } else {
         connect(button, &QPushButton::clicked, this,
-                [this, mode = r.mode] { emit practiceRequested(mode); });
+                [this, id = r.setId] { emit learnSetRequested(id); });
       }
       sets_->setItemWidget(item, 5, spacedButton(button, sets_));
-      if (pickedMode == r.mode && (r.mode >= 0 || pickedSet == r.setId)) {
+      if (picked && pickedMode == r.mode && (r.mode || pickedSet == r.setId)) {
         sets_->setCurrentItem(item);
       }
     }
-    if (QTreeWidgetItem *item = sets_->currentItem(); item && pickedMode > -2) {
+    if (QTreeWidgetItem *item = sets_->currentItem(); item && picked) {
       item->setSelected(true);
     } else {
       sets_->setCurrentItem(nullptr);
@@ -518,9 +529,11 @@ void TodayPage::refresh() {
     next_->setText(tr("Learn new cases"));
     nextAction_ = [this, id = firstNewSet] { emit learnSetRequested(id); };
     note = tr("Nothing is due. Next in line: %1.").arg(firstNewName);
-  } else if (firstNewMode >= 0) {
+  } else if (firstNewMode) {
     next_->setText(tr("Learn new cards"));
-    nextAction_ = [this, mode = firstNewMode] { emit practiceRequested(mode); };
+    nextAction_ = [this, mode = *firstNewMode] {
+      emit practiceRequested(mode);
+    };
     note = tr("Nothing is due. Next in line: %1.").arg(firstNewModeName);
   } else {
     next_->setText(tr("Nothing due"));
