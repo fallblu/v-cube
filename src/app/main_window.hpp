@@ -115,6 +115,9 @@ private:
   void updateBanner();
   // The due counts on the sidebar's Today and Learn buttons.
   void updateBadges();
+  // The alg sets changed (or `setId`'s did): every page that shows them
+  // reads them again, whichever page made the change.
+  void librarySetsChanged(const QString &setId);
   void learnSet(const QString &setId);
   // Splitter positions, saved per mode.
   void restoreLayout();

@@ -317,16 +317,12 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
   }
+  // Alg Lab says so itself only when it saves a set without Library (it
+  // has no alg editor): with one, Library makes the change and says so.
   connect(libraryPage_, &LibraryPage::setsChanged, this,
-          [this](const QString &setId) {
-            learnPage_->reloadSets();
-            drillPage_->reloadSets();
-            timedPage_->refreshScrambleTypes(setId);
-            untimedPage_->refreshScrambleTypes(setId);
-            algLabPage_->reloadSets();
-            f2lPage_->reloadSets();
-            updateBadges();
-          });
+          &MainWindow::librarySetsChanged);
+  connect(algLabPage_, &AlgLabPage::setsChanged, this,
+          &MainWindow::librarySetsChanged);
   libraryPage_->setLab(&data_.lab);
   connect(
       libraryPage_, &LibraryPage::practiceRequested, this,
@@ -351,14 +347,6 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
                                    const QString &text) {
     return libraryPage_->setCaseAlgs(setId, caseId, std::move(algs), text);
   });
-  connect(algLabPage_, &AlgLabPage::setsChanged, this,
-          [this](const QString &setId) {
-            learnPage_->reloadSets();
-            drillPage_->reloadSets();
-            timedPage_->refreshScrambleTypes(setId);
-            untimedPage_->refreshScrambleTypes(setId);
-            updateBadges();
-          });
   connect(todayPage_, &TodayPage::learnSetRequested, this,
           &MainWindow::learnSet);
   connect(todayPage_, &TodayPage::practiceRequested, this, [this](int index) {
@@ -685,6 +673,16 @@ bool MainWindow::setMode(AppMode::Id mode) {
   updateHelp();
   updateBadges();
   return true;
+}
+
+void MainWindow::librarySetsChanged(const QString &setId) {
+  learnPage_->reloadSets();
+  drillPage_->reloadSets();
+  timedPage_->refreshScrambleTypes(setId);
+  untimedPage_->refreshScrambleTypes(setId);
+  algLabPage_->reloadSets();
+  f2lPage_->reloadSets();
+  updateBadges(); // Today reads the sets as it is shown
 }
 
 void MainWindow::updateBadges() {
