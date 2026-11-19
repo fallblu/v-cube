@@ -383,6 +383,14 @@ void LearnPage::deactivated() {
   }
 }
 
+void LearnPage::windowDeactivated() {
+  // Another window in front: the case stays up, but the time away isn't
+  // a recognition time.
+  if (current_ && (phase() == Phase::Solving || phase() == Phase::Recognise)) {
+    attempt_.spoilRecognition();
+  }
+}
+
 // --- the learn queue -------------------------------------------------------
 
 NewOrder LearnPage::newOrder() const {

@@ -388,6 +388,7 @@ void DrillPage::deactivated() {
 }
 
 void DrillPage::windowDeactivated() {
+  flow_.windowLost();
   if (flow_.loseKeyboard()) { // Space's release would never arrive
     display_->showTimer(flow_.timer(), monotonicMs()); // as shown before
     updateControls();

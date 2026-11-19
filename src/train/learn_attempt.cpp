@@ -26,6 +26,12 @@ void LearnAttempt::startTiming(std::int64_t shownAtMs, bool spoiled) {
   recognitionSpoiled_ = spoiled;
 }
 
+void LearnAttempt::spoilRecognition() {
+  if (recognitionMs_ == 0) {
+    recognitionSpoiled_ = true;
+  }
+}
+
 void LearnAttempt::clear() {
   // The grade itself stays until the next case is graded.
   Grade grade = grade_, autoGrade = autoGrade_;
@@ -255,8 +261,9 @@ bool LearnAttempt::regrade(Grade grade, std::int64_t now,
 
 void LearnAttempt::recalled(bool knew, std::int64_t nowMs, std::int64_t now,
                             const LearnGrading &g) {
-  recognitionMs_ =
-      knew ? std::max<std::int64_t>(1, nowMs - shownAtMs_) : std::int64_t{0};
+  recognitionMs_ = knew && !recognitionSpoiled_
+                       ? std::max<std::int64_t>(1, nowMs - shownAtMs_)
+                       : std::int64_t{0};
   gradedCard_ = g.cardId(caseId_);
   const CaseProgress *cp = find(*g.progress, gradedCard_);
   cardBefore_ = cp ? cp->card : SrsCard{};

@@ -554,3 +554,37 @@ TEST_CASE("learn keys: Space just after a recognition review comes up") {
   CHECK(s.key(press(Key::Space), 5000 + LearnSession::kGuardMs).action ==
         Action::Recalled);
 }
+
+TEST_CASE("learn: time with the window in the back isn't recognition") {
+  Setup set;
+  set.reviewCard("a");
+  // A recognition review.
+  LearnAttempt r;
+  r.begin("a", LearnAttempt::Kind::Known);
+  r.startTiming(10'000);
+  r.spoilRecognition();
+  r.recalled(true, 15'000, kNow, set.grading());
+  CHECK(r.recognitionMs() == 0);
+  CHECK(r.grade() == Grade::Good);
+  r.gradeRecognition(Grade::Good, kNow, set.grading());
+  CHECK(set.progress["a"].attempts.back().recognitionMs == 0);
+
+  // A case solved: graded as before, with no recognition time.
+  LearnAttempt a;
+  start(a, "a", "R U R' U'");
+  a.spoilRecognition();
+  doMoves(a, "R U R' U'");
+  a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow + 1, 12'000,
+            set.grading());
+  CHECK(a.grade() == Grade::Good);
+  CHECK(set.progress["a"].attempts.back().recognitionMs == 0);
+
+  // Once recognition is over, going away doesn't change it.
+  LearnAttempt b;
+  start(b, "a", "R U R' U'");
+  doMoves(b, "R U R' U'");
+  b.spoilRecognition();
+  b.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow + 2, 12'000,
+            set.grading());
+  CHECK(set.progress["a"].attempts.back().recognitionMs == 1000);
+}

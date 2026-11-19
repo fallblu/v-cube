@@ -146,6 +146,9 @@ public:
   // The keyboard went away: a held Space won't be let go. True if a hold
   // was called off.
   bool loseKeyboard();
+  // The window went to the back. Recognition not yet ended would count
+  // the time away, so the attempt has no recognition time.
+  void windowLost();
   void tick(std::int64_t now) { timer_.tick(now); }
 
   // --- state
