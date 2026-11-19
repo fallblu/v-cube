@@ -166,6 +166,9 @@ void EoCrossPage::requestAnalysis() {
     if (a.request == requests_ && !analysed_) {
       ranked_ = std::move(a.ranked);
       analysed_ = true;
+      // A verdict waiting for it is given now; one already up is given
+      // again.
+      analysisArrived(item().id);
     }
   });
   watcher->setFuture(QtConcurrent::run([request = ++requests_,
@@ -174,14 +177,6 @@ void EoCrossPage::requestAnalysis() {
     return Analysis{request,
                     solveStepHeld(scrambled, step, holds, kSolutionsPerHold)};
   }));
-}
-
-void EoCrossPage::ensureAnalysed() {
-  if (!analysed_) {
-    ranked_ =
-        solveStepHeld(scrambled_, solving_, allowedHolds(), kSolutionsPerHold);
-    analysed_ = true;
-  }
 }
 
 std::vector<EoCrossPage::Solution> EoCrossPage::shownSolutions() const {
@@ -240,8 +235,15 @@ QString EoCrossPage::task() const {
 QString EoCrossPage::taskNote() const { return whereText(solving_); }
 
 PracticePage::Outcome EoCrossPage::judge() {
-  ensureAnalysed();
   Outcome o;
+  if (!analysed_) {
+    // The search is still running in the background (it is never run
+    // here, where it would hold up the window): asked again when it
+    // arrives.
+    o.moves = solutionHtm(item().moves);
+    o.verdict = tr("Working out the optimum…");
+    return o;
+  }
   if (ranked_.empty()) {
     return o;
   }
@@ -356,7 +358,9 @@ QString EoCrossPage::holdsHtml() const {
 }
 
 QString EoCrossPage::detail() {
-  ensureAnalysed();
+  if (!analysed_) {
+    return "<p>" + tr("Working out the best solutions…") + "</p>";
+  }
   QString html;
   if (!item().moves.empty()) {
     QString line = tr("You: %1 (%2)")
