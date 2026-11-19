@@ -500,15 +500,18 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     saved::lab("noRotations").set(on);
     fillTable();
   });
-  connect(maxHtm_, &QSpinBox::valueChanged, this, [this](int v) {
-    saved::lab("maxHtm").set(v);
-    fillTable();
+  // Holding a spin box's arrow steps it many times a second, and each save
+  // rewrites the settings file: the values are saved once it has paused,
+  // and the table is filled again then too.
+  spinSaveTimer_.setSingleShot(true);
+  spinSaveTimer_.setInterval(400);
+  connect(&spinSaveTimer_, &QTimer::timeout, this, &AlgLabPage::saveSpinBoxes);
+  connect(maxHtm_, &QSpinBox::valueChanged, this, [this] {
+    spinSaveTimer_.start();
+    refreshTimer_.start();
   });
   auto keepGen = [this] {
-    saved::lab("lengthMode").set(lengthMode_->currentIndex());
-    saved::lab("extra").set(extra_->value());
-    saved::lab("maxLength").set(maxLength_->value());
-    saved::lab("maxResults").set(maxResults_->value());
+    spinSaveTimer_.start();
     updateGenControls();
   };
   connect(lengthMode_, &QComboBox::currentIndexChanged, this, keepGen);
@@ -553,10 +556,22 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
 }
 
 AlgLabPage::~AlgLabPage() {
+  if (spinSaveTimer_.isActive()) {
+    saveSpinBoxes();
+  }
   if (job_) {
     job_->stop = true;
   }
   jobFuture_.waitForFinished();
+}
+
+void AlgLabPage::saveSpinBoxes() {
+  spinSaveTimer_.stop();
+  saved::lab("maxHtm").set(maxHtm_->value());
+  saved::lab("lengthMode").set(lengthMode_->currentIndex());
+  saved::lab("extra").set(extra_->value());
+  saved::lab("maxLength").set(maxLength_->value());
+  saved::lab("maxResults").set(maxResults_->value());
 }
 
 void AlgLabPage::saveStore() {
@@ -641,6 +656,9 @@ void AlgLabPage::applySettings() {
 bool AlgLabPage::isBusy() const { return test_->isBusy(); }
 
 void AlgLabPage::aboutToClose() {
+  if (spinSaveTimer_.isActive()) {
+    saveSpinBoxes();
+  }
   if (!job_) {
     return;
   }
