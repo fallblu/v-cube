@@ -56,6 +56,8 @@ private:
   std::int64_t lastInspection_ = -1; // for the 8 s and 12 s calls
   std::optional<Shown> beforeHold_;  // during a hold: what it replaced
   void show(const QString &text, const QColor &colour);
+  // Says `text` to assistive technology (the accessible description).
+  void describe(const QString &text);
   void setColour(const QColor &c);
 };
 

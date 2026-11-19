@@ -313,6 +313,8 @@ std::vector<CommandPalette::Command> CommandPalette::fromMenus(QMenuBar *bar) {
   QString group;        // the menu bar's menu being walked
   std::function<void(QMenu *, const QString &)> walk =
       [&](QMenu *menu, const QString &path) {
+        // A menu filled (or brought up to date) as it opens.
+        emit menu->aboutToShow();
         for (QAction *a : menu->actions()) {
           if (a->isSeparator() || !a->isEnabled() || !a->isVisible() ||
               seen.contains(a)) {
@@ -389,6 +391,7 @@ CommandPalette::fromControls(QWidget *page) {
       menu = tool->menu();
     }
     if (menu) {
+      emit menu->aboutToShow(); // as above
       for (QAction *a : menu->actions()) {
         if (a->isSeparator() || !a->isEnabled() || a->menu()) {
           continue;

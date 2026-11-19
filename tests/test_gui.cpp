@@ -24,6 +24,7 @@
 #include "app/practice_html.hpp"
 #include "app/practice_keys.hpp"
 #include "app/quiz_practice.hpp"
+#include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
 #include "app/timed_driver.hpp"
@@ -44,6 +45,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -55,15 +57,19 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -72,6 +78,7 @@
 #include <QTextBrowser>
 #include <QThreadPool>
 #include <QTimer>
+#include <QToolButton>
 #include <QToolTip>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -345,6 +352,13 @@ private slots:
   void undoneDeletionKeepsProgressUnderANewId();
   void appDataLoadsThePracticeFiles();
   void timedDriverDoesWhatTheFlowAsks();
+  void mouseOnlyControlsHaveAKey();
+  void reviewButtonsHaveKeys();
+  void saveWarningCanBeDismissedFromTheMenu();
+  void timerSaysItsResult();
+  void bareAltReachesTheMenuBar();
+  // Last: a second window takes over the process's write reporter.
+  void startupProblemsShowInOneWindow();
   void cleanupTestCase();
 };
 
@@ -1632,6 +1646,17 @@ void GuiTest::timedPhysicalSolve() {
   learnMode->trigger();
   QCOMPARE(shownPage(*window_), timed);
   QVERIFY(timed->isBusy());
+  // Settings and the command list say why they don't open.
+  for (QAction *a : window_->findChildren<QAction *>()) {
+    if (a->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_K) ||
+        a->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Comma)) {
+      window_->statusBar()->clearMessage();
+      a->trigger();
+      QCOMPARE(window_->statusBar()->currentMessage(),
+               QString("Finish or cancel the solve (Esc) first"));
+    }
+  }
+  QVERIFY(timed->isBusy());
   QTest::qWait(400);
   QTest::keyClick(window_.get(), Qt::Key_A); // any key stops it
   QVERIFY(!timed->isBusy());
@@ -2630,6 +2655,14 @@ void GuiTest::helpPanelShowsTheKeys() {
   QVERIFY(text);
   QString timed = text->toPlainText();
   QVERIFY(timed.contains("Space"));
+  // It takes no focus, but Alt+Page Down and Up scroll it.
+  QScrollBar *scroll = text->verticalScrollBar();
+  QTRY_VERIFY(scroll->maximum() > 0);
+  scroll->setValue(0);
+  QTest::keyClick(window_.get(), Qt::Key_PageDown, Qt::AltModifier);
+  QVERIFY(scroll->value() > 0);
+  QTest::keyClick(window_.get(), Qt::Key_PageUp, Qt::AltModifier);
+  QCOMPARE(scroll->value(), 0);
   // It follows the mode.
   QVERIFY(switchTo(AppMode::Library, page<LibraryPage>()));
   QTRY_VERIFY(text->toPlainText() != timed);
@@ -2871,6 +2904,202 @@ void GuiTest::timedDriverDoesWhatTheFlowAsks() {
   host.calls.clear();
   driver.key(press(TrainKey::Space, true), now, Scramble::Shown);
   QCOMPARE(host.calls, QStringList({"gave up"}));
+}
+
+// The main window has no Tab focus (Tab is a page key): every control
+// that can't take the focus can be reached from the keyboard another way,
+// through the command list (which lists the page's buttons and choices),
+// a key of its own or one its tip names.
+void GuiTest::mouseOnlyControlsHaveAKey() {
+  static const QRegularExpression namedKey(
+      R"(\((?:[^()]*\b)?(?:Ctrl|Alt|Shift|F\d+|Space|Enter|Esc|Tab|Home|End|Delete|Backspace|[←→↑↓]|[A-Z0-9])\b?[^()]*\)\s*$)");
+  for (AppMode::Id mode : AppMode::all()) {
+    // The pages are stacked in the order of the modes.
+    ModePage *expected = nullptr;
+    for (QStackedWidget *stack : window_->findChildren<QStackedWidget *>()) {
+      if (auto *p = qobject_cast<ModePage *>(stack->widget(mode))) {
+        expected = p;
+      }
+    }
+    QVERIFY(expected);
+    QVERIFY(switchTo(mode, expected));
+    ModePage *page = expected;
+    QStringList listed;
+    for (const auto &c : CommandPalette::fromControls(page)) {
+      listed << c.text;
+    }
+    QStringList missing;
+    auto reachable = [&](QWidget *w, const QString &text) {
+      QString tip = w->toolTip().simplified();
+      if (namedKey.match(tip).hasMatch()) {
+        return true;
+      }
+      if (auto *b = qobject_cast<QAbstractButton *>(w);
+          b && !b->shortcut().isEmpty()) {
+        return true;
+      }
+      if (auto *t = qobject_cast<QToolButton *>(w);
+          t && t->defaultAction() &&
+          !t->defaultAction()->shortcut().isEmpty()) {
+        return true;
+      }
+      return !text.isEmpty() &&
+             std::ranges::any_of(listed, [&](const QString &entry) {
+               return entry.startsWith(text) || entry.contains(": " + text);
+             });
+    };
+    for (QAbstractButton *b : page->findChildren<QAbstractButton *>()) {
+      if (b->focusPolicy() != Qt::NoFocus || !b->isVisibleTo(page) ||
+          !b->isEnabled() || b->window() != window_.get()) {
+        continue;
+      }
+      // As the command list writes it.
+      QString text =
+          QString(b->text()).remove('&').remove(QStringLiteral("…")).trimmed();
+      if (!reachable(b, text)) {
+        missing << QString("%1 button \"%2\" (%3)")
+                       .arg(AppMode::label(mode), text, b->toolTip());
+      }
+    }
+    for (QComboBox *box : page->findChildren<QComboBox *>()) {
+      if (box->focusPolicy() != Qt::NoFocus || !box->isVisibleTo(page) ||
+          !box->isEnabled() || box->isEditable() || box->count() == 0) {
+        continue;
+      }
+      if (!reachable(box, box->itemText(0))) {
+        missing << QString("%1 choice \"%2\" (%3)")
+                       .arg(AppMode::label(mode), box->currentText(),
+                            box->toolTip());
+      }
+    }
+    QVERIFY2(missing.isEmpty(), qPrintable(missing.join("\n")));
+  }
+}
+
+// The review's buttons take no focus: C, W and R do what they do, and the
+// key strip says so.
+void GuiTest::reviewButtonsHaveKeys() {
+  ReviewedSolve solve;
+  solve.title = "Test solve";
+  solve.scramble = parseAlgOrEmpty("R U R' U'");
+  solve.solution = parseAlgOrEmpty("U R U' R'");
+  ReviewDialog dialog(solve, settings_, nullptr, window_.get());
+  dialog.setRetryEnabled(true);
+  QSignalSpy retried(&dialog, &ReviewDialog::retryRequested);
+  dialog.show();
+  QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+  dialog.activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(&dialog));
+  HintBar *keys = dialog.findChild<HintBar *>();
+  QVERIFY(keys);
+  QStringList shown;
+  for (const KeyHint &k : keys->keys()) {
+    shown << k.key;
+  }
+  QVERIFY2(shown.contains("C") && shown.contains("W") && shown.contains("R"),
+           qPrintable(shown.join(", ")));
+  QApplication::clipboard()->clear();
+  QTest::keyClick(&dialog, Qt::Key_C);
+  QVERIFY2(QApplication::clipboard()->text().contains("R U R' U'"),
+           qPrintable(QApplication::clipboard()->text()));
+  QTest::keyClick(&dialog, Qt::Key_R);
+  QCOMPARE(retried.count(), 1);
+  QVERIFY(!dialog.isVisible());
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
+// A file that can't be saved puts up the banner, which File > Dismiss save
+// warning hides as its button does.
+void GuiTest::saveWarningCanBeDismissedFromTheMenu() {
+  QAction *dismiss = nullptr;
+  for (QAction *a : window_->findChildren<QAction *>()) {
+    if (a->text() == "Dismiss save warning") {
+      dismiss = a;
+    }
+  }
+  QVERIFY(dismiss);
+  QVERIFY(!dismiss->isVisible());
+  QWidget *banner = window_->findChild<QWidget *>("saveBanner");
+  QVERIFY(banner);
+  reportWrite(QDir(dataDir_).filePath("nowhere.json"), false, "disk full");
+  QTRY_VERIFY(banner->isVisible());
+  QVERIFY(dismiss->isVisible());
+  dismiss->trigger();
+  QVERIFY(!banner->isVisible());
+  QVERIFY(!dismiss->isVisible());
+}
+
+// The timer is named "Timer"; what it shows is said in its description,
+// though not on every frame of a running solve.
+void GuiTest::timerSaysItsResult() {
+  TimeDisplay display;
+  display.showTime(12340, Penalty::Plus2);
+  QCOMPARE(display.accessibleName(), QString("Timer"));
+  QCOMPARE(display.accessibleDescription(), display.text());
+  QVERIFY(display.text().contains("+"));
+  display.showText("DNF");
+  QCOMPARE(display.accessibleDescription(), QString("DNF"));
+}
+
+// F10 is focus mode, so the menu bar is reached without a mnemonic by a
+// bare Alt press, as the style offers (Fusion included).
+void GuiTest::bareAltReachesTheMenuBar() {
+  QVERIFY(switchTo(AppMode::Today, page<TodayPage>()));
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  QVERIFY(window_->style()->styleHint(QStyle::SH_MenuBar_AltKeyNavigation));
+  QWidget *target =
+      QApplication::focusWidget() ? QApplication::focusWidget() : window_.get();
+  QTest::keyPress(target, Qt::Key_Alt, Qt::AltModifier);
+  QTest::keyRelease(target, Qt::Key_Alt);
+  QTRY_VERIFY(window_->menuBar()->activeAction() != nullptr);
+  QTest::keyClick(window_->menuBar(), Qt::Key_Escape);
+  QTRY_VERIFY(window_->menuBar()->activeAction() == nullptr);
+  window_->setFocus();
+}
+
+// Everything that couldn't be read at start-up is listed in one window
+// after the window is shown, not in a message box each.
+void GuiTest::startupProblemsShowInOneWindow() {
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  auto write = [&dir](const QString &name, const QByteArray &text) {
+    QVERIFY(QDir(dir.path()).mkpath(QFileInfo(name).path()));
+    QFile f(QDir(dir.path()).filePath(name));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(text);
+  };
+  write("sessions.json", "not json");
+  write("f2l.json", "not json");
+  write("tsle.json", "not json either");
+  write("algsets/broken.json", "{");
+  ModalWatcher watcher;
+  MainWindow second(settings_, dir.path());
+  QCOMPARE(watcher.seen, QStringList{});
+  const QStringList problems = second.startupProblems();
+  QVERIFY2(problems.size() >= 4, qPrintable(problems.join("\n")));
+  for (const char *file : {"f2l.json", "tsle.json", "broken.json"}) {
+    QVERIFY2(std::ranges::any_of(
+                 problems, [&](const QString &p) { return p.contains(file); }),
+             file);
+  }
+  second.showStartupProblems();
+  QCOMPARE(watcher.seen, QStringList{}); // not modal
+  auto *list = second.findChild<QTextBrowser *>("startupProblems");
+  QVERIFY(list);
+  QVERIFY(list->window()->isVisible());
+  QString shown = list->toPlainText();
+  for (const QString &p : problems) {
+    QVERIFY2(shown.contains(p), qPrintable(p));
+  }
+  bool hasFolder = false;
+  for (QPushButton *b : list->window()->findChildren<QPushButton *>()) {
+    hasFolder = hasFolder || b->text() == "Open data folder";
+  }
+  QVERIFY(hasFolder);
+  list->window()->close();
+  window_->activateWindow();
 }
 
 void GuiTest::cleanupTestCase() {

@@ -165,6 +165,16 @@ void TimeDisplay::showText(const QString &text, const QColor &colour) {
   beforeHold_.reset();
   setCue(HoldCue::None);
   show(text, colour);
+  describe(text);
+}
+
+void TimeDisplay::describe(const QString &text) {
+  // The name stays "Timer" (a label with a name of its own doesn't say its
+  // text changed): what is shown is said in the description, only when it
+  // changes, never on every frame of a running solve.
+  if (accessibleDescription() != text) {
+    setAccessibleDescription(text);
+  }
 }
 
 void TimeDisplay::show(const QString &text, const QColor &colour) {
@@ -239,7 +249,10 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
     break;
   case S::Running: {
     // One decimal while running keeps the display calm, like cstimer.
-    showText(QString::fromStdString(formatTime(timer.elapsed(now), 1)));
+    beforeHold_.reset();
+    setCue(HoldCue::None);
+    show(QString::fromStdString(formatTime(timer.elapsed(now), 1)), {});
+    describe(tr("Running"));
     break;
   }
   case S::Stopped:

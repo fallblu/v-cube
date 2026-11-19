@@ -14,9 +14,11 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
+| Alt+Page Up / Alt+Page Down | scroll the keyboard controls while they are shown |
 | F9 | show or hide the mode's side panel (the case list, the session or the case browser; hidden by itself while the window is narrow) |
 | F11 | full screen |
 | F10 | focus mode (right-click outside the scramble, timer, cube and algs to switch it, full screen or the sidebar with the mouse) |
+| Alt (alone) | to the menu bar (F10 being focus mode); Esc goes back |
 | Ctrl+B | show or hide the sidebar |
 | Ctrl+, | settings |
 | Ctrl+Shift+N | colour neutrality settings |
@@ -191,6 +193,9 @@ In the solve review (Alt+R, or double-click a solve):
 | ← / → | step the replay back / forward |
 | Home / End | to the scramble / to the end |
 | Space | play the replay a move at a time, or pause it |
+| C | copy the reconstruction |
+| W | open the solve on alg.cubing.net |
+| R | retry the scramble (when the review offers it) |
 
 ## EO Cross
 

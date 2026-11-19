@@ -130,6 +130,8 @@ const std::vector<Section> &sections() {
                         "choice on the page (alg set, session, scramble type, "
                         "cube, view, ...), then Enter")},
         {T("F1"), T("show or hide the keyboard controls")},
+        {T("Alt+Page Up / Alt+Page Down"),
+         T("scroll the keyboard controls while they are shown")},
         {T("F9"), T("show or hide the mode's side panel (the case list, the "
                     "session or the case browser; hidden by itself while the "
                     "window is narrow)")},
@@ -137,6 +139,8 @@ const std::vector<Section> &sections() {
         {T("F10"),
          T("focus mode (right-click outside the scramble, timer, cube and algs "
            "to switch it, full screen or the sidebar with the mouse)")},
+        {T("Alt (alone)"),
+         T("to the menu bar (F10 being focus mode); Esc goes back")},
         {T("Ctrl+B"), T("show or hide the sidebar")},
         {T("Ctrl+,"), T("settings")},
         {T("Ctrl+Shift+N"), T("colour neutrality settings")},
@@ -376,7 +380,10 @@ const std::vector<Section> &sections() {
        {T("Key"), T("Action")},
        {{T("← / →"), T("step the replay back / forward")},
         {T("Home / End"), T("to the scramble / to the end")},
-        {T("Space"), T("play the replay a move at a time, or pause it")}},
+        {T("Space"), T("play the replay a move at a time, or pause it")},
+        {T("C"), T("copy the reconstruction")},
+        {T("W"), T("open the solve on alg.cubing.net")},
+        {T("R"), T("retry the scramble (when the review offers it)")}},
        {}},
       {T("EO Cross"),
        AppMode::EoCross,

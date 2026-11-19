@@ -6,6 +6,13 @@
 #include <QProcess>
 #include <QUrl>
 
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #ifdef Q_OS_UNIX
 #include <QSocketNotifier>
 
@@ -71,6 +78,32 @@ bool openFolderInExplorer(const QString &path) {
 }
 
 } // namespace
+
+bool platformPrefersReducedMotion() {
+#if defined(Q_OS_WIN)
+  // Settings > Accessibility > Visual effects > Animation effects.
+  BOOL animate = TRUE;
+  return SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &animate, 0) &&
+         !animate;
+#elif defined(Q_OS_LINUX)
+  // GNOME's Settings > Accessibility > Reduce animation. Asked only on
+  // GNOME, where gsettings answers at once.
+  if (!qEnvironmentVariable("XDG_CURRENT_DESKTOP")
+           .contains("GNOME", Qt::CaseInsensitive)) {
+    return false;
+  }
+  QProcess p;
+  p.start("gsettings",
+          {"get", "org.gnome.desktop.interface", "enable-animations"});
+  if (!p.waitForFinished(1000) || p.exitStatus() != QProcess::NormalExit ||
+      p.exitCode() != 0) {
+    return false;
+  }
+  return QString::fromUtf8(p.readAllStandardOutput()).trimmed() == "false";
+#else
+  return false;
+#endif
+}
 
 bool openFolder(const QString &path) {
   if (runningUnderWsl()) {

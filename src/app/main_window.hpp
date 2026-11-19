@@ -68,6 +68,7 @@ private:
   QAction *sidebarAction_ = nullptr;
   QAction *pageUndoAction_ = nullptr;
   QAction *sidePanelAction_ = nullptr;
+  QAction *dismissBannerAction_ = nullptr;
   QMenu *modeMenu_ = nullptr;
   QLabel *focusHint_;
   QTimer *focusHintTimer_;
@@ -123,9 +124,12 @@ private:
   void settingsChanged(SettingsParts parts);
   void showAbout();
   void showMessage(const QString &text);
+  // Says so and returns true while a solve or inspection is running.
+  bool refuseWhileBusy();
   // The result of a write to a data file (see setWriteReporter()).
   void writeReported(const QString &path, const QString &error);
   void updateBanner();
+  void dismissBanner();
   // The due counts on the sidebar's Today and Learn buttons.
   void updateBadges();
   // The alg sets changed (or `setId`'s did): every page that shows them

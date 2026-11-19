@@ -338,19 +338,26 @@ void DrillPage::showResult() {
   shown.timeMs = flow_.timeMs();
   shown.penalty = failed ? Penalty::Dnf : Penalty::None;
   QColor colour;
-  if (!failed && target > 0) {
-    colour = static_cast<double>(flow_.timeMs()) <= target * 1000.0
-                 ? kPassColour
-                 : kWarnColour;
+  const bool timed = !failed && target > 0;
+  const bool over =
+      timed && static_cast<double>(flow_.timeMs()) > target * 1000.0;
+  if (timed) {
+    colour = over ? QColor(kWarnColour) : QColor(kPassColour);
   }
-  display_->showText(
-      gaveUp ? tr("DNF") : qs(formatSolve(shown, settings_.decimals)), colour);
+  // Over the target is marked, not only coloured.
+  QString time =
+      gaveUp ? tr("DNF") : qs(formatSolve(shown, settings_.decimals));
+  display_->showText(over ? kOverMark + " " + time : time, colour);
   QString text;
   if (!recorded) {
     text = tr("Deleted");
   } else if (!failed) {
-    text = flow_.newBest() ? tr("New best! Target %1 s").arg(target, 0, 'f', 2)
-                           : tr("Target %1 s").arg(target, 0, 'f', 2);
+    QString targetText = tr("Target %1 s").arg(target, 0, 'f', 2);
+    if (timed) {
+      targetText = over ? tr("Over target %1 s").arg(target, 0, 'f', 2)
+                        : tr("Under target %1 s").arg(target, 0, 'f', 2);
+    }
+    text = flow_.newBest() ? tr("New best! %1").arg(targetText) : targetText;
   } else if (gaveUp) {
     text = tr("Given up");
   } else if (!onVirtualCube()) {

@@ -3,7 +3,10 @@
 #include "app/help_text.hpp"
 
 #include <QScrollBar>
+#include <QShortcut>
 #include <QTextBrowser>
+
+#include <utility>
 
 namespace vcube {
 
@@ -17,6 +20,19 @@ HelpPanel::HelpPanel(QWidget *parent)
   text_->setOpenLinks(false);
   text_->setMinimumWidth(220);
   setWidget(text_);
+  // The text takes no focus (the keys belong to the page): Alt+Page Up and
+  // Alt+Page Down scroll it while it is shown.
+  QWidget *window = parent ? parent : this;
+  for (auto [key, step] :
+       {std::pair{Qt::Key_PageUp, QAbstractSlider::SliderPageStepSub},
+        std::pair{Qt::Key_PageDown, QAbstractSlider::SliderPageStepAdd}}) {
+    auto *s = new QShortcut(QKeySequence(Qt::ALT | key), window);
+    s->setContext(Qt::WindowShortcut);
+    s->setEnabled(false);
+    connect(s, &QShortcut::activated, this,
+            [this, step] { text_->verticalScrollBar()->triggerAction(step); });
+    connect(this, &QDockWidget::visibilityChanged, s, &QShortcut::setEnabled);
+  }
   connect(this, &QDockWidget::visibilityChanged, this, [this](bool on) {
     if (on) {
       refresh();

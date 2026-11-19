@@ -165,11 +165,9 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   positionLabel_->setAlignment(Qt::AlignCenter);
   leftLayout->addWidget(positionLabel_);
   // The keys, as on the stages.
-  auto *keys = new HintBar(left);
-  keys->setHint({}, {{tr("← →"), tr("step")},
-                     {tr("Home / End"), tr("start / end")},
-                     {tr("Space"), tr("play or pause")}});
-  leftLayout->addWidget(keys);
+  keys_ = new HintBar(left);
+  leftLayout->addWidget(keys_);
+  showKeys();
   // A move at a time, a little slower than a turn is animated.
   playTimer_.setInterval(std::max(300, settings_.animationMs + 200));
   connect(&playTimer_, &QTimer::timeout, this, [this] {
@@ -248,14 +246,14 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
                                        QDialogButtonBox::ActionRole);
   copyButton->setToolTip(
       tr("Copy the scramble and solution, a step per line with its moves "
-         "and time, e.g. to post it"));
+         "and time, e.g. to post it (C)"));
   auto *webButton =
       bottom->addButton(tr("alg.cubing.net"), QDialogButtonBox::ActionRole);
-  webButton->setToolTip(tr("Open the solve on alg.cubing.net"));
+  webButton->setToolTip(tr("Open the solve on alg.cubing.net (W)"));
   retryButton_ = bottom->addButton(tr("Retry this scramble"),
                                    QDialogButtonBox::ActionRole);
   retryButton_->setToolTip(
-      tr("Solve the scramble again; the retry isn't recorded"));
+      tr("Solve the scramble again; the retry isn't recorded (R)"));
   retryButton_->setVisible(false);
   QPushButton *close = bottom->addButton(QDialogButtonBox::Close);
   // The buttons take no keys, so that the arrow keys step the replay.
@@ -308,6 +306,14 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
     showPosition(replay_.size());
   });
   shortcut(Qt::Key_Space, [this] { setPlaying(!playTimer_.isActive()); });
+  // The buttons take no focus: each has a key of its own.
+  shortcut(Qt::Key_C, [copyButton] { copyButton->click(); });
+  shortcut(Qt::Key_W, [webButton] { webButton->click(); });
+  shortcut(Qt::Key_R, [this] {
+    if (retryButton_->isVisibleTo(this)) {
+      retryButton_->click();
+    }
+  });
   connect(slider_, &QSlider::sliderPressed, this,
           [this] { setPlaying(false); });
 
@@ -409,7 +415,22 @@ ReviewDialog::~ReviewDialog() {
   pairWatcher_.waitForFinished();
 }
 
-void ReviewDialog::setRetryEnabled(bool on) { retryButton_->setVisible(on); }
+void ReviewDialog::setRetryEnabled(bool on) {
+  retryButton_->setVisible(on);
+  showKeys();
+}
+
+void ReviewDialog::showKeys() {
+  QList<KeyHint> keys = {{tr("← →"), tr("step")},
+                         {tr("Home / End"), tr("start / end")},
+                         {tr("Space"), tr("play or pause")},
+                         {tr("C"), tr("copy")},
+                         {tr("W"), tr("alg.cubing.net")}};
+  if (retryButton_ && retryButton_->isVisibleTo(this)) {
+    keys.append({tr("R"), tr("retry")});
+  }
+  keys_->setHint({}, keys);
+}
 
 void ReviewDialog::setPlaying(bool on) {
   if (on && at_ >= replay_.size()) {

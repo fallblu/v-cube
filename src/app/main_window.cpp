@@ -27,6 +27,7 @@
 #include "app/widgets.hpp"
 
 #include <QAbstractButton>
+#include <QAccessible>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QClipboard>
@@ -72,6 +73,21 @@
 namespace vcube {
 
 namespace {
+
+// Has assistive technology say `text` from `from`: an announcement on Qt
+// 6.8 and later, else a change of `from`'s description, which screen readers
+// read out for the status bar.
+void announce(QWidget *from, const QString &text, bool assertive = false) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+  QAccessibleAnnouncementEvent event(from, text);
+  event.setPoliteness(assertive ? QAccessible::AnnouncementPoliteness::Assertive
+                                : QAccessible::AnnouncementPoliteness::Polite);
+  QAccessible::updateAccessibility(&event);
+#else
+  Q_UNUSED(assertive);
+  from->setAccessibleDescription(text);
+#endif
+}
 
 // The tip of a widget at `pos` (in its coordinates): an item's or a
 // header section's in a view, a tab's, a menu action's, else the widget's
@@ -148,8 +164,22 @@ protected:
         show(w, tipAt(w, static_cast<QMouseEvent *>(e)->position().toPoint()));
       }
       break;
+    case QEvent::FocusIn:
+      // From the keyboard, the tip shows as it would under the mouse.
+      if (w &&
+          static_cast<QFocusEvent *>(e)->reason() != Qt::MouseFocusReason) {
+        show(w, focusTip(w));
+      }
+      break;
+    case QEvent::KeyRelease:
+      // In a list or table, the tip follows the current item.
+      if (w && w->hasFocus() && qobject_cast<QAbstractItemView *>(w)) {
+        show(w, focusTip(w));
+      }
+      break;
     case QEvent::Leave:
     case QEvent::Hide:
+    case QEvent::FocusOut:
       if (w && w == shownFor_) {
         clear();
       }
@@ -164,6 +194,18 @@ private:
   QMainWindow *window_;
   QPointer<QWidget> shownFor_;
   QString shown_;
+
+  // The tip of what has the keyboard in w: a view's current item, else
+  // w's own.
+  static QString focusTip(QWidget *w) {
+    if (auto *view = qobject_cast<QAbstractItemView *>(w)) {
+      QString tip = view->currentIndex().data(Qt::ToolTipRole).toString();
+      if (!tip.isEmpty()) {
+        return tip;
+      }
+    }
+    return w->toolTip();
+  }
 
   // Whether w is in the main window or in a popup (a menu) of it.
   bool inMainWindow(QWidget *w) const {
@@ -641,15 +683,17 @@ QWidget *MainWindow::buildBanner() {
   auto *dismiss = new QPushButton(tr("Dismiss"), banner_);
   dismiss->setFocusPolicy(Qt::NoFocus);
   dismiss->setToolTip(tr("Hide this until a file can't be saved again"));
-  connect(dismiss, &QPushButton::clicked, this, [this] {
-    failedWrites_.clear();
-    updateBanner();
-  });
+  connect(dismiss, &QPushButton::clicked, this, &MainWindow::dismissBanner);
   layout->addWidget(bannerText_, 1);
   layout->addWidget(folder);
   layout->addWidget(dismiss);
   banner_->hide();
   return banner_;
+}
+
+void MainWindow::dismissBanner() {
+  failedWrites_.clear();
+  updateBanner();
 }
 
 void MainWindow::writeReported(const QString &path, const QString &error) {
@@ -667,6 +711,9 @@ void MainWindow::updateBanner() {
   if (!banner_) {
     return;
   }
+  if (dismissBannerAction_) {
+    dismissBannerAction_->setVisible(!failedWrites_.empty());
+  }
   if (failedWrites_.empty()) {
     banner_->hide();
     return;
@@ -682,7 +729,10 @@ void MainWindow::updateBanner() {
       "<br>" +
       tr("Check that the data folder can be written to; the next save "
          "tries again."));
-  banner_->show();
+  if (banner_->isHidden()) {
+    banner_->show();
+    announce(banner_, tr("Your changes are not being saved"), true);
+  }
 }
 
 void MainWindow::updateHelp() {
@@ -1008,6 +1058,12 @@ void MainWindow::buildMenus() {
   file->addSeparator();
   file->addAction(tr("Export all data…"), this, &MainWindow::exportAllData);
   file->addAction(tr("Open data folder"), this, &MainWindow::openDataFolder);
+  dismissBannerAction_ = file->addAction(tr("Dismiss save warning"), this,
+                                         &MainWindow::dismissBanner);
+  dismissBannerAction_->setToolTip(
+      tr("Hide the warning that changes aren't being saved, until a file "
+         "can't be saved again"));
+  dismissBannerAction_->setVisible(!failedWrites_.empty());
   file->addSeparator();
   file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
 
@@ -1113,15 +1169,10 @@ void MainWindow::buildMenus() {
 }
 
 void MainWindow::openCommandPalette() {
-  if (currentPage() && currentPage()->isBusy()) {
+  if (refuseWhileBusy()) {
     return;
   }
-  // The mode's menu is filled as it opens: fill it now, so that what it
-  // offers can be found too.
-  if (modeMenu_ && currentPage()->hasModeMenu()) {
-    modeMenu_->clear();
-    currentPage()->fillModeMenu(*modeMenu_);
-  }
+  // The mode's menu, filled as it opens, is filled by fromMenus() too.
   // Under three headings: the modes, what the page offers (its own menus
   // and controls), and the other menus.
   const QString go = tr("Go"), page = tr("This page"), menus = tr("Menus");
@@ -1232,13 +1283,22 @@ void MainWindow::exportAllData() {
 
 void MainWindow::showMessage(const QString &text) {
   statusBar()->showMessage(text, 8000);
+  announce(statusBar(), text);
   if (focusMode_) {
     showOverlay(text, 5000); // the status bar is hidden
   }
 }
 
-void MainWindow::openSettings(bool neutrality) {
+bool MainWindow::refuseWhileBusy() {
   if (currentPage() && currentPage()->isBusy()) {
+    showMessage(tr("Finish or cancel the solve (Esc) first"));
+    return true;
+  }
+  return false;
+}
+
+void MainWindow::openSettings(bool neutrality) {
+  if (refuseWhileBusy()) {
     return;
   }
   SettingsDialog dialog(settings_, this);

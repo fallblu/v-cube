@@ -305,6 +305,7 @@ NetPreview::NetPreview(QWidget *parent) : QWidget(parent) {
   setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   setFixedSize(sizeHint());
   setToolTip(tr("The scrambled cube, white on top and green in front"));
+  setAccessibleName(tr("Scramble net"));
 }
 
 void NetPreview::setScheme(const ColourScheme &scheme) {

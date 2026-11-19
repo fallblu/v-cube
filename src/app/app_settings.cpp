@@ -2,6 +2,7 @@
 #include "app/app_style.hpp"
 
 #include "app/colours.hpp"
+#include "app/platform.hpp"
 #include "train/algset.hpp"
 
 #include <QCoreApplication>
@@ -170,6 +171,11 @@ AppSettings AppSettings::load() {
     int v = q.value(key, fallback).toInt(&ok);
     return std::clamp(ok ? v : fallback, lo, hi);
   };
+  // Until it is set, turns aren't animated if the desktop asks for less
+  // motion.
+  if (!q.contains("ui/animationMs") && platformPrefersReducedMotion()) {
+    s.animationMs = 0;
+  }
   s.animationMs =
       clamped("ui/animationMs", s.animationMs, 0, AppSettings::kMaxAnimationMs);
   s.interfaceTextPercent =
