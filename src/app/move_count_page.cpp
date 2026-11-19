@@ -4,6 +4,7 @@
 
 #include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
+#include "app/text_style.hpp"
 #include "train/step_solver.hpp"
 
 #include <QComboBox>

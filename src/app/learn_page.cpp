@@ -2,6 +2,7 @@
 
 #include "app/case_history_dialog.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
 #include <QActionGroup>

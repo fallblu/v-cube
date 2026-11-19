@@ -17,10 +17,12 @@
 #include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/sounds.hpp"
+#include "app/text_style.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
 #include "app/tsle_page.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
 
@@ -271,10 +273,7 @@ QWidget *MainWindow::buildSidebar() {
   modeButtons_->setExclusive(true);
   auto header = [&](const QString &text) {
     auto *label = new QLabel(text, bar);
-    QFont f = label->font();
-    f.setBold(true);
-    f.setPointSizeF(f.pointSizeF() * 0.85);
-    label->setFont(f);
+    setTextRole(label, TextRole::Caption, true);
     label->setForegroundRole(QPalette::PlaceholderText);
     label->setContentsMargins(6, 10, 0, 4);
     layout->addWidget(label);
@@ -871,6 +870,8 @@ void MainWindow::settingsChanged(SettingsParts parts) {
 }
 
 void MainWindow::applyWindowSettings() {
+  // First, as the other sizes are worked out from it.
+  setInterfaceTextPercent(settings_.interfaceTextPercent);
   styleSidebar();
   setDisplayFontSizes(settings_.scrambleFontPt, settings_.timerFontPt);
   // The hints under the timer and cube (muted, wrapped labels) and the

@@ -6,6 +6,8 @@
 #include "app/colours.hpp"
 #include "app/cube_painter.hpp"
 #include "app/lab_chart.hpp"
+#include "app/text_style.hpp"
+#include "app/ui_text.hpp"
 #include "io/algset_json.hpp"
 
 #include <QCheckBox>
@@ -133,10 +135,7 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   algLabel_ = new QLabel(top);
   algLabel_->setAlignment(Qt::AlignCenter);
   algLabel_->setWordWrap(true);
-  QFont big = algLabel_->font();
-  big.setPointSizeF(big.pointSizeF() * 1.5);
-  big.setBold(true);
-  algLabel_->setFont(big);
+  setTextRole(algLabel_, TextRole::Title, true);
   algLabel_->setTextInteractionFlags(Qt::NoTextInteraction);
   diagram_ = new QLabel(top);
   diagram_->setAlignment(Qt::AlignCenter);

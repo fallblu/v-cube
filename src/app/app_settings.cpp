@@ -85,6 +85,9 @@ AppSettings AppSettings::load() {
   };
   s.animationMs =
       clamped("ui/animationMs", s.animationMs, 0, AppSettings::kMaxAnimationMs);
+  s.interfaceTextPercent =
+      clamped("ui/interfaceTextPercent", s.interfaceTextPercent,
+              kMinInterfacePercent, kMaxInterfacePercent);
   s.scrambleFontPt = clamped("ui/scrambleFontPt", s.scrambleFontPt,
                              kMinScrambleFontPt, kMaxScrambleFontPt);
   s.hintTextPercent = clamped("ui/hintTextPercent", s.hintTextPercent,
@@ -172,7 +175,8 @@ SettingsParts changedParts(const AppSettings &a, const AppSettings &b) {
        SettingsPart::Cube);
   mark(!(a.keymap == b.keymap), SettingsPart::Keys);
   mark(a.neutrality != b.neutrality, SettingsPart::Neutrality);
-  mark(a.scrambleFontPt != b.scrambleFontPt ||
+  mark(a.interfaceTextPercent != b.interfaceTextPercent ||
+           a.scrambleFontPt != b.scrambleFontPt ||
            a.hintTextPercent != b.hintTextPercent ||
            a.timerFontPt != b.timerFontPt,
        SettingsPart::Text);
@@ -195,6 +199,7 @@ void AppSettings::save() const {
   QSettings q;
   q.setValue("ui/darkTheme", darkTheme);
   q.setValue("ui/animationMs", animationMs);
+  q.setValue("ui/interfaceTextPercent", interfaceTextPercent);
   q.setValue("ui/scrambleFontPt", scrambleFontPt);
   q.setValue("ui/hintTextPercent", hintTextPercent);
   q.setValue("ui/thumbnailSize", thumbnailSize);

@@ -2,7 +2,9 @@
 #include "app/case_page.hpp"
 
 #include "app/mode_table.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/data_file.hpp"
 #include "io/practice_store.hpp"
@@ -93,10 +95,7 @@ TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
       dataDir_(std::move(dataDir)) {
   auto *layout = new QVBoxLayout(this);
   auto *title = new QLabel(tr("Today"), this);
-  QFont tf = title->font();
-  tf.setPointSizeF(tf.pointSizeF() * 1.6);
-  tf.setBold(true);
-  title->setFont(tf);
+  setTextRole(title, TextRole::Display, true);
   streakLabel_ = new QLabel(this);
   layout->addWidget(title);
   layout->addWidget(streakLabel_);

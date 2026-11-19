@@ -1,5 +1,6 @@
 #include "app/settings_dialog.hpp"
 #include "app/page_parts.hpp"
+#include "app/text_style.hpp"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -46,11 +47,21 @@ QScrollArea *scrolled(QWidget *page, QWidget *parent) {
   scroll->setWidget(page);
   scroll->setWidgetResizable(true);
   scroll->setFrameShape(QFrame::NoFrame);
+  // The rows wrap to the dialog's width instead.
+  scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   return scroll;
+}
+
+// A form whose fields go under their labels when a row is too wide.
+QFormLayout *wrappingForm(QWidget *page) {
+  auto *form = new QFormLayout(page);
+  form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+  return form;
 }
 
 const std::array<const char *, 6> kFaceNames = {
     "U (top)", "R (right)", "F (front)", "D (bottom)", "L (left)", "B (back)"};
+const std::array<const char *, 6> kFaceLetters = {"U", "R", "F", "D", "L", "B"};
 } // namespace
 
 SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
@@ -61,11 +72,27 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
 
   // General
   auto *general = new QWidget(tabs);
-  auto *gForm = new QFormLayout(general);
+  auto *gForm = wrappingForm(general);
   themeBox_ = new QComboBox(general);
   themeBox_->addItems({tr("Dark"), tr("Light")});
   themeBox_->setCurrentIndex(settings_.darkTheme ? 0 : 1);
   gForm->addRow(tr("Theme:"), themeBox_);
+  interfaceTextBox_ = new QComboBox(general);
+  for (int percent : {100, 108, 117, 125, 133}) {
+    QString px = tr("%1 px").arg(interfaceTextPixels(percent));
+    interfaceTextBox_->addItem(percent == 100 ? tr("Normal (%1)").arg(px) : px,
+                               percent);
+  }
+  if (interfaceTextBox_->findData(settings_.interfaceTextPercent) < 0) {
+    interfaceTextBox_->addItem(tr("%1%").arg(settings_.interfaceTextPercent),
+                               settings_.interfaceTextPercent);
+  }
+  interfaceTextBox_->setCurrentIndex(
+      interfaceTextBox_->findData(settings_.interfaceTextPercent));
+  interfaceTextBox_->setToolTip(
+      tr("The size of the text everywhere: lists, buttons, menus, this dialog "
+         "and the help panel. The sizes below are on top of it."));
+  gForm->addRow(tr("Interface text size:"), interfaceTextBox_);
   animationSpin_ = new QSpinBox(general);
   animationSpin_->setRange(0, 500);
   animationSpin_->setSuffix(" ms");
@@ -79,7 +106,15 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
                       .arg(tr(kFaceNames[i])));
     b->setFixedSize(40, 28);
     colourButtons_[i] = b;
-    colourRow->addWidget(b);
+    // The face's letter under its swatch.
+    auto *cell = new QVBoxLayout;
+    cell->setSpacing(2);
+    cell->addWidget(b);
+    auto *letter = new QLabel(kFaceLetters[i], general);
+    letter->setAlignment(Qt::AlignHCenter);
+    letter->setForegroundRole(QPalette::PlaceholderText);
+    cell->addWidget(letter);
+    colourRow->addLayout(cell);
     connect(b, &QPushButton::clicked, this, [this, i] {
       QColor c = QColorDialog::getColor(settings_.scheme.faces[i], this,
                                         tr("Sticker colour"));
@@ -90,13 +125,13 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     });
   }
   auto *resetColours = new QPushButton(tr("Reset"), general);
-  colourRow->addWidget(resetColours);
+  colourRow->addWidget(resetColours, 0, Qt::AlignTop);
   colourRow->addStretch();
   connect(resetColours, &QPushButton::clicked, this, [this] {
     settings_.scheme = ColourScheme::standard();
     refreshColours();
   });
-  gForm->addRow(tr("Colour scheme (U R F D L B):"), colourRow);
+  gForm->addRow(tr("Colour scheme:"), colourRow);
   scrambleFontSpin_ = new QSpinBox(general);
   scrambleFontSpin_->setRange(AppSettings::kMinScrambleFontPt,
                               AppSettings::kMaxScrambleFontPt);
@@ -137,7 +172,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
 
   // Timer
   auto *timer = new QWidget(tabs);
-  auto *tForm = new QFormLayout(timer);
+  auto *tForm = wrappingForm(timer);
   holdSpin_ = new QSpinBox(timer);
   holdSpin_->setRange(0, AppSettings::kMaxHoldMs);
   holdSpin_->setSingleStep(50);
@@ -145,16 +180,16 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   holdSpin_->setSpecialValueText(tr("None"));
   holdSpin_->setValue(settings_.holdMs);
   holdSpin_->setToolTip(tr("How long Space must be held before the timer "
-                           "can start (cstimer uses 300 ms, a Stackmat 550 "
-                           "ms)"));
-  tForm->addRow(tr("Hold Space before starting, in the solve modes:"),
-                holdSpin_);
-  inspectionBox_ = new QCheckBox(
-      tr("15 s WCA inspection (+2 after 15 s, DNF after 17 s)"), timer);
+                           "can start in Timed, Untimed and Move Count "
+                           "(cstimer uses 300 ms, a Stackmat 550 ms)"));
+  tForm->addRow(tr("Hold to start:"), holdSpin_);
+  inspectionBox_ = new QCheckBox(tr("15 s WCA inspection"), timer);
+  inspectionBox_->setToolTip(tr("+2 after 15 s, DNF after 17 s"));
   inspectionBox_->setChecked(settings_.inspection);
   tForm->addRow(tr("Inspection:"), inspectionBox_);
-  soundsBox_ = new QCheckBox(
-      tr("Beep at 8 s and twice at 12 s, like a judge's calls"), timer);
+  soundsBox_ = new QCheckBox(tr("Beep at 8 s and 12 s"), timer);
+  soundsBox_->setToolTip(
+      tr("Once at 8 s and twice at 12 s, like a judge's calls"));
   soundsBox_->setChecked(settings_.inspectionSounds);
   tForm->addRow(tr("Inspection calls:"), soundsBox_);
   decimalsSpin_ = new QSpinBox(timer);
@@ -167,32 +202,30 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   timerFontSpin_->setSuffix(" pt");
   timerFontSpin_->setValue(settings_.timerFontPt);
   tForm->addRow(tr("Timer text size:"), timerFontSpin_);
-  autoStopBox_ = new QCheckBox(
-      tr("Stop when the cube is solved (Timed and Untimed)"), timer);
+  autoStopBox_ = new QCheckBox(tr("Stop when the cube is solved"), timer);
   autoStopBox_->setToolTip(
-      tr("Off: Space ends the solve, and a cube that isn't solved then is a "
-         "DNF"));
+      tr("Timed and Untimed. Off: Space ends the solve, and a cube that isn't "
+         "solved then is a DNF"));
   autoStopBox_->setChecked(settings_.autoStop);
   tForm->addRow(tr("Virtual cube solves:"), autoStopBox_);
-  hideCubeBox_ = new QCheckBox(
-      tr("Hide the scrambled cube until inspection starts (Timed)"), timer);
+  hideCubeBox_ =
+      new QCheckBox(tr("Hide the scrambled cube until inspection"), timer);
+  hideCubeBox_->setToolTip(
+      tr("Timed, with inspection on: the scramble can't be studied before"));
   hideCubeBox_->setChecked(settings_.hideBeforeInspection);
   tForm->addRow(QString(), hideCubeBox_);
-  simplifiedBox_ = new QCheckBox(
-      tr("Count moves simplified (U D U' is 1 move, R x R' none)"), timer);
+  simplifiedBox_ = new QCheckBox(tr("Count moves simplified"), timer);
   simplifiedBox_->setToolTip(
-      tr("Off: every turn counts as you did it. The solution is kept as "
-         "you did it either way."));
+      tr("U D U' is 1 move, R x R' none. Off: every turn counts as you did "
+         "it. The solution is kept as you did it either way."));
   simplifiedBox_->setChecked(settings_.simplifiedCounts);
   tForm->addRow(tr("Move counts:"), simplifiedBox_);
-  anyHoldBox_ = new QCheckBox(
-      tr("Move Count's Opt: the optimum in any hold, as the step is checked"),
-      timer);
+  anyHoldBox_ = new QCheckBox(tr("The optimum in any hold"), timer);
   anyHoldBox_->setToolTip(
-      tr("Off: the optimum in the holds of your colour neutrality (either EO "
-         "axis)"));
+      tr("As the step is checked. Off: the optimum in the holds of your "
+         "colour neutrality (either EO axis)"));
   anyHoldBox_->setChecked(settings_.optimalAnyHold);
-  tForm->addRow(QString(), anyHoldBox_);
+  tForm->addRow(tr("Move Count's Opt:"), anyHoldBox_);
   // What is about text and looks goes with the appearance.
   moveRow(tForm, gForm, timerFontSpin_);
   moveRow(tForm, gForm, decimalsSpin_);
@@ -269,12 +302,12 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
 
   // Learning
   auto *learning = new QWidget(tabs);
-  auto *lForm = new QFormLayout(learning);
+  auto *lForm = wrappingForm(learning);
   newPerDaySpin_ = new QSpinBox(learning);
   newPerDaySpin_->setRange(0, 100);
   newPerDaySpin_->setValue(settings_.srs.newPerDay);
-  lForm->addRow(tr("New cases per day (from the learn queue):"),
-                newPerDaySpin_);
+  newPerDaySpin_->setToolTip(tr("Taken from the learn queue"));
+  lForm->addRow(tr("New cases per day:"), newPerDaySpin_);
   learningEdit_ =
       new QLineEdit(stepsToText(settings_.srs.learningSteps), learning);
   learningEdit_->setToolTip(
@@ -382,6 +415,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   learningScroll->setWidget(learning);
   learningScroll->setWidgetResizable(true);
   learningScroll->setFrameShape(QFrame::NoFrame);
+  learningScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   tabs->addTab(learningScroll, tr("Learn"));
 
   drillTab_ = new DrillSettingsTab(settings_.drill, tabs);
@@ -516,11 +550,13 @@ QWidget *SettingsDialog::buildNeutralityTab(QWidget *parent) {
     holdSwatches_[static_cast<std::size_t>(6 + c)] = top;
     auto *frontName = new QLabel(colourName(c), page);
     auto *frontCell = new QHBoxLayout;
+    frontCell->setSpacing(6);
     frontCell->addWidget(front);
     frontCell->addWidget(frontName);
     frontCell->addStretch();
     grid->addLayout(frontCell, 0, c + 1);
     auto *topCell = new QHBoxLayout;
+    topCell->setSpacing(6);
     topCell->addWidget(top);
     topCell->addWidget(new QLabel(colourName(c), page));
     topCell->addStretch();
@@ -751,6 +787,7 @@ bool SettingsDialog::collect() {
     return false;
   }
   settings_.darkTheme = themeBox_->currentIndex() == 0;
+  settings_.interfaceTextPercent = interfaceTextBox_->currentData().toInt();
   settings_.animationMs = animationSpin_->value();
   settings_.scrambleFontPt = scrambleFontSpin_->value();
   settings_.hintTextPercent = hintTextBox_->currentData().toInt();

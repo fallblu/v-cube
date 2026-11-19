@@ -2,6 +2,7 @@
 
 #include "app/colours.hpp"
 #include "app/cube_view.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
@@ -175,9 +176,7 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   auto *movesBox = new QGroupBox(tr("Moves"), right);
   auto *movesLayout = new QVBoxLayout(movesBox);
   movesLabel_ = richLabel(movesBox);
-  QFont mf = movesLabel_->font();
-  mf.setPointSize(mf.pointSize() + 2);
-  movesLabel_->setFont(mf);
+  setTextRole(movesLabel_, TextRole::Heading);
   movesLayout->addWidget(movesLabel_);
   marksLabel_ = richLabel(movesBox);
   movesLayout->addWidget(marksLabel_);

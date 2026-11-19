@@ -2,6 +2,7 @@
 
 #include "app/key_router.hpp"
 #include "app/session_panel.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "io/session_store.hpp"
@@ -166,9 +167,7 @@ void PracticePage::build() {
   prompt_->setAlignment(Qt::AlignCenter);
   prompt_->setWordWrap(true);
   prompt_->setTextFormat(Qt::RichText);
-  QFont pf = prompt_->font();
-  pf.setPointSizeF(pf.pointSizeF() * 1.3);
-  prompt_->setFont(pf);
+  setTextRole(prompt_, TextRole::Title);
 
   scrambleLabel_ = new QLabel(right);
   scrambleLabel_->setAlignment(Qt::AlignCenter);
@@ -191,9 +190,7 @@ void PracticePage::build() {
   verdict_->setAlignment(Qt::AlignCenter);
   verdict_->setWordWrap(true);
   verdict_->setTextFormat(Qt::RichText);
-  QFont vf = verdict_->font();
-  vf.setPointSizeF(vf.pointSizeF() * 1.15);
-  verdict_->setFont(vf);
+  setTextRole(verdict_, TextRole::Heading);
   progressLabel_ = new QLabel(right);
   progressLabel_->setObjectName("practiceProgress");
   progressLabel_->setAlignment(Qt::AlignCenter);
