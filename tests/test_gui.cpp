@@ -853,6 +853,22 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY(std::any_of(f2l->candidates().begin(), f2l->candidates().end(),
                       [](const F2LPage::Candidate &c) { return c.ticked; }));
   QVERIFY(!f2l->addOwnSolution("D2").isEmpty()); // doesn't solve it
+  {
+    // A bad alg typed and entered keeps the field; Esc leaves it, and only
+    // then is Esc the page's again.
+    auto *own = f2l->findChild<QLineEdit *>("f2lOwnSolution");
+    QVERIFY(own);
+    QCOMPARE(own->accessibleName(), QString("Your own solution"));
+    own->setFocus();
+    QTRY_VERIFY(own->hasFocus());
+    QTest::keyClicks(own, "D2");
+    QTest::keyClick(own, Qt::Key_Return);
+    QVERIFY(own->hasFocus());
+    QTest::keyClick(own, Qt::Key_Escape);
+    QVERIFY(!own->hasFocus());
+    QCOMPARE(f2l->phase(), Phase::Choose);
+    window_->setFocus();
+  }
   QTest::keyClick(window_.get(), Qt::Key_Escape);
   QCOMPARE(f2l->phase(), Phase::Done);
   QCOMPARE(f2l->chosenSolutions(key).size(), std::size_t{1});

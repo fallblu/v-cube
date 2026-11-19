@@ -106,7 +106,7 @@ protected:
   void startChoosing() override;
   void choiceKey(int n) override;
   bool confirmChoice() override;
-  void cancelChoice() override {}
+  void cancelChoice() override { leaveOwnField(); }
   QString choosingText() const override;
   bool doneKey(QKeyEvent *e) override;
   QList<KeyHint> doneKeys() const override;
@@ -117,6 +117,8 @@ protected:
   QString listHelp() const override;
   void groupActivated(const std::string &key) override;
   QString cardName(const std::string &card) const override;
+  // Esc in the own-solution field gives the keys back to the page.
+  bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
   // What a background job worked out, for the request that asked.
@@ -170,6 +172,7 @@ private:
   QWidget *chooser_ = nullptr;
   QLabel *chooserList_ = nullptr;
   QLineEdit *ownField_ = nullptr;
+  void leaveOwnField(); // the keys are the page's again
   QLabel *ownNote_ = nullptr;
 
   void loadChoices();
