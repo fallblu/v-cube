@@ -108,8 +108,10 @@ protected:
   QLabel *summary_;
 
   AlgSet *set();
+  const AlgSet *set() const;
   SetProgress &progress();
-  const CaseProgress *progressOf(const std::string &caseId);
+  const SetProgress &progress() const;
+  const CaseProgress *progressOf(const std::string &caseId) const;
   // The set learns each case with its mirror images as one family.
   bool byFamily() const { return !families_.families.empty(); }
   // The case whose card is this case's: the first case of its family when
@@ -117,7 +119,7 @@ protected:
   std::string cardId(const std::string &caseId) const;
   // The progress holding the case's spaced-repetition card (its family's
   // when learning by family); drill statistics stay with each case.
-  const CaseProgress *cardOf(const std::string &caseId);
+  const CaseProgress *cardOf(const std::string &caseId) const;
   const CaseInfo *infoOf(const std::string &caseId) const;
   // Has at least one passing alg, so it can be offered. In a reduction
   // set its steps must also lead to the end.
@@ -158,8 +160,8 @@ protected:
   // starting it as selecting it would).
   void showSet(const std::string &id);
   // The set drop-down's text for a set, and for "All sets".
-  virtual QString setItemText(const AlgSet &set);
-  virtual QString acrossItemText() { return tr("All sets: due reviews"); }
+  virtual QString setItemText(const AlgSet &set) const;
+  virtual QString acrossItemText() const { return tr("All sets: due reviews"); }
   void refreshSetLabels();
   // Gives the keyboard back to the cube from the search box or a field.
   void releaseKeys();
@@ -168,7 +170,7 @@ protected:
   // are drawn from (so that e.g. a back-left F2L slot can be seen), moved
   // to the other side in a left-right mirror world. A front-back mirror
   // keeps it, as a back slot is done from the front.
-  double yawFor(const std::string &caseId, Mirror world);
+  double yawFor(const std::string &caseId, Mirror world) const;
 
   // The hold for the next case, picked from the colour neutrality.
   Hold pickHold();
@@ -219,7 +221,7 @@ protected:
   virtual void setReloaded() = 0;
   // Practise this case now (from the case list's menu).
   virtual void startCase(const std::string &caseId) = 0;
-  virtual QString startCaseLabel(const std::string &caseId) = 0;
+  virtual QString startCaseLabel(const std::string &caseId) const = 0;
   // More actions for the cases right-clicked: the selected cases, or a
   // group's cases when its row was right-clicked.
   virtual void extendCaseMenu(QMenu &menu,

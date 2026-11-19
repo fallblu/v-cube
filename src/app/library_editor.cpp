@@ -81,8 +81,17 @@ LibraryEditor::LibraryEditor(AlgLibrary &library, QUndoStack *undo,
 
 AlgSet *LibraryEditor::set() { return library_.find(setId); }
 
+const AlgSet *LibraryEditor::set() const {
+  return std::as_const(library_).find(setId);
+}
+
 AlgCase *LibraryEditor::currentCase() {
   AlgSet *s = set();
+  return s && !caseId.empty() ? s->findCase(caseId) : nullptr;
+}
+
+const AlgCase *LibraryEditor::currentCase() const {
+  const AlgSet *s = set();
   return s && !caseId.empty() ? s->findCase(caseId) : nullptr;
 }
 

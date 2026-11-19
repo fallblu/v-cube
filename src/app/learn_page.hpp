@@ -87,14 +87,14 @@ protected:
   void startSet() override;
   void setReloaded() override;
   void startCase(const std::string &caseId) override;
-  QString startCaseLabel(const std::string &caseId) override;
+  QString startCaseLabel(const std::string &caseId) const override;
   void extendCaseMenu(QMenu &menu,
                       const std::vector<std::string> &caseIds) override;
   void ticksChanged() override;
   void neutralityChanged() override;
   bool offersAcrossSets() const override { return true; }
-  QString setItemText(const AlgSet &set) override;
-  QString acrossItemText() override;
+  QString setItemText(const AlgSet &set) const override;
+  QString acrossItemText() const override;
 
 private:
   // What Learn is doing (see LearnSession).
@@ -158,7 +158,7 @@ private:
   NewOrder newOrder() const;
   // The case's attempts: its own, and its family's Learn attempts when the
   // family shares a card.
-  std::vector<Attempt> attemptsOf(const std::string &caseId);
+  std::vector<Attempt> attemptsOf(const std::string &caseId) const;
   // Turns of the main alg, for "shortest alg first".
   int algMoves(const std::string &caseId) const;
   // A random ticked case of a family to set up for its card.
@@ -166,11 +166,11 @@ private:
   // Updates the rows of every case sharing the case's card.
   void updateCardRows(const std::string &caseId);
   // The set walks through new cases and gives next-move hints.
-  bool guided();
+  bool guided() const;
   // The case was never graded: it is seen for the first time.
-  bool firstSight(const std::string &caseId);
+  bool firstSight(const std::string &caseId) const;
   // The case's card is in its learning or relearning steps.
-  bool inLearningSteps(const std::string &caseId);
+  bool inLearningSteps(const std::string &caseId) const;
   void buildGuide();
   // Moves the walkthrough `delta` moves forward or back.
   void stepDemo(int delta);
@@ -198,12 +198,12 @@ private:
   // Why the first case was graded as it was, in words.
   QString whyText() const;
   // The set is solved a step at a time.
-  bool chained();
+  bool chained() const;
   // The case being solved: the one that came up, or the one the last step
   // stopped at.
   std::string linkCase() const;
   // The pieces the step leaves free in the world the case is set up in.
-  PieceMask linkFree();
+  PieceMask linkFree() const;
   // The cube shows a case: it is solved from here.
   void startLink(const CaseView &view);
   // The case being solved is over: the step was finished, stopped at
@@ -212,7 +212,7 @@ private:
   // The link's algs again, e.g. after they were edited in the Library.
   void refreshLink();
   // Each case of a reduction set's attempt, with its step and how it went.
-  QString chainHtml();
+  QString chainHtml() const;
   // The next case: `early` takes a learning card before it is due when
   // nothing else is.
   void nextCase(bool early = false);
@@ -240,7 +240,7 @@ private:
   CubieCube setUp(const std::string &caseId, Mirror world, bool scramble);
   // A learned case that isn't due yet, which "Learn this case now" only
   // practises.
-  bool notDue(const std::string &caseId);
+  bool notDue(const std::string &caseId) const;
   void resetCube();
   void turn(Move m);
   void finish();
@@ -268,7 +268,7 @@ private:
   void learnQueueHead();
   void unqueueHead();
   // The queued cases in the order they will be introduced.
-  std::vector<std::string> queueOrder();
+  std::vector<std::string> queueOrder() const;
   // Shows the cube the way it was last shown for this set; a set seen for
   // the first time keeps the view in use.
   void applySetView();
@@ -290,7 +290,7 @@ private:
   // The interval a grade gives, for the buttons: "1 min", "4 d".
   static QString intervalText(std::int64_t seconds);
   // "tomorrow", "Wed 12 Nov" or "in 4 min".
-  QString whenText(std::int64_t due);
+  QString whenText(std::int64_t due) const;
 };
 
 } // namespace vcube

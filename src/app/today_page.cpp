@@ -116,7 +116,7 @@ std::vector<std::string> learnPool(const AlgSet &set) {
   return pool;
 }
 
-TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
+TodayPage::TodayPage(AppSettings &settings, const AlgLibrary &library,
                      const SessionStore &timed, const MoveCountStore &untimed,
                      const MoveCountStore &moveCounts, const AlgLabStore &lab,
                      QString dataDir, QWidget *parent)
@@ -295,7 +295,7 @@ void TodayPage::applySettings() {
   }
 }
 
-std::map<std::string, SetWaiting> TodayPage::dueBySet() {
+std::map<std::string, SetWaiting> TodayPage::dueBySet() const {
   std::map<std::string, SetWaiting> out;
   std::int64_t now = unixNow();
   for (const AlgSet &set : library_.sets()) {
@@ -305,7 +305,7 @@ std::map<std::string, SetWaiting> TodayPage::dueBySet() {
   return out;
 }
 
-TodayPage::Totals TodayPage::totals() {
+TodayPage::Totals TodayPage::totals() const {
   Totals t;
   for (const auto &[id, d] : dueBySet()) {
     t.due += d.due;

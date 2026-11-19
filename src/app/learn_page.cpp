@@ -376,12 +376,12 @@ int LearnPage::algMoves(const std::string &caseId) const {
 // --- practising
 // ---------------------------------------------------------------
 
-QString LearnPage::startCaseLabel(const std::string &caseId) {
+QString LearnPage::startCaseLabel(const std::string &caseId) const {
   return notDue(caseId) ? tr("Practise this case now (not graded)")
                         : tr("Learn this case now");
 }
 
-bool LearnPage::notDue(const std::string &caseId) {
+bool LearnPage::notDue(const std::string &caseId) const {
   const CaseProgress *cp = cardOf(caseId);
   return cp && cp->card.state == CardState::Review &&
          !isDue(cp->card, unixNow(), settings_.srs, localDayEnd());
@@ -685,7 +685,7 @@ QString LearnPage::intervalText(std::int64_t seconds) {
   return tr("%1 d").arg((seconds + kSecondsPerDay / 2) / kSecondsPerDay);
 }
 
-QString LearnPage::whenText(std::int64_t due) {
+QString LearnPage::whenText(std::int64_t due) const {
   std::int64_t now = unixNow();
   if (due >= localDayEnd()) {
     // A review is due all day: only the day matters.

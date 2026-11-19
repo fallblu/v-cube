@@ -227,7 +227,7 @@ std::optional<CubieCube> DrillPage::cubeState() const {
   return CubieCube::fromFacelets(f);
 }
 
-bool DrillPage::stepDone() {
+bool DrillPage::stepDone() const {
   const AlgSet *s = set();
   const CaseGroup *g = s && current_ ? s->groupOf(current_->caseId) : nullptr;
   if (!g) {

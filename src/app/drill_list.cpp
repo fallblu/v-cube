@@ -186,12 +186,12 @@ DrillPage::Pool DrillPage::poolChoice() const {
   return static_cast<Pool>(std::max(0, poolBox_->currentIndex()));
 }
 
-bool DrillPage::drillable(const std::string &caseId) {
+bool DrillPage::drillable(const std::string &caseId) const {
   const AlgSet *s = set();
   return s && s->findCase(caseId) && s->groupOf(caseId) && eligible(caseId);
 }
 
-std::vector<std::string> DrillPage::scopeCases() {
+std::vector<std::string> DrillPage::scopeCases() const {
   QString scope = scopeBox_->currentData().toString();
   std::vector<std::string> ids;
   if (scope == kScopeShown) {
@@ -206,7 +206,7 @@ std::vector<std::string> DrillPage::scopeCases() {
   return ids;
 }
 
-std::vector<std::string> DrillPage::pool() {
+std::vector<std::string> DrillPage::pool() const {
   Pool choice = poolChoice();
   std::vector<std::string> scope = scopeCases();
   if (choice == Pool::All) {
@@ -272,7 +272,7 @@ void DrillPage::loadChoices() {
   picker_.restartRecap();
 }
 
-QString DrillPage::startCaseLabel(const std::string &caseId) {
+QString DrillPage::startCaseLabel(const std::string &caseId) const {
   (void)caseId;
   return tr("Drill this case now");
 }
@@ -328,7 +328,7 @@ void DrillPage::clearTimes(const std::vector<std::string> &caseIds) {
   updateAllRows();
 }
 
-QString DrillPage::caseName(const std::string &caseId) {
+QString DrillPage::caseName(const std::string &caseId) const {
   const AlgSet *s = set();
   const AlgCase *c = s ? s->findCase(caseId) : nullptr;
   return c ? qs(c->name) : qs(caseId);

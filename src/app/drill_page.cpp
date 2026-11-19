@@ -606,7 +606,7 @@ void DrillPage::showStatus() {
   say(message, keys);
 }
 
-QString DrillPage::sessionText(std::size_t from) {
+QString DrillPage::sessionText(std::size_t from) const {
   DrillSummary s = session_.summary(from);
   if (s.count == 0) {
     return {};

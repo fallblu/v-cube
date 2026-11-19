@@ -61,7 +61,9 @@ public:
   std::string setId;
   std::string caseId;
   AlgSet *set();
+  const AlgSet *set() const;
   AlgCase *currentCase();
+  const AlgCase *currentCase() const;
 
   // Every case of a set, checked under its step settings; worked out when
   // first needed.

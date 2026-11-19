@@ -248,6 +248,15 @@ AlgSet *AlgLibrary::find(const std::string &id) {
   return nullptr;
 }
 
+const AlgSet *AlgLibrary::find(const std::string &id) const {
+  for (const auto &s : sets_) {
+    if (s.id == id) {
+      return &s;
+    }
+  }
+  return nullptr;
+}
+
 bool AlgLibrary::save(const AlgSet &set, QString *error) {
   QDir().mkpath(dir_);
   QString path = pathFor(set.id);
@@ -423,6 +432,14 @@ bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
 }
 
 SetProgress &AlgLibrary::progress(const std::string &setId) {
+  return loadedProgress(setId);
+}
+
+const SetProgress &AlgLibrary::progress(const std::string &setId) const {
+  return loadedProgress(setId);
+}
+
+SetProgress &AlgLibrary::loadedProgress(const std::string &setId) const {
   auto it = progress_.find(setId);
   if (it != progress_.end()) {
     return it->second;

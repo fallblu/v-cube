@@ -203,7 +203,7 @@ void LearnPage::undoLast() {
   }
 }
 
-bool LearnPage::chained() {
+bool LearnPage::chained() const {
   const AlgSet *s = set();
   return s && s->reduction;
 }
@@ -228,7 +228,7 @@ LearnGrading LearnPage::grading() {
   return g;
 }
 
-PieceMask LearnPage::linkFree() {
+PieceMask LearnPage::linkFree() const {
   const AlgSet *s = set();
   const CaseGroup *g = s ? s->groupOf(linkCase()) : nullptr;
   if (!g || !current_) {
@@ -288,17 +288,17 @@ void LearnPage::refreshLink() {
   }
 }
 
-bool LearnPage::guided() {
+bool LearnPage::guided() const {
   const AlgSet *s = set();
   return s && s->guided;
 }
 
-bool LearnPage::firstSight(const std::string &caseId) {
+bool LearnPage::firstSight(const std::string &caseId) const {
   const CaseProgress *cp = cardOf(caseId);
   return !cp || cp->card.introduced == 0;
 }
 
-bool LearnPage::inLearningSteps(const std::string &caseId) {
+bool LearnPage::inLearningSteps(const std::string &caseId) const {
   const CaseProgress *cp = cardOf(caseId);
   return cp && cp->card.introduced != 0 &&
          (cp->card.state == CardState::Learning ||
@@ -811,7 +811,7 @@ void LearnPage::showFamily() {
   stage_->showFamily(cases);
 }
 
-QString LearnPage::chainHtml() {
+QString LearnPage::chainHtml() const {
   const AlgSet *s = set();
   if (!s) {
     return {};
