@@ -339,47 +339,64 @@ what each of the three practice modes keeps:
 ```json
 {
   "format": "v-cube.practice", "version": 1,
-  "cards": {"cases": {"URF1-UB0": {"card": {"state": 2, "due": 1794086400},
-                                   "attempts": [[1794000000, 0, 0, "learn"]]}}},
+  "cards": {"cases": {"front/URF1-UB0": {"card": {"state": 2, "due": 1794086400},
+                                         "attempts": [[1794000000, 0, 0, "learn"]]}}},
+  "choices": {"front/URF1-UB0": ["U R U' R'", "U2 R U R' U R U' R'"]},
   "learn": {"whole": [{"timestamp": 1794000200, "moves": 31, "best": 24,
                        "extra": 4.5, "hint": true}]},
+  "inspection": {"eocross": [{"timestamp": 1794000300, "inspect": 16200,
+                              "over": true, "moves": 8, "best": 7, "extra": 1}]},
   "timed": {"virtual/zz-1": [{"timestamp": 1794000400, "ms": 14200,
                               "moves": 31, "best": 24, "extra": 4.5}],
             "physical/zz-1": [{"timestamp": 1794000500, "ms": 15900,
                                "dnf": true}]},
-  "notes": {"ocll/antisune": "L' U' L U' L' U2 L"}
+  "notes": {"ocll/antisune": "L' U' L U' L' U2 L",
+            "sheet": "deleted/zz-f2l.20261116-092557.json",
+            "sheet/front/URF1-UB0": "U R U' R'"}
 }
 ```
 
-- `cards`: Learn's cards, written as an alg set's [progress](#progress)
-  is. The key is the case: a pair case in F2L (`URF1-UB0`: where the
-  corner and edge are, with the twist and flip), a TSLE case
-  (`UF-CW-0120`). EO Cross has none. A case never started is put in the
-  learn queue when the mode first asks for a card.
-- `learn`: Learn's solves that aren't a card's, by group, the last 200 of
-  each: `whole` in F2L and TSLE, the step (`eo`, `eoline`, `eo+1`, `eo+2`,
+- `cards`: the Learn tab's cards, written as an alg set's
+  [progress](#progress) is. The key is the case: in F2L a pair case for
+  the front slots or the back ones (`front/URF1-UB0`: the side, then where
+  the corner and edge are, seen for the front-right slot, with the twist
+  and flip), in TSLE a TSLE case (`UF-CW-0120`). EO Cross has none. A case
+  never started is put in the learn queue when the mode first asks for a
+  card. F2L cards of before, keyed by the case alone, are dropped.
+- `choices`: F2L's solutions chosen for each card, written for the side's
+  own slot (FR for `front/`, BR for `back/`) and done mirrored in the
+  other. Kept when the cards are cleared.
+- `learn`: the Untimed tab's solves, by group, the last 200 of each:
+  `whole` in F2L and TSLE, the step (`eo`, `eoline`, `eo+1`, `eo+2`,
   `eocross`) in EO Cross.
+- `inspection`: EO Cross's Inspection tries by step, the last 200 of each.
 - `timed`: timed attempts, the last 200 of each group, by cube and group:
   `virtual/` or `physical/`, then the step (EO Cross), the method (F2L:
   `zz-1`, `zz`, `cfop`, `cfop-1`) or the case the solve started from
   (TSLE).
 - `notes`: TSLE's OCLL algs changed from the default ones, as
-  `ocll/<id>`. An alg that doesn't solve its OCLL is ignored.
+  `ocll/<id>` (an alg that doesn't solve its OCLL is ignored). In F2L,
+  `sheet` says where the algs of your set of pair cases were read from
+  (once, from the library or the newest deleted copy of the set), and
+  `sheet/<card>` holds each card's alg, offered ticked when its solutions
+  are chosen.
 
 A try has `timestamp` and, left out when they don't apply: `ms` (timed
 attempts), `moves` (HTM; none on a physical cube), `best` (the best
 solution's moves), `extra` (what the solve was over the best: moves, or in
 F2L fingertrick cost; left out when it isn't known), `dnf` (given up, or
-stopped with the step not done) and `hint`.
+stopped with the step not done), `hint`, `inspect` (Inspection: the time
+looked before the first face turn) and `over` (that went over the limit).
 
-Before the modes had Learn and Timed tabs they kept other files under the
-same names (`"v-cube.eocross"`, `"v-cube.f2l"`, `"v-cube.tsle"`). Such a
-file is deleted when the mode starts; only TSLE's OCLL algs are carried
-over.
+Before the modes had their tabs they kept other files under the same
+names (`"v-cube.eocross"`, `"v-cube.f2l"`, `"v-cube.tsle"`). Such a file
+is deleted when the mode starts; only TSLE's OCLL algs are carried over.
 
 The modes' choices are in the settings file under `[eocross]`, `[f2l]` and
-`[tsle]`: `tab`, `scope` and `physical` in each, and the mode's own
-options.
+`[tsle]`: `tab` (`learn`, `inspection`, `untimed` or `timed`) and
+`physical` in each, and the mode's own options (`step` and
+`inspectionLimit` in seconds for EO Cross; `method` and `leave` for F2L;
+`slots` for TSLE).
 
 ## Alg Lab
 

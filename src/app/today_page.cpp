@@ -233,10 +233,11 @@ std::vector<ActivityEvent> TodayPage::events() {
         add(mode, a.timestamp, 0);
       }
     }
-    for (const PracticeTries *tries : {&kept.learn, &kept.timed}) {
+    for (const PracticeTries *tries :
+         {&kept.learn, &kept.inspection, &kept.timed}) {
       for (const auto &[key, list] : *tries) {
         for (const PracticeTry &t : list) {
-          add(mode, t.timestamp, t.ms);
+          add(mode, t.timestamp, t.ms + t.inspectMs);
         }
       }
     }

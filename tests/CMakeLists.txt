@@ -86,7 +86,8 @@ if(TARGET vcube_gui)
       COMMAND_EXPAND_LISTS)
   endif()
   add_test(NAME gui COMMAND vcube_gui_tests)
-  set(gui_test_env "QT_QPA_PLATFORM=offscreen")
+  # Qt's messages go to stderr, not to a debugger, on Windows too.
+  set(gui_test_env "QT_QPA_PLATFORM=offscreen" "QT_FORCE_STDERR_LOGGING=1")
   if(VCUBE_SANITIZE AND NOT MSVC)
     list(APPEND gui_test_env
       "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp")

@@ -97,6 +97,13 @@ Alg mirrorM(const Alg &alg);
 // Mirrors front-back (across the S plane): F <-> B', U -> U', ...
 Alg mirrorS(const Alg &alg);
 
+// The same turns done without rotations, the centres kept still: each
+// rotation is taken out and the turns after it renamed for the faces they
+// then turn. A wide turn becomes its opposite face's turn and a slice turn
+// the two outer faces' (each with the rotation it implies), so that only
+// face turns (U R F D L B) are left.
+Alg fixedFrame(const Alg &alg);
+
 // Merges consecutive moves of the same type (R R -> R2, R R' -> nothing) and
 // moves of the same type separated only by moves on the parallel axis that
 // commute with them (U D U -> U2 D). A merged move has the fewest quarter

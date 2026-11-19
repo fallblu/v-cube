@@ -504,6 +504,107 @@ Alg mirror(const Alg &alg, int axis) {
 Alg mirrorM(const Alg &alg) { return mirror(alg, 0); }
 Alg mirrorS(const Alg &alg) { return mirror(alg, 2); }
 
+Alg fixedFrame(const Alg &alg) {
+  using T = MoveType;
+  // at[p]: the face (as it was at the start) now in place p, by U R F D L B.
+  std::array<int, 6> at = {0, 1, 2, 3, 4, 5};
+  constexpr int U = 0, R = 1, F = 2, D = 3, L = 4, B = 5;
+  // A quarter rotation clockwise about the R, U or F face.
+  auto rotate = [&at](int axis, int quarters) {
+    for (int q = 0; q < (quarters % 4 + 4) % 4; ++q) {
+      std::array<int, 6> n = at;
+      if (axis == 0) { // x: F comes up
+        n[U] = at[F];
+        n[F] = at[D];
+        n[D] = at[B];
+        n[B] = at[U];
+      } else if (axis == 1) { // y: R comes to the front
+        n[F] = at[R];
+        n[R] = at[B];
+        n[B] = at[L];
+        n[L] = at[F];
+      } else { // z: L comes up
+        n[U] = at[L];
+        n[R] = at[U];
+        n[D] = at[R];
+        n[L] = at[D];
+      }
+      at = n;
+    }
+  };
+  auto turn = [&at](int place, int amount) {
+    return Move{static_cast<T>(at[static_cast<std::size_t>(place)]),
+                static_cast<std::uint8_t>((amount % 4 + 4) % 4)};
+  };
+  Alg out;
+  for (Move m : alg) {
+    const int a = m.amount;
+    const auto t = static_cast<int>(m.type);
+    if (isFaceTurn(m.type)) {
+      out.push_back(turn(t, a));
+      continue;
+    }
+    switch (m.type) {
+    case T::X:
+      rotate(0, a);
+      break;
+    case T::Y:
+      rotate(1, a);
+      break;
+    case T::Z:
+      rotate(2, a);
+      break;
+    // A wide turn: the opposite face the same way, then the cube turned
+    // with the wide layers (r = L x, l = R x', ...).
+    case T::Rw:
+      out.push_back(turn(L, a));
+      rotate(0, a);
+      break;
+    case T::Lw:
+      out.push_back(turn(R, a));
+      rotate(0, -a);
+      break;
+    case T::Uw:
+      out.push_back(turn(D, a));
+      rotate(1, a);
+      break;
+    case T::Dw:
+      out.push_back(turn(U, a));
+      rotate(1, -a);
+      break;
+    case T::Fw:
+      out.push_back(turn(B, a));
+      rotate(2, a);
+      break;
+    case T::Bw:
+      out.push_back(turn(F, a));
+      rotate(2, -a);
+      break;
+    // A slice: the two faces against it, then the cube turned with it
+    // (M = R L' x', E = U D' y', S = F' B z).
+    case T::M:
+      out.push_back(turn(R, a));
+      out.push_back(turn(L, -a));
+      rotate(0, -a);
+      break;
+    case T::E:
+      out.push_back(turn(U, a));
+      out.push_back(turn(D, -a));
+      rotate(1, -a);
+      break;
+    case T::S:
+      out.push_back(turn(F, -a));
+      out.push_back(turn(B, a));
+      rotate(2, a);
+      break;
+    default:
+      break;
+    }
+  }
+  std::erase_if(out, [](Move m) { return m.amount == 0; });
+  return out;
+}
+
 Alg simplify(const Alg &alg) {
   Alg out;
   for (Move m : alg) {

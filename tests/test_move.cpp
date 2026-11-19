@@ -1,3 +1,5 @@
+#include "cube/facelet.hpp"
+#include "cube/hold.hpp"
 #include "cube/move.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -106,4 +108,27 @@ TEST_CASE("inverts, mirrors and simplifies") {
 TEST_CASE("the move count is HTM, with slice turns counted twice") {
   CHECK(htmCount(parseAlgOrEmpty("M2 U M2 U2 M2 U M2")) == 11);
   CHECK(htmCount(parseAlgOrEmpty("r U R' E S' x")) == 7);
+}
+
+TEST_CASE("turns are written without rotations") {
+  // The same turns of the cube, the centres kept still.
+  const char *const algs[] = {"y R U R'",     "x2 R U' r",  "z U M2 U'",
+                              "R E' F S2 B'", "y' x l' d2", "M' U M U2 R"};
+  for (const char *text : algs) {
+    INFO(text);
+    Alg alg = parseAlgOrEmpty(text);
+    if (alg.empty()) {
+      continue;
+    }
+    Alg fixed = fixedFrame(alg);
+    for (Move m : fixed) {
+      CHECK(isFaceTurn(m.type));
+    }
+    FaceletCube a, b;
+    a.apply(alg);
+    b.apply(fixed);
+    CHECK(heldCubie(a, kWcaHold) == heldCubie(b, kWcaHold));
+  }
+  CHECK(toString(fixedFrame(parseAlgOrEmpty("y R U R'"))) == "B U B'");
+  CHECK(toString(fixedFrame(parseAlgOrEmpty("r U"))) == "L F");
 }
