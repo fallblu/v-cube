@@ -11,14 +11,15 @@ class QComboBox;
 namespace vcube {
 
 // EO Cross mode: the start of a ZZ solve, from a random-state scramble, in
-// the two tabs every practice mode has (see PracticePage). Step picks how
-// far a solve goes: EO, EOLine, EO+1, EO+2 or EO Cross.
+// three tabs (see PracticePage). Step picks how far a solve goes: EO,
+// EOLine, EO+1, EO+2 or EO Cross.
 //
-//   Learn  solve the step untimed, then your moves against the optimum.
-//          With "Plan, then blind" the cube hides at the first face turn:
-//          the step is planned while looking and done unseen, and Space
-//          shows how it went.
-//   Timed  the step against the clock, kept by step.
+//   Inspection  plan the step within an inspection time (15 s by default),
+//               then do it blind: the cube hides at the first face turn
+//               and Space shows how it went, against the optimum.
+//   Untimed     solve the step in view, then your moves against the
+//               optimum.
+//   Timed       the step against the clock, kept by step.
 //
 // A step counts as done in any hold the colour neutrality allows, on
 // either EO axis; the optimum is the shortest solution over those holds
@@ -40,8 +41,9 @@ public:
   // What the page shows, for tests and scripts.
   SolveStep step() const { return step_; }
   void setStep(SolveStep step);
-  bool blindChosen() const { return blind_; }
-  void setBlind(bool on);
+  // Inspection's limit in seconds; 0 for none.
+  int inspectionLimit() const { return limitSeconds_; }
+  void setInspectionLimit(int seconds);
   // The state as scrambled (white top, green front) and the hold it is
   // first shown in.
   const CubieCube &scrambled() const { return scrambled_; }
@@ -55,6 +57,9 @@ public:
 protected:
   QString modeId() const override { return "eocross"; }
   QString stepName() const override { return "EO Cross"; }
+  std::vector<Tab> tabs() const override {
+    return {Tab::Inspection, Tab::Untimed, Tab::Timed};
+  }
   void addOptions(OptionBar *bar) override;
   void showOptions() override;
   std::optional<Setup> setUp(bool whole, const std::string &card) override;
@@ -64,8 +69,11 @@ protected:
   QString detail() override;
   QString task() const override;
   QString taskNote() const override;
-  bool blind() const override { return blind_ && tab() == Tab::Learn; }
-  std::vector<ListRow> learnGroups() override;
+  std::int64_t inspectionLimitMs() const override {
+    return limitSeconds_ * 1000;
+  }
+  std::vector<Split> splits() override;
+  std::vector<ListRow> untimedGroups() override;
   std::vector<ListRow> timedGroups() override;
   QString listHelp() const override;
   void groupActivated(const std::string &key) override;
@@ -77,7 +85,7 @@ private:
   };
 
   SolveStep step_ = SolveStep::EOCross;
-  bool blind_ = false;
+  int limitSeconds_ = 15;
   CubieCube scrambled_;
   Hold shown_ = kWcaHold;
   SolveStep solving_ = SolveStep::EOCross; // the state's step
@@ -87,8 +95,8 @@ private:
   int requests_ = 0;
 
   QComboBox *stepBox_ = nullptr;
-  QComboBox *blindBox_ = nullptr;
-  QWidget *blindItem_ = nullptr;
+  QComboBox *limitBox_ = nullptr;
+  QWidget *limitItem_ = nullptr;
 
   void requestAnalysis();
   // Works the optima out now if they haven't arrived.

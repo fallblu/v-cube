@@ -243,6 +243,17 @@ bool TslePage::turned() {
   stepBegin_ = moves.size();
   stepState_ = *state;
   stepHint_ = false;
+  if (tab() == Tab::Untimed) {
+    // A line on each step as it is done.
+    QStringList lines;
+    for (const Step &done : steps_) {
+      Alg stepMoves(moves.begin() + static_cast<std::ptrdiff_t>(done.begin),
+                    moves.begin() + static_cast<std::ptrdiff_t>(done.end));
+      lines << "<b>" + algText(simplify(stepMoves)) + "</b> · " +
+                   stepVerdict(done);
+    }
+    setProgress(lines);
+  }
   if (item().isNew) {
     // A new case is done once a good trigger was done from where it was
     // shown.
@@ -542,7 +553,17 @@ std::vector<PracticePage::ListRow> TslePage::cardRows() {
   return caseRows(false);
 }
 
-std::vector<PracticePage::ListRow> TslePage::learnGroups() {
+std::vector<PracticePage::Split> TslePage::splits() {
+  std::vector<Split> out;
+  for (std::size_t i = 0; i < steps_.size(); ++i) {
+    out.push_back({steps_[i].before.ocll() ? tr("%1. OCLL").arg(i + 1)
+                                           : tr("%1. trigger").arg(i + 1),
+                   steps_[i].end});
+  }
+  return out;
+}
+
+std::vector<PracticePage::ListRow> TslePage::untimedGroups() {
   return {{kWhole, tr("Whole TSLE"), {}, {}}};
 }
 
@@ -551,6 +572,10 @@ std::vector<PracticePage::ListRow> TslePage::timedGroups() {
 }
 
 QString TslePage::listHelp() const {
+  if (tab() == Tab::Untimed) {
+    return tr("Your untimed solves: how many, their moves lately and how far "
+              "over the best way they were.");
+  }
   return tab() == Tab::Learn
              ? tr("The cases by steps left (a step is a trigger, or the OCLL "
                   "that ends a chain), drawn for the front-right slot with "

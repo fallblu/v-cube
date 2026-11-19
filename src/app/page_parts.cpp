@@ -228,8 +228,10 @@ QString keyHintsHtml(const QList<KeyHint> &keys, const QPalette &palette) {
   for (const KeyHint &k : keys) {
     parts << QStringLiteral("<span style=\"background-color:%1; color:%2;\">"
                             "&nbsp;%3&nbsp;</span>&nbsp;%4")
-                 .arg(chip.name(), key.name(), k.key.toHtmlEscaped(),
-                      k.action.toHtmlEscaped());
+                 .arg(chip.name(), key.name(),
+                      // A key and its action stay on one line.
+                      k.key.toHtmlEscaped().replace(' ', "&nbsp;"),
+                      k.action.toHtmlEscaped().replace(' ', "&nbsp;"));
   }
   return parts.join(QStringLiteral(" &nbsp;&nbsp; "));
 }

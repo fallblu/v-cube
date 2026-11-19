@@ -32,6 +32,12 @@ QJsonObject tryToJson(const PracticeTry &t) {
   if (t.hint) {
     o["hint"] = true;
   }
+  if (t.inspectMs != 0) {
+    o["inspect"] = static_cast<double>(t.inspectMs);
+  }
+  if (t.over) {
+    o["over"] = true;
+  }
   return o;
 }
 
@@ -46,6 +52,9 @@ PracticeTry tryFromJson(const QJsonObject &o) {
       o.contains("extra") ? std::max(0.0, o.value("extra").toDouble()) : -1.0;
   t.dnf = o.value("dnf").toBool();
   t.hint = o.value("hint").toBool();
+  t.inspectMs = std::max<std::int64_t>(
+      0, static_cast<std::int64_t>(o.value("inspect").toDouble()));
+  t.over = o.value("over").toBool();
   return t;
 }
 
@@ -68,10 +77,25 @@ QJsonObject practiceToJson(const PracticeData &data) {
   for (const auto &[key, value] : data.notes) {
     notes[QString::fromStdString(key)] = QString::fromStdString(value);
   }
-  return {
+  QJsonObject choices;
+  for (const auto &[key, algs] : data.choices) {
+    QJsonArray list;
+    for (const std::string &alg : algs) {
+      list.append(QString::fromStdString(alg));
+    }
+    choices[QString::fromStdString(key)] = list;
+  }
+  QJsonObject o{
       {"format", kPracticeFile.format},      {"version", kPracticeFile.version},
       {"cards", progressToJson(data.cards)}, {"learn", triesToJson(data.learn)},
       {"timed", triesToJson(data.timed)},    {"notes", notes}};
+  if (!data.inspection.empty()) {
+    o["inspection"] = triesToJson(data.inspection);
+  }
+  if (!choices.isEmpty()) {
+    o["choices"] = choices;
+  }
+  return o;
 }
 
 PracticeData practiceFromJson(const QJsonObject &o) {
@@ -87,6 +111,24 @@ PracticeData practiceFromJson(const QJsonObject &o) {
   for (auto it = timed.begin(); it != timed.end(); ++it) {
     for (const QJsonValue &v : it.value().toArray()) {
       data.addTimed(it.key().toStdString(), tryFromJson(v.toObject()));
+    }
+  }
+  const QJsonObject inspection = o.value("inspection").toObject();
+  for (auto it = inspection.begin(); it != inspection.end(); ++it) {
+    for (const QJsonValue &v : it.value().toArray()) {
+      data.addInspection(it.key().toStdString(), tryFromJson(v.toObject()));
+    }
+  }
+  const QJsonObject choices = o.value("choices").toObject();
+  for (auto it = choices.begin(); it != choices.end(); ++it) {
+    std::vector<std::string> algs;
+    for (const QJsonValue &v : it.value().toArray()) {
+      if (!v.toString().trimmed().isEmpty()) {
+        algs.push_back(v.toString().trimmed().toStdString());
+      }
+    }
+    if (!algs.empty()) {
+      data.choices[it.key().toStdString()] = std::move(algs);
     }
   }
   const QJsonObject notes = o.value("notes").toObject();

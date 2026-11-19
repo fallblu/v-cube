@@ -32,12 +32,11 @@ struct Section {
   std::vector<const char *> outro;
 };
 
-// The rows EO Cross, F2L and TSLE mode share: their Learn and Timed tabs
-// work the same way in each.
+// The rows EO Cross, F2L and TSLE mode share: their tabs work the same
+// way in each.
 #define PRACTICE_LEARN_NEW                                                     \
   {T("Learn, a new case"), T("Enter"),                                         \
-   T("show its best solution on the cube, which is then put back to do "       \
-     "it")},                                                                   \
+   T("show its solution on the cube, which is then put back to do it")},       \
       {T("Learn, a new case"), T("turning keys"),                              \
        T("do it: the case then comes back in a minute, to do from memory")},   \
   {                                                                            \
@@ -45,20 +44,21 @@ struct Section {
         T("skip the showing: the case is known")                               \
   }
 #define PRACTICE_LEARN_SOLVING                                                 \
-  {T("Learn, solving"), T("turning keys"),                                     \
+  {T("solving"), T("turning keys"),                                            \
    T("any turn; the solve ends by itself when it is done")},                   \
-      {T("Learn, solving"), T("Backspace or Shift+Space"), T("give up")}, {    \
-    T("Learn, solving"), T("Esc"), T("start again")                            \
+      {T("solving"), T("Backspace or Shift+Space"), T("give up")}, {           \
+    T("solving"), T("Esc"), T("start again")                                   \
   }
 #define PRACTICE_LEARN_AFTER                                                   \
-  {T("Learn, afterwards"), T("Space"), T("next")},                             \
-      {T("Learn, afterwards"), T("Enter"),                                     \
+  {T("Learn or Untimed, afterwards"), T("Space"), T("next")},                  \
+      {T("Learn or Untimed, afterwards"), T("Enter"),                          \
        T("play the best solution from the start")},                            \
-      {T("Learn, afterwards"), T("Tab"),                                       \
+      {T("Learn or Untimed, afterwards"), T("Tab"),                            \
        T("show or hide the details (click a solution there to play it)")},     \
-      {T("Learn, afterwards"), T("turning keys"), T("turn the cube freely")},  \
+      {T("Learn or Untimed, afterwards"), T("turning keys"),                   \
+       T("turn the cube freely")},                                             \
   {                                                                            \
-    T("Learn, afterwards"), T("Esc"),                                          \
+    T("Learn or Untimed, afterwards"), T("Esc"),                               \
         T("the same state again, not recorded or graded")                      \
   }
 #define PRACTICE_LEARN_CARDS                                                   \
@@ -86,7 +86,8 @@ struct Section {
       {T("Timed, afterwards"), T("Space"), T("next")},                         \
       {T("Timed, afterwards"), T("Enter"),                                     \
        T("play the best solution from the start")},                            \
-      {T("Timed, afterwards"), T("Tab"), T("show or hide the details")},       \
+      {T("Timed, afterwards"), T("Tab"),                                       \
+       T("show or hide where the time went and the details")},                 \
       {T("Timed, afterwards"), T("Backspace"), T("make it a DNF, or not")},    \
       {T("Timed, afterwards"), T("Delete"), T("delete the attempt")}, {        \
     T("Timed, afterwards"), T("Esc"), T("the same state again, not recorded")  \
@@ -356,14 +357,20 @@ const std::vector<Section> &sections() {
        {}},
       {T("EO Cross"),
        AppMode::EoCross,
-       {T("EO Cross, F2L and TSLE have the same two tabs with the same keys. "
-          "Learn is untimed; Timed is timed as Drill is.")},
+       {T("EO Cross, F2L and TSLE share their keys. EO Cross has the "
+          "Inspection, Untimed and Timed tabs; F2L and TSLE Learn, Untimed "
+          "and Timed. Timed is timed as Drill is.")},
        {T("When"), T("Key"), T("Action")},
-       {PRACTICE_LEARN_SOLVING,
-        {T("Learn, plan then blind"), T("turning keys"),
-         T("rotations to look; the cube hides at the first face turn")},
-        {T("Learn, plan then blind"), T("Space"),
-         T("show the cube again: only then is the solve judged")},
+       {{T("Inspection, before a sitting's first state"), T("Space"),
+         T("show a state and start the inspection clock")},
+        {T("Inspection, planning"), T("turning keys"),
+         T("rotations to look; the first face turn stops the clock and "
+           "hides the cube")},
+        {T("Inspection, blind"), T("Space"),
+         T("show the cube again: only then is the plan judged")},
+        {T("Inspection, planning or blind"), T("Esc"),
+         T("the same state again, the clock too; not recorded")},
+        PRACTICE_LEARN_SOLVING,
         PRACTICE_LEARN_AFTER,
         PRACTICE_TIMED},
        {}},
@@ -371,13 +378,23 @@ const std::vector<Section> &sections() {
        AppMode::F2L,
        {},
        {T("When"), T("Key"), T("Action")},
-       {PRACTICE_LEARN_NEW,
+       {{T("Learn, choosing a case's solutions"), T("1-9"),
+         T("tick or untick a solution (a click on one plays it)")},
+        {T("Learn, choosing a case's solutions"), T("Enter"),
+         T("keep the ones ticked")},
+        {T("Learn, changing a case's solutions"), T("Esc"),
+         T("leave them as they were")},
+        PRACTICE_LEARN_NEW,
         PRACTICE_LEARN_SOLVING,
-        {T("Learn, one pair, solving"), T("Tab"),
-         T("a hint: a move more of the best solution each time (the card is "
+        {T("Learn, solving"), T("Tab"),
+         T("a hint: a move more of your solution each time (the card is "
            "then graded Again)")},
         PRACTICE_LEARN_AFTER,
         PRACTICE_LEARN_CARDS,
+        {T("Learn, after a card's try"), T("0"),
+         T("change the case's solutions")},
+        {T("Learn, after a try as cheap as yours"), T("+"),
+         T("add what you did to the case's solutions")},
         PRACTICE_TIMED},
        {}},
       {T("TSLE"),
@@ -386,7 +403,7 @@ const std::vector<Section> &sections() {
        {T("When"), T("Key"), T("Action")},
        {PRACTICE_LEARN_NEW,
         PRACTICE_LEARN_SOLVING,
-        {T("Learn, solving"), T("Tab"),
+        {T("solving"), T("Tab"),
          T("a hint: the best step from here (a card is then graded Again)")},
         PRACTICE_LEARN_AFTER,
         PRACTICE_LEARN_CARDS,

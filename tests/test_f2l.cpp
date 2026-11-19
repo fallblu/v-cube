@@ -173,6 +173,106 @@ TEST_CASE("every case can be set up in every method", "[f2l]") {
   }
 }
 
+TEST_CASE("cards are set up for their side's slots", "[f2l]") {
+  Rng rng(5);
+  F2LConfig config;
+  for (PairCase pc : pairCases(true)) {
+    for (PairSide side : {PairSide::Front, PairSide::Back}) {
+      const PairCard card{side, pc};
+      INFO(cardKey(card));
+      CHECK(cardFromKey(cardKey(card)) == card);
+      // The state solutions are chosen for: the side's own slot.
+      std::optional<CubieCube> own = cardState(card, true, rng);
+      REQUIRE(own);
+      CHECK(pairCardOf(*own, sideSlot(side)) == card);
+      CHECK(f2lBase(*own, config));
+      // Practised in either of the side's slots, the others solved but
+      // for the pieces' own and (perhaps) the last slot.
+      for (bool leaveOpen : {false, true}) {
+        std::optional<PairSetup> setup =
+            cardSetup(card, config, leaveOpen, rng);
+        REQUIRE(setup);
+        CHECK(sideOf(setup->target) == side);
+        CHECK(pairCardOf(setup->state, setup->target) == card);
+        const std::size_t open = unsolvedSlots(setup->state).size();
+        const std::size_t needed =
+            1 + (pc.cornerSlot() && *pc.cornerSlot() != Slot::FR ? 1 : 0) +
+            (pc.edgeSlot() && *pc.edgeSlot() != Slot::FR &&
+                     pc.edgeSlot() != pc.cornerSlot()
+                 ? 1
+                 : 0);
+        CHECK(open >= needed);
+        CHECK(open <= needed + (leaveOpen ? 1 : 0));
+      }
+    }
+  }
+}
+
+TEST_CASE("a chosen solution is known done in either slot", "[f2l]") {
+  Rng rng(9);
+  F2LConfig config;
+  AnalysisOptions options = optionsFor(config);
+  options.keep = 3;
+  int checked = 0;
+  for (std::size_t i = 0; i < pairCases(true).size(); i += 9) {
+    for (PairSide side : {PairSide::Front, PairSide::Back}) {
+      const PairCard card{side, pairCases(true)[i]};
+      INFO(cardKey(card));
+      std::optional<CubieCube> own = cardState(card, true, rng);
+      REQUIRE(own);
+      PairAnalysis a = analysePair(*own, sideSlot(side), options);
+      REQUIRE(a.found());
+      const std::vector<Alg> chosen{a.solutions.front().alg};
+      for (int n = 0; n < 4; ++n) {
+        std::optional<PairSetup> setup = cardSetup(card, config, false, rng);
+        REQUIRE(setup);
+        // Done as it solves the state there: mirrored for the side's other
+        // slot, from the U turn the state needs.
+        std::optional<Alg> here =
+            chosenFor(setup->state, setup->target, chosen.front(), config);
+        REQUIRE(here);
+        CubieCube done = after(setup->state, *here);
+        CHECK(slotSolved(done, setup->target));
+        CHECK(matchChosen(*here, side, setup->target, chosen) == 0u);
+        // A U turn more at the end, or the cube turned first, is the same.
+        Alg more = *here;
+        more.push_back({MoveType::U, 2});
+        CHECK(matchChosen(more, side, setup->target, chosen) == 0u);
+        // y2 then the moves as seen after it: the same turns of the cube.
+        Alg seen{Move{MoveType::Y, 2}};
+        for (Move m : *here) {
+          Move t = m;
+          switch (m.type) {
+          case MoveType::R:
+            t.type = MoveType::L;
+            break;
+          case MoveType::L:
+            t.type = MoveType::R;
+            break;
+          case MoveType::F:
+            t.type = MoveType::B;
+            break;
+          case MoveType::B:
+            t.type = MoveType::F;
+            break;
+          default:
+            break;
+          }
+          seen.push_back(t);
+        }
+        CHECK(matchChosen(seen, side, setup->target, chosen) == 0u);
+        ++checked;
+      }
+      // Something else isn't.
+      const Alg other = parseAlgOrEmpty("D2 R U2 R'");
+      if (comparableSolution(other) != comparableSolution(chosen.front())) {
+        CHECK_FALSE(matchChosen(other, side, sideSlot(side), chosen));
+      }
+    }
+  }
+  CHECK(checked > 0);
+}
+
 TEST_CASE("the flat view's blind spots", "[f2l]") {
   CHECK(flatStickers(true, URF) == 3);
   CHECK(flatStickers(true, ULB) == 2);

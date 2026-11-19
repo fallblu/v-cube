@@ -482,12 +482,179 @@ const std::vector<PairCase> &pairCases(bool eo) {
   return cases[eo ? 1 : 0];
 }
 
+// --- cards -------------------------------------------------------------------
+
+std::string_view sideName(PairSide side) {
+  return side == PairSide::Front ? "front" : "back";
+}
+
+std::string cardKey(const PairCard &card) {
+  return std::string(sideName(card.side)) + "/" + caseKey(card.pcase);
+}
+
+std::optional<PairCard> cardFromKey(std::string_view key) {
+  for (PairSide side : {PairSide::Front, PairSide::Back}) {
+    std::string prefix = std::string(sideName(side)) + "/";
+    if (key.starts_with(prefix)) {
+      if (auto c = caseFromKey(key.substr(prefix.size()))) {
+        return PairCard{side, *c};
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+Slot sideSlot(PairSide side) {
+  return side == PairSide::Front ? Slot::FR : Slot::BR;
+}
+
+PairSide sideOf(Slot slot) {
+  return slot == Slot::FR || slot == Slot::FL ? PairSide::Front
+                                              : PairSide::Back;
+}
+
+PairCard pairCardOf(const CubieCube &state, Slot target) {
+  return {sideOf(target), pairCaseOf(state, target)};
+}
+
 std::vector<std::string> pairCardPool(bool eo) {
   std::vector<std::string> pool;
   for (PairCase c : pairCases(eo)) {
-    pool.push_back(caseKey(c));
+    pool.push_back(cardKey({PairSide::Front, c}));
+    pool.push_back(cardKey({PairSide::Back, c}));
   }
   return pool;
+}
+
+std::optional<CubieCube> cardState(const PairCard &card, bool eo, Rng &rng) {
+  const Slot target = sideSlot(card.side);
+  std::vector<Slot> open{target};
+  for (Slot s : slotsNeeded(card.pcase, target)) {
+    open.push_back(s);
+  }
+  std::sort(open.begin(), open.end());
+  std::optional<CubieCube> state =
+      stateWithCase(open, eo, target, card.pcase, rng);
+  if (!state) {
+    return state;
+  }
+  // The top layer turned so that the pair is where the case has it, not
+  // a U turn away: the solutions found don't depend on where it fell.
+  for (int turn = 0; turn < 4; ++turn) {
+    CubieCube m = mirrorState(*state, mirrorOf(target));
+    const int cp = placeOfCorner(m, DFR);
+    const int ep = placeOfEdge(m, FR);
+    if (cp * 3 + m.co[static_cast<std::size_t>(cp)] == card.pcase.corner &&
+        ep * 2 + m.eo[static_cast<std::size_t>(ep)] == card.pcase.edge) {
+      break;
+    }
+    state = afterAlg(*state, {Move{MoveType::U, 1}});
+  }
+  return state;
+}
+
+std::optional<PairSetup> cardSetup(const PairCard &card,
+                                   const F2LConfig &config, bool leaveOpen,
+                                   Rng &rng) {
+  const Slot own = sideSlot(card.side);
+  const Slot other = own == Slot::FR ? Slot::FL : Slot::BL;
+  const Slot target =
+      std::uniform_int_distribution<int>(0, 1)(rng) == 0 ? own : other;
+  std::vector<Slot> open{target};
+  for (Slot s : slotsNeeded(card.pcase, target)) {
+    open.push_back(s);
+  }
+  if (leaveOpen) {
+    std::vector<Slot> leavable;
+    for (Slot s : kF2LSlots) {
+      if (config.leaves(s) && s != target) {
+        leavable.push_back(s);
+      }
+    }
+    if (!leavable.empty()) {
+      Slot left = pickOne(leavable, rng);
+      if (std::find(open.begin(), open.end(), left) == open.end()) {
+        open.push_back(left);
+      }
+    }
+  }
+  std::sort(open.begin(), open.end());
+  auto state = stateWithCase(open, config.eo, target, card.pcase, rng);
+  if (!state) {
+    return std::nullopt;
+  }
+  PairSetup out;
+  out.state = *state;
+  out.target = target;
+  out.pcase = card.pcase;
+  return out;
+}
+
+Alg sideToSlot(const Alg &alg, PairSide side, Slot slot) {
+  return sideOf(slot) == side && slot != sideSlot(side) ? mirrorM(alg) : alg;
+}
+
+Alg comparableSolution(const Alg &moves) {
+  Alg a = simplify(fixedFrame(moves));
+  auto isU = [](Move m) { return m.type == MoveType::U; };
+  while (!a.empty() && isU(a.front())) {
+    a.erase(a.begin());
+  }
+  while (!a.empty() && isU(a.back())) {
+    a.pop_back();
+  }
+  return ordered(a);
+}
+
+std::optional<std::size_t> matchChosen(const Alg &moves, PairSide side,
+                                       Slot slot,
+                                       const std::vector<Alg> &chosen) {
+  const Alg mine =
+      comparableSolution(slotToSide(fixedFrame(moves), side, slot));
+  for (std::size_t i = 0; i < chosen.size(); ++i) {
+    if (comparableSolution(chosen[i]) == mine) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<int> solvesPairWithAuf(const CubieCube &state, Slot slot,
+                                     const Alg &alg, const F2LConfig &config) {
+  // Without the U turns it starts with, which the one put in replaces.
+  Alg body = alg;
+  while (!body.empty() && body.front().type == MoveType::U) {
+    body.erase(body.begin());
+  }
+  for (int auf = 0; auf < 4; ++auf) {
+    Alg moves;
+    if (auf != 0) {
+      moves.push_back({MoveType::U, static_cast<std::uint8_t>(auf)});
+    }
+    moves.insert(moves.end(), body.begin(), body.end());
+    if (solvesPair(state, slot, moves, config)) {
+      return auf;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<Alg> chosenFor(const CubieCube &state, Slot slot,
+                             const Alg &chosen, const F2LConfig &config) {
+  Alg body = sideToSlot(chosen, sideOf(slot), slot);
+  while (!body.empty() && body.front().type == MoveType::U) {
+    body.erase(body.begin());
+  }
+  std::optional<int> auf = solvesPairWithAuf(state, slot, body, config);
+  if (!auf) {
+    return std::nullopt;
+  }
+  Alg moves;
+  if (*auf != 0) {
+    moves.push_back({MoveType::U, static_cast<std::uint8_t>(*auf)});
+  }
+  moves.insert(moves.end(), body.begin(), body.end());
+  return moves;
 }
 
 Mirror slotMirror(Slot s) {
@@ -521,6 +688,32 @@ FaceletCube caseDiagram(PairCase c) {
   for (std::size_t k = 0; k < 2; ++k) {
     s[kEdgeFacelets[c.edge / 2][(k + c.edge % 2) % 2]] =
         static_cast<std::uint8_t>(kEdgeFacelets[FR][k] / 9);
+  }
+  return FaceletCube(s);
+}
+
+FaceletCube pairDiagram(const CubieCube &state, Slot slot) {
+  const FaceletCube full = state.toFacelets();
+  FaceletCube::Stickers s;
+  s.fill(kMaskedColour);
+  for (int face = 0; face < 6; ++face) {
+    s[static_cast<std::size_t>(face * 9 + 4)] = static_cast<std::uint8_t>(face);
+  }
+  for (std::size_t place = 0; place < kCorners; ++place) {
+    if (state.cp[place] == slotCorner(slot)) {
+      for (std::uint8_t f : kCornerFacelets[place]) {
+        s[f] = full[f];
+      }
+    }
+  }
+  for (std::size_t place = 0; place < kEdges; ++place) {
+    const Edge piece = static_cast<Edge>(state.ep[place]);
+    if (piece == slotEdge(slot) ||
+        std::find(kCross.begin(), kCross.end(), piece) != kCross.end()) {
+      for (std::uint8_t f : kEdgeFacelets[place]) {
+        s[f] = full[f];
+      }
+    }
   }
   return FaceletCube(s);
 }

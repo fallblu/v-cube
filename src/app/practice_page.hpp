@@ -30,38 +30,52 @@ class QTreeWidgetItem;
 namespace vcube {
 
 // What EO Cross, F2L and TSLE mode share: a step of the solve practised in
-// two tabs that work the same way in each mode.
+// three tabs that work the same way in each mode.
 //
-//   Learn  untimed, on the virtual cube. Scope picks what comes up: one
-//          unit of the step (an F2L pair, a TSLE trigger) or the whole
-//          step. A unit is a card where the mode has cases: cards come in
-//          a few a day, a new one is shown before it is tried, and each
-//          try grades its card (Good when solved unaided and well, Again
-//          after a hint, giving up or a poor solution; 1-4 change the
-//          grade). Solves of the whole step are practice: kept, not graded.
-//   Timed  the whole step against the clock, exactly as Drill times a
-//          case: on the virtual cube a tap of Space arms the timer, the
-//          first face turn starts it and it stops when the step is done;
-//          on a physical cube a scramble is shown, Space held and let go
-//          starts it and any key stops it.
+//   Learn       (F2L, TSLE) untimed, on the virtual cube: one unit of the
+//               step (an F2L pair, a TSLE trigger) at a time, as cards.
+//               Cards come in a few a day, a new one is shown before it is
+//               tried, and each try grades its card (Good when solved
+//               unaided and well, Again after a hint, giving up or a poor
+//               solution; 1-4 change the grade). A mode may have the
+//               user choose a new card's solutions before it is shown.
+//   Inspection  (EO Cross) the step planned in an inspection time and
+//               done blind: the clock runs while the cube is looked at
+//               (rotations only), the cube hides at the first face turn,
+//               and Space shows how it went. The first state of a sitting
+//               waits for Space, as nothing timed starts by itself.
+//   Untimed     the whole step on the virtual cube, for efficiency: a line
+//               on each unit as it is done, then the verdict.
+//   Timed       the whole step against the clock, exactly as Drill times a
+//               case: on the virtual cube a tap of Space arms the timer,
+//               the first face turn starts it and it stops when the step
+//               is done; on a physical cube a scramble is shown, Space
+//               held and let go starts it and any key stops it. The result
+//               is about the time; how efficient it was is behind Tab.
 //
 // States are what a solve gives: random ones, never picked by how the last
 // tries went. After a solve there is one line (the verdict) and the best
 // solution; Tab opens the detail. Enter plays the best solution, Space
 // goes on, Esc gives the same state again, unrecorded.
 //
-// A mode says what its states, cases and solutions are (the virtuals
-// below); the page does the rest.
+// A mode says what its tabs, states, cases and solutions are (the
+// virtuals below); the page does the rest.
 class PracticePage : public ModePage {
   Q_OBJECT
 public:
-  enum class Tab { Learn, Timed };
-  // Learn's phases (the Timed tab's are DrillFlow's).
+  enum class Tab { Learn, Inspection, Untimed, Timed };
+  // The phases of the tabs that aren't timed (the Timed tab's are
+  // DrillFlow's).
   //   Idle     no card is due; Space looks again
+  //   Ready    Inspection: Space shows a state and starts the clock
+  //   Choose   a new case's solutions are chosen (see choicePanel())
   //   Demo     a new case: Enter shows its solution, then it is done
   //   Solving  Tab a hint, Backspace gives up, Esc starts again
   //   Done     the verdict is up
-  enum class Phase { Idle, Demo, Solving, Done };
+  enum class Phase { Idle, Ready, Choose, Demo, Solving, Done };
+  // "learn", "inspection", "untimed", "timed".
+  static QString tabId(Tab t);
+  static QString tabName(Tab t);
 
   ~PracticePage() override;
 
@@ -83,9 +97,8 @@ public:
   void selectTab(Tab t);
   Phase phase() const { return phase_; }
   DrillFlow::Phase timedPhase() const { return flow_.phase(); }
-  // Learn's scope: 0 one unit, 1 the whole step.
-  int scope() const { return scope_; }
-  void setScope(int scope);
+  // The mode's tabs, in order.
+  virtual std::vector<Tab> tabs() const = 0;
   // Timed's cube.
   bool physical() const { return physical_; }
   void setPhysical(bool on);
@@ -106,12 +119,18 @@ public:
   QString detailHtml() const;
   bool detailShown() const { return detailOpen_; }
   bool cubeHidden() const;
+  // The lines said on the units done so far (Untimed).
+  QStringList progressLines() const { return progress_; }
+  // Inspection: the time looked before the first face turn (0 while the
+  // clock runs or with no inspection).
+  std::int64_t inspectedMs() const { return item_.inspectMs; }
+  bool inspecting() const { return item_.inspecting; }
   // The scramble of a physical attempt ("" until it is worked out).
   QString scrambleText() const { return item_.scramble; }
   // The mode's solutions for the state are worked out.
   virtual bool analysisReady() const { return true; }
   const PracticeData &data() const { return store_.data; }
-  // Learn's cards, one unit at a time (where Today sends).
+  // The Learn tab's cards (where Today sends).
   void showCards();
   // Sets a card's case up to practise, not graded.
   void practiseCard(const std::string &card);
@@ -130,15 +149,11 @@ protected:
   virtual QString modeId() const = 0;
   // "F2L", as in "Whole F2L".
   virtual QString stepName() const = 0;
-  // What one unit of the step is called in Learn's scope picker ("One
-  // pair"); empty when the step has no units (then there is no picker and
-  // every solve is of the whole step).
-  virtual QString unitName() const { return {}; }
   // The mode's own options, added to the bar before the page's.
   virtual void addOptions(OptionBar *bar) { (void)bar; }
   // Buttons at the end of the bar.
   virtual void addButtons(OptionBar *bar) { (void)bar; }
-  // Shows and hides them for the tab and scope.
+  // Shows and hides them for the tab.
   virtual void showOptions() {}
 
   // The cards in the order they are introduced; empty for a mode without.
@@ -167,9 +182,10 @@ protected:
 
   // How a solve went.
   struct Outcome {
-    QString verdict;  // one line of rich text
-    Alg best;         // the best solution from the start; empty if none
-    QString bestText; // how it is written (default: the alg)
+    QString verdict;   // one line of rich text
+    Alg best;          // the best solution from the start; empty if none
+    QString bestText;  // how it is written (default: the alg)
+    QString bestLabel; // what the best is called (default: "Best")
     int moves = 0;
     int bestMoves = 0;
     double extra = -1.0;
@@ -192,9 +208,37 @@ protected:
   // ("last slot: FR").
   virtual QString task() const = 0;
   virtual QString taskNote() const { return {}; }
-  // Hide the cube from the first face turn of a Learn solve; Space shows
-  // it again, and only then is the solve judged.
-  virtual bool blind() const { return false; }
+  // Hide the cube from the first face turn of a solve; Space shows it
+  // again, and only then is the solve judged (Inspection).
+  virtual bool blind() const { return tab() == Tab::Inspection; }
+  // Inspection's limit; 0 for none.
+  virtual std::int64_t inspectionLimitMs() const { return 0; }
+
+  // Choosing a card's solutions. The item's card needs them before it is
+  // tried (asked when it comes up); the panel shown meanwhile in place of
+  // the details; 1-9 pressed; Enter (false: not yet, say why yourself);
+  // Esc while changing them after a try.
+  virtual bool needsChoice() const { return false; }
+  virtual QWidget *choicePanel() { return nullptr; }
+  virtual void startChoosing() {}
+  virtual void choiceKey(int n) { (void)n; }
+  virtual bool confirmChoice() { return true; }
+  virtual void cancelChoice() {}
+  virtual QString choosingText() const { return {}; }
+  // Keys of the mode's own once a try is done, and their hints.
+  virtual bool doneKey(QKeyEvent *e) {
+    (void)e;
+    return false;
+  }
+  virtual QList<KeyHint> doneKeys() const { return {}; }
+
+  // The parts of a solve, for the Timed tab's splits: each named, ending
+  // after a move of the solve (an index into item().moves, exclusive).
+  struct Split {
+    QString name;
+    std::size_t end = 0;
+  };
+  virtual std::vector<Split> splits() { return {}; }
 
   // The lists.
   struct ListRow {
@@ -205,8 +249,8 @@ protected:
   };
   // The cards (keys are card ids).
   virtual std::vector<ListRow> cardRows() { return {}; }
-  // The groups Learn's other solves are kept under.
-  virtual std::vector<ListRow> learnGroups() = 0;
+  // The groups the Untimed (and Inspection) tab's solves are kept under.
+  virtual std::vector<ListRow> untimedGroups() = 0;
   // The groups of timed attempts.
   virtual std::vector<ListRow> timedGroups() = 0;
   virtual QString listHelp() const { return {}; }
@@ -234,6 +278,10 @@ protected:
     std::vector<std::int64_t> moveMs; // since the solve began, per move
     std::int64_t began = 0;           // monotonicMs()
     std::int64_t ms = 0;              // Timed: the time
+    std::optional<double> meanBefore; // Timed: the group's mean before it
+    std::int64_t inspectStart = 0;    // Inspection: monotonicMs()
+    std::int64_t inspectMs = 0;       // ...the time looked
+    bool inspecting = false;          // ...the clock runs
     bool done = false;                // the cube shows the item done
     bool hint = false;
     bool gaveUp = false;
@@ -258,6 +306,11 @@ protected:
   // The mode's analysis of the item `id` arrived: a verdict waiting for it
   // is given, one that is up is given again.
   void analysisArrived(int id);
+  // The lines on the units done so far changed (Untimed).
+  void setProgress(const QStringList &lines);
+  // Changes the solutions of the card just tried (from Done).
+  void chooseAgain();
+  void showChoosing();
   void save();
   void fillList();
   void refreshList();
@@ -273,8 +326,10 @@ private:
   PracticeStore store_;
   Rng rng_;
   Tab tab_ = Tab::Learn;
-  int scope_ = 0;
   bool physical_ = false;
+  bool readyPending_ = true; // Inspection: the next state waits for Space
+  Phase afterChoice_ = Phase::Solving;
+  QStringList progress_;
   Phase phase_ = Phase::Idle;
   DrillFlow flow_;
   Item item_;
@@ -299,8 +354,6 @@ private:
   QPushButton *clearButton_ = nullptr;
   QTabBar *tabs_ = nullptr;
   OptionBar *options_ = nullptr;
-  QComboBox *scopeBox_ = nullptr;
-  QWidget *scopeItem_ = nullptr;
   QComboBox *cubeBox_ = nullptr;
   QWidget *cubeItem_ = nullptr;
   QWidget *viewItem_ = nullptr;
@@ -312,13 +365,16 @@ private:
   TimeDisplay *display_ = nullptr;
   HintBar *hint_ = nullptr;
   QLabel *verdict_ = nullptr;
+  QLabel *progressLabel_ = nullptr;
   QLabel *detail_ = nullptr;
   QScrollArea *detailScroll_ = nullptr;
+  QScrollArea *choiceScroll_ = nullptr;
   QTimer tick_;
 
   bool hasCards() const { return !cardPool().empty(); }
-  // Learn's solves are of the whole step.
-  bool learnWhole() const;
+  // The tab's solves are of the whole step.
+  bool whole() const { return tab_ != Tab::Learn; }
+  int tabIndex(Tab t) const;
   void buildSide();
   void showBar();
   void loadChoices();
@@ -333,6 +389,8 @@ private:
   void begin(const Setup &setup, bool whole);
   void sameAgain();
   void showIdle(const QString &text);
+  void showReady();
+  void showInspection();
   void resetCube();
   void showCubeKind();
   void applyTurn(Move m);
@@ -340,8 +398,11 @@ private:
   void requestScramble();
   void scrambleReady();
 
-  // --- Learn
+  // --- the tabs that aren't timed
   bool handleLearnKey(QKeyEvent *e);
+  bool handleChooseKey(QKeyEvent *e);
+  void enterChoice(Phase after);
+  void leaveChoice(bool confirmed);
   void learnTurn(Move m);
   void finishLearn(bool gaveUp);
   void conclude();
@@ -372,6 +433,9 @@ private:
   void showVerdict();
   void showSummary();
   QString gradeLine() const;
+  QString timedLine() const;
+  QString inspectionLine() const;
+  QString splitsHtml();
   void rowActivated(QTreeWidgetItem *row);
   void clearProgress();
 };

@@ -35,12 +35,18 @@ void PracticeData::addLearn(const std::string &group, const PracticeTry &t) {
   addCapped(learn[group], t);
 }
 
+void PracticeData::addInspection(const std::string &group,
+                                 const PracticeTry &t) {
+  addCapped(inspection[group], t);
+}
+
 void PracticeData::addTimed(const std::string &key, const PracticeTry &t) {
   addCapped(timed[key], t);
 }
 
 bool operator==(const PracticeData &a, const PracticeData &b) {
   if (a.learn != b.learn || a.timed != b.timed || a.notes != b.notes ||
+      a.inspection != b.inspection || a.choices != b.choices ||
       a.cards.size() != b.cards.size()) {
     return false;
   }
@@ -66,8 +72,9 @@ PracticeSummary summarize(const std::vector<PracticeTry> &tries) {
 PracticeSummary summarize(const std::vector<PracticeTry> &tries,
                           std::int64_t since) {
   PracticeSummary s;
-  double msSum = 0.0, moveSum = 0.0, extraSum = 0.0;
-  std::size_t msN = 0, moveN = 0, extraN = 0;
+  double msSum = 0.0, moveSum = 0.0, extraSum = 0.0, inspectSum = 0.0,
+         tpsSum = 0.0;
+  std::size_t msN = 0, moveN = 0, extraN = 0, inspectN = 0, tpsN = 0;
   // Newest first, so that the means are of the last few.
   for (auto it = tries.rbegin(); it != tries.rend(); ++it) {
     const PracticeTry &t = *it;
@@ -75,8 +82,17 @@ PracticeSummary summarize(const std::vector<PracticeTry> &tries,
       continue;
     }
     ++s.tries;
+    s.overTime += t.over ? 1 : 0;
+    if (t.inspectMs > 0 && inspectN < kRecentTries) {
+      inspectSum += static_cast<double>(t.inspectMs);
+      ++inspectN;
+    }
     if (t.dnf) {
       continue;
+    }
+    if (t.ms > 0 && t.moves > 0 && tpsN < kRecentTries) {
+      tpsSum += t.moves * 1000.0 / static_cast<double>(t.ms);
+      ++tpsN;
     }
     ++s.solved;
     if (t.ms > 0) {
@@ -105,6 +121,12 @@ PracticeSummary summarize(const std::vector<PracticeTry> &tries,
   }
   if (extraN) {
     s.meanExtra = extraSum / static_cast<double>(extraN);
+  }
+  if (inspectN) {
+    s.meanInspectMs = inspectSum / static_cast<double>(inspectN);
+  }
+  if (tpsN) {
+    s.meanTps = tpsSum / static_cast<double>(tpsN);
   }
   return s;
 }

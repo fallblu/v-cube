@@ -123,9 +123,74 @@ std::string_view groupName(PairGroup g);
 // flipped), 167 without.
 const std::vector<PairCase> &pairCases(bool eo);
 
-// The cases as F2L mode's cards, by caseKey(), in the order they are
-// introduced (as listed).
+// --- cards -------------------------------------------------------------------
+
+// One pair to solve.
+struct PairSetup {
+  CubieCube state;
+  Slot target = Slot::FR;
+  PairCase pcase;
+};
+
+// F2L mode's cards: a pair case for the front slots or for the back ones.
+// A card's solutions are written for its side's own slot (FR or BR) and
+// done mirrored left to right in the other one (FL or BL).
+enum class PairSide : std::uint8_t { Front, Back };
+struct PairCard {
+  PairSide side = PairSide::Front;
+  PairCase pcase;
+  friend auto operator<=>(const PairCard &, const PairCard &) = default;
+};
+// "front/URF1-UB0", "back/URF1-UB0".
+std::string cardKey(const PairCard &card);
+std::optional<PairCard> cardFromKey(std::string_view key);
+// FR or BR.
+Slot sideSlot(PairSide side);
+PairSide sideOf(Slot slot);
+// "front", "back" (the slots: "FR / FL", "BR / BL").
+std::string_view sideName(PairSide side);
+// The case of `target`'s pair in a state, as a card.
+PairCard pairCardOf(const CubieCube &state, Slot target);
+
+// The cards in the order they are introduced: each case as listed, its
+// front card then its back one (166 with EO, 334 without).
 std::vector<std::string> pairCardPool(bool eo);
+
+// A card's case for its side's own slot, with the slots its pieces sit in
+// open and the others solved: the state its solutions are chosen for.
+std::optional<CubieCube> cardState(const PairCard &card, bool eo, Rng &rng);
+// A card's case to practise: the pair in one of the side's two slots, the
+// slots its pieces sit in open and the others solved, except that the
+// method's last slot may be left open (with `leaveOpen`).
+std::optional<PairSetup> cardSetup(const PairCard &card,
+                                   const F2LConfig &config, bool leaveOpen,
+                                   Rng &rng);
+
+// Moves written for the side's own slot as they are done for `slot`, and
+// back: mirrored left to right for the side's other slot.
+Alg sideToSlot(const Alg &alg, PairSide side, Slot slot);
+inline Alg slotToSide(const Alg &alg, PairSide side, Slot slot) {
+  return sideToSlot(alg, side, slot);
+}
+// A pair solution as solutions compare: the turns without rotations (see
+// fixedFrame()), simplified, without the U turns at the start and the end,
+// opposite faces in one order.
+Alg comparableSolution(const Alg &moves);
+// The one of `chosen` (written for the side's slot) that `moves`, done for
+// `slot`, is; nullopt if none.
+std::optional<std::size_t> matchChosen(const Alg &moves, PairSide side,
+                                       Slot slot,
+                                       const std::vector<Alg> &chosen);
+// A chosen solution as it solves `slot`'s pair in `state`: mirrored for
+// the slot, the U turn before it that the state needs put in; nullopt if no
+// U turn makes it solve the pair (keeping the base and the solved slots).
+std::optional<Alg> chosenFor(const CubieCube &state, Slot slot,
+                             const Alg &chosen, const F2LConfig &config);
+// Whether `alg` (with some U turn before it) solves `slot`'s pair from
+// `state`, keeping the base and the slots that were solved: the U turn it
+// needs (0-3), or nullopt.
+std::optional<int> solvesPairWithAuf(const CubieCube &state, Slot slot,
+                                     const Alg &alg, const F2LConfig &config);
 
 // The mirror image that brings a slot to the front right (and back).
 Mirror slotMirror(Slot s);
@@ -137,18 +202,16 @@ Slot slotSeenFrom(Slot seen, Slot target);
 // where the case has them, the rest masked.
 FaceletCube caseDiagram(PairCase c);
 
+// A picture of a slot's pair in a state: the centres, the cross and the
+// pair's two pieces where they are, the rest masked.
+FaceletCube pairDiagram(const CubieCube &state, Slot slot);
+
 // --- starting states ---------------------------------------------------------
 
 // A random state with the cross (and EO, for `eo`) done, the `open` slots
 // unsolved and the others solved.
 CubieCube randomF2LState(const std::vector<Slot> &open, bool eo, Rng &rng);
 
-// One pair to solve.
-struct PairSetup {
-  CubieCube state;
-  Slot target = Slot::FR;
-  PairCase pcase;
-};
 // A state with one pair to solve: `stage` is the pair's place in the solve (1
 // first, with every slot open; 0 any), brought down when the case needs
 // more slots open than that leaves. With `wanted` the target pair is that

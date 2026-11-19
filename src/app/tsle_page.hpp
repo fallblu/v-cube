@@ -14,17 +14,16 @@ class QToolButton;
 namespace vcube {
 
 // TSLE mode: ZZ-CT's last-slot step a trigger at a time (see tsle.hpp),
-// in the two tabs every practice mode has (see PracticePage). From any
-// state every good trigger is known, each with the U turn it needs first,
-// so that the one that suits the AUF at hand can be chosen rather than one
-// trigger learned per case.
+// in three tabs (see PracticePage). From any state every good trigger is
+// known, each with the U turn it needs first, so that the one that suits
+// the AUF at hand can be chosen rather than one trigger learned per case.
 //
-//   Learn, one trigger   a case's card: the state at a random AUF, do the
-//                        next step. Any good trigger is Good; the verdict
-//                        says whether it was the best from that AUF.
-//   Learn, whole TSLE    a random last-slot state to the end, compared
-//                        trigger by trigger in the details.
-//   Timed                the whole step, kept by the case it started from.
+//   Learn    a case's card: the state at a random AUF, do the next step.
+//            Any good trigger is Good; the verdict says whether it was the
+//            best from that AUF.
+//   Untimed  a random last-slot state to the end, a line on each trigger
+//            as it is done, then compared trigger by trigger.
+//   Timed    the whole step, kept by the case it started from.
 //
 // A chain that ends in an OCLL runs through the OCLL; the OCLL algs can
 // be changed and are what the best way is priced with.
@@ -48,7 +47,9 @@ public:
 protected:
   QString modeId() const override { return "tsle"; }
   QString stepName() const override { return "TSLE"; }
-  QString unitName() const override { return tr("One trigger"); }
+  std::vector<Tab> tabs() const override {
+    return {Tab::Learn, Tab::Untimed, Tab::Timed};
+  }
   void addOptions(OptionBar *bar) override;
   void addButtons(OptionBar *bar) override;
   void showOptions() override;
@@ -65,7 +66,8 @@ protected:
   QString task() const override;
   QString taskNote() const override;
   std::vector<ListRow> cardRows() override;
-  std::vector<ListRow> learnGroups() override;
+  std::vector<Split> splits() override;
+  std::vector<ListRow> untimedGroups() override;
   std::vector<ListRow> timedGroups() override;
   QString listHelp() const override;
   QString cardName(const std::string &card) const override;

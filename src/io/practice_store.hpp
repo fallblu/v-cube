@@ -19,10 +19,14 @@ namespace vcube {
 //  "learn": {"whole": [{"timestamp": ..., "moves": 31, "best": 24,
 //    "extra": 4.5, "dnf": true, "hint": true}]},
 //  "timed": {"virtual/zz-1": [{"timestamp": ..., "ms": 14200, "moves": 31}]},
+//  "inspection": {"eocross": [{"timestamp": ..., "inspect": 9300,
+//    "moves": 8, "best": 7, "extra": 1, "over": true}]},
+//  "choices": {"front/URF1-UB0": ["U R U' R'", "y' U' L' U L"]},
 //  "notes": {"ocll/sune": "R U R' U R U2 R'"}}
-// "cards" is written as an alg set's progress is. Of a try, "ms", "moves"
-// and "best" are left out when 0, "extra" when it isn't known, and "dnf"
-// and "hint" when false.
+// "cards" is written as an alg set's progress is; "learn" holds the
+// Untimed tab's solves. Of a try, "ms", "moves", "best" and "inspect" are
+// left out when 0, "extra" when it isn't known, and "dnf", "hint" and
+// "over" when false. "inspection" and "choices" are left out when empty.
 QJsonObject practiceToJson(const PracticeData &data);
 PracticeData practiceFromJson(const QJsonObject &o);
 

@@ -9,6 +9,7 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <array>
 
 namespace vcube {
 
@@ -16,6 +17,9 @@ namespace {
 
 // Optimal solutions worked out per hold, to list a few that differ.
 constexpr int kSolutionsPerHold = 12;
+
+// The inspection limits offered, in seconds (0: none).
+constexpr std::array<int, 6> kLimits = {0, 8, 10, 15, 20, 30};
 
 // The rotations that turn a cube held as `from` to `to`.
 Alg rotationBetween(Hold from, Hold to) {
@@ -60,7 +64,12 @@ EoCrossPage::EoCrossPage(AppSettings &settings, const QString &dataDir,
   if (std::find(steps.begin(), steps.end(), step_) == steps.end()) {
     step_ = SolveStep::EOCross;
   }
-  blind_ = saved::practice("eocross", "blind", false).get().toBool();
+  limitSeconds_ =
+      saved::practice("eocross", "inspectionLimit", 15).get().toInt();
+  if (std::find(kLimits.begin(), kLimits.end(), limitSeconds_) ==
+      kLimits.end()) {
+    limitSeconds_ = 15;
+  }
   build();
 }
 
@@ -75,25 +84,29 @@ void EoCrossPage::addOptions(OptionBar *bar) {
     stepBox_->addItem(qs(vcube::stepName(s)), qs(stepId(s)));
   }
   bar->addPicker(tr("Step:"), stepBox_);
-  blindBox_ = new QComboBox(bar);
-  blindBox_->setFocusPolicy(Qt::NoFocus);
-  blindBox_->addItem(tr("In view"));
-  blindBox_->addItem(tr("Plan, then blind"));
-  blindItem_ = bar->addPicker(tr("Solve:"), blindBox_);
+  limitBox_ = new QComboBox(bar);
+  limitBox_->setFocusPolicy(Qt::NoFocus);
+  for (int seconds : kLimits) {
+    limitBox_->addItem(seconds == 0    ? tr("None")
+                       : seconds == 15 ? tr("15 s (WCA)")
+                                       : tr("%1 s").arg(seconds),
+                       seconds);
+  }
+  limitItem_ = bar->addPicker(tr("Inspection:"), limitBox_);
   connect(stepBox_, &QComboBox::activated, this, [this] {
     if (auto s = stepFromId(stepBox_->currentData().toString().toStdString())) {
       setStep(*s);
     }
   });
-  connect(blindBox_, &QComboBox::activated, this,
-          [this](int index) { setBlind(index == 1); });
+  connect(limitBox_, &QComboBox::activated, this,
+          [this] { setInspectionLimit(limitBox_->currentData().toInt()); });
 }
 
 void EoCrossPage::showOptions() {
-  QSignalBlocker a(stepBox_), b(blindBox_);
+  QSignalBlocker a(stepBox_), b(limitBox_);
   stepBox_->setCurrentIndex(stepBox_->findData(qs(stepId(step_))));
-  blindBox_->setCurrentIndex(blind_ ? 1 : 0);
-  blindItem_->setVisible(tab() == Tab::Learn);
+  limitBox_->setCurrentIndex(limitBox_->findData(limitSeconds_));
+  limitItem_->setVisible(tab() == Tab::Inspection);
 }
 
 void EoCrossPage::setStep(SolveStep step) {
@@ -102,9 +115,9 @@ void EoCrossPage::setStep(SolveStep step) {
   optionChanged();
 }
 
-void EoCrossPage::setBlind(bool on) {
-  blind_ = on;
-  saved::practice("eocross", "blind").set(blind_);
+void EoCrossPage::setInspectionLimit(int seconds) {
+  limitSeconds_ = std::max(0, seconds);
+  saved::practice("eocross", "inspectionLimit").set(limitSeconds_);
   optionChanged();
 }
 
@@ -380,7 +393,19 @@ QString EoCrossPage::detail() {
 
 // --- the lists ---------------------------------------------------------------
 
-std::vector<PracticePage::ListRow> EoCrossPage::learnGroups() {
+std::vector<PracticePage::Split> EoCrossPage::splits() {
+  if (solving_ != SolveStep::EOCross || !solvedIn_ || item().moves.empty()) {
+    return {};
+  }
+  std::vector<Split> out;
+  for (const EoPart &p :
+       eoBreakdown(startCube(), item().moves, *solvedIn_).parts) {
+    out.push_back({qs(vcube::stepName(p.step)), p.end});
+  }
+  return out;
+}
+
+std::vector<PracticePage::ListRow> EoCrossPage::untimedGroups() {
   std::vector<ListRow> rows;
   for (SolveStep s : eoCrossSteps()) {
     rows.push_back({std::string(stepId(s)), qs(vcube::stepName(s)), {}, {}});
@@ -389,7 +414,7 @@ std::vector<PracticePage::ListRow> EoCrossPage::learnGroups() {
 }
 
 std::vector<PracticePage::ListRow> EoCrossPage::timedGroups() {
-  return learnGroups();
+  return untimedGroups();
 }
 
 void EoCrossPage::groupActivated(const std::string &key) {
@@ -399,11 +424,18 @@ void EoCrossPage::groupActivated(const std::string &key) {
 }
 
 QString EoCrossPage::listHelp() const {
-  return tab() == Tab::Learn
-             ? tr("Your Learn solves by step: how many, their moves lately "
-                  "and how far over the optimum of your holds they were. "
-                  "Double-click a step to practise it.")
-             : tr("Timed solves by step. Double-click a step to switch to it.");
+  switch (tab()) {
+  case Tab::Inspection:
+    return tr("Your plans by step: how many, how many did the step, the "
+              "time you looked and how far over the optimum of your holds "
+              "they were lately. Double-click a step to practise it.");
+  case Tab::Untimed:
+    return tr("Your untimed solves by step: how many, their moves lately and "
+              "how far over the optimum of your holds they were. "
+              "Double-click a step to practise it.");
+  default:
+    return tr("Timed solves by step. Double-click a step to switch to it.");
+  }
 }
 
 } // namespace vcube

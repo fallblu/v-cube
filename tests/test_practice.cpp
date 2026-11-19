@@ -53,6 +53,29 @@ TEST_CASE("a group's tries are summed up", "[practice]") {
   CHECK(*summarize(tries).bestMs == 1000);
 }
 
+TEST_CASE("inspection and turning speed are summed up", "[practice]") {
+  std::vector<PracticeTry> tries;
+  PracticeTry a;
+  a.inspectMs = 9000;
+  a.moves = 7;
+  tries.push_back(a);
+  PracticeTry b;
+  b.inspectMs = 17000;
+  b.over = true;
+  b.dnf = true; // not done: its inspection counts all the same
+  tries.push_back(b);
+  PracticeSummary s = summarize(tries);
+  CHECK(*s.meanInspectMs == 13000.0);
+  CHECK(s.overTime == 1);
+  CHECK(s.solved == 1);
+  CHECK_FALSE(s.meanTps); // untimed
+
+  std::vector<PracticeTry> timed{timedTry(1, 10000), timedTry(2, 5000)};
+  timed[0].moves = 30;
+  timed[1].moves = 20;
+  CHECK(*summarize(timed).meanTps == 3.5);
+}
+
 TEST_CASE("untimed tries are summed up by moves", "[practice]") {
   std::vector<PracticeTry> tries;
   PracticeTry a;
@@ -139,9 +162,20 @@ TEST_CASE("the card pools are the cases in learning order", "[practice]") {
     CHECK(tsleStepsLeft(*c) >= steps);
     steps = tsleStepsLeft(*c);
   }
-  CHECK(pairCardPool(true).size() == 83);
-  CHECK(pairCardPool(false).size() == 167);
-  CHECK(caseFromKey(pairCardPool(true).front()));
+  // F2L: each case for the front slots, then for the back ones.
+  const std::vector<std::string> pairs = pairCardPool(true);
+  CHECK(pairs.size() == 166);
+  CHECK(pairCardPool(false).size() == 334);
+  std::optional<PairCard> first = cardFromKey(pairs[0]);
+  std::optional<PairCard> second = cardFromKey(pairs[1]);
+  REQUIRE(first);
+  REQUIRE(second);
+  CHECK(first->side == PairSide::Front);
+  CHECK(second->side == PairSide::Back);
+  CHECK(first->pcase == pairCases(true).front());
+  CHECK(second->pcase == first->pcase);
+  CHECK(pairs[0].starts_with("front/"));
+  CHECK_FALSE(cardFromKey(caseKey(first->pcase))); // as keyed before
 }
 
 TEST_CASE("a card's try is graded by how it went", "[practice]") {
@@ -169,8 +203,19 @@ TEST_CASE("practice data survives the file", "[practice][io]") {
   dnf.dnf = true;
   d.addLearn("whole", dnf);
   d.addTimed(timedKey(true, "zz-1"), timedTry(1794000400, 14200));
+  PracticeTry planned;
+  planned.timestamp = 1794000500;
+  planned.inspectMs = 16200;
+  planned.over = true;
+  planned.moves = 8;
+  planned.best = 7;
+  planned.extra = 1.0;
+  d.addInspection("eocross", planned);
+  d.choices["front/URF1-UB0"] = {"U R U' R'", "R' F R F'"};
   d.notes["ocll/antisune"] = "L' U' L U' L' U2 L";
   CHECK(practiceFromJson(practiceToJson(d)) == d);
+  CHECK(practiceToJson(d).value("inspection").toObject().contains("eocross"));
+  CHECK_FALSE(practiceToJson(PracticeData{}).contains("choices"));
 
   QTemporaryDir dir;
   REQUIRE(dir.isValid());
