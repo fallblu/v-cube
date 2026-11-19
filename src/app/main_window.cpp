@@ -316,8 +316,10 @@ QWidget *MainWindow::buildBanner() {
   banner_->setObjectName("saveBanner");
   banner_->setAttribute(Qt::WA_StyledBackground);
   // The same in both themes: white on a dark red.
-  banner_->setStyleSheet("#saveBanner { background: #8e1f1f; }"
-                         "#saveBanner QLabel { color: white; }");
+  banner_->setStyleSheet(QString("#saveBanner { background: %1; }"
+                                 "#saveBanner QLabel { color: %2; }")
+                             .arg(roleColour(Role::Banner).name(),
+                                  roleColour(Role::OnBadge).name()));
   auto *layout = new QHBoxLayout(banner_);
   layout->setContentsMargins(12, 6, 8, 6);
   bannerText_ = new QLabel(banner_);

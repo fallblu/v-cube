@@ -392,12 +392,12 @@ void LabTestPanel::fillCompare() {
                            s.trimPercent, warmup());
     auto c = resolveLabCase(library_, store_, e.key);
     int row = static_cast<int>(i);
-    QColor colour = seriesColour(i, settings_.darkTheme);
+    QColor colour = labSeriesColour(i);
     auto *algItem = item(qs(e.alg));
     if (i < 8) {
       QPixmap swatch(10, 10);
       swatch.fill(colour);
-      algItem->setIcon(QIcon(swatch));
+      algItem->setIcon(cube_painter::caseIcon(swatch));
     }
     compare_->setItem(row, 0, algItem);
     compare_->setItem(row, 1, item(c ? c->name : QString()));

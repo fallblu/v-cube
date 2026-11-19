@@ -180,7 +180,7 @@ void LearnPage::updateHeader() {
     parts << part(tr("Queued"), n.queued, muted);
   }
   parts << part(tr("Learning"), n.learning, kWarnColour.name())
-        << part(tr("Due"), n.due, "#5aa0ff")
+        << part(tr("Due"), n.due, roleColour(Role::Info).name())
         << part(tr("Done today"), n.doneToday, kLearned.name());
   if (n.againToday > 0) {
     parts.back() += QString(" <span style='color:%1'>(%2)</span>")

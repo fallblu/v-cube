@@ -467,7 +467,7 @@ void DrillPage::showReveal() {
   // A virtual DNF shows what was done.
   if (onVirtualCube() && flow_.failed() && !attempt_.moves().empty() &&
       flow_.phase() == Phase::Revealed) {
-    html += "<p style='color:gray'>" +
+    html += "<p style='color:" + roleColour(Role::Muted).name() + "'>" +
             tr("Your moves: %1")
                 .arg(qs(toString(attempt_.solution())))
                 .toHtmlEscaped() +

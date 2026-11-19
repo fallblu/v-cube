@@ -1,6 +1,7 @@
 #include "app/case_history_dialog.hpp"
 
 #include "app/case_page.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
 #include <QCoreApplication>
@@ -70,7 +71,7 @@ void showCaseHistory(QWidget *parent, const QString &caseName,
       info += "<p>" + tr("Suspended: left out of Learn.") + "</p>";
     }
     if (isLeech(k, config)) {
-      info += "<p style='color:#ff5555'>" +
+      info += "<p style='color:" + kFailColour.name() + "'>" +
               tr("A leech: forgotten %1 times. A different alg, a mnemonic "
                  "for recognising it or suspending it for a while may help.")
                   .arg(k.lapses)

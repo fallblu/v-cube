@@ -51,12 +51,14 @@ namespace {
 
 QString caseHeaderHtml(const AlgCase &c, const CaseGroup &group) {
   return QString("<p style='font-size:large'><b>%1</b> <span "
-                 "style='color:gray'>· %2</span></p>")
+                 "style='color:" +
+                 roleColour(Role::Muted).name() + "'>· %2</span></p>")
       .arg(qs(c.name).toHtmlEscaped(), qs(group.name).toHtmlEscaped());
 }
 
 QString greyHtml(const QString &text) {
-  return "<span style='color:gray'>" + text + "</span>";
+  return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + text +
+         "</span>";
 }
 
 // " → Sune" after a step that stops at that case.
@@ -79,7 +81,7 @@ QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
   std::vector<ViewAlg> algs =
       algsFor(set, *g, *c, analyzeCase(set, *g, *c), view, state, world);
   if (algs.empty()) {
-    return html + "<p style='color:gray'>" +
+    return html + "<p style='color:" + roleColour(Role::Muted).name() + "'>" +
            QObject::tr("No alg solves this case yet. Add one in the Library.")
                .toHtmlEscaped() +
            "</p>";
@@ -118,7 +120,7 @@ QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world) {
   }
   QString html = caseHeaderHtml(*c, *g) + "<p>" + lines.join("<br>") + "</p>";
   if (!chain.complete) {
-    html += "<p style='color:gray'>" +
+    html += "<p style='color:" + roleColour(Role::Muted).name() + "'>" +
             QObject::tr("The set's algs don't reach the end from there.")
                 .toHtmlEscaped() +
             "</p>";
@@ -170,15 +172,15 @@ const char *gradeName(Grade g) {
 QString gradeColour(Grade g) {
   switch (g) {
   case Grade::Again:
-    return "#d9453b";
+    return roleColour(Role::GradeAgain).name();
   case Grade::Hard:
-    return "#d98a1c";
+    return roleColour(Role::GradeHard).name();
   case Grade::Good:
-    return "#2f9e55";
+    return roleColour(Role::GradeGood).name();
   case Grade::Easy:
-    return "#3d7ee0";
+    return roleColour(Role::GradeEasy).name();
   }
-  return "#777777";
+  return roleColour(Role::GradeNone).name();
 }
 
 QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
@@ -192,7 +194,8 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
     return c ? qs(c->name).toHtmlEscaped() : QString();
   };
   auto grey = [](const QString &t) {
-    return "<span style='color:gray'>" + t + "</span>";
+    return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + t +
+           "</span>";
   };
   const QString good =
       "<span style='color:" + statusColour(Status::Good).name() + "'>✓</span>";
@@ -202,7 +205,8 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
   const CaseGroup *group = s->groupOf(firstId);
   QString html =
       QString("<p style='font-size:large'><b>%1</b> <span "
-              "style='color:gray'>· %2</span></p>")
+              "style='color:" +
+              roleColour(Role::Muted).name() + "'>· %2</span></p>")
           .arg(nameOf(firstId), group ? qs(group->name).toHtmlEscaped() : "");
   for (const LearnLink &link : links) {
     if (!link.over) {

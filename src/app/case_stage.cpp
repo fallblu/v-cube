@@ -214,9 +214,9 @@ void CaseStage::showOutcome(const QString &badge, const QString &colour,
                             const QString &detail) {
   gradeBadge_->setText(badge);
   gradeBadge_->setStyleSheet(
-      QString("QLabel { background: %1; color: white; border-radius: 4px; "
+      QString("QLabel { background: %1; color: %2; border-radius: 4px; "
               "padding: 2px 10px; }")
-          .arg(colour));
+          .arg(colour, roleColour(Role::OnBadge).name()));
   // On one line beside the badge while it fits, wrapped after that.
   gradeLabel_->setText(detail);
   gradeLabel_->setMinimumWidth(
@@ -252,9 +252,13 @@ void CaseStage::showQuizAnswer(std::size_t right, std::size_t chosen) {
     }
     std::size_t k = button++;
     if (k == right) {
-      b->setStyleSheet("background:#2f9e55; color:white; font-weight:bold");
+      b->setStyleSheet(QString("background:%1; color:%2; font-weight:bold")
+                           .arg(roleColour(Role::GradeGood).name(),
+                                roleColour(Role::OnBadge).name()));
     } else if (k == chosen) {
-      b->setStyleSheet("background:#d9453b; color:white");
+      b->setStyleSheet(QString("background:%1; color:%2")
+                           .arg(roleColour(Role::GradeAgain).name(),
+                                roleColour(Role::OnBadge).name()));
     }
     b->setEnabled(k == right || k == chosen);
   }

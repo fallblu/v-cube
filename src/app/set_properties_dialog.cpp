@@ -191,13 +191,13 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
                    "place and o for orientation."),
                 specWidgets_));
   freeError_ = new QLabel(specWidgets_);
-  freeError_->setStyleSheet("color: #e66");
+  freeError_->setStyleSheet("color: " + kFailColour.name());
   freeError_->setWordWrap(true);
   freeError_->setVisible(false);
   specForm->addRow(QString(), freeError_);
   freeNote_ = new QLabel(specWidgets_);
   freeNote_->setWordWrap(true);
-  freeNote_->setStyleSheet("color: #ffb030");
+  freeNote_->setStyleSheet("color: " + statusColour(Status::Warning).name());
   freeNote_->setVisible(false);
   specForm->addRow(QString(), freeNote_);
   cornerMaskBox_ = maskCombo(specWidgets_);
