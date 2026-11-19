@@ -152,8 +152,8 @@ PracticeWaiting practiceWaiting(const std::vector<std::string> &pool,
   return out;
 }
 
-Grade practiceGrade(bool solvedWell, bool hinted, bool gaveUp) {
-  return solvedWell && !hinted && !gaveUp ? Grade::Good : Grade::Again;
+Grade practiceGrade(const CardTry &t) {
+  return t.solvedWell && !t.hinted && !t.gaveUp ? Grade::Good : Grade::Again;
 }
 
 } // namespace vcube

@@ -179,10 +179,10 @@ TEST_CASE("the card pools are the cases in learning order", "[practice]") {
 }
 
 TEST_CASE("a card's try is graded by how it went", "[practice]") {
-  CHECK(practiceGrade(true, false, false) == Grade::Good);
-  CHECK(practiceGrade(false, false, false) == Grade::Again);
-  CHECK(practiceGrade(true, true, false) == Grade::Again);
-  CHECK(practiceGrade(true, false, true) == Grade::Again);
+  CHECK(practiceGrade({.solvedWell = true}) == Grade::Good);
+  CHECK(practiceGrade({}) == Grade::Again);
+  CHECK(practiceGrade({.solvedWell = true, .hinted = true}) == Grade::Again);
+  CHECK(practiceGrade({.solvedWell = true, .gaveUp = true}) == Grade::Again);
 }
 
 TEST_CASE("practice data survives the file", "[practice][io]") {

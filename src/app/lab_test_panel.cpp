@@ -711,10 +711,9 @@ void LabTestPanel::setUp(std::size_t entry) {
   cur.entry = entry;
   cur.c = *c;
   cur.alg = e.alg;
-  cur.setup = labSetup(c->state, e.alg, c->free, c->aufBefore, c->aufAfter,
-                       s.randomAuf, rng_);
-  auto d =
-      displayOrientation(c->state, e.alg, c->free, c->aufBefore, c->aufAfter);
+  cur.setup = labSetup(c->state, e.alg, c->free, aufsOf(*c),
+                       s.randomAuf ? LabAuf::Random : LabAuf::Done, rng_);
+  auto d = displayOrientation(c->state, e.alg, c->free, aufsOf(*c));
   cur.shownAlg = qs(d ? d->alg : e.alg);
   current_ = std::move(cur);
   flow_.setPhase(Phase::Ready);

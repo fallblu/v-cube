@@ -160,8 +160,7 @@ std::vector<ViewAlg> algsFor(const AlgSet &set, const CaseGroup &group,
       // others as they are written.
       const std::string &text =
           out.empty() && analysis.main == i ? analysis.mainAlg : c.algs[i];
-      auto fit = fitAlg(canonical, parseAlgOrEmpty(text), free, set.aufBefore,
-                        set.aufAfter);
+      auto fit = fitAlg(canonical, parseAlgOrEmpty(text), free, aufsOf(set));
       // A reduction set's last steps read as its other steps do.
       alg.text = !fit ? text
                  : set.reduction && fit->after == 0

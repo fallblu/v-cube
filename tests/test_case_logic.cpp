@@ -470,35 +470,35 @@ TEST_CASE("alg checks respect the step and the set's AUF settings") {
   PieceMask oll = *parseFree("LL:p");
   const std::string t = "R U R' U' R' F R2 U' R' U' R U R' F'";
   CubieCube tperm = stateSolvedBy(parseAlgOrEmpty(t));
-  AlgCheck c = checkAlg(tperm, t, none, true, true);
+  AlgCheck c = checkAlg(tperm, t, none, Aufs::Both);
   CHECK(c.passes());
   CHECK(describeCheck(c) == "14 moves");
   // PLL algs needing a U turn before and after still pass.
   CubieCube turned = uTurn(1) * tperm * uTurn(3);
-  c = checkAlg(turned, t, none, true, true);
+  c = checkAlg(turned, t, none, Aufs::Both);
   REQUIRE(c.passes());
   CHECK(describeCheck(c) == "(U) … (U'), 14 moves");
   // ... unless the set doesn't turn U around the case.
-  c = checkAlg(turned, t, none, false, true);
+  c = checkAlg(turned, t, none, Aufs::After);
   CHECK_FALSE(c.passes());
   CHECK(describeCheck(c).starts_with("leaves "));
-  c = checkAlg(turned, t, none, true, false);
+  c = checkAlg(turned, t, none, Aufs::Before);
   CHECK_FALSE(c.passes());
   // OLL algs pass whatever permutation they leave in the last layer.
   CubieCube sune = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
   CubieCube sunePermuted = sune * tperm;
   REQUIRE(unsolvedPieces(sunePermuted * sune.inverse(), oll).none());
-  CHECK(checkAlg(sunePermuted, "R U R' U R U2 R'", oll, true, true).passes());
+  CHECK(checkAlg(sunePermuted, "R U R' U R U2 R'", oll, Aufs::Both).passes());
   CHECK(
-      checkAlg(sunePermuted, "y' R' U2 R U R' U R", oll, true, true).passes());
+      checkAlg(sunePermuted, "y' R' U2 R U R' U R", oll, Aufs::Both).passes());
   // Failing algs say what is left.
-  c = checkAlg(sune, "R U R' U' R' F R F'", oll, true, true);
+  c = checkAlg(sune, "R U R' U' R' F R F'", oll, Aufs::Both);
   CHECK_FALSE(c.passes());
   CHECK(describeCheck(c) == describeUnsolved(c.unsolved));
   CHECK(c.unsolved.corners() + c.unsolved.edges() > 0);
-  c = checkAlg(sune, "R U Q", oll, true, true);
+  c = checkAlg(sune, "R U Q", oll, Aufs::Both);
   CHECK(describeCheck(c) == "can't read at character 5");
-  CHECK(describeCheck(checkAlg(sune, "  ", oll, true, true)) == "empty");
+  CHECK(describeCheck(checkAlg(sune, "  ", oll, Aufs::Both)) == "empty");
 }
 
 namespace {
@@ -510,12 +510,12 @@ void checkDisplay(const std::string &prefix, const std::string &base,
   INFO(prefix << " | " << base);
   std::string main = prefix.empty() ? base : prefix + " " + base;
   CubieCube canonical = stateSolvedBy(parseAlgOrEmpty(main));
-  auto d = displayOrientation(canonical, main, free, true, true);
+  auto d = displayOrientation(canonical, main, free, Aufs::Both);
   REQUIRE(d);
   CHECK(d->alg == base);
   // The alg without its prefix solves the case as shown, with no U turn
   // before (or after) it.
-  auto fit = fitAlg(d->state, parseAlgOrEmpty(base), free, false, false);
+  auto fit = fitAlg(d->state, parseAlgOrEmpty(base), free, Aufs::None);
   CHECK(fit);
   if (free.isEmpty()) {
     CHECK(d->state == stateSolvedBy(parseAlgOrEmpty(base)));
@@ -540,24 +540,24 @@ TEST_CASE("cases are shown from the angle their main alg starts from") {
   }
   // Without a prefix the stored case is kept as it is.
   CubieCube tperm = stateSolvedBy(parseAlgOrEmpty(t));
-  auto d = displayOrientation(tperm, t, none, true, true);
+  auto d = displayOrientation(tperm, t, none, Aufs::Both);
   REQUIRE(d);
   CHECK(d->state == tperm);
   CHECK(d->alg == t);
   // A case stored at another angle is turned so the alg needs no U first.
   CubieCube turned = tperm * uTurn(2);
-  d = displayOrientation(turned, t, none, true, true);
+  d = displayOrientation(turned, t, none, Aufs::Both);
   REQUIRE(d);
   CHECK(d->alg == t);
-  CHECK(fitAlg(d->state, parseAlgOrEmpty(t), none, false, true));
+  CHECK(fitAlg(d->state, parseAlgOrEmpty(t), none, Aufs::After));
   // Leading U turns are part of the alg when the set doesn't turn U first.
   CubieCube uSetup = stateSolvedBy(parseAlgOrEmpty("U " + t));
-  d = displayOrientation(uSetup, "U " + t, none, false, true);
+  d = displayOrientation(uSetup, "U " + t, none, Aufs::After);
   REQUIRE(d);
   CHECK(d->alg == "U " + t);
   CHECK(d->state == uSetup);
   // Algs that don't solve the case give no orientation.
-  CHECK_FALSE(displayOrientation(tperm, sune, none, true, true));
+  CHECK_FALSE(displayOrientation(tperm, sune, none, Aufs::Both));
   // Tilting rotations stay in the alg: the case is still shown with its
   // last layer on top, turned only by the leading y.
   for (const char *prefix : {"", "y", "y2 U"}) {
@@ -565,13 +565,13 @@ TEST_CASE("cases are shown from the angle their main alg starts from") {
         std::string(prefix) + (*prefix ? " " : "") + "x R' U R' D2 R U' x'";
     INFO(alg);
     CubieCube s = stateSolvedBy(parseAlgOrEmpty(alg));
-    d = displayOrientation(s, alg, oll, true, true);
+    d = displayOrientation(s, alg, oll, Aufs::Both);
     REQUIRE(d);
     CHECK(d->alg == "x R' U R' D2 R U' x'");
   }
   // Notation is kept as written.
   d = displayOrientation(stateSolvedBy(parseAlgOrEmpty("y (R U R' U')3")),
-                         "y (R U R' U')3", none, true, true);
+                         "y (R U R' U')3", none, Aufs::Both);
   REQUIRE(d);
   CHECK(d->alg == "(R U R' U')3");
 }
@@ -589,8 +589,8 @@ TEST_CASE("case analysis picks the first passing alg as the main alg") {
   CHECK(a.main == 2u);
   CHECK(a.failing() == 2);
   CHECK(a.mainAlg == "R U R' U R U2 R'");
-  CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), set.spec.free, false,
-               true));
+  CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), set.spec.free,
+               Aufs::After));
   // No passing alg: the stored case, no main alg.
   sune.algs = {"R U Q"};
   a = analyzeCase(set, set.groups[0], sune);
@@ -616,5 +616,6 @@ TEST_CASE("a step not done says whether a U turn is missing") {
   u2.apply(parseAlgOrEmpty("U2"));
   CHECK(stepMiss(u2, none).auf == 2);
   // The pieces the step leaves free don't count.
-  CHECK(stepMiss(u, PieceMask{}.lastLayer(true, true, true)).pieces == 0);
+  CHECK(stepMiss(u, PieceMask{}.lastLayer(Free::PermAndOri, Free::PermAndOri))
+            .pieces == 0);
 }

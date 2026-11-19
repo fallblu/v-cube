@@ -21,6 +21,10 @@ Rng makeRng();
 // is free should all share the same orientation freedom (per piece type) for
 // the set of such states to be closed under composition; normalize() makes
 // sure of that.
+// How free a builder leaves its positions: their pieces trade places, and
+// with PermAndOri they are twisted or flipped at random as well.
+enum class Free : std::uint8_t { Perm, PermAndOri };
+
 struct PieceMask {
   std::array<bool, kCorners> cp{};
   std::array<bool, kCorners> co{};
@@ -30,9 +34,9 @@ struct PieceMask {
   static PieceMask all();
 
   // Builders for common groups of positions.
-  PieceMask &corners(std::initializer_list<Corner> cs, bool perm, bool ori);
-  PieceMask &edges(std::initializer_list<Edge> es, bool perm, bool ori);
-  PieceMask &lastLayer(bool perm, bool cornerOri, bool edgeOri);
+  PieceMask &corners(std::initializer_list<Corner> cs, Free free);
+  PieceMask &edges(std::initializer_list<Edge> es, Free free);
+  PieceMask &lastLayer(Free cornerFree, Free edgeFree);
 
   // Makes orientation freedom uniform across the free-permutation positions
   // of each piece type.

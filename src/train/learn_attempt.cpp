@@ -115,7 +115,8 @@ bool LearnAttempt::endLink(bool solved, const std::optional<std::string> &next,
   } else {
     wrong = !gaveUp_ && !follower_.onAlg();
   }
-  link.grade = learnGrade(hinted_, gaveUp_, wrong);
+  link.grade =
+      learnGrade({.hinted = hinted_, .gaveUp = gaveUp_, .leftAlgs = wrong});
   if (link.grade == Grade::Good && nextHinted_) {
     link.grade = Grade::Hard;
   }

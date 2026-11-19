@@ -31,11 +31,12 @@ TEST_CASE("new cards go through learning steps then graduate") {
 }
 
 TEST_CASE("learn grades come from correctness, not time") {
-  CHECK(learnGrade(false, false, false) == Grade::Good);
-  CHECK(learnGrade(true, false, false) == Grade::Again);
-  CHECK(learnGrade(false, true, false) == Grade::Again);
-  CHECK(learnGrade(false, false, true) == Grade::Again);
-  CHECK(learnGrade(true, true, true) == Grade::Again);
+  CHECK(learnGrade({}) == Grade::Good);
+  CHECK(learnGrade({.hinted = true}) == Grade::Again);
+  CHECK(learnGrade({.gaveUp = true}) == Grade::Again);
+  CHECK(learnGrade({.leftAlgs = true}) == Grade::Again);
+  CHECK(learnGrade({.hinted = true, .gaveUp = true, .leftAlgs = true}) ==
+        Grade::Again);
 }
 
 TEST_CASE("drill statistics ignore learn attempts") {

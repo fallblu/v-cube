@@ -145,8 +145,7 @@ TEST_CASE("built-in cases keep their last layer on top whatever the main "
         for (const char *prefix : prefixes) {
           std::string alg = withPrefix(prefix, base);
           INFO(set->id << " " << c.id << ": " << alg);
-          REQUIRE(checkAlg(c.state, alg, free, set->aufBefore, set->aufAfter)
-                      .passes());
+          REQUIRE(checkAlg(c.state, alg, free, aufsOf(*set)).passes());
           AlgCase one = c;
           one.algs = {alg};
           CaseAnalysis a = analyzeCase(*set, g, one);
@@ -157,8 +156,8 @@ TEST_CASE("built-in cases keep their last layer on top whatever the main "
           CHECK(left.edgesMisplaced[1] + left.edgesFlipped[1] == 0);
           CHECK(left.edgesMisplaced[2] + left.edgesFlipped[2] == 0);
           // The alg as shown solves the case as shown with no U first.
-          CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), free, false,
-                       set->aufAfter));
+          CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), free,
+                       set->aufAfter ? Aufs::After : Aufs::None));
           // Adding more algs leaves the case shown as its first alg has it.
           withAlgs.algs.push_back(alg);
           CaseAnalysis all = analyzeCase(*set, g, withAlgs);

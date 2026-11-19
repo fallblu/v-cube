@@ -140,8 +140,7 @@ std::shared_ptr<const PairIndex> buildIndex(const AlgSet &set) {
         for (const auto &original : c.algs) {
           std::string text =
               world.none() ? original : mirrorAlgText(original, world);
-          AlgCheck check =
-              checkAlg(state, text, free, set.aufBefore, set.aufAfter);
+          AlgCheck check = checkAlg(state, text, free, aufsOf(set));
           if (check.passes()) {
             pc.algs.push_back({text, parseAlgOrEmpty(text), check.fit->before});
           }
@@ -697,10 +696,10 @@ PairPlan cheapestPairOrder(const CubieCube &state, const AlgSet &reference) {
 }
 
 CubieCube randomPairState(const std::vector<Slot> &open, Rng &rng) {
-  PieceMask mask = PieceMask{}.lastLayer(true, true, false);
+  PieceMask mask = PieceMask{}.lastLayer(Free::PermAndOri, Free::Perm);
   for (Slot s : open) {
-    mask.corners({slotCorner(s)}, true, true);
-    mask.edges({slotEdge(s)}, true, false);
+    mask.corners({slotCorner(s)}, Free::PermAndOri);
+    mask.edges({slotEdge(s)}, Free::Perm);
   }
   mask.normalize();
   CubieCube c;

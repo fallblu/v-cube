@@ -215,10 +215,8 @@ void AlgLabPage::addTyped() {
     return;
   }
   std::string k = labAlgKey(text);
-  if (!fitAlg(case_->state, parsed.alg, case_->free, case_->aufBefore,
-              case_->aufAfter)) {
-    AlgCheck check = checkAlg(case_->state, k, case_->free, case_->aufBefore,
-                              case_->aufAfter);
+  if (!fitAlg(case_->state, parsed.alg, case_->free, aufsOf(*case_))) {
+    AlgCheck check = checkAlg(case_->state, k, case_->free, aufsOf(*case_));
     emit message(tr("That alg doesn't solve the case: it %1. Added anyway, "
                     "greyed out.")
                      .arg(qs(describeCheck(check))));
@@ -246,8 +244,7 @@ void AlgLabPage::pasteCandidates() {
   for (const PasteItem &p : readPaste(text.toStdString())) {
     auto parsed = parseAlg(p.alg);
     if (!parsed || parsed.alg.empty() ||
-        !fitAlg(case_->state, parsed.alg, case_->free, case_->aufBefore,
-                case_->aufAfter)) {
+        !fitAlg(case_->state, parsed.alg, case_->free, aufsOf(*case_))) {
       ++failed;
       continue;
     }
@@ -341,8 +338,8 @@ void AlgLabPage::addToSession() {
   std::vector<LabEntry> entries;
   for (const std::string &a : selectedAlgs()) {
     auto parsed = parseAlg(a);
-    if (parsed && fitAlg(case_->state, parsed.alg, case_->free,
-                         case_->aufBefore, case_->aufAfter)) {
+    if (parsed &&
+        fitAlg(case_->state, parsed.alg, case_->free, aufsOf(*case_))) {
       entries.push_back({case_->key, a});
     }
   }

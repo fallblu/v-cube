@@ -730,10 +730,11 @@ FaceletCube pairDiagram(const CubieCube &state, Slot slot) {
 // --- starting states ---------------------------------------------------------
 
 CubieCube randomF2LState(const std::vector<Slot> &open, bool eo, Rng &rng) {
-  PieceMask mask = PieceMask{}.lastLayer(true, true, !eo);
+  const Free edgeFree = eo ? Free::Perm : Free::PermAndOri;
+  PieceMask mask = PieceMask{}.lastLayer(Free::PermAndOri, edgeFree);
   for (Slot s : open) {
-    mask.corners({slotCorner(s)}, true, true);
-    mask.edges({slotEdge(s)}, true, !eo);
+    mask.corners({slotCorner(s)}, Free::PermAndOri);
+    mask.edges({slotEdge(s)}, edgeFree);
   }
   mask.normalize();
   CubieCube c;

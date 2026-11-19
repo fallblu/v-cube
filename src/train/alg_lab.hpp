@@ -203,10 +203,10 @@ std::vector<Solve> labSolves(std::span<const LabAttempt> timed);
 
 // The case's state with the alg's lead-in done to it, as a test session
 // sets it up: the AUF the alg needs before it, and a leading y rotation, so
-// that the alg solves it as it is held. With `randomAuf`, a random U turn
-// is done after that instead, and the solver must do the AUF.
+// that the alg solves it as it is held. With LabAuf::Random, a random U
+// turn is done after that instead, and the solver must do the AUF.
+enum class LabAuf : std::uint8_t { Done, Random };
 CubieCube labSetup(const CubieCube &state, const std::string &alg,
-                   const PieceMask &free, bool aufBefore, bool aufAfter,
-                   bool randomAuf, Rng &rng);
+                   const PieceMask &free, Aufs aufs, LabAuf auf, Rng &rng);
 
 } // namespace vcube

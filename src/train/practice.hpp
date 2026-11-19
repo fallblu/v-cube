@@ -109,6 +109,11 @@ PracticeWaiting practiceWaiting(const std::vector<std::string> &pool,
 
 // The grade of a card's try: Good when the case was solved unaided and
 // well, Again after a hint, giving up or a poor solution.
-Grade practiceGrade(bool solvedWell, bool hinted, bool gaveUp);
+struct CardTry {
+  bool solvedWell = false;
+  bool hinted = false;
+  bool gaveUp = false;
+};
+Grade practiceGrade(const CardTry &t);
 
 } // namespace vcube

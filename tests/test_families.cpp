@@ -58,15 +58,17 @@ TEST_CASE("mirrored states are real and mirror back", "[families]") {
     CubieCube c = randomState(PieceMask::all(), rng);
     for (auto [lr, fb] : {std::pair{true, false}, std::pair{false, true},
                           std::pair{true, true}}) {
-      CubieCube m = mirrorState(c, lr, fb);
+      CubieCube m = mirrorState(c, Mirror{lr, fb});
       CHECK(m.isValid());
-      CHECK(mirrorState(m, lr, fb) == c);
+      CHECK(mirrorState(m, Mirror{lr, fb}) == c);
     }
   }
   Alg alg = parseAlgOrEmpty("R U F' D2 L B'");
-  CHECK(mirrorState(cubieOf(alg), true, false) == cubieOf(mirrorM(alg)));
-  CHECK(mirrorState(cubieOf(alg), false, true) == cubieOf(mirrorS(alg)));
-  CHECK(mirrorState(cubieOf(alg), true, true) ==
+  CHECK(mirrorState(cubieOf(alg), {.leftRight = true}) ==
+        cubieOf(mirrorM(alg)));
+  CHECK(mirrorState(cubieOf(alg), {.frontBack = true}) ==
+        cubieOf(mirrorS(alg)));
+  CHECK(mirrorState(cubieOf(alg), {.leftRight = true, .frontBack = true}) ==
         cubieOf(mirrorS(mirrorM(alg))));
 }
 

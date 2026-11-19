@@ -708,8 +708,9 @@ void PracticePage::leaveChoice(bool confirmed) {
     // The grade follows the verdict, unless you gave it yourself.
     if (item_.graded && item_.recorded && item_.grade && item_.outcome &&
         !item_.gradedByHand) {
-      const Grade g =
-          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+                                     .hinted = item_.hint,
+                                     .gaveUp = item_.gaveUp});
       if (g != *item_.grade) {
         regrade(g);
       }
@@ -1073,8 +1074,9 @@ void PracticePage::conclude() {
     if (item_.graded) {
       CaseProgress &p = store_.data.cards[item_.card];
       item_.cardBefore = p.card;
-      const Grade g =
-          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+                                     .hinted = item_.hint,
+                                     .gaveUp = item_.gaveUp});
       review(p.card, g, now, settings_.srs, &rng_);
       p.record({now, 0, g == Grade::Again, AttemptMode::Learn});
       item_.grade = g;
