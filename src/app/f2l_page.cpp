@@ -109,9 +109,8 @@ DiagramView backViewOf(PairCase c) {
 QString overText(double over, const QString &best) {
   return over < kSameCost
              ? coloured(kPassColour, QObject::tr("as good as %1").arg(best))
-             : coloured(over >= kFarOver ? QColor(kFailColour)
-                                         : QColor(kWarnColour),
-                        QObject::tr("+%1 over %2").arg(costText(over), best));
+             : overMarked(QObject::tr("+%1 over %2").arg(costText(over), best),
+                          over >= kFarOver);
 }
 
 QString slotsText(const std::vector<Slot> &solved) {
@@ -585,11 +584,10 @@ QString F2LPage::pairLine(std::size_t i) const {
   const QString pick =
       regret < kSameCost
           ? coloured(kPassColour, tr("the best pair"))
-          : coloured(regret >= kFarOver ? QColor(kFailColour)
-                                        : QColor(kWarnColour),
-                     tr("%1 was better (−%2)")
-                         .arg(slotText(ranks->second.front().pair.slot),
-                              costText(regret)));
+          : overMarked(tr("%1 was better (−%2)")
+                           .arg(slotText(ranks->second.front().pair.slot),
+                                costText(regret)),
+                       regret >= kFarOver);
   return tr("%1: %2 · %3")
       .arg(name, pick, overText(cost - r->pair.best()->cost, tr("its best")));
 }
@@ -779,10 +777,9 @@ PracticePage::Outcome F2LPage::judge() {
         " · " +
         (over < kSameCost
              ? coloured(kPassColour, tr("as good as the cheapest way found"))
-             : coloured(
-                   over >= kFarOver * pairs ? QColor(kFailColour)
-                                            : QColor(kWarnColour),
-                   tr("+%1 over the cheapest way found").arg(costText(over))));
+             : overMarked(
+                   tr("+%1 over the cheapest way found").arg(costText(over)),
+                   over >= kFarOver * pairs));
   }
   return o;
 }
@@ -897,17 +894,14 @@ QString F2LPage::wholeHtml() const {
                         movesText(r->pair.best()->htm),
                         costText(r->pair.best()->cost));
         double d = cost - r->pair.best()->cost;
-        over = d < kSameCost ? tick
-                             : coloured(d >= kFarOver ? QColor(kFailColour)
-                                                      : QColor(kWarnColour),
-                                        "+" + costText(d));
+        over =
+            d < kSameCost ? tick : overMarked("+" + costText(d), d >= kFarOver);
         double regret = r->total - ranks.front().total;
         pick = regret < kSameCost
                    ? tick
                    : slotText(ranks.front().pair.slot) + " " +
-                         coloured(regret >= kFarOver ? QColor(kFailColour)
-                                                     : QColor(kWarnColour),
-                                  "(" + tr("−%1").arg(costText(regret)) + ")");
+                         overMarked("(" + tr("−%1").arg(costText(regret)) + ")",
+                                    regret >= kFarOver);
       }
     }
     html +=

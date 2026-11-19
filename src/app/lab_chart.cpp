@@ -78,12 +78,15 @@ void LabChart::paintEvent(QPaintEvent *) {
     return;
   }
 
-  // Legend across the top, the algs in order.
+  // Legend across the top, the algs in order and numbered: the numbers
+  // also name each box or line, so that colour isn't the only key.
   QFontMetrics fm(font());
   const int lineH = fm.height();
+  auto number = [](std::size_t i) { return QString::number(i + 1); };
   double x = 8, y = 4;
-  for (const auto &s : series_) {
-    QString name = fm.elidedText(s.name, Qt::ElideRight, 220);
+  for (std::size_t i = 0; i < series_.size(); ++i) {
+    const auto &s = series_[i];
+    QString name = number(i) + " " + fm.elidedText(s.name, Qt::ElideRight, 220);
     int w = 14 + fm.horizontalAdvance(name) + 14;
     if (x + w > width() - 8 && x > 8) {
       x = 8;
@@ -98,8 +101,9 @@ void LabChart::paintEvent(QPaintEvent *) {
   }
   const double top = y + lineH + 10;
   const double left = fm.horizontalAdvance("00.00") + 14;
-  const double bottom = height() - (mode_ == Mode::Trend ? lineH + 8 : 10);
-  const double right = width() - 10;
+  const double bottom = height() - (lineH + 8);
+  const double right =
+      width() - (mode_ == Mode::Trend ? fm.horizontalAdvance("8") + 16 : 10);
   if (bottom - top < 30 || right - left < 40) {
     return;
   }
@@ -136,6 +140,9 @@ void LabChart::paintEvent(QPaintEvent *) {
       }
       double cx = left + band * (static_cast<double>(i) + 0.5);
       double half = std::min(28.0, band * 0.3);
+      p.setPen(ink);
+      p.drawText(QRectF(cx - half, bottom + 4, 2 * half, lineH),
+                 Qt::AlignCenter, number(i));
       // The middle half of the times as a box, with the median across it.
       double q1 = quantile(s.times, 0.25) / 1000.0;
       double q3 = quantile(s.times, 0.75) / 1000.0;
@@ -167,6 +174,7 @@ void LabChart::paintEvent(QPaintEvent *) {
     p.setPen(muted);
     p.drawText(QRectF(left, bottom + 4, right - left, lineH), Qt::AlignCenter,
                tr("attempt"));
+    std::vector<std::pair<QPointF, std::size_t>> ends; // line ends, series
     for (std::size_t i = 0; i < series_.size(); ++i) {
       const auto &s = series_[i];
       QPainterPath path;
@@ -189,6 +197,31 @@ void LabChart::paintEvent(QPaintEvent *) {
             QPointF(xOf(k), yOf(static_cast<double>(s.times[k]) / 1000.0)), 3,
             3);
       }
+      if (!s.times.empty()) {
+        ends.push_back(
+            {QPointF(xOf(s.times.size() - 1),
+                     yOf(static_cast<double>(s.times.back()) / 1000.0)),
+             i});
+      }
+    }
+    // Each line's number at its end, nudged apart from the others that end
+    // at the same attempt.
+    std::sort(ends.begin(), ends.end(), [](const auto &a, const auto &b) {
+      return a.first.x() != b.first.x() ? a.first.x() < b.first.x()
+                                        : a.first.y() < b.first.y();
+    });
+    for (std::size_t k = 1; k < ends.size(); ++k) {
+      QPointF &at = ends[k].first;
+      const QPointF &above = ends[k - 1].first;
+      if (at.x() == above.x()) {
+        at.setY(std::max(at.y(), above.y() + lineH));
+      }
+    }
+    p.setPen(ink);
+    for (const auto &[at, i] : ends) {
+      p.drawText(QRectF(at.x() + 6, at.y() - lineH / 2.0,
+                        fm.horizontalAdvance(number(i)) + 4, lineH),
+                 Qt::AlignLeft | Qt::AlignVCenter, number(i));
     }
   }
 

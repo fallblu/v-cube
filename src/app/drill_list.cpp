@@ -78,6 +78,9 @@ void DrillPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
   item->setData(4, kSortRole, weak ? QVariant(*weak) : QVariant());
   if (mean && target > 0) {
     item->setForeground(1, *mean <= target ? kPassColour : kWarnColour);
+    if (*mean > target) {
+      item->setText(1, kOverMark + " " + secondsText(mean));
+    }
   } else {
     item->setForeground(1, palette().color(QPalette::Text));
   }

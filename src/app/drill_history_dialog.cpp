@@ -93,7 +93,7 @@ void showDrillHistory(QWidget *parent, const QString &caseName,
                                   "attempts):"),
                                &dialog));
   std::vector<Solve> means;
-  TrendChart::Series bests{tr("daily best"), QColor(0x3d, 0xd6, 0x6b), {}};
+  TrendChart::Series bests{tr("daily best"), Role::Series3, {}};
   for (const DayRollup &d : days) {
     Solve s;
     auto mean = d.meanMs();

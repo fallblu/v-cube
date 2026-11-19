@@ -163,7 +163,8 @@ practice run that doesn't change the schedule.
 
 The Recog column is each case's mean recognition time: from the case being
 set up to your first turn of a layer other than U or D, in Learn and in
-Drill on the virtual cube. Lapses and Ease (hidden at first) come from its
+Drill on the virtual cube; one slower than the "slow to recognise" setting
+is marked ▲. Lapses and Ease (hidden at first) come from its
 card. A case forgotten 6 times is flagged as a leech. Right-click the
 header to choose columns.
 
@@ -264,7 +265,8 @@ ignored for a moment so a second press doesn't skip it.
 
 **Statistics.** The list shows, per case, the recent average, the best
 time (kept for good), the fail rate and the weakness (how often Weighted
-picks it); a group's row sums its cases. Click a column header to sort.
+picks it); a group's row sums its cases. An average over the set's target
+time is marked ▲. Click a column header to sort.
 Right-click a case for its drill history (a chart of its last 100
 attempts, and every attempt by day) or to clear its times. The tally under
 the list counts attempts, mean, DNFs and new bests since **Reset tally**,
@@ -485,7 +487,8 @@ Double-click an alg in the session's list to time it next.
 
 **Compare** shows the session's algs side by side: the statistics and a
 chart, either each alg's spread (dots, with a box for the middle half and
-a line at the median) or the times in order. **Times** lists the attempts;
+a line at the median) or the times in order, each alg numbered as in the
+legend. **Times** lists the attempts;
 right-click one to toggle DNF, count a time that left the alg, or delete
 it. An alg's times are kept across sessions, separately for each cube, and
 deleting a session keeps them.
@@ -506,8 +509,9 @@ turn as done instead.
 **The solve list**: right-click a solve to copy its scramble or solution
 or open **Details…**, which has its date and comment too. Delete removes
 the last solve and Ctrl+Z puts it back. Click a statistic to see its
-solves. Averages are rounded as the WCA does. The chart's right-click menu
-picks how many solves it shows (12 to 500).
+solves. Averages are rounded as the WCA does. The chart names each line
+(ao5, ao12, or the splits) at its right end; its right-click menu picks how
+many solves it shows (12 to 500).
 
 ### Timed
 
@@ -651,7 +655,8 @@ card in its learning steps early, and the Untimed tab is always there to
 practise.
 
 **After a solve** there is one line, the verdict, and the best solution
-under it. `Tab` opens the details (they take room from the cube only
+under it. A result over the best is marked ▲, and is bold as well when it
+is far over. `Tab` opens the details (they take room from the cube only
 while open); click a solution there to play it. `Enter` plays the best
 solution from the start, `Space` goes on, and `Esc` gives the same state
 again, unrecorded and ungraded.

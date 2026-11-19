@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/colours.hpp"
 #include "cube/cubie.hpp"
 #include "cube/hold.hpp"
 #include "cube/scramble.hpp"
@@ -99,7 +100,7 @@ public:
   // (nullopt where a solve has none), e.g. the time of each solve's cross.
   struct Series {
     QString name;
-    QColor colour;
+    Role colour; // a chart series role, which follows the theme
     std::vector<StatValue> values;
   };
   void setSeries(std::vector<Series> series);

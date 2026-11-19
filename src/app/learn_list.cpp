@@ -130,9 +130,10 @@ void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
   item->setText(2, cp && !isQueued(cp->card) ? dueText(cp, now, localDayEnd())
                                              : QString("-"));
   std::optional<double> recog = recognitionMean(attemptsOf(caseId));
-  item->setText(3, secondsText(recog));
-  item->setForeground(
-      3, recog && *recog > settings_.slowRecognitionMs ? kWarnColour : text);
+  const bool slow = recog && *recog > settings_.slowRecognitionMs;
+  item->setText(3, slow ? kOverMark + " " + secondsText(recog)
+                        : secondsText(recog));
+  item->setForeground(3, slow ? kWarnColour : text);
   item->setToolTip(3, tr("Mean recognition time of the last 5 attempts that "
                          "measured it, in Learn and on the virtual cube in "
                          "Drill: from the case being set up to the first "
