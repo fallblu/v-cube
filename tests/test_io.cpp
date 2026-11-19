@@ -319,6 +319,43 @@ TEST_CASE("set ids that share a file name are kept apart") {
   CHECK(again.find(id));
 }
 
+TEST_CASE("a set id never has a slash in it") {
+  QTemporaryDir tmp;
+  std::string added;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    AlgSet set = *lib.find("pll");
+    set.builtin = false;
+    set.id = "a/b";
+    set.name = "Slashed";
+    added = lib.add(set)->id;
+    CHECK(added == "a-b");
+    // An id without one is kept as it is.
+    set.id = "My Set.2";
+    CHECK(lib.add(set)->id == "My Set.2");
+    // A file put in the folder by hand.
+    set.id = "c/d/e";
+    QString why;
+    REQUIRE(writeAlgSetFile(set, tmp.filePath("byhand.json"), &why));
+  }
+  AlgLibrary again(tmp.path(), kBuiltins);
+  again.load();
+  CHECK(again.errors() == QStringList{});
+  CHECK(again.find(added));
+  CHECK(again.find("My Set.2"));
+  CHECK_FALSE(again.find("c/d/e"));
+  REQUIRE(again.find("c-d-e"));
+  // The set is saved where it was read.
+  again.find("c-d-e")->name = "Renamed";
+  REQUIRE(again.save(*again.find("c-d-e")));
+  CHECK_FALSE(QFile::exists(tmp.filePath("c-d-e.json")));
+  AlgLibrary third(tmp.path(), kBuiltins);
+  third.load();
+  REQUIRE(third.find("c-d-e"));
+  CHECK(third.find("c-d-e")->name == "Renamed");
+}
+
 TEST_CASE("restoring built-in cases keeps the user's cases and settings") {
   QTemporaryDir tmp;
   AlgLibrary lib(tmp.path(), kBuiltins);

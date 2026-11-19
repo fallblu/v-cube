@@ -195,6 +195,10 @@ void AlgLibrary::load() {
       errors_ << unreadableSetMessage(dir.filePath(file), error, status);
       continue;
     }
+    // A file put here by hand may have an id that add() would have changed:
+    // the set is used without the slashes, which the file keeps until the
+    // set is next saved. Its progress file is named the same either way.
+    std::replace(set->id.begin(), set->id.end(), '/', '-');
     auto same = std::find_if(sets_.begin(), sets_.end(),
                              [&](const AlgSet &s) { return s.id == set->id; });
     if (same != sets_.end()) {
@@ -287,7 +291,10 @@ std::string AlgLibrary::uniqueId(const std::string &base) const {
 }
 
 AlgSet *AlgLibrary::add(AlgSet set, QString *error) {
+  // A slash would split the id in two wherever it is written before a case
+  // id or as part of a settings key.
   if (set.id.empty() || idTaken(set.id) ||
+      set.id.find('/') != std::string::npos ||
       sanitizeId(set.id).size() > kMaxNewId) {
     set.id = uniqueId(set.id.empty() ? set.name : set.id);
   }
