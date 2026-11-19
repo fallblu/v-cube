@@ -69,6 +69,17 @@ QTreeWidget *table(const QStringList &headers, QWidget *parent) {
 
 QString count(int n) { return n > 0 ? QString::number(n) : QString("-"); }
 
+// A row's button with a gap above and below it, so that the buttons of
+// rows one under another don't touch.
+QWidget *spacedButton(QPushButton *button, QWidget *parent) {
+  auto *cell = new QWidget(parent);
+  auto *layout = new QHBoxLayout(cell);
+  layout->setContentsMargins(2, 3, 2, 3);
+  button->setParent(cell);
+  layout->addWidget(button);
+  return cell;
+}
+
 } // namespace
 
 std::vector<std::string> learnPool(const AlgSet &set) {
@@ -274,7 +285,7 @@ void TodayPage::refresh() {
     QString id = qs(set.id);
     connect(button, &QPushButton::clicked, this,
             [this, id] { emit learnSetRequested(id); });
-    sets_->setItemWidget(item, 5, button);
+    sets_->setItemWidget(item, 5, spacedButton(button, sets_));
     dueTotal += d.due;
   }
   // The cards of F2L and TSLE mode, which come in by themselves.
@@ -318,7 +329,7 @@ void TodayPage::refresh() {
     button->setFocusPolicy(Qt::NoFocus);
     connect(button, &QPushButton::clicked, this,
             [this, mode = p.mode] { emit practiceRequested(mode); });
-    sets_->setItemWidget(item, 5, button);
+    sets_->setItemWidget(item, 5, spacedButton(button, sets_));
   }
   reviewAll_->setText(tr("Review all sets (%1 due)").arg(dueTotal));
   reviewAll_->setEnabled(dueTotal > 0);

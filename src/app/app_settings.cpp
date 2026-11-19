@@ -1,4 +1,5 @@
 #include "app/app_settings.hpp"
+#include "app/app_style.hpp"
 
 #include "train/algset.hpp"
 
@@ -236,7 +237,7 @@ void AppSettings::save() const {
 }
 
 void applyTheme(QApplication &app, bool dark) {
-  app.setStyle(QStyleFactory::create("Fusion"));
+  app.setStyle(new AppStyle);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
   // Title bars and native dialogs follow the theme too.
   QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark
