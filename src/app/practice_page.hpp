@@ -5,6 +5,7 @@
 #include "app/mode_page.hpp"
 #include "app/page_parts.hpp"
 #include "app/practice_html.hpp"
+#include "app/practice_list.hpp"
 #include "app/widgets.hpp"
 #include "io/practice_store.hpp"
 #include "train/drill_flow.hpp"
@@ -21,12 +22,9 @@
 class QComboBox;
 class QKeyEvent;
 class QLabel;
-class QPushButton;
 class QScrollArea;
 class QStackedWidget;
 class QTabBar;
-class QTreeWidget;
-class QTreeWidgetItem;
 
 namespace vcube {
 
@@ -64,7 +62,7 @@ namespace vcube {
 class PracticePage : public ModePage {
   Q_OBJECT
 public:
-  enum class Tab { Learn, Inspection, Untimed, Timed };
+  using Tab = PracticeTab;
   // What a state is of: the whole step, or one unit of it.
   enum class Extent { Whole, Unit };
   // The phases of the tabs that aren't timed (the Timed tab's are
@@ -93,7 +91,7 @@ public:
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;
-  QWidget *sidePanel() const override { return side_; }
+  QWidget *sidePanel() const override { return list_; }
 
   // What the page shows, for tests and scripts.
   Tab tab() const { return tab_; }
@@ -235,12 +233,7 @@ protected:
   virtual std::vector<Split> splits() { return {}; }
 
   // The lists.
-  struct ListRow {
-    std::string key;
-    QString name;
-    QString section; // rows are grouped under these, in order
-    QIcon icon;
-  };
+  using ListRow = PracticeList::Row;
   // The cards (keys are card ids).
   virtual std::vector<ListRow> cardRows() { return {}; }
   // The groups the Untimed (and Inspection) tab's solves are kept under.
@@ -338,14 +331,9 @@ private:
   std::string lastCard_;
   QString idleText_;
   QString note_; // said once under the verdict (a cancelled solve, ...)
-  std::int64_t sittingStart_ = 0;
   QFutureWatcher<GeneratedScramble> scrambles_;
 
-  QWidget *side_ = nullptr;
-  QLabel *summary_ = nullptr;
-  QTreeWidget *tree_ = nullptr;
-  QLabel *listHelp_ = nullptr;
-  QPushButton *clearButton_ = nullptr;
+  PracticeList *list_ = nullptr;
   QTabBar *tabs_ = nullptr;
   OptionBar *options_ = nullptr;
   QComboBox *cubeBox_ = nullptr;
@@ -433,13 +421,8 @@ private:
   void showVerdict();
   void showSummary();
   QString gradeLine() const;
-  // The tries of the tab that is up.
-  PracticeTries &tabTries();
-  const PracticeTries &tabTries() const;
   QString timedLine() const;
   QString inspectionLine() const;
-  void rowActivated(QTreeWidgetItem *row);
-  void clearProgress();
 };
 
 } // namespace vcube

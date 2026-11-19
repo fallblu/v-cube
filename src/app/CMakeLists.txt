@@ -33,6 +33,7 @@ add_library(vcube_gui STATIC
   eo_cross_page.cpp
   f2l_page.cpp
   practice_html.cpp
+  practice_list.cpp
   practice_page.cpp
   tsle_page.cpp
   train_keys.cpp
