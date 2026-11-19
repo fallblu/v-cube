@@ -57,15 +57,6 @@ std::optional<QFont> &systemFont() {
 
 } // namespace
 
-QFont textRoleFont(TextRole role, bool bold) {
-  QFont f = QApplication::font();
-  scaleSize(f, QApplication::font(), roleScale(role));
-  if (bold) {
-    f.setBold(true);
-  }
-  return f;
-}
-
 void setTextRole(QWidget *w, TextRole role, bool bold) {
   w->setProperty(kRoleProperty, static_cast<int>(role) + 1);
   w->setProperty(kBoldProperty, bold);

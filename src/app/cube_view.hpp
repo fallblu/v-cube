@@ -93,10 +93,6 @@ private:
   StickerMarks shownMarks() const;
 };
 
-// Marks moved with their stickers by `m` (e.g. a rotation to look at the
-// cube from another side).
-StickerMarks movedMarks(const StickerMarks &marks, Move m);
-
 // A drop-down (3D, Flat, Net, Hidden) that switches `view` and remembers
 // the choice for `mode` under "ui/view/<mode>".
 QComboBox *createViewSelector(CubeView *view, const QString &mode,

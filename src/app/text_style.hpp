@@ -19,9 +19,6 @@ enum class TextRole {
   Display, // a page's title
 };
 
-// The application font at the size of `role`.
-QFont textRoleFont(TextRole role, bool bold = false);
-
 // Gives `w` the size of `role` (and bold), now and whenever the interface
 // text size changes.
 void setTextRole(QWidget *w, TextRole role, bool bold = false);
