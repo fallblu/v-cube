@@ -101,6 +101,7 @@ private:
   QUndoStack *undo_;
   Refresh refresh_;
   Message message_;
+  bool reverting_ = false; // see applyEdit()
   std::map<std::string, std::map<std::string, CaseAnalysis>> analysis_;
 
   void push(const QString &text, Edit edit);

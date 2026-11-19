@@ -295,15 +295,52 @@ void LibraryPage::updateGrips() {
                    : tr("No grip profile: make one in Alg Lab (Profile…)."));
 }
 
+void LibraryPage::storeAlgEdit(const std::string &setId,
+                               const std::string &caseId,
+                               const QStringList &texts, int row) {
+  if (setId == editor_.setId) {
+    storeAlgTexts(tr("Edit alg"), caseId, texts, row);
+    return;
+  }
+  if (!library_.find(setId)) {
+    return;
+  }
+  // Another set is shown by now: store the edit in its own set, then show
+  // the chosen one again.
+  const std::string shownSet = editor_.setId;
+  const std::string shownCase = editor_.caseId;
+  editor_.setId = setId;
+  editor_.caseId = caseId;
+  storeAlgTexts(tr("Edit alg"), caseId, texts, row);
+  editor_.setId = shownSet;
+  editor_.caseId = shownCase;
+  refresh({shownSet, std::nullopt, true, std::nullopt});
+}
+
+QStringList LibraryPage::algTexts() const {
+  QStringList texts;
+  for (int i = 0; i < algList_->topLevelItemCount(); ++i) {
+    texts << algList_->topLevelItem(i)->text(0);
+  }
+  return texts;
+}
+
 void LibraryPage::storeAlgs(const QString &text, std::optional<int> edited) {
-  AlgCase *c = currentCase();
+  storeAlgTexts(text, editor_.caseId, algTexts(), edited);
+}
+
+void LibraryPage::storeAlgTexts(const QString &text, const std::string &caseId,
+                                const QStringList &texts,
+                                std::optional<int> edited) {
+  AlgSet *s = editor_.set();
+  AlgCase *c = s && !caseId.empty() ? s->findCase(caseId) : nullptr;
   if (!c) {
     return;
   }
   std::vector<std::string> algs;
   std::optional<std::size_t> editedIndex;
-  for (int i = 0; i < algList_->topLevelItemCount(); ++i) {
-    std::string alg = cleanAlgText(ss(algList_->topLevelItem(i)->text(0)));
+  for (int i = 0; i < texts.size(); ++i) {
+    std::string alg = cleanAlgText(ss(texts[i]));
     if (alg.empty()) {
       continue;
     }
@@ -323,9 +360,9 @@ void LibraryPage::storeAlgs(const QString &text, std::optional<int> edited) {
   }
   auto pending = editor_.begin();
   c->algs = std::move(algs);
-  editor_.commit(text, *pending, std::vector<std::string>{editor_.caseId});
+  editor_.commit(text, *pending, std::vector<std::string>{caseId});
   // The edited alg as stored, which may have been tidied up.
-  if (editedIndex) {
+  if (editedIndex && caseId == editor_.caseId) {
     warnIfFailing(*editedIndex);
   }
 }

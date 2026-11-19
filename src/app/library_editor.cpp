@@ -7,6 +7,8 @@
 #include <QUndoCommand>
 #include <QUndoStack>
 
+#include <utility>
+
 namespace vcube {
 
 namespace {
@@ -188,12 +190,33 @@ void LibraryEditor::applyEdit(Edit &edit, bool undoing, const QString &text) {
   const std::optional<AlgSet> &to = undoing ? edit.before : edit.after;
   const std::optional<AlgSet> &from = undoing ? edit.after : edit.before;
   const std::string &id = edit.setId;
+  if (reverting_) {
+    return; // the stack stepping back over an edit that wasn't applied
+  }
   QString error;
   AlgSet *current = library_.find(id);
   if (to && current) {
-    *current = *to;
+    AlgSet kept = std::exchange(*current, *to);
     if (!library_.save(*current, &error)) {
-      message_(tr("Could not save %1: %2").arg(qs(to->name), error));
+      // As commit() does: what is shown stays what is in the file. The
+      // undo stack has already moved, so it is stepped back.
+      *current = std::move(kept);
+      message_((undoing ? tr("Could not save %1, so nothing was undone: %2")
+                        : tr("Could not save %1, so nothing was redone: %2"))
+                   .arg(qs(to->name), error));
+      QMetaObject::invokeMethod(
+          undo_,
+          [this, undoing] {
+            reverting_ = true;
+            if (undoing) {
+              undo_->redo();
+            } else {
+              undo_->undo();
+            }
+            reverting_ = false;
+          },
+          Qt::QueuedConnection);
+      return;
     }
     // Progress the change dropped comes back with undo, and goes again.
     if (!edit.forgotten.empty()) {

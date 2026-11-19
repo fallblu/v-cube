@@ -192,6 +192,15 @@ private:
   void refreshAlgList();
   void updateGrips();
   void storeAlgs(const QString &text, std::optional<int> edited = {});
+  // Stores `texts` as the algs of a case of the current set, which need
+  // not be the one shown.
+  void storeAlgTexts(const QString &text, const std::string &caseId,
+                     const QStringList &texts, std::optional<int> edited);
+  // An alg edited in place in the list, for the case that was shown then.
+  void storeAlgEdit(const std::string &setId, const std::string &caseId,
+                    const QStringList &texts, int row);
+  // The alg list's texts, as they stand.
+  QStringList algTexts() const;
   void showAlgMenu(const QPoint &pos);
 
   // The selected cases in set order, and the selected groups (by index)

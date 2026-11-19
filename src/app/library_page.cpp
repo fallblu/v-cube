@@ -395,16 +395,22 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   });
   connect(addButton, &QPushButton::clicked, this, &LibraryPage::addAlg);
   connect(newAlgEdit_, &QLineEdit::returnPressed, this, &LibraryPage::addAlg);
-  connect(algList_, &QTreeWidget::itemChanged, this,
-          [this](QTreeWidgetItem *item, int column) {
-            if (!loading_ && column == 0) {
-              int row = algList_->indexOfTopLevelItem(item);
-              // After the item's signal: storing rebuilds the list.
-              QMetaObject::invokeMethod(
-                  this, [this, row] { storeAlgs(tr("Edit alg"), row); },
-                  Qt::QueuedConnection);
-            }
-          });
+  connect(
+      algList_, &QTreeWidget::itemChanged, this,
+      [this](QTreeWidgetItem *item, int column) {
+        if (!loading_ && column == 0) {
+          int row = algList_->indexOfTopLevelItem(item);
+          // After the item's signal: storing rebuilds the list. The
+          // edit is taken as it stands now, for this case: the click
+          // that ended it may show another case or set before the
+          // call arrives.
+          QMetaObject::invokeMethod(
+              this,
+              [this, row, setId = editor_.setId, caseId = editor_.caseId,
+               texts = algTexts()] { storeAlgEdit(setId, caseId, texts, row); },
+              Qt::QueuedConnection);
+        }
+      });
   connect(algList_, &QTreeWidget::itemDoubleClicked, this,
           [this](QTreeWidgetItem *item) { algList_->editItem(item, 0); });
   connect(algList_, &AlgListWidget::reordered, this,
