@@ -35,7 +35,8 @@ std::vector<AttemptColumn> columns(bool virt) {
     AttemptColumn c;
     c.id = id;
     c.title = title;
-    c.fit = true;
+    // The number fits its contents; the others share the width evenly.
+    c.fit = c.id == "#";
     c.hideable = hideable;
     c.available = available;
     return c;
@@ -63,7 +64,6 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   panel_ = new SessionPanel(this);
   panel_->setStatsClickable(true);
   panel_->setDeleteRowVisible(true);
-  panel_->setStretchLast(true);
   panel_->setColumns(columns(true));
   panel_->setHiddenColumnsKey(saved::timedHiddenColumns().key());
 
@@ -86,17 +86,8 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   display_ = stage_->display;
   statusLabel_ = stage_->hint;
   focusStats_ = stage_->focusStats;
-  plus2Button_ = flatButton("+2", right);
-  dnfButton_ = flatButton("DNF", right);
-  reviewButton_ = flatButton(tr("Review last"), right);
-  plus2Button_->setToolTip(tr("Toggle +2 on the last solve (Alt+2)"));
-  dnfButton_->setToolTip(tr("Toggle DNF on the last solve (Alt+3)"));
-  reviewButton_->setToolTip(
-      tr("Replay the last solve with its steps and splits (Alt+R; "
-         "double-click any solve to review it)"));
-  stage_->addButton(plus2Button_);
-  stage_->addButton(dnfButton_);
-  stage_->addButton(reviewButton_);
+  // +2, DNF, deleting and reviewing the last solve are clicked on their
+  // keys' chips (see updateControls()).
   stage_->addUnderButtons(algs_->label());
 
   chart_ = panel_->chart();
@@ -159,18 +150,12 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
           &TimerPage::renameSession);
   connect(panel_, &SessionPanel::deleteSessionRequested, this,
           &TimerPage::deleteSession);
-  connect(plus2Button_, &QPushButton::clicked, this,
-          [this] { setLastPenalty(Penalty::Plus2); });
-  connect(dnfButton_, &QPushButton::clicked, this,
-          [this] { setLastPenalty(Penalty::Dnf); });
   connect(panel_, &SessionPanel::deleteLastClicked, this, [this] {
     if (!session().solves.empty()) {
       deleteSolve(static_cast<int>(session().solves.size()) - 1);
     }
   });
   connect(panel_, &SessionPanel::undoClicked, this, &TimerPage::undoDelete);
-  connect(reviewButton_, &QPushButton::clicked, this,
-          [this] { review(static_cast<int>(session().solves.size()) - 1); });
   connect(panel_, &SessionPanel::attemptMenuRequested, this,
           &TimerPage::showSolveMenu);
   connect(panel_, &SessionPanel::attemptActivated, this, [this](int index) {
@@ -291,10 +276,23 @@ void TimerPage::updateControls() {
     }
     keys << KeyHint{tr("hold Space"), tr("start")};
     if (any) {
-      keys << KeyHint{tr("Backspace"), tr("DNF")}
-           << KeyHint{tr("Alt+2"), tr("+2")}
-           << KeyHint{tr("Delete"), tr("delete last")}
-           << KeyHint{tr("Alt+R"), tr("review")};
+      keys << KeyHint{tr("Backspace"), tr("DNF"),
+                      [this] { setLastPenalty(Penalty::Dnf); }}
+           << KeyHint{tr("Alt+2"), tr("+2"),
+                      [this] { setLastPenalty(Penalty::Plus2); }}
+           << KeyHint{tr("Delete"), tr("delete last"), [this] {
+                        if (!isBusy() && !session().solves.empty()) {
+                          deleteSolve(
+                              static_cast<int>(session().solves.size()) - 1);
+                        }
+                      }};
+    }
+    if (any && !session().solves.back().moves.empty()) {
+      keys << KeyHint{tr("Alt+R"), tr("review"), [this] {
+                        if (!isBusy() && !session().solves.empty()) {
+                          review(static_cast<int>(session().solves.size()) - 1);
+                        }
+                      }};
     }
     keys << KeyHint{tr("Ctrl+→"), tr("skip")};
   }
@@ -303,13 +301,8 @@ void TimerPage::updateControls() {
            typeBox_, nextButton_, panel_->sessionButton(), cubeBox_}) {
     w->setEnabled(!busy);
   }
-  plus2Button_->setEnabled(!busy && any);
-  dnfButton_->setEnabled(!busy && any);
   panel_->setDeleteEnabled(!busy && any);
   panel_->setUndo(deleted_.has(), !busy);
-  bool reviewable = any && !session().solves.back().moves.empty();
-  reviewButton_->setVisible(reviewable);
-  reviewButton_->setEnabled(!busy);
 }
 
 QWidget *TimerPage::sidePanel() const { return panel_; }

@@ -61,13 +61,8 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
   stepLabel_->setToolTip(tr("The session and the step it is for"));
   stage()->addAboveCube(stepLabel_);
 
-  recordButton_ = flatButton(tr("Record (Enter)"), right);
-  dnfButton_ = flatButton("DNF", right);
-  recordButton_->setToolTip(tr("Record the move count for this scramble"));
-  dnfButton_->setToolTip(tr("Record this scramble as DNF, e.g. when the step "
-                            "went wrong (Alt+3)"));
-  stage()->addButton(dnfButton_, true);
-  stage()->addButton(recordButton_, true);
+  // A typed count is recorded, or the scramble recorded as DNF, with
+  // Enter and Alt+3 or by clicking their chips (see physicalHint()).
 
   connect(stepBox_, &QComboBox::activated, this, [this](int index) {
     auto step = static_cast<SolveStep>(stepBox_->itemData(index).toInt());
@@ -87,10 +82,6 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
     typeBox_->setCurrentType(qs(defaultScrambleType(step)));
     selectSession(store_.currentIndex());
   });
-  connect(recordButton_, &QPushButton::clicked, this,
-          [this] { recordTyped(false); });
-  connect(dnfButton_, &QPushButton::clicked, this,
-          [this] { recordTyped(true); });
   connect(&optimalWatcher_, &QFutureWatcher<OptimalCache::Results>::finished,
           this, [this] {
             // Results worked out for holds that have changed since are
@@ -106,8 +97,6 @@ MoveCountPage::~MoveCountPage() { optimalWatcher_.waitForFinished(); }
 
 void MoveCountPage::showModeWidgets(bool virtualCube) {
   bool typed = !virtualCube; // the count is typed in
-  recordButton_->setVisible(typed);
-  dnfButton_->setVisible(typed);
   display_->setVisible(true);
   display_->setToolTip(typed ? tr("The move count you are typing")
                              : tr("Moves so far (HTM)"));
@@ -161,11 +150,13 @@ void MoveCountPage::addStats(QString &html) {
 }
 
 AttemptPage::Hint MoveCountPage::physicalHint() const {
+  // The chips of Enter and Alt+3 record, as the keys do.
+  auto *self = const_cast<MoveCountPage *>(this);
   return {tr("Type the number of moves your solution took."),
-          {{tr("Enter"), tr("record")},
+          {{tr("Enter"), tr("record"), [self] { self->recordTyped(false); }},
            {tr("Backspace"), tr("correct")},
            {tr("Esc"), tr("clear")},
-           {tr("Alt+3"), tr("DNF")}}};
+           {tr("Alt+3"), tr("DNF"), [self] { self->recordTyped(true); }}}};
 }
 
 AttemptPage::Hint MoveCountPage::solvingHint() const {
@@ -252,11 +243,6 @@ void MoveCountPage::settingsApplied() {
 
 void MoveCountPage::holdShown(const QColor &colour) {
   display_->showText("0", colour);
-}
-
-void MoveCountPage::entryShown() {
-  recordButton_->setEnabled(!flow_.entry().empty() && feed_.current());
-  dnfButton_->setEnabled(feed_.current().has_value());
 }
 
 void MoveCountPage::controlsEnabled(bool on) { stepBox_->setEnabled(on); }

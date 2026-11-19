@@ -100,9 +100,6 @@ private:
   QLabel *statusLabel_;
   QLabel *focusStats_;
   TrendChart *chart_;
-  QPushButton *plus2Button_;
-  QPushButton *dnfButton_;
-  QPushButton *reviewButton_;
   QPushButton *nextButton_;
 
   Session &session() { return store_.current(); }

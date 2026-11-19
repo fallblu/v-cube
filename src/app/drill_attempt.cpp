@@ -420,12 +420,6 @@ void DrillPage::showResult() {
   const bool gaveUp = flow_.gaveUp();
   const bool recorded = flow_.recorded();
   resultRow_->setVisible(true);
-  wrongButton_->setChecked(failed);
-  wrongButton_->setVisible(!gaveUp && recorded);
-  deleteButton_->setVisible(recorded);
-  deleteButton_->setText(gaveUp && flow_.gaveUpBeforeStart()
-                             ? tr("Take back (Del)")
-                             : tr("Delete (Del)"));
   const AlgSet *s = set();
   double target = s ? s->targetSeconds : 0.0;
   Solve shown;
