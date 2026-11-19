@@ -260,7 +260,10 @@ void F2LPage::setConfig(const F2LConfig &config) {
   configChanged();
 }
 
-void F2LPage::reloadSets() { importSheet(); }
+void F2LPage::reloadSets() {
+  sheetLooked_ = false; // it may be there now
+  importSheet();
+}
 
 void F2LPage::activated() {
   importSheet();
@@ -270,7 +273,7 @@ void F2LPage::activated() {
 // --- the sheet's algs --------------------------------------------------------
 
 void F2LPage::importSheet() {
-  if (data().notes.contains("sheet")) {
+  if (sheetLooked_ || data().notes.contains("sheet")) {
     return;
   }
   // The set of pair cases F2L mode used to show beside its solutions: in
@@ -295,6 +298,7 @@ void F2LPage::importSheet() {
     }
   }
   if (!set) {
+    sheetLooked_ = true;
     return;
   }
   for (const std::string &key : pairCardPool(true)) {

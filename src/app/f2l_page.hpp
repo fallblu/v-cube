@@ -199,6 +199,7 @@ private:
   void candidateLink(const QString &link);
   // The sheet's algs, read once into the mode's notes.
   void importSheet();
+  bool sheetLooked_ = false; // and none found, since the sets last changed
   std::optional<std::string> sheetAlg(const std::string &card) const;
 };
 
