@@ -2,25 +2,27 @@
 
 namespace vcube {
 
-LabFlow::Step LabFlow::key(const Input &in) const {
+LabFlow::Step LabFlow::key(const KeyEvent &k, std::int64_t now) const {
+  // Nothing of the flow's is held with Ctrl, Alt or Meta.
+  const bool plain = !k.modified;
   switch (phase_) {
   case Phase::Idle:
   case Phase::Finished:
-    if (in.press && in.key == Key::Space && in.plain) {
+    if (k.press && k.key == Key::Space && plain) {
       return {Action::Next, true};
     }
     return {};
   case Phase::Done:
-    if (!in.press) {
-      return {Action::None, in.key == Key::Space};
+    if (!k.press) {
+      return {Action::None, k.key == Key::Space};
     }
-    if (in.now - stoppedAt_ < kStopGraceMs && in.key != Key::Modifier) {
+    if (now - stoppedAt_ < kStopGraceMs && k.key != Key::Modifier) {
       return {Action::None, true};
     }
-    if (!in.plain) {
+    if (!plain) {
       return {};
     }
-    switch (in.key) {
+    switch (k.key) {
     case Key::Space:
       return {Action::Next, true};
     case Key::Backspace:
@@ -33,36 +35,36 @@ LabFlow::Step LabFlow::key(const Input &in) const {
       return {};
     }
   case Phase::Ready:
-    if (in.key == Key::Escape && in.press) {
+    if (k.key == Key::Escape && k.press) {
       return {Action::ResetReady, true};
     }
     if (virtual_) {
-      if (in.press && in.plain && in.key == Key::Move) {
+      if (k.press && plain && k.key == Key::Turn) {
         return {Action::Turn, true};
       }
       return {};
     }
-    if (in.key == Key::Space && in.plain) {
-      return {in.press ? Action::HoldPress : Action::HoldRelease, true};
+    if (k.key == Key::Space && plain) {
+      return {k.press ? Action::HoldPress : Action::HoldRelease, true};
     }
     return {};
   case Phase::Running:
-    if (!in.press) {
-      return {Action::None, in.key == Key::Space};
+    if (!k.press) {
+      return {Action::None, k.key == Key::Space};
     }
-    if (in.key == Key::Escape) {
+    if (k.key == Key::Escape) {
       return {Action::Cancel, true};
     }
     if (virtual_) {
-      if (in.key == Key::Space && in.plain) {
+      if (k.key == Key::Space && plain) {
         return {Action::StopVirtual, true};
       }
-      if (in.key == Key::Move && in.plain) {
+      if (k.key == Key::Turn && plain) {
         return {Action::Turn, true};
       }
       return {};
     }
-    if (in.key == Key::Modifier) {
+    if (k.key == Key::Modifier) {
       return {};
     }
     return {Action::StopPhysical, true};

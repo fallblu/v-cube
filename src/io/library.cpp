@@ -41,7 +41,7 @@ QString sanitizeId(const std::string &id) {
   QString s = qs(id).toLower();
   QString out;
   for (QChar c : s) {
-    out += (c.isLetterOrNumber() || c == '-' || c == '_') ? c : QChar('-');
+    out += (c.isLetterOrNumber() || c == u'-' || c == u'_') ? c : u'-';
   }
   return out.isEmpty() ? QString("set") : out;
 }
@@ -195,6 +195,10 @@ void AlgLibrary::load() {
       errors_ << unreadableSetMessage(dir.filePath(file), error, status);
       continue;
     }
+    // A file put here by hand may have an id that add() would have changed:
+    // the set is used without the slashes, which the file keeps until the
+    // set is next saved. Its progress file is named the same either way.
+    std::replace(set->id.begin(), set->id.end(), '/', '-');
     auto same = std::find_if(sets_.begin(), sets_.end(),
                              [&](const AlgSet &s) { return s.id == set->id; });
     if (same != sets_.end()) {
@@ -248,6 +252,15 @@ AlgSet *AlgLibrary::find(const std::string &id) {
   return nullptr;
 }
 
+const AlgSet *AlgLibrary::find(const std::string &id) const {
+  for (const auto &s : sets_) {
+    if (s.id == id) {
+      return &s;
+    }
+  }
+  return nullptr;
+}
+
 bool AlgLibrary::save(const AlgSet &set, QString *error) {
   QDir().mkpath(dir_);
   QString path = pathFor(set.id);
@@ -287,7 +300,10 @@ std::string AlgLibrary::uniqueId(const std::string &base) const {
 }
 
 AlgSet *AlgLibrary::add(AlgSet set, QString *error) {
+  // A slash would split the id in two wherever it is written before a case
+  // id or as part of a settings key.
   if (set.id.empty() || idTaken(set.id) ||
+      set.id.find('/') != std::string::npos ||
       sanitizeId(set.id).size() > kMaxNewId) {
     set.id = uniqueId(set.id.empty() ? set.name : set.id);
   }
@@ -423,6 +439,14 @@ bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
 }
 
 SetProgress &AlgLibrary::progress(const std::string &setId) {
+  return loadedProgress(setId);
+}
+
+const SetProgress &AlgLibrary::progress(const std::string &setId) const {
+  return loadedProgress(setId);
+}
+
+SetProgress &AlgLibrary::loadedProgress(const std::string &setId) const {
   auto it = progress_.find(setId);
   if (it != progress_.end()) {
     return it->second;

@@ -53,7 +53,7 @@ struct AlgLabPage::Job {
 // What the files of AlgLabPage share (see alglab_page.cpp).
 namespace {
 
-enum Column {
+enum Column : int {
   ColAlg,
   ColHtm,
   ColStm,

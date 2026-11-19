@@ -88,6 +88,23 @@ private:
   // thread.
   std::map<std::string, SolveSplits> splits_;
   QFutureWatcher<SplitResults> splitsWatcher_;
+  // What the table shows of a virtual solve that takes work to find: its
+  // move count and its splits (null until they are worked out), kept by
+  // the solve's place in the session so that a refresh after each solve
+  // doesn't parse every solution and look every solve up again. A row is
+  // for the solve it was made from: one that differs in what the two
+  // depend on (edited, deleted before, of another session) is made anew.
+  struct SolveRow {
+    std::string scramble;
+    std::string moves;
+    std::int64_t timeMs = 0;
+    std::size_t moveTimes = 0;
+    int htm = 0;
+    const SolveSplits *splits = nullptr;
+
+    bool isOf(const Solve &s) const;
+  };
+  std::vector<SolveRow> solveRows_;
   // After a virtual solve: the optimal EO Cross of its scramble.
   EoCrossCheck eoCheck_;
 

@@ -28,7 +28,7 @@ protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
-  QWidget *window_;
+  QWidget *window_ = nullptr;
   std::function<ModePage *()> page_;
   struct KeySeen {
     const QEvent *event = nullptr;
@@ -38,6 +38,8 @@ private:
     bool operator==(const KeySeen &) const = default;
   };
   KeySeen lastKey_;
+  // Where Qt offers lastKey_ next if nobody uses it (only compared).
+  const QWidget *nextOffer_ = nullptr;
   // Keys whose press the page used and that haven't been let go.
   std::set<int> used_;
 

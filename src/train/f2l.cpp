@@ -119,10 +119,11 @@ std::vector<Slot> slotsNeeded(PairCase pc, Slot target) {
 constexpr int kSetupTries = 40000;
 
 // A state with `open` open whose `target` pair is `wanted`.
-std::optional<CubieCube> stateWithCase(const std::vector<Slot> &open, bool eo,
-                                       Slot target, PairCase wanted, Rng &rng) {
+std::optional<CubieCube> stateWithCase(const std::vector<Slot> &open,
+                                       Edges edges, Slot target,
+                                       PairCase wanted, Rng &rng) {
   for (int i = 0; i < kSetupTries; ++i) {
-    CubieCube c = randomF2LState(open, eo, rng);
+    CubieCube c = randomF2LState(open, edges, rng);
     // A quick look before the mirrored one: the pieces' layers.
     bool cornerTop = placeOfCorner(c, slotCorner(target)) < 4;
     bool edgeTop = placeOfEdge(c, slotEdge(target)) < 4;
@@ -366,8 +367,8 @@ std::string caseKey(PairCase c) {
 }
 
 std::optional<PairCase> caseFromKey(std::string_view key) {
-  for (bool eo : {true, false}) {
-    for (PairCase c : pairCases(eo)) {
+  for (Edges edges : {Edges::Oriented, Edges::Any}) {
+    for (PairCase c : pairCases(edges)) {
       if (caseKey(c) == key) {
         return c;
       }
@@ -455,7 +456,8 @@ std::string_view groupName(PairGroup g) {
   return "";
 }
 
-const std::vector<PairCase> &pairCases(bool eo) {
+const std::vector<PairCase> &pairCases(Edges edges) {
+  const bool eo = edges == Edges::Oriented;
   static const std::array<std::vector<PairCase>, 2> cases = [] {
     std::array<std::vector<PairCase>, 2> out;
     for (std::size_t withEo = 0; withEo < 2; ++withEo) {
@@ -517,16 +519,17 @@ PairCard pairCardOf(const CubieCube &state, Slot target) {
   return {sideOf(target), pairCaseOf(state, target)};
 }
 
-std::vector<std::string> pairCardPool(bool eo) {
+std::vector<std::string> pairCardPool(Edges edges) {
   std::vector<std::string> pool;
-  for (PairCase c : pairCases(eo)) {
+  for (PairCase c : pairCases(edges)) {
     pool.push_back(cardKey({PairSide::Front, c}));
     pool.push_back(cardKey({PairSide::Back, c}));
   }
   return pool;
 }
 
-std::optional<CubieCube> cardState(const PairCard &card, bool eo, Rng &rng) {
+std::optional<CubieCube> cardState(const PairCard &card, Edges edges,
+                                   Rng &rng) {
   const Slot target = sideSlot(card.side);
   std::vector<Slot> open{target};
   for (Slot s : slotsNeeded(card.pcase, target)) {
@@ -534,7 +537,7 @@ std::optional<CubieCube> cardState(const PairCard &card, bool eo, Rng &rng) {
   }
   std::sort(open.begin(), open.end());
   std::optional<CubieCube> state =
-      stateWithCase(open, eo, target, card.pcase, rng);
+      stateWithCase(open, edges, target, card.pcase, rng);
   if (!state) {
     return state;
   }
@@ -579,7 +582,7 @@ std::optional<PairSetup> cardSetup(const PairCard &card,
     }
   }
   std::sort(open.begin(), open.end());
-  auto state = stateWithCase(open, config.eo, target, card.pcase, rng);
+  auto state = stateWithCase(open, config.edges(), target, card.pcase, rng);
   if (!state) {
     return std::nullopt;
   }
@@ -729,11 +732,13 @@ FaceletCube pairDiagram(const CubieCube &state, Slot slot) {
 
 // --- starting states ---------------------------------------------------------
 
-CubieCube randomF2LState(const std::vector<Slot> &open, bool eo, Rng &rng) {
-  PieceMask mask = PieceMask{}.lastLayer(true, true, !eo);
+CubieCube randomF2LState(const std::vector<Slot> &open, Edges edges, Rng &rng) {
+  const Free edgeFree =
+      edges == Edges::Oriented ? Free::Perm : Free::PermAndOri;
+  PieceMask mask = PieceMask{}.lastLayer(Free::PermAndOri, edgeFree);
   for (Slot s : open) {
-    mask.corners({slotCorner(s)}, true, true);
-    mask.edges({slotEdge(s)}, true, !eo);
+    mask.corners({slotCorner(s)}, Free::PermAndOri);
+    mask.edges({slotEdge(s)}, edgeFree);
   }
   mask.normalize();
   CubieCube c;
@@ -803,13 +808,13 @@ std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
     PairSetup out;
     out.target = target;
     if (wanted) {
-      auto state = stateWithCase(open, config.eo, target, *wanted, rng);
+      auto state = stateWithCase(open, config.edges(), target, *wanted, rng);
       if (!state) {
         continue;
       }
       out.state = *state;
     } else {
-      out.state = randomF2LState(open, config.eo, rng);
+      out.state = randomF2LState(open, config.edges(), rng);
     }
     out.pcase = pairCaseOf(out.state, target);
     return out;
@@ -818,7 +823,8 @@ std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
 }
 
 CubieCube randomFullState(const F2LConfig &config, Rng &rng) {
-  return randomF2LState({kF2LSlots.begin(), kF2LSlots.end()}, config.eo, rng);
+  return randomF2LState({kF2LSlots.begin(), kF2LSlots.end()}, config.edges(),
+                        rng);
 }
 
 // --- blind spots -------------------------------------------------------------

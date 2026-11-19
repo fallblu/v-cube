@@ -31,7 +31,6 @@
 #include <QButtonGroup>
 #include <QClipboard>
 #include <QCloseEvent>
-#include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDate>
 #include <QDialog>
@@ -65,6 +64,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <utility>
 
 namespace vcube {
 
@@ -300,7 +300,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   tslePage_ = new TslePage(settings_, data_.dataDir(), stack_);
   todayPage_ =
       new TodayPage(settings_, data_.library, data_.sessions, data_.untimed,
-                    data_.moveCounts, data_.lab, data_.dataDir(), stack_);
+                    data_.moveCounts, data_.lab, eoCrossPage_->data(),
+                    f2lPage_->data(), tslePage_->data(), stack_);
   pages_ = {learnPage_,   drillPage_,     libraryPage_, timedPage_,
             untimedPage_, moveCountPage_, eoCrossPage_, algLabPage_,
             f2lPage_,     tslePage_,      todayPage_};
@@ -319,16 +320,17 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
             updateBadges();
           });
   libraryPage_->setLab(&data_.lab);
-  connect(libraryPage_, &LibraryPage::practiceRequested, this,
-          [this](int mode, const QString &setId, const QString &caseId) {
-            if (!setMode(mode)) {
-              return;
-            }
-            CasePage *page = mode == AppMode::Drill
-                                 ? static_cast<CasePage *>(drillPage_)
-                                 : static_cast<CasePage *>(learnPage_);
-            page->showCase(setId, caseId);
-          });
+  connect(
+      libraryPage_, &LibraryPage::practiceRequested, this,
+      [this](AppMode::Id mode, const QString &setId, const QString &caseId) {
+        if (!setMode(mode)) {
+          return;
+        }
+        CasePage *page = mode == AppMode::Drill
+                             ? static_cast<CasePage *>(drillPage_)
+                             : static_cast<CasePage *>(learnPage_);
+        page->showCase(setId, caseId);
+      });
   connect(libraryPage_, &LibraryPage::algLabRequested, this,
           [this](const QString &setId, const QString &caseId) {
             if (setMode(AppMode::AlgLab)) {
@@ -351,7 +353,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
           });
   connect(todayPage_, &TodayPage::learnSetRequested, this,
           &MainWindow::learnSet);
-  connect(todayPage_, &TodayPage::practiceRequested, this, [this](int mode) {
+  connect(todayPage_, &TodayPage::practiceRequested, this, [this](int index) {
+    // Today's rows carry the mode as a number.
+    AppMode::Id mode = AppMode::fromIndex(index).value_or(AppMode::Tsle);
     PracticePage *page = mode == AppMode::F2L
                              ? static_cast<PracticePage *>(f2lPage_)
                              : static_cast<PracticePage *>(tslePage_);
@@ -407,7 +411,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   connect(focusHintTimer_, &QTimer::timeout, focusHint_, &QWidget::hide);
 
   // Each mode's side panel, hidden or shown as it was left.
-  for (int m = 0; m < AppMode::Count; ++m) {
+  for (AppMode::Id m : AppMode::all()) {
     ModePage *page = pages_[static_cast<std::size_t>(m)];
     QString id = AppMode::settingsId(m);
     page->setSideHidden(saved::sideHidden(id).get());
@@ -451,18 +455,29 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   fitToScreen();
   restoreLayout();
   setSidebarShown(saved::sidebarShown().get());
-  int mode = AppMode::fromSettingsId(saved::windowMode().get());
-  if (mode < 0) {
+  std::optional<AppMode::Id> mode =
+      AppMode::fromSettingsId(saved::windowMode().get());
+  if (!mode) {
     mode = AppMode::fromSavedTab(saved::legacyTab().get());
   }
   saved::removeObsolete();
   applyWindowSettings();
-  setMode(mode);
+  setMode(mode.value_or(AppMode::Learn));
   updateBadges();
   updateBanner();
 }
 
-MainWindow::~MainWindow() { setWriteReporter({}); }
+MainWindow::~MainWindow() {
+  setWriteReporter({});
+  // The pages refer to data_, which is destroyed before the widgets the
+  // window owns: they go first. A window still shown is hidden before that,
+  // while everything is whole, as hiding it tells the pages that the focus
+  // has gone.
+  hide();
+  for (ModePage *&page : pages_) {
+    delete std::exchange(page, nullptr);
+  }
+}
 
 void MainWindow::raiseWindow() {
   if (isMinimized()) {
@@ -491,7 +506,7 @@ QWidget *MainWindow::buildSidebar() {
     label->setContentsMargins(6, 10, 0, 4);
     layout->addWidget(label);
   };
-  for (int m : AppMode::sidebarOrder()) {
+  for (AppMode::Id m : AppMode::sidebarOrder()) {
     if (QString h = AppMode::sidebarHeader(m); !h.isEmpty()) {
       header(h);
     }
@@ -509,8 +524,11 @@ QWidget *MainWindow::buildSidebar() {
     layout->addWidget(b);
   }
   layout->addStretch();
-  connect(modeButtons_, &QButtonGroup::idClicked, this,
-          [this](int m) { setMode(m); });
+  connect(modeButtons_, &QButtonGroup::idClicked, this, [this](int id) {
+    if (auto mode = AppMode::fromIndex(id)) {
+      setMode(*mode);
+    }
+  });
   return bar;
 }
 
@@ -595,18 +613,17 @@ void MainWindow::updateHelp() {
 }
 
 ModePage *MainWindow::currentPage() const {
-  return mode_ >= 0 ? pages_[static_cast<std::size_t>(mode_)] : nullptr;
+  return mode_ ? pages_[static_cast<std::size_t>(*mode_)] : nullptr;
 }
 
-bool MainWindow::setMode(int mode) {
-  mode = std::clamp(mode, 0, AppMode::Count - 1);
+bool MainWindow::setMode(AppMode::Id mode) {
   ModePage *old = currentPage();
   if (mode == mode_) {
     return true;
   }
   if (old && old->isBusy()) {
     // Keep the sidebar on the running mode.
-    modeButtons_->button(mode_)->setChecked(true);
+    modeButtons_->button(*mode_)->setChecked(true);
     showMessage(tr("Finish or cancel the solve (Esc) before switching modes"));
     return false;
   }
@@ -618,7 +635,7 @@ bool MainWindow::setMode(int mode) {
     }
     old->deactivated();
   }
-  bool switching = mode_ >= 0;
+  bool switching = mode_.has_value();
   // What the last page said is about that page, not this one.
   statusBar()->clearMessage();
   mode_ = mode;
@@ -664,7 +681,7 @@ bool MainWindow::setMode(int mode) {
 
 void MainWindow::updateBadges() {
   TodayPage::Totals t = todayPage_->totals();
-  for (int m : {AppMode::Today, AppMode::Learn}) {
+  for (AppMode::Id m : {AppMode::Today, AppMode::Learn}) {
     auto *b = static_cast<SidebarButton *>(modeButtons_->button(m));
     b->setBadge(t.due > 0 ? QString::number(t.due) : QString());
     b->setAccessibleName(t.due > 0 ? plural(t.due, tr("%1, %n review due"),
@@ -683,17 +700,8 @@ void MainWindow::updateBadges() {
 }
 
 void MainWindow::learnSet(const QString &setId) {
-  if (!setMode(AppMode::Learn)) {
-    return;
-  }
-  // Pick the set in Learn's set list, as a click would.
-  for (QComboBox *box : learnPage_->findChildren<QComboBox *>()) {
-    int i = box->findData(setId);
-    if (i >= 0) {
-      box->setCurrentIndex(i);
-      emit box->activated(i);
-      return;
-    }
+  if (setMode(AppMode::Learn)) {
+    learnPage_->pickSet(setId);
   }
 }
 
@@ -811,7 +819,7 @@ void MainWindow::closeEvent(QCloseEvent *e) {
 }
 
 void MainWindow::restoreLayout() {
-  for (int m = 0; m < AppMode::Count; ++m) {
+  for (AppMode::Id m : AppMode::all()) {
     if (m == AppMode::Learn) {
       continue; // Learn keeps its own splitters
     }
@@ -835,7 +843,7 @@ void MainWindow::restoreLayout() {
 }
 
 void MainWindow::saveLayout() {
-  for (int m = 0; m < AppMode::Count; ++m) {
+  for (AppMode::Id m : AppMode::all()) {
     if (m == AppMode::Learn) {
       continue; // Learn keeps its own splitters
     }
@@ -942,7 +950,7 @@ void MainWindow::buildMenus() {
   view->addAction(help);
 
   QMenu *modes = menuBar()->addMenu(tr("&Go"));
-  for (int m : AppMode::sidebarOrder()) {
+  for (AppMode::Id m : AppMode::sidebarOrder()) {
     modes->addAction(AppMode::label(m), AppMode::shortcut(m), this,
                      [this, m] { setMode(m); });
     if (AppMode::menuSeparatorAfter(m)) {

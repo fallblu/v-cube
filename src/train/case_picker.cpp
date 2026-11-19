@@ -4,6 +4,30 @@
 
 namespace vcube {
 
+std::string_view pickModeId(PickMode m) {
+  switch (m) {
+  case PickMode::Random:
+    return "random";
+  case PickMode::Weighted:
+    return "weighted";
+  case PickMode::InOrder:
+    return "inorder";
+  case PickMode::Recap:
+    return "recap";
+  }
+  return "random";
+}
+
+std::optional<PickMode> pickModeFromId(std::string_view id) {
+  for (PickMode m : {PickMode::Random, PickMode::Weighted, PickMode::InOrder,
+                     PickMode::Recap}) {
+    if (id == pickModeId(m)) {
+      return m;
+    }
+  }
+  return std::nullopt;
+}
+
 double drillReference(const std::vector<std::string> &pool,
                       const SetProgress &progress, AttemptMode mode,
                       double targetMs) {

@@ -59,7 +59,7 @@ QString sourceText(const CandidateRow &r) {
 
 } // namespace
 
-void AlgLabPage::fillTable() {
+void AlgLabPage::fillTable(bool resize) {
   QString selected;
   if (auto *it = table_->currentItem()) {
     selected = table_->item(it->row(), ColAlg)->data(Qt::UserRole).toString();
@@ -78,7 +78,12 @@ void AlgLabPage::fillTable() {
     }
     return;
   }
-  rows_ = candidateRows(*case_, store_);
+  rows_ = candidateRows(*case_, store_, candidateCache_);
+  const std::string mainAlg =
+      case_->setAlgs.empty()
+          ? std::string()
+          : candidateCache_.of(*case_, case_->setAlgs.front()).key;
+  const LabAttemptGroups attempts(store_.attempts(), case_->key);
   const ErgoProfile &prof = profile();
   CubeKind cube =
       statsCube_->currentIndex() == 1 ? CubeKind::Virtual : CubeKind::Physical;
@@ -96,12 +101,10 @@ void AlgLabPage::fillTable() {
   int hidden = 0;
   bool anyTimes = false; // an alg listed has times: the time columns show
   for (const CandidateRow &r : rows_) {
-    Alg alg = parseAlgOrEmpty(r.alg);
-    MoveCounts mc = moveCounts(alg);
-    bool rotations = std::any_of(alg.begin(), alg.end(),
-                                 [](Move m) { return isRotation(m.type); });
+    const Alg &alg = r.moves;
+    const MoveCounts &mc = r.counts;
     if ((filterOn_ && !filterSet_.contains(alg)) ||
-        (noRotations_->isChecked() && rotations) ||
+        (noRotations_->isChecked() && r.rotations) ||
         (maxHtm_->value() > 0 && mc.htm > maxHtm_->value())) {
       ++hidden;
       continue;
@@ -114,8 +117,7 @@ void AlgLabPage::fillTable() {
     if (!r.fit) {
       algItem->setForeground(palette().color(QPalette::PlaceholderText));
     }
-    if (r.inSet && !case_->setAlgs.empty() &&
-        labAlgKey(case_->setAlgs.front()) == r.alg) {
+    if (r.inSet && !case_->setAlgs.empty() && mainAlg == r.alg) {
       QFont f = algItem->font();
       f.setBold(true);
       algItem->setFont(f);
@@ -137,8 +139,8 @@ void AlgLabPage::fillTable() {
     auto *src = new QTableWidgetItem(sourceText(r));
     src->setFlags(src->flags() & ~Qt::ItemIsEditable);
     table_->setItem(row, ColSource, src);
-    LabStats st = labStats(store_.attempts(), case_->key, r.alg, cube, window,
-                           trim, warm);
+    LabStats st = labStats(attempts.of(case_->key, r.alg), case_->key, r.alg,
+                           cube, window, trim, warm);
     auto ms = [](std::optional<std::int64_t> v) -> std::optional<double> {
       if (!v) {
         return std::nullopt;
@@ -161,8 +163,10 @@ void AlgLabPage::fillTable() {
     }
   }
   table_->setSortingEnabled(true);
-  for (int c = ColHtm; c < ColumnCount; ++c) {
-    table_->resizeColumnToContents(c);
+  if (resize) {
+    for (int c = ColHtm; c < ColumnCount; ++c) {
+      table_->resizeColumnToContents(c);
+    }
   }
   // The eight time columns only once there are times to show.
   for (int c = ColCount; c < ColumnCount; ++c) {
@@ -211,10 +215,8 @@ void AlgLabPage::addTyped() {
     return;
   }
   std::string k = labAlgKey(text);
-  if (!fitAlg(case_->state, parsed.alg, case_->free, case_->aufBefore,
-              case_->aufAfter)) {
-    AlgCheck check = checkAlg(case_->state, k, case_->free, case_->aufBefore,
-                              case_->aufAfter);
+  if (!fitAlg(case_->state, parsed.alg, case_->free, aufsOf(*case_))) {
+    AlgCheck check = checkAlg(case_->state, k, case_->free, aufsOf(*case_));
     emit message(tr("That alg doesn't solve the case: it %1. Added anyway, "
                     "greyed out.")
                      .arg(qs(describeCheck(check))));
@@ -242,8 +244,7 @@ void AlgLabPage::pasteCandidates() {
   for (const PasteItem &p : readPaste(text.toStdString())) {
     auto parsed = parseAlg(p.alg);
     if (!parsed || parsed.alg.empty() ||
-        !fitAlg(case_->state, parsed.alg, case_->free, case_->aufBefore,
-                case_->aufAfter)) {
+        !fitAlg(case_->state, parsed.alg, case_->free, aufsOf(*case_))) {
       ++failed;
       continue;
     }
@@ -262,7 +263,8 @@ void AlgLabPage::pasteCandidates() {
                    .arg(plural(have, tr("%n was"), tr("%n were"))));
 }
 
-void AlgLabPage::addToSet(bool makeMain) {
+void AlgLabPage::addToSet(SetAlg how) {
+  const bool makeMain = how == SetAlg::MakeMain;
   if (!case_) {
     return;
   }
@@ -337,8 +339,8 @@ void AlgLabPage::addToSession() {
   std::vector<LabEntry> entries;
   for (const std::string &a : selectedAlgs()) {
     auto parsed = parseAlg(a);
-    if (parsed && fitAlg(case_->state, parsed.alg, case_->free,
-                         case_->aufBefore, case_->aufAfter)) {
+    if (parsed &&
+        fitAlg(case_->state, parsed.alg, case_->free, aufsOf(*case_))) {
       entries.push_back({case_->key, a});
     }
   }
@@ -411,8 +413,9 @@ void AlgLabPage::fillModeMenu(QMenu &menu) {
   }
   menu.addAction(tr("Add to session"), this, &AlgLabPage::addToSession);
   if (case_ && !case_->key.isLab()) {
-    menu.addAction(tr("Add to set"), this, [this] { addToSet(false); });
-    menu.addAction(tr("Make main alg"), this, [this] { addToSet(true); });
+    menu.addAction(tr("Add to set"), this, [this] { addToSet(SetAlg::Add); });
+    menu.addAction(tr("Make main alg"), this,
+                   [this] { addToSet(SetAlg::MakeMain); });
   }
   menu.addAction(tr("Copy"), this, [this] {
     QStringList lines;

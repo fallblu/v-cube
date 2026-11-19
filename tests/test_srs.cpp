@@ -31,11 +31,12 @@ TEST_CASE("new cards go through learning steps then graduate") {
 }
 
 TEST_CASE("learn grades come from correctness, not time") {
-  CHECK(learnGrade(false, false, false) == Grade::Good);
-  CHECK(learnGrade(true, false, false) == Grade::Again);
-  CHECK(learnGrade(false, true, false) == Grade::Again);
-  CHECK(learnGrade(false, false, true) == Grade::Again);
-  CHECK(learnGrade(true, true, true) == Grade::Again);
+  CHECK(learnGrade({}) == Grade::Good);
+  CHECK(learnGrade({.hinted = true}) == Grade::Again);
+  CHECK(learnGrade({.gaveUp = true}) == Grade::Again);
+  CHECK(learnGrade({.leftAlgs = true}) == Grade::Again);
+  CHECK(learnGrade({.hinted = true, .gaveUp = true, .leftAlgs = true}) ==
+        Grade::Again);
 }
 
 TEST_CASE("drill statistics ignore learn attempts") {
@@ -262,6 +263,18 @@ TEST_CASE("learn avoids repeating the last case while another is due") {
   CHECK(*pickLearnCase({"a", "b"}, prog, 100, 0, cfg).caseId == "a");
   CHECK(*pickLearnCase({"a", "b"}, prog, 100, 0, cfg, "a").caseId == "b");
   CHECK(*pickLearnCase({"a"}, prog, 100, 0, cfg, "a").caseId == "a");
+}
+
+TEST_CASE("a drill order keeps its name in settings") {
+  CHECK(pickModeId(PickMode::Random) == "random");
+  CHECK(pickModeId(PickMode::Weighted) == "weighted");
+  CHECK(pickModeId(PickMode::InOrder) == "inorder");
+  CHECK(pickModeId(PickMode::Recap) == "recap");
+  for (PickMode m : {PickMode::Random, PickMode::Weighted, PickMode::InOrder,
+                     PickMode::Recap}) {
+    CHECK(pickModeFromId(pickModeId(m)) == m);
+  }
+  CHECK_FALSE(pickModeFromId("shuffled"));
 }
 
 TEST_CASE("random drill order never repeats a case straight away") {
@@ -614,7 +627,7 @@ TEST_CASE("a drill session counts attempts, DNFs, new bests and the slowest") {
   CHECK(sum.slowest[0].caseId == "b");
   CHECK(sum.slowest[1].caseId == "a");
   CHECK(sum.slowest[1].timeMs == 2500);
-  s.setFailed(i, true);
+  s.setFailed(i, DrillSession::Mark::Failed);
   CHECK(s.summary().dnfs == 2);
   s.removeLast();
   CHECK(s.summary().count == 4);

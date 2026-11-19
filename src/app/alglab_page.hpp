@@ -136,6 +136,8 @@ private:
   GripView *grips_;
   // Scores of the chosen profile, by alg (cleared when it changes).
   std::unordered_map<std::string, double> scoreCache_;
+  // What each alg of the case shown does to it (see CandidateCache).
+  CandidateCache candidateCache_;
 
   void saveStore();
   void fillSources();
@@ -146,7 +148,9 @@ private:
   void fillMoveSetBoxes();
   void filterChosen();
   void genChosen();
-  void fillTable();
+  // `resize` fits the columns to what they hold, which a refill during a
+  // search leaves for the fill at its end.
+  void fillTable(bool resize = true);
   void updateGrips();
   std::vector<std::string> selectedAlgs() const;
   const ErgoProfile &profile() const;
@@ -154,10 +158,15 @@ private:
   void newLabCase();
   void editLabCase();
   void deleteLabCase();
-  void editProfile(bool copy);
+  // Edits the profile in use, or a copy of it under a new name.
+  enum class ProfileEdit { InPlace, Copy };
+  void editProfile(ProfileEdit edit);
   void addTyped();
   void pasteCandidates();
-  void addToSet(bool makeMain);
+  // Adds the selected algs to the case in its set, or makes the one
+  // selected its main alg.
+  enum class SetAlg { Add, MakeMain };
+  void addToSet(SetAlg how);
   void addToSession();
   void removeCandidates();
   void clearTimes();
@@ -165,7 +174,9 @@ private:
 
   SearchOptions searchOptions() const;
   void runSearch(std::vector<ResolvedCase> cases);
-  void runBatch(bool wholeSet);
+  // Searches every case of the case's group, or of its whole set.
+  enum class Batch { Group, WholeSet };
+  void runBatch(Batch batch);
   void stopSearch();
   void searchFinished();
   void updateGenControls();

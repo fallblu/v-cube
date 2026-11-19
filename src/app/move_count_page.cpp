@@ -32,7 +32,8 @@ QString stepText(SolveStep step) { return qs(std::string(stepName(step))); }
 
 MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
                              AlgLibrary &library, QWidget *parent)
-    : AttemptPage(settings, store, library, "movecount", true, parent) {
+    : AttemptPage(settings, store, library, "movecount", SolveLog::MoveCount,
+                  parent) {
   QWidget *row = stage()->options;
   stepBox_ = new QComboBox(row);
   stepBox_->setFocusPolicy(Qt::NoFocus);
@@ -150,10 +151,12 @@ AttemptPage::Hint MoveCountPage::physicalHint() const {
   // The chips of Enter and Alt+3 record, as the keys do.
   auto *self = const_cast<MoveCountPage *>(this);
   return {tr("Type the number of moves your solution took."),
-          {{tr("Enter"), tr("record"), [self] { self->recordTyped(false); }},
+          {{tr("Enter"), tr("record"),
+            [self] { self->recordTyped(AttemptFlow::Typed::Count); }},
            {tr("Backspace"), tr("correct")},
            {tr("Esc"), tr("clear")},
-           {tr("Alt+3"), tr("DNF"), [self] { self->recordTyped(true); }}}};
+           {tr("Alt+3"), tr("DNF"),
+            [self] { self->recordTyped(AttemptFlow::Typed::Dnf); }}}};
 }
 
 AttemptPage::Hint MoveCountPage::solvingHint() const {
@@ -190,7 +193,7 @@ void MoveCountPage::describeReview(ReviewedSolve &solve, int index) const {
   solve.step = session().step;
 }
 
-void MoveCountPage::addDetails(QList<QPair<QString, QString>> &rows,
+void MoveCountPage::addDetails(QList<DetailRow> &rows,
                                const MoveCountAttempt &a) const {
   rows.append({tr("Step"), stepText(session().step)});
   if (std::optional<int> best = optimalOf(a); best && *best >= 0) {
@@ -266,8 +269,9 @@ void MoveCountPage::requestOptimal() {
       QtConcurrent::run([job = *job] { return OptimalCache::run(job); }));
 }
 
-void MoveCountPage::recordTyped(bool dnf) {
-  apply(flow_.recordTyped(dnf, feed_.current().has_value()));
+void MoveCountPage::recordTyped(AttemptFlow::Typed typed) {
+  apply(flow_.recordTyped(typed, feed_.current() ? Scramble::Shown
+                                                 : Scramble::Awaited));
 }
 
 } // namespace vcube

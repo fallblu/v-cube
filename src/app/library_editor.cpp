@@ -25,13 +25,15 @@ public:
                  LibraryEditor::Edit edit)
       : QUndoCommand(text), editor_(editor), edit_(std::move(edit)) {}
 
-  void undo() override { editor_->applyEdit(edit_, true, text()); }
+  void undo() override {
+    editor_->applyEdit(edit_, LibraryEditor::Step::Undo, text());
+  }
   void redo() override {
     if (done_) {
       done_ = false; // done before it was pushed
       return;
     }
-    editor_->applyEdit(edit_, false, text());
+    editor_->applyEdit(edit_, LibraryEditor::Step::Redo, text());
   }
 
 private:
@@ -81,8 +83,17 @@ LibraryEditor::LibraryEditor(AlgLibrary &library, QUndoStack *undo,
 
 AlgSet *LibraryEditor::set() { return library_.find(setId); }
 
+const AlgSet *LibraryEditor::set() const {
+  return std::as_const(library_).find(setId);
+}
+
 AlgCase *LibraryEditor::currentCase() {
   AlgSet *s = set();
+  return s && !caseId.empty() ? s->findCase(caseId) : nullptr;
+}
+
+const AlgCase *LibraryEditor::currentCase() const {
+  const AlgSet *s = set();
   return s && !caseId.empty() ? s->findCase(caseId) : nullptr;
 }
 
@@ -186,7 +197,8 @@ void LibraryEditor::push(const QString &text, Edit edit) {
   undo_->push(new SetEditCommand(this, text, std::move(edit)));
 }
 
-void LibraryEditor::applyEdit(Edit &edit, bool undoing, const QString &text) {
+void LibraryEditor::applyEdit(Edit &edit, Step step, const QString &text) {
+  const bool undoing = step == Step::Undo;
   const std::optional<AlgSet> &to = undoing ? edit.before : edit.after;
   const std::optional<AlgSet> &from = undoing ? edit.after : edit.before;
   const std::string &id = edit.setId;
@@ -232,9 +244,22 @@ void LibraryEditor::applyEdit(Edit &edit, bool undoing, const QString &text) {
     }
   } else if (to) {
     // The set comes back, with its progress and settings.
-    if (!library_.add(*to, &error)) {
+    AlgSet *added = library_.add(*to, &error);
+    if (!added) {
       message_(tr("Could not add %1 again: %2").arg(qs(to->name), error));
       return;
+    }
+    // Its file name may have been taken since, and the set given another
+    // id: what it had goes with it, and the edit follows so that stepping
+    // over it again finds the set.
+    if (added->id != id) {
+      const std::string newId = added->id;
+      for (std::optional<AlgSet> *s : {&edit.before, &edit.after}) {
+        if (*s) {
+          (*s)->id = newId;
+        }
+      }
+      edit.setId = newId;
     }
     if (!edit.progress.empty()) {
       library_.progress(id) = edit.progress;

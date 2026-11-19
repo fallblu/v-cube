@@ -103,13 +103,50 @@ TEST_CASE("untimed tries are summed up by moves", "[practice]") {
 TEST_CASE("a group keeps its newest tries", "[practice]") {
   PracticeData d;
   for (std::size_t i = 0; i < PracticeData::kPerGroup + 5; ++i) {
-    d.addTimed(timedKey(false, "zz-1"),
+    d.addTimed(timedKey(CubeKind::Virtual, "zz-1"),
                timedTry(static_cast<std::int64_t>(i), 1000));
   }
   const auto &kept = d.timed.at("virtual/zz-1");
   CHECK(kept.size() == PracticeData::kPerGroup);
   CHECK(kept.front().timestamp == 5);
-  CHECK(timedKey(true, "eo") == "physical/eo");
+  CHECK(timedKey(CubeKind::Physical, "eo") == "physical/eo");
+}
+
+TEST_CASE("the newest try of a group is changed or taken back", "[practice]") {
+  PracticeData d;
+  const std::string key = timedKey(CubeKind::Virtual, "zz-1");
+  CHECK(newestTry(d.timed, key) == nullptr);
+  dropNewestTry(d.timed, key); // nothing to take back
+  CHECK(d.timed.empty());
+  d.addTimed(key, timedTry(1, 1000));
+  d.addTimed(key, timedTry(2, 2000));
+  d.addTimed(timedKey(CubeKind::Virtual, "zz-2"), timedTry(3, 3000));
+  PracticeTry *newest = newestTry(d.timed, key);
+  REQUIRE(newest);
+  CHECK(newest->ms == 2000);
+  newest->dnf = true;
+  CHECK(d.timed.at(key).back().dnf);
+  CHECK_FALSE(d.timed.at(key).front().dnf);
+  dropNewestTry(d.timed, key);
+  REQUIRE(d.timed.at(key).size() == 1);
+  CHECK(d.timed.at(key).back().ms == 1000);
+  // A group left without tries is gone, the others as they were.
+  dropNewestTry(d.timed, key);
+  CHECK_FALSE(d.timed.contains(key));
+  CHECK(newestTry(d.timed, key) == nullptr);
+  CHECK(d.timed.at("virtual/zz-2").size() == 1);
+}
+
+TEST_CASE("timed attempts are cleared a cube at a time", "[practice]") {
+  PracticeData d;
+  d.addTimed(timedKey(CubeKind::Virtual, "zz-1"), timedTry(1, 1000));
+  d.addTimed(timedKey(CubeKind::Virtual, "eo"), timedTry(2, 2000));
+  d.addTimed(timedKey(CubeKind::Physical, "zz-1"), timedTry(3, 3000));
+  clearTimed(d.timed, CubeKind::Virtual);
+  REQUIRE(d.timed.size() == 1);
+  CHECK(d.timed.contains("physical/zz-1"));
+  clearTimed(d.timed, CubeKind::Physical);
+  CHECK(d.timed.empty());
 }
 
 TEST_CASE("cards come in by themselves, a few a day", "[practice]") {
@@ -163,26 +200,26 @@ TEST_CASE("the card pools are the cases in learning order", "[practice]") {
     steps = tsleStepsLeft(*c);
   }
   // F2L: each case for the front slots, then for the back ones.
-  const std::vector<std::string> pairs = pairCardPool(true);
+  const std::vector<std::string> pairs = pairCardPool(Edges::Oriented);
   CHECK(pairs.size() == 166);
-  CHECK(pairCardPool(false).size() == 334);
+  CHECK(pairCardPool(Edges::Any).size() == 334);
   std::optional<PairCard> first = cardFromKey(pairs[0]);
   std::optional<PairCard> second = cardFromKey(pairs[1]);
   REQUIRE(first);
   REQUIRE(second);
   CHECK(first->side == PairSide::Front);
   CHECK(second->side == PairSide::Back);
-  CHECK(first->pcase == pairCases(true).front());
+  CHECK(first->pcase == pairCases(Edges::Oriented).front());
   CHECK(second->pcase == first->pcase);
   CHECK(pairs[0].starts_with("front/"));
   CHECK_FALSE(cardFromKey(caseKey(first->pcase))); // as keyed before
 }
 
 TEST_CASE("a card's try is graded by how it went", "[practice]") {
-  CHECK(practiceGrade(true, false, false) == Grade::Good);
-  CHECK(practiceGrade(false, false, false) == Grade::Again);
-  CHECK(practiceGrade(true, true, false) == Grade::Again);
-  CHECK(practiceGrade(true, false, true) == Grade::Again);
+  CHECK(practiceGrade({.solvedWell = true}) == Grade::Good);
+  CHECK(practiceGrade({}) == Grade::Again);
+  CHECK(practiceGrade({.solvedWell = true, .hinted = true}) == Grade::Again);
+  CHECK(practiceGrade({.solvedWell = true, .gaveUp = true}) == Grade::Again);
 }
 
 TEST_CASE("practice data survives the file", "[practice][io]") {
@@ -191,6 +228,16 @@ TEST_CASE("practice data survives the file", "[practice][io]") {
   startLearning(d.cards["UF-N-0120"].card, 1794000000, config);
   review(d.cards["UF-N-0120"].card, Grade::Good, 1794000100, config);
   d.cards["UF-N-0120"].record({1794000100, 0, false, AttemptMode::Learn});
+  Attempt timed{1794000150, 2100, false, AttemptMode::VirtualDrill};
+  timed.recognitionMs = 600;
+  timed.executionMs = 1500;
+  d.cards["UF-N-0120"].record(timed);
+  Attempt recognised{1794000160, 700, false, AttemptMode::Learn};
+  recognised.recognitionMs = 700;
+  recognised.recognitionOnly = true;
+  d.cards["UF-N-0120"].record(recognised);
+  d.cards["UF-N-0120"].archive[AttemptMode::VirtualDrill] = {
+      1900, {{20764, 3, 1, 4100, 1900}}};
   PracticeTry learn;
   learn.timestamp = 1794000200;
   learn.moves = 31;
@@ -202,7 +249,7 @@ TEST_CASE("practice data survives the file", "[practice][io]") {
   dnf.timestamp = 1794000300;
   dnf.dnf = true;
   d.addLearn("whole", dnf);
-  d.addTimed(timedKey(true, "zz-1"), timedTry(1794000400, 14200));
+  d.addTimed(timedKey(CubeKind::Physical, "zz-1"), timedTry(1794000400, 14200));
   PracticeTry planned;
   planned.timestamp = 1794000500;
   planned.inspectMs = 16200;

@@ -1,7 +1,5 @@
 #include "train/practice.hpp"
 
-#include "train/today.hpp"
-
 #include <algorithm>
 
 namespace vcube {
@@ -14,19 +12,6 @@ void addCapped(std::vector<PracticeTry> &tries, const PracticeTry &t) {
     tries.erase(tries.begin(), tries.end() - static_cast<std::ptrdiff_t>(
                                                  PracticeData::kPerGroup));
   }
-}
-
-bool sameCard(const SrsCard &a, const SrsCard &b) {
-  return a.state == b.state && a.step == b.step && a.ease == b.ease &&
-         a.intervalDays == b.intervalDays && a.due == b.due &&
-         a.reps == b.reps && a.lapses == b.lapses &&
-         a.introduced == b.introduced && a.marked == b.marked &&
-         a.suspended == b.suspended && a.buriedUntil == b.buriedUntil;
-}
-
-bool sameAttempt(const Attempt &a, const Attempt &b) {
-  return a.timestamp == b.timestamp && a.timeMs == b.timeMs &&
-         a.failed == b.failed && a.mode == b.mode;
 }
 
 } // namespace
@@ -44,25 +29,30 @@ void PracticeData::addTimed(const std::string &key, const PracticeTry &t) {
   addCapped(timed[key], t);
 }
 
-bool operator==(const PracticeData &a, const PracticeData &b) {
-  if (a.learn != b.learn || a.timed != b.timed || a.notes != b.notes ||
-      a.inspection != b.inspection || a.choices != b.choices ||
-      a.cards.size() != b.cards.size()) {
-    return false;
-  }
-  return std::equal(a.cards.begin(), a.cards.end(), b.cards.begin(),
-                    [](const auto &x, const auto &y) {
-                      return x.first == y.first &&
-                             sameCard(x.second.card, y.second.card) &&
-                             std::equal(x.second.attempts.begin(),
-                                        x.second.attempts.end(),
-                                        y.second.attempts.begin(),
-                                        y.second.attempts.end(), sameAttempt);
-                    });
+std::string timedKey(CubeKind cube, const std::string &group) {
+  return (cube == CubeKind::Physical ? "physical/" : "virtual/") + group;
 }
 
-std::string timedKey(bool physical, const std::string &group) {
-  return (physical ? "physical/" : "virtual/") + group;
+PracticeTry *newestTry(PracticeTries &tries, const std::string &key) {
+  auto it = tries.find(key);
+  return it == tries.end() || it->second.empty() ? nullptr : &it->second.back();
+}
+
+void dropNewestTry(PracticeTries &tries, const std::string &key) {
+  auto it = tries.find(key);
+  if (it != tries.end() && !it->second.empty()) {
+    it->second.pop_back();
+    if (it->second.empty()) {
+      tries.erase(it);
+    }
+  }
+}
+
+void clearTimed(PracticeTries &timed, CubeKind cube) {
+  const std::string prefix = timedKey(cube, {});
+  std::erase_if(timed, [&prefix](const auto &entry) {
+    return entry.first.starts_with(prefix);
+  });
 }
 
 PracticeSummary summarize(const std::vector<PracticeTry> &tries) {
@@ -148,21 +138,44 @@ PracticeWaiting practiceWaiting(const std::vector<std::string> &pool,
                                 const SetProgress &cards, std::int64_t now,
                                 std::int64_t dayStart, std::int64_t dayEnd,
                                 const SrsConfig &config) {
-  // A case never started is as good as queued.
-  SetProgress queued = cards;
-  queueUnstarted(pool, queued, now, config);
-  SetWaiting w = setWaiting(pool, queued, now, dayStart, dayEnd, config);
+  // A case never started is as good as queued: the cards are counted as
+  // queueUnstarted() would leave them, without a copy of them all (and
+  // their attempts) being made to queue them in.
   PracticeWaiting out;
-  out.due = w.due;
-  out.newLeft = w.newLeft;
-  out.learned = w.learned;
   out.total = static_cast<int>(pool.size());
-  out.started = out.total - w.queued - w.unstarted;
+  int queued = 0;
+  int introduced = newCasesIntroducedSince(cards, dayStart);
+  for (const std::string &id : pool) {
+    auto it = cards.find(id);
+    if (it == cards.end()) {
+      ++queued;
+      continue;
+    }
+    const SrsCard &card = it->second.card;
+    if (card.state == CardState::New) {
+      ++queued;
+      // Queueing starts the card afresh: it is none of the day's new ones.
+      if (card.introduced != 0 && !card.marked && card.introduced >= dayStart) {
+        --introduced;
+      }
+    } else if (isQueued(card)) {
+      ++queued;
+    } else {
+      if (card.state == CardState::Review) {
+        ++out.learned;
+      }
+      if (isDueNow(card, now, dayEnd, config)) {
+        ++out.due;
+      }
+    }
+  }
+  out.newLeft = std::clamp(config.newPerDay - introduced, 0, queued);
+  out.started = out.total - queued;
   return out;
 }
 
-Grade practiceGrade(bool solvedWell, bool hinted, bool gaveUp) {
-  return solvedWell && !hinted && !gaveUp ? Grade::Good : Grade::Again;
+Grade practiceGrade(const CardTry &t) {
+  return t.solvedWell && !t.hinted && !t.gaveUp ? Grade::Good : Grade::Again;
 }
 
 } // namespace vcube

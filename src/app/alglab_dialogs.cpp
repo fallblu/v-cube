@@ -272,7 +272,7 @@ void ProfileDialog::updateTry() {
 
 namespace {
 
-enum TrickCol {
+enum TrickCol : int {
   TOn,
   TMove,
   THand,
@@ -627,7 +627,7 @@ void LabCaseDialog::validate() {
     r.free = labCaseFree(c);
     r.spec.free = r.free;
     PieceMask ll;
-    ll.lastLayer(true, true, true);
+    ll.lastLayer(Free::PermAndOri, Free::PermAndOri);
     r.spec.view =
         withinMask(r.state, ll) ? DiagramView::TopLayer : DiagramView::Iso3D;
     diagram_->setPixmap(labDiagram(r, settings_, 150, devicePixelRatioF()));

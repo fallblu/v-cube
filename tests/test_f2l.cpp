@@ -35,10 +35,10 @@ AnalysisOptions optionsFor(const F2LConfig &config) {
 } // namespace
 
 TEST_CASE("pair cases are counted and keyed", "[f2l]") {
-  CHECK(pairCases(true).size() == 83);
-  CHECK(pairCases(false).size() == 167);
+  CHECK(pairCases(Edges::Oriented).size() == 83);
+  CHECK(pairCases(Edges::Any).size() == 167);
   std::set<std::string> keys;
-  for (PairCase c : pairCases(false)) {
+  for (PairCase c : pairCases(Edges::Any)) {
     CHECK(keys.insert(caseKey(c)).second);
     CHECK(caseFromKey(caseKey(c)) == c);
     CHECK_FALSE(caseName(c).empty());
@@ -150,7 +150,7 @@ TEST_CASE("every case can be set up in every method", "[f2l]") {
   Rng rng(11);
   for (F2LMethod m : {F2LMethod::ZZMinus1, F2LMethod::CFOP}) {
     F2LConfig config = configOf(m);
-    for (PairCase pc : pairCases(config.eo)) {
+    for (PairCase pc : pairCases(config.edges())) {
       INFO(caseKey(pc));
       auto setup = randomPairSetup(config, 0, pc, rng);
       REQUIRE(setup);
@@ -163,7 +163,7 @@ TEST_CASE("every case can be set up in every method", "[f2l]") {
   F2LConfig config;
   // A late stage leaves fewer slots open.
   for (int i = 0; i < 10; ++i) {
-    PairCase top = pairCases(true)[0];
+    PairCase top = pairCases(Edges::Oriented)[0];
     auto last = randomPairSetup(config, 3, top, rng);
     REQUIRE(last);
     CHECK(unsolvedSlots(last->state).size() == 2);
@@ -176,13 +176,13 @@ TEST_CASE("every case can be set up in every method", "[f2l]") {
 TEST_CASE("cards are set up for their side's slots", "[f2l]") {
   Rng rng(5);
   F2LConfig config;
-  for (PairCase pc : pairCases(true)) {
+  for (PairCase pc : pairCases(Edges::Oriented)) {
     for (PairSide side : {PairSide::Front, PairSide::Back}) {
       const PairCard card{side, pc};
       INFO(cardKey(card));
       CHECK(cardFromKey(cardKey(card)) == card);
       // The state solutions are chosen for: the side's own slot.
-      std::optional<CubieCube> own = cardState(card, true, rng);
+      std::optional<CubieCube> own = cardState(card, Edges::Oriented, rng);
       REQUIRE(own);
       CHECK(pairCardOf(*own, sideSlot(side)) == card);
       CHECK(f2lBase(*own, config));
@@ -214,11 +214,11 @@ TEST_CASE("a chosen solution is known done in either slot", "[f2l]") {
   AnalysisOptions options = optionsFor(config);
   options.keep = 3;
   int checked = 0;
-  for (std::size_t i = 0; i < pairCases(true).size(); i += 9) {
+  for (std::size_t i = 0; i < pairCases(Edges::Oriented).size(); i += 9) {
     for (PairSide side : {PairSide::Front, PairSide::Back}) {
-      const PairCard card{side, pairCases(true)[i]};
+      const PairCard card{side, pairCases(Edges::Oriented)[i]};
       INFO(cardKey(card));
-      std::optional<CubieCube> own = cardState(card, true, rng);
+      std::optional<CubieCube> own = cardState(card, Edges::Oriented, rng);
       REQUIRE(own);
       PairAnalysis a = analysePair(*own, sideSlot(side), options);
       REQUIRE(a.found());

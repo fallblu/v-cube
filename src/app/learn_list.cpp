@@ -234,14 +234,14 @@ int LearnPage::dueIn(const AlgSet &s) const {
                   settings_.srs);
 }
 
-QString LearnPage::setItemText(const AlgSet &s) {
+QString LearnPage::setItemText(const AlgSet &s) const {
   int due = dueCards(library_.progress(s.id), unixNow(), localDayEnd(),
                      settings_.srs);
   QString text = CasePage::setItemText(s);
   return due > 0 ? tr("%1 · %2 due").arg(text).arg(due) : text;
 }
 
-QString LearnPage::acrossItemText() {
+QString LearnPage::acrossItemText() const {
   int due = 0;
   for (const auto &s : library_.sets()) {
     due += dueCards(library_.progress(s.id), unixNow(), localDayEnd(),
@@ -392,13 +392,13 @@ void LearnPage::extendCaseMenu(QMenu &menu,
   }
 }
 
-std::vector<Attempt> LearnPage::attemptsOf(const std::string &caseId) {
+std::vector<Attempt> LearnPage::attemptsOf(const std::string &caseId) const {
   const CaseProgress *own = progressOf(caseId);
   const CaseProgress *card = cardOf(caseId);
   return caseAttempts(own, card != own ? card : nullptr);
 }
 
-std::vector<std::string> LearnPage::queueOrder() {
+std::vector<std::string> LearnPage::queueOrder() const {
   std::vector<std::string> out;
   std::int64_t now = unixNow();
   for (const auto &id : pool()) {
@@ -469,7 +469,7 @@ void LearnPage::learnQueueHead() {
   }
   std::string member = pickMember(queue.front());
   if (eligible(member)) {
-    begin(member, true);
+    begin(member, LearnAttempt::Kind::New);
   }
 }
 

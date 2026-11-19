@@ -1,8 +1,11 @@
 #pragma once
 
 #include "app/keymap.hpp"
+#include "app/mode_table.hpp"
 
 #include <QDockWidget>
+
+#include <optional>
 
 class QTextBrowser;
 
@@ -16,11 +19,11 @@ public:
   explicit HelpPanel(QWidget *parent = nullptr);
 
   // The mode shown (an AppMode) and the turning keys changed.
-  void setContext(int mode, const Keymap &keymap);
+  void setContext(std::optional<AppMode::Id> mode, const Keymap &keymap);
 
 private:
   QTextBrowser *text_;
-  int mode_ = -1;
+  std::optional<AppMode::Id> mode_;
   Keymap keymap_;
 
   void refresh();

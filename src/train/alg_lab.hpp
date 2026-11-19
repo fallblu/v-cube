@@ -8,10 +8,12 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace vcube {
@@ -178,15 +180,33 @@ LabStats labStats(std::span<const LabAttempt> attempts, const LabCaseKey &key,
 LabStats statsOf(std::span<const LabAttempt> timed, int trimPercent,
                  int windowAttempts, int deviated);
 
+// The attempts sorted out by case and alg, each alg's oldest first, for a
+// table of many algs: labTimed() and labStats() make of an alg's own
+// attempts what they make of them all, without going through them all for
+// every row.
+class LabAttemptGroups {
+public:
+  LabAttemptGroups() = default;
+  explicit LabAttemptGroups(std::span<const LabAttempt> attempts);
+  // Only the attempts of one case.
+  LabAttemptGroups(std::span<const LabAttempt> attempts, const LabCaseKey &key);
+  // Empty for an alg never timed.
+  std::span<const LabAttempt> of(const LabCaseKey &key,
+                                 const std::string &alg) const;
+
+private:
+  std::map<std::pair<LabCaseKey, std::string>, std::vector<LabAttempt>> groups_;
+};
+
 // Attempts as solves, oldest first (DNFs kept).
 std::vector<Solve> labSolves(std::span<const LabAttempt> timed);
 
 // The case's state with the alg's lead-in done to it, as a test session
 // sets it up: the AUF the alg needs before it, and a leading y rotation, so
-// that the alg solves it as it is held. With `randomAuf`, a random U turn
-// is done after that instead, and the solver must do the AUF.
+// that the alg solves it as it is held. With LabAuf::Random, a random U
+// turn is done after that instead, and the solver must do the AUF.
+enum class LabAuf : std::uint8_t { Done, Random };
 CubieCube labSetup(const CubieCube &state, const std::string &alg,
-                   const PieceMask &free, bool aufBefore, bool aufAfter,
-                   bool randomAuf, Rng &rng);
+                   const PieceMask &free, Aufs aufs, LabAuf auf, Rng &rng);
 
 } // namespace vcube

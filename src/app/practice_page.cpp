@@ -1,8 +1,8 @@
 #include "app/practice_page.hpp"
 
-#include "app/key_router.hpp"
 #include "app/session_panel.hpp"
 #include "app/text_style.hpp"
+#include "app/train_keys.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "io/session_store.hpp"
@@ -12,7 +12,6 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
-#include <QHeaderView>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMessageBox>
@@ -22,46 +21,12 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTabBar>
-#include <QTreeWidget>
 #include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
 
 namespace vcube {
-
-namespace {
-
-constexpr int kKeyRole = Qt::UserRole;
-constexpr int kCardRole = Qt::UserRole + 1; // the row is a card's
-
-QString small(const QString &text) {
-  return text.isEmpty()
-             ? QString()
-             : "<br><span style='font-size:small'>" + text + "</span>";
-}
-
-QString gradeName(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return QObject::tr("Again");
-  case Grade::Hard:
-    return QObject::tr("Hard");
-  case Grade::Good:
-    return QObject::tr("Good");
-  case Grade::Easy:
-    return QObject::tr("Easy");
-  }
-  return {};
-}
-
-QString oneDecimal(double v) { return QString::number(v, 'f', 1); }
-
-QString seconds(std::int64_t ms) {
-  return QObject::tr("%1 s").arg(QString::number(ms / 1000.0, 'f', 1));
-}
-
-} // namespace
 
 QString PracticePage::tabId(Tab t) {
   switch (t) {
@@ -97,26 +62,10 @@ int PracticePage::tabIndex(Tab t) const {
   return it == all.end() ? 0 : static_cast<int>(it - all.begin());
 }
 
-QString dueText(std::int64_t due, std::int64_t now, std::int64_t dayEnd) {
-  const std::int64_t in = due - now;
-  if (in <= 0) {
-    return QObject::tr("now");
-  }
-  if (in < 3600) {
-    return QObject::tr("in %1 min").arg(std::max<std::int64_t>(1, in / 60));
-  }
-  if (due < dayEnd) {
-    return QObject::tr("in %1 h").arg(in / 3600);
-  }
-  const std::int64_t days = (due - dayEnd) / kSecondsPerDay + 1;
-  return days == 1 ? QObject::tr("tomorrow") : QObject::tr("in %1 d").arg(days);
-}
-
 PracticePage::PracticePage(AppSettings &settings, const QString &dataDir,
                            const QString &file, QWidget *parent)
     : ModePage(parent), settings_(settings),
-      store_(QDir(dataDir).filePath(file)), rng_(makeRng()),
-      sittingStart_(unixNow()) {
+      store_(QDir(dataDir).filePath(file)), rng_(makeRng()) {
   // What the mode kept before it had these tabs is dropped (TSLE's OCLL
   // algs are carried over).
   const QJsonObject old = removeOldPracticeFile(store_.path());
@@ -256,7 +205,7 @@ void PracticePage::build() {
 
   auto *split = new QSplitter(this);
   split->setObjectName("main");
-  split->addWidget(side_);
+  split->addWidget(list_);
   split->addWidget(right);
   split->setStretchFactor(0, 0);
   split->setStretchFactor(1, 1);
@@ -300,29 +249,23 @@ void PracticePage::build() {
 }
 
 void PracticePage::buildSide() {
-  side_ = new QWidget(this);
-  auto *layout = new QVBoxLayout(side_);
-  layout->setContentsMargins(0, 0, 0, 0);
-  summary_ = new QLabel(side_);
-  summary_->setWordWrap(true);
-  summary_->setTextFormat(Qt::RichText);
-  tree_ = new QTreeWidget(side_);
-  tree_->setObjectName("practiceList");
-  tree_->setRootIsDecorated(false);
-  tree_->setFocusPolicy(Qt::NoFocus);
-  tree_->header()->setStretchLastSection(false);
-  // The first column takes the room; fillList() sets up the others.
-  tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-  listHelp_ = helpLabel({}, side_);
-  clearButton_ = flatButton(tr("Clear progress…"), side_);
-  layout->addWidget(summary_);
-  layout->addWidget(tree_, 1);
-  layout->addWidget(listHelp_);
-  layout->addWidget(clearButton_, 0, Qt::AlignLeft);
-  connect(tree_, &QTreeWidget::itemDoubleClicked, this,
-          [this](QTreeWidgetItem *row) { rowActivated(row); });
-  connect(clearButton_, &QPushButton::clicked, this,
-          &PracticePage::clearProgress);
+  list_ = new PracticeList(store_.data, settings_, this);
+  list_->setBusyCheck([this] { return isBusy(); });
+  connect(list_, &PracticeList::activated, this,
+          [this](const std::string &key, bool card) {
+            if (card) {
+              practiseCard(key);
+            } else {
+              groupActivated(key);
+            }
+          });
+  connect(list_, &PracticeList::cleared, this, [this] {
+    save();
+    showSummary();
+    if (active_ && tab_ == Tab::Learn) {
+      next();
+    }
+  });
 }
 
 void PracticePage::loadChoices() {
@@ -445,6 +388,7 @@ void PracticePage::activated() {
     next();
   } else {
     refreshList();
+    showSummary();
   }
   if (tab_ == Tab::Timed || tab_ == Tab::Inspection) {
     tick_.start();
@@ -507,8 +451,7 @@ QString PracticePage::detailHtml() const {
 }
 
 QString PracticePage::clockText(std::int64_t ms) const {
-  // As the timer shows it.
-  return qs(formatTime(StatValue(ms), settings_.decimals));
+  return vcube::clockText(ms, settings_.decimals);
 }
 
 QString PracticePage::mutedColour() const {
@@ -530,11 +473,11 @@ void PracticePage::save() {
 
 // --- items -------------------------------------------------------------------
 
-void PracticePage::next(bool early) {
+void PracticePage::next(LearnAhead ahead) {
   if (tab_ == Tab::Timed) {
     nextTimed();
   } else {
-    nextLearn(early);
+    nextLearn(ahead);
   }
 }
 
@@ -569,10 +512,10 @@ void PracticePage::setProgress(const QStringList &lines) {
   showVerdict();
 }
 
-void PracticePage::begin(const Setup &setup, bool whole) {
+void PracticePage::begin(const Setup &setup, Extent extent) {
   item_ = {};
   item_.id = ++items_;
-  item_.whole = whole;
+  item_.whole = extent == Extent::Whole;
   item_.group = setup.group;
   item_.start = setup.cube;
   item_.colours = setup.colours;
@@ -596,18 +539,18 @@ void PracticePage::begin(const Setup &setup, bool whole) {
   showHidden(false);
 }
 
-void PracticePage::nextLearn(bool early) {
+void PracticePage::nextLearn(LearnAhead ahead) {
   if (tab_ == Tab::Inspection && readyPending_) {
     showReady();
     return;
   }
   if (whole()) {
-    std::optional<Setup> s = setUp(true, {});
+    std::optional<Setup> s = setUp(Extent::Whole, {});
     if (!s) {
       showIdle(tr("No state could be set up with these options"));
       return;
     }
-    begin(*s, true);
+    begin(*s, Extent::Whole);
     phase_ = Phase::Solving;
     cubeChanged();
     if (tab_ == Tab::Inspection && active_) {
@@ -625,7 +568,7 @@ void PracticePage::nextLearn(bool early) {
   options.last = lastCard_;
   options.rng = &rng_;
   options.dayEnd = localDayEnd();
-  options.early = early;
+  options.early = ahead == LearnAhead::Early;
   LearnPick pick = pickLearnCase(pool, store_.data.cards, now, localDayStart(),
                                  settings_.srs, options);
   if (!pick.caseId) {
@@ -643,18 +586,18 @@ void PracticePage::nextLearn(bool early) {
                        "steps."));
     }
     showIdle(tr("Nothing is due") +
-             small(why.trimmed() + " " +
-                   tr("The Untimed tab is there to practise meanwhile.")));
+             smallLine(why.trimmed() + " " +
+                       tr("The Untimed tab is there to practise meanwhile.")));
     refreshList();
     return;
   }
-  std::optional<Setup> s = setUp(false, *pick.caseId);
+  std::optional<Setup> s = setUp(Extent::Unit, *pick.caseId);
   if (!s) {
     showIdle(tr("%1 can't be set up with these options")
                  .arg(cardName(*pick.caseId)));
     return;
   }
-  begin(*s, false);
+  begin(*s, Extent::Unit);
   item_.card = *pick.caseId;
   item_.isNew = pick.isNew;
   item_.graded = !pick.isNew;
@@ -689,8 +632,8 @@ void PracticePage::showChoosing() {
   }
 }
 
-void PracticePage::leaveChoice(bool confirmed) {
-  if (confirmed) {
+void PracticePage::leaveChoice(Choice choice) {
+  if (choice == Choice::Confirmed) {
     if (!confirmChoice()) {
       return;
     }
@@ -707,8 +650,9 @@ void PracticePage::leaveChoice(bool confirmed) {
     // The grade follows the verdict, unless you gave it yourself.
     if (item_.graded && item_.recorded && item_.grade && item_.outcome &&
         !item_.gradedByHand) {
-      const Grade g =
-          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+                                     .hinted = item_.hint,
+                                     .gaveUp = item_.gaveUp});
       if (g != *item_.grade) {
         regrade(g);
       }
@@ -725,13 +669,13 @@ void PracticePage::practiseCard(const std::string &card) {
     showBar();
     fillList();
   }
-  std::optional<Setup> s = setUp(false, card);
+  std::optional<Setup> s = setUp(Extent::Unit, card);
   if (!s) {
     emit message(
         tr("%1 can't be set up with these options").arg(cardName(card)));
     return;
   }
-  begin(*s, false);
+  begin(*s, Extent::Unit);
   item_.card = card;
   phase_ = Phase::Solving;
   cubeChanged();
@@ -744,13 +688,13 @@ void PracticePage::practiseCard(const std::string &card) {
 
 void PracticePage::nextTimed() {
   flow_.setConfig(flowConfig());
-  std::optional<Setup> s = setUp(true, {});
+  std::optional<Setup> s = setUp(Extent::Whole, {});
   if (!s) {
     flow_.noCase();
     showIdle(tr("No state could be set up with these options"));
     return;
   }
-  begin(*s, true);
+  begin(*s, Extent::Whole);
   flow_.setUp(monotonicMs());
   display_->showTime(0);
   cubeChanged();
@@ -844,8 +788,7 @@ void PracticePage::showCubeKind() {
 }
 
 void PracticePage::requestScramble() {
-  const int request = ++scrambleRequest_;
-  scrambles_.setProperty("request", request);
+  // setFuture() drops the result of a request still on its way.
   ColourNeutrality hold;
   hold.main = item_.scrambleHold;
   hold.holds = {item_.scrambleHold};
@@ -857,12 +800,6 @@ void PracticePage::requestScramble() {
 
 void PracticePage::scrambleReady() {
   if (tab_ != Tab::Timed || !physical_ || item_.id == 0) {
-    return;
-  }
-  if (scrambles_.property("request").toInt() != scrambleRequest_) {
-    if (item_.scramble.isEmpty()) {
-      requestScramble();
-    }
     return;
   }
   item_.scramble = scrambles_.result().text;
@@ -886,11 +823,11 @@ bool PracticePage::handleChooseKey(QKeyEvent *e) {
   switch (e->key()) {
   case Qt::Key_Return:
   case Qt::Key_Enter:
-    leaveChoice(true);
+    leaveChoice(Choice::Confirmed);
     return true;
   case Qt::Key_Escape:
     if (afterChoice_ == Phase::Done) {
-      leaveChoice(false);
+      leaveChoice(Choice::Cancelled);
     }
     return true;
   case Qt::Key_Space:
@@ -916,7 +853,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
   if (phase_ == Phase::Idle) {
     if (e->key() == Qt::Key_Space || e->key() == Qt::Key_Return ||
         e->key() == Qt::Key_Enter) {
-      next(true);
+      next(LearnAhead::Early);
       return true;
     }
     return false;
@@ -944,9 +881,9 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
       introduced();
     } else if (item_.hidden) {
       showHidden(false);
-      finishLearn(!item_.done);
+      finishLearn(item_.done ? Try::Finished : Try::GaveUp);
     } else if (shift) {
-      finishLearn(true);
+      finishLearn(Try::GaveUp);
     }
     return true;
   case Qt::Key_Tab:
@@ -966,7 +903,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
   case Qt::Key_Backspace:
     if (phase_ == Phase::Solving) {
       showHidden(false);
-      finishLearn(true);
+      finishLearn(Try::GaveUp);
     }
     return true;
   case Qt::Key_Escape:
@@ -1046,11 +983,12 @@ void PracticePage::learnTurn(Move m) {
   if (phase_ == Phase::Demo) {
     introduced();
   } else if (!item_.hidden) {
-    finishLearn(false);
+    finishLearn(Try::Finished);
   }
 }
 
-void PracticePage::finishLearn(bool gaveUp) {
+void PracticePage::finishLearn(Try how) {
+  const bool gaveUp = how == Try::GaveUp;
   if (phase_ != Phase::Solving) {
     return;
   }
@@ -1079,8 +1017,9 @@ void PracticePage::conclude() {
     if (item_.graded) {
       CaseProgress &p = store_.data.cards[item_.card];
       item_.cardBefore = p.card;
-      const Grade g =
-          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+                                     .hinted = item_.hint,
+                                     .gaveUp = item_.gaveUp});
       review(p.card, g, now, settings_.srs, &rng_);
       p.record({now, 0, g == Grade::Again, AttemptMode::Learn});
       item_.grade = g;
@@ -1137,6 +1076,7 @@ void PracticePage::regrade(Grade g) {
   save();
   refreshList();
   showVerdict();
+  showSummary();
 }
 
 void PracticePage::playDemo() {
@@ -1174,39 +1114,12 @@ void PracticePage::endDemo() {
 // --- Timed -------------------------------------------------------------------
 
 std::string PracticePage::timedGroupKey() const {
-  return timedKey(physical_, item_.group);
+  return timedKey(cubeKind(), item_.group);
 }
 
 DrillFlow::KeyEvent PracticePage::flowKey(const QKeyEvent *e,
                                           bool press) const {
-  using Key = DrillFlow::Key;
-  DrillFlow::KeyEvent k;
-  k.press = press;
-  k.shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  switch (e->key()) {
-  case Qt::Key_Space:
-    k.key = Key::Space;
-    break;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    k.key = Key::Enter;
-    break;
-  case Qt::Key_Tab:
-    k.key = Key::Tab;
-    break;
-  case Qt::Key_Backspace:
-    k.key = Key::Backspace;
-    break;
-  case Qt::Key_Delete:
-    k.key = Key::Delete;
-    break;
-  case Qt::Key_Escape:
-    k.key = Key::Escape;
-    break;
-  default:
-    k.key = isModifierKey(e->key()) ? Key::Modifier : Key::Other;
-    break;
-  }
+  DrillFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::None);
   if (!physical_) {
     k.move = settings_.keymap.lookup(e);
   }
@@ -1231,7 +1144,9 @@ bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
     return true;
   }
   const bool scrambleShown = !physical_ || !item_.scramble.isEmpty();
-  DrillFlow::Step step = flow_.key(flowKey(e, press), now, scrambleShown);
+  DrillFlow::Step step =
+      flow_.key(flowKey(e, press), now,
+                scrambleShown ? Scramble::Shown : Scramble::Awaited);
   perform(step, now);
   return step.handled;
 }
@@ -1286,7 +1201,9 @@ void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
     break;
   case A::Stopped:
     // On the virtual cube a DNF unless the cube shows the step done.
-    finishTimed(step.timeMs, !physical_ && !item_.done);
+    finishTimed(step.timeMs, !physical_ && !item_.done
+                                 ? DrillFlow::Result::Failed
+                                 : DrillFlow::Result::Solved);
     break;
   case A::CancelNoTurn:
     cancelTimed(tr("Stopped before any face turn: cancelled, nothing was "
@@ -1296,7 +1213,7 @@ void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
     cancelTimed(tr("Solve cancelled; nothing was recorded."));
     break;
   case A::GiveUp:
-    finishTimed(flow_.giveUp(now), true, true);
+    finishTimed(flow_.giveUp(now), DrillFlow::Result::GaveUp);
     break;
   case A::Practise:
     toggleDetail();
@@ -1307,27 +1224,9 @@ void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
   case A::Delete:
     deleteTry();
     break;
-  case A::Hint: {
-    QString text;
-    switch (step.hint) {
-    case DrillFlow::Hint::GiveUpKey:
-      text = tr("Shift+Space gives the solve up.");
-      break;
-    case DrillFlow::Hint::KeepHolding:
-      text = tr("Keep holding Space until the time turns green, then let go "
-                "or start turning.");
-      break;
-    case DrillFlow::Hint::OnlyRotations:
-      text = settings_.drill.tapToArm
-                 ? tr("Only rotations until the timer starts: tap Space first.")
-                 : tr("Only rotations until the timer starts (hold Space).");
-      break;
-    case DrillFlow::Hint::None:
-      break;
-    }
-    hint_->setHint(text, hint_->keys());
+  case A::Hint:
+    hint_->setHint(timedHintText(step.hint, settings_.drill), hint_->keys());
     break;
-  }
   }
 }
 
@@ -1338,10 +1237,11 @@ void PracticePage::runningTurn(Move m, std::int64_t now) {
   item_.moveMs.push_back(now - item_.began);
   item_.done = turned();
   cubeChanged();
-  std::optional<std::int64_t> stopped =
-      flow_.turned(face, face, now, [this] { return item_.done; });
+  std::optional<std::int64_t> stopped = flow_.turned(
+      face ? DrillFlow::Turn::OffUdFace : DrillFlow::Turn::Rotation, now,
+      [this] { return item_.done; });
   if (stopped) {
-    finishTimed(*stopped, false);
+    finishTimed(*stopped, DrillFlow::Result::Solved);
   }
 }
 
@@ -1355,7 +1255,8 @@ void PracticePage::cancelTimed(const QString &why) {
   hint_->setHint(why, hint_->keys());
 }
 
-void PracticePage::finishTimed(std::int64_t ms, bool failed, bool gaveUp) {
+void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
+  const bool failed = result != DrillFlow::Result::Solved;
   cubeView_->finishAnimations();
   item_.ms = ms;
   item_.gaveUp = failed;
@@ -1367,7 +1268,7 @@ void PracticePage::finishTimed(std::int64_t ms, bool failed, bool gaveUp) {
     bestBefore = before.bestMs;
     item_.meanBefore = before.meanMs;
   }
-  flow_.finished(ms, failed, gaveUp, bestBefore, monotonicMs());
+  flow_.finished(ms, result, bestBefore, monotonicMs());
   item_.outcome = judge();
   if (!item_.retry) {
     PracticeTry t;
@@ -1392,9 +1293,8 @@ void PracticePage::toggleDnf() {
   if (!item_.recorded || !flow_.setWrong(!flow_.failed())) {
     return;
   }
-  auto tries = store_.data.timed.find(timedGroupKey());
-  if (tries != store_.data.timed.end() && !tries->second.empty()) {
-    tries->second.back().dnf = flow_.failed();
+  if (PracticeTry *t = newestTry(store_.data.timed, timedGroupKey())) {
+    t->dnf = flow_.failed();
   }
   item_.gaveUp = flow_.failed();
   display_->showTime(item_.ms, flow_.failed() ? Penalty::Dnf : Penalty::None);
@@ -1405,13 +1305,7 @@ void PracticePage::toggleDnf() {
 
 void PracticePage::deleteTry() {
   if (item_.recorded) {
-    auto tries = store_.data.timed.find(timedGroupKey());
-    if (tries != store_.data.timed.end() && !tries->second.empty()) {
-      tries->second.pop_back();
-      if (tries->second.empty()) {
-        store_.data.timed.erase(tries);
-      }
-    }
+    dropNewestTry(store_.data.timed, timedGroupKey());
     item_.recorded = false;
     save();
     refreshList();
@@ -1437,25 +1331,8 @@ void PracticePage::showInspection() {
   const std::int64_t limit = inspectionLimitMs();
   const std::int64_t used =
       item_.inspecting ? monotonicMs() - item_.inspectStart : item_.inspectMs;
-  QString text;
-  QColor colour = palette().color(QPalette::WindowText);
-  if (limit > 0 && used <= limit) {
-    // Counting down whole seconds, as an inspection timer does.
-    text = QString::number((limit - used + 999) / 1000);
-    if (limit - used < 3000) {
-      colour = QColor(kWarnColour);
-    }
-  } else if (limit > 0) {
-    text = "+" + QString::number((used - limit) / 1000.0, 'f', 1);
-    colour = QColor(kFailColour);
-  } else {
-    text = QString::number(used / 1000.0, 'f', 1);
-  }
-  if (!item_.inspecting) {
-    text = tr("Looked %1").arg(seconds(used));
-  }
-  display_->setText(
-      QString("<span style='color:%1'>%2</span>").arg(colour.name(), text));
+  display_->setText(inspectionClock(used, limit, item_.inspecting,
+                                    palette().color(QPalette::WindowText)));
 }
 
 void PracticePage::onTick() {
@@ -1503,13 +1380,13 @@ void PracticePage::analysisArrived(int id) {
   const Outcome before = *item_.outcome;
   item_.outcome = judge();
   if (item_.recorded && item_.card.empty()) {
-    PracticeTries &all = tabTries();
-    auto tries = all.find(tab_ == Tab::Timed ? timedGroupKey() : item_.group);
-    if (tries != all.end() && !tries->second.empty() &&
-        (before.extra != item_.outcome->extra ||
-         before.bestMoves != item_.outcome->bestMoves)) {
-      tries->second.back().best = item_.outcome->bestMoves;
-      tries->second.back().extra = item_.outcome->extra;
+    PracticeTry *t =
+        newestTry(tabTries(store_.data, tab_),
+                  tab_ == Tab::Timed ? timedGroupKey() : item_.group);
+    if (t && (before.extra != item_.outcome->extra ||
+              before.bestMoves != item_.outcome->bestMoves)) {
+      t->best = item_.outcome->bestMoves;
+      t->extra = item_.outcome->extra;
       save();
       refreshList();
     }
@@ -1518,31 +1395,6 @@ void PracticePage::analysisArrived(int id) {
 }
 
 // --- what is shown -----------------------------------------------------------
-
-QString PracticePage::bestLine(const Outcome &o) const {
-  if (o.best.empty() && o.bestText.isEmpty()) {
-    return {};
-  }
-  return (o.bestLabel.isEmpty() ? tr("Best") : o.bestLabel) + ": <b>" +
-         (o.bestText.isEmpty() ? algText(o.best) : o.bestText) + "</b>";
-}
-
-PracticeTries &PracticePage::tabTries() {
-  return const_cast<PracticeTries &>(std::as_const(*this).tabTries());
-}
-
-const PracticeTries &PracticePage::tabTries() const {
-  switch (tab_) {
-  case Tab::Timed:
-    return store_.data.timed;
-  case Tab::Inspection:
-    return store_.data.inspection;
-  case Tab::Untimed:
-  case Tab::Learn:
-    break;
-  }
-  return store_.data.learn;
-}
 
 void PracticePage::play(const Alg &alg) {
   if (alg.empty() || item_.id == 0) {
@@ -1592,22 +1444,14 @@ void PracticePage::showPrompt() {
   } else if (tab_ != Tab::Timed && phase_ == Phase::Idle) {
     text = idleText_;
   } else if (phase_ == Phase::Ready && tab_ == Tab::Inspection) {
-    const std::int64_t limit = inspectionLimitMs();
-    text = tr("Ready when you are") +
-           small(limit > 0 ? tr("Space shows a state and starts %1 s of "
-                                "inspection: look with rotations, then do your "
-                                "plan blind.")
-                                 .arg(limit / 1000)
-                           : tr("Space shows a state and starts the inspection "
-                                "clock: look with rotations, then do your plan "
-                                "blind."));
+    text = inspectionReadyPrompt(inspectionLimitMs());
   } else if (tab_ == Tab::Learn && phase_ == Phase::Choose) {
     text = (afterChoice_ == Phase::Done
                 ? tr("Your solutions for %1").arg(cardName(item_.card))
                 : tr("New case: %1").arg(cardName(item_.card))) +
-           small(choosingText());
+           smallLine(choosingText());
   } else if (tab_ == Tab::Learn && phase_ == Phase::Demo) {
-    text = tr("New case: %1").arg(cardName(item_.card)) + small(demoText());
+    text = tr("New case: %1").arg(cardName(item_.card)) + smallLine(demoText());
   } else {
     QStringList notes;
     if (!item_.card.empty()) {
@@ -1626,7 +1470,7 @@ void PracticePage::showPrompt() {
     if (tab_ == Tab::Learn && phase_ == Phase::Solving && !item_.card.empty()) {
       notes.removeFirst();
     }
-    text = task() + small(notes.join(" · "));
+    text = task() + smallLine(notes.join(" · "));
   }
   prompt_->setText(text);
   scrambleLabel_->setText(item_.scramble.isEmpty()
@@ -1637,135 +1481,31 @@ void PracticePage::showPrompt() {
 void PracticePage::showKeys() {
   requestedHint_->setVisible(item_.hint && phase_ == Phase::Solving &&
                              !requestedHint_->text().isEmpty());
-  QList<KeyHint> keys;
-  QString message;
-  const bool best = item_.outcome && !item_.outcome->best.empty();
-  const KeyHint detailKey{"Tab",
-                          detailOpen_ ? tr("hide the details") : tr("details")};
   if (item_.id == 0) {
     hint_->setHint({}, {});
     return;
   }
-  if (tab_ != Tab::Timed) {
-    switch (phase_) {
-    case Phase::Idle:
-      keys = {{"Space", tr("look again")}};
-      break;
-    case Phase::Ready:
-      keys = {{"Space", tr("start")}};
-      break;
-    case Phase::Choose:
-      keys = {{"1-9", tr("tick or untick")},
-              {"Enter", afterChoice_ == Phase::Done ? tr("keep these")
-                                                    : tr("done choosing")}};
-      if (afterChoice_ == Phase::Done) {
-        keys << KeyHint{"Esc", tr("leave them as they were")};
-      }
-      break;
-    case Phase::Demo:
-      keys = {{"Enter", tr("show it")},
-              {"Space", tr("skip: I know this case")},
-              {"Esc", tr("start again")}};
-      break;
-    case Phase::Solving:
-      if (item_.hidden) {
-        message = tr("The cube is hidden: do what you planned.");
-        keys = {{"Space", tr("show the cube")},
-                {"Backspace", tr("give up")},
-                {"Esc", tr("start again")}};
-        break;
-      }
-      if (item_.inspecting) {
-        message = tr("Plan: the cube hides at your first face turn.");
-      }
-      if (hasHints() && !blind()) {
-        keys << KeyHint{"Tab", tr("hint")};
-      }
-      keys << KeyHint{"Backspace", tr("give up")}
-           << KeyHint{"Esc", tr("start again")};
-      break;
-    case Phase::Done:
-      if (waiting_) {
-        message = tr("Working out the best solutions…");
-        break;
-      }
-      keys << KeyHint{"Space", tr("next")};
-      if (best) {
-        keys << KeyHint{"Enter", tr("play the best")};
-      }
-      keys << detailKey;
-      if (item_.graded && item_.grade) {
-        keys << KeyHint{"1-4", tr("change the grade")};
-      }
-      keys << doneKeys();
-      if (choicePanel() && !item_.card.empty()) {
-        keys << KeyHint{"0", tr("change your solutions")};
-      }
-      keys << KeyHint{"Esc", tr("retry, not recorded")};
-      break;
-    }
-    hint_->setHint(message, keys);
-    return;
-  }
-  const KeyHint giveUp{settings_.drill.shiftSpaceGivesUp ? tr("Shift+Space")
-                                                         : tr("Backspace"),
-                       tr("give up")};
-  switch (flow_.phase()) {
-  case DrillFlow::Phase::NoCase:
-    keys = {{"Space", tr("look again")}};
-    break;
-  case DrillFlow::Phase::Waiting:
-    if (physical_) {
-      message = item_.scramble.isEmpty()
-                    ? QString()
-                    : tr("Scramble, then start the timer.");
-      keys = {{tr("hold Space"), tr("start on letting go")}, giveUp};
-    } else if (flow_.armed()) {
-      message = tr("Ready: the first face turn starts the timer.");
-      keys = {{"Esc", tr("not yet")}, giveUp};
-    } else if (settings_.drill.tapToArm) {
-      message = tr("Turn the cube as a whole to look at it.");
-      keys = {{"Space", tr("ready: the first face turn starts the timer")},
-              giveUp};
-    } else {
-      message = tr("Turn the cube as a whole to look at it.");
-      keys = {{tr("hold Space"), tr("start on letting go or turning")}, giveUp};
-    }
-    break;
-  case DrillFlow::Phase::Running:
-    if (physical_) {
-      keys = {{tr("any key"), tr("stop")}, giveUp, {"Esc", tr("cancel")}};
-    } else if (settings_.drill.autoStop) {
-      message = tr("The timer stops when the step is done.");
-      keys = {{"Space", tr("stop now (a DNF unless done)")},
-              giveUp,
-              {"Esc", tr("cancel")}};
-    } else {
-      keys = {{"Space", tr("stop")}, giveUp, {"Esc", tr("cancel")}};
-    }
-    break;
-  case DrillFlow::Phase::Revealed:
-    keys << KeyHint{"Space", tr("next")};
-    if (best) {
-      keys << KeyHint{"Enter", tr("play the best")};
-    }
-    keys << detailKey;
-    if (item_.recorded && !flow_.gaveUp()) {
-      keys << KeyHint{"Backspace",
-                      flow_.failed() ? tr("not a DNF") : tr("DNF")};
-    }
-    if (item_.recorded) {
-      keys << KeyHint{"Delete", flow_.gaveUp() && flow_.gaveUpBeforeStart()
-                                    ? tr("take it back")
-                                    : tr("delete it")};
-    }
-    keys << KeyHint{"Esc", tr("retry, not recorded")};
-    break;
-  case DrillFlow::Phase::Aided:
-  case DrillFlow::Phase::Unaided:
-    break;
-  }
-  hint_->setHint(message, keys);
+  const bool best = item_.outcome && !item_.outcome->best.empty();
+  const PracticeKeys k =
+      tab_ != Tab::Timed
+          ? untimedKeys({.phase = phase_,
+                         .choosingAgain = afterChoice_ == Phase::Done,
+                         .hidden = item_.hidden,
+                         .inspecting = item_.inspecting,
+                         .hints = hasHints() && !blind(),
+                         .waiting = waiting_,
+                         .best = best,
+                         .detailOpen = detailOpen_,
+                         .graded = item_.graded && item_.grade.has_value(),
+                         .chooser = choicePanel() && !item_.card.empty(),
+                         .modeKeys = doneKeys()})
+          : timedKeys(flow_, settings_.drill,
+                      {.physical = physical_,
+                       .scrambleShown = !item_.scramble.isEmpty(),
+                       .best = best,
+                       .detailOpen = detailOpen_,
+                       .recorded = item_.recorded});
+  hint_->setHint(k.message, k.keys);
 }
 
 QString PracticePage::gradeLine() const {
@@ -1776,88 +1516,46 @@ QString PracticePage::gradeLine() const {
   if (it == store_.data.cards.end()) {
     return {};
   }
-  const QColor colour =
-      *item_.grade == Grade::Again ? QColor(kFailColour) : QColor(kPassColour);
-  return tr("%1 · it comes back %2")
-      .arg(coloured(colour, "<b>" + gradeName(*item_.grade) + "</b>"),
-           dueText(it->second.card.due, unixNow(), localDayEnd()));
+  return vcube::gradeLine(*item_.grade, it->second.card.due, unixNow(),
+                          localDayEnd());
 }
 
 QString PracticePage::timedLine() const {
-  // The result of a timed solve is about the time: its moves and turns a
-  // second, and how it compares with the recent ones.
-  QStringList parts;
-  const int moves = item_.outcome ? item_.outcome->moves : 0;
-  if (moves > 0) {
-    parts << movesText(moves);
-    if (item_.ms > 0 && !item_.gaveUp) {
-      parts << tr("%1 TPS").arg(QString::number(
-          moves * 1000.0 / static_cast<double>(item_.ms), 'f', 2));
-    }
-  }
-  if (item_.gaveUp) {
-    parts.prepend(coloured(kFailColour, tr("DNF")));
-  } else if (item_.meanBefore && item_.ms > 0) {
-    const double d = static_cast<double>(item_.ms) - *item_.meanBefore;
-    const QString mean =
-        clockText(static_cast<std::int64_t>(*item_.meanBefore));
-    const QString by = clockText(static_cast<std::int64_t>(std::abs(d)));
-    parts << (d <= 0 ? coloured(kPassColour,
-                                tr("%1 under your mean (%2)").arg(by, mean))
-                     : tr("%1 over your mean (%2)").arg(by, mean));
-  }
-  return parts.join(" · ");
+  return vcube::timedLine({.moves = item_.outcome ? item_.outcome->moves : 0,
+                           .ms = item_.ms,
+                           .dnf = item_.gaveUp,
+                           .meanBefore = item_.meanBefore},
+                          settings_.decimals);
 }
 
 QString PracticePage::inspectionLine() const {
-  if (tab_ != Tab::Inspection || item_.inspectMs <= 0) {
-    return {};
-  }
-  const std::int64_t limit = inspectionLimitMs();
-  QString text = tr("looked %1").arg(seconds(item_.inspectMs));
-  if (limit > 0 && item_.inspectMs > limit) {
-    text = coloured(kFailColour,
-                    tr("looked %1, over the %2 limit")
-                        .arg(seconds(item_.inspectMs), seconds(limit)));
-  }
-  return text;
+  return tab_ == Tab::Inspection
+             ? vcube::inspectionLine(item_.inspectMs, inspectionLimitMs())
+             : QString();
 }
 
 void PracticePage::showVerdict() {
-  QStringList lines;
-  if (waiting_) {
-    lines << tr("Working out the best solutions…");
-  } else if (finished() && item_.outcome) {
+  PracticeVerdict v;
+  v.waiting = waiting_;
+  v.note = note_;
+  if (!waiting_ && finished() && item_.outcome) {
     const Outcome &o = *item_.outcome;
     if (tab_ == Tab::Timed) {
       // How efficient it was is in the details.
-      const QString line = timedLine();
-      if (!line.isEmpty()) {
-        lines << line;
-      }
+      v.result = timedLine();
     } else {
-      QString verdict = o.verdict;
+      v.result = o.verdict;
       const QString looked = inspectionLine();
       if (!looked.isEmpty()) {
-        verdict += (verdict.isEmpty() ? QString() : " · ") + looked;
+        v.result += (v.result.isEmpty() ? QString() : " · ") + looked;
       }
-      if (!verdict.isEmpty()) {
-        lines << verdict;
-      }
-      if (const QString best = bestLine(o); !best.isEmpty()) {
-        lines << best;
-      }
+      v.best = bestLine(o);
     }
-    const QString grade = gradeLine();
-    if (!grade.isEmpty()) {
-      lines << grade;
-    }
+    v.grade = gradeLine();
   }
-  if (!note_.isEmpty()) {
-    lines << coloured(QColor(mutedColour()), note_);
-  }
-  verdict_->setText(lines.join("<br>"));
-  verdict_->setVisible(!lines.isEmpty());
+  const QString verdict = vcube::verdictHtml(v, mutedColour());
+  verdict_->setText(verdict);
+  verdict_->setVisible(!verdict.isEmpty());
   // The units done so far, while the solve is under way.
   const bool solving = tab_ == Tab::Untimed && phase_ == Phase::Solving;
   progressLabel_->setText(solving ? progress_.join("<br>") : QString());
@@ -1869,19 +1567,10 @@ void PracticePage::showVerdict() {
   if (open) {
     QString html;
     if (tab_ == Tab::Timed) {
-      html += splitsHtml();
+      html += splitsHtml(splits(), item_.moves, item_.moveMs,
+                         settings_.decimals, mutedColour());
       if (item_.outcome) {
-        const Outcome &o = *item_.outcome;
-        QStringList eff;
-        if (!o.verdict.isEmpty()) {
-          eff << o.verdict;
-        }
-        if (const QString best = bestLine(o); !best.isEmpty()) {
-          eff << best;
-        }
-        if (!eff.isEmpty()) {
-          html += "<p align='center'>" + eff.join("<br>") + "</p>";
-        }
+        html += efficiencyHtml(*item_.outcome);
       }
     }
     html += detail();
@@ -1891,365 +1580,61 @@ void PracticePage::showVerdict() {
   }
 }
 
-QString PracticePage::splitsHtml() {
-  const std::vector<Split> parts = splits();
-  if (parts.empty() || item_.moveMs.size() != item_.moves.size() ||
-      item_.moves.empty()) {
-    return {};
-  }
-  const QString muted = mutedColour();
-  QString html =
-      "<p>" + tr("Where the time went:") +
-      "</p><table align='center' cellspacing='0' cellpadding='3'><tr "
-      "style='color:" +
-      muted + "'><th align='left'>" + tr("Part") + "</th><th>" + tr("Time") +
-      "</th><th>" + tr("Pause before") + "</th><th>" + tr("Moves") +
-      "</th><th>" + tr("TPS") + "</th></tr>";
-  std::size_t from = 0;
-  std::int64_t at = 0; // when the part before ended
-  auto row = [&](const QString &name, std::size_t end) {
-    end = std::min(end, item_.moves.size());
-    if (end <= from) {
-      return;
-    }
-    // The first turn of the part (rotations before it are looking).
-    std::size_t first = from;
-    while (first < end && isRotation(item_.moves[first].type)) {
-      ++first;
-    }
-    const std::int64_t ended = item_.moveMs[end - 1];
-    const std::int64_t began = first < end ? item_.moveMs[first] : ended;
-    const std::int64_t pause = std::max<std::int64_t>(0, began - at);
-    const std::int64_t time = std::max<std::int64_t>(0, ended - at);
-    Alg moves(item_.moves.begin() + static_cast<std::ptrdiff_t>(from),
-              item_.moves.begin() + static_cast<std::ptrdiff_t>(end));
-    const int htm = htmCount(simplify(moves));
-    const std::int64_t turning = ended - began;
-    html +=
-        QString("<tr><td>%1</td><td align='right'>%2</td><td "
-                "align='right'>%3</td><td align='right'>%4</td><td "
-                "align='right'>%5</td></tr>")
-            .arg(name, clockText(time), clockText(pause))
-            .arg(htm)
-            .arg(turning > 0 && htm > 1
-                     ? QString::number(
-                           htm * 1000.0 / static_cast<double>(turning), 'f', 1)
-                     : kNoValue);
-    from = end;
-    at = ended;
-  };
-  for (const Split &p : parts) {
-    row(p.name, p.end);
-  }
-  row(tr("the rest"), item_.moves.size());
-  return html + "</table><p style='color:" + muted + "'>" +
-         tr("A part's time runs from the end of the one before; the pause "
-            "is the time before its first turn, and TPS is of the turning "
-            "alone.") +
-         "</p>";
-}
-
 // --- the list ----------------------------------------------------------------
 
 void PracticePage::fillList() {
   if (!built_) {
     return;
   }
-  QSignalBlocker block(tree_);
-  tree_->clear();
-  const bool cards = tab_ == Tab::Learn && hasCards();
   std::vector<ListRow> rows;
-  QStringList headers;
   switch (tab_) {
   case Tab::Learn:
     rows = cardRows();
-    headers = {tr("Case"), tr("Due"), tr("Reviews"), tr("Lapses")};
     break;
   case Tab::Inspection:
-    rows = untimedGroups();
-    headers = {stepName(), tr("Tries"), tr("Done"), tr("Looked"), tr("Extra")};
-    break;
   case Tab::Untimed:
     rows = untimedGroups();
-    headers = {stepName(), tr("Solves"), tr("Moves"), tr("Extra")};
     break;
   case Tab::Timed:
     rows = timedGroups();
-    headers = {stepName(), tr("Solves"), tr("Mean"), tr("Best"), tr("TPS")};
     break;
   }
-  tree_->setColumnCount(static_cast<int>(headers.size()));
-  tree_->setHeaderLabels(headers);
-  for (int c = 1; c < tree_->columnCount(); ++c) {
-    tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
-  }
-  const int size = settings_.thumbnailSize;
-  tree_->setIconSize({size, size});
-  QTreeWidgetItem *section = nullptr;
-  QString shown;
-  for (const ListRow &r : rows) {
-    if (!r.section.isEmpty() && (r.section != shown || !section)) {
-      shown = r.section;
-      section = new QTreeWidgetItem(tree_);
-      section->setText(0, shown);
-      section->setFirstColumnSpanned(true);
-      section->setFlags(Qt::ItemIsEnabled);
-      QFont f = section->font(0);
-      f.setBold(true);
-      section->setFont(0, f);
-    }
-    auto *row = r.section.isEmpty() ? new QTreeWidgetItem(tree_)
-                                    : new QTreeWidgetItem(section);
-    row->setData(0, kKeyRole, qs(r.key));
-    row->setData(0, kCardRole, cards);
-    row->setText(0, r.name);
-    if (!r.icon.isNull()) {
-      row->setIcon(0, r.icon);
-    }
-    for (int c = 1; c < tree_->columnCount(); ++c) {
-      row->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
-    }
-  }
-  tree_->expandAll();
-  listHelp_->setText(listHelp());
-  listHelp_->setVisible(!listHelp().isEmpty());
-  refreshList();
+  list_->fill({.tab = tab_,
+               .cube = cubeKind(),
+               .cards = tab_ == Tab::Learn && hasCards(),
+               .step = stepName(),
+               .help = listHelp()},
+              rows);
+  showSummary();
 }
 
 void PracticePage::refreshList() {
-  if (!built_) {
-    return;
+  if (built_) {
+    list_->refresh();
   }
-  const std::int64_t now = unixNow();
-  const std::int64_t dayEnd = localDayEnd();
-  const QBrush normal = palette().brush(QPalette::Text);
-  const QBrush muted = palette().brush(QPalette::PlaceholderText);
-  auto fill = [&](QTreeWidgetItem *row) {
-    const std::string key = row->data(0, kKeyRole).toString().toStdString();
-    if (key.empty()) {
-      return;
-    }
-    if (row->data(0, kCardRole).toBool()) {
-      auto it = store_.data.cards.find(key);
-      const SrsCard card =
-          it == store_.data.cards.end() ? SrsCard{} : it->second.card;
-      const bool fresh = card.state == CardState::New || isQueued(card);
-      QString status;
-      if (fresh) {
-        status = tr("new");
-      } else if (isDueNow(card, now, dayEnd, settings_.srs)) {
-        status = tr("due");
-      } else {
-        status = dueText(card.due, now, dayEnd);
-      }
-      row->setText(1, status);
-      row->setText(2, fresh ? kNoValue : QString::number(card.reps));
-      row->setText(3, fresh ? kNoValue : QString::number(card.lapses));
-      row->setForeground(0, fresh ? muted : normal);
-      row->setForeground(1, status == tr("due") ? QBrush(kWarnColour) : muted);
-      return;
-    }
-    const PracticeTries &all = tabTries();
-    auto it = all.find(tab_ == Tab::Timed ? timedKey(physical_, key) : key);
-    const PracticeSummary s =
-        it == all.end() ? PracticeSummary{} : summarize(it->second);
-    row->setText(1, s.tries ? QString::number(s.tries) : kNoValue);
-    switch (tab_) {
-    case Tab::Timed:
-      row->setText(2, s.meanMs ? clockText(static_cast<std::int64_t>(*s.meanMs))
-                               : kNoValue);
-      row->setText(3, s.bestMs ? clockText(*s.bestMs) : kNoValue);
-      row->setText(4,
-                   s.meanTps ? QString::number(*s.meanTps, 'f', 2) : kNoValue);
-      break;
-    case Tab::Inspection:
-      row->setText(
-          2, s.tries ? QString("%1%").arg(qRound(100.0 * s.solved / s.tries))
-                     : kNoValue);
-      row->setText(3, s.meanInspectMs
-                          ? seconds(static_cast<std::int64_t>(*s.meanInspectMs))
-                          : kNoValue);
-      row->setText(4, s.meanExtra ? "+" + oneDecimal(*s.meanExtra) : kNoValue);
-      break;
-    case Tab::Untimed:
-    case Tab::Learn:
-      row->setText(2, s.meanMoves ? oneDecimal(*s.meanMoves) : kNoValue);
-      row->setText(3, s.meanExtra ? "+" + oneDecimal(*s.meanExtra) : kNoValue);
-      break;
-    }
-    row->setForeground(0, s.tries ? normal : muted);
-  };
-  for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
-    QTreeWidgetItem *top = tree_->topLevelItem(i);
-    fill(top);
-    for (int j = 0; j < top->childCount(); ++j) {
-      fill(top->child(j));
-    }
-  }
-  showSummary();
 }
 
 void PracticePage::showSummary() {
   if (!built_) {
     return;
   }
-  QStringList lines;
-  auto sitting = [this](const PracticeTries &all, const std::string &key) {
-    auto it = all.find(key);
-    return it == all.end() ? PracticeSummary{}
-                           : summarize(it->second, sittingStart_);
-  };
+  std::vector<std::string> pool;
+  std::string group;
   switch (tab_) {
   case Tab::Learn:
-    if (hasCards()) {
-      const std::vector<std::string> pool = cardPool();
-      PracticeWaiting w =
-          practiceWaiting(pool, store_.data.cards, unixNow(), localDayStart(),
-                          localDayEnd(), settings_.srs);
-      lines << tr("<b>%1</b> due · %2 new left today · %3 of %4 learned")
-                   .arg(w.due)
-                   .arg(w.newLeft)
-                   .arg(w.learned)
-                   .arg(w.total);
-    }
-    break;
-  case Tab::Inspection: {
-    if (item_.group.empty()) {
-      break;
-    }
-    const PracticeSummary s = sitting(store_.data.inspection, item_.group);
-    if (s.tries) {
-      QString line = tr("This sitting: %1, %2 done")
-                         .arg(counted(s.tries, tr("try"), tr("tries")))
-                         .arg(s.solved);
-      if (s.meanInspectMs) {
-        line += ", " +
-                tr("looked %1 on average")
-                    .arg(seconds(static_cast<std::int64_t>(*s.meanInspectMs)));
-      }
-      if (s.overTime > 0) {
-        line += ", " + tr("%1 over the limit").arg(s.overTime);
-      }
-      lines << line;
-    }
-    break;
-  }
-  case Tab::Untimed: {
-    if (item_.group.empty()) {
-      break;
-    }
-    const PracticeSummary s = sitting(store_.data.learn, item_.group);
-    if (s.tries) {
-      QString line = tr("This sitting: %1")
-                         .arg(counted(s.tries, tr("solve"), tr("solves")));
-      if (s.meanMoves) {
-        line += ", " + tr("%1 moves on average").arg(oneDecimal(*s.meanMoves));
-      }
-      if (s.meanExtra) {
-        line += " (+" + oneDecimal(*s.meanExtra) + ")";
-      }
-      lines << line;
-    }
-    break;
-  }
-  case Tab::Timed: {
-    if (item_.id == 0) {
-      break;
-    }
-    const PracticeSummary s = sitting(store_.data.timed, timedGroupKey());
-    if (s.tries) {
-      QString line = tr("This sitting: %1")
-                         .arg(counted(s.tries, tr("solve"), tr("solves")));
-      if (s.meanMs) {
-        line += ", " + tr("mean %1").arg(
-                           clockText(static_cast<std::int64_t>(*s.meanMs)));
-      }
-      if (s.meanTps) {
-        line += ", " + tr("%1 TPS").arg(QString::number(*s.meanTps, 'f', 2));
-      }
-      lines << line;
-    }
-    break;
-  }
-  }
-  summary_->setText(lines.join("<br>"));
-  summary_->setVisible(!lines.isEmpty());
-  switch (tab_) {
-  case Tab::Learn:
-    clearButton_->setText(tr("Clear the cards…"));
+    pool = cardPool();
     break;
   case Tab::Inspection:
-    clearButton_->setText(tr("Clear these tries…"));
-    break;
   case Tab::Untimed:
-    clearButton_->setText(tr("Clear these solves…"));
+    group = item_.group;
     break;
   case Tab::Timed:
-    clearButton_->setText(tr("Clear these times…"));
+    if (item_.id != 0) {
+      group = timedGroupKey();
+    }
     break;
   }
-}
-
-void PracticePage::rowActivated(QTreeWidgetItem *row) {
-  const std::string key = row->data(0, kKeyRole).toString().toStdString();
-  if (key.empty() || isBusy()) {
-    return;
-  }
-  if (row->data(0, kCardRole).toBool()) {
-    practiseCard(key);
-  } else {
-    groupActivated(key);
-  }
-}
-
-void PracticePage::clearProgress() {
-  if (isBusy()) {
-    return;
-  }
-  QString what;
-  switch (tab_) {
-  case Tab::Learn:
-    what = tr("Forget every %1 card? The cases start as new again (the "
-              "solutions you chose for them are kept).")
-               .arg(stepName());
-    break;
-  case Tab::Inspection:
-    what = tr("Delete every Inspection try of %1?").arg(stepName());
-    break;
-  case Tab::Untimed:
-    what = tr("Delete every Untimed solve of %1?").arg(stepName());
-    break;
-  case Tab::Timed:
-    what = tr("Delete every timed %1 attempt on the %2 cube?")
-               .arg(stepName(), physical_ ? tr("physical") : tr("virtual"));
-    break;
-  }
-  if (QMessageBox::question(this, "v-cube", what) != QMessageBox::Yes) {
-    return;
-  }
-  switch (tab_) {
-  case Tab::Learn:
-    store_.data.cards.clear();
-    break;
-  case Tab::Inspection:
-    store_.data.inspection.clear();
-    break;
-  case Tab::Untimed:
-    store_.data.learn.clear();
-    break;
-  case Tab::Timed: {
-    const std::string prefix = timedKey(physical_, {});
-    std::erase_if(store_.data.timed, [&prefix](const auto &entry) {
-      return entry.first.starts_with(prefix);
-    });
-    break;
-  }
-  }
-  save();
-  refreshList();
-  if (active_ && tab_ == Tab::Learn) {
-    next();
-  }
+  list_->showSummary(pool, group);
 }
 
 } // namespace vcube

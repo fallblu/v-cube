@@ -61,7 +61,9 @@ public:
   std::string setId;
   std::string caseId;
   AlgSet *set();
+  const AlgSet *set() const;
   AlgCase *currentCase();
+  const AlgCase *currentCase() const;
 
   // Every case of a set, checked under its step settings; worked out when
   // first needed.
@@ -94,7 +96,8 @@ public:
   void removed(Edit edit, const QString &text);
 
   // Undoes or redoes an edit (see the undo stack's commands).
-  void applyEdit(Edit &edit, bool undoing, const QString &text);
+  enum class Step { Undo, Redo };
+  void applyEdit(Edit &edit, Step step, const QString &text);
 
 private:
   AlgLibrary &library_;

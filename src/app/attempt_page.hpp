@@ -29,6 +29,7 @@ class QVBoxLayout;
 
 namespace vcube {
 
+struct DetailRow;
 struct ReviewedSolve;
 
 // What Untimed and Move Count mode share (UntimedPage, MoveCountPage):
@@ -83,7 +84,7 @@ protected:
   // subclass adds its own widgets, sets the scramble type box with
   // setTypeBox() and then calls start().
   AttemptPage(AppSettings &settings, MoveCountStore &store, AlgLibrary &library,
-              const QString &mode, bool moveCount, QWidget *parent);
+              const QString &mode, SolveLog log, QWidget *parent);
 
   // --- for the subclass to build the page ---
   // Adds "Scramble:", the type box (and `extra` after it, if any), the
@@ -124,7 +125,7 @@ protected:
     return !a.solution.empty();
   }
   virtual void describeReview(ReviewedSolve &solve, int index) const = 0;
-  virtual void addDetails(QList<QPair<QString, QString>> &rows,
+  virtual void addDetails(QList<DetailRow> &rows,
                           const MoveCountAttempt &a) const {
     (void)rows;
     (void)a;

@@ -172,24 +172,75 @@ TEST_CASE("lab statistics leave out warm-up, deviations and the trim",
   CHECK(labStats(eight, k, "A", CubeKind::Physical, recent, 0).used == 3);
 }
 
+TEST_CASE("an alg's own attempts give the statistics of them all", "[alglab]") {
+  LabCaseKey k1{"", "1"}, k2{"pll", "T"};
+  std::vector<LabAttempt> as;
+  // Two cases with an alg of the same text, sessions and cubes mixed.
+  for (int i = 0; i < 40; ++i) {
+    LabAttempt a =
+        attempt(i % 3 == 0 ? k2 : k1, i % 4 == 0 ? "B" : "A",
+                1000 + (i * 37) % 500, i % 5 < 2 ? "s1" : "s2", i % 11 == 0);
+    a.cube = i % 7 == 0 ? CubeKind::Virtual : CubeKind::Physical;
+    a.deviated = i % 13 == 0;
+    a.timestamp = i;
+    as.push_back(a);
+  }
+  WarmupOf warm = [](std::string_view s) { return s == "s1" ? 2 : 1; };
+  LabAttemptGroups all(as), one(as, k1);
+  CHECK(all.of(k1, "C").empty());
+  CHECK(all.of({"pll", "U"}, "A").empty());
+  CHECK(one.of(k2, "A").empty());
+  CHECK(one.of(k1, "A").size() == all.of(k1, "A").size());
+  std::size_t total = 0;
+  std::vector<LabWindow> windows = {{},
+                                    {LabWindow::Kind::Session, "s2", 0},
+                                    {LabWindow::Kind::Recent, "", 4}};
+  for (const LabCaseKey &k : {k1, k2}) {
+    for (const std::string alg : {"A", "B"}) {
+      total += all.of(k, alg).size();
+      for (CubeKind cube : {CubeKind::Physical, CubeKind::Virtual}) {
+        for (const LabWindow &w : windows) {
+          CHECK(labTimed(all.of(k, alg), k, alg, cube, w, warm) ==
+                labTimed(as, k, alg, cube, w, warm));
+          LabStats own = labStats(all.of(k, alg), k, alg, cube, w, 10, warm);
+          LabStats whole = labStats(as, k, alg, cube, w, 10, warm);
+          CHECK(own.attempts == whole.attempts);
+          CHECK(own.used == whole.used);
+          CHECK(own.timed == whole.timed);
+          CHECK(own.dnfs == whole.dnfs);
+          CHECK(own.deviated == whole.deviated);
+          CHECK(own.mean == whole.mean);
+          CHECK(own.median == whole.median);
+          CHECK(own.best == whole.best);
+          CHECK(own.worst == whole.worst);
+          CHECK(own.sd == whole.sd);
+          CHECK(own.ao5 == whole.ao5);
+          CHECK(own.ao12 == whole.ao12);
+        }
+      }
+    }
+  }
+  CHECK(total == as.size());
+}
+
 TEST_CASE("lab setups put the alg's case in front of it", "[alglab]") {
   Rng rng(3);
   CubieCube sune = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
   PieceMask oll = *parseFree("LL:p");
   for (int i = 0; i < 20; ++i) {
     // An alg that needs a U turn first: from the setup it fits without.
-    CubieCube s =
-        labSetup(sune, "U R U R' U R U2 R'", oll, true, true, false, rng);
-    auto fit = fitAlg(s, parseAlgOrEmpty("R U R' U R U2 R'"), oll, false, true);
+    CubieCube s = labSetup(sune, "U R U R' U R U2 R'", oll, Aufs::Both,
+                           LabAuf::Done, rng);
+    auto fit = fitAlg(s, parseAlgOrEmpty("R U R' U R U2 R'"), oll, Aufs::After);
     CHECK(fit);
   }
   PieceMask none;
   CubieCube t = stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' "
                                               "R U R' F'"));
-  CubieCube s = labSetup(t, "R U R' U' R' F R2 U' R' U' R U R' F'", none, true,
-                         true, false, rng);
+  CubieCube s = labSetup(t, "R U R' U' R' F R2 U' R' U' R U R' F'", none,
+                         Aufs::Both, LabAuf::Done, rng);
   CHECK(fitAlg(s, parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"), none,
-               false, false));
+               Aufs::None));
 }
 
 TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {

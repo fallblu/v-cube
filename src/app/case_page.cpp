@@ -22,6 +22,7 @@
 #include <QVBoxLayout>
 
 #include <cmath>
+#include <utility>
 
 namespace vcube {
 
@@ -100,14 +101,8 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   tree_ = panel_->tree;
   summary_ = panel_->summary;
 
-  connect(setBox_, &QComboBox::activated, this, [this](int i) {
-    std::string id = ss(setBox_->itemData(i).toString());
-    if (id == kAcrossSetsId) {
-      selectAcrossSets();
-    } else {
-      selectSet(id);
-    }
-  });
+  connect(setBox_, &QComboBox::activated, this,
+          [this](int i) { pickSet(setBox_->itemData(i).toString()); });
   connect(tree_, &QTreeWidget::itemChanged, this,
           [this](QTreeWidgetItem *, int column) {
             if (column == 0) {
@@ -180,9 +175,17 @@ void CasePage::fillGroupRows() {
 
 AlgSet *CasePage::set() { return library_.find(setId_); }
 
+const AlgSet *CasePage::set() const {
+  return std::as_const(library_).find(setId_);
+}
+
 SetProgress &CasePage::progress() { return library_.progress(setId_); }
 
-const CaseProgress *CasePage::progressOf(const std::string &caseId) {
+const SetProgress &CasePage::progress() const {
+  return std::as_const(library_).progress(setId_);
+}
+
+const CaseProgress *CasePage::progressOf(const std::string &caseId) const {
   const SetProgress &p = progress();
   auto it = p.find(caseId);
   return it == p.end() ? nullptr : &it->second;
@@ -192,7 +195,7 @@ std::string CasePage::cardId(const std::string &caseId) const {
   return byFamily() ? families_.representative(caseId) : caseId;
 }
 
-const CaseProgress *CasePage::cardOf(const std::string &caseId) {
+const CaseProgress *CasePage::cardOf(const std::string &caseId) const {
   return progressOf(cardId(caseId));
 }
 
@@ -327,7 +330,7 @@ void CasePage::deactivated() { filter_->release(); }
 
 void CasePage::focusModeChanged() { left_->setVisible(!focusMode()); }
 
-QString CasePage::setItemText(const AlgSet &s) {
+QString CasePage::setItemText(const AlgSet &s) const {
   return QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount());
 }
 
@@ -381,6 +384,17 @@ void CasePage::reloadSets() {
   }
 }
 
+void CasePage::pickSet(const QString &setId) {
+  if (setBox_->findData(setId) < 0) {
+    return;
+  }
+  if (setId == kAcrossSetsId) {
+    selectAcrossSets();
+  } else {
+    selectSet(ss(setId));
+  }
+}
+
 void CasePage::selectSet(const std::string &id) {
   acrossSets_ = false;
   if (id != setId_) {
@@ -405,7 +419,7 @@ void CasePage::selectAcrossSets() {
   }
   saved::setCaseSet(mode_, QString(kAcrossSetsId));
   setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
-  computeInfo(true);
+  computeInfo(Info::Cached);
   buildTree();
   startSet();
 }
@@ -417,7 +431,7 @@ void CasePage::showSet(const std::string &id) {
   filter_->clearSearch();
   setId_ = id;
   saved::shownSet(mode_).set(qs(setId_));
-  computeInfo(true);
+  computeInfo(Info::Cached);
   buildTree();
 }
 
@@ -441,8 +455,8 @@ void CasePage::startCaseFromList(const std::string &id) {
   startCase(id);
 }
 
-void CasePage::computeInfo(bool cached) {
-  if (cached) {
+void CasePage::computeInfo(Info info) {
+  if (info == Info::Cached) {
     if (auto it = infoCache_.find(setId_); it != infoCache_.end()) {
       info_ = it->second.info;
       families_ = it->second.families;
@@ -497,7 +511,8 @@ void CasePage::buildTree() {
     updateSummary();
     return;
   }
-  QStringList unticked = untickedCases(*s);
+  const QStringList untickedList = untickedCases(*s);
+  const QSet<QString> unticked(untickedList.begin(), untickedList.end());
   CubeLook look;
   look.scheme = settings_.scheme;
   look.map = colourMapOf(settings_.neutrality.main);
@@ -551,9 +566,10 @@ void CasePage::buildTree() {
 
 void CasePage::syncRows() {
   QSignalBlocker block(tree_);
-  QStringList unticked;
+  QSet<QString> unticked;
   if (const AlgSet *s = set()) {
-    unticked = untickedCases(*s);
+    const QStringList list = untickedCases(*s);
+    unticked = QSet<QString>(list.begin(), list.end());
   }
   for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
     auto *group = tree_->topLevelItem(g);
@@ -753,7 +769,7 @@ bool CasePage::fillCaseMenu(QMenu &menu, QTreeWidgetItem *item) {
   return true;
 }
 
-double CasePage::yawFor(const std::string &caseId, Mirror world) {
+double CasePage::yawFor(const std::string &caseId, Mirror world) const {
   const AlgSet *s = set();
   const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
   DiagramView view = g ? s->specFor(*g).view : DiagramView::Iso3D;

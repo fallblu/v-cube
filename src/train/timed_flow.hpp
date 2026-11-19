@@ -1,5 +1,6 @@
 #pragma once
 
+#include "train/keys.hpp"
 #include "train/timer.hpp"
 
 #include <cstdint>
@@ -72,8 +73,8 @@ public:
 
   // Esc: cancels a hold, inspection or solve, or leaves a finished DNF.
   Effects escape();
-  // Space down or up. `scrambleReady`: a scramble is shown to solve.
-  Effects space(bool press, std::int64_t now, bool scrambleReady);
+  // Space down or up.
+  Effects space(KeyEdge edge, std::int64_t now, Scramble scramble);
   // Enter down: the next scramble after a finished DNF (else unused).
   Effects enter();
   // Any key down while a physical solve runs: stops it.

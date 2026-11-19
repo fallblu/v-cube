@@ -66,6 +66,7 @@ struct SrsCard {
   bool suspended = false;
   // Left out of Learn until this time (the end of the day it was buried).
   std::int64_t buriedUntil = 0;
+  friend bool operator==(const SrsCard &, const SrsCard &) = default;
 };
 
 inline constexpr std::int64_t kSecondsPerDay = 86400;
@@ -103,7 +104,12 @@ bool isLeech(const SrsCard &card, const SrsConfig &config);
 // Learn-mode grade, from correctness rather than time: Good when the case
 // was solved from memory with one of its algs, Again after a hint, giving
 // up or leaving the algs.
-Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs);
+struct LearnTry {
+  bool hinted = false;
+  bool gaveUp = false;
+  bool leftAlgs = false;
+};
+Grade learnGrade(const LearnTry &t);
 
 // Which mode an attempt was made in. Learn attempts are untimed and drive
 // the SRS card; drill attempts are timed and feed the time statistics,
@@ -123,6 +129,7 @@ struct Attempt {
   std::int64_t executionMs = 0;
   // A recognition review: the case was recognised, not solved.
   bool recognitionOnly = false;
+  friend bool operator==(const Attempt &, const Attempt &) = default;
 };
 
 // The local calendar day of a Unix time, as days since 1970-01-01.
@@ -155,6 +162,7 @@ struct CaseProgress {
   std::vector<Attempt> attempts; // oldest first, capped per mode
   // Per drill mode, the attempts that dropped out of `attempts`.
   std::map<AttemptMode, DrillArchive> archive;
+  friend bool operator==(const CaseProgress &, const CaseProgress &) = default;
 
   static constexpr std::size_t kMaxAttempts = 100; // per mode
   // Adds the attempt; a drill attempt that drops out of the cap is kept in
@@ -239,6 +247,10 @@ struct LearnPick {
   bool learningLimitReached = false;
   int queued = 0; // cases waiting in the learn queue
 };
+
+// Whether learning cards wait until they are due, or are taken early when
+// nothing else is left (LearnPickOptions::early).
+enum class LearnAhead : std::uint8_t { WhenDue, Early };
 
 // What pickLearnCase may choose from, and how.
 struct LearnPickOptions {

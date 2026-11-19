@@ -287,16 +287,39 @@ LabStats labStats(std::span<const LabAttempt> attempts, const LabCaseKey &key,
   return statsOf(timed, trimPercent, inWindow, deviated);
 }
 
+LabAttemptGroups::LabAttemptGroups(std::span<const LabAttempt> attempts) {
+  for (const auto &a : attempts) {
+    groups_[{a.key, a.alg}].push_back(a);
+  }
+}
+
+LabAttemptGroups::LabAttemptGroups(std::span<const LabAttempt> attempts,
+                                   const LabCaseKey &key) {
+  for (const auto &a : attempts) {
+    if (a.key == key) {
+      groups_[{a.key, a.alg}].push_back(a);
+    }
+  }
+}
+
+std::span<const LabAttempt> LabAttemptGroups::of(const LabCaseKey &key,
+                                                 const std::string &alg) const {
+  auto it = groups_.find({key, alg});
+  if (it == groups_.end()) {
+    return {};
+  }
+  return it->second;
+}
+
 CubieCube labSetup(const CubieCube &state, const std::string &alg,
-                   const PieceMask &free, bool aufBefore, bool aufAfter,
-                   bool randomAuf, Rng &rng) {
+                   const PieceMask &free, Aufs aufs, LabAuf auf, Rng &rng) {
   CubieCube s = state;
   Alg rest = parseAlgOrEmpty(alg);
   int after = 0;
-  if (auto d = displayOrientation(state, alg, free, aufBefore, aufAfter)) {
+  if (auto d = displayOrientation(state, alg, free, aufs)) {
     s = d->state;
     rest = parseAlgOrEmpty(d->alg);
-    if (auto fit = fitAlg(s, rest, free, aufBefore, aufAfter)) {
+    if (auto fit = fitAlg(s, rest, free, aufs)) {
       s = s * uTurn(fit->before);
       after = fit->after;
     }
@@ -310,7 +333,7 @@ CubieCube labSetup(const CubieCube &state, const std::string &alg,
       s = end * randomState(free, rng) * uTurn((4 - after) % 4) * a.inverse();
     }
   }
-  if (randomAuf && aufBefore) {
+  if (auf == LabAuf::Random && allowsAufBefore(aufs)) {
     std::uniform_int_distribution<int> d(0, 3);
     s = s * uTurn(d(rng));
   }

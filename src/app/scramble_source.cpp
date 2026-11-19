@@ -61,7 +61,8 @@ scrambleStateMaker(const AlgLibrary &library, const QString &type) {
         std::uniform_int_distribution<int> quarter(0, 3);
         const Entry &e = cases[pick(rng)];
         // As Drill sets a case up: in one of the set's mirror images.
-        CubieCube s = setUpCase(e.state, e.free, worlds[world(rng)], true, rng);
+        CubieCube s = setUpCase(e.state, e.free, worlds[world(rng)],
+                                FreePieces::Scrambled, rng);
         if (before) {
           s = s * uTurn(quarter(rng));
         }

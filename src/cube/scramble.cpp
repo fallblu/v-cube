@@ -21,27 +21,25 @@ PieceMask PieceMask::all() {
   return m;
 }
 
-PieceMask &PieceMask::corners(std::initializer_list<Corner> cs, bool perm,
-                              bool ori) {
+PieceMask &PieceMask::corners(std::initializer_list<Corner> cs, Free free) {
   for (Corner c : cs) {
-    cp[c] = cp[c] || perm;
-    co[c] = co[c] || ori;
+    cp[c] = true;
+    co[c] = co[c] || free == Free::PermAndOri;
   }
   return *this;
 }
 
-PieceMask &PieceMask::edges(std::initializer_list<Edge> es, bool perm,
-                            bool ori) {
+PieceMask &PieceMask::edges(std::initializer_list<Edge> es, Free free) {
   for (Edge e : es) {
-    ep[e] = ep[e] || perm;
-    eo[e] = eo[e] || ori;
+    ep[e] = true;
+    eo[e] = eo[e] || free == Free::PermAndOri;
   }
   return *this;
 }
 
-PieceMask &PieceMask::lastLayer(bool perm, bool cornerOri, bool edgeOri) {
-  corners({URF, UFL, ULB, UBR}, perm, cornerOri);
-  edges({UR, UF, UL, UB}, perm, edgeOri);
+PieceMask &PieceMask::lastLayer(Free cornerFree, Free edgeFree) {
+  corners({URF, UFL, ULB, UBR}, cornerFree);
+  edges({UR, UF, UL, UB}, edgeFree);
   return *this;
 }
 
@@ -155,7 +153,7 @@ const std::vector<ScrambleType> &scrambleTypes() {
       m.normalize();
       t.push_back({std::move(id), std::move(name), m, after});
     };
-    PieceMask ll = PieceMask{}.lastLayer(true, true, true);
+    PieceMask ll = PieceMask{}.lastLayer(Free::PermAndOri, Free::PermAndOri);
     PieceMask cross = PieceMask::all();
     for (Edge e : {DR, DF, DL, DB}) {
       cross.ep[e] = false;
@@ -187,20 +185,20 @@ const std::vector<ScrambleType> &scrambleTypes() {
     add("eocross", "EOCross solved", eocross, false);
     add("lsll", "Last slot + last layer",
         PieceMask{}
-            .lastLayer(true, true, true)
-            .corners({DFR}, true, true)
-            .edges({FR}, true, true),
+            .lastLayer(Free::PermAndOri, Free::PermAndOri)
+            .corners({DFR}, Free::PermAndOri)
+            .edges({FR}, Free::PermAndOri),
         true);
     add("ll", "Last layer", ll, true);
     add("zbll", "ZBLL (LL edges oriented)",
-        PieceMask{}.lastLayer(true, true, false), true);
+        PieceMask{}.lastLayer(Free::PermAndOri, Free::Perm), true);
     add("cll", "LL corners only",
-        PieceMask{}.corners({URF, UFL, ULB, UBR}, true, true), false);
-    add("ell", "LL edges only", PieceMask{}.edges({UR, UF, UL, UB}, true, true),
-        false);
-    add("pll", "PLL", PieceMask{}.lastLayer(true, false, false), true);
+        PieceMask{}.corners({URF, UFL, ULB, UBR}, Free::PermAndOri), false);
+    add("ell", "LL edges only",
+        PieceMask{}.edges({UR, UF, UL, UB}, Free::PermAndOri), false);
+    add("pll", "PLL", PieceMask{}.lastLayer(Free::Perm, Free::Perm), true);
     add("epll", "EPLL (LL edges permuted)",
-        PieceMask{}.edges({UR, UF, UL, UB}, true, false), false);
+        PieceMask{}.edges({UR, UF, UL, UB}, Free::Perm), false);
     add("corners", "Corners only (edges solved)", cornersOnly, false);
     add("edges", "Edges only (corners solved)", edgesOnly, false);
     return t;

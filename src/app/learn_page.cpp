@@ -140,9 +140,9 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   OptionBar *options = stage_->options;
   options->addPicker(tr("Alg set:"), panel_->takeSetBox(), 1);
   practiceBox_ = new SegmentedPicker(options);
-  practiceBox_->addOption(tr("Solve"), "solve");
-  practiceBox_->addOption(tr("Recognise"), "recognise");
-  practiceBox_->addOption(tr("Which case?"), "quiz");
+  practiceBox_->addOption(tr("Solve"), enumData(Practice::Solve));
+  practiceBox_->addOption(tr("Recognise"), enumData(Practice::Recognise));
+  practiceBox_->addOption(tr("Which case?"), enumData(Practice::Quiz));
   practiceBox_->setToolTip(
       tr("Solve: solve each case from memory. Recognise: reviews only show "
          "the case; press Space once you recall its alg, then grade "
@@ -196,13 +196,23 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   split_->restoreState(saved::learnSplitter().get());
   QSplitter *right = stage_->splitter;
   right->restoreState(saved::learnRightSplitter().get());
-  connect(split_, &QSplitter::splitterMoved, this,
-          [this] { saved::learnSplitter().set(split_->saveState()); });
-  connect(right, &QSplitter::splitterMoved, this,
-          [right] { saved::learnRightSplitter().set(right->saveState()); });
+  // A drag moves a splitter with every mouse move, and each save rewrites
+  // the settings file: the sizes are saved once the dragging has paused.
+  layoutTimer_.setSingleShot(true);
+  layoutTimer_.setInterval(500);
+  connect(&layoutTimer_, &QTimer::timeout, this, &LearnPage::saveSplitters);
+  connect(split_, &QSplitter::splitterMoved, this, [this] {
+    splitMoved_ = true;
+    layoutTimer_.start();
+  });
+  connect(right, &QSplitter::splitterMoved, this, [this] {
+    rightSplitMoved_ = true;
+    layoutTimer_.start();
+  });
   sideHiddenChanged();
-  int p = practiceBox_->findData(saved::learnPractice().get());
-  practiceBox_->setCurrentIndex(std::max(0, p));
+  selectEnum(
+      practiceBox_,
+      practiceFromId(saved::learnPractice().get()).value_or(Practice::Solve));
 
   idleTimer_.setSingleShot(true);
   connect(&idleTimer_, &QTimer::timeout, this, [this] {
@@ -222,7 +232,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
     }
   });
   connect(practiceBox_, &SegmentedPicker::activated, this, [this] {
-    saved::learnPractice().set(practiceBox_->currentData().toString());
+    saved::learnPractice().set(practiceId(practice()));
     if (context_) {
       return; // applies when back to learning
     }
@@ -316,6 +326,23 @@ void LearnPage::activated() {
   }
 }
 
+void LearnPage::saveSplitters() {
+  layoutTimer_.stop();
+  if (splitMoved_) {
+    saved::learnSplitter().set(split_->saveState());
+  }
+  if (rightSplitMoved_) {
+    saved::learnRightSplitter().set(stage_->splitter->saveState());
+  }
+  splitMoved_ = false;
+  rightSplitMoved_ = false;
+}
+
+void LearnPage::aboutToClose() {
+  CasePage::aboutToClose();
+  saveSplitters();
+}
+
 void LearnPage::focusModeChanged() {
   CasePage::focusModeChanged();
   stage_->options->setVisible(!focusMode());
@@ -343,7 +370,7 @@ void LearnPage::deactivated() {
   switch (phase()) {
   case Phase::Solving:
   case Phase::Demo:
-    begin(was.caseId, was.isNew, was.practice);
+    begin(was.caseId, was.kind());
     break;
   case Phase::Recognise:
     beginRecognition(was.caseId);
@@ -376,12 +403,12 @@ int LearnPage::algMoves(const std::string &caseId) const {
 // --- practising
 // ---------------------------------------------------------------
 
-QString LearnPage::startCaseLabel(const std::string &caseId) {
+QString LearnPage::startCaseLabel(const std::string &caseId) const {
   return notDue(caseId) ? tr("Practise this case now (not graded)")
                         : tr("Learn this case now");
 }
 
-bool LearnPage::notDue(const std::string &caseId) {
+bool LearnPage::notDue(const std::string &caseId) const {
   const CaseProgress *cp = cardOf(caseId);
   return cp && cp->card.state == CardState::Review &&
          !isDue(cp->card, unixNow(), settings_.srs, localDayEnd());
@@ -408,8 +435,31 @@ void LearnPage::adoptSet() {
   updateQueue();
 }
 
+QString LearnPage::practiceId(Practice practice) {
+  switch (practice) {
+  case Practice::Solve:
+    return "solve";
+  case Practice::Recognise:
+    return "recognise";
+  case Practice::Quiz:
+    return "quiz";
+  }
+  return "solve";
+}
+
+std::optional<LearnPage::Practice>
+LearnPage::practiceFromId(const QString &id) {
+  for (Practice practice :
+       {Practice::Solve, Practice::Recognise, Practice::Quiz}) {
+    if (id == practiceId(practice)) {
+      return practice;
+    }
+  }
+  return std::nullopt;
+}
+
 LearnPage::Practice LearnPage::practice() const {
-  return static_cast<Practice>(std::max(0, practiceBox_->currentIndex()));
+  return currentEnum(practiceBox_, Practice::Solve);
 }
 
 void LearnPage::startSet() {
@@ -445,7 +495,7 @@ void LearnPage::setReloaded() {
     return;
   }
   if (current_ && phase() == Phase::Demo && eligible(current_->caseId)) {
-    begin(current_->caseId, current_->isNew, current_->practice);
+    begin(current_->caseId, current_->kind());
     return;
   }
   if (current_ && !eligible(current_->caseId)) {
@@ -464,7 +514,7 @@ void LearnPage::setReloaded() {
       refreshLink();
       showSolvingStatus();
     } else {
-      begin(current_->caseId, current_->isNew, current_->practice);
+      begin(current_->caseId, current_->kind());
     }
   } else if (!current_) {
     nextCase();
@@ -495,7 +545,8 @@ void LearnPage::startCase(const std::string &caseId) {
       context_.reset();
       contextButton_->setText(tr("Practise in context"));
     }
-    begin(caseId, false, notDue(caseId));
+    begin(caseId, notDue(caseId) ? LearnAttempt::Kind::Practice
+                                 : LearnAttempt::Kind::Known);
   }
 }
 
@@ -579,7 +630,7 @@ void LearnPage::updateCardRows(const std::string &caseId) {
   }
 }
 
-void LearnPage::nextCase(bool early) {
+void LearnPage::nextCase(LearnAhead ahead) {
   pending_ = nullptr; // what comes next is worked out afresh
   idleTimer_.stop();
   reveal_->clear();
@@ -608,7 +659,7 @@ void LearnPage::nextCase(bool early) {
   LearnPickOptions options;
   options.last = last_;
   options.rng = &rng_;
-  options.early = early;
+  options.early = ahead == LearnAhead::Early;
   options.dayEnd = localDayEnd();
   options.newCases = !acrossSets();
   LearnPick pick = pickLearnCase(pool(), progress(), unixNow(), localDayStart(),
@@ -623,7 +674,8 @@ void LearnPage::nextCase(bool early) {
       cp->card.state == CardState::Review) {
     beginRecognition(member);
   } else {
-    begin(member, pick.isNew);
+    begin(member,
+          pick.isNew ? LearnAttempt::Kind::New : LearnAttempt::Kind::Known);
   }
 }
 
@@ -663,7 +715,7 @@ bool LearnPage::nextAcrossSets() {
           cp->card.state == CardState::Review) {
         beginRecognition(member);
       } else {
-        begin(member, false);
+        begin(member, LearnAttempt::Kind::Known);
       }
       return true;
     }
@@ -685,7 +737,7 @@ QString LearnPage::intervalText(std::int64_t seconds) {
   return tr("%1 d").arg((seconds + kSecondsPerDay / 2) / kSecondsPerDay);
 }
 
-QString LearnPage::whenText(std::int64_t due) {
+QString LearnPage::whenText(std::int64_t due) const {
   std::int64_t now = unixNow();
   if (due >= localDayEnd()) {
     // A review is due all day: only the day matters.
@@ -777,8 +829,8 @@ void LearnPage::showIdle(const LearnPick &pick) {
                                   : tr("check again")}};
     // What can be done instead of waiting.
     if (waiting) {
-      actions.push_back(
-          {tr("Next learning case now"), [this] { nextCase(true); }});
+      actions.push_back({tr("Next learning case now"),
+                         [this] { nextCase(LearnAhead::Early); }});
     }
     if (!acrossSets() && pick.queued == 0 && unstarted) {
       int count = learnCount_->value();

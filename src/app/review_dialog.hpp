@@ -122,11 +122,18 @@ private:
   void setPlaying(bool on);
 };
 
-// A small dialog with what is kept for a solve, a row per item ("Date",
-// "Scramble", ...), with Copy buttons for the scramble and solution rows
-// and, with `review`, a Review button that closes it and calls `review`.
+// One item of what is kept for a solve, e.g. "Date" and when it was.
+struct DetailRow {
+  QString label; // translated, without the colon
+  QString value;
+  bool copyable = false; // has a Copy button (the scramble, the solution)
+};
+
+// A small dialog with what is kept for a solve, a row per item, with a
+// Copy button beside the copyable ones that aren't empty and, with
+// `review`, a Review button that closes it and calls `review`.
 void showSolveDetails(QWidget *parent, const QString &title,
-                      const QList<QPair<QString, QString>> &rows,
+                      const QList<DetailRow> &rows,
                       const std::function<void()> &review = {});
 
 // Plain text in a dialog with a Copy button, e.g. the solves of an

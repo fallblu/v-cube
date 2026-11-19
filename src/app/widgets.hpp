@@ -4,6 +4,7 @@
 #include "cube/cubie.hpp"
 #include "cube/hold.hpp"
 #include "cube/scramble.hpp"
+#include "train/keys.hpp"
 #include "train/stats.hpp"
 #include "train/timer.hpp"
 
@@ -45,7 +46,6 @@ private:
     QString text;
     QColor colour;
   };
-  enum class HoldCue { None, Holding, Ready };
 
   int decimals_ = 2;
   QColor colour_;

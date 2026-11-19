@@ -235,9 +235,8 @@ struct UnionFind {
 
 } // namespace
 
-CubieCube mirrorState(const CubieCube &c, bool leftRight, bool frontBack) {
-  Mirror m{leftRight, frontBack};
-  if (!leftRight && !frontBack) {
+CubieCube mirrorState(const CubieCube &c, Mirror m) {
+  if (!m.leftRight && !m.frontBack) {
     return c;
   }
   const auto &to = faceletMirrors()[mirrorIndex(m)];
@@ -312,8 +311,7 @@ CaseFamilies findFamilies(const AlgSet &set) {
   for (std::size_t i = 0; i < cases.size(); ++i) {
     const Entry &a = cases[i];
     for (Mirror m : kMirrors) {
-      CubieCube mirroredState =
-          mirrorState(a.c->state, m.leftRight, m.frontBack);
+      CubieCube mirroredState = mirrorState(a.c->state, m);
       PieceMask free = mirrorMask(a.free, m);
       for (int u = 0; u < before; ++u) {
         for (int v = 0; v < after; ++v) {

@@ -86,16 +86,14 @@ private:
   void advance();
   // Says in the accessible description whether the cube shown is solved.
   void describe();
-  void enqueue(Move m, bool typed);
+  // A move typed by the solver, or one of a sequence played to them.
+  enum class Source { Typed, Played };
+  void enqueue(Move m, Source source);
   QRectF drawArea() const;
   // marks_ moved back through the turns still to animate, onto the stickers
   // of the state shown now.
   StickerMarks shownMarks() const;
 };
-
-// Marks moved with their stickers by `m` (e.g. a rotation to look at the
-// cube from another side).
-StickerMarks movedMarks(const StickerMarks &marks, Move m);
 
 // A drop-down (3D, Flat, Net, Hidden) that switches `view` and remembers
 // the choice for `mode` under "ui/view/<mode>".

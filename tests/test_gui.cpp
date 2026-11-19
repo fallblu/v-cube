@@ -20,11 +20,16 @@
 #include "app/mode_table.hpp"
 #include "app/move_count_page.hpp"
 #include "app/page_parts.hpp"
+#include "app/practice_html.hpp"
+#include "app/practice_keys.hpp"
+#include "app/quiz_practice.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
+#include "app/train_keys.hpp"
 #include "app/tsle_page.hpp"
+#include "app/ui_state.hpp"
 #include "app/untimed_page.hpp"
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
@@ -226,7 +231,7 @@ class GuiTest : public QObject {
   }
 
   // Switches mode with its shortcut, as the user does.
-  bool switchTo(int mode, ModePage *expected) {
+  bool switchTo(AppMode::Id mode, ModePage *expected) {
     QTest::keySequence(window_.get(), AppMode::shortcut(mode));
     return QTest::qWaitFor([&] { return shownPage(*window_) == expected; },
                            5000);
@@ -282,6 +287,7 @@ class GuiTest : public QObject {
 
 private slots:
   void initTestCase();
+  void oddSettingsAreSetRight();
   void modesSwitch();
   void layoutFitsHalfAScreen();
   void sidePanelHidesInANarrowWindow();
@@ -289,6 +295,7 @@ private slots:
   void timedPhysicalSolve();
   void untimedVirtualSolve();
   void learnStartsACase();
+  void quizAsksAmongLookAlikes();
   void drillArmsAndStopsItself();
   void libraryAddsAnAlgAndUndoes();
   void algLabTimesEachAlg();
@@ -297,14 +304,19 @@ private slots:
   void tsleLearnAndTimed();
   void eoCrossLearnAndTimed();
   void practiceModesComeBackAsLeft();
+  void practiceResultsAreWorded();
+  void practiceKeysFollowThePhase();
   void themeColoursAreReadable();
   void pagesTakeTheKeyboard();
+  void keysAreReadTheSameForEveryPage();
   void commandListGroupsAndRemembers();
   void settingsDialogOpensAndCloses();
   void interfaceTextSizeScalesTheText();
   void tipsShowInTheStatusBar();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
+  void theSameKeyTwiceArrivesTwice();
+  void undoneDeletionKeepsProgressUnderANewId();
   void cleanupTestCase();
 };
 
@@ -353,6 +365,18 @@ void GuiTest::initTestCase() {
     QVERIFY(sessions.save());
   }
 
+  // What an older version or an edit by hand could have left in the
+  // settings (see oddSettingsAreSetRight()).
+  {
+    QSettings q;
+    q.setValue("learn/set", "pll");
+    q.setValue("trainer/sets/pll/top", 9);
+    q.setValue("srs/lapseFactor", "nan");
+    q.setValue("srs/easyDays", "nan");
+    q.setValue("alglab/statsWindow", 99);
+    q.setValue("alglab/lengthMode", -3);
+  }
+
   TwoPhaseSolver::warmUp(); // so that scrambles come quickly
   settings_ = AppSettings::load();
   applyTheme(*qApp, settings_.darkTheme);
@@ -370,13 +394,32 @@ void GuiTest::initTestCase() {
   QVERIFY(shownPage(*window_));
 }
 
+// Values out of range in the settings file fall back to the defaults.
+void GuiTest::oddSettingsAreSetRight() {
+  // A top colour that isn't one, from before the holds were kept as text.
+  QVERIFY(settings_.neutrality.main == kWcaHold);
+  QVERIFY(settings_.neutrality.holds == std::vector<Hold>{kWcaHold});
+  // "nan" is a number to QVariant.
+  QCOMPARE(settings_.srs.lapseFactor, SrsConfig().lapseFactor);
+  QCOMPARE(settings_.srs.easyDays, SrsConfig().easyDays);
+  // A drop-down position that isn't there doesn't leave the box blank.
+  int boxes = 0;
+  for (QComboBox *box : page<AlgLabPage>()->findChildren<QComboBox *>()) {
+    if (box->itemText(0) == "All time" || box->itemText(0) == "Shortest +") {
+      QCOMPARE(box->currentIndex(), 0);
+      ++boxes;
+    }
+  }
+  QCOMPARE(boxes, 2);
+}
+
 void GuiTest::modesSwitch() {
   const std::array<ModePage *, AppMode::Count> pages = {
       page<LearnPage>(),   page<DrillPage>(),   page<LibraryPage>(),
       page<TimerPage>(),   page<UntimedPage>(), page<MoveCountPage>(),
       page<EoCrossPage>(), page<AlgLabPage>(),  page<F2LPage>(),
       page<TslePage>(),    page<TodayPage>()};
-  for (int m : AppMode::sidebarOrder()) {
+  for (AppMode::Id m : AppMode::sidebarOrder()) {
     QVERIFY2(switchTo(m, pages[static_cast<std::size_t>(m)]),
              qPrintable(AppMode::label(m)));
     QVERIFY(pages[static_cast<std::size_t>(m)]->isVisible());
@@ -395,7 +438,8 @@ void GuiTest::modesSwitch() {
   QCOMPARE(AppMode::shortcut(AppMode::Tsle),
            QKeySequence(Qt::CTRL | Qt::Key_Minus));
   // A window last left in the old Inspection mode opens in EO Cross.
-  QCOMPARE(AppMode::fromSettingsId("inspection"), int(AppMode::EoCross));
+  QCOMPARE(AppMode::fromSettingsId("inspection"),
+           std::optional<AppMode::Id>(AppMode::EoCross));
 }
 
 void GuiTest::layoutFitsHalfAScreen() {
@@ -404,7 +448,7 @@ void GuiTest::layoutFitsHalfAScreen() {
   const QSize before = window_->size();
   window_->resize(950, 650);
   QTRY_COMPARE(window_->size(), QSize(950, 650));
-  for (int m : AppMode::sidebarOrder()) {
+  for (AppMode::Id m : AppMode::sidebarOrder()) {
     QTest::keySequence(window_.get(), AppMode::shortcut(m));
     QTest::qWait(20);
     QApplication::processEvents();
@@ -699,7 +743,7 @@ void GuiTest::f2lLearnAndTimed() {
   // the best ones for its side's own slot.
   QCOMPARE(f2l->tab(), Tab::Learn);
   QCOMPARE(f2l->phase(), Phase::Choose);
-  const std::vector<std::string> pool = pairCardPool(true);
+  const std::vector<std::string> pool = pairCardPool(Edges::Oriented);
   QCOMPARE(f2l->currentCard(), pool.front());
   QVERIFY(f2l->target());
   QVERIFY(sideOf(*f2l->target()) == PairSide::Front);
@@ -849,7 +893,8 @@ void GuiTest::f2lLearnAndTimed() {
 
   // A case picked from the list is practice: not graded, its solutions
   // chosen first when it has none.
-  const std::string wanted = cardKey({PairSide::Back, pairCases(true)[20]});
+  const std::string wanted =
+      cardKey({PairSide::Back, pairCases(Edges::Oriented)[20]});
   f2l->practiseCard(wanted);
   QCOMPARE(f2l->phase(), Phase::Choose);
   QVERIFY(sideOf(*f2l->target()) == PairSide::Back);
@@ -938,7 +983,10 @@ void GuiTest::f2lLearnAndTimed() {
     QCOMPARE(f2l->progressLines().size(), qsizetype{1});
     QTRY_VERIFY_WITH_TIMEOUT(!f2l->progressLines().front().contains("…"),
                              30000);
-    QVERIFY2(f2l->progressLines().front().contains("its best"),
+    // (An alg that happens to put a second pair in with its own is said
+    // to do them together, with nothing to set it against.)
+    QVERIFY2(f2l->progressLines().front().contains("its best") ||
+                 f2l->progressLines().front().contains("together"),
              qPrintable(f2l->progressLines().front()));
     QTest::keyClick(window_.get(), Qt::Key_Escape); // from the start again
     QVERIFY(f2l->progressLines().isEmpty());
@@ -975,7 +1023,7 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY2(f2l->detailHtml().contains("Where the time went"),
            qPrintable(f2l->detailHtml()));
   QTest::keyClick(window_.get(), Qt::Key_Tab);
-  const std::string timedGroup = timedKey(false, "zz-1");
+  const std::string timedGroup = timedKey(CubeKind::Virtual, "zz-1");
   QCOMPARE(f2l->data().timed.at(timedGroup).size(), std::size_t{1});
   QVERIFY(f2l->data().timed.at(timedGroup).back().ms > 0);
   QVERIFY(f2l->data().timed.at(timedGroup).back().moves > 0);
@@ -1008,7 +1056,7 @@ void GuiTest::f2lLearnAndTimed() {
   QTest::qWait(DrillFlow::kMinPhysicalMs + 100);
   QTest::keyClick(window_.get(), Qt::Key_A);
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Revealed);
-  const std::string physicalGroup = timedKey(true, "zz-1");
+  const std::string physicalGroup = timedKey(CubeKind::Physical, "zz-1");
   QCOMPARE(f2l->data().timed.at(physicalGroup).size(), std::size_t{1});
   QCOMPARE(f2l->data().timed.at(physicalGroup).back().moves, 0);
   QVERIFY(!f2l->cubeHidden()); // back, to play the best way on
@@ -1214,7 +1262,7 @@ void GuiTest::tsleLearnAndTimed() {
   tsle->selectTab(Tab::Timed);
   QCOMPARE(tsle->timedPhase(), DrillFlow::Phase::Waiting);
   const std::string group =
-      timedKey(false, tsleKey(tsleCase(tsle->startState())));
+      timedKey(CubeKind::Virtual, tsleKey(tsleCase(tsle->startState())));
   QTest::keyClick(window_.get(), Qt::Key_Space);
   solveWhole();
   QCOMPARE(tsle->timedPhase(), DrillFlow::Phase::Revealed);
@@ -1388,7 +1436,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QTest::keyClick(window_.get(), Qt::Key_Space);
   optimum = solveOptimally(true);
   QCOMPARE(eo->timedPhase(), DrillFlow::Phase::Revealed);
-  const std::string group = timedKey(false, "eocross");
+  const std::string group = timedKey(CubeKind::Virtual, "eocross");
   QCOMPARE(eo->data().timed.at(group).size(), std::size_t{1});
   QCOMPARE(eo->data().timed.at(group).back().moves, optimum);
   QCOMPARE(eo->data().timed.at(group).back().extra, 0.0);
@@ -1583,6 +1631,76 @@ void GuiTest::learnStartsACase() {
   QVERIFY(p["T"].attempts.back().mode == AttemptMode::Learn);
 }
 
+void GuiTest::quizAsksAmongLookAlikes() {
+  AlgSet set;
+  std::vector<std::string> ticked;
+  auto addGroup = [&](const std::string &prefix, int cases) {
+    CaseGroup g;
+    g.name = prefix;
+    for (int i = 1; i <= cases; ++i) {
+      AlgCase c;
+      c.id = prefix + std::to_string(i);
+      c.name = "Case " + c.id;
+      ticked.push_back(c.id);
+      g.cases.push_back(c);
+    }
+    set.groups.push_back(g);
+  };
+  addGroup("a", 8);
+  addGroup("b", 2);
+  Rng rng = makeRng();
+  auto none = [](const std::string &) { return false; };
+  auto nameOf = [](const std::string &id) { return qs("Case " + id); };
+
+  // One case is nothing to choose from.
+  QVERIFY(!QuizPractice::pick(set, {"a1"}, none, {}, rng));
+  QVERIFY(!QuizPractice::pick(set, {}, none, {}, rng));
+
+  for (int i = 0; i < 60; ++i) {
+    auto quiz = QuizPractice::pick(set, ticked, none, "a1", rng);
+    QVERIFY(quiz);
+    const std::string id = quiz->caseId();
+    QVERIFY(id != "a1"); // not the last one again
+    QStringList names = quiz->names(set);
+    QCOMPARE(static_cast<std::size_t>(names.size()), quiz->choices());
+    QVERIFY(quiz->answer() < quiz->choices());
+    QCOMPARE(names[static_cast<qsizetype>(quiz->answer())], nameOf(id));
+    QCOMPARE(names.removeDuplicates(), qsizetype{0});
+    // The choices are the case's look-alikes: its own group, six at most.
+    QCOMPARE(quiz->choices(), id.front() == 'a' ? std::size_t{6} : 2u);
+    for (const QString &name : names) {
+      QVERIFY(name.startsWith(qs("Case ") + QChar(id.front())));
+    }
+  }
+
+  // Cases already started are asked first, once there are two.
+  auto started = [](const std::string &id) { return id.front() == 'b'; };
+  for (int i = 0; i < 20; ++i) {
+    auto quiz = QuizPractice::pick(set, ticked, started, "b1", rng);
+    QVERIFY(quiz);
+    QCOMPARE(quiz->caseId(), std::string("b2"));
+    QCOMPARE(quiz->choices(), std::size_t{2});
+  }
+  auto one = [](const std::string &id) { return id == "b1"; };
+  bool other = false;
+  for (int i = 0; i < 60 && !other; ++i) {
+    other = QuizPractice::pick(set, ticked, one, {}, rng)->caseId() != "b1";
+  }
+  QVERIFY(other);
+
+  // The answer is timed from the case being shown.
+  auto quiz = QuizPractice::pick(set, ticked, started, "b1", rng);
+  QVERIFY(quiz);
+  quiz->shown(100);
+  const QuizPractice::Result right = quiz->answered(quiz->answer(), 350);
+  QVERIFY(right.right);
+  QCOMPARE(right.ms, std::int64_t{250});
+  QVERIFY(!quiz->resultText(&set, right).contains("Case b2"));
+  const QuizPractice::Result wrong = quiz->answered(1 - quiz->answer(), 350);
+  QVERIFY(!wrong.right);
+  QCOMPARE(quiz->resultText(&set, wrong), QString("It was Case b2."));
+}
+
 void GuiTest::drillArmsAndStopsItself() {
   auto *drill = page<DrillPage>();
   QVERIFY(switchTo(AppMode::Drill, drill));
@@ -1598,6 +1716,8 @@ void GuiTest::drillArmsAndStopsItself() {
   QVERIFY(all >= 0);
   pool->setCurrentIndex(all);
   emit pool->activated(all);
+  // Kept under the name it always had.
+  QCOMPARE(saved::drillPool("pll").get(), QString("ticked"));
   CubeView *view = waitForCase(drill);
   QVERIFY(view);
   std::optional<Alg> moves =
@@ -1663,6 +1783,177 @@ double contrast(const QColor &a, const QColor &b) {
 }
 
 } // namespace
+
+void GuiTest::practiceResultsAreWorded() {
+  // The splits: a part's time runs from the end of the one before, its
+  // pause to its first turn, and its TPS is of the turning alone.
+  const Alg moves = parseAlgOrEmpty("R U R' y F");
+  const std::vector<std::int64_t> at = {1000, 1500, 2000, 2500, 4000};
+  const std::vector<PracticeSplit> parts = {{"pair", 3}};
+  QVERIFY(splitsHtml({}, moves, at, 2, "#888888").isEmpty());
+  QVERIFY(splitsHtml(parts, moves, {1000}, 2, "#888888").isEmpty());
+  QVERIFY(splitsHtml(parts, {}, {}, 2, "#888888").isEmpty());
+  auto row = [](const QString &name, std::int64_t time, std::int64_t pause,
+                const QString &htm, const QString &tps) {
+    return QString("<tr><td>%1</td><td align='right'>%2</td><td "
+                   "align='right'>%3</td><td align='right'>%4</td><td "
+                   "align='right'>%5</td></tr>")
+        .arg(name, clockText(time, 2), clockText(pause, 2), htm, tps);
+  };
+  const QString splits = splitsHtml(parts, moves, at, 2, "#888888");
+  QVERIFY2(splits.contains(row("pair", 2000, 1000, "3", "3.0")),
+           qPrintable(splits));
+  // What is left after the parts: the rotation before its turn is looking,
+  // and one move has no speed.
+  QVERIFY2(splits.contains(row("the rest", 2000, 2000, "1", "-")),
+           qPrintable(splits));
+  // A part that ends past the solve takes what there is, and nothing is
+  // left for the rest.
+  const QString whole = splitsHtml({{"all", 9}}, moves, at, 2, "#888888");
+  QVERIFY2(whole.contains(row("all", 4000, 1000, "4", "1.3")),
+           qPrintable(whole));
+  QVERIFY(!whole.contains("the rest"));
+
+  // A timed solve: its moves and speed, and how it compares.
+  QCOMPARE(
+      timedLine({.moves = 20, .ms = 10000, .dnf = false, .meanBefore = {}}, 2),
+      QString("20 moves · 2.00 TPS"));
+  const QString under = timedLine(
+      {.moves = 0, .ms = 10000, .dnf = false, .meanBefore = 12000.0}, 2);
+  QVERIFY2(under.contains(QString("%1 under your mean (%2)")
+                              .arg(clockText(2000, 2), clockText(12000, 2))),
+           qPrintable(under));
+  const QString over = timedLine(
+      {.moves = 0, .ms = 10000, .dnf = false, .meanBefore = 9000.0}, 2);
+  QCOMPARE(over, QString("%1 over your mean (%2)")
+                     .arg(clockText(1000, 2), clockText(9000, 2)));
+  const QString dnf = timedLine(
+      {.moves = 20, .ms = 10000, .dnf = true, .meanBefore = 9000.0}, 2);
+  QVERIFY2(dnf.contains("DNF") && dnf.endsWith("20 moves") &&
+               !dnf.contains("TPS") && !dnf.contains("mean"),
+           qPrintable(dnf));
+
+  // The Inspection clock counts down whole seconds, then up over the
+  // limit; stopped, it says the time looked.
+  const QColor ink(1, 2, 3);
+  auto clock = [&ink](std::int64_t used, std::int64_t limit, bool running) {
+    return inspectionClock(used, limit, running, ink);
+  };
+  QCOMPARE(clock(1000, 15000, true),
+           QString("<span style='color:#010203'>14</span>"));
+  QVERIFY(clock(12500, 15000, true).endsWith(">3</span>"));
+  QVERIFY(!clock(12500, 15000, true).contains("#010203"));
+  QVERIFY(clock(16000, 15000, true).endsWith(">+1.0</span>"));
+  QCOMPARE(clock(9300, 0, true),
+           QString("<span style='color:#010203'>9.3</span>"));
+  QVERIFY(clock(9300, 15000, false).endsWith(">Looked 9.3 s</span>"));
+  QVERIFY(inspectionLine(0, 15000).isEmpty());
+  QCOMPARE(inspectionLine(9300, 15000), QString("looked 9.3 s"));
+  QVERIFY(inspectionLine(16000, 15000)
+              .contains("looked 16.0 s, over the 15.0 s limit"));
+
+  // The verdict: nothing of the result while it is being worked out.
+  PracticeVerdict v;
+  v.result = "2 moves over";
+  v.best = "Best: <b>R U R'</b>";
+  v.note = "Deleted";
+  QCOMPARE(verdictHtml(v, "#888888"),
+           QString("2 moves over<br>Best: <b>R U R'</b><br>"
+                   "<span style='color:#888888'>Deleted</span>"));
+  v.waiting = true;
+  QVERIFY(!verdictHtml(v, "#888888").contains("2 moves over"));
+  QVERIFY(verdictHtml({}, "#888888").isEmpty());
+  PracticeOutcome o;
+  QVERIFY(bestLine(o).isEmpty() && efficiencyHtml(o).isEmpty());
+  o.best = parseAlgOrEmpty("R U R'");
+  QCOMPARE(bestLine(o), QString("Best: <b>R U R'</b>"));
+  o.bestLabel = "Yours";
+  o.bestText = "<i>as chosen</i>";
+  QCOMPARE(bestLine(o), QString("Yours: <b><i>as chosen</i></b>"));
+
+  // When a card comes back.
+  const std::int64_t now = 1000000, dayEnd = now + 7200;
+  QCOMPARE(dueText(now, now, dayEnd), QString("now"));
+  QCOMPARE(dueText(now + 30, now, dayEnd), QString("in 1 min"));
+  QCOMPARE(dueText(now + 3600, now, dayEnd), QString("in 1 h"));
+  QCOMPARE(dueText(dayEnd, now, dayEnd), QString("tomorrow"));
+  QCOMPARE(dueText(dayEnd + 3 * 86400, now, dayEnd), QString("in 4 d"));
+}
+
+void GuiTest::practiceKeysFollowThePhase() {
+  auto names = [](const PracticeKeys &k) {
+    QStringList all;
+    for (const KeyHint &h : k.keys) {
+      all << h.key;
+    }
+    return all.join(' ');
+  };
+  using P = PracticePhase;
+  auto untimed = [](P phase, auto set) {
+    UntimedKeysState s;
+    s.phase = phase;
+    set(s);
+    return untimedKeys(s);
+  };
+  auto asIs = [](UntimedKeysState &) {};
+  QCOMPARE(names(untimed(P::Idle, asIs)), QString("Space"));
+  QCOMPARE(names(untimed(P::Choose, asIs)), QString("1-9 Enter"));
+  QCOMPARE(names(untimed(P::Choose, [](auto &s) { s.choosingAgain = true; })),
+           QString("1-9 Enter Esc"));
+  QCOMPARE(names(untimed(P::Solving, [](auto &s) { s.hints = true; })),
+           QString("Tab Backspace Esc"));
+  // A hidden cube has no hint to give, and says so.
+  const PracticeKeys hidden =
+      untimed(P::Solving, [](auto &s) { s.hidden = s.hints = true; });
+  QCOMPARE(names(hidden), QString("Space Backspace Esc"));
+  QVERIFY(!hidden.message.isEmpty());
+  // Nothing goes on while the verdict is worked out.
+  const PracticeKeys waiting =
+      untimed(P::Done, [](auto &s) { s.waiting = s.best = true; });
+  QVERIFY(waiting.keys.isEmpty() && !waiting.message.isEmpty());
+  QCOMPARE(names(untimed(P::Done,
+                         [](auto &s) {
+                           s.best = s.graded = s.chooser = true;
+                           s.modeKeys = {{"+", "add"}};
+                         })),
+           QString("Space Enter Tab 1-4 + 0 Esc"));
+  QCOMPARE(names(untimed(P::Done, asIs)), QString("Space Tab Esc"));
+
+  DrillFlow flow;
+  DrillFlow::Config config;
+  DrillSettings drill;
+  drill.tapToArm = true;
+  drill.shiftSpaceGivesUp = true;
+  TimedKeysState timed;
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space"));
+  config.virtualCube = false;
+  flow.setConfig(config);
+  flow.setUp(0);
+  timed.physical = true;
+  const PracticeKeys awaited = timedKeys(flow, drill, timed);
+  QCOMPARE(names(awaited), QString("hold Space Shift+Space"));
+  QVERIFY(awaited.message.isEmpty());
+  timed.scrambleShown = true;
+  QVERIFY(!timedKeys(flow, drill, timed).message.isEmpty());
+  drill.shiftSpaceGivesUp = false;
+  config.virtualCube = true;
+  flow.setConfig(config);
+  flow.setUp(0);
+  timed = {};
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space Backspace"));
+  // The result: only an attempt that is kept can be marked or deleted.
+  flow.finished(1000, DrillFlow::Result::Solved, {}, 0);
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space Tab Esc"));
+  timed.best = timed.recorded = true;
+  QCOMPARE(names(timedKeys(flow, drill, timed)),
+           QString("Space Enter Tab Backspace Delete Esc"));
+
+  QVERIFY(timedHintText(DrillFlow::Hint::None, drill).isEmpty());
+  DrillSettings held = drill;
+  held.tapToArm = false;
+  QVERIFY(timedHintText(DrillFlow::Hint::OnlyRotations, drill) !=
+          timedHintText(DrillFlow::Hint::OnlyRotations, held));
+}
 
 void GuiTest::themeColoursAreReadable() {
   for (bool dark : {true, false}) {
@@ -1813,6 +2104,96 @@ void GuiTest::pagesTakeTheKeyboard() {
 
 // The command list: headings that can't be selected, keys on the right,
 // and the commands last run first when nothing is typed.
+void GuiTest::keysAreReadTheSameForEveryPage() {
+  using K = TrainKey;
+  auto read = [](int key, Qt::KeyboardModifiers mods, KeyChords chords) {
+    QKeyEvent e(QEvent::KeyPress, key, mods);
+    return trainKeyEvent(&e, true, chords);
+  };
+  const auto all = {KeyChords::None, KeyChords::Undo, KeyChords::Attempt};
+  // The keys by themselves are the same keys whatever the page's chords.
+  const std::vector<std::pair<int, K>> plain = {
+      {Qt::Key_Space, K::Space},
+      {Qt::Key_Return, K::Enter},
+      {Qt::Key_Enter, K::Enter},
+      {Qt::Key_Tab, K::Tab},
+      {Qt::Key_Backspace, K::Backspace},
+      {Qt::Key_Delete, K::Delete},
+      {Qt::Key_Escape, K::Escape},
+      {Qt::Key_Left, K::Left},
+      {Qt::Key_Right, K::Right},
+      {Qt::Key_Home, K::Home},
+      {Qt::Key_Shift, K::Modifier},
+      {Qt::Key_Control, K::Modifier},
+      {Qt::Key_Z, K::Other},
+      {Qt::Key_F9, K::Other}};
+  for (KeyChords chords : all) {
+    for (const auto &[key, expected] : plain) {
+      QCOMPARE(read(key, Qt::NoModifier, chords).key, expected);
+    }
+    for (int d = 0; d <= 9; ++d) {
+      const TrainKeyEvent k = read(Qt::Key_0 + d, Qt::NoModifier, chords);
+      QCOMPARE(k.key, K::Digit);
+      QCOMPARE(k.digit, d);
+      QVERIFY(!k.modified && !k.shift && k.press && !k.autoRepeat);
+    }
+    // The number pad's keys are the keys they show.
+    QCOMPARE(read(Qt::Key_Enter, Qt::KeypadModifier, chords).key, K::Enter);
+    QCOMPARE(read(Qt::Key_Delete, Qt::KeypadModifier, chords).key, K::Delete);
+    // What is held is told apart from the key.
+    const TrainKeyEvent shifted =
+        read(Qt::Key_Space, Qt::ShiftModifier, chords);
+    QCOMPARE(shifted.key, K::Space);
+    QVERIFY(shifted.shift && !shifted.modified);
+    const TrainKeyEvent ctrl = read(Qt::Key_Space, Qt::ControlModifier, chords);
+    QCOMPARE(ctrl.key, K::Space);
+    QVERIFY(ctrl.modified && !ctrl.shift);
+    QVERIFY(read(Qt::Key_1, Qt::AltModifier, chords).modified);
+    QVERIFY(read(Qt::Key_1, Qt::MetaModifier, chords).modified);
+  }
+  QKeyEvent repeat(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier, {},
+                   true);
+  QVERIFY(trainKeyEvent(&repeat, true, KeyChords::Attempt).autoRepeat);
+  QVERIFY(!trainKeyEvent(&repeat, false, KeyChords::Attempt).press);
+
+  // Ctrl+Z: nothing to the practice modes and Alg Lab, Undo in Drill and
+  // Learn whatever else is held, Undo in Untimed and Move Count only by
+  // itself.
+  const Qt::KeyboardModifiers ctrlShift =
+      Qt::ControlModifier | Qt::ShiftModifier;
+  QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::None).key, K::Other);
+  QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::Undo).key, K::Undo);
+  QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Undo).key, K::Undo);
+  QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::Attempt).key,
+           K::Undo);
+  QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Attempt).key, K::Other);
+
+  // The chords of Untimed and Move Count are theirs alone: in Learn Alt+3
+  // is the digit and Ctrl+Right the arrow.
+  QCOMPARE(read(Qt::Key_3, Qt::AltModifier, KeyChords::Attempt).key, K::Dnf);
+  QCOMPARE(read(Qt::Key_C, Qt::AltModifier, KeyChords::Attempt).key,
+           K::Comment);
+  QCOMPARE(read(Qt::Key_R, Qt::AltModifier, KeyChords::Attempt).key, K::Review);
+  QCOMPARE(read(Qt::Key_Right, Qt::ControlModifier, KeyChords::Attempt).key,
+           K::Skip);
+  QCOMPARE(
+      read(Qt::Key_3, Qt::AltModifier | Qt::ShiftModifier, KeyChords::Attempt)
+          .key,
+      K::Digit);
+  for (KeyChords chords : {KeyChords::None, KeyChords::Undo}) {
+    const TrainKeyEvent three = read(Qt::Key_3, Qt::AltModifier, chords);
+    QCOMPARE(three.key, K::Digit);
+    QCOMPARE(three.digit, 3);
+    QCOMPARE(read(Qt::Key_C, Qt::AltModifier, chords).key, K::Other);
+    QCOMPARE(read(Qt::Key_Right, Qt::ControlModifier, chords).key, K::Right);
+    // Delete deletes with anything held; in Untimed and Move Count only
+    // by itself.
+    QCOMPARE(read(Qt::Key_Delete, Qt::ShiftModifier, chords).key, K::Delete);
+  }
+  QCOMPARE(read(Qt::Key_Delete, Qt::ShiftModifier, KeyChords::Attempt).key,
+           K::Other);
+}
+
 void GuiTest::commandListGroupsAndRemembers() {
   int ran = 0;
   auto commands = [&ran] {
@@ -1973,9 +2354,99 @@ void GuiTest::keysDocMatchesTheKeyTable() {
            "VCUBE_WRITE_DOCS=1");
 }
 
+// Two key events that look alike (the same object sent twice has the same
+// address, key and time) are two key presses.
+void GuiTest::theSameKeyTwiceArrivesTwice() {
+  auto *today = page<TodayPage>();
+  QVERIFY(switchTo(AppMode::Today, today));
+  auto tables = today->findChildren<QTreeWidget *>();
+  QCOMPARE(tables.size(), 2);
+  QVERIFY(tables[0]->topLevelItemCount() >= 3);
+  window_->setFocus();
+  QTest::keyClick(window_.get(), Qt::Key_Home);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 0);
+  QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+  QApplication::sendEvent(window_.get(), &down);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 1);
+  QApplication::sendEvent(window_.get(), &down);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 2);
+}
+
+// A deleted set whose file name was taken before the undo comes back
+// under another id, with its progress.
+void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
+  auto *library = page<LibraryPage>();
+  QVERIFY(switchTo(AppMode::Library, library));
+  library->selectCase("pll", "T");
+  const std::size_t graded = savedProgress("pll").size();
+  QVERIFY(graded > 0);
+  QAction *deleteSet = nullptr;
+  for (QAction *a : library->findChildren<QAction *>()) {
+    if (a->text().remove('&').startsWith("Delete set")) {
+      deleteSet = a;
+    }
+  }
+  QVERIFY(deleteSet);
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *box = qobject_cast<QMessageBox *>(m)) {
+        box->button(QMessageBox::Yes)->click();
+      }
+    });
+    deleteSet->trigger();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  const QString sets = QDir(dataDir_).filePath("algsets");
+  const QString taken = QDir(sets).filePath("pll.json");
+  const QString oldProgress = QDir(sets).filePath("progress/pll.json");
+  finishBackgroundWrites();
+  QVERIFY(!QFile::exists(taken));
+  QVERIFY(!QFile::exists(oldProgress));
+  {
+    QFile other(taken);
+    QVERIFY(other.open(QIODevice::WriteOnly));
+    other.write("{}");
+  }
+
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  window_->setFocus();
+  QTest::keySequence(window_.get(), QKeySequence::Undo);
+  QVERIFY(QFile::remove(taken));
+  QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
+  QCOMPARE(savedProgress("pll-2").size(), graded);
+  QVERIFY(!QFile::exists(oldProgress));
+
+  // Redo deletes the set that came back, and undo brings it back again.
+  QTest::keySequence(window_.get(), QKeySequence::Redo);
+  QVERIFY(!QFile::exists(QDir(sets).filePath("pll-2.json")));
+  QTest::keySequence(window_.get(), QKeySequence::Undo);
+  QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
+  QCOMPARE(savedProgress("pll-2").size(), graded);
+}
+
 void GuiTest::cleanupTestCase() {
   if (window_) {
     window_->close();
+    // The window is destroyed as one that is shown and active, with the
+    // focus in Library: the pages hear that the focus has gone, which must
+    // be before the data they refer to goes (a sanitizer build sees it).
+    auto *library = page<LibraryPage>();
+    window_->show();
+    window_->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+    QVERIFY(switchTo(AppMode::Library, library));
+    {
+      AlgLibrary lib(QDir(dataDir_).filePath("algsets"), ":/algsets");
+      lib.load();
+      QVERIFY(lib.find("oll"));
+      library->selectCase("oll",
+                          qs(lib.find("oll")->groups.front().cases.front().id));
+    }
+    auto *list = library->findChild<AlgListWidget *>();
+    QVERIFY(list);
+    list->setFocus();
+    QCOMPARE(QApplication::focusWidget(), list);
     window_.reset();
   }
   instance_.reset();

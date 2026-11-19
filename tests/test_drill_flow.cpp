@@ -9,6 +9,8 @@ namespace {
 using Key = DrillFlow::Key;
 using Action = DrillFlow::Action;
 using Phase = DrillFlow::Phase;
+using Result = DrillFlow::Result;
+using Turn = DrillFlow::Turn;
 
 const Move kR{MoveType::R, 1};
 const Move kY{MoveType::Y, 1};
@@ -60,13 +62,13 @@ TEST_CASE("drill: a tap of Space arms the virtual timer, a face turn starts") {
   CHECK(f.phase() == Phase::Running);
   CHECK(f.busy());
   // The page turns the cube and reports it: not done yet, then done.
-  CHECK_FALSE(f.turned(true, true, 2000, done(false)));
+  CHECK_FALSE(f.turned(Turn::OffUdFace, 2000, done(false)));
   CHECK(f.faceTurns() == 1);
-  auto stopped = f.turned(true, false, 3500, done(true));
+  auto stopped = f.turned(Turn::UdFace, 3500, done(true));
   REQUIRE(stopped);
   CHECK(*stopped == 1500);
 
-  f.finished(*stopped, false, false, 2000, 3500);
+  f.finished(*stopped, Result::Solved, 2000, 3500);
   CHECK(f.phase() == Phase::Revealed);
   CHECK(f.recorded());
   CHECK(f.newBest());
@@ -83,7 +85,7 @@ TEST_CASE("drill: keys just after the stop are ignored") {
   DrillFlow f = flow();
   f.key(press(Key::Space), 1100);
   f.key(turn(kR), 1200);
-  f.finished(800, false, false, std::nullopt, 2000);
+  f.finished(800, Result::Solved, std::nullopt, 2000);
   auto early = f.key(press(Key::Space), 2000 + DrillFlow::kGuardMs - 1);
   CHECK(early.handled);
   CHECK(early.action == Action::None);
@@ -105,11 +107,11 @@ TEST_CASE("drill: auto-stop off, Space stops; a DNF unless done") {
   g.key(turn(kY), 1170); // a rotation doesn't start it
   CHECK(g.phase() == Phase::Waiting);
 
-  CHECK_FALSE(f.turned(true, true, 1200, done(true))); // no auto-stop
+  CHECK_FALSE(f.turned(Turn::OffUdFace, 1200, done(true))); // no auto-stop
   auto stop = f.key(press(Key::Space), 1700);
   CHECK(stop.action == Action::Stopped);
   CHECK(stop.timeMs == 500);
-  f.finished(stop.timeMs, true, false, std::nullopt, 1700);
+  f.finished(stop.timeMs, Result::Failed, std::nullopt, 1700);
   CHECK(f.unfinished());
   CHECK_FALSE(f.newBest());
 }
@@ -132,7 +134,7 @@ TEST_CASE("drill: Space before any face turn cancels the solve") {
   f.key(press(Key::Space), 2000);
   f.tick(2400);
   f.key(release(Key::Space), 2400);
-  f.turned(true, true, 2500, done(false));
+  f.turned(Turn::OffUdFace, 2500, done(false));
   CHECK_FALSE(f.timing(900, false));
 }
 
@@ -163,7 +165,8 @@ TEST_CASE("drill: a hold the window loses is called off") {
 TEST_CASE("drill: physical cube: hold, let go, any key stops") {
   DrillFlow f = flow(physical());
   // No scramble yet: Space waits.
-  CHECK(f.key(press(Key::Space), 1000, false).action == Action::None);
+  CHECK(f.key(press(Key::Space), 1000, Scramble::Awaited).action ==
+        Action::None);
   CHECK(f.key(press(Key::Space), 1000).action == Action::TimerShown);
   f.tick(1300);
   CHECK(f.key(release(Key::Space), 1300).action == Action::Start);
@@ -177,7 +180,7 @@ TEST_CASE("drill: physical cube: hold, let go, any key stops") {
   auto stop = f.key(press(Key::Other), 4300);
   CHECK(stop.action == Action::Stopped);
   CHECK(stop.timeMs == 3000);
-  f.finished(stop.timeMs, false, false, std::nullopt, 4300);
+  f.finished(stop.timeMs, Result::Solved, std::nullopt, 4300);
   CHECK_FALSE(f.timing(3000, false)); // only on the virtual cube
 }
 
@@ -186,7 +189,7 @@ TEST_CASE("drill: giving up before the start is taken back by Delete") {
   CHECK(f.key(press(Key::Space, true), 1500).action == Action::GiveUp);
   CHECK(f.giveUp(1500) == 0);
   CHECK(f.gaveUpBeforeStart());
-  f.finished(0, true, true, std::nullopt, 1500);
+  f.finished(0, Result::GaveUp, std::nullopt, 1500);
   CHECK(f.gaveUp());
   CHECK_FALSE(f.unfinished());
   // No time to go back to: Backspace doesn't toggle the DNF.
@@ -208,7 +211,7 @@ TEST_CASE("drill: giving up a running solve keeps it deleted") {
   CHECK(f.key(press(Key::Space, true), 1700).action == Action::GiveUp);
   CHECK(f.giveUp(1700) == 500);
   CHECK_FALSE(f.gaveUpBeforeStart());
-  f.finished(500, true, true, std::nullopt, 1700);
+  f.finished(500, Result::GaveUp, std::nullopt, 1700);
   CHECK(f.key(press(Key::Undo), 2100).action == Action::Delete);
   CHECK_FALSE(f.deleted()); // only the attempt goes
   CHECK(f.phase() == Phase::Revealed);
@@ -232,7 +235,7 @@ TEST_CASE("drill: the result can be marked a DNF and back") {
   DrillFlow f = flow();
   f.key(press(Key::Space), 1100);
   f.key(turn(kR), 1200);
-  f.finished(900, false, false, 1000, 2100);
+  f.finished(900, Result::Solved, 1000, 2100);
   CHECK(f.newBest());
   CHECK(f.key(press(Key::Backspace), 2500).action == Action::ToggleWrong);
   CHECK(f.setWrong(true));
@@ -247,7 +250,7 @@ TEST_CASE("drill: practice with the algs, then without, then on") {
   DrillFlow f = flow();
   f.key(press(Key::Space), 1100);
   f.key(turn(kR), 1200);
-  f.finished(900, true, false, std::nullopt, 2100);
+  f.finished(900, Result::Failed, std::nullopt, 2100);
   auto tab = f.key(press(Key::Tab), 2500);
   REQUIRE(tab.action == Action::Practise);
   CHECK(tab.aided);
@@ -285,7 +288,7 @@ TEST_CASE("drill: Space practises after a DNF when Settings say so") {
   DrillFlow f = flow(c);
   f.key(press(Key::Space), 1100);
   f.key(turn(kR), 1200);
-  f.finished(900, true, false, std::nullopt, 2100);
+  f.finished(900, Result::Failed, std::nullopt, 2100);
   auto space = f.key(press(Key::Space), 2500);
   CHECK(space.action == Action::Practise);
   CHECK(space.aided);

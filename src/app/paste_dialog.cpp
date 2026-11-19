@@ -21,7 +21,13 @@ namespace vcube {
 
 namespace {
 
-enum Column { LineColumn, AlgColumn, CaseColumn, ResultColumn, ColumnCount };
+enum Column : int {
+  LineColumn,
+  AlgColumn,
+  CaseColumn,
+  ResultColumn,
+  ColumnCount
+};
 
 // Combo entries after the candidates.
 constexpr int kNotAdded = -1;
@@ -163,7 +169,8 @@ void PasteDialog::check() {
 }
 
 void PasteDialog::replan() {
-  plan_ = planPaste(set_, items_, create_->isChecked(),
+  plan_ = planPaste(set_, items_,
+                    create_->isChecked() ? NewCases::Create : NewCases::Skip,
                     static_cast<std::size_t>(groupBox_->currentIndex()));
   fillTable();
   const ImportReport &r = plan_.report;

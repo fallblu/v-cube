@@ -41,7 +41,7 @@ protected:
   QString retryNote(const MoveCountAttempt &was) const override;
   bool reviewable(const MoveCountAttempt &a) const override;
   void describeReview(ReviewedSolve &solve, int index) const override;
-  void addDetails(QList<QPair<QString, QString>> &rows,
+  void addDetails(QList<DetailRow> &rows,
                   const MoveCountAttempt &a) const override;
   std::function<std::optional<int>(const MoveCountAttempt &)>
   optimalLookup() const override;
@@ -70,7 +70,7 @@ private:
   std::optional<int> optimalOf(const MoveCountAttempt &a) const;
   // Works out the optimal lengths the attempt list is missing.
   void requestOptimal();
-  void recordTyped(bool dnf);
+  void recordTyped(AttemptFlow::Typed typed);
 };
 
 } // namespace vcube

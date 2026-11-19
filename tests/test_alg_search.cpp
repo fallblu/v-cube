@@ -13,13 +13,12 @@ using namespace vcube;
 
 namespace {
 
-SearchGoal goalFor(const char *alg, const char *free, bool before = true,
-                   bool after = true) {
+SearchGoal goalFor(const char *alg, const char *free, Aufs aufs = Aufs::Both) {
   SearchGoal g;
   g.state = stateSolvedBy(parseAlgOrEmpty(alg));
   g.free = *parseFree(free);
-  g.aufBefore = before;
-  g.aufAfter = after;
+  g.aufBefore = allowsAufBefore(aufs);
+  g.aufAfter = allowsAufAfter(aufs);
   return g;
 }
 
@@ -158,7 +157,7 @@ TEST_CASE("the generator follows wide turns and slices", "[search]") {
 TEST_CASE("the generator keeps to the case's AUF settings", "[search]") {
   // Without a U turn allowed before, Antisune from the other side doesn't
   // count.
-  auto rs = run(goalFor("R U R' U R U2 R'", "LL:p", false, false), "R U", 7);
+  auto rs = run(goalFor("R U R' U R U2 R'", "LL:p", Aufs::None), "R U", 7);
   for (const auto &r : rs) {
     CHECK(r.fit.before == 0);
     CHECK(r.fit.after == 0);
@@ -187,4 +186,37 @@ TEST_CASE("the generator stops at the result cap and when told to",
   auto stopped = searchAlgs(goalFor("R U R' U'", ""), o, stop);
   CHECK(stopped.end == SearchEnd::Stopped);
   CHECK(stopped.found == 0);
+}
+
+TEST_CASE("a search stopped while its tables are built keeps none of them",
+          "[search]") {
+  // A goal no other test has, so that its tables aren't built yet.
+  SearchGoal g = goalFor("R U R' U'", "", Aufs::None);
+  SearchOptions o;
+  o.moves = *MoveSet::parse("R U");
+  o.maxLength = 8;
+  o.threads = 4;
+  std::atomic<bool> stop{false};
+  int builds = 0;
+  SearchCallbacks cb;
+  cb.progress = [&](const std::string &message) {
+    if (message.starts_with("Building")) {
+      ++builds;
+      stop = true;
+    }
+  };
+  SearchOutcome out = searchAlgs(g, o, stop, cb);
+  CHECK(builds == 1);
+  CHECK(out.end == SearchEnd::Stopped);
+  CHECK(out.found == 0);
+
+  // The next search builds them from the start and finds the algs.
+  stop = false;
+  cb.progress = [&](const std::string &message) {
+    builds += message.starts_with("Building") ? 1 : 0;
+  };
+  out = searchAlgs(g, o, stop, cb);
+  CHECK(builds == 2);
+  CHECK(out.end == SearchEnd::Done);
+  CHECK(out.found > 0);
 }

@@ -210,23 +210,25 @@ struct Written {
 
 std::vector<Written> writtenMoves(const PairMoves &moves) {
   std::vector<Written> out;
-  auto face = [&out](MoveType t, int f, bool quarter, bool half) {
+  enum class Turns { All, HalfOnly };
+  auto face = [&out](MoveType t, int f, Turns turns) {
     for (int a = 1; a <= 3; ++a) {
-      if (a == 2 ? half : quarter) {
+      if (a == 2 || turns == Turns::All) {
         out.push_back(
             {Move{t, static_cast<std::uint8_t>(a), 0}, f, false, 0, 0});
       }
     }
   };
-  face(MoveType::U, kU, true, true);
-  face(MoveType::R, kR, true, true);
-  face(MoveType::L, kL, true, true);
+  face(MoveType::U, kU, Turns::All);
+  face(MoveType::R, kR, Turns::All);
+  face(MoveType::L, kL, Turns::All);
   if (moves.d) {
-    face(MoveType::D, kD, true, true);
+    face(MoveType::D, kD, Turns::All);
   }
   if (moves.quarterFB || moves.halfFB) {
-    face(MoveType::F, kF, moves.quarterFB, true);
-    face(MoveType::B, kB, moves.quarterFB, true);
+    const Turns fb = moves.quarterFB ? Turns::All : Turns::HalfOnly;
+    face(MoveType::F, kF, fb);
+    face(MoveType::B, kB, fb);
   }
   if (moves.wide) {
     // r = L x, l = R x', u = D y, d = U y'.

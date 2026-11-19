@@ -38,11 +38,17 @@ bool KeyRouter::eventFilter(QObject *obj, QEvent *event) {
   }
   auto *key = static_cast<QKeyEvent *>(event);
   // An unhandled key event is offered again to each parent; handle it once.
+  // Only the parent of the widget it was last offered to gets it that way:
+  // another event can look the same (events are made in the same place, and
+  // two can have one timestamp), and starts again at the widget with the
+  // focus.
   KeySeen seen{event, event->type(), key->key(), key->timestamp()};
-  if (seen == lastKey_) {
+  bool offeredAgain = seen == lastKey_ && w == nextOffer_;
+  lastKey_ = seen;
+  nextOffer_ = w->parentWidget();
+  if (offeredAgain) {
     return false;
   }
-  lastKey_ = seen;
   return route(key, event->type() == QEvent::KeyPress);
 }
 

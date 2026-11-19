@@ -6,6 +6,7 @@
 #include "app/cube_painter.hpp"
 #include "app/library_editor.hpp"
 #include "app/mode_page.hpp"
+#include "app/mode_table.hpp"
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
 
@@ -54,7 +55,7 @@ public:
   explicit CaseTreeWidget(QWidget *parent = nullptr);
 
   // Where on an item a drop lands.
-  enum Drop { DropOn, DropAbove, DropBelow, DropElsewhere };
+  enum Drop : int { DropOn, DropAbove, DropBelow, DropElsewhere };
 
 signals:
   // The selected items were dropped on `target` (nullptr: below the last
@@ -111,7 +112,8 @@ signals:
   // "Open in Alg Lab" on a case's alg.
   void algLabRequested(const QString &setId, const QString &caseId);
   // Show the case in Learn or Drill (an AppMode).
-  void practiceRequested(int mode, const QString &setId, const QString &caseId);
+  void practiceRequested(AppMode::Id mode, const QString &setId,
+                         const QString &caseId);
 
 private:
   using Edit = LibraryEditor::Edit;
@@ -168,14 +170,18 @@ private:
   QAction *moveDownAction_;
 
   AlgSet *set() { return editor_.set(); }
+  const AlgSet *set() const { return editor_.set(); }
   AlgCase *currentCase() { return editor_.currentCase(); }
+  const AlgCase *currentCase() const { return editor_.currentCase(); }
 
   // The one way the page catches up with a change of the library, from an
   // edit, an undo or a redo.
   void refresh(const LibraryEditor::Change &change);
 
   void buildActions();
-  void fillContextMenu(QMenu *menu, bool forSets);
+  // The context menu of the list of sets, or of the list of cases.
+  enum class MenuOf { Sets, Cases };
+  void fillContextMenu(QMenu *menu, MenuOf list);
   void updateActions();
   void fillRestoreSetMenu();
   void fillMoveToMenu();

@@ -255,8 +255,8 @@ void resetLearning(CaseProgress &progress) {
                 [](const Attempt &a) { return a.mode == AttemptMode::Learn; });
 }
 
-Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs) {
-  return hinted || gaveUp || leftAlgs ? Grade::Again : Grade::Good;
+Grade learnGrade(const LearnTry &t) {
+  return t.hinted || t.gaveUp || t.leftAlgs ? Grade::Again : Grade::Good;
 }
 
 std::int64_t localDayNumber(std::int64_t unixSeconds) {

@@ -4,6 +4,7 @@
 #include "app/colours.hpp"
 #include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
+#include "app/train_keys.hpp"
 #include "app/ui_text.hpp"
 #include "io/data_file.hpp"
 #include "train/optimal_cache.hpp"
@@ -30,59 +31,18 @@ QString movesText(StatValue v, int decimals = 2) {
   return QString::fromStdString(formatMoves(v, decimals));
 }
 
-// The page's keys as the flow reads them.
-AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press, bool turn) {
+// The page's keys as the flow reads them: a key that turns the virtual
+// cube is a Turn whatever else it is, unless it is one of the keys for the
+// last attempt and the scramble. `turn` is the turn the key makes there.
+AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press,
+                              const std::optional<Move> &turn) {
   using K = AttemptFlow::Key;
-  AttemptFlow::KeyEvent k;
-  k.press = press;
-  k.autoRepeat = e->isAutoRepeat();
-  k.modified = (e->modifiers() & (Qt::ControlModifier | Qt::AltModifier |
-                                  Qt::MetaModifier)) != 0;
-  Qt::KeyboardModifiers mods = e->modifiers() & ~Qt::KeypadModifier;
-  int key = e->key();
-  if (mods == Qt::AltModifier &&
-      (key == Qt::Key_3 || key == Qt::Key_C || key == Qt::Key_R)) {
-    k.key = key == Qt::Key_3   ? K::Dnf
-            : key == Qt::Key_C ? K::Comment
-                               : K::Review;
-  } else if (mods == Qt::ControlModifier &&
-             (key == Qt::Key_Z || key == Qt::Key_Right)) {
-    k.key = key == Qt::Key_Z ? K::Undo : K::Skip;
-  } else if (mods == Qt::NoModifier && key == Qt::Key_Delete) {
-    k.key = K::Delete;
-  } else if (turn) {
+  AttemptFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::Attempt);
+  const bool action = k.key == K::Dnf || k.key == K::Comment ||
+                      k.key == K::Review || k.key == K::Undo ||
+                      k.key == K::Skip || k.key == K::Delete;
+  if (turn && !action) {
     k.key = K::Turn;
-  } else if (key >= Qt::Key_0 && key <= Qt::Key_9) {
-    k.key = K::Digit;
-    k.digit = key - Qt::Key_0;
-  } else {
-    switch (key) {
-    case Qt::Key_Space:
-      k.key = K::Space;
-      break;
-    case Qt::Key_Return:
-    case Qt::Key_Enter:
-      k.key = K::Enter;
-      break;
-    case Qt::Key_Escape:
-      k.key = K::Escape;
-      break;
-    case Qt::Key_Tab:
-      k.key = K::Tab;
-      break;
-    case Qt::Key_Backspace:
-      k.key = K::Backspace;
-      break;
-    case Qt::Key_Left:
-      k.key = K::Left;
-      break;
-    case Qt::Key_Right:
-      k.key = K::Right;
-      break;
-    default:
-      k.key = K::Other;
-      break;
-    }
   }
   return k;
 }
@@ -90,10 +50,10 @@ AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press, bool turn) {
 } // namespace
 
 AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
-                         AlgLibrary &library, const QString &mode,
-                         bool moveCount, QWidget *parent)
+                         AlgLibrary &library, const QString &mode, SolveLog log,
+                         QWidget *parent)
     : ModePage(parent), settings_(settings), store_(store), library_(library),
-      feed_(library), moveCountFlow_(moveCount) {
+      feed_(library), moveCountFlow_(log == SolveLog::MoveCount) {
   // --- left column: sessions, stats, attempts ---
   panel_ = new SessionPanel(this);
   panel_->setStatsClickable(true);
@@ -421,7 +381,8 @@ void AttemptPage::updateControls() {
   }
   controlsEnabled(!busy);
   panel_->setDeleteEnabled(!busy && !session().attempts.empty());
-  panel_->setUndo(deleted_.has(), !busy);
+  panel_->setUndoVisible(deleted_.has());
+  panel_->setUndoEnabled(!busy);
   bool canReview =
       !session().attempts.empty() && reviewable(session().attempts.back());
   reviewButton_->setVisible(canReview);
@@ -439,8 +400,8 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
     move = settings_.keymap.lookup(e);
   }
   AttemptFlow::Effects fx =
-      flow_.key(flowKey(e, press, move.has_value()), monotonicMs(),
-                feed_.current().has_value());
+      flow_.key(flowKey(e, press, move), monotonicMs(),
+                feed_.current() ? Scramble::Shown : Scramble::Awaited);
   if (fx.toggleAlgs) {
     return toggleAlgs();
   }
@@ -562,13 +523,13 @@ void AttemptPage::onHoldTimer() {
   std::int64_t now = monotonicMs();
   apply(flow_.tick(now, QApplication::activePopupWidget() ||
                             QApplication::activeModalWidget()));
-  if (flow_.hold() == AttemptFlow::Hold::Holding && !holdTimer_.isActive()) {
+  if (flow_.hold() == HoldCue::Holding && !holdTimer_.isActive()) {
     holdTimer_.start(static_cast<int>(flow_.holdLeft(now)));
   }
 }
 
 void AttemptPage::showHold() {
-  using H = AttemptFlow::Hold;
+  using H = HoldCue;
   H hold = flow_.hold();
   if (hold == H::None) {
     holdTimer_.stop();
@@ -690,15 +651,15 @@ void AttemptPage::showDetails(int index) {
     return;
   }
   const MoveCountAttempt &a = attempts[static_cast<std::size_t>(index)];
-  QList<QPair<QString, QString>> rows;
+  QList<DetailRow> rows;
   if (a.counted) {
     rows.append({tr("Moves"), qs(formatAttempt(a))});
   }
   addDetails(rows, a);
   rows.append({tr("Date"), dateTimeText(a.timestamp)});
-  rows.append({"Scramble", qs(a.scramble)});
+  rows.append({tr("Scramble"), qs(a.scramble), true});
   if (!a.solution.empty()) {
-    rows.append({"Solution", qs(a.solution)});
+    rows.append({tr("Solution"), qs(a.solution), true});
   }
   rows.append({tr("Comment"), qs(a.comment)});
   showSolveDetails(this, tr("Solve #%1").arg(index + 1), rows,

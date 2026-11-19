@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QWidget>
 
+#include <map>
 #include <optional>
 
 class QCheckBox;
@@ -96,31 +97,30 @@ private:
   VirtualAttempt attempt_;
   AlgFollower follower_;
   QFutureWatcher<GeneratedScramble> watcher_;
-  int scrambleRequest_ = 0;
   bool loading_ = false;
 
-  QComboBox *sessionBox_;
-  QComboBox *cubeBox_;
-  QComboBox *orderBox_;
-  QSpinBox *repsBox_;
-  QSpinBox *warmupBox_;
-  QSpinBox *trimBox_;
-  QCheckBox *randomAufBox_;
-  QTableWidget *entries_;
-  QLabel *caseLabel_;
-  QLabel *algLabel_;
-  QLabel *diagram_;
-  QLabel *scrambleLabel_;
-  CubeView *cubeView_;
-  QWidget *viewRow_;
-  TimeDisplay *display_;
-  HintBar *status_;
-  QComboBox *windowBox_;
-  QComboBox *chartBox_;
-  QTableWidget *compare_;
-  LabChart *chart_;
-  QTableWidget *times_;
-  QTabWidget *bottom_;
+  QComboBox *sessionBox_ = nullptr;
+  QComboBox *cubeBox_ = nullptr;
+  QComboBox *orderBox_ = nullptr;
+  QSpinBox *repsBox_ = nullptr;
+  QSpinBox *warmupBox_ = nullptr;
+  QSpinBox *trimBox_ = nullptr;
+  QCheckBox *randomAufBox_ = nullptr;
+  QTableWidget *entries_ = nullptr;
+  QLabel *caseLabel_ = nullptr;
+  QLabel *algLabel_ = nullptr;
+  QLabel *diagram_ = nullptr;
+  QLabel *scrambleLabel_ = nullptr;
+  CubeView *cubeView_ = nullptr;
+  QWidget *viewRow_ = nullptr;
+  TimeDisplay *display_ = nullptr;
+  HintBar *status_ = nullptr;
+  QComboBox *windowBox_ = nullptr;
+  QComboBox *chartBox_ = nullptr;
+  QTableWidget *compare_ = nullptr;
+  LabChart *chart_ = nullptr;
+  QTableWidget *times_ = nullptr;
+  QTabWidget *bottom_ = nullptr;
 
   LabSession &session();
   const LabSession &session() const;
@@ -129,9 +129,15 @@ private:
   void loadSessions();
   void loadSessionOptions();
   void optionsChanged();
-  void fillEntries();
-  void fillCompare();
-  void fillTimes();
+  // The names of the cases a fill has looked up (none for a case that is
+  // gone), so that each is looked up once however many rows show it. Made
+  // anew for every refresh: cases and sets change elsewhere.
+  using CaseNames = std::map<LabCaseKey, std::optional<QString>>;
+  const std::optional<QString> &caseName(CaseNames &names,
+                                         const LabCaseKey &key) const;
+  void fillEntries(CaseNames &names);
+  void fillCompare(CaseNames &names);
+  void fillTimes(CaseNames &names);
   LabWindow window() const;
   WarmupOf warmup() const;
 
@@ -152,7 +158,9 @@ private:
   void showStatus();
   bool stepDone() const;
   void virtualTurn(Move m, std::int64_t now);
-  void finish(std::int64_t ms, bool dnf);
+  // How a test solve ended: the step done, or (virtual cube) not: a DNF.
+  enum class Result { Solved, Dnf };
+  void finish(std::int64_t ms, Result result);
   void resetCube();
   void toggleDnf();
   void deleteLast();

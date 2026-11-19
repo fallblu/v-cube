@@ -8,6 +8,7 @@
 
 #include <QSettings>
 
+#include <algorithm>
 #include <array>
 
 namespace vcube {
@@ -31,7 +32,7 @@ std::optional<ResolvedCase> resolveLabCase(const AlgLibrary &library,
     r.spec.free = r.free;
     // From above when only the last layer is unsolved.
     PieceMask ll;
-    ll.lastLayer(true, true, true);
+    ll.lastLayer(Free::PermAndOri, Free::PermAndOri);
     r.spec.view =
         withinMask(r.state, ll) ? DiagramView::TopLayer : DiagramView::Iso3D;
     return r;
@@ -70,31 +71,59 @@ QPixmap labDiagram(const ResolvedCase &c, const AppSettings &settings, int size,
       look, dpr);
 }
 
+const CandidateFacts &CandidateCache::of(const ResolvedCase &c,
+                                         const std::string &alg) {
+  if (c.state != state_ || c.free != free_ || c.aufBefore != aufBefore_ ||
+      c.aufAfter != aufAfter_) {
+    facts_.clear();
+    state_ = c.state;
+    free_ = c.free;
+    aufBefore_ = c.aufBefore;
+    aufAfter_ = c.aufAfter;
+  }
+  auto found = facts_.find(alg);
+  if (found != facts_.end()) {
+    return found->second;
+  }
+  CandidateFacts f;
+  f.key = labAlgKey(alg);
+  f.moves = parseAlgOrEmpty(f.key);
+  f.counts = moveCounts(f.moves);
+  f.rotations = std::any_of(f.moves.begin(), f.moves.end(),
+                            [](Move m) { return isRotation(m.type); });
+  if (!f.moves.empty()) {
+    f.fit = fitAlg(c.state, f.moves, c.free, aufsOf(c));
+  }
+  if (f.fit) {
+    f.shown = qs(withAufs(f.key, *f.fit));
+  } else {
+    AlgCheck check = checkAlg(c.state, f.key, c.free, aufsOf(c));
+    f.shown = qs(f.key) + "   (" + qs(describeCheck(check)) + ")";
+  }
+  return facts_.emplace(alg, std::move(f)).first->second;
+}
+
 std::vector<CandidateRow> candidateRows(const ResolvedCase &c,
-                                        const AlgLabStore &store) {
+                                        const AlgLabStore &store,
+                                        CandidateCache &cache) {
   std::vector<CandidateRow> rows;
+  std::unordered_map<std::string, std::size_t> listed; // by key
   auto add = [&](const std::string &alg, CandidateSource source, bool inSet) {
-    std::string key = labAlgKey(alg);
-    for (auto &r : rows) {
-      if (r.alg == key) {
-        r.inSet = r.inSet || inSet;
-        return;
-      }
+    const CandidateFacts &f = cache.of(c, alg);
+    auto [at, isNew] = listed.try_emplace(f.key, rows.size());
+    if (!isNew) {
+      rows[at->second].inSet = rows[at->second].inSet || inSet;
+      return;
     }
     CandidateRow row;
-    row.alg = key;
+    row.alg = f.key;
     row.source = source;
     row.inSet = inSet;
-    auto parsed = parseAlg(key);
-    if (parsed && !parsed.alg.empty()) {
-      row.fit = fitAlg(c.state, parsed.alg, c.free, c.aufBefore, c.aufAfter);
-    }
-    if (row.fit) {
-      row.shown = qs(withAufs(key, *row.fit));
-    } else {
-      AlgCheck check = checkAlg(c.state, key, c.free, c.aufBefore, c.aufAfter);
-      row.shown = qs(key) + "   (" + qs(describeCheck(check)) + ")";
-    }
+    row.moves = f.moves;
+    row.counts = f.counts;
+    row.rotations = f.rotations;
+    row.fit = f.fit;
+    row.shown = f.shown;
     rows.push_back(std::move(row));
   };
   for (const auto &a : c.setAlgs) {

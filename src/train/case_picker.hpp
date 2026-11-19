@@ -7,6 +7,7 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -19,6 +20,10 @@ enum class PickMode : std::uint8_t {
   InOrder,  // in list order
   Recap,    // every case once, in a random order, then nothing
 };
+// "random", "weighted", "inorder" or "recap", as settings keep it.
+std::string_view pickModeId(PickMode m);
+// nullopt for any other text.
+std::optional<PickMode> pickModeFromId(std::string_view id);
 
 // The time Weighted compares a pool's cases with: `targetMs` when there is
 // one, else the mean of the cases' recent means in `mode`.

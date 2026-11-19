@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cube/move.hpp"
+#include "train/keys.hpp"
 #include "train/srs.hpp"
 
 #include <cstddef>
@@ -52,28 +53,9 @@ public:
     QuizDone,
   };
 
-  // A key as Learn sees it; Digit is 1-9 (see KeyEvent::digit).
-  enum class Key {
-    Space,
-    Enter,
-    Tab,
-    Backspace,
-    Escape,
-    Left,
-    Right,
-    Home,
-    Digit,
-    Undo, // Ctrl+Z
-    List, // F9
-    Other
-  };
-  struct KeyEvent {
-    Key key = Key::Other;
-    bool press = true;
-    bool shift = false;
-    int digit = 0;            // for Key::Digit
-    std::optional<Move> move; // the turn the key makes, if any
-  };
+  // Of the digits Learn reads 1-9.
+  using Key = TrainKey;
+  using KeyEvent = TrainKeyEvent;
 
   enum class Action {
     None,

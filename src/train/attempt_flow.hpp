@@ -1,5 +1,6 @@
 #pragma once
 
+#include "train/keys.hpp"
 #include "train/move_count.hpp"
 #include "train/typed_count.hpp"
 
@@ -30,9 +31,7 @@ namespace vcube {
 class AttemptFlow {
 public:
   enum class Phase : std::uint8_t { Inspect, Solving, Done };
-  // Space held to start a solve: it must be held for the hold time (Ready)
-  // before releasing it starts.
-  enum class Hold : std::uint8_t { None, Holding, Ready };
+  using Hold = HoldCue;
 
   struct Config {
     bool moveCount = false; // Move Count, not Untimed
@@ -41,33 +40,11 @@ public:
     bool autoStop = false; // Untimed: the solve ends when the cube is solved
   };
 
-  // A key as the page reads it.
-  enum class Key : std::uint8_t {
-    Turn, // a turning key, on the virtual cube
-    Space,
-    Enter,
-    Escape,
-    Tab,
-    Backspace,
-    Left,
-    Right,
-    Digit,
-    // The keys for the last attempt and the scramble.
-    Dnf,     // Alt+3
-    Comment, // Alt+C
-    Review,  // Alt+R
-    Undo,    // Ctrl+Z
-    Skip,    // Ctrl+Right
-    Delete,  // Delete
-    Other,
-  };
-  struct KeyEvent {
-    Key key = Key::Other;
-    bool press = true;
-    bool autoRepeat = false;
-    int digit = 0;         // for Key::Digit
-    bool modified = false; // Ctrl, Alt or Meta held
-  };
+  // Of the shared keys the flow reads Turn (a turning key, on the virtual
+  // cube), the chords for the last attempt and the scramble, and a Delete
+  // with nothing held.
+  using Key = TrainKey;
+  using KeyEvent = TrainKeyEvent;
 
   // A recorded attempt solved again from its review: not recorded, and
   // compared with the attempt it repeats.
@@ -152,8 +129,8 @@ public:
   // Move Count, physical: the count typed so far.
   const TypedCount &entry() const { return entry_; }
 
-  // A key down or up. `scrambleReady`: a scramble is shown to solve.
-  Effects key(const KeyEvent &k, std::int64_t now, bool scrambleReady);
+  // A key down or up.
+  Effects key(const KeyEvent &k, std::int64_t now, Scramble scramble);
   // Advances a hold. With `popupOpen` (a popup or dialog took the keys)
   // a hold is let go of, as its release won't come.
   Effects tick(std::int64_t now, bool popupOpen);
@@ -167,7 +144,8 @@ public:
   // solved), with the solution's count.
   Effects solveEnded(bool reached, int count, const std::string &solution);
   // Move Count, physical: records the count typed (or DNF).
-  Effects recordTyped(bool dnf, bool scrambleReady);
+  enum class Typed : std::uint8_t { Count, Dnf };
+  Effects recordTyped(Typed typed, Scramble scramble);
   // Skip scramble: on to the next one, or from a retry back to the
   // scrambles.
   Effects skip();
@@ -201,11 +179,11 @@ private:
 
   void setPhase(Phase p, Effects &e);
   void cancelHold(Effects &e);
-  void pressStart(std::int64_t now, bool ready, Effects &e);
-  void releaseStart(bool ready, Effects &e);
+  void pressStart(std::int64_t now, Scramble scramble, Effects &e);
+  void releaseStart(Scramble scramble, Effects &e);
   void next(Effects &e);
   void endRetry(Effects &e);
-  void recordTyped(bool dnf, bool ready, Effects &e);
+  void recordTyped(Typed typed, Scramble scramble, Effects &e);
   void skip(Effects &e);
 };
 

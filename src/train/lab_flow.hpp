@@ -1,5 +1,7 @@
 #pragma once
 
+#include "train/keys.hpp"
+
 #include <cstdint>
 
 namespace vcube {
@@ -15,15 +17,9 @@ namespace vcube {
 class LabFlow {
 public:
   enum class Phase { Idle, Ready, Running, Done, Finished };
-  enum class Key { Space, Escape, Backspace, Delete, Move, Modifier, Other };
-
-  struct Input {
-    Key key = Key::Other;
-    bool press = true;
-    // No Ctrl, Alt or Meta is held.
-    bool plain = true;
-    std::int64_t now = 0; // ms, on the clock stopped() was given
-  };
+  // Turn is a key that turns the virtual cube.
+  using Key = TrainKey;
+  using KeyEvent = TrainKeyEvent;
 
   enum class Action {
     None,
@@ -59,7 +55,8 @@ public:
     stoppedAt_ = now;
   }
 
-  Step key(const Input &in) const;
+  // `now` is in ms, on the clock stopped() was given.
+  Step key(const KeyEvent &k, std::int64_t now) const;
 
 private:
   Phase phase_ = Phase::Idle;

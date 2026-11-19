@@ -1,6 +1,6 @@
 #include "app/lab_test_panel.hpp"
-#include "app/key_router.hpp"
 #include "app/page_parts.hpp"
+#include "app/train_keys.hpp"
 
 #include "app/app_settings.hpp"
 #include "app/colours.hpp"
@@ -36,10 +36,11 @@ namespace {
 
 constexpr int kDiagramSize = 120;
 
-QTableWidgetItem *item(const QString &text, bool number = false) {
+enum class Cell { Text, Number }; // numbers are set to the right
+QTableWidgetItem *item(const QString &text, Cell cell = Cell::Text) {
   auto *it = new QTableWidgetItem(text);
   it->setFlags(it->flags() & ~Qt::ItemIsEditable);
-  if (number) {
+  if (cell == Cell::Number) {
     it->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
   }
   return it;
@@ -237,8 +238,10 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   }
   connect(randomAufBox_, &QCheckBox::toggled, this,
           &LabTestPanel::optionsChanged);
-  connect(windowBox_, &QComboBox::currentIndexChanged, this,
-          &LabTestPanel::fillCompare);
+  connect(windowBox_, &QComboBox::currentIndexChanged, this, [this] {
+    CaseNames names;
+    fillCompare(names);
+  });
   connect(chartBox_, &QComboBox::currentIndexChanged, this, [this](int i) {
     chart_->setMode(i == 1 ? LabChart::Mode::Trend : LabChart::Mode::Spread);
   });
@@ -292,7 +295,8 @@ void LabTestPanel::applySettings() {
   if (current_) {
     showCurrent();
   }
-  fillCompare();
+  CaseNames names;
+  fillCompare(names);
 }
 
 void LabTestPanel::loadSessions() {
@@ -386,9 +390,10 @@ void LabTestPanel::refresh() {
   // session chosen, since the current alg was set up.
   rebaseCurrent();
   // Entries whose case is gone stay listed, marked, until removed.
-  fillEntries();
-  fillCompare();
-  fillTimes();
+  CaseNames names;
+  fillEntries(names);
+  fillCompare(names);
+  fillTimes(names);
   if (current_) {
     if (auto c = resolveLabCase(library_, store_, current_->c.key)) {
       current_->c = *c;
@@ -399,35 +404,48 @@ void LabTestPanel::refresh() {
   }
 }
 
-void LabTestPanel::fillEntries() {
+const std::optional<QString> &
+LabTestPanel::caseName(CaseNames &names, const LabCaseKey &key) const {
+  auto [at, isNew] = names.try_emplace(key);
+  if (isNew) {
+    if (auto c = resolveLabCase(library_, store_, key)) {
+      at->second = c->name;
+    }
+  }
+  return at->second;
+}
+
+void LabTestPanel::fillEntries(CaseNames &names) {
   const LabSession &s = session();
   std::vector<int> done = repsDone(s, store_.attempts());
   entries_->setRowCount(static_cast<int>(s.entries.size()));
   for (std::size_t i = 0; i < s.entries.size(); ++i) {
     const LabEntry &e = s.entries[i];
-    auto c = resolveLabCase(library_, store_, e.key);
+    const auto &name = caseName(names, e.key);
     int row = static_cast<int>(i);
-    entries_->setItem(row, 0, item(c ? c->name : tr("(case gone)")));
+    entries_->setItem(row, 0, item(name ? *name : tr("(case gone)")));
     entries_->setItem(row, 1, item(qs(e.alg)));
-    entries_->setItem(row, 2,
-                      item(QString("%1/%2").arg(done[i]).arg(s.reps), true));
+    entries_->setItem(
+        row, 2, item(QString("%1/%2").arg(done[i]).arg(s.reps), Cell::Number));
   }
   entries_->resizeColumnToContents(0);
   entries_->resizeColumnToContents(2);
 }
 
-void LabTestPanel::fillCompare() {
+void LabTestPanel::fillCompare(CaseNames &names) {
   const LabSession &s = session();
   LabWindow w = window();
+  const LabAttemptGroups attempts(store_.attempts());
+  const WarmupOf warm = warmup();
   compare_->setSortingEnabled(false);
   compare_->setRowCount(static_cast<int>(s.entries.size()));
   std::vector<LabChart::Series> series;
   const int d = settings_.decimals;
   for (std::size_t i = 0; i < s.entries.size(); ++i) {
     const LabEntry &e = s.entries[i];
-    LabStats st = labStats(store_.attempts(), e.key, e.alg, s.cube, w,
-                           s.trimPercent, warmup());
-    auto c = resolveLabCase(library_, store_, e.key);
+    const std::span<const LabAttempt> own = attempts.of(e.key, e.alg);
+    LabStats st = labStats(own, e.key, e.alg, s.cube, w, s.trimPercent, warm);
+    const auto &name = caseName(names, e.key);
     int row = static_cast<int>(i);
     QColor colour = labSeriesColour(i);
     auto *algItem = item(qs(e.alg));
@@ -437,7 +455,7 @@ void LabTestPanel::fillCompare() {
       algItem->setIcon(cube_painter::caseIcon(swatch));
     }
     compare_->setItem(row, 0, algItem);
-    compare_->setItem(row, 1, item(c ? c->name : QString()));
+    compare_->setItem(row, 1, item(name ? *name : QString()));
     auto num = [&](int col, const QString &text, std::optional<double> key) {
       compare_->setItem(row, col, new SortItem(text, key));
     };
@@ -462,8 +480,7 @@ void LabTestPanel::fillCompare() {
       LabChart::Series ser;
       ser.name = qs(e.alg);
       ser.colour = colour;
-      for (const auto &a :
-           labTimed(store_.attempts(), e.key, e.alg, s.cube, w, warmup())) {
+      for (const auto &a : labTimed(own, e.key, e.alg, s.cube, w, warm)) {
         if (!a.dnf) {
           ser.times.push_back(a.timeMs);
         }
@@ -476,7 +493,7 @@ void LabTestPanel::fillCompare() {
   chart_->setSeries(std::move(series));
 }
 
-void LabTestPanel::fillTimes() {
+void LabTestPanel::fillTimes(CaseNames &names) {
   const LabSession &s = session();
   std::vector<std::size_t> rows;
   for (std::size_t i = 0; i < store_.attempts().size(); ++i) {
@@ -490,17 +507,17 @@ void LabTestPanel::fillTimes() {
   for (std::size_t r = 0; r < rows.size(); ++r) {
     std::size_t i = rows[rows.size() - 1 - r];
     const LabAttempt &a = store_.attempts()[i];
-    auto c = resolveLabCase(library_, store_, a.key);
+    const auto &name = caseName(names, a.key);
     int row = static_cast<int>(r);
-    auto *num = item(QString::number(rows.size() - r), true);
+    auto *num = item(QString::number(rows.size() - r), Cell::Number);
     num->setData(Qt::UserRole, static_cast<qulonglong>(i));
     times_->setItem(row, 0, num);
-    times_->setItem(row, 1, item(c ? c->name : QString()));
+    times_->setItem(row, 1, item(name ? *name : QString()));
     times_->setItem(row, 2, item(qs(a.alg)));
     times_->setItem(row, 3,
                     item(a.dnf ? "DNF(" + qs(formatTime(a.timeMs, d)) + ")"
                                : qs(formatTime(a.timeMs, d)),
-                         true));
+                         Cell::Number));
     QStringList notes;
     if (a.deviated) {
       notes << (a.include ? tr("left the alg (counted)")
@@ -695,10 +712,9 @@ void LabTestPanel::setUp(std::size_t entry) {
   cur.entry = entry;
   cur.c = *c;
   cur.alg = e.alg;
-  cur.setup = labSetup(c->state, e.alg, c->free, c->aufBefore, c->aufAfter,
-                       s.randomAuf, rng_);
-  auto d =
-      displayOrientation(c->state, e.alg, c->free, c->aufBefore, c->aufAfter);
+  cur.setup = labSetup(c->state, e.alg, c->free, aufsOf(*c),
+                       s.randomAuf ? LabAuf::Random : LabAuf::Done, rng_);
+  auto d = displayOrientation(c->state, e.alg, c->free, aufsOf(*c));
   cur.shownAlg = qs(d ? d->alg : e.alg);
   current_ = std::move(cur);
   flow_.setPhase(Phase::Ready);
@@ -747,8 +763,7 @@ void LabTestPanel::requestScramble() {
   if (!current_) {
     return;
   }
-  int request = ++scrambleRequest_;
-  watcher_.setProperty("request", request);
+  // setFuture() drops the result of a request still on its way.
   CubieCube state = current_->setup;
   ColourNeutrality hold;
   watcher_.setFuture(generateScramble(
@@ -756,8 +771,7 @@ void LabTestPanel::requestScramble() {
 }
 
 void LabTestPanel::scrambleReady() {
-  if (watcher_.property("request").toInt() != scrambleRequest_ || !current_ ||
-      onVirtual()) {
+  if (!current_ || onVirtual()) {
     return;
   }
   current_->scramble = watcher_.result().text;
@@ -875,11 +889,12 @@ void LabTestPanel::virtualTurn(Move m, std::int64_t now) {
   cubeView_->animateMove(m);
   if (flow_.phase() == Phase::Running && stepDone()) {
     timer_.stopNow(now);
-    finish(timer_.elapsed(now), false);
+    finish(timer_.elapsed(now), Result::Solved);
   }
 }
 
-void LabTestPanel::finish(std::int64_t ms, bool dnf) {
+void LabTestPanel::finish(std::int64_t ms, Result result) {
+  const bool dnf = result == Result::Dnf;
   tick_.stop();
   flow_.stopped(monotonicMs());
   if (!current_) {
@@ -940,24 +955,17 @@ void LabTestPanel::deleteLast() {
 
 bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
   const std::int64_t now = monotonicMs();
-  const int key = e->key();
   std::optional<Move> move =
       onVirtual() ? settings_.keymap.lookup(e) : std::optional<Move>();
   using K = LabFlow::Key;
-  LabFlow::Input in;
-  in.key = key == Qt::Key_Space       ? K::Space
-           : key == Qt::Key_Escape    ? K::Escape
-           : key == Qt::Key_Backspace ? K::Backspace
-           : key == Qt::Key_Delete    ? K::Delete
-           : isModifierKey(key)       ? K::Modifier
-           : move                     ? K::Move
-                                      : K::Other;
-  in.press = press;
-  in.plain = !(e->modifiers() &
-               (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
-  in.now = now;
+  LabFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::None);
+  // The flow's own keys and the modifiers never turn the cube.
+  if (move && k.key != K::Space && k.key != K::Escape &&
+      k.key != K::Backspace && k.key != K::Delete && k.key != K::Modifier) {
+    k.key = K::Turn;
+  }
   flow_.setVirtualCube(onVirtual());
-  const LabFlow::Step step = flow_.key(in);
+  const LabFlow::Step step = flow_.key(k, now);
   using A = LabFlow::Action;
   switch (step.action) {
   case A::None:
@@ -1003,14 +1011,14 @@ bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
     break;
   case A::StopVirtual:
     timer_.stopNow(now);
-    finish(timer_.elapsed(now), !stepDone());
+    finish(timer_.elapsed(now), stepDone() ? Result::Solved : Result::Dnf);
     break;
   case A::StopPhysical:
     timer_.pressStop(now);
     if (auto r = timer_.takeResult()) {
-      finish(r->timeMs, false);
+      finish(r->timeMs, Result::Solved);
     } else {
-      finish(timer_.elapsed(now), false);
+      finish(timer_.elapsed(now), Result::Solved);
     }
     break;
   case A::Cancel:

@@ -16,9 +16,9 @@ using K = AttemptFlow::Key;
 using Phase = AttemptFlow::Phase;
 using HoldState = AttemptFlow::Hold;
 
-AttemptFlow flow(bool moveCount, bool virt = true, bool autoStop = false) {
+AttemptFlow flow(const AttemptFlow::Config &config) {
   AttemptFlow f;
-  f.setConfig({moveCount, virt, 300, autoStop});
+  f.setConfig(config);
   return f;
 }
 
@@ -38,9 +38,9 @@ AttemptFlow::KeyEvent up(K k) {
 
 // Holds Space long enough and lets go: the solve starts.
 void start(AttemptFlow &f, std::int64_t at = 0) {
-  f.key(down(K::Space), at, true);
+  f.key(down(K::Space), at, Scramble::Shown);
   f.tick(at + 300, false);
-  f.key(up(K::Space), at + 310, true);
+  f.key(up(K::Space), at + 310, Scramble::Shown);
 }
 
 MoveCountAttempt attempt(int moves, bool dnf = false,
@@ -172,8 +172,8 @@ TEST_CASE("overOptimal and worstAttempts rank against the optimal",
 
 TEST_CASE("AttemptFlow starts a solve when Space is held and released",
           "[attempt]") {
-  AttemptFlow f = flow(false);
-  auto e = f.key(down(K::Space), 0, true);
+  AttemptFlow f = flow({.moveCount = false});
+  auto e = f.key(down(K::Space), 0, Scramble::Shown);
   CHECK(e.used);
   CHECK(e.holdStarted);
   CHECK(e.showHold);
@@ -185,10 +185,10 @@ TEST_CASE("AttemptFlow starts a solve when Space is held and released",
   CHECK(e.showHold);
   CHECK(f.hold() == HoldState::Ready);
   // Other keys wait while Space is held.
-  e = f.key(down(K::Turn), 305, true);
+  e = f.key(down(K::Turn), 305, Scramble::Shown);
   CHECK(e.used);
   CHECK_FALSE(e.turn);
-  e = f.key(up(K::Space), 310, true);
+  e = f.key(up(K::Space), 310, Scramble::Shown);
   CHECK(e.showHold);
   CHECK(e.startSolve);
   CHECK(e.phase);
@@ -200,60 +200,60 @@ TEST_CASE("AttemptFlow starts a solve when Space is held and released",
 TEST_CASE("AttemptFlow: a short hold doesn't start, nor one without a "
           "scramble",
           "[attempt]") {
-  AttemptFlow f = flow(true);
-  f.key(down(K::Space), 0, true);
-  auto e = f.key(up(K::Space), 100, true);
+  AttemptFlow f = flow({.moveCount = true});
+  f.key(down(K::Space), 0, Scramble::Shown);
+  auto e = f.key(up(K::Space), 100, Scramble::Shown);
   CHECK(e.showHold);
   CHECK_FALSE(e.startSolve);
   CHECK(f.phase() == Phase::Inspect);
   CHECK_FALSE(f.isHolding());
-  e = f.key(down(K::Space), 200, false);
+  e = f.key(down(K::Space), 200, Scramble::Awaited);
   CHECK(e.used);
   CHECK(e.notice == AttemptFlow::Notice::WaitToStart);
   CHECK_FALSE(f.isHolding());
   // The scramble went away during the hold.
-  f.key(down(K::Space), 300, true);
+  f.key(down(K::Space), 300, Scramble::Shown);
   f.tick(600, false);
-  e = f.key(up(K::Space), 610, false);
+  e = f.key(up(K::Space), 610, Scramble::Awaited);
   CHECK(e.notice == AttemptFlow::Notice::WaitToStart);
   CHECK(f.phase() == Phase::Inspect);
   // A popup takes the release, or the window loses the keyboard.
-  f.key(down(K::Space), 700, true);
+  f.key(down(K::Space), 700, Scramble::Shown);
   e = f.tick(750, true);
   CHECK(e.showHold);
   CHECK_FALSE(f.isHolding());
-  f.key(down(K::Space), 800, true);
+  f.key(down(K::Space), 800, Scramble::Shown);
   CHECK(f.dropHold().showHold);
   CHECK_FALSE(f.dropHold().showHold);
 }
 
 TEST_CASE("AttemptFlow: Esc in each phase", "[attempt]") {
-  AttemptFlow f = flow(false);
+  AttemptFlow f = flow({.moveCount = false});
   // Holding: lets go.
-  f.key(down(K::Space), 0, true);
-  auto e = f.key(down(K::Escape), 10, true);
+  f.key(down(K::Space), 0, Scramble::Shown);
+  auto e = f.key(down(K::Escape), 10, Scramble::Shown);
   CHECK(e.showHold);
   CHECK_FALSE(e.restartCube);
   CHECK_FALSE(f.isHolding());
   // Inspecting: the scramble again.
-  e = f.key(down(K::Escape), 20, true);
+  e = f.key(down(K::Escape), 20, Scramble::Shown);
   CHECK(e.restartCube);
   CHECK(e.phase);
   CHECK(f.phase() == Phase::Inspect);
   // Solving: the scramble again, to inspect.
   start(f, 100);
   REQUIRE(f.isBusy());
-  e = f.key(down(K::Escape), 1000, true);
+  e = f.key(down(K::Escape), 1000, Scramble::Shown);
   CHECK(e.restartCube);
   CHECK(e.entryChanged);
   CHECK(f.phase() == Phase::Inspect);
   // Done: the cube solved, to turn freely.
   start(f, 2000);
-  e = f.key(down(K::Space), 3000, true);
+  e = f.key(down(K::Space), 3000, Scramble::Shown);
   REQUIRE(e.endSolve);
   f.solveEnded(true, 20, "R");
   REQUIRE(f.phase() == Phase::Done);
-  e = f.key(down(K::Escape), 3100, true);
+  e = f.key(down(K::Escape), 3100, Scramble::Shown);
   CHECK(e.solvedCube);
   CHECK_FALSE(e.restartCube);
   CHECK(f.phase() == Phase::Done);
@@ -261,12 +261,12 @@ TEST_CASE("AttemptFlow: Esc in each phase", "[attempt]") {
 
 TEST_CASE("AttemptFlow: Untimed ends in Done, Space or Enter goes on",
           "[attempt]") {
-  AttemptFlow f = flow(false);
+  AttemptFlow f = flow({.moveCount = false});
   // Enter isn't for the page before the solve is done.
-  CHECK_FALSE(f.key(down(K::Enter), 0, true).used);
+  CHECK_FALSE(f.key(down(K::Enter), 0, Scramble::Shown).used);
   start(f);
-  CHECK_FALSE(f.key(down(K::Enter), 400, true).used);
-  auto e = f.key(down(K::Space), 500, true);
+  CHECK_FALSE(f.key(down(K::Enter), 400, Scramble::Shown).used);
+  auto e = f.key(down(K::Space), 500, Scramble::Shown);
   CHECK(e.endSolve);
   e = f.solveEnded(false, 31, "R U");
   REQUIRE(e.record);
@@ -277,19 +277,19 @@ TEST_CASE("AttemptFlow: Untimed ends in Done, Space or Enter goes on",
   CHECK(e.notReached);
   CHECK_FALSE(e.nextScramble);
   CHECK(f.phase() == Phase::Done);
-  e = f.key(down(K::Enter), 600, true);
+  e = f.key(down(K::Enter), 600, Scramble::Shown);
   CHECK(e.used);
   CHECK(e.nextScramble);
   CHECK(f.phase() == Phase::Inspect);
   // The next scramble is shown.
   CHECK(f.scrambleShown().phase);
   start(f, 700);
-  f.key(down(K::Space), 1500, true);
+  f.key(down(K::Space), 1500, Scramble::Shown);
   f.solveEnded(true, 30, "R");
-  e = f.key(down(K::Space), 1600, true);
+  e = f.key(down(K::Space), 1600, Scramble::Shown);
   CHECK(e.nextScramble);
   // The release that follows does nothing.
-  e = f.key(up(K::Space), 1650, true);
+  e = f.key(up(K::Space), 1650, Scramble::Shown);
   CHECK(e.used);
   CHECK_FALSE(e.startSolve);
   CHECK_FALSE(e.showHold);
@@ -297,10 +297,11 @@ TEST_CASE("AttemptFlow: Untimed ends in Done, Space or Enter goes on",
 
 TEST_CASE("AttemptFlow: Move Count goes straight on to the next scramble",
           "[attempt]") {
-  AttemptFlow f = flow(true);
-  CHECK_FALSE(f.key(down(K::Tab), 0, true).used); // no algs in Move Count
+  AttemptFlow f = flow({.moveCount = true});
+  CHECK_FALSE(
+      f.key(down(K::Tab), 0, Scramble::Shown).used); // no algs in Move Count
   start(f);
-  auto e = f.key(down(K::Space), 1000, true);
+  auto e = f.key(down(K::Space), 1000, Scramble::Shown);
   REQUIRE(e.endSolve);
   e = f.solveEnded(true, 7, "R U");
   REQUIRE(e.record);
@@ -310,123 +311,126 @@ TEST_CASE("AttemptFlow: Move Count goes straight on to the next scramble",
   CHECK_FALSE(e.analyse);
   CHECK(f.phase() == Phase::Inspect);
   // The cube being solved doesn't end a Move Count solve.
-  f = flow(true, true, true);
+  f = flow({.moveCount = true, .autoStop = true});
   start(f);
   CHECK_FALSE(f.turned(true).endSolve);
 }
 
 TEST_CASE("AttemptFlow: auto stop ends an Untimed solve once solved",
           "[attempt]") {
-  AttemptFlow f = flow(false, true, true);
+  AttemptFlow f = flow({.moveCount = false, .autoStop = true});
   CHECK_FALSE(f.turned(true).endSolve); // not solving yet
   start(f);
   CHECK_FALSE(f.turned(false).endSolve);
   CHECK(f.turned(true).endSolve);
-  f = flow(false, true, false);
+  f = flow({.moveCount = false, .autoStop = false});
   start(f);
   CHECK_FALSE(f.turned(true).endSolve);
 }
 
 TEST_CASE("AttemptFlow: turning keys and Tab", "[attempt]") {
-  AttemptFlow f = flow(false);
-  auto e = f.key(down(K::Turn), 0, true);
+  AttemptFlow f = flow({.moveCount = false});
+  auto e = f.key(down(K::Turn), 0, Scramble::Shown);
   CHECK(e.used);
   CHECK(e.turn);
-  e = f.key(up(K::Turn), 0, true);
+  e = f.key(up(K::Turn), 0, Scramble::Shown);
   CHECK(e.used);
   CHECK_FALSE(e.turn);
   AttemptFlow::KeyEvent repeat = down(K::Turn);
   repeat.autoRepeat = true;
-  CHECK_FALSE(f.key(repeat, 0, true).turn);
-  CHECK(f.key(down(K::Tab), 0, true).toggleAlgs);
-  CHECK_FALSE(f.key(down(K::Other), 0, true).used);
+  CHECK_FALSE(f.key(repeat, 0, Scramble::Shown).turn);
+  CHECK(f.key(down(K::Tab), 0, Scramble::Shown).toggleAlgs);
+  CHECK_FALSE(f.key(down(K::Other), 0, Scramble::Shown).used);
 }
 
 TEST_CASE("AttemptFlow: the keys for the last attempt", "[attempt]") {
-  AttemptFlow f = flow(false);
-  CHECK(f.key(down(K::Comment), 0, true).action ==
+  AttemptFlow f = flow({.moveCount = false});
+  CHECK(f.key(down(K::Comment), 0, Scramble::Shown).action ==
         AttemptFlow::Action::Comment);
-  CHECK(f.key(down(K::Review), 0, true).action == AttemptFlow::Action::Review);
-  CHECK(f.key(down(K::Undo), 0, true).action == AttemptFlow::Action::Undo);
-  CHECK(f.key(down(K::Delete), 0, true).action == AttemptFlow::Action::Delete);
-  auto e = f.key(down(K::Skip), 0, true);
+  CHECK(f.key(down(K::Review), 0, Scramble::Shown).action ==
+        AttemptFlow::Action::Review);
+  CHECK(f.key(down(K::Undo), 0, Scramble::Shown).action ==
+        AttemptFlow::Action::Undo);
+  CHECK(f.key(down(K::Delete), 0, Scramble::Shown).action ==
+        AttemptFlow::Action::Delete);
+  auto e = f.key(down(K::Skip), 0, Scramble::Shown);
   CHECK(e.nextScramble);
   CHECK(e.historyToEnd);
   // Used but not acted on when released, during a hold or a solve.
-  e = f.key(up(K::Delete), 0, true);
+  e = f.key(up(K::Delete), 0, Scramble::Shown);
   CHECK(e.used);
   CHECK(e.action == AttemptFlow::Action::None);
-  f.key(down(K::Space), 0, true);
-  e = f.key(down(K::Delete), 10, true);
+  f.key(down(K::Space), 0, Scramble::Shown);
+  e = f.key(down(K::Delete), 10, Scramble::Shown);
   CHECK(e.used);
   CHECK(e.action == AttemptFlow::Action::None);
-  f.key(down(K::Escape), 20, true);
+  f.key(down(K::Escape), 20, Scramble::Shown);
   start(f, 100);
-  e = f.key(down(K::Skip), 500, true);
+  e = f.key(down(K::Skip), 500, Scramble::Shown);
   CHECK(e.used);
   CHECK_FALSE(e.nextScramble);
   // Alt+3 records a DNF only in Move Count on a physical cube.
-  CHECK_FALSE(f.key(down(K::Dnf), 600, true).record);
+  CHECK_FALSE(f.key(down(K::Dnf), 600, Scramble::Shown).record);
 }
 
 TEST_CASE("AttemptFlow: Move Count on a physical cube has counts typed in",
           "[attempt]") {
-  AttemptFlow f = flow(true, false);
-  CHECK_FALSE(f.key(down(K::Space), 0, true).used);
-  auto e = f.key(down(K::Digit, 0), 0, true);
+  AttemptFlow f = flow({.moveCount = true, .virtualCube = false});
+  CHECK_FALSE(f.key(down(K::Space), 0, Scramble::Shown).used);
+  auto e = f.key(down(K::Digit, 0), 0, Scramble::Shown);
   CHECK(e.entryChanged);
-  f.key(down(K::Digit, 2), 0, true);
-  f.key(down(K::Digit, 3), 0, true);
-  f.key(down(K::Digit, 4), 0, true);
+  f.key(down(K::Digit, 2), 0, Scramble::Shown);
+  f.key(down(K::Digit, 3), 0, Scramble::Shown);
+  f.key(down(K::Digit, 4), 0, Scramble::Shown);
   CHECK(f.entry().text() == "234");
-  e = f.key(down(K::Digit, 5), 0, true); // three digits at most
+  e = f.key(down(K::Digit, 5), 0, Scramble::Shown); // three digits at most
   CHECK(e.used);
   CHECK_FALSE(e.entryChanged);
-  f.key(down(K::Backspace), 0, true);
+  f.key(down(K::Backspace), 0, Scramble::Shown);
   CHECK(f.entry().text() == "23");
   AttemptFlow::KeyEvent ctrl = down(K::Digit, 1);
   ctrl.modified = true;
-  CHECK_FALSE(f.key(ctrl, 0, true).used);
-  e = f.key(down(K::Enter), 0, false);
+  CHECK_FALSE(f.key(ctrl, 0, Scramble::Shown).used);
+  e = f.key(down(K::Enter), 0, Scramble::Awaited);
   CHECK(e.notice == AttemptFlow::Notice::WaitToRecord);
-  e = f.key(down(K::Enter), 0, true);
+  e = f.key(down(K::Enter), 0, Scramble::Shown);
   REQUIRE(e.record);
   CHECK(e.record->count == 23);
   CHECK_FALSE(e.record->dnf);
   CHECK(e.nextScramble);
   CHECK(f.entry().empty());
-  e = f.key(down(K::Enter), 0, true);
+  e = f.key(down(K::Enter), 0, Scramble::Shown);
   CHECK(e.notice == AttemptFlow::Notice::TypeFirst);
   CHECK_FALSE(e.record);
-  f.key(down(K::Digit, 9), 0, true);
-  f.key(down(K::Escape), 0, true);
+  f.key(down(K::Digit, 9), 0, Scramble::Shown);
+  f.key(down(K::Escape), 0, Scramble::Shown);
   CHECK(f.entry().empty());
   // Alt+3 records a DNF, with or without a count.
-  e = f.key(down(K::Dnf), 0, true);
+  e = f.key(down(K::Dnf), 0, Scramble::Shown);
   REQUIRE(e.record);
   CHECK(e.record->dnf);
   CHECK(e.nextScramble);
-  e = f.recordTyped(true, true);
+  e = f.recordTyped(AttemptFlow::Typed::Dnf, Scramble::Shown);
   CHECK(e.record);
 }
 
 TEST_CASE("AttemptFlow: Untimed on a physical cube steps through scrambles",
           "[attempt]") {
-  AttemptFlow f = flow(false, false);
+  AttemptFlow f = flow({.moveCount = false, .virtualCube = false});
   REQUIRE(f.scramblesOnly());
-  auto e = f.key(down(K::Space), 0, true);
+  auto e = f.key(down(K::Space), 0, Scramble::Shown);
   CHECK(e.forward);
   CHECK_FALSE(e.nextScramble);
-  CHECK(f.key(down(K::Right), 0, true).forward);
-  CHECK(f.key(down(K::Backspace), 0, true).back);
-  CHECK(f.key(down(K::Left), 0, true).back);
-  e = f.key(up(K::Left), 0, true);
+  CHECK(f.key(down(K::Right), 0, Scramble::Shown).forward);
+  CHECK(f.key(down(K::Backspace), 0, Scramble::Shown).back);
+  CHECK(f.key(down(K::Left), 0, Scramble::Shown).back);
+  e = f.key(up(K::Left), 0, Scramble::Shown);
   CHECK(e.used);
   CHECK_FALSE(e.back);
-  CHECK(f.key(down(K::Tab), 0, true).toggleAlgs);
-  CHECK_FALSE(f.key(up(K::Tab), 0, true).used);
-  CHECK_FALSE(f.key(down(K::Escape), 0, true).used);
-  CHECK_FALSE(f.key(down(K::Digit, 3), 0, true).used);
+  CHECK(f.key(down(K::Tab), 0, Scramble::Shown).toggleAlgs);
+  CHECK_FALSE(f.key(up(K::Tab), 0, Scramble::Shown).used);
+  CHECK_FALSE(f.key(down(K::Escape), 0, Scramble::Shown).used);
+  CHECK_FALSE(f.key(down(K::Digit, 3), 0, Scramble::Shown).used);
   e = f.skip();
   CHECK(e.historyToEnd);
   CHECK(e.nextScramble);
@@ -434,7 +438,7 @@ TEST_CASE("AttemptFlow: Untimed on a physical cube steps through scrambles",
 
 TEST_CASE("AttemptFlow retries an attempt and goes back to the scrambles",
           "[attempt]") {
-  AttemptFlow f = flow(true);
+  AttemptFlow f = flow({.moveCount = true});
   auto e = f.retryOne(3);
   REQUIRE(e.retryNext);
   CHECK(*e.retryNext == 3);
@@ -446,11 +450,11 @@ TEST_CASE("AttemptFlow retries an attempt and goes back to the scrambles",
   CHECK(f.retryCount() == 1);
   CHECK(f.retryNumber() == 1);
   // No scramble from the feed is needed to start a retry.
-  f.key(down(K::Space), 0, false);
+  f.key(down(K::Space), 0, Scramble::Awaited);
   f.tick(300, false);
-  e = f.key(up(K::Space), 310, false);
+  e = f.key(up(K::Space), 310, Scramble::Awaited);
   CHECK(e.startSolve);
-  f.key(down(K::Space), 1000, true);
+  f.key(down(K::Space), 1000, Scramble::Shown);
   e = f.solveEnded(false, 30, "R U");
   CHECK(e.retryResult);
   CHECK_FALSE(e.record);
@@ -459,7 +463,7 @@ TEST_CASE("AttemptFlow retries an attempt and goes back to the scrambles",
   CHECK(f.retry()->result.moves == 30);
   CHECK(f.phase() == Phase::Done);
   // Space: back to the scramble shown before.
-  e = f.key(down(K::Space), 1100, true);
+  e = f.key(down(K::Space), 1100, Scramble::Shown);
   CHECK(e.retryEnded);
   CHECK(e.showScramble);
   CHECK_FALSE(e.nextScramble);
@@ -469,9 +473,9 @@ TEST_CASE("AttemptFlow retries an attempt and goes back to the scrambles",
 
 TEST_CASE("AttemptFlow: a retry after a solved scramble moves on after it",
           "[attempt]") {
-  AttemptFlow f = flow(false);
+  AttemptFlow f = flow({.moveCount = false});
   start(f);
-  f.key(down(K::Space), 500, true);
+  f.key(down(K::Space), 500, Scramble::Shown);
   f.solveEnded(true, 20, "R");
   REQUIRE(f.phase() == Phase::Done);
   f.retryOne(0);
@@ -484,7 +488,7 @@ TEST_CASE("AttemptFlow: a retry after a solved scramble moves on after it",
 }
 
 TEST_CASE("AttemptFlow works through a queue of retries", "[attempt]") {
-  AttemptFlow f = flow(true);
+  AttemptFlow f = flow({.moveCount = true});
   CHECK_FALSE(f.retryQueue({}).retryNext);
   auto e = f.retryQueue({4, 1, 2});
   REQUIRE(e.retryNext);
@@ -494,9 +498,9 @@ TEST_CASE("AttemptFlow works through a queue of retries", "[attempt]") {
   CHECK(f.retryNumber() == 1);
   CHECK(f.retriesQueued());
   start(f);
-  f.key(down(K::Space), 1000, true);
+  f.key(down(K::Space), 1000, Scramble::Shown);
   f.solveEnded(true, 20, "R");
-  e = f.key(down(K::Space), 1100, true);
+  e = f.key(down(K::Space), 1100, Scramble::Shown);
   REQUIRE(e.retryNext);
   CHECK(*e.retryNext == 1);
   CHECK_FALSE(e.retryEnded);
@@ -524,17 +528,17 @@ TEST_CASE("AttemptFlow works through a queue of retries", "[attempt]") {
 
 TEST_CASE("AttemptFlow shows a fresh scramble after a solved one",
           "[attempt]") {
-  AttemptFlow f = flow(false);
+  AttemptFlow f = flow({.moveCount = false});
   auto e = f.freshScramble();
   CHECK(e.showScramble);
   CHECK_FALSE(e.nextScramble);
   start(f);
-  f.key(down(K::Space), 500, true);
+  f.key(down(K::Space), 500, Scramble::Shown);
   f.solveEnded(true, 20, "R");
   e = f.freshScramble();
   CHECK(e.nextScramble);
   CHECK(f.phase() == Phase::Inspect);
   // A physical cube has no phases to show.
-  f = flow(true, false);
+  f = flow({.moveCount = true, .virtualCube = false});
   CHECK_FALSE(f.scrambleShown().phase);
 }

@@ -300,10 +300,10 @@ void F2LPage::importSheet() {
     sheetLooked_ = true;
     return;
   }
-  for (const std::string &key : pairCardPool(true)) {
+  for (const std::string &key : pairCardPool(Edges::Oriented)) {
     std::optional<PairCard> card = cardFromKey(key);
     std::optional<CubieCube> state =
-        card ? cardState(*card, true, rng()) : std::nullopt;
+        card ? cardState(*card, Edges::Oriented, rng()) : std::nullopt;
     if (!state) {
       continue;
     }
@@ -330,10 +330,10 @@ std::optional<std::string> F2LPage::sheetAlg(const std::string &card) const {
 // --- states ------------------------------------------------------------------
 
 std::vector<std::string> F2LPage::cardPool() const {
-  return pairCardPool(config_.eo);
+  return pairCardPool(config_.edges());
 }
 
-std::optional<PracticePage::Setup> F2LPage::setUp(bool whole,
+std::optional<PracticePage::Setup> F2LPage::setUp(Extent extent,
                                                   const std::string &card) {
   if (stop_) {
     stop_->store(true);
@@ -345,7 +345,7 @@ std::optional<PracticePage::Setup> F2LPage::setUp(bool whole,
   card_.reset();
   ranks_.clear();
   asked_.clear();
-  if (whole) {
+  if (extent == Extent::Whole) {
     start_ = randomFullState(config_, rng());
   } else {
     std::optional<PairCard> c = cardFromKey(card);
@@ -448,12 +448,8 @@ AnalysisOptions F2LPage::analysisOptions() const {
   return o;
 }
 
-double F2LPage::costOf(const Alg &moves) const {
-  return solutionCost(moves, analysisOptions());
-}
-
-double F2LPage::compareCost(const Alg &moves) const {
-  return costOf(comparableSolution(moves));
+double F2LPage::compareCost(const Alg &moves, const AnalysisOptions &options) {
+  return solutionCost(comparableSolution(moves), options);
 }
 
 bool F2LPage::wholeReady() const {
@@ -561,12 +557,12 @@ std::optional<Alg> F2LPage::chosenHere(const Alg &chosen) const {
 
 // --- the pairs of a whole solve ----------------------------------------------
 
-QString F2LPage::pairLine(std::size_t i) const {
+QString F2LPage::pairLine(std::size_t i, const AnalysisOptions &options) const {
   const F2LSegment &seg = segments_[i];
   const QString name = "<b>" + slotsText(seg.solved) + "</b>";
   Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
             item().moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
-  const double cost = costOf(moves);
+  const double cost = solutionCost(moves, options);
   if (seg.solved.size() != 1) {
     return tr("%1 together, cost %2").arg(name, costText(cost));
   }
@@ -596,9 +592,10 @@ void F2LPage::updateProgress() {
   if (tab() != Tab::Untimed) {
     return;
   }
+  const AnalysisOptions options = analysisOptions();
   QStringList lines;
   for (std::size_t i = 0; i < segments_.size(); ++i) {
-    lines << pairLine(i);
+    lines << pairLine(i, options);
   }
   setProgress(lines);
 }
@@ -673,6 +670,7 @@ QString F2LPage::demoText() {
 
 PracticePage::Outcome F2LPage::judge() {
   Outcome o;
+  const AnalysisOptions options = analysisOptions();
   if (target_) {
     // One pair, against the solutions chosen for it (that the method
     // allows).
@@ -686,16 +684,16 @@ PracticePage::Outcome F2LPage::judge() {
     }
     double cheapest = std::numeric_limits<double>::infinity();
     for (const Alg &c : chosen) {
-      cheapest = std::min(cheapest, compareCost(c));
+      cheapest = std::min(cheapest, compareCost(c, options));
     }
     if (std::optional<Alg> first = chosenHere(chosen.front())) {
       o.best = *first;
       o.bestLabel = chosen.size() > 1 ? tr("Your first") : tr("Yours");
-      o.bestText =
-          algText(*first) +
-          QString(" <span style='font-weight:normal'>(%1, %2)</span>")
-              .arg(movesText(htmCount(*first)),
-                   tr("cost %1").arg(costText(compareCost(chosen.front()))));
+      o.bestText = algText(*first) +
+                   QString(" <span style='font-weight:normal'>(%1, %2)</span>")
+                       .arg(movesText(htmCount(*first)),
+                            tr("cost %1").arg(costText(
+                                compareCost(chosen.front(), options))));
       o.bestMoves = htmCount(*first);
     }
     if (item().gaveUp) {
@@ -706,7 +704,7 @@ PracticePage::Outcome F2LPage::judge() {
         slotToSide(fixedFrame(item().moves), card_->side, *target_));
     const std::optional<std::size_t> match =
         matchChosen(item().moves, card_->side, *target_, chosen);
-    const double mine = costOf(tryAsChosen_);
+    const double mine = solutionCost(tryAsChosen_, options);
     o.moves = htmCount(simplify(item().moves));
     o.extra = std::max(0.0, mine - cheapest);
     o.good = match.has_value() || mine <= cheapest + kSameCost;
@@ -763,7 +761,7 @@ PracticePage::Outcome F2LPage::judge() {
     o.verdict = coloured(kFailColour, tr("Not finished"));
     return o;
   }
-  const double cost = costOf(item().moves);
+  const double cost = solutionCost(item().moves, options);
   o.verdict = tr("F2L in %1, cost %2").arg(movesText(o.moves), costText(cost));
   if (plan) {
     // Against the cheapest way found from the start: what the pairs
@@ -832,6 +830,7 @@ QString F2LPage::chosenHtml() const {
   const std::size_t unusable =
       chosenSolutions(item().card).size() - chosen.size();
   const QString muted = mutedColour();
+  const AnalysisOptions options = analysisOptions();
   const std::optional<std::size_t> match =
       item().gaveUp ? std::nullopt
                     : matchChosen(item().moves, card_->side, *target_, chosen);
@@ -848,7 +847,7 @@ QString F2LPage::chosenHtml() const {
                 "<td align='right' style='color:%3'>%4</td>"
                 "<td style='color:%3'>%5</td></tr>")
             .arg(playLink(shown, algText(shown)), movesText(htmCount(shown)),
-                 muted, costText(compareCost(chosen[i])),
+                 muted, costText(compareCost(chosen[i], options)),
                  match == i ? tr("yours this time") : QString());
   }
   html += "</table>";
@@ -876,12 +875,13 @@ QString F2LPage::wholeHtml() const {
             "</th><th align='left'>" + tr("Best pair then") + "</th></tr>";
   }
   const QString tick = coloured(kPassColour, QStringLiteral("✓"));
+  const AnalysisOptions options = analysisOptions();
   for (std::size_t i = 0; i < segments_.size(); ++i) {
     const F2LSegment &seg = segments_[i];
     Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
               item().moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
     Alg simple = simplify(moves);
-    double cost = costOf(moves);
+    double cost = solutionCost(moves, options);
     QString best, over, pick;
     auto found = ranks_.find(i);
     if (found != ranks_.end() && !found->second.empty()) {
@@ -1059,7 +1059,7 @@ void F2LPage::requestCandidates() {
     std::optional<PairCard> c = cardFromKey(card);
     Rng rng = makeRng();
     std::optional<CubieCube> state =
-        c ? cardState(*c, options.config.eo, rng) : std::nullopt;
+        c ? cardState(*c, options.config.edges(), rng) : std::nullopt;
     if (!state) {
       return std::vector<RankedSolution>{};
     }
@@ -1081,28 +1081,31 @@ void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
                           return comparableSolution(c.solution.alg) == key;
                         });
   };
-  auto add = [this](const Alg &alg, bool sheet, bool custom) {
+  const AnalysisOptions options = analysisOptions();
+  // Where a candidate comes from: the search, the sheet, or the user's own.
+  enum class From { Search, Sheet, Custom };
+  auto add = [this, &options](const Alg &alg, From from) {
     Candidate c;
     c.solution.alg = alg;
     c.solution.text = toString(alg);
     c.solution.htm = htmCount(comparableSolution(alg));
-    c.solution.cost = compareCost(alg);
-    c.sheet = sheet;
-    c.custom = custom;
+    c.solution.cost = compareCost(alg, options);
+    c.sheet = from == From::Sheet;
+    c.custom = from == From::Custom;
     auto at = std::find_if(
         candidates_.begin(), candidates_.end(),
         [&c](const Candidate &o) { return c.solution.cost < o.solution.cost; });
     return candidates_.insert(at, std::move(c));
   };
   for (const RankedSolution &s : searched) {
-    add(s.alg, false, false);
+    add(s.alg, From::Search);
   }
   if (std::optional<std::string> sheet = sheetAlg(item().card)) {
     Alg alg = parseAlgOrEmpty(*sheet);
     if (!alg.empty()) {
       auto it = find(alg);
       if (it == candidates_.end()) {
-        it = add(alg, true, false);
+        it = add(alg, From::Sheet);
       }
       it->sheet = true;
       it->ticked = first; // to start with
@@ -1111,14 +1114,14 @@ void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
   for (const Alg &alg : chosen) {
     auto it = find(alg);
     if (it == candidates_.end()) {
-      it = add(alg, false, true);
+      it = add(alg, From::Custom);
     }
     it->ticked = true;
   }
   for (const Candidate &c : before) {
     auto it = find(c.solution.alg);
     if (it == candidates_.end()) {
-      it = add(c.solution.alg, false, true);
+      it = add(c.solution.alg, From::Custom);
     }
     it->ticked = it->ticked || c.ticked;
   }
@@ -1221,7 +1224,7 @@ QString F2LPage::addOwnSolution(const QString &text) {
     c.solution.alg = asChosen;
     c.solution.text = toString(asChosen);
     c.solution.htm = htmCount(asChosen);
-    c.solution.cost = compareCost(asChosen);
+    c.solution.cost = compareCost(asChosen, analysisOptions());
     c.custom = true;
     candidates_.push_back(std::move(c));
     it = candidates_.end() - 1;
@@ -1266,7 +1269,7 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
   // The back cards' pictures, worked out once.
   static std::map<std::string, FaceletCube> backPictures;
   Rng pictures(1);
-  for (PairCase c : pairCases(config_.eo)) {
+  for (PairCase c : pairCases(config_.edges())) {
     for (PairSide side : {PairSide::Front, PairSide::Back}) {
       ListRow r;
       r.key = cardKey({side, c});
@@ -1280,8 +1283,9 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
         auto picture = backPictures.find(r.key);
         if (picture == backPictures.end()) {
           // With EO unless the case has the edge flipped.
-          std::optional<CubieCube> state =
-              cardState({side, c}, c.edge % 2 == 0, pictures);
+          std::optional<CubieCube> state = cardState(
+              {side, c}, c.edge % 2 == 0 ? Edges::Oriented : Edges::Any,
+              pictures);
           picture = backPictures
                         .emplace(r.key, state ? pairDiagram(*state, Slot::BR)
                                               : caseDiagram(c))

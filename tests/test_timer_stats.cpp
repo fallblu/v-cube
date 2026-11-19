@@ -291,6 +291,47 @@ TEST_CASE("ao100 drops five solves each way and rounds like the others") {
   CHECK(bests.back().value == 49500);
 }
 
+TEST_CASE("rolling averages are those of each window") {
+  // Times that repeat, with a +2 and a DNF now and then, and two DNFs
+  // close enough to share a window of 12.
+  std::vector<Solve> all;
+  std::uint32_t seed = 12345;
+  for (int i = 0; i < 260; ++i) {
+    seed = seed * 1664525u + 1013904223u;
+    Solve s;
+    s.timeMs = 8000 + static_cast<std::int64_t>((seed >> 8) % 4000);
+    if (i % 17 == 3) {
+      s.penalty = Penalty::Plus2;
+    }
+    if (i % 23 == 5 || i % 23 == 9 || (i > 200 && i < 215)) {
+      s.penalty = Penalty::Dnf;
+    }
+    all.push_back(s);
+  }
+  for (std::int64_t unit : {1, 10, 1000}) {
+    for (std::size_t n : {0u, 2u, 3u, 5u, 12u, 100u, 260u, 300u}) {
+      CAPTURE(unit, n);
+      std::vector<StatValue> rolling = rollingAverages(all, n, unit);
+      REQUIRE(rolling.size() == all.size());
+      StatValue best;
+      std::optional<std::size_t> bestAt;
+      for (std::size_t end = 1; end <= all.size(); ++end) {
+        StatValue expected;
+        if (n > 0 && end >= n) {
+          expected = averageOf(std::span(all).subspan(end - n, n), unit);
+          if (expected && (!best || *expected < *best)) {
+            best = expected;
+            bestAt = end - n;
+          }
+        }
+        CHECK(rolling[end - 1] == expected);
+      }
+      CHECK(bestAverageStart(all, n, Rolling::Average, unit) == bestAt);
+      CHECK(bestAverage(all, n, unit) == best);
+    }
+  }
+}
+
 TEST_CASE("means round half up at every unit") {
   CHECK(meanOf(solves({1000, 1010})) == 1010);              // 1.005
   CHECK(meanOf(solves({1000, 1000, 1010})) == 1000);        // 1.0033

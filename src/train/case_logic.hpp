@@ -19,12 +19,27 @@ struct AufFit {
   int after = 0;
 };
 
+// The U turns an alg may need around it to solve a case: one before it,
+// one after it, both or neither.
+enum class Aufs : std::uint8_t { None, Before, After, Both };
+constexpr bool allowsAufBefore(Aufs a) {
+  return a == Aufs::Before || a == Aufs::Both;
+}
+constexpr bool allowsAufAfter(Aufs a) {
+  return a == Aufs::After || a == Aufs::Both;
+}
+// The U turns a set, a search goal or a lab case allows, from its
+// `aufBefore` and `aufAfter`.
+template <typename T> constexpr Aufs aufsOf(const T &t) {
+  return t.aufBefore ? (t.aufAfter ? Aufs::Both : Aufs::Before)
+                     : (t.aufAfter ? Aufs::After : Aufs::None);
+}
+
 // Whether `alg` (any notation, rotations allowed) takes `state` to a state
 // that is solved except for the pieces `free` allows, allowing a U turn
 // before and/or after it. Prefers no AUF, then U, U', U2.
 std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
-                             const PieceMask &free, bool aufBefore = true,
-                             bool aufAfter = true);
+                             const PieceMask &free, Aufs aufs = Aufs::Both);
 
 // Whether a cube (in standard orientation) has the step done: solved apart
 // from `free` pieces, up to U turns before and after.
@@ -89,7 +104,7 @@ struct AlgCheck {
 // Checks an alg against a case under a step definition, allowing a U turn
 // before and/or after it as the set does.
 AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
-                  const PieceMask &free, bool aufBefore, bool aufAfter);
+                  const PieceMask &free, Aufs aufs);
 // Short visible result: "(U') … (U2), 14 moves" for a pass ("→ Sune, 3
 // moves" for a step that stops at another case), otherwise e.g.
 // "leaves 3 corners unsolved (U layer)" or "can't read at character 7".
@@ -105,9 +120,10 @@ struct DisplayOrientation {
   std::string alg; // the main alg without its leading prefix
 };
 // nullopt when `mainAlg` doesn't solve `state`.
-std::optional<DisplayOrientation>
-displayOrientation(const CubieCube &state, const std::string &mainAlg,
-                   const PieceMask &free, bool aufBefore, bool aufAfter);
+std::optional<DisplayOrientation> displayOrientation(const CubieCube &state,
+                                                     const std::string &mainAlg,
+                                                     const PieceMask &free,
+                                                     Aufs aufs);
 
 // Every alg of a case checked under the step definition in force (the
 // group's own or the set's) and the set's AUF settings, plus how the case
@@ -210,15 +226,16 @@ struct PastePlan {
 // solves (any AUF the set allows, any rotations). An alg that solves
 // another case than the one named, or several cases when none is named,
 // isn't filed but reported. An alg that solves no case makes a new case in
-// group `newCaseGroup` (named from the line, or numbered) when
-// `createCases` is set, except in a set solved a step at a time, where a
-// step alg doesn't tell its case. Later lines see the cases earlier lines
-// made.
+// group `newCaseGroup` (named from the line, or numbered) with
+// NewCases::Create, except in a set solved a step at a time, where a step
+// alg doesn't tell its case. Later lines see the cases earlier lines made.
+enum class NewCases : std::uint8_t { Create, Skip };
 PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
-                    bool createCases, std::size_t newCaseGroup);
+                    NewCases newCases, std::size_t newCaseGroup);
 
 // planPaste() of readPaste(text) applied to `set`, with new cases going to
 // the last group.
-ImportReport importAlgs(AlgSet &set, const std::string &text, bool createCases);
+ImportReport importAlgs(AlgSet &set, const std::string &text,
+                        NewCases newCases);
 
 } // namespace vcube

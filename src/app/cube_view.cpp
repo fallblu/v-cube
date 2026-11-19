@@ -67,15 +67,15 @@ void CubeView::setState(const FaceletCube &cube) {
   update();
 }
 
-void CubeView::animateMove(Move m) { enqueue(m, true); }
+void CubeView::animateMove(Move m) { enqueue(m, Source::Typed); }
 
 void CubeView::animateSequence(const Alg &moves) {
   for (Move m : moves) {
-    enqueue(m, false);
+    enqueue(m, Source::Played);
   }
 }
 
-void CubeView::enqueue(Move m, bool typed) {
+void CubeView::enqueue(Move m, Source source) {
   if (animationMs_ <= 0 || mode_ != Mode::ThreeD) {
     // Finish anything pending, then jump.
     for (Move q : queue_) {
@@ -89,7 +89,7 @@ void CubeView::enqueue(Move m, bool typed) {
     return;
   }
   queue_.push_back(m);
-  queuedTyped_.push_back(typed);
+  queuedTyped_.push_back(source == Source::Typed);
   if (!frame_.isActive()) {
     lastFrame_ = clock_.elapsed();
     frame_.start();
@@ -176,28 +176,6 @@ StickerMarks CubeView::shownMarks() const {
   }
   for (int i = 0; i < kFaceletCount; ++i) {
     out.labels[where[i]] = marks_.labels[static_cast<std::size_t>(i)];
-  }
-  return out;
-}
-
-StickerMarks movedMarks(const StickerMarks &marks, Move m) {
-  // where[i]: the facelet the sticker now at i was at before the move.
-  FaceletCube::Stickers ids{};
-  for (int i = 0; i < kFaceletCount; ++i) {
-    ids[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(i);
-  }
-  FaceletCube where(ids);
-  where.apply(m);
-  StickerMarks out;
-  out.ringColour = marks.ringColour;
-  for (int i = 0; i < kFaceletCount; ++i) {
-    int from = where[i];
-    if (std::find(marks.rings.begin(), marks.rings.end(), from) !=
-        marks.rings.end()) {
-      out.rings.push_back(i);
-    }
-    out.labels[static_cast<std::size_t>(i)] =
-        marks.labels[static_cast<std::size_t>(from)];
   }
   return out;
 }

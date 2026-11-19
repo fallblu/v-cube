@@ -33,6 +33,7 @@ public:
   std::vector<AlgSet> &sets() { return sets_; }
   const std::vector<AlgSet> &sets() const { return sets_; }
   AlgSet *find(const std::string &id);
+  const AlgSet *find(const std::string &id) const;
 
   // Writes go through reportWrite(), so that a failure is seen whoever
   // asked for it.
@@ -69,8 +70,10 @@ public:
   // A set's progress, read the first time it is asked for. A progress file
   // that can't be read is set aside (see setAside()) and noted in errors();
   // one that can't be moved aside, or was written by a newer version of
-  // v-cube, is noted and never saved over.
+  // v-cube, is noted and never saved over. Reading it is no change to the
+  // library, so a const library reads it too.
   SetProgress &progress(const std::string &setId);
+  const SetProgress &progress(const std::string &setId) const;
   bool saveProgress(const std::string &setId, QString *error = nullptr);
   // A function that writes the set's progress as it is now (a copy), from
   // any thread, e.g. for writeInBackground() to progressPath().
@@ -85,15 +88,17 @@ private:
   QString dir_;
   QString builtinDir_;
   std::vector<AlgSet> sets_;
-  std::map<std::string, SetProgress> progress_;
-  std::set<std::string> progressKeptOff_; // unreadable and not moved aside
-  QStringList errors_;
+  // Filled by the first read of a set's progress, with what went wrong.
+  mutable std::map<std::string, SetProgress> progress_;
+  mutable std::set<std::string> progressKeptOff_; // unreadable, not moved aside
+  mutable QStringList errors_;
   std::map<std::string, QString> paths_; // file each set was loaded from
   mutable std::optional<std::vector<AlgSet>> shipped_;
 
   const std::vector<AlgSet> &shipped() const;
   void sortSets(); // built-ins first in a fixed order, then by name
   QString progressPathFor(const std::string &id) const;
+  SetProgress &loadedProgress(const std::string &setId) const;
   void installBuiltins();
 };
 

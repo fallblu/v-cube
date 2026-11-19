@@ -76,13 +76,13 @@ TEST_CASE("built-in cases are distinct and accept standard algs") {
                            "T: R U R' U' R' F R2 U' R' U' R U R' F'\n"
                            "M2 U M U2 M' U M2\n"
                            "x R2 D2 R U R' D2 R U' R x'\n",
-                           false);
+                           NewCases::Skip);
   CHECK(report.added == 3);
   CHECK(p.findCase("T")->algs.size() == 1);
   CHECK(p.findCase("Ua")->algs.size() == 1);
   CHECK(p.findCase("Ab")->algs.size() == 1);
   AlgSet o = *oll;
-  report = importAlgs(o, "R U R' U R U2 R'\nF R U R' U' F'\n", false);
+  report = importAlgs(o, "R U R' U R U2 R'\nF R U R' U' F'\n", NewCases::Skip);
   CHECK(report.added == 2);
   CHECK(o.findCase("oll27")->algs.size() == 1);
   CHECK(o.findCase("oll45")->algs.size() == 1);
@@ -145,8 +145,7 @@ TEST_CASE("built-in cases keep their last layer on top whatever the main "
         for (const char *prefix : prefixes) {
           std::string alg = withPrefix(prefix, base);
           INFO(set->id << " " << c.id << ": " << alg);
-          REQUIRE(checkAlg(c.state, alg, free, set->aufBefore, set->aufAfter)
-                      .passes());
+          REQUIRE(checkAlg(c.state, alg, free, aufsOf(*set)).passes());
           AlgCase one = c;
           one.algs = {alg};
           CaseAnalysis a = analyzeCase(*set, g, one);
@@ -157,8 +156,8 @@ TEST_CASE("built-in cases keep their last layer on top whatever the main "
           CHECK(left.edgesMisplaced[1] + left.edgesFlipped[1] == 0);
           CHECK(left.edgesMisplaced[2] + left.edgesFlipped[2] == 0);
           // The alg as shown solves the case as shown with no U first.
-          CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), free, false,
-                       set->aufAfter));
+          CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), free,
+                       set->aufAfter ? Aufs::After : Aufs::None));
           // Adding more algs leaves the case shown as its first alg has it.
           withAlgs.algs.push_back(alg);
           CaseAnalysis all = analyzeCase(*set, g, withAlgs);
@@ -177,7 +176,8 @@ TEST_CASE("a tilted Aa perm alg shows the case the usual way up") {
   auto pll = readAlgSetFile(kBuiltins + "/pll.json", nullptr);
   REQUIRE(pll);
   AlgSet set = *pll;
-  auto report = importAlgs(set, "x R' U R' D2 R U' R' D2 R2 x'\n", false);
+  auto report =
+      importAlgs(set, "x R' U R' D2 R U' R' D2 R2 x'\n", NewCases::Skip);
   REQUIRE(report.added == 1);
   const CaseGroup *group = nullptr;
   const AlgCase *aa = nullptr;
@@ -317,6 +317,43 @@ TEST_CASE("set ids that share a file name are kept apart") {
   again.load();
   CHECK(again.find("pll"));
   CHECK(again.find(id));
+}
+
+TEST_CASE("a set id never has a slash in it") {
+  QTemporaryDir tmp;
+  std::string added;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    AlgSet set = *lib.find("pll");
+    set.builtin = false;
+    set.id = "a/b";
+    set.name = "Slashed";
+    added = lib.add(set)->id;
+    CHECK(added == "a-b");
+    // An id without one is kept as it is.
+    set.id = "My Set.2";
+    CHECK(lib.add(set)->id == "My Set.2");
+    // A file put in the folder by hand.
+    set.id = "c/d/e";
+    QString why;
+    REQUIRE(writeAlgSetFile(set, tmp.filePath("byhand.json"), &why));
+  }
+  AlgLibrary again(tmp.path(), kBuiltins);
+  again.load();
+  CHECK(again.errors() == QStringList{});
+  CHECK(again.find(added));
+  CHECK(again.find("My Set.2"));
+  CHECK_FALSE(again.find("c/d/e"));
+  REQUIRE(again.find("c-d-e"));
+  // The set is saved where it was read.
+  again.find("c-d-e")->name = "Renamed";
+  REQUIRE(again.save(*again.find("c-d-e")));
+  CHECK_FALSE(QFile::exists(tmp.filePath("c-d-e.json")));
+  AlgLibrary third(tmp.path(), kBuiltins);
+  third.load();
+  REQUIRE(third.find("c-d-e"));
+  CHECK(third.find("c-d-e")->name == "Renamed");
 }
 
 TEST_CASE("restoring built-in cases keeps the user's cases and settings") {
@@ -827,7 +864,7 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
       [[4000, 1000], "U", "", 6]
     ],
     "session2": [[[0]]],
-    "properties": {"sessionData": "not json"}
+    "properties": {"sessionData": "{}"}
   })");
   imported = sessionsFromCstimer(doc.object(), &error);
   REQUIRE(imported);
@@ -856,6 +893,46 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
   CHECK(error.contains("not a cstimer export"));
   CHECK_FALSE(sessionsFromCstimerFile("", &error));
   CHECK_FALSE(sessionsFromCstimer(QJsonObject{}, &error));
+}
+
+TEST_CASE("cstimer import reports nested JSON that doesn't read") {
+  QString error;
+  // Sessions and sessionData stored as strings are read.
+  QJsonDocument doc = QJsonDocument::fromJson(R"({
+    "session1": "[[[0, 1000], \"R\", \"\", 1]]",
+    "properties": {"sessionData": "{\"1\": {\"name\": \"Mine\"}}"}
+  })");
+  auto imported = sessionsFromCstimer(doc.object(), &error);
+  REQUIRE(imported);
+  REQUIRE(imported->sessions.size() == 1);
+  CHECK(imported->sessions[0].name == "Mine");
+  CHECK(imported->sessions[0].solves.size() == 1);
+
+  // sessionData cut short: the names and types are not made up.
+  doc = QJsonDocument::fromJson(R"({
+    "session1": [[[0, 1000], "R", "", 1]],
+    "properties": {"sessionData": "{\"1\": {\"name\": \"Pyra\", "}
+  })");
+  error.clear();
+  CHECK_FALSE(sessionsFromCstimer(doc.object(), &error));
+  CHECK(error.contains("session names"));
+  doc = QJsonDocument::fromJson(R"({
+    "session1": [[[0, 1000], "R", "", 1]],
+    "properties": {"sessionData": "[1, 2]"}
+  })");
+  error.clear();
+  CHECK_FALSE(sessionsFromCstimer(doc.object(), &error));
+  CHECK(error.contains("session names"));
+
+  // A session cut short is not an empty session.
+  doc = QJsonDocument::fromJson(R"({
+    "session1": [[[0, 1000], "R", "", 1]],
+    "session2": "[[[0, 1000], \"R\", ",
+    "properties": {"sessionData": {"1": {"name": "A"}, "2": {"name": "B"}}}
+  })");
+  error.clear();
+  CHECK_FALSE(sessionsFromCstimer(doc.object(), &error));
+  CHECK(error.contains("session 2"));
 }
 
 TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {

@@ -29,9 +29,10 @@ class DrillSession {
 public:
   // Returns the attempt's index.
   std::size_t add(const SessionAttempt &a);
-  // The attempt was marked or unmarked as failed afterwards, and whether
-  // it is then a new best (one that failed never is).
-  void setFailed(std::size_t index, bool failed, bool newBest = false);
+  // The attempt was marked or unmarked as failed afterwards; one that
+  // isn't failed may then be a new best.
+  enum class Mark : std::uint8_t { Failed, Solved, NewBest };
+  void setFailed(std::size_t index, Mark mark);
   void removeLast();
   void clear() { attempts_.clear(); }
   bool empty() const { return attempts_.empty(); }

@@ -8,6 +8,7 @@
 
 #include <array>
 #include <map>
+#include <optional>
 
 class QAbstractButton;
 class QAction;
@@ -78,7 +79,7 @@ private:
   EoCrossPage *eoCrossPage_;
   AlgLabPage *algLabPage_;
   TodayPage *todayPage_;
-  int mode_ = -1;
+  std::optional<AppMode::Id> mode_;
   // Data files that couldn't be written, with the reason, for the banner.
   std::map<QString, QString> failedWrites_;
 
@@ -88,7 +89,7 @@ private:
   void buildMenus();
   ModePage *currentPage() const;
   // Switches mode unless a solve or inspection is running; false if blocked.
-  bool setMode(int mode);
+  bool setMode(AppMode::Id mode);
   void setFullScreen(bool on);
   // Hides the sidebar, menu bar, status bar and each page's controls,
   // leaving the central display.

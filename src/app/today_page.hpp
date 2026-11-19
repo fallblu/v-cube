@@ -7,6 +7,7 @@
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
+#include "train/practice.hpp"
 #include "train/today.hpp"
 
 #include <QTimer>
@@ -35,10 +36,11 @@ class HintBar;
 class TodayPage : public ModePage {
   Q_OBJECT
 public:
-  TodayPage(AppSettings &settings, AlgLibrary &library,
+  TodayPage(AppSettings &settings, const AlgLibrary &library,
             const SessionStore &timed, const MoveCountStore &untimed,
             const MoveCountStore &moveCounts, const AlgLabStore &lab,
-            QString dataDir, QWidget *parent = nullptr);
+            const PracticeData &eoCross, const PracticeData &f2l,
+            const PracticeData &tsle, QWidget *parent = nullptr);
 
   // Learn's due reviews (and learning steps) and the new cases left today,
   // over every set, for the sidebar.
@@ -46,7 +48,7 @@ public:
     int due = 0;
     int newLeft = 0;
   };
-  Totals totals();
+  Totals totals() const;
 
   bool handleKey(QKeyEvent *e, bool press) override;
   void activated() override;
@@ -63,24 +65,28 @@ signals:
 
 private:
   AppSettings &settings_;
-  AlgLibrary &library_;
+  const AlgLibrary &library_;
   const SessionStore &timed_;
   const MoveCountStore &untimed_;
   const MoveCountStore &moveCounts_;
   const AlgLabStore &lab_;
-  QString dataDir_;
-  QLabel *streakLabel_;
-  QPushButton *next_;
-  QLabel *nextNote_;
-  QTreeWidget *sets_;
-  QTreeWidget *modes_;
-  HintBar *hints_;
+  // What the practice modes' pages keep, as they have it in memory: read
+  // from there, a refresh opens no file and sees what was just recorded.
+  const PracticeData &eoCross_;
+  const PracticeData &f2l_;
+  const PracticeData &tsle_;
+  QLabel *streakLabel_ = nullptr;
+  QPushButton *next_ = nullptr;
+  QLabel *nextNote_ = nullptr;
+  QTreeWidget *sets_ = nullptr;
+  QTreeWidget *modes_ = nullptr;
+  HintBar *hints_ = nullptr;
   QTimer refresh_;
   // What next_ does, and Review all when anything is due.
   std::function<void()> nextAction_;
   int dueTotal_ = 0;
 
-  std::map<std::string, SetWaiting> dueBySet();
+  std::map<std::string, SetWaiting> dueBySet() const;
   std::vector<ActivityEvent> events();
   void refresh();
   // Opens a row of the sets table: its set in Learn, or its practice

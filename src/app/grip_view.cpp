@@ -20,7 +20,7 @@ namespace vcube {
 
 namespace {
 
-enum Row { RowMove, RowRight, RowLeft, RowCount };
+enum Row : int { RowMove, RowRight, RowLeft, RowCount };
 
 // "index flick", "wrist up" ... without the hand.
 QString trickShort(const GripTrick &t) {

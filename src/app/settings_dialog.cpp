@@ -281,9 +281,9 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     updateKeyButtons();
   });
   connect(changeButton_, &QPushButton::clicked, this,
-          [this] { setBinding(true); });
+          [this] { setBinding(Bind::ChangeSelected); });
   connect(addButton, &QPushButton::clicked, this,
-          [this] { setBinding(false); });
+          [this] { setBinding(Bind::AddNew); });
   // Enter changes the selected row, or adds a binding when none is, and
   // must not go on to close the dialog (see eventFilter()).
   moveEdit_->installEventFilter(this);
@@ -706,7 +706,8 @@ void SettingsDialog::refreshKeys() {
   updateKeyButtons();
 }
 
-void SettingsDialog::setBinding(bool changeSelected) {
+void SettingsDialog::setBinding(Bind bind) {
+  const bool changeSelected = bind == Bind::ChangeSelected;
   QKeySequence seq = keyEdit_->keySequence();
   Alg move = parseAlgOrEmpty(moveEdit_->text().toStdString());
   if (seq.isEmpty() || move.size() != 1) {
@@ -767,7 +768,7 @@ bool SettingsDialog::eventFilter(QObject *watched, QEvent *event) {
   if (watched == moveEdit_ && event->type() == QEvent::KeyPress) {
     auto *key = static_cast<QKeyEvent *>(event);
     if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
-      setBinding(selectedBinding() >= 0);
+      setBinding(selectedBinding() >= 0 ? Bind::ChangeSelected : Bind::AddNew);
       return true; // used here: the OK button doesn't see it
     }
   }

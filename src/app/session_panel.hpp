@@ -119,7 +119,8 @@ public:
   // --- the delete and undo buttons (hidden until shown) ---
   void setDeleteRowVisible(bool on);
   void setDeleteEnabled(bool on);
-  void setUndo(bool visible, bool enabled);
+  void setUndoVisible(bool on);
+  void setUndoEnabled(bool on);
 
   // The session's trend chart, for the page to lay out.
   TrendChart *chart() const { return chart_; }
@@ -138,15 +139,15 @@ signals:
   void undoClicked();
 
 private:
-  QToolButton *sessionButton_;
-  QMenu *menu_;
-  QLabel *stats_;
-  QTableView *table_;
-  AttemptTableModel *model_;
-  QWidget *deleteRow_;
-  QPushButton *deleteButton_;
-  QPushButton *undoButton_;
-  TrendChart *chart_;
+  QToolButton *sessionButton_ = nullptr;
+  QMenu *menu_ = nullptr;
+  QLabel *stats_ = nullptr;
+  QTableView *table_ = nullptr;
+  AttemptTableModel *model_ = nullptr;
+  QWidget *deleteRow_ = nullptr;
+  QPushButton *deleteButton_ = nullptr;
+  QPushButton *undoButton_ = nullptr;
+  TrendChart *chart_ = nullptr;
   QString hiddenKey_;
   bool statsClickable_ = false;
 

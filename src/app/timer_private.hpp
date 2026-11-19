@@ -31,7 +31,7 @@ namespace {
 }
 
 // The table's columns. Those after ao12 are for virtual sessions.
-enum Column {
+enum Column : int {
   kNumber,
   kTime,
   kAo5,
