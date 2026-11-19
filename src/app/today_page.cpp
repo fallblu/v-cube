@@ -340,10 +340,11 @@ std::vector<ActivityEvent> TodayPage::events() {
     add(AppMode::AlgLab, a.timestamp, a.timeMs);
   }
   // The practice modes: every card's try and every solve kept.
-  for (const auto &[data, mode] : {std::pair{&eoCross_, int(AppMode::EoCross)},
-                                   std::pair{&f2l_, int(AppMode::F2L)},
-                                   std::pair{&tsle_, int(AppMode::Tsle)}}) {
-    const PracticeData &kept = *data;
+  for (const auto &[practised, mode] :
+       {std::pair{&eoCross_, int(AppMode::EoCross)},
+        std::pair{&f2l_, int(AppMode::F2L)},
+        std::pair{&tsle_, int(AppMode::Tsle)}}) {
+    const PracticeData &kept = *practised;
     for (const auto &[id, p] : kept.cards) {
       for (const Attempt &a : p.attempts) {
         add(mode, a.timestamp, 0);
