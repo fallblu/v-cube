@@ -60,6 +60,7 @@
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
 #include <QTabBar>
+#include <QTextBrowser>
 #include <QTextDocumentFragment>
 #include <QTimer>
 #include <QToolButton>
@@ -289,9 +290,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   if (!loaded.backupError.isEmpty()) {
     failedWrites_[data_.backupsDir()] = loaded.backupError;
   }
-  for (const QString &warning : loaded.warnings) {
-    QMessageBox::warning(this, "v-cube", warning);
-  }
+  // Shown together once the window is (see showStartupProblems()).
+  startupProblems_ = loaded.warnings;
 
   stack_ = new QStackedWidget(this);
   learnPage_ = new LearnPage(settings_, data_.library, stack_);
@@ -464,10 +464,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   qApp->installEventFilter(
       new KeyRouter(this, [this] { return currentPage(); }, this));
 
-  if (!data_.library.errors().isEmpty()) {
-    QMessageBox::warning(this, "v-cube",
-                         tr("Some alg set files had problems:") + "\n\n" +
-                             data_.library.errors().join("\n"));
+  for (const QString &error : data_.library.errors()) {
+    startupProblems_ << tr("Alg sets: %1").arg(error);
   }
   restoreGeometry(saved::windowGeometry().get());
   if (!saved::windowGeometry().exists()) {
@@ -491,12 +489,61 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   updateBadges();
   updateBanner();
   if (settings_.droppedKeyBindings > 0) {
-    showMessage(plural(settings_.droppedKeyBindings,
-                       tr("%n key binding in the settings file couldn't be "
-                          "read and was ignored"),
-                       tr("%n key bindings in the settings file couldn't be "
-                          "read and were ignored")));
+    startupProblems_ << plural(
+        settings_.droppedKeyBindings,
+        tr("%n key binding in the settings file couldn't be read and was "
+           "ignored; set it again in Settings."),
+        tr("%n key bindings in the settings file couldn't be read and were "
+           "ignored; set them again in Settings."));
   }
+}
+
+void MainWindow::showStartupProblems() {
+  if (startupProblems_.isEmpty()) {
+    return;
+  }
+  // One window for them all, so that they can be read together to decide
+  // what to restore; it stays open beside the data folder.
+  auto *dialog = new QDialog(this);
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle(tr("Problems reading your data"));
+  auto *layout = new QVBoxLayout(dialog);
+  auto *intro = new QLabel(
+      plural(static_cast<int>(startupProblems_.size()),
+             tr("v-cube started, but found a problem while reading your "
+                "data:"),
+             tr("v-cube started, but found %n problems while reading your "
+                "data:")),
+      dialog);
+  intro->setWordWrap(true);
+  layout->addWidget(intro);
+  auto *list = new QTextBrowser(dialog);
+  list->setObjectName("startupProblems");
+  list->setOpenLinks(false);
+  QString html = "<ul>";
+  for (const QString &problem : startupProblems_) {
+    html += "<li>" + problem.toHtmlEscaped() + "</li>";
+  }
+  list->setHtml(html + "</ul>");
+  list->setAccessibleName(tr("Problems"));
+  layout->addWidget(list, 1);
+  auto *more = new QLabel(
+      tr("Dated copies of your files are kept in the data folder's backups "
+         "folder: to restore one, copy it over the file while v-cube is "
+         "closed."),
+      dialog);
+  more->setWordWrap(true);
+  layout->addWidget(more);
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+  QPushButton *folder =
+      buttons->addButton(tr("Open data folder"), QDialogButtonBox::ActionRole);
+  connect(folder, &QPushButton::clicked, this, &MainWindow::openDataFolder);
+  connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  dialog->resize(640, 360);
+  dialog->show();
+  dialog->raise();
+  dialog->activateWindow();
 }
 
 MainWindow::~MainWindow() {

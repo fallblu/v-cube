@@ -44,6 +44,13 @@ public:
   // Brings the window to the front, e.g. when v-cube is started again.
   void raiseWindow();
 
+  // What couldn't be read at start-up (data files, alg sets, key
+  // bindings), each with what became of it.
+  const QStringList &startupProblems() const { return startupProblems_; }
+  // Lists them in one window, if there are any; called once the window is
+  // shown.
+  void showStartupProblems();
+
 protected:
   void changeEvent(QEvent *e) override;
   void closeEvent(QCloseEvent *e) override;
@@ -87,6 +94,7 @@ private:
   std::optional<AppMode::Id> mode_;
   // Data files that couldn't be written, with the reason, for the banner.
   std::map<QString, QString> failedWrites_;
+  QStringList startupProblems_;
 
   QWidget *buildSidebar();
   void styleSidebar();

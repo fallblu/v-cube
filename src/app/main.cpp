@@ -124,6 +124,7 @@ int main(int argc, char **argv) {
   QObject::connect(&instance, &vcube::SingleInstance::activationRequested,
                    &window, &vcube::MainWindow::raiseWindow);
   window.show();
+  window.showStartupProblems();
   vcube::quitOnTerminationSignals();
   int result = app.exec();
   vcube::finishBackgroundWrites(); // saves still being written
