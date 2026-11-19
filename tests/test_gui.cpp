@@ -31,6 +31,7 @@
 #include "app/tsle_page.hpp"
 #include "app/ui_state.hpp"
 #include "app/untimed_page.hpp"
+#include "app/widgets.hpp"
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
 #include "io/data_file.hpp"
@@ -315,6 +316,7 @@ private slots:
   void settingsDialogOpensAndCloses();
   void interfaceTextSizeScalesTheText();
   void tipsShowInTheStatusBar();
+  void trendChartNamesWhatItCharts();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
@@ -2348,6 +2350,31 @@ void GuiTest::tipsShowInTheStatusBar() {
   dialog.close();
   window_->activateWindow();
   QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
+// A chart of something other than solves (the drill history's days) names
+// its points and lines as it is told, and its text grows with the font.
+void GuiTest::trendChartNamesWhatItCharts() {
+  TrendChart chart;
+  chart.setPointName("day mean");
+  chart.setAverages(false);
+  chart.setPointLabels({"Mon 1", "Tue 2", "Wed 3"});
+  chart.setSeries({{"daily best", Role::Series3, {1000, 1100, 900}}});
+  std::vector<Solve> means(3);
+  means[0].timeMs = 1500;
+  means[1].timeMs = 1600;
+  means[2].timeMs = 1400;
+  chart.setSolves(means);
+  const QString said = chart.accessibleDescription();
+  QVERIFY2(said.contains("Wed 3: 1.40"), qPrintable(said));
+  QVERIFY2(said.contains("daily best: 0.90"), qPrintable(said));
+  QVERIFY2(!said.contains("ao5") && !said.contains("#3"), qPrintable(said));
+  // Paints at a large text size without trouble.
+  QFont big = chart.font();
+  big.setPointSizeF(big.pointSizeF() * 1.33);
+  chart.setFont(big);
+  chart.resize(260, 140);
+  QVERIFY(!chart.grab().isNull());
 }
 
 void GuiTest::helpPanelShowsTheKeys() {

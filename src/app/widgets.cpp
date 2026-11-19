@@ -241,7 +241,8 @@ generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
 }
 
 TrendChart::TrendChart(QWidget *parent)
-    : QWidget(parent), emptyText_(tr("Times will be charted here")) {
+    : QWidget(parent), pointName_(tr("single")),
+      emptyText_(tr("Times will be charted here")) {
   // The chart gives way first when the window is small: it only gets the
   // room the cube, scramble and timer leave over.
   setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
@@ -284,6 +285,37 @@ void TrendChart::setSeries(std::vector<Series> series) {
   update();
 }
 
+void TrendChart::setPointName(const QString &name) {
+  pointName_ = name;
+  update();
+}
+
+void TrendChart::setAverages(bool on) {
+  averages_ = on;
+  update();
+}
+
+void TrendChart::setPointLabels(std::vector<QString> labels) {
+  pointLabels_ = std::move(labels);
+  update();
+}
+
+bool TrendChart::showsSeries() const {
+  return !series_.empty() && (showSeries_ || !averages_);
+}
+
+QStringList TrendChart::lineNames() const {
+  QStringList names;
+  if (showsSeries()) {
+    for (const Series &s : series_) {
+      names << s.name;
+    }
+  } else if (averages_) {
+    names << QStringLiteral("ao5") << QStringLiteral("ao12");
+  }
+  return names;
+}
+
 std::size_t TrendChart::first() const {
   std::size_t n = solves_.size();
   auto last = static_cast<std::size_t>(last_);
@@ -291,10 +323,19 @@ std::size_t TrendChart::first() const {
 }
 
 QRectF TrendChart::area() const {
-  // Under the plot, a line for the read-out of the solve under the mouse,
-  // then the legend; on the right, room for
-  // the name at the end of each line.
-  return QRectF(rect()).adjusted(44, 10, -40, -38);
+  // On the left, the axis labels; under the plot, a line for the read-out
+  // of the solve under the mouse, then the legend; on the right, room for
+  // the name at the end of each line. All in lines of the font, so that
+  // larger text isn't cut.
+  const QFontMetrics fm = fontMetrics();
+  const int lineH = fm.height();
+  int right = fm.horizontalAdvance(QStringLiteral("ao12"));
+  for (const QString &name : lineNames()) {
+    right = std::max(right, fm.horizontalAdvance(name));
+  }
+  return QRectF(rect()).adjusted(fm.horizontalAdvance(QStringLiteral("000.0")) +
+                                     8,
+                                 lineH / 2 + 2, -(right + 8), -(2 * lineH + 6));
 }
 
 QString TrendChart::valueText(StatValue v) const {
@@ -331,7 +372,7 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.drawText(rect(), Qt::AlignCenter, emptyText_);
     return;
   }
-  bool splits = showSeries_ && !series_.empty();
+  bool splits = showsSeries();
   std::vector<double> times;
   double lo = 1e18, hi = 0;
   auto see = [&](double v) {
@@ -386,13 +427,16 @@ void TrendChart::paintEvent(QPaintEvent *) {
   auto py = [&](double v) {
     return area.bottom() - area.height() * (std::min(v, hi) - lo) / (hi - lo);
   };
+  const QFontMetrics fm = p.fontMetrics();
+  const double lineH = fm.height();
   // Grid with labels, on round values.
   int decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
   p.setPen(QPen(axis, 0.5, Qt::DotLine));
   for (double v = lo; v <= hi + step / 2; v += step) {
     double y = py(v);
     p.drawLine(QPointF(area.left(), y), QPointF(area.right(), y));
-    p.drawText(QRectF(0, y - 8, 40, 16), Qt::AlignRight | Qt::AlignVCenter,
+    p.drawText(QRectF(0, y - lineH / 2, area.left() - 4, lineH),
+               Qt::AlignRight | Qt::AlignVCenter,
                QString::number(v, 'f', decimals));
   }
   // Each line is named at its right end, so that the lines aren't told
@@ -441,7 +485,7 @@ void TrendChart::paintEvent(QPaintEvent *) {
       drawSeries(s.values, s.name, c, 1.6);
       legend.emplace_back(s.name, c);
     }
-  } else {
+  } else if (averages_) {
     QColor ao5 = roleColour(Role::Series1);
     QColor ao12 = roleColour(Role::Series2);
     drawSeries(rollingAverages(solves_, 5), "ao5", ao5, 1.8);
@@ -451,7 +495,6 @@ void TrendChart::paintEvent(QPaintEvent *) {
   // The names at the line ends, nudged apart where they would overlap.
   std::sort(ends.begin(), ends.end(),
             [](const auto &a, const auto &b) { return a.first < b.first; });
-  const double lineH = p.fontMetrics().height();
   double above = -1e9;
   for (auto &end : ends) {
     end.first = std::max(end.first, above + lineH);
@@ -463,22 +506,29 @@ void TrendChart::paintEvent(QPaintEvent *) {
                       width() - area.right() - 4, lineH),
                Qt::AlignLeft | Qt::AlignVCenter, label.first);
   }
-  legend.emplace_back(tr("single"), axis);
+  legend.emplace_back(pointName_, axis);
+  const QRectF bottomRow(area.left(), height() - lineH - 2, area.width(),
+                         lineH);
   double x = area.left() + 4;
   for (const auto &[name, colour] : legend) {
     p.setPen(colour);
-    p.drawText(QPointF(x, height() - 5), name);
-    x += p.fontMetrics().horizontalAdvance(name) + 14;
+    p.drawText(QRectF(x, bottomRow.top(), width() - x, lineH),
+               Qt::AlignLeft | Qt::AlignVCenter, name);
+    x += fm.horizontalAdvance(name) + 14;
   }
   if (from > 0 || last_ > 0) {
     p.setPen(axis);
-    p.drawText(QRectF(area.left(), height() - 18, area.width(), 16),
-               Qt::AlignRight | Qt::AlignVCenter,
+    p.drawText(bottomRow, Qt::AlignRight | Qt::AlignVCenter,
                tr("last %1 of %2").arg(n).arg(solves_.size()));
   }
   // The solve under the mouse: a line across the plot, and its values on
-  // the read-out line under it (tooltips are off in the app).
-  QRectF readout(area.left(), area.bottom() + 2, area.width(), 16);
+  // the read-out line under it (tooltips are off in the app), cut short
+  // with "…" where the line is narrower.
+  QRectF readout(area.left(), area.bottom() + 2, area.width(), lineH);
+  auto fitted = [&](const QString &text) {
+    return fm.elidedText(text, Qt::ElideRight,
+                         static_cast<int>(readout.width()));
+  };
   if (hover_ >= 0 && static_cast<std::size_t>(hover_) >= from &&
       static_cast<std::size_t>(hover_) < solves_.size()) {
     double hx = px(static_cast<std::size_t>(hover_) - from);
@@ -486,28 +536,32 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.drawLine(QPointF(hx, area.top()), QPointF(hx, area.bottom()));
     p.setPen(palette().color(QPalette::Text));
     p.drawText(readout, Qt::AlignLeft | Qt::AlignVCenter,
-               hoverText(static_cast<std::size_t>(hover_))
-                   .replace('\n', QStringLiteral("    ")));
+               fitted(hoverText(static_cast<std::size_t>(hover_))
+                          .replace('\n', QStringLiteral("    "))));
   } else {
     p.setPen(axis);
     p.drawText(readout, Qt::AlignLeft | Qt::AlignVCenter,
-               tr("Point at the chart to read a solve's values"));
+               fitted(tr("Point at the chart to read its values")));
   }
 }
 
 QString TrendChart::hoverText(std::size_t at) const {
   const Solve &s = solves_[at];
   QStringList lines;
-  lines << tr("#%1: %2").arg(at + 1).arg(
-      moves_ ? valueText(effectiveTime(s))
-             : QString::fromStdString(formatSolve(s)));
-  if (showSeries_ && !series_.empty()) {
+  const QString value = moves_ ? valueText(effectiveTime(s))
+                               : QString::fromStdString(formatSolve(s));
+  if (at < pointLabels_.size()) {
+    lines << tr("%1: %2").arg(pointLabels_[at], value);
+  } else {
+    lines << tr("#%1: %2").arg(at + 1).arg(value);
+  }
+  if (showsSeries()) {
     for (const Series &sr : series_) {
       if (at < sr.values.size() && sr.values[at]) {
         lines << QString("%1: %2").arg(sr.name, valueText(sr.values[at]));
       }
     }
-  } else {
+  } else if (averages_) {
     auto ao5 = rollingAverages(std::span(solves_).first(at + 1), 5);
     auto ao12 = rollingAverages(std::span(solves_).first(at + 1), 12);
     if (ao5.back()) {
@@ -559,7 +613,8 @@ void TrendChart::contextMenuEvent(QContextMenuEvent *e) {
       update();
     });
   }
-  if (!series_.empty()) {
+  // Without the averages, the series are always drawn.
+  if (!series_.empty() && averages_) {
     menu.addSeparator();
     QStringList names;
     for (const Series &s : series_) {
