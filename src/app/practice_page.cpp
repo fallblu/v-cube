@@ -445,6 +445,7 @@ void PracticePage::activated() {
     next();
   } else {
     refreshList();
+    showSummary();
   }
   if (tab_ == Tab::Timed || tab_ == Tab::Inspection) {
     tick_.start();
@@ -1130,6 +1131,7 @@ void PracticePage::regrade(Grade g) {
   save();
   refreshList();
   showVerdict();
+  showSummary();
 }
 
 void PracticePage::playDemo() {
@@ -1980,6 +1982,7 @@ void PracticePage::fillList() {
   listHelp_->setText(listHelp());
   listHelp_->setVisible(!listHelp().isEmpty());
   refreshList();
+  showSummary();
 }
 
 void PracticePage::refreshList() {
@@ -2052,7 +2055,6 @@ void PracticePage::refreshList() {
       fill(top->child(j));
     }
   }
-  showSummary();
 }
 
 void PracticePage::showSummary() {
@@ -2213,6 +2215,7 @@ void PracticePage::clearProgress() {
   }
   save();
   refreshList();
+  showSummary();
   if (active_ && tab_ == Tab::Learn) {
     next();
   }
