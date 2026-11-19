@@ -123,6 +123,10 @@ std::string_view groupName(PairGroup g);
 // flipped), 167 without.
 const std::vector<PairCase> &pairCases(bool eo);
 
+// The cases as F2L mode's cards, by caseKey(), in the order they are
+// introduced (as listed).
+std::vector<std::string> pairCardPool(bool eo);
+
 // The mirror image that brings a slot to the front right (and back).
 Mirror slotMirror(Slot s);
 // The slot a slot of the front-right view is for `target`'s pair: where a
@@ -145,25 +149,17 @@ struct PairSetup {
   Slot target = Slot::FR;
   PairCase pcase;
 };
-// A state for Pair solutions: `stage` is the pair's place in the solve (1
+// A state with one pair to solve: `stage` is the pair's place in the solve (1
 // first, with every slot open; 0 any), brought down when the case needs
 // more slots open than that leaves. With `wanted` the target pair is that
 // case (in a random slot); nullopt when it can't be set up.
 std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
                                          std::optional<PairCase> wanted,
                                          Rng &rng);
-// The same for a slot of the caller's choice, with the other slots
-// solved, when `othersSolved`, if the case lets them be (Case explorer).
-std::optional<PairSetup> casePairSetup(const F2LConfig &config, PairCase wanted,
-                                       Slot target, bool othersSolved,
-                                       Rng &rng);
 // The most pairs a solve of the method has (3 for F2L - 1, else 4).
 int stageCount(const F2LConfig &config);
 
-// A state for Pair choice: two or more pairs that could be solved next,
-// with more than one left to do or a choice of which to leave.
-CubieCube randomChoiceState(const F2LConfig &config, Rng &rng);
-// A state for Full F2L: every slot open.
+// A state for a whole F2L: every slot open.
 CubieCube randomFullState(const F2LConfig &config, Rng &rng);
 
 // --- blind spots -------------------------------------------------------------

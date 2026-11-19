@@ -1,0 +1,1679 @@
+#include "app/practice_page.hpp"
+
+#include "app/key_router.hpp"
+#include "app/session_panel.hpp"
+#include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
+#include "io/session_store.hpp"
+#include "train/move_count.hpp"
+#include "train/stats.hpp"
+
+#include <QApplication>
+#include <QComboBox>
+#include <QDir>
+#include <QHeaderView>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QScrollArea>
+#include <QSignalBlocker>
+#include <QSplitter>
+#include <QStackedWidget>
+#include <QTabBar>
+#include <QTreeWidget>
+#include <QUrl>
+#include <QVBoxLayout>
+
+#include <algorithm>
+
+namespace vcube {
+
+namespace {
+
+constexpr int kKeyRole = Qt::UserRole;
+constexpr int kCardRole = Qt::UserRole + 1; // the row is a card's
+
+QString small(const QString &text) {
+  return text.isEmpty()
+             ? QString()
+             : "<br><span style='font-size:small'>" + text + "</span>";
+}
+
+QString gradeName(Grade g) {
+  switch (g) {
+  case Grade::Again:
+    return QObject::tr("Again");
+  case Grade::Hard:
+    return QObject::tr("Hard");
+  case Grade::Good:
+    return QObject::tr("Good");
+  case Grade::Easy:
+    return QObject::tr("Easy");
+  }
+  return {};
+}
+
+QString oneDecimal(double v) { return QString::number(v, 'f', 1); }
+
+} // namespace
+
+QString dueText(std::int64_t due, std::int64_t now, std::int64_t dayEnd) {
+  const std::int64_t in = due - now;
+  if (in <= 0) {
+    return QObject::tr("now");
+  }
+  if (in < 3600) {
+    return QObject::tr("in %1 min").arg(std::max<std::int64_t>(1, in / 60));
+  }
+  if (due < dayEnd) {
+    return QObject::tr("in %1 h").arg(in / 3600);
+  }
+  const std::int64_t days = (due - dayEnd) / kSecondsPerDay + 1;
+  return days == 1 ? QObject::tr("tomorrow") : QObject::tr("in %1 d").arg(days);
+}
+
+PracticePage::PracticePage(AppSettings &settings, const QString &dataDir,
+                           const QString &file, QWidget *parent)
+    : ModePage(parent), settings_(settings),
+      store_(QDir(dataDir).filePath(file)), rng_(makeRng()),
+      sittingStart_(unixNow()) {
+  // What the mode kept before it had these tabs is dropped (TSLE's OCLL
+  // algs are carried over).
+  const QJsonObject old = removeOldPracticeFile(store_.path());
+  QString error;
+  if (!store_.load(&error)) {
+    QString kept =
+        store_.setAsidePath().isEmpty()
+            ? tr("It is left where it is, and nothing will be saved over it.")
+            : tr("It was kept as %1.")
+                  .arg(QDir::toNativeSeparators(store_.setAsidePath()));
+    QMessageBox::warning(
+        this, "v-cube",
+        tr("Could not read %1 (%2), so the mode starts afresh.")
+                .arg(file, error) +
+            " " + kept);
+  }
+  for (const auto &[key, value] : oldOcllNotes(old)) {
+    store_.data.notes.emplace(key, value);
+  }
+}
+
+PracticePage::~PracticePage() = default;
+
+// --- building ----------------------------------------------------------------
+
+void PracticePage::build() {
+  buildSide();
+
+  auto *right = new QWidget(this);
+  auto *rightLayout = new QVBoxLayout(right);
+  rightLayout->setContentsMargins(0, 0, 0, 0);
+  options_ = new OptionBar(right);
+  cubeView_ = new CubeView(right);
+  cubeView_->setMinimumSize(260, 200);
+
+  addOptions(options_);
+  scopeBox_ = new QComboBox(options_);
+  scopeBox_->setFocusPolicy(Qt::NoFocus);
+  scopeBox_->addItem(unitName());
+  scopeBox_->addItem(tr("Whole %1").arg(stepName()));
+  scopeItem_ = options_->addPicker(tr("Scope:"), scopeBox_);
+  cubeBox_ = new QComboBox(options_);
+  cubeBox_->setFocusPolicy(Qt::NoFocus);
+  cubeBox_->addItem(tr("Virtual"));
+  cubeBox_->addItem(tr("Physical"));
+  cubeItem_ = options_->addPicker(tr("Cube:"), cubeBox_);
+  viewItem_ = options_->addViewPicker(cubeView_, modeId());
+  options_->addStretch();
+  addButtons(options_);
+  rightLayout->addWidget(options_);
+
+  prompt_ = new QLabel(right);
+  prompt_->setAlignment(Qt::AlignCenter);
+  prompt_->setWordWrap(true);
+  prompt_->setTextFormat(Qt::RichText);
+  QFont pf = prompt_->font();
+  pf.setPointSizeF(pf.pointSizeF() * 1.3);
+  prompt_->setFont(pf);
+
+  scrambleLabel_ = new QLabel(right);
+  scrambleLabel_->setAlignment(Qt::AlignCenter);
+  scrambleLabel_->setWordWrap(true);
+  scrambleLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  markScrambleLabel(scrambleLabel_);
+
+  cubeStack_ = new QStackedWidget(right);
+  hiddenLabel_ = new QLabel(tr("The cube is hidden."), cubeStack_);
+  hiddenLabel_->setAlignment(Qt::AlignCenter);
+  hiddenLabel_->setEnabled(false);
+  cubeStack_->addWidget(cubeView_);
+  cubeStack_->addWidget(hiddenLabel_);
+
+  display_ = new TimeDisplay(right);
+  display_->setAlignment(Qt::AlignCenter);
+  hint_ = new HintBar(right);
+  verdict_ = new QLabel(right);
+  verdict_->setObjectName("practiceVerdict");
+  verdict_->setAlignment(Qt::AlignCenter);
+  verdict_->setWordWrap(true);
+  verdict_->setTextFormat(Qt::RichText);
+  QFont vf = verdict_->font();
+  vf.setPointSizeF(vf.pointSizeF() * 1.15);
+  verdict_->setFont(vf);
+  detail_ = new QLabel(right);
+  detail_->setObjectName("practiceDetail");
+  detail_->setTextFormat(Qt::RichText);
+  detail_->setWordWrap(true);
+  detail_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+  detail_->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  detail_->setFocusPolicy(Qt::NoFocus);
+  detail_->setOpenExternalLinks(false);
+  detailScroll_ = new QScrollArea(right);
+  detailScroll_->setFrameShape(QFrame::NoFrame);
+  detailScroll_->setWidgetResizable(true);
+  detailScroll_->setFocusPolicy(Qt::NoFocus);
+  detailScroll_->setWidget(detail_);
+
+  rightLayout->addWidget(prompt_);
+  rightLayout->addWidget(scrambleLabel_);
+  rightLayout->addWidget(cubeStack_, 5);
+  rightLayout->addWidget(display_);
+  rightLayout->addWidget(verdict_);
+  rightLayout->addWidget(hint_);
+  rightLayout->addWidget(detailScroll_, 4);
+
+  auto *split = new QSplitter(this);
+  split->setObjectName("main");
+  split->addWidget(side_);
+  split->addWidget(right);
+  split->setStretchFactor(0, 0);
+  split->setStretchFactor(1, 1);
+  split->setSizes({380, 800});
+
+  tabs_ = new QTabBar(this);
+  tabs_->setFocusPolicy(Qt::NoFocus);
+  tabs_->setExpanding(false);
+  tabs_->addTab(tr("Learn"));
+  tabs_->addTab(tr("Timed"));
+  auto *layout = new QVBoxLayout(this);
+  layout->addWidget(tabs_);
+  layout->addWidget(split, 1);
+
+  connect(tabs_, &QTabBar::currentChanged, this, [this](int index) {
+    if (index >= 0 && static_cast<Tab>(index) != tab_) {
+      selectTab(static_cast<Tab>(index));
+    }
+  });
+  connect(scopeBox_, &QComboBox::activated, this,
+          [this](int index) { setScope(index); });
+  connect(cubeBox_, &QComboBox::activated, this,
+          [this](int index) { setPhysical(index == 1); });
+  connect(detail_, &QLabel::linkActivated, this, [this](const QString &link) {
+    if (link.startsWith("play:") && finished()) {
+      play(parseAlgOrEmpty(
+          QUrl::fromPercentEncoding(link.mid(5).toLatin1()).toStdString()));
+    }
+  });
+  connect(&scrambles_, &QFutureWatcher<GeneratedScramble>::finished, this,
+          &PracticePage::scrambleReady);
+  tick_.setInterval(37);
+  connect(&tick_, &QTimer::timeout, this, &PracticePage::onTick);
+
+  built_ = true;
+  loadChoices();
+  applySettings();
+  showBar();
+  showAll();
+}
+
+void PracticePage::buildSide() {
+  side_ = new QWidget(this);
+  auto *layout = new QVBoxLayout(side_);
+  layout->setContentsMargins(0, 0, 0, 0);
+  summary_ = new QLabel(side_);
+  summary_->setWordWrap(true);
+  summary_->setTextFormat(Qt::RichText);
+  tree_ = new QTreeWidget(side_);
+  tree_->setObjectName("practiceList");
+  tree_->setColumnCount(4);
+  tree_->setRootIsDecorated(false);
+  tree_->setFocusPolicy(Qt::NoFocus);
+  tree_->header()->setStretchLastSection(false);
+  tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+  for (int c = 1; c < 4; ++c) {
+    tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
+  }
+  listHelp_ = helpLabel({}, side_);
+  clearButton_ = flatButton(tr("Clear progress…"), side_);
+  layout->addWidget(summary_);
+  layout->addWidget(tree_, 1);
+  layout->addWidget(listHelp_);
+  layout->addWidget(clearButton_, 0, Qt::AlignLeft);
+  connect(tree_, &QTreeWidget::itemDoubleClicked, this,
+          [this](QTreeWidgetItem *row) { rowActivated(row); });
+  connect(clearButton_, &QPushButton::clicked, this,
+          &PracticePage::clearProgress);
+}
+
+void PracticePage::loadChoices() {
+  const QString mode = modeId();
+  tab_ = saved::practice(mode, "tab", 0).get().toInt() == 1 ? Tab::Timed
+                                                            : Tab::Learn;
+  scope_ = saved::practice(mode, "scope", 0).get().toInt() == 1 ? 1 : 0;
+  physical_ = saved::practice(mode, "physical", false).get().toBool();
+  QSignalBlocker block(tabs_);
+  tabs_->setCurrentIndex(static_cast<int>(tab_));
+}
+
+void PracticePage::saveChoices() const {
+  const QString mode = modeId();
+  saved::practice(mode, "tab").set(static_cast<int>(tab_));
+  saved::practice(mode, "scope").set(scope_);
+  saved::practice(mode, "physical").set(physical_);
+}
+
+void PracticePage::showBar() {
+  {
+    QSignalBlocker a(scopeBox_), b(cubeBox_), c(tabs_);
+    scopeBox_->setCurrentIndex(scope_);
+    cubeBox_->setCurrentIndex(physical_ ? 1 : 0);
+    tabs_->setCurrentIndex(static_cast<int>(tab_));
+  }
+  scopeItem_->setVisible(tab_ == Tab::Learn && !unitName().isEmpty());
+  cubeItem_->setVisible(tab_ == Tab::Timed);
+  viewItem_->setVisible(tab_ == Tab::Learn || !physical_);
+  showOptions();
+  showCubeKind();
+}
+
+DrillFlow::Config PracticePage::flowConfig() const {
+  const DrillSettings &d = settings_.drill;
+  return {!physical_,          d.tapToArm, d.autoStop,
+          d.shiftSpaceGivesUp, false,      d.holdMs};
+}
+
+bool PracticePage::learnWhole() const {
+  return unitName().isEmpty() || scope_ == 1;
+}
+
+// --- the page ----------------------------------------------------------------
+
+void PracticePage::selectTab(Tab t) {
+  if (tab_ == Tab::Timed && flow_.leave()) {
+    flow_.cancelSolve();
+  }
+  tab_ = t;
+  optionChanged();
+}
+
+void PracticePage::showCards() {
+  if (tab_ != Tab::Learn || scope_ != 0) {
+    tab_ = Tab::Learn;
+    scope_ = 0;
+    optionChanged();
+  }
+}
+
+void PracticePage::setScope(int scope) {
+  scope_ = scope == 1 ? 1 : 0;
+  optionChanged();
+}
+
+void PracticePage::setPhysical(bool on) {
+  physical_ = on;
+  optionChanged();
+}
+
+void PracticePage::optionChanged() {
+  if (!built_) {
+    return;
+  }
+  saveChoices();
+  flow_.leaveCase();
+  flow_.noCase();
+  flow_.setConfig(flowConfig());
+  item_ = {};
+  showBar();
+  fillList();
+  if (active_) {
+    next();
+  } else {
+    showAll();
+  }
+}
+
+void PracticePage::applySettings() {
+  if (!built_) {
+    return;
+  }
+  flow_.setConfig(flowConfig());
+  display_->setDecimals(settings_.decimals);
+  CubeLook look = cubeView_->look();
+  look.scheme = settings_.scheme;
+  cubeView_->setLook(look);
+  cubeView_->setAnimationMs(settings_.animationMs);
+  fillList();
+  if (active_ && item_.id != 0) {
+    showAll();
+  }
+}
+
+bool PracticePage::isBusy() const { return tab_ == Tab::Timed && flow_.busy(); }
+
+void PracticePage::activated() {
+  active_ = true;
+  // A solve under way in Learn is taken up where it was left; anything
+  // else starts with a new state.
+  const bool resume = tab_ == Tab::Learn && item_.id != 0 &&
+                      (phase_ == Phase::Solving || phase_ == Phase::Demo ||
+                       phase_ == Phase::Done);
+  if (!resume) {
+    next();
+  } else {
+    refreshList();
+  }
+  if (tab_ == Tab::Timed) {
+    tick_.start();
+  }
+}
+
+void PracticePage::deactivated() {
+  active_ = false;
+  tick_.stop();
+  cubeView_->finishAnimations();
+  if (tab_ == Tab::Timed) {
+    if (flow_.leave()) {
+      flow_.cancelSolve();
+    }
+    flow_.noCase();
+    item_ = {};
+  }
+}
+
+void PracticePage::windowDeactivated() {
+  if (tab_ == Tab::Timed && flow_.loseKeyboard()) {
+    display_->showTimer(flow_.timer(), monotonicMs());
+  }
+}
+
+void PracticePage::focusModeChanged() {
+  if (built_) {
+    options_->setVisible(!focusMode());
+    tabs_->setVisible(!focusMode());
+  }
+}
+
+bool PracticePage::finished() const {
+  return item_.id != 0 &&
+         (tab_ == Tab::Learn ? phase_ == Phase::Done && !waiting_
+                             : flow_.phase() == DrillFlow::Phase::Revealed);
+}
+
+bool PracticePage::cubeHidden() const {
+  return cubeStack_->isHidden() || cubeStack_->currentWidget() != cubeView_;
+}
+
+Alg PracticePage::bestSolution() const {
+  return item_.outcome ? item_.outcome->best : Alg{};
+}
+
+Alg PracticePage::shownDemo() const {
+  return tab_ == Tab::Learn && phase_ == Phase::Demo
+             ? const_cast<PracticePage *>(this)->demoAlg()
+             : Alg{};
+}
+
+QString PracticePage::promptHtml() const { return prompt_->text(); }
+QString PracticePage::verdictHtml() const { return verdict_->text(); }
+QString PracticePage::detailHtml() const {
+  return detailOpen_ ? detail_->text() : QString();
+}
+
+QString PracticePage::clockText(std::int64_t ms) const {
+  // As the timer shows it.
+  return qs(formatTime(StatValue(ms), settings_.decimals));
+}
+
+QString PracticePage::mutedColour() const {
+  return palette().color(QPalette::PlaceholderText).name();
+}
+
+QString PracticePage::playLink(const Alg &alg, const QString &text) {
+  return QString("<a href='play:%1'>%2</a>")
+      .arg(QString::fromLatin1(QUrl::toPercentEncoding(qs(toString(alg)))),
+           text);
+}
+
+void PracticePage::save() {
+  saveInBackground(store_, this, [this](const QString &error) {
+    emit message(
+        tr("Could not save your %1 progress: %2").arg(stepName(), error));
+  });
+}
+
+// --- items -------------------------------------------------------------------
+
+void PracticePage::next(bool early) {
+  if (tab_ == Tab::Timed) {
+    nextTimed();
+  } else {
+    nextLearn(early);
+  }
+}
+
+void PracticePage::showIdle(const QString &text) {
+  item_ = {};
+  item_.id = ++items_;
+  phase_ = Phase::Idle;
+  idleText_ = text;
+  cube_ = FaceletCube();
+  cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
+  cubeView_->clearMarks();
+  cubeView_->setState(cube_);
+  showAll();
+}
+
+void PracticePage::begin(const Setup &setup, bool whole) {
+  item_ = {};
+  item_.id = ++items_;
+  item_.whole = whole;
+  item_.group = setup.group;
+  item_.start = setup.cube;
+  item_.colours = setup.colours;
+  item_.scrambleState = setup.state;
+  item_.scrambleHold = setup.hold;
+  item_.began = monotonicMs();
+  waiting_ = false;
+  demoShown_ = false;
+  detailOpen_ = false;
+  note_.clear();
+  cube_ = item_.start;
+  cubeView_->finishAnimations();
+  cubeView_->setColourMap(colourMapOf(item_.colours));
+  cubeView_->clearMarks();
+  cubeView_->setState(cube_);
+  showHidden(false);
+}
+
+void PracticePage::nextLearn(bool early) {
+  if (learnWhole()) {
+    std::optional<Setup> s = setUp(true, {});
+    if (!s) {
+      showIdle(tr("No state could be set up with these options"));
+      return;
+    }
+    begin(*s, true);
+    phase_ = Phase::Solving;
+    cubeChanged();
+    showAll();
+    return;
+  }
+  const std::vector<std::string> pool = cardPool();
+  const std::int64_t now = unixNow();
+  if (queueUnstarted(pool, store_.data.cards, now, settings_.srs)) {
+    save();
+  }
+  LearnPickOptions options;
+  options.last = lastCard_;
+  options.rng = &rng_;
+  options.dayEnd = localDayEnd();
+  options.early = early;
+  LearnPick pick = pickLearnCase(pool, store_.data.cards, now, localDayStart(),
+                                 settings_.srs, options);
+  if (!pick.caseId) {
+    QString why;
+    if (pick.nextDue) {
+      why = tr("The next card is due %1.")
+                .arg(dueText(*pick.nextDue, now, localDayEnd()));
+    }
+    if (pick.queued > 0) {
+      why += " " +
+             (pick.newLimitReached
+                  ? tr("New cases wait for tomorrow (%1 a day, in Settings).")
+                        .arg(settings_.srs.newPerDay)
+                  : tr("New cases come in once fewer are in their first "
+                       "steps."));
+    }
+    showIdle(tr("Nothing is due") +
+             small(why.trimmed() + " " +
+                   tr("Scope: Whole %1 is there to practise meanwhile.")
+                       .arg(stepName())));
+    refreshList();
+    return;
+  }
+  std::optional<Setup> s = setUp(false, *pick.caseId);
+  if (!s) {
+    showIdle(tr("%1 can't be set up with these options")
+                 .arg(cardName(*pick.caseId)));
+    return;
+  }
+  begin(*s, false);
+  item_.card = *pick.caseId;
+  item_.isNew = pick.isNew;
+  item_.graded = !pick.isNew;
+  lastCard_ = item_.card;
+  phase_ = pick.isNew ? Phase::Demo : Phase::Solving;
+  cubeChanged();
+  showAll();
+}
+
+void PracticePage::practiseCard(const std::string &card) {
+  if (tab_ != Tab::Learn || learnWhole()) {
+    tab_ = Tab::Learn;
+    scope_ = 0;
+    saveChoices();
+    flow_.noCase();
+    showBar();
+    fillList();
+  }
+  std::optional<Setup> s = setUp(false, card);
+  if (!s) {
+    emit message(
+        tr("%1 can't be set up with these options").arg(cardName(card)));
+    return;
+  }
+  begin(*s, false);
+  item_.card = card;
+  phase_ = Phase::Solving;
+  cubeChanged();
+  showAll();
+}
+
+void PracticePage::nextTimed() {
+  flow_.setConfig(flowConfig());
+  std::optional<Setup> s = setUp(true, {});
+  if (!s) {
+    flow_.noCase();
+    showIdle(tr("No state could be set up with these options"));
+    return;
+  }
+  begin(*s, true);
+  flow_.setUp(monotonicMs());
+  display_->showTime(0);
+  cubeChanged();
+  if (physical_) {
+    requestScramble();
+  }
+  if (active_) {
+    tick_.start();
+  }
+  showAll();
+}
+
+void PracticePage::sameAgain() {
+  if (item_.id == 0) {
+    return;
+  }
+  Item again;
+  again.id = item_.id; // the mode's analysis of the state still holds
+  again.whole = item_.whole;
+  again.card = item_.card;
+  again.group = item_.group;
+  again.start = item_.start;
+  again.colours = item_.colours;
+  again.scrambleState = item_.scrambleState;
+  again.scrambleHold = item_.scrambleHold;
+  again.scramble = item_.scramble;
+  again.retry = true;
+  again.began = monotonicMs();
+  item_ = std::move(again);
+  waiting_ = false;
+  detailOpen_ = false;
+  note_.clear();
+  cubeView_->finishAnimations();
+  cube_ = item_.start;
+  cubeView_->setState(cube_);
+  showHidden(false);
+  restarted();
+  cubeChanged();
+  if (tab_ == Tab::Timed) {
+    flow_.setUp(monotonicMs());
+    display_->showTime(0);
+  } else {
+    phase_ = Phase::Solving;
+  }
+  showAll();
+}
+
+void PracticePage::resetCube() {
+  demoShown_ = false;
+  cubeView_->finishAnimations();
+  cube_ = item_.start;
+  cubeView_->setState(cube_);
+  item_.moves.clear();
+  item_.moveMs.clear();
+  item_.done = false;
+  showHidden(false);
+  restarted();
+  cubeChanged();
+}
+
+void PracticePage::applyTurn(Move m) {
+  cube_.apply(m);
+  cubeView_->animateMove(m);
+}
+
+void PracticePage::showHidden(bool hidden) {
+  item_.hidden = hidden;
+  cubeStack_->setCurrentWidget(hidden ? static_cast<QWidget *>(hiddenLabel_)
+                                      : cubeView_);
+}
+
+void PracticePage::showCubeKind() {
+  // A physical attempt shows its scramble; the cube comes back with the
+  // result, to play the best solution on.
+  const bool scramble = tab_ == Tab::Timed && physical_;
+  const bool revealed = flow_.phase() == DrillFlow::Phase::Revealed;
+  scrambleLabel_->setVisible(scramble && item_.id != 0);
+  cubeStack_->setVisible(!scramble || revealed);
+  display_->setVisible(tab_ == Tab::Timed &&
+                       flow_.phase() != DrillFlow::Phase::NoCase);
+}
+
+void PracticePage::requestScramble() {
+  const int request = ++scrambleRequest_;
+  scrambles_.setProperty("request", request);
+  ColourNeutrality hold;
+  hold.main = item_.scrambleHold;
+  hold.holds = {item_.scrambleHold};
+  scrambles_.setFuture(
+      generateScramble([state = item_.scrambleState](
+                           Rng &) { return ScrambleSetup{state, {}, {}}; },
+                       hold));
+}
+
+void PracticePage::scrambleReady() {
+  if (tab_ != Tab::Timed || !physical_ || item_.id == 0) {
+    return;
+  }
+  if (scrambles_.property("request").toInt() != scrambleRequest_) {
+    if (item_.scramble.isEmpty()) {
+      requestScramble();
+    }
+    return;
+  }
+  item_.scramble = scrambles_.result().text;
+  showAll();
+}
+
+// --- keys --------------------------------------------------------------------
+
+bool PracticePage::handleKey(QKeyEvent *e, bool press) {
+  if (!built_ || (e->modifiers() &
+                  (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+    return false;
+  }
+  if (tab_ == Tab::Timed) {
+    return handleTimedKey(e, press);
+  }
+  return press && item_.id != 0 && handleLearnKey(e);
+}
+
+bool PracticePage::handleLearnKey(QKeyEvent *e) {
+  const bool shift = e->modifiers().testFlag(Qt::ShiftModifier);
+  if (phase_ == Phase::Idle) {
+    if (e->key() == Qt::Key_Space || e->key() == Qt::Key_Return ||
+        e->key() == Qt::Key_Enter) {
+      next(true);
+      return true;
+    }
+    return false;
+  }
+  switch (e->key()) {
+  case Qt::Key_Space:
+    if (phase_ == Phase::Done) {
+      if (waiting_) {
+        emit message(tr("Still working out the best solutions"));
+      } else {
+        next();
+      }
+    } else if (phase_ == Phase::Demo) {
+      introduced();
+    } else if (item_.hidden) {
+      showHidden(false);
+      finishLearn(!item_.done);
+    } else if (shift) {
+      finishLearn(true);
+    }
+    return true;
+  case Qt::Key_Tab:
+    if (phase_ == Phase::Solving && hasHints() && !item_.hidden) {
+      const QString text = hint();
+      if (text.isEmpty()) {
+        emit message(tr("Still working out the best solutions"));
+      } else {
+        item_.hint = true;
+        showKeys();
+        hint_->setHint(text, hint_->keys());
+      }
+    } else if (phase_ == Phase::Done) {
+      toggleDetail();
+    }
+    return true;
+  case Qt::Key_Backspace:
+    if (phase_ == Phase::Solving) {
+      showHidden(false);
+      finishLearn(true);
+    }
+    return true;
+  case Qt::Key_Escape:
+    if (phase_ == Phase::Done) {
+      if (!waiting_) {
+        sameAgain();
+      }
+    } else {
+      resetCube();
+      showAll();
+    }
+    return true;
+  case Qt::Key_Return:
+  case Qt::Key_Enter:
+    if (phase_ == Phase::Demo) {
+      playDemo();
+    } else if (phase_ == Phase::Done) {
+      playBest();
+    }
+    return true;
+  default:
+    break;
+  }
+  if (phase_ == Phase::Done && item_.graded && item_.grade && !waiting_ &&
+      e->key() >= Qt::Key_1 && e->key() <= Qt::Key_4) {
+    regrade(static_cast<Grade>(e->key() - Qt::Key_1 + 1));
+    return true;
+  }
+  if (auto m = settings_.keymap.lookup(e)) {
+    learnTurn(*m);
+    return true;
+  }
+  return false;
+}
+
+// --- Learn -------------------------------------------------------------------
+
+void PracticePage::learnTurn(Move m) {
+  endDemo();
+  if (phase_ == Phase::Done) {
+    applyTurn(m); // the cube turns freely now
+    cubeChanged();
+    return;
+  }
+  if (blind() && phase_ == Phase::Solving && !isRotation(m.type) &&
+      !item_.hidden) {
+    cubeView_->finishAnimations();
+    showHidden(true);
+    showKeys();
+  }
+  applyTurn(m);
+  item_.moves.push_back(m);
+  item_.moveMs.push_back(monotonicMs() - item_.began);
+  item_.done = turned();
+  cubeChanged();
+  if (!item_.done) {
+    return;
+  }
+  if (phase_ == Phase::Demo) {
+    introduced();
+  } else if (!item_.hidden) {
+    finishLearn(false);
+  }
+}
+
+void PracticePage::finishLearn(bool gaveUp) {
+  if (phase_ != Phase::Solving) {
+    return;
+  }
+  item_.gaveUp = gaveUp;
+  phase_ = Phase::Done;
+  if (waitsForAnalysis()) {
+    waiting_ = true;
+    showAll();
+    return;
+  }
+  conclude();
+}
+
+void PracticePage::conclude() {
+  waiting_ = false;
+  item_.outcome = judge();
+  if (!item_.retry && !item_.recorded) {
+    const std::int64_t now = unixNow();
+    if (item_.graded) {
+      CaseProgress &p = store_.data.cards[item_.card];
+      item_.cardBefore = p.card;
+      const Grade g =
+          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      review(p.card, g, now, settings_.srs, &rng_);
+      p.record({now, 0, g == Grade::Again, AttemptMode::Learn});
+      item_.grade = g;
+      item_.recorded = true;
+    } else if (item_.card.empty()) {
+      PracticeTry t;
+      t.timestamp = now;
+      t.moves = item_.outcome->moves;
+      t.best = item_.outcome->bestMoves;
+      t.extra = item_.outcome->extra;
+      t.dnf = item_.gaveUp;
+      t.hint = item_.hint;
+      store_.data.addLearn(item_.group, t);
+      item_.recorded = true;
+    }
+    if (item_.recorded) {
+      save();
+      refreshList();
+    }
+  }
+  showAll();
+}
+
+void PracticePage::introduced() {
+  endDemo();
+  CaseProgress &p = store_.data.cards[item_.card];
+  const std::int64_t now = unixNow();
+  introduce(p.card, now, settings_.srs);
+  save();
+  refreshList();
+  phase_ = Phase::Done;
+  item_.outcome = Outcome{};
+  item_.outcome->verdict = tr("Shown. It comes back %1, to do from memory.")
+                               .arg(dueText(p.card.due, now, localDayEnd()));
+  item_.outcome->best = demoAlg();
+  showAll();
+}
+
+void PracticePage::regrade(Grade g) {
+  CaseProgress &p = store_.data.cards[item_.card];
+  p.card = item_.cardBefore;
+  review(p.card, g, unixNow(), settings_.srs, &rng_);
+  if (!p.attempts.empty()) {
+    p.attempts.back().failed = g == Grade::Again;
+  }
+  item_.grade = g;
+  save();
+  refreshList();
+  showVerdict();
+}
+
+void PracticePage::playDemo() {
+  const Alg alg = demoAlg();
+  if (alg.empty()) {
+    emit message(tr("Still working out the best solutions"));
+    return;
+  }
+  // Only the picture turns; the cube is back at the start to do it.
+  resetCube();
+  cubeView_->animateSequence(alg);
+  demoShown_ = true;
+  const int id = item_.id;
+  QTimer::singleShot(static_cast<int>(alg.size()) * settings_.animationMs * 2 +
+                         900,
+                     this, [this, id] {
+                       if (id == item_.id && phase_ == Phase::Demo) {
+                         endDemo();
+                       }
+                     });
+}
+
+void PracticePage::endDemo() {
+  if (demoShown_) {
+    demoShown_ = false;
+    cubeView_->finishAnimations();
+    cubeView_->setState(cube_);
+    cubeChanged();
+  }
+}
+
+// --- Timed -------------------------------------------------------------------
+
+std::string PracticePage::timedGroupKey() const {
+  return timedKey(physical_, item_.group);
+}
+
+DrillFlow::KeyEvent PracticePage::flowKey(const QKeyEvent *e,
+                                          bool press) const {
+  using Key = DrillFlow::Key;
+  DrillFlow::KeyEvent k;
+  k.press = press;
+  k.shift = e->modifiers().testFlag(Qt::ShiftModifier);
+  switch (e->key()) {
+  case Qt::Key_Space:
+    k.key = Key::Space;
+    break;
+  case Qt::Key_Return:
+  case Qt::Key_Enter:
+    k.key = Key::Enter;
+    break;
+  case Qt::Key_Tab:
+    k.key = Key::Tab;
+    break;
+  case Qt::Key_Backspace:
+    k.key = Key::Backspace;
+    break;
+  case Qt::Key_Delete:
+    k.key = Key::Delete;
+    break;
+  case Qt::Key_Escape:
+    k.key = Key::Escape;
+    break;
+  default:
+    k.key = isModifierKey(e->key()) ? Key::Modifier : Key::Other;
+    break;
+  }
+  if (!physical_) {
+    k.move = settings_.keymap.lookup(e);
+  }
+  return k;
+}
+
+bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
+  if (item_.id == 0) {
+    return false;
+  }
+  const std::int64_t now = monotonicMs();
+  if (flow_.phase() == DrillFlow::Phase::NoCase) {
+    if (press && e->key() == Qt::Key_Space) {
+      next();
+      return true;
+    }
+    return false;
+  }
+  if (press && flow_.phase() == DrillFlow::Phase::Revealed &&
+      (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)) {
+    playBest();
+    return true;
+  }
+  const bool scrambleShown = !physical_ || !item_.scramble.isEmpty();
+  DrillFlow::Step step = flow_.key(flowKey(e, press), now, scrambleShown);
+  perform(step, now);
+  return step.handled;
+}
+
+void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
+  using A = DrillFlow::Action;
+  switch (step.action) {
+  case A::None:
+  case A::PracticeReset:
+  case A::PracticeTurn:
+    break;
+  case A::NextFromIdle:
+  case A::NextCase:
+    next();
+    break;
+  case A::Retry:
+    sameAgain();
+    break;
+  case A::ResetWaiting:
+    display_->showTime(0);
+    if (!physical_) {
+      resetCube();
+    }
+    showKeys();
+    break;
+  case A::Rotate:
+    // Looking at the cube before the start: part of the solve's moves, so
+    // that the hold it is solved in is known.
+    applyTurn(*step.move);
+    item_.moves.push_back(*step.move);
+    item_.moveMs.push_back(0);
+    cubeChanged();
+    break;
+  case A::Start:
+    item_.began = now;
+    showKeys();
+    if (step.move) {
+      runningTurn(*step.move, now);
+    } else {
+      display_->showTimer(flow_.timer(), now);
+    }
+    break;
+  case A::Armed:
+    display_->showTimer(flow_.timer(), now);
+    showKeys();
+    break;
+  case A::TimerShown:
+    display_->showTimer(flow_.timer(), now);
+    break;
+  case A::Turn:
+    runningTurn(*step.move, now);
+    break;
+  case A::Stopped:
+    // On the virtual cube a DNF unless the cube shows the step done.
+    finishTimed(step.timeMs, !physical_ && !item_.done);
+    break;
+  case A::CancelNoTurn:
+    cancelTimed(tr("Stopped before any face turn: cancelled, nothing was "
+                   "recorded."));
+    break;
+  case A::Cancel:
+    cancelTimed(tr("Solve cancelled; nothing was recorded."));
+    break;
+  case A::GiveUp:
+    finishTimed(flow_.giveUp(now), true, true);
+    break;
+  case A::Practise:
+    toggleDetail();
+    break;
+  case A::ToggleWrong:
+    toggleDnf();
+    break;
+  case A::Delete:
+    deleteTry();
+    break;
+  case A::Hint: {
+    QString text;
+    switch (step.hint) {
+    case DrillFlow::Hint::GiveUpKey:
+      text = tr("Shift+Space gives the solve up.");
+      break;
+    case DrillFlow::Hint::KeepHolding:
+      text = tr("Keep holding Space until the time turns green, then let go "
+                "or start turning.");
+      break;
+    case DrillFlow::Hint::OnlyRotations:
+      text = settings_.drill.tapToArm
+                 ? tr("Only rotations until the timer starts: tap Space first.")
+                 : tr("Only rotations until the timer starts (hold Space).");
+      break;
+    case DrillFlow::Hint::None:
+      break;
+    }
+    hint_->setHint(text, hint_->keys());
+    break;
+  }
+  }
+}
+
+void PracticePage::runningTurn(Move m, std::int64_t now) {
+  const bool face = !isRotation(m.type);
+  applyTurn(m);
+  item_.moves.push_back(m);
+  item_.moveMs.push_back(now - item_.began);
+  item_.done = turned();
+  cubeChanged();
+  std::optional<std::int64_t> stopped =
+      flow_.turned(face, face, now, [this] { return item_.done; });
+  if (stopped) {
+    finishTimed(*stopped, false);
+  }
+}
+
+void PracticePage::cancelTimed(const QString &why) {
+  flow_.cancelSolve();
+  display_->showTime(0);
+  if (!physical_) {
+    resetCube();
+  }
+  showAll();
+  hint_->setHint(why, hint_->keys());
+}
+
+void PracticePage::finishTimed(std::int64_t ms, bool failed, bool gaveUp) {
+  cubeView_->finishAnimations();
+  item_.ms = ms;
+  item_.gaveUp = failed;
+  const std::string key = timedGroupKey();
+  std::optional<std::int64_t> bestBefore;
+  if (auto it = store_.data.timed.find(key); it != store_.data.timed.end()) {
+    bestBefore = summarize(it->second).bestMs;
+  }
+  flow_.finished(ms, failed, gaveUp, bestBefore, monotonicMs());
+  item_.outcome = judge();
+  if (!item_.retry) {
+    PracticeTry t;
+    t.timestamp = unixNow();
+    t.ms = ms;
+    t.moves = item_.outcome->moves;
+    t.best = item_.outcome->bestMoves;
+    t.extra = item_.outcome->extra;
+    t.dnf = failed;
+    store_.data.addTimed(key, t);
+    item_.recorded = true;
+    save();
+    refreshList();
+  } else {
+    flow_.forgotten();
+  }
+  display_->showTime(ms, failed ? Penalty::Dnf : Penalty::None);
+  showAll();
+}
+
+void PracticePage::toggleDnf() {
+  if (!item_.recorded || !flow_.setWrong(!flow_.failed())) {
+    return;
+  }
+  auto tries = store_.data.timed.find(timedGroupKey());
+  if (tries != store_.data.timed.end() && !tries->second.empty()) {
+    tries->second.back().dnf = flow_.failed();
+  }
+  item_.gaveUp = flow_.failed();
+  display_->showTime(item_.ms, flow_.failed() ? Penalty::Dnf : Penalty::None);
+  save();
+  refreshList();
+  showAll();
+}
+
+void PracticePage::deleteTry() {
+  if (item_.recorded) {
+    auto tries = store_.data.timed.find(timedGroupKey());
+    if (tries != store_.data.timed.end() && !tries->second.empty()) {
+      tries->second.pop_back();
+      if (tries->second.empty()) {
+        store_.data.timed.erase(tries);
+      }
+    }
+    item_.recorded = false;
+    save();
+    refreshList();
+  }
+  if (flow_.deleted()) {
+    // Given up before the start: taken back, to try.
+    item_.outcome.reset();
+    item_.gaveUp = false;
+    display_->showTime(0);
+    if (!physical_) {
+      resetCube();
+    }
+  } else {
+    note_ = tr("Deleted; nothing is recorded.");
+  }
+  showAll();
+}
+
+void PracticePage::onTick() {
+  if (tab_ != Tab::Timed) {
+    return;
+  }
+  const std::int64_t now = monotonicMs();
+  // A popup or dialog took the keyboard: Space's release won't come.
+  if (flow_.holding() && (QApplication::activePopupWidget() ||
+                          QApplication::activeModalWidget())) {
+    flow_.loseKeyboard();
+    display_->showTimer(flow_.timer(), now);
+    return;
+  }
+  flow_.tick(now);
+  if (flow_.busy()) {
+    display_->showTimer(flow_.timer(), now);
+  }
+}
+
+// --- analysis ----------------------------------------------------------------
+
+void PracticePage::analysisArrived(int id) {
+  if (id != item_.id || item_.id == 0) {
+    return;
+  }
+  if (waiting_) {
+    conclude();
+    return;
+  }
+  if (!finished() || !item_.outcome) {
+    showAll(); // e.g. a new case's solution to show
+    return;
+  }
+  // The verdict that is up is given again, and what was kept of the solve
+  // completed.
+  const Outcome before = *item_.outcome;
+  item_.outcome = judge();
+  if (item_.recorded && item_.card.empty()) {
+    PracticeTries &all =
+        tab_ == Tab::Timed ? store_.data.timed : store_.data.learn;
+    auto tries = all.find(tab_ == Tab::Timed ? timedGroupKey() : item_.group);
+    if (tries != all.end() && !tries->second.empty() &&
+        (before.extra != item_.outcome->extra ||
+         before.bestMoves != item_.outcome->bestMoves)) {
+      tries->second.back().best = item_.outcome->bestMoves;
+      tries->second.back().extra = item_.outcome->extra;
+      save();
+      refreshList();
+    }
+  }
+  showAll();
+}
+
+// --- what is shown -----------------------------------------------------------
+
+void PracticePage::play(const Alg &alg) {
+  if (alg.empty() || item_.id == 0) {
+    return;
+  }
+  cubeView_->finishAnimations();
+  cube_ = item_.start;
+  cubeView_->setState(cube_);
+  cubeView_->animateSequence(alg);
+  cube_.apply(alg);
+  cubeChanged();
+}
+
+void PracticePage::playBest() {
+  if (finished() && item_.outcome) {
+    play(item_.outcome->best);
+  }
+}
+
+void PracticePage::toggleDetail() {
+  if (!finished()) {
+    return;
+  }
+  detailOpen_ = !detailOpen_;
+  showAll();
+}
+
+void PracticePage::showAll() {
+  if (!built_) {
+    return;
+  }
+  showCubeKind();
+  showPrompt();
+  showKeys();
+  showVerdict();
+  showSummary();
+}
+
+void PracticePage::showPrompt() {
+  QString text;
+  if (item_.id == 0) {
+    text.clear();
+  } else if (tab_ == Tab::Learn && phase_ == Phase::Idle) {
+    text = idleText_;
+  } else if (tab_ == Tab::Learn && phase_ == Phase::Demo) {
+    text = tr("New case: %1").arg(cardName(item_.card)) + small(demoText());
+  } else {
+    QStringList notes;
+    if (!item_.card.empty()) {
+      notes << cardName(item_.card);
+    }
+    if (!taskNote().isEmpty()) {
+      notes << taskNote();
+    }
+    if (item_.retry) {
+      notes << tr("again, not recorded");
+    } else if (tab_ == Tab::Learn && !item_.card.empty() && !item_.graded &&
+               !item_.isNew) {
+      notes << tr("practice, not graded");
+    }
+    // The case isn't named while it is being recognised.
+    if (tab_ == Tab::Learn && phase_ == Phase::Solving && !item_.card.empty()) {
+      notes.removeFirst();
+    }
+    text = task() + small(notes.join(" · "));
+  }
+  prompt_->setText(text);
+  scrambleLabel_->setText(item_.scramble.isEmpty()
+                              ? tr("Working out the scramble…")
+                              : item_.scramble);
+}
+
+void PracticePage::showKeys() {
+  QList<KeyHint> keys;
+  QString message;
+  const bool best = item_.outcome && !item_.outcome->best.empty();
+  const KeyHint detailKey{"Tab",
+                          detailOpen_ ? tr("hide the details") : tr("details")};
+  if (item_.id == 0) {
+    hint_->setHint({}, {});
+    return;
+  }
+  if (tab_ == Tab::Learn) {
+    switch (phase_) {
+    case Phase::Idle:
+      keys = {{"Space", tr("look again")}};
+      break;
+    case Phase::Demo:
+      keys = {{"Enter", tr("show it")},
+              {"Space", tr("skip: I know this case")},
+              {"Esc", tr("start again")}};
+      break;
+    case Phase::Solving:
+      if (item_.hidden) {
+        message = tr("The cube is hidden: do what you planned.");
+        keys = {{"Space", tr("show the cube")}, {"Esc", tr("start again")}};
+        break;
+      }
+      if (blind()) {
+        message = tr("Plan first: the cube hides at your first face turn.");
+      }
+      if (hasHints()) {
+        keys << KeyHint{"Tab", tr("hint")};
+      }
+      keys << KeyHint{"Backspace", tr("give up")}
+           << KeyHint{"Esc", tr("start again")};
+      break;
+    case Phase::Done:
+      if (waiting_) {
+        message = tr("Working out the best solutions…");
+        break;
+      }
+      keys << KeyHint{"Space", tr("next")};
+      if (best) {
+        keys << KeyHint{"Enter", tr("play the best")};
+      }
+      keys << detailKey;
+      if (item_.graded && item_.grade) {
+        keys << KeyHint{"1-4", tr("change the grade")};
+      }
+      keys << KeyHint{"Esc", tr("retry, not recorded")};
+      break;
+    }
+    hint_->setHint(message, keys);
+    return;
+  }
+  const KeyHint giveUp{settings_.drill.shiftSpaceGivesUp ? tr("Shift+Space")
+                                                         : tr("Backspace"),
+                       tr("give up")};
+  switch (flow_.phase()) {
+  case DrillFlow::Phase::NoCase:
+    keys = {{"Space", tr("look again")}};
+    break;
+  case DrillFlow::Phase::Waiting:
+    if (physical_) {
+      message = item_.scramble.isEmpty()
+                    ? QString()
+                    : tr("Scramble, then start the timer.");
+      keys = {{tr("hold Space"), tr("start on letting go")}, giveUp};
+    } else if (flow_.armed()) {
+      message = tr("Ready: the first face turn starts the timer.");
+      keys = {{"Esc", tr("not yet")}, giveUp};
+    } else if (settings_.drill.tapToArm) {
+      message = tr("Turn the cube as a whole to look at it.");
+      keys = {{"Space", tr("ready: the first face turn starts the timer")},
+              giveUp};
+    } else {
+      message = tr("Turn the cube as a whole to look at it.");
+      keys = {{tr("hold Space"), tr("start on letting go or turning")}, giveUp};
+    }
+    break;
+  case DrillFlow::Phase::Running:
+    if (physical_) {
+      keys = {{tr("any key"), tr("stop")}, giveUp, {"Esc", tr("cancel")}};
+    } else if (settings_.drill.autoStop) {
+      message = tr("The timer stops when the step is done.");
+      keys = {{"Space", tr("stop now (a DNF unless done)")},
+              giveUp,
+              {"Esc", tr("cancel")}};
+    } else {
+      keys = {{"Space", tr("stop")}, giveUp, {"Esc", tr("cancel")}};
+    }
+    break;
+  case DrillFlow::Phase::Revealed:
+    keys << KeyHint{"Space", tr("next")};
+    if (best) {
+      keys << KeyHint{"Enter", tr("play the best")};
+    }
+    keys << detailKey;
+    if (item_.recorded && !flow_.gaveUp()) {
+      keys << KeyHint{"Backspace",
+                      flow_.failed() ? tr("not a DNF") : tr("DNF")};
+    }
+    if (item_.recorded) {
+      keys << KeyHint{"Delete", flow_.gaveUp() && flow_.gaveUpBeforeStart()
+                                    ? tr("take it back")
+                                    : tr("delete it")};
+    }
+    keys << KeyHint{"Esc", tr("retry, not recorded")};
+    break;
+  case DrillFlow::Phase::Aided:
+  case DrillFlow::Phase::Unaided:
+    break;
+  }
+  hint_->setHint(message, keys);
+}
+
+QString PracticePage::gradeLine() const {
+  if (!item_.graded || !item_.grade) {
+    return {};
+  }
+  auto it = store_.data.cards.find(item_.card);
+  if (it == store_.data.cards.end()) {
+    return {};
+  }
+  const QColor colour =
+      *item_.grade == Grade::Again ? QColor(kFailColour) : QColor(kPassColour);
+  return tr("%1 · it comes back %2")
+      .arg(coloured(colour, "<b>" + gradeName(*item_.grade) + "</b>"),
+           dueText(it->second.card.due, unixNow(), localDayEnd()));
+}
+
+void PracticePage::showVerdict() {
+  QStringList lines;
+  if (waiting_) {
+    lines << tr("Working out the best solutions…");
+  } else if (finished() && item_.outcome) {
+    const Outcome &o = *item_.outcome;
+    if (!o.verdict.isEmpty()) {
+      lines << o.verdict;
+    }
+    if (!o.best.empty() || !o.bestText.isEmpty()) {
+      lines << tr("Best: %1")
+                   .arg("<b>" +
+                        (o.bestText.isEmpty() ? algText(o.best) : o.bestText) +
+                        "</b>");
+    }
+    const QString grade = gradeLine();
+    if (!grade.isEmpty()) {
+      lines << grade;
+    }
+  }
+  if (!note_.isEmpty()) {
+    lines << coloured(QColor(mutedColour()), note_);
+  }
+  verdict_->setText(lines.join("<br>"));
+  verdict_->setVisible(!lines.isEmpty());
+  const bool open = detailOpen_ && finished();
+  detailScroll_->setVisible(true);
+  detail_->setText(open ? detail() : QString());
+}
+
+// --- the list ----------------------------------------------------------------
+
+void PracticePage::fillList() {
+  if (!built_) {
+    return;
+  }
+  QSignalBlocker block(tree_);
+  tree_->clear();
+  const bool cards = tab_ == Tab::Learn && hasCards();
+  std::vector<ListRow> rows;
+  if (cards) {
+    rows = cardRows();
+    tree_->setHeaderLabels(
+        {tr("Case"), tr("Due"), tr("Reviews"), tr("Lapses")});
+  } else if (tab_ == Tab::Learn) {
+    rows = learnGroups();
+    tree_->setHeaderLabels(
+        {stepName(), tr("Solves"), tr("Moves"), tr("Extra")});
+  } else {
+    rows = timedGroups();
+    tree_->setHeaderLabels({stepName(), tr("Solves"), tr("Mean"), tr("Best")});
+  }
+  const int size = settings_.thumbnailSize;
+  tree_->setIconSize({size, size});
+  QTreeWidgetItem *section = nullptr;
+  QString shown;
+  for (const ListRow &r : rows) {
+    if (!r.section.isEmpty() && (r.section != shown || !section)) {
+      shown = r.section;
+      section = new QTreeWidgetItem(tree_);
+      section->setText(0, shown);
+      section->setFirstColumnSpanned(true);
+      section->setFlags(Qt::ItemIsEnabled);
+      QFont f = section->font(0);
+      f.setBold(true);
+      section->setFont(0, f);
+    }
+    auto *row = r.section.isEmpty() ? new QTreeWidgetItem(tree_)
+                                    : new QTreeWidgetItem(section);
+    row->setData(0, kKeyRole, qs(r.key));
+    row->setData(0, kCardRole, cards);
+    row->setText(0, r.name);
+    if (!r.icon.isNull()) {
+      row->setIcon(0, r.icon);
+    }
+    for (int c = 1; c < 4; ++c) {
+      row->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
+    }
+  }
+  tree_->expandAll();
+  listHelp_->setText(listHelp());
+  listHelp_->setVisible(!listHelp().isEmpty());
+  refreshList();
+}
+
+void PracticePage::refreshList() {
+  if (!built_) {
+    return;
+  }
+  const std::int64_t now = unixNow();
+  const std::int64_t dayEnd = localDayEnd();
+  const QBrush normal = palette().brush(QPalette::Text);
+  const QBrush muted = palette().brush(QPalette::PlaceholderText);
+  auto fill = [&](QTreeWidgetItem *row) {
+    const std::string key = row->data(0, kKeyRole).toString().toStdString();
+    if (key.empty()) {
+      return;
+    }
+    if (row->data(0, kCardRole).toBool()) {
+      auto it = store_.data.cards.find(key);
+      const SrsCard card =
+          it == store_.data.cards.end() ? SrsCard{} : it->second.card;
+      const bool fresh = card.state == CardState::New || isQueued(card);
+      QString status;
+      if (fresh) {
+        status = tr("new");
+      } else if (isDueNow(card, now, dayEnd, settings_.srs)) {
+        status = tr("due");
+      } else {
+        status = dueText(card.due, now, dayEnd);
+      }
+      row->setText(1, status);
+      row->setText(2, fresh ? kNoValue : QString::number(card.reps));
+      row->setText(3, fresh ? kNoValue : QString::number(card.lapses));
+      row->setForeground(0, fresh ? muted : normal);
+      row->setForeground(1, status == tr("due") ? QBrush(kWarnColour) : muted);
+      return;
+    }
+    const PracticeTries &all =
+        tab_ == Tab::Timed ? store_.data.timed : store_.data.learn;
+    auto it = all.find(tab_ == Tab::Timed ? timedKey(physical_, key) : key);
+    const PracticeSummary s =
+        it == all.end() ? PracticeSummary{} : summarize(it->second);
+    row->setText(1, s.tries ? QString::number(s.tries) : kNoValue);
+    if (tab_ == Tab::Timed) {
+      row->setText(2, s.meanMs ? clockText(static_cast<std::int64_t>(*s.meanMs))
+                               : kNoValue);
+      row->setText(3, s.bestMs ? clockText(*s.bestMs) : kNoValue);
+    } else {
+      row->setText(2, s.meanMoves ? oneDecimal(*s.meanMoves) : kNoValue);
+      row->setText(3, s.meanExtra ? "+" + oneDecimal(*s.meanExtra) : kNoValue);
+    }
+    row->setForeground(0, s.tries ? normal : muted);
+  };
+  for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
+    QTreeWidgetItem *top = tree_->topLevelItem(i);
+    fill(top);
+    for (int j = 0; j < top->childCount(); ++j) {
+      fill(top->child(j));
+    }
+  }
+  showSummary();
+}
+
+void PracticePage::showSummary() {
+  if (!built_) {
+    return;
+  }
+  QStringList lines;
+  if (tab_ == Tab::Learn) {
+    if (hasCards()) {
+      const std::vector<std::string> pool = cardPool();
+      PracticeWaiting w =
+          practiceWaiting(pool, store_.data.cards, unixNow(), localDayStart(),
+                          localDayEnd(), settings_.srs);
+      lines << tr("<b>%1</b> due · %2 new left today · %3 of %4 learned")
+                   .arg(w.due)
+                   .arg(w.newLeft)
+                   .arg(w.learned)
+                   .arg(w.total);
+      for (const ListRow &g : learnGroups()) {
+        auto it = store_.data.learn.find(g.key);
+        if (it == store_.data.learn.end()) {
+          continue;
+        }
+        PracticeSummary s = summarize(it->second);
+        QString line = tr("%1: %2").arg(
+            g.name, counted(s.tries, tr("solve"), tr("solves")));
+        if (s.meanMoves) {
+          line += ", " + tr("%1 moves lately").arg(oneDecimal(*s.meanMoves));
+        }
+        if (s.meanExtra) {
+          line += " (+" + oneDecimal(*s.meanExtra) + ")";
+        }
+        lines << line;
+      }
+    }
+  } else if (item_.id != 0) {
+    auto it = store_.data.timed.find(timedGroupKey());
+    if (it != store_.data.timed.end()) {
+      PracticeSummary sitting = summarize(it->second, sittingStart_);
+      if (sitting.tries) {
+        QString line =
+            tr("This sitting: %1")
+                .arg(counted(sitting.tries, tr("solve"), tr("solves")));
+        if (sitting.meanMs) {
+          line += ", " + tr("mean %1").arg(clockText(
+                             static_cast<std::int64_t>(*sitting.meanMs)));
+        }
+        lines << line;
+      }
+    }
+  }
+  summary_->setText(lines.join("<br>"));
+  summary_->setVisible(!lines.isEmpty());
+  clearButton_->setText(tab_ == Tab::Learn ? tr("Clear Learn progress…")
+                                           : tr("Clear these times…"));
+}
+
+void PracticePage::rowActivated(QTreeWidgetItem *row) {
+  const std::string key = row->data(0, kKeyRole).toString().toStdString();
+  if (key.empty() || isBusy()) {
+    return;
+  }
+  if (row->data(0, kCardRole).toBool()) {
+    practiseCard(key);
+  } else {
+    groupActivated(key);
+  }
+}
+
+void PracticePage::clearProgress() {
+  if (isBusy()) {
+    return;
+  }
+  const bool learn = tab_ == Tab::Learn;
+  const QString what =
+      learn ? tr("Forget every card and Learn solve of %1? The cases start "
+                 "as new again.")
+                  .arg(stepName())
+            : tr("Delete every timed %1 attempt on the %2 cube?")
+                  .arg(stepName(), physical_ ? tr("physical") : tr("virtual"));
+  if (QMessageBox::question(this, "v-cube", what) != QMessageBox::Yes) {
+    return;
+  }
+  if (learn) {
+    store_.data.cards.clear();
+    store_.data.learn.clear();
+  } else {
+    const std::string prefix = timedKey(physical_, {});
+    std::erase_if(store_.data.timed, [&prefix](const auto &entry) {
+      return entry.first.starts_with(prefix);
+    });
+  }
+  save();
+  refreshList();
+  if (active_ && !(learn && phase_ == Phase::Solving && item_.card.empty())) {
+    next();
+  }
+}
+
+} // namespace vcube

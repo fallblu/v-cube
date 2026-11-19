@@ -128,16 +128,13 @@ Stored<QStringList> hiddenSessionColumns(const QString &key);
 // and scoreProfile (the profile the Score column uses).
 Stored<QVariant> lab(const char *name, const QVariant &fallback = {});
 
-// F2L mode's choices, kept as "f2l/<name>": drill, method, leave (the
-// slots that may be left), dMoves, halfFB, wide, stage, slot and context.
-Stored<QVariant> f2l(const char *name, const QVariant &fallback = {});
-
-// EO Cross mode's choices, kept as "eocross/<name>": drill, step, bad (the
-// bad edges pinned, -1 for any), axes, limit.
-Stored<QVariant> eoCross(const char *name, const QVariant &fallback = {});
-// TSLE mode's choices, kept as "tsle/<name>": drill, slots (the last
-// slots practised), allCases and slot (the Case explorer's).
-Stored<QVariant> tsle(const char *name, const QVariant &fallback = {});
+// The choices of EO Cross, F2L and TSLE mode, kept as "<mode>/<name>" (mode
+// "eocross", "f2l" or "tsle"). Every one has tab (0 Learn, 1 Timed), scope
+// (Learn's: 0 one unit, 1 the whole step) and physical (Timed's cube);
+// each mode adds its own (EO Cross: step, blind; F2L: method, leave,
+// dMoves, halfFB, wide; TSLE: slots).
+Stored<QVariant> practice(const QString &mode, const char *name,
+                          const QVariant &fallback = {});
 
 } // namespace saved
 

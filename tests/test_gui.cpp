@@ -26,11 +26,10 @@
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
 #include "io/data_file.hpp"
-#include "io/f2l_store.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
+#include "io/practice_store.hpp"
 #include "io/sessions.hpp"
-#include "io/tsle_store.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -280,10 +279,10 @@ private slots:
   void libraryAddsAnAlgAndUndoes();
   void algLabTimesEachAlg();
   void fingertrickGuidance();
-  void f2lDrills();
-  void tsleDrills();
-  void eoCrossDrills();
-  void timedModesWaitForSpace();
+  void f2lLearnAndTimed();
+  void tsleLearnAndTimed();
+  void eoCrossLearnAndTimed();
+  void practiceModesComeBackAsLeft();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
@@ -565,7 +564,9 @@ void GuiTest::fingertrickGuidance() {
   QCOMPARE(libView->findChild<QTableWidget *>()->columnCount(), 14);
 }
 
-void GuiTest::f2lDrills() {
+void GuiTest::f2lLearnAndTimed() {
+  using Phase = PracticePage::Phase;
+  using Tab = PracticePage::Tab;
   auto *f2l = page<F2LPage>();
   QVERIFY(switchTo(AppMode::F2L, f2l));
   // ZZ F2L - 1 leaving FR or FL, as a new install has it.
@@ -578,129 +579,221 @@ void GuiTest::f2lDrills() {
     view->finishAnimations();
     return centredCubie(view->displayedState());
   };
-
-  // Pair solutions: the best solution solves the pair and keeps EO.
-  // Nothing is shown, and no clock runs, until Space.
-  auto start = [this, f2l](F2LPage::Drill drill) {
-    f2l->selectDrill(drill);
-    QCOMPARE(f2l->phase(), F2LPage::Phase::Ready);
-    QVERIFY(f2l->findChild<CubeView *>()->displayedState().isSolved());
-    typeMoves({Move{MoveType::R, 1}});
-    QVERIFY(f2l->findChild<CubeView *>()->displayedState().isSolved());
-    QTest::keyClick(window_.get(), Qt::Key_Space);
-    QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+  auto card = [f2l](const std::string &key) {
+    return f2l->data().cards.at(key).card;
   };
-  start(F2LPage::Drill::Pair);
+
+  // Learn, one pair: the first card is new, so its best solution is shown
+  // before it is tried.
+  QCOMPARE(f2l->tab(), Tab::Learn);
+  QCOMPARE(f2l->scope(), 0);
+  QCOMPARE(f2l->phase(), Phase::Demo);
+  const std::vector<std::string> pool = pairCardPool(true);
+  QCOMPARE(f2l->currentCard(), pool.front());
   QVERIFY(f2l->target());
   QVERIFY(f2lBase(f2l->startState(), f2l->config()));
-  QVERIFY(!slotSolved(f2l->startState(), *f2l->target()));
+  QCOMPARE(caseKey(pairCaseOf(f2l->startState(), *f2l->target())),
+           pool.front());
   QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 30000);
   std::vector<RankedSolution> solutions = f2l->shownSolutions();
   QVERIFY(!solutions.empty());
-  std::string key = caseKey(pairCaseOf(f2l->startState(), *f2l->target()));
+  QVERIFY(f2l->shownDemo() == solutions.front().alg);
+  QVERIFY(f2l->promptHtml().contains("New case"));
+  // Enter turns the picture only: the cube is still to be solved.
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QVERIFY(f2l->cube() == f2l->startCube());
   typeMoves(solutions.front().alg);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
+  QCOMPARE(f2l->phase(), Phase::Done);
+  QVERIFY(!f2l->grade());
+  QCOMPARE(card(pool.front()).state, CardState::Learning);
+  QVERIFY(card(pool.front()).introduced != 0);
+  QCOMPARE(card(pool.front()).reps, 0);
+  // Two more come in (Space skips their showing); then no more until
+  // fewer are in their first steps.
+  for (int i = 1; i <= 2; ++i) {
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+    QCOMPARE(f2l->phase(), Phase::Demo);
+    QCOMPARE(f2l->currentCard(), pool[static_cast<std::size_t>(i)]);
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+    QCOMPARE(f2l->phase(), Phase::Done);
+  }
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(f2l->phase(), Phase::Idle);
+  QVERIFY2(f2l->promptHtml().contains("Nothing is due"),
+           qPrintable(f2l->promptHtml()));
+
+  // Space takes a learning card early. Solved with the best solution it
+  // is Good; 1-4 change the grade.
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(f2l->phase(), Phase::Solving);
+  QVERIFY(f2l->graded());
+  const std::string key = f2l->currentCard();
+  QCOMPARE(caseKey(pairCaseOf(f2l->startState(), *f2l->target())), key);
+  // The case isn't named while it is recognised.
+  QVERIFY(!f2l->promptHtml().contains("New case"));
+  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 30000);
+  solutions = f2l->shownSolutions();
+  QVERIFY(!solutions.empty());
+  typeMoves(solutions.front().alg);
+  QCOMPARE(f2l->phase(), Phase::Done);
   auto done = shownCube();
   QVERIFY(done);
   QVERIFY(slotSolved(*done, *f2l->target()));
   QVERIFY(edgesOriented(*done));
   QVERIFY(crossSolved(*done));
-  QVERIFY(f2l->resultHtml().contains(qs(solutions.front().text)));
-  QCOMPARE(f2l->stats().cases.count(key), std::size_t{1});
-  const PairAttempt &tried = f2l->stats().cases.at(key).back();
-  QVERIFY(!tried.hint && !tried.gaveUp);
-  QCOMPARE(tried.excess, 0.0);
-  QCOMPARE(tried.moves, solutions.front().htm);
+  QVERIFY(f2l->grade() == Grade::Good);
+  QCOMPARE(card(key).reps, 1);
+  QVERIFY2(f2l->verdictHtml().contains("as good as the best"),
+           qPrintable(f2l->verdictHtml()));
+  QVERIFY(f2l->verdictHtml().contains(qs(solutions.front().text)));
+  QVERIFY(f2l->verdictHtml().contains("Good"));
+  const std::size_t attempts = f2l->data().cards.at(key).attempts.size();
+  QTest::keyClick(window_.get(), Qt::Key_1);
+  QVERIFY(f2l->grade() == Grade::Again);
+  QVERIFY(f2l->verdictHtml().contains("Again"));
+  QVERIFY(f2l->data().cards.at(key).attempts.back().failed);
+  QCOMPARE(f2l->data().cards.at(key).attempts.size(), attempts);
+  QTest::keyClick(window_.get(), Qt::Key_3);
+  QVERIFY(f2l->grade() == Grade::Good);
 
-  // The same state again isn't recorded; a hint does the first move.
-  QTest::keyClick(window_.get(), Qt::Key_Escape);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
+  // The details are behind Tab; Enter plays the best solution.
+  QVERIFY(!f2l->detailShown());
   QTest::keyClick(window_.get(), Qt::Key_Tab);
-  auto hinted = shownCube();
-  CubieCube first = f2l->startState();
-  first.apply(Alg{solutions.front().alg.front()});
-  QVERIFY(hinted && *hinted == first);
-  QTest::keyClick(window_.get(), Qt::Key_Backspace);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
-  QCOMPARE(f2l->stats().cases.at(key).size(), std::size_t{1});
-
-  // Pair choice: solving the best pair is rank 1.
-  start(F2LPage::Drill::Choice);
-  QVERIFY(!f2l->target());
-  QVERIFY(unsolvedSlots(f2l->startState()).size() >= 2);
-  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
-  solutions = f2l->shownSolutions();
-  QVERIFY(!solutions.empty());
-  typeMoves(solutions.front().alg);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
-  QCOMPARE(f2l->stats().choices.size(), std::size_t{1});
-  QCOMPARE(f2l->stats().choices.back().rank, 1);
-  QCOMPARE(f2l->stats().choices.back().regret, 0.0);
-
-  // Full F2L: every slot open; the F2L is done with a front slot left.
-  start(F2LPage::Drill::Full);
-  QCOMPARE(unsolvedSlots(f2l->startState()).size(), std::size_t{4});
-  AnalysisOptions options;
-  options.config = f2l->config();
-  options.profile = builtinErgoProfiles().front();
-  CubieCube state = f2l->startState();
-  Alg typed;
-  for (int algs = 0; !f2lDone(state, options.config); ++algs) {
-    QVERIFY(algs < 4);
-    std::vector<PairRank> ranks = rankPairs(state, options);
-    QVERIFY(!ranks.empty());
-    const Alg &alg = ranks.front().pair.best()->alg;
-    QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
-    typeMoves(alg);
-    state.apply(alg);
-    typed.insert(typed.end(), alg.begin(), alg.end());
-  }
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
-  // A front slot is left, unless an alg happened to solve a second slot
-  // with its own and took the last one too.
-  QVERIFY(unsolvedSlots(state).size() <= 1);
-  for (Slot left : unsolvedSlots(state)) {
-    QVERIFY(f2l->config().leaves(left));
-  }
-  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
-  QCOMPARE(f2l->stats().fulls.size(), std::size_t{1});
-  // One pair each time the solve had more slots solved than before. That
-  // needn't be one per alg: an alg can solve a second slot on its way.
-  int pairs = 0;
-  for (const F2LSegment &seg :
-       f2lSegments(f2l->startState(), typed, f2l->config())) {
-    pairs += f2lDone(seg.before, f2l->config()) ? 0 : 1;
-  }
-  QVERIFY(pairs >= 1 && pairs <= 4);
-  QCOMPARE(f2l->stats().fulls.back().pairs, pairs);
-
-  // The Case explorer sets the chosen case up and records nothing.
-  std::size_t tries = 0;
-  for (const auto &[k, attempts] : f2l->stats().cases) {
-    tries += attempts.size();
-  }
-  PairCase wanted = pairCases(true)[20];
-  f2l->exploreCase(wanted);
-  QCOMPARE(f2l->drill(), F2LPage::Drill::Explore);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Explore);
-  QVERIFY(f2l->target());
-  QVERIFY(pairCaseOf(f2l->startState(), *f2l->target()) == wanted);
-  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 30000);
-  QVERIFY(!f2l->shownSolutions().empty());
+  QVERIFY(f2l->detailShown());
+  QVERIFY(f2l->detailHtml().contains("play:"));
   QTest::keyClick(window_.get(), Qt::Key_Return);
   auto played = shownCube();
   QVERIFY(played && slotSolved(*played, *f2l->target()));
-  std::size_t after = 0;
-  for (const auto &[k, attempts] : f2l->stats().cases) {
-    after += attempts.size();
-  }
-  QCOMPARE(after, tries);
 
-  // CFOP has the cases with flipped edges too, and no slot left.
+  // The same state again isn't recorded or graded; a hint is in words.
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QCOMPARE(f2l->phase(), Phase::Solving);
+  QVERIFY(!f2l->graded());
+  QVERIFY(f2l->cube() == f2l->startCube());
+  QTest::keyClick(window_.get(), Qt::Key_Tab);
+  auto *hint = f2l->findChild<HintBar *>();
+  QVERIFY2(hint->message().startsWith("Hint:"), qPrintable(hint->message()));
+  QVERIFY(f2l->cube() == f2l->startCube());
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QCOMPARE(f2l->phase(), Phase::Done);
+  QCOMPARE(f2l->data().cards.at(key).attempts.size(), attempts);
+  QCOMPARE(card(key).reps, 1);
+
+  // A case picked from the list is practice: not graded.
+  PairCase wanted = pairCases(true)[20];
+  f2l->practiseCard(caseKey(wanted));
+  QCOMPARE(f2l->phase(), Phase::Solving);
+  QVERIFY(!f2l->graded());
+  QVERIFY(pairCaseOf(f2l->startState(), *f2l->target()) == wanted);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QTRY_COMPARE_WITH_TIMEOUT(f2l->phase(), Phase::Done, 30000);
+  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 30000);
+  QVERIFY(isQueued(card(caseKey(wanted))));
+
+  // Learn, the whole F2L: every slot open; done with a front slot left.
+  // Kept as a solve, with what it was over the best once worked out.
+  AnalysisOptions options;
+  options.config = f2l->config();
+  options.profile = builtinErgoProfiles().front();
+  auto solveWhole = [&] {
+    CubieCube state = f2l->startState();
+    for (int algs = 0; !f2lDone(state, options.config); ++algs) {
+      if (algs >= 4) {
+        return false;
+      }
+      std::vector<PairRank> ranks = rankPairs(state, options);
+      if (ranks.empty()) {
+        return false;
+      }
+      const Alg &alg = ranks.front().pair.best()->alg;
+      typeMoves(alg);
+      state.apply(alg);
+    }
+    // A front slot is left, unless an alg happened to solve a second slot
+    // with its own and took the last one too.
+    for (Slot left : unsolvedSlots(state)) {
+      if (!f2l->config().leaves(left)) {
+        return false;
+      }
+    }
+    return unsolvedSlots(state).size() <= 1;
+  };
+  f2l->setScope(1);
+  QCOMPARE(f2l->phase(), Phase::Solving);
+  QVERIFY(!f2l->target());
+  QVERIFY(f2l->currentCard().empty());
+  QCOMPARE(unsolvedSlots(f2l->startState()).size(), std::size_t{4});
+  QVERIFY(solveWhole());
+  QCOMPARE(f2l->phase(), Phase::Done);
+  QCOMPARE(f2l->data().learn.at("whole").size(), std::size_t{1});
+  QVERIFY(f2l->data().learn.at("whole").back().moves > 0);
+  QVERIFY2(f2l->verdictHtml().contains("F2L in"),
+           qPrintable(f2l->verdictHtml()));
+  QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
+  QVERIFY(f2l->data().learn.at("whole").back().extra >= 0.0);
+  QVERIFY(f2l->data().learn.at("whole").back().best > 0);
+  QTest::keyClick(window_.get(), Qt::Key_Tab);
+  QVERIFY(f2l->detailHtml().contains("Best for that pair"));
+
+  // Timed, as Drill: nothing turns but the whole cube until Space arms
+  // the timer; the first face turn starts it and the F2L done stops it.
+  f2l->selectTab(Tab::Timed);
+  QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Waiting);
+  QCOMPARE(unsolvedSlots(f2l->startState()).size(), std::size_t{4});
+  typeMoves({Move{MoveType::R, 1}});
+  QVERIFY(f2l->cube() == f2l->startCube());
+  QVERIFY(!f2l->isBusy());
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QVERIFY(solveWhole());
+  QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Revealed);
+  QVERIFY(!f2l->isBusy());
+  const std::string timedGroup = timedKey(false, "zz-1");
+  QCOMPARE(f2l->data().timed.at(timedGroup).size(), std::size_t{1});
+  QVERIFY(f2l->data().timed.at(timedGroup).back().ms > 0);
+  QVERIFY(f2l->data().timed.at(timedGroup).back().moves > 0);
+  QVERIFY(!f2l->data().timed.at(timedGroup).back().dnf);
+  // Backspace makes it a DNF and back; Delete deletes it.
+  QTest::qWait(DrillFlow::kGuardMs + 50);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QVERIFY(f2l->data().timed.at(timedGroup).back().dnf);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QVERIFY(!f2l->data().timed.at(timedGroup).back().dnf);
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QVERIFY(!f2l->data().timed.contains(timedGroup));
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Waiting);
+
+  // On a physical cube: a scramble, Space held and let go, any key stops.
+  f2l->setPhysical(true);
+  QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Waiting);
+  QVERIFY(f2l->cubeHidden());
+  QTRY_VERIFY_WITH_TIMEOUT(!f2l->scrambleText().isEmpty(), 30000);
+  {
+    // The scramble gives the state, held as the solve is.
+    FaceletCube scrambled;
+    scrambled.apply(parseAlgOrEmpty(f2l->scrambleText().toStdString()));
+    QVERIFY(!scrambled.isSolved());
+    QVERIFY(!stepReachedHolds(scrambled, SolveStep::EOCross).empty());
+  }
+  holdSpace();
+  QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Running);
+  QVERIFY(f2l->isBusy());
+  QTest::qWait(DrillFlow::kMinPhysicalMs + 100);
+  QTest::keyClick(window_.get(), Qt::Key_A);
+  QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Revealed);
+  const std::string physicalGroup = timedKey(true, "zz-1");
+  QCOMPARE(f2l->data().timed.at(physicalGroup).size(), std::size_t{1});
+  QCOMPARE(f2l->data().timed.at(physicalGroup).back().moves, 0);
+  QVERIFY(!f2l->cubeHidden()); // back, to play the best way on
+  f2l->setPhysical(false);
+
+  // CFOP has the cases with flipped edges too.
+  f2l->selectTab(Tab::Learn);
+  f2l->setScope(0);
   F2LConfig cfop = f2l->config();
   applyMethod(cfop, F2LMethod::CFOP);
   f2l->setConfig(cfop);
-  auto *tree = f2l->findChild<QTreeWidget *>("f2lCases");
+  auto *tree = f2l->findChild<QTreeWidget *>("practiceList");
   QVERIFY(tree);
   int rows = 0;
   for (int g = 0; g < tree->topLevelItemCount(); ++g) {
@@ -712,393 +805,286 @@ void GuiTest::f2lDrills() {
 
   // What was recorded is in the file.
   finishBackgroundWrites();
-  F2LStore saved(QDir(dataDir_).filePath("f2l.json"));
+  PracticeStore saved(QDir(dataDir_).filePath("f2l.json"));
   QVERIFY(saved.load());
-  QVERIFY(saved.data == f2l->stats());
-  f2l->selectDrill(F2LPage::Drill::Pair);
+  QVERIFY(saved.data == f2l->data());
 }
 
-void GuiTest::tsleDrills() {
+void GuiTest::tsleLearnAndTimed() {
+  using Phase = PracticePage::Phase;
+  using Tab = PracticePage::Tab;
   auto *tsle = page<TslePage>();
   QVERIFY(switchTo(AppMode::Tsle, tsle));
-  // The front slots, as a new install has it, and Guided intro first.
-  QVERIFY((tsle->lastSlots() ==
-           std::array<bool, kSlots>{true, true, false, false}));
-  QCOMPARE(tsle->drill(), TslePage::Drill::Intro);
-  auto bestFrom = [tsle](TsleState s) {
-    return tsle->solver(tsle->slot()).options(s).front();
+  QVERIFY(tsle->lastSlots()[0] && tsle->lastSlots()[1]);
+  auto options = [tsle] {
+    return tsle->solver(tsle->slot()).options(tsle->startState());
   };
 
-  // Guided intro: each good trigger shown and done, then the picks.
-  QVERIFY(tsle->introCase());
-  TsleState first = *tsle->introCase();
-  QCOMPARE(tsleStepsLeft(first), 1);
-  QVERIFY(tsle->introTriggers() >= 1);
-  // A wrong trigger doesn't pass.
-  int stage = tsle->introStage();
-  for (const TsleOption &o :
-       tsle->solver(tsle->slot()).options(tsle->startState())) {
+  // Learn, one trigger: the cases come in fewest steps first; a new one
+  // is shown, and done with a good trigger.
+  QCOMPARE(tsle->tab(), Tab::Learn);
+  QCOMPARE(tsle->phase(), Phase::Demo);
+  const std::vector<std::string> pool = tsleCardPool();
+  QCOMPARE(tsle->currentCard(), pool.front());
+  QCOMPARE(tsleKey(tsleCase(tsle->startState())), pool.front());
+  QVERIFY(tsle->shownDemo() == options().front().alg);
+  // A trigger that isn't good doesn't do.
+  for (const TsleOption &o : options()) {
     if (!o.good) {
       typeMoves(o.alg);
       break;
     }
   }
-  QCOMPARE(tsle->introStage(), stage);
-  while (tsle->introStage() < tsle->introTriggers()) {
-    QVERIFY(tsle->slot() == Slot::FR || tsle->slot() == Slot::FL);
-    Alg alg = tsle->introAlg();
-    QVERIFY(!alg.empty());
-    QVERIFY(tsle->promptHtml().contains(qs(toString(alg))));
-    typeMoves(alg);
-  }
-  for (int pick = 0; pick < TslePage::kIntroPicks; ++pick) {
-    QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
-    typeMoves(bestFrom(tsle->startState()).alg);
-  }
-  QCOMPARE(tsle->phase(), TslePage::Phase::Done);
-  QVERIFY(tsle->progress().introduced.contains(tsleKey(first)));
-  QCOMPARE(tsle->progress().cases.at(tsleKey(first)).size(),
-           std::size_t{TslePage::kIntroPicks});
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QVERIFY(tsle->introCase());
-  QVERIFY(*tsle->introCase() != first);
-
-  // Next trigger, with every case: the best trigger is judged the best.
-  // The timed drills show nothing, and run no clock, until Space.
-  auto begin = [this, tsle](TslePage::Drill drill) {
-    tsle->selectDrill(drill);
-    QCOMPARE(tsle->phase(), TslePage::Phase::Ready);
-    QVERIFY(tsle->findChild<CubeView *>()->displayedState().isSolved());
-    typeMoves({Move{MoveType::R, 1}});
-    QVERIFY(tsle->findChild<CubeView *>()->displayedState().isSolved());
+  QCOMPARE(tsle->phase(), Phase::Demo);
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QVERIFY(tsle->cube() == tsle->startCube());
+  typeMoves(options().front().alg);
+  QCOMPARE(tsle->phase(), Phase::Done);
+  QVERIFY(tsle->data().cards.at(pool.front()).card.introduced != 0);
+  for (int i = 0; i < 2; ++i) {
     QTest::keyClick(window_.get(), Qt::Key_Space);
-    QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
+    QCOMPARE(tsle->phase(), Phase::Demo);
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+  }
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(tsle->phase(), Phase::Idle);
+
+  // The best trigger from the AUF at hand is Good...
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(tsle->phase(), Phase::Solving);
+  QVERIFY(tsle->graded());
+  std::string key = tsle->currentCard();
+  QCOMPARE(tsleKey(tsleCase(tsle->startState())), key);
+  typeMoves(options().front().alg);
+  QCOMPARE(tsle->phase(), Phase::Done);
+  QVERIFY(tsle->grade() == Grade::Good);
+  QVERIFY2(tsle->verdictHtml().contains("best trigger"),
+           qPrintable(tsle->verdictHtml()));
+  QVERIFY(tsle->bestSolution() == options().front().alg);
+  QTest::keyClick(window_.get(), Qt::Key_Tab);
+  QVERIFY(tsle->detailHtml().contains("Every good trigger"));
+  // ...and one that leaves no fewer steps is Again.
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  if (tsle->phase() == Phase::Idle) {
+    QTest::keyClick(window_.get(), Qt::Key_Space);
+  }
+  QCOMPARE(tsle->phase(), Phase::Solving);
+  key = tsle->currentCard();
+  for (const TsleOption &o : options()) {
+    if (!o.good) {
+      typeMoves(o.alg);
+      break;
+    }
+  }
+  QCOMPARE(tsle->phase(), Phase::Done);
+  QVERIFY(tsle->grade() == Grade::Again);
+  QVERIFY(tsle->verdictHtml().contains("Not a good trigger"));
+  QVERIFY(tsle->data().cards.at(key).attempts.back().failed);
+
+  // Learn, the whole step: the best way to the end is as short as it.
+  auto solveWhole = [&] {
+    QVERIFY(!tsle->startState().done());
+    for (const Alg &step :
+         tsle->solver(tsle->slot()).bestPath(tsle->startState())) {
+      typeMoves(step);
+    }
   };
-  tsle->setAllCases(true);
-  begin(TslePage::Drill::Next);
-  for (int i = 0; i < 20 && tsle->startState().ocll(); ++i) {
-    begin(TslePage::Drill::Next); // a case with a trigger
-  }
-  QVERIFY(!tsle->startState().ocll());
-  TsleState start = tsle->startState();
-  std::string key = tsleKey(tsleCase(start));
-  std::size_t before = tsle->progress().cases.contains(key)
-                           ? tsle->progress().cases.at(key).size()
-                           : 0;
-  TsleOption best = bestFrom(start);
-  typeMoves(best.alg);
-  QCOMPARE(tsle->phase(), TslePage::Phase::Done);
-  QVERIFY(tsle->currentState() == best.next);
-  QCOMPARE(tsle->progress().cases.at(key).size(), before + 1);
-  QCOMPARE(tsle->progress().cases.at(key).back().excess, 0.0);
-  QVERIFY(tsle->resultHtml().contains(qs(toString(best.alg))));
-  // A trigger that isn't good counts against the case; a retry doesn't.
-  QTest::keyClick(window_.get(), Qt::Key_Escape);
-  QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
-  QVERIFY(tsle->startState() == start);
-  QTest::keyClick(window_.get(), Qt::Key_Space); // nothing while solving
-  QTest::keyClick(window_.get(), Qt::Key_Backspace);
-  QCOMPARE(tsle->progress().cases.at(key).size(), before + 1);
-
-  // Full TSLE: the best way, step by step, ends it.
-  begin(TslePage::Drill::Full);
-  QVERIFY(tsleStepsLeft(tsle->startState()) >= 2);
-  // Counted a step at a time, so moves that cancel between steps count.
-  int stepMoves = 0;
-  for (const Alg &step :
-       tsle->solver(tsle->slot()).bestPath(tsle->startState())) {
-    QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
-    typeMoves(step);
-    stepMoves += htmCount(simplify(step));
-  }
-  QCOMPARE(tsle->phase(), TslePage::Phase::Done);
+  tsle->setScope(1);
+  QCOMPARE(tsle->phase(), Phase::Solving);
+  QVERIFY(tsle->currentCard().empty());
+  solveWhole();
+  QCOMPARE(tsle->phase(), Phase::Done);
   QVERIFY(tsle->currentState() && tsle->currentState()->done());
-  QCOMPARE(tsle->progress().fulls.size(), std::size_t{1});
-  QCOMPARE(tsle->progress().fulls.back().moves, stepMoves);
+  QCOMPARE(tsle->data().learn.at("whole").size(), std::size_t{1});
+  QCOMPARE(tsle->data().learn.at("whole").back().extra, 0.0);
+  QVERIFY2(tsle->verdictHtml().contains("as short as the best way"),
+           qPrintable(tsle->verdictHtml()));
 
-  // The Case explorer follows the cube down a chain.
-  TsleState deep = tsleCases().back();
-  QCOMPARE(tsleStepsLeft(deep), kTsleLevels);
-  tsle->exploreCase(deep);
-  QCOMPARE(tsle->phase(), TslePage::Phase::Explore);
-  QVERIFY(tsle->startState() == deep);
-  for (int steps = kTsleLevels; steps > 0; --steps) {
-    QVERIFY(tsle->currentState());
-    QCOMPARE(tsleStepsLeft(*tsle->currentState()), steps);
-    QTest::keyClick(window_.get(), Qt::Key_Return);
-  }
-  QVERIFY(tsle->currentState() && tsle->currentState()->done());
-  QTest::keyClick(window_.get(), Qt::Key_Escape);
-  QVERIFY(tsle->currentState() == deep);
+  // Timed: the whole step, kept by the case it started from.
+  tsle->selectTab(Tab::Timed);
+  QCOMPARE(tsle->timedPhase(), DrillFlow::Phase::Waiting);
+  const std::string group =
+      timedKey(false, tsleKey(tsleCase(tsle->startState())));
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  solveWhole();
+  QCOMPARE(tsle->timedPhase(), DrillFlow::Phase::Revealed);
+  QCOMPARE(tsle->data().timed.at(group).size(), std::size_t{1});
+  QVERIFY(!tsle->data().timed.at(group).back().dnf);
+  QCOMPARE(tsle->data().timed.at(group).back().extra, 0.0);
 
-  auto *tree = tsle->findChild<QTreeWidget *>("tsleCases");
+  // The lists: 97 cards in Learn, the 104 starting cases in Timed.
+  auto *tree = tsle->findChild<QTreeWidget *>("practiceList");
   QVERIFY(tree);
-  int rows = 0;
-  for (int g = 0; g < tree->topLevelItemCount(); ++g) {
-    rows += tree->topLevelItem(g)->childCount();
-  }
-  QCOMPARE(rows, 104);
+  auto rows = [tree] {
+    int n = 0;
+    for (int g = 0; g < tree->topLevelItemCount(); ++g) {
+      n += tree->topLevelItem(g)->childCount();
+    }
+    return n;
+  };
+  QCOMPARE(rows(), 104);
+  tsle->selectTab(Tab::Learn);
+  tsle->setScope(0);
+  QCOMPARE(rows(), 97);
 
   finishBackgroundWrites();
-  TsleStore saved(QDir(dataDir_).filePath("tsle.json"));
+  PracticeStore saved(QDir(dataDir_).filePath("tsle.json"));
   QVERIFY(saved.load());
-  QVERIFY(saved.data == tsle->progress());
-  tsle->setAllCases(false);
-  tsle->selectDrill(TslePage::Drill::Intro);
+  QVERIFY(saved.data == tsle->data());
 }
 
-void GuiTest::eoCrossDrills() {
-  using Phase = EoCrossPage::Phase;
+void GuiTest::eoCrossLearnAndTimed() {
+  using Phase = PracticePage::Phase;
+  using Tab = PracticePage::Tab;
   auto *eo = page<EoCrossPage>();
   QVERIFY(switchTo(AppMode::EoCross, eo));
   const SolveStep step = SolveStep::EOCross;
-  auto begin = [&](EoDrill d) {
-    eo->selectDrill(d);
-    QCOMPARE(eo->phase(), Phase::Ready);
-    QTest::keyClick(window_.get(), Qt::Key_Space);
-  };
-  auto tries = [&](EoDrill d) {
-    return eo->stats().tries({d, step, eo->roundBadEdges()});
-  };
-  auto *hint = eo->findChild<HintBar *>();
-  QVERIFY(hint);
   eo->setStep(step);
-  eo->setPinnedBad(4);
-  eo->setLimitSeconds(0);
   const std::vector<Hold> holds = eo->allowedHolds();
   QCOMPARE(holds.size(), std::size_t{2}); // one cross, either EO axis
+  auto tries = [eo](const char *group) {
+    auto it = eo->data().learn.find(group);
+    return it == eo->data().learn.end() ? std::size_t{0} : it->second.size();
+  };
+  // The best hold's optimal solution, typed from the hold shown.
+  auto solveOptimally = [&] {
+    std::vector<HeldOptimum> ranked =
+        solveStepHeld(eo->scrambled(), eo->step(), holds, 1);
+    typeMoves(holdRotation(ranked.front().hold));
+    typeMoves(ranked.front().optimum.solutions.front());
+    return ranked.front().optimum.length;
+  };
 
-  // Step solutions: the best hold's optimal solution ends the state and
-  // loses nothing.
-  begin(EoDrill::Solve);
+  // Learn: no cards here; a scramble to solve at once, untimed.
+  QCOMPARE(eo->tab(), Tab::Learn);
   QCOMPARE(eo->phase(), Phase::Solving);
-  QCOMPARE(eo->roundBadEdges(), 4);
-  QCOMPARE(badEdgeCount(solverState(eo->scrambled(), eo->shownHold()), 0), 4);
   QCOMPARE(eo->shownHold(), settings_.neutrality.main);
-  std::vector<HeldOptimum> ranked =
-      solveStepHeld(eo->scrambled(), step, holds, 1);
-  QCOMPARE(ranked.size(), std::size_t{2});
-  std::size_t before = tries(EoDrill::Solve).size();
-  QTest::keyClick(window_.get(), Qt::Key_Tab);
-  QVERIFY2(hint->message().startsWith("Hint:"), qPrintable(hint->message()));
-  typeMoves(holdRotation(ranked.front().hold));
-  typeMoves(ranked.front().optimum.solutions.front());
+  QVERIFY(!doneHold(eo->cube(), step, holds));
+  int optimum = solveOptimally();
   QCOMPARE(eo->phase(), Phase::Done);
   QVERIFY(eo->analysisReady());
-  QCOMPARE(tries(EoDrill::Solve).size(), before + 1);
-  QCOMPARE(tries(EoDrill::Solve).back().excess, 0.0);
-  QCOMPARE(tries(EoDrill::Solve).back().moves, ranked.front().optimum.length);
-  QVERIFY(tries(EoDrill::Solve).back().hint);
-  QVERIFY2(eo->promptHtml().contains("optimal"), qPrintable(eo->promptHtml()));
-  QVERIFY(eo->resultHtml().contains("sol:0"));
-  // The solutions listed do the step from the start.
-  std::vector<EoCrossPage::Solution> shown = eo->shownSolutions();
-  QVERIFY(shown.size() >= 2);
-  QCOMPARE(shown.front().hold, ranked.front().hold);
-  QTest::keyClick(window_.get(), Qt::Key_2);
-  QVERIFY(doneHold(eo->cube(), step, {shown[1].hold}).has_value());
+  QCOMPARE(tries("eocross"), std::size_t{1});
+  QCOMPARE(eo->data().learn.at("eocross").back().extra, 0.0);
+  QCOMPARE(eo->data().learn.at("eocross").back().moves, optimum);
+  QVERIFY2(eo->verdictHtml().contains("optimal"),
+           qPrintable(eo->verdictHtml()));
+  // The details list the holds; a solution listed does the step from the
+  // start, and so does the best one on Enter.
+  QVERIFY(eo->detailHtml().isEmpty());
+  QTest::keyClick(window_.get(), Qt::Key_Tab);
+  QVERIFY(eo->detailHtml().contains("play:"));
+  QVERIFY(eo->detailHtml().contains("Where the moves went"));
+  QVERIFY(eo->shownSolutions().size() >= 2);
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QVERIFY(doneHold(eo->cube(), step, holds).has_value());
   // A retry isn't recorded.
   CubieCube state = eo->scrambled();
   QTest::keyClick(window_.get(), Qt::Key_Escape);
   QCOMPARE(eo->phase(), Phase::Solving);
   QVERIFY(eo->scrambled() == state);
+  QVERIFY(eo->cube() == eo->startCube());
   QTest::keyClick(window_.get(), Qt::Key_Backspace);
   QCOMPARE(eo->phase(), Phase::Done);
-  QCOMPARE(tries(EoDrill::Solve).size(), before + 1);
-  QVERIFY(eo->resultHtml().contains("not recorded"));
+  QCOMPARE(tries("eocross"), std::size_t{1});
 
-  // Full EO Cross: EO first, then the rest, broken down afterwards.
-  begin(EoDrill::Full);
+  // Plan, then blind: the cube hides at the first face turn and the solve
+  // isn't judged until Space shows it.
+  eo->setBlind(true);
   QCOMPARE(eo->phase(), Phase::Solving);
-  {
-    CubieCube held = solverState(eo->scrambled(), eo->shownHold());
-    Alg first = solveStep(held, SolveStep::EO, 1)->solutions.front();
-    typeMoves(first);
-    QCOMPARE(eo->phase(), Phase::Solving);
-    held.apply(first);
-    typeMoves(solveStep(held, step, 1)->solutions.front());
-  }
-  QCOMPARE(eo->phase(), Phase::Done);
-  QCOMPARE(tries(EoDrill::Full).size(), std::size_t{1});
-  QVERIFY(eo->resultHtml().contains("Where the moves went"));
-
-  // Plan blind: only rotations while looking; the moves are done unseen.
-  begin(EoDrill::Plan);
-  QCOMPARE(eo->phase(), Phase::Inspecting);
-  FaceletCube looked = eo->cube();
-  typeMoves(parseAlgOrEmpty("R"));
-  QVERIFY(eo->cube() == looked);
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Executing);
+  QVERIFY(!eo->cubeHidden());
+  typeMoves(parseAlgOrEmpty("y"));
+  QVERIFY(!eo->cubeHidden());
+  typeMoves(parseAlgOrEmpty("y'"));
+  solveOptimally();
   QVERIFY(eo->cubeHidden());
-  QTest::keyClick(window_.get(), Qt::Key_Space); // no moves yet
-  QCOMPARE(eo->phase(), Phase::Executing);
-  ranked = solveStepHeld(eo->scrambled(), step, holds, 1);
-  std::size_t mine = *rankOfHold(ranked, eo->shownHold(), step);
-  typeMoves(holdRotation(ranked[mine].hold));
-  typeMoves(ranked[mine].optimum.solutions.front());
-  QCOMPARE(eo->phase(), Phase::Executing); // until Space says so
+  QCOMPARE(eo->phase(), Phase::Solving);
   QTest::keyClick(window_.get(), Qt::Key_Space);
   QCOMPARE(eo->phase(), Phase::Done);
   QVERIFY(!eo->cubeHidden());
-  QCOMPARE(tries(EoDrill::Plan).size(), std::size_t{1});
-  QVERIFY(!tries(EoDrill::Plan).back().gaveUp);
-  QCOMPARE(tries(EoDrill::Plan).back().excess,
-           double(ranked[mine].optimum.length - ranked[0].optimum.length));
-  // A plan that doesn't do the step is a DNF.
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Inspecting);
+  QCOMPARE(tries("eocross"), std::size_t{2});
+  QVERIFY(eo->verdictHtml().contains("optimal"));
+  // A plan that didn't do the step counts as not done.
   QTest::keyClick(window_.get(), Qt::Key_Space);
   typeMoves(parseAlgOrEmpty("R"));
+  QVERIFY(eo->cubeHidden());
   QTest::keyClick(window_.get(), Qt::Key_Space);
   QCOMPARE(eo->phase(), Phase::Done);
-  QVERIFY(tries(EoDrill::Plan).back().gaveUp);
-  QVERIFY(eo->displayText().contains("DNF"));
-  // The inspection time hides the cube by itself, and a Space just then
-  // was meant to hide it.
-  eo->setLimitSeconds(1);
-  QCOMPARE(eo->phase(), Phase::Ready);
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Inspecting);
-  QVERIFY(
-      QTest::qWaitFor([&] { return eo->phase() == Phase::Executing; }, 3000));
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Executing);
-  eo->setLimitSeconds(0);
+  QVERIFY(eo->data().learn.at("eocross").back().dnf);
+  QVERIFY2(eo->verdictHtml().contains("Not done"),
+           qPrintable(eo->verdictHtml()));
+  eo->setBlind(false);
 
-  // Axis choice: the hold the cube is turned to is ranked.
-  begin(EoDrill::Axis);
-  QCOMPARE(eo->phase(), Phase::Choosing);
-  QCOMPARE(eo->roundBadEdges(), -1);
-  typeMoves(parseAlgOrEmpty("z"));
-  QTest::keyClick(window_.get(), Qt::Key_Space); // not one of the holds
-  QCOMPARE(eo->phase(), Phase::Choosing);
-  typeMoves(parseAlgOrEmpty("z' y"));
-  QTest::keyClick(window_.get(), Qt::Key_Space);
+  // Another step is kept apart.
+  eo->setStep(SolveStep::EO);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  solveOptimally();
   QCOMPARE(eo->phase(), Phase::Done);
-  ranked = solveStepHeld(eo->scrambled(), step, holds, 1);
-  mine = *rankOfHold(ranked, holdAfter(parseAlgOrEmpty("y")), step);
-  QCOMPARE(tries(EoDrill::Axis).size(), std::size_t{1});
-  QCOMPARE(tries(EoDrill::Axis).back().excess,
-           double(ranked[mine].optimum.length - ranked[0].optimum.length));
-  QVERIFY(eo->resultHtml().contains("yours"));
+  QCOMPARE(tries("eo"), std::size_t{1});
+  QCOMPARE(tries("eocross"), std::size_t{3});
+  eo->setStep(step);
 
-  // Bad edges: both axes typed; the wrong one is ringed.
-  eo->setBothAxes(true);
-  begin(EoDrill::Edges);
-  QCOMPARE(eo->phase(), Phase::Counting);
-  {
-    CubieCube held = solverState(eo->scrambled(), eo->shownHold());
-    int fb = badEdgeCount(held, 0), rl = badEdgeCount(held, 1);
-    QCOMPARE(fb, 4);
-    auto type = [&](int n) {
-      for (QChar c : QString::number(n)) {
-        QTest::keyClick(window_.get(),
-                        static_cast<Qt::Key>(Qt::Key_0 + c.digitValue()));
-      }
-      QTest::keyClick(window_.get(), Qt::Key_Return);
-    };
-    QTest::keyClick(window_.get(), Qt::Key_Return); // nothing typed yet
-    QCOMPARE(eo->phase(), Phase::Counting);
-    QTest::keyClick(window_.get(), Qt::Key_9);
-    QTest::keyClick(window_.get(), Qt::Key_Backspace);
-    type(fb);
-    QCOMPARE(eo->phase(), Phase::Counting);
-    int wrong = rl >= 2 ? rl - 2 : rl + 2;
-    type(wrong);
-    QCOMPARE(eo->phase(), Phase::Done);
-    QCOMPARE(tries(EoDrill::Edges).size(), std::size_t{1});
-    QCOMPARE(tries(EoDrill::Edges).back().excess, 2.0);
-    QVERIFY(eo->promptHtml().contains("Wrong"));
-    auto *view = eo->findChild<CubeView *>();
-    QVERIFY(view);
-    QCOMPARE(view->marks().rings.size(), std::size_t(2 * rl));
-    QTest::keyClick(window_.get(), Qt::Key_Tab);
-    QCOMPARE(view->marks().rings.size(), std::size_t(2 * fb));
-  }
-  eo->setBothAxes(false);
-
-  // The list has every kind of the step in hand; a double-click pins one.
-  auto *tree = eo->findChild<QTreeWidget *>("eoCrossKinds");
-  QVERIFY(tree);
-  int rows = 0;
-  for (int g = 0; g < tree->topLevelItemCount(); ++g) {
-    rows += tree->topLevelItem(g)->childCount();
-  }
-  QCOMPARE(rows, 7 + 5 + 7 + 7 + 7);
-  QTreeWidgetItem *full = tree->topLevelItem(4);
-  emit tree->itemDoubleClicked(full->child(3), 0);
-  QCOMPARE(eo->drill(), EoDrill::Full);
-  QCOMPARE(eo->pinnedBad(), 6);
-  QCOMPARE(eo->phase(), Phase::Ready);
+  // Timed: looking (rotations) before the start, then the clock runs from
+  // the first face turn to the step done.
+  eo->selectTab(Tab::Timed);
+  QCOMPARE(eo->timedPhase(), DrillFlow::Phase::Waiting);
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  optimum = solveOptimally();
+  QCOMPARE(eo->timedPhase(), DrillFlow::Phase::Revealed);
+  const std::string group = timedKey(false, "eocross");
+  QCOMPARE(eo->data().timed.at(group).size(), std::size_t{1});
+  QCOMPARE(eo->data().timed.at(group).back().moves, optimum);
+  QCOMPARE(eo->data().timed.at(group).back().extra, 0.0);
+  QVERIFY(eo->data().timed.at(group).back().ms > 0);
 
   finishBackgroundWrites();
-  EoCrossStore saved(QDir(dataDir_).filePath("eocross.json"));
+  PracticeStore saved(QDir(dataDir_).filePath("eocross.json"));
   QVERIFY(saved.load());
-  QVERIFY(saved.data == eo->stats());
-  eo->setPinnedBad(-1);
-  eo->setLimitSeconds(15);
-  eo->selectDrill(EoDrill::Solve);
+  QVERIFY(saved.data == eo->data());
+  eo->selectTab(Tab::Learn);
 }
 
-void GuiTest::timedModesWaitForSpace() {
-  // F2L: a state left with its clock running is given up, and the ready
-  // page is there on the way back; a result stays up.
-  auto *f2l = page<F2LPage>();
-  QVERIFY(switchTo(AppMode::F2L, f2l));
-  f2l->selectDrill(F2LPage::Drill::Pair);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Ready);
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
-  QVERIFY(switchTo(AppMode::Tsle, page<TslePage>()));
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Ready);
-  QVERIFY(switchTo(AppMode::F2L, f2l));
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Ready);
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QTest::keyClick(window_.get(), Qt::Key_Backspace);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Done);
-  // Space after a result goes straight on.
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Solving);
-  // The Case explorer isn't timed and has no ready page.
-  f2l->selectDrill(F2LPage::Drill::Explore);
-  QCOMPARE(f2l->phase(), F2LPage::Phase::Explore);
-  f2l->selectDrill(F2LPage::Drill::Pair);
-
-  // TSLE: the same for Next trigger and Full TSLE; Guided intro and the
-  // explorer start at once.
-  auto *tsle = page<TslePage>();
-  QVERIFY(switchTo(AppMode::Tsle, tsle));
-  for (TslePage::Drill drill : {TslePage::Drill::Next, TslePage::Drill::Full}) {
-    tsle->selectDrill(drill);
-    QCOMPARE(tsle->phase(), TslePage::Phase::Ready);
-    QTest::keyClick(window_.get(), Qt::Key_Space);
-    QCOMPARE(tsle->phase(), TslePage::Phase::Solving);
-    QVERIFY(switchTo(AppMode::F2L, f2l));
-    QVERIFY(switchTo(AppMode::Tsle, tsle));
-    QCOMPARE(tsle->phase(), TslePage::Phase::Ready);
-  }
-  tsle->selectDrill(TslePage::Drill::Explore);
-  QCOMPARE(tsle->phase(), TslePage::Phase::Explore);
-  tsle->selectDrill(TslePage::Drill::Intro);
-  QVERIFY(tsle->phase() != TslePage::Phase::Ready);
-
-  // EO Cross: every drill shows (and times) nothing until Space.
+void GuiTest::practiceModesComeBackAsLeft() {
+  using Phase = PracticePage::Phase;
+  using Tab = PracticePage::Tab;
   auto *eo = page<EoCrossPage>();
+  auto *tsle = page<TslePage>();
+  // Learn isn't timed: a solve under way is there on the way back.
   QVERIFY(switchTo(AppMode::EoCross, eo));
-  for (int d = 0; d < kEoDrills; ++d) {
-    eo->selectDrill(static_cast<EoDrill>(d));
-    QCOMPARE(eo->phase(), EoCrossPage::Phase::Ready);
-    QTest::keyClick(window_.get(), Qt::Key_A); // not Space: nothing starts
-    QCOMPARE(eo->phase(), EoCrossPage::Phase::Ready);
+  QCOMPARE(eo->tab(), Tab::Learn);
+  if (eo->phase() == Phase::Done) {
     QTest::keyClick(window_.get(), Qt::Key_Space);
-    QVERIFY(eo->phase() != EoCrossPage::Phase::Ready);
-    // Away and back: ready again, and nothing recorded.
-    QVERIFY(switchTo(AppMode::F2L, f2l));
-    QVERIFY(switchTo(AppMode::EoCross, eo));
-    QCOMPARE(eo->phase(), EoCrossPage::Phase::Ready);
   }
-  eo->selectDrill(EoDrill::Solve);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  typeMoves(parseAlgOrEmpty("R U"));
+  const FaceletCube turned = eo->cube();
+  const CubieCube state = eo->scrambled();
+  QVERIFY(switchTo(AppMode::Tsle, tsle));
+  QVERIFY(switchTo(AppMode::EoCross, eo));
+  QCOMPARE(eo->phase(), Phase::Solving);
+  QVERIFY(eo->scrambled() == state);
+  QVERIFY(eo->cube() == turned);
+
+  // Timed: an armed timer is disarmed by leaving, and a new state waits
+  // on the way back; nothing is recorded.
+  eo->selectTab(Tab::Timed);
+  QCOMPARE(eo->timedPhase(), DrillFlow::Phase::Waiting);
+  const std::size_t before = eo->data().timed.size();
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QVERIFY(!eo->isBusy());
+  QVERIFY(switchTo(AppMode::Tsle, tsle));
+  QVERIFY(switchTo(AppMode::EoCross, eo));
+  QCOMPARE(eo->timedPhase(), DrillFlow::Phase::Waiting);
+  QCOMPARE(eo->data().timed.size(), before);
+  // While the clock runs the mode can't be left.
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  typeMoves(parseAlgOrEmpty("R"));
+  QCOMPARE(eo->timedPhase(), DrillFlow::Phase::Running);
+  QVERIFY(eo->isBusy());
+  QTest::keySequence(window_.get(), AppMode::shortcut(AppMode::Tsle));
+  QVERIFY(shownPage(*window_) == eo);
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QVERIFY(!eo->isBusy());
+  eo->selectTab(Tab::Learn);
 }
 
 void GuiTest::timedPhysicalSolve() {

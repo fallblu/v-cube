@@ -141,20 +141,6 @@ bool cornersOriented(const CubieCube &c) {
                      [](std::uint8_t t) { return t == 0; });
 }
 
-double meanMs(const TsleProgress &progress) {
-  double sum = 0.0;
-  int n = 0;
-  for (const auto &[key, attempts] : progress.cases) {
-    for (const PairAttempt &a : attempts) {
-      if (!a.gaveUp) {
-        sum += static_cast<double>(a.ms);
-        ++n;
-      }
-    }
-  }
-  return n ? sum / n : 0.0;
-}
-
 } // namespace
 
 // --- states and cases --------------------------------------------------------
@@ -291,6 +277,16 @@ const std::vector<TsleState> &tsleCases() {
     return out;
   }();
   return cases;
+}
+
+std::vector<std::string> tsleCardPool() {
+  std::vector<std::string> pool;
+  for (TsleState c : tsleCases()) {
+    if (!c.ocll()) {
+      pool.push_back(tsleKey(c));
+    }
+  }
+  return pool;
 }
 
 int tsleStepsLeft(TsleState state) {
@@ -521,75 +517,6 @@ std::vector<Alg> TsleSolver::bestPath(TsleState state) const {
     state = o.next;
   }
   return path;
-}
-
-// --- progress ----------------------------------------------------------------
-
-void TsleProgress::add(const std::string &key, const PairAttempt &a) {
-  std::vector<PairAttempt> &to = cases[key];
-  to.push_back(a);
-  if (to.size() > kPerCase) {
-    to.erase(to.begin());
-  }
-}
-
-void TsleProgress::add(const FullAttempt &a) {
-  fulls.push_back(a);
-  if (fulls.size() > kFulls) {
-    fulls.erase(fulls.begin());
-  }
-}
-
-bool TsleProgress::isIntroduced(TsleState c) const {
-  return c.ocll() || introduced.contains(tsleKey(c));
-}
-
-std::vector<OcllAlg> TsleProgress::ocllAlgs() const {
-  std::vector<OcllAlg> algs = defaultOcllAlgs();
-  for (OcllAlg &a : algs) {
-    if (auto it = ocll.find(a.id); it != ocll.end()) {
-      a.alg = it->second;
-    }
-  }
-  return algs;
-}
-
-bool tsleLevelSolid(const TsleProgress &progress, int level) {
-  const double overall = meanMs(progress);
-  int cases = 0, sound = 0;
-  for (TsleState c : tsleCases()) {
-    if (tsleStepsLeft(c) != level || c.ocll()) {
-      continue;
-    }
-    if (!progress.isIntroduced(c)) {
-      return false;
-    }
-    ++cases;
-    auto it = progress.cases.find(tsleKey(c));
-    if (it != progress.cases.end() &&
-        !summarizeCase(it->second, overall).weak) {
-      ++sound;
-    }
-  }
-  return sound * 4 >= cases * 3;
-}
-
-int tsleOpenLevel(const TsleProgress &progress) {
-  int level = 1;
-  while (level < kTsleLevels && tsleLevelSolid(progress, level)) {
-    ++level;
-  }
-  return level;
-}
-
-std::optional<TsleState> tsleNextNew(const TsleProgress &progress) {
-  int open = tsleOpenLevel(progress);
-  for (TsleState c : tsleCases()) {
-    if (tsleStepsLeft(c) <= open && !progress.isIntroduced(c)) {
-      return c;
-    }
-  }
-  return std::nullopt;
 }
 
 } // namespace vcube

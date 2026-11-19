@@ -4,7 +4,6 @@
 #include "cube/facelet.hpp"
 #include "cube/move.hpp"
 #include "cube/scramble.hpp"
-#include "train/f2l_stats.hpp"
 #include "train/solve_review.hpp"
 
 #include <array>
@@ -71,6 +70,9 @@ std::optional<TsleState> tsleFromKey(std::string_view key);
 std::string tsleName(TsleState c);
 // The 104 cases (all but the solved one), by steps left, then key.
 const std::vector<TsleState> &tsleCases();
+// The cases as TSLE mode's cards, by tsleKey(), in the order they are
+// introduced: fewest steps first. The OCLLs are known algs and have none.
+std::vector<std::string> tsleCardPool();
 // The fewest steps to the end, where a step is a trigger or the OCLL that
 // ends a chain: 0 when done, 1 for an OCLL. The same for every state of a
 // case and for every slot.
@@ -162,40 +164,8 @@ private:
   TsleFinish finishFrom(const WorldFinish &f) const;
 };
 
-// --- progress ----------------------------------------------------------------
-
-// What a step that wasn't a good trigger adds to an attempt's excess (a
-// good one adds its moves over the best).
+// What a step that wasn't a good trigger counts as over the best way, in
+// moves (a good one counts its moves over the best).
 inline constexpr double kWrongTrigger = 3.0;
-
-struct TsleProgress {
-  // By tsleKey(): the last tries of each case (excess in moves).
-  std::map<std::string, std::vector<PairAttempt>> cases;
-  // The cases Guided intro has been through. OCLLs need no introduction.
-  std::set<std::string> introduced;
-  std::vector<FullAttempt> fulls;
-  // OCLL algs changed from the default ones, by id.
-  std::map<std::string, std::string> ocll;
-
-  static constexpr std::size_t kPerCase = 50;
-  static constexpr std::size_t kFulls = 500;
-  void add(const std::string &key, const PairAttempt &a);
-  void add(const FullAttempt &a);
-  bool isIntroduced(TsleState c) const;
-  // The OCLL algs in use: the default ones with the changed ones put in.
-  std::vector<OcllAlg> ocllAlgs() const;
-  friend bool operator==(const TsleProgress &, const TsleProgress &) = default;
-};
-
-// A level is the cases with that many steps left (the OCLLs aside). It is
-// solid when every case of it is introduced and three quarters of them
-// at least have been tried and aren't weak.
-bool tsleLevelSolid(const TsleProgress &progress, int level);
-// The deepest level open: 1 at least, and each further one once the level
-// before it is solid.
-int tsleOpenLevel(const TsleProgress &progress);
-// The next case to introduce: the first one not introduced of the open
-// levels, shallowest first; nullopt when there is none.
-std::optional<TsleState> tsleNextNew(const TsleProgress &progress);
 
 } // namespace vcube

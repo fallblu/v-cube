@@ -2,11 +2,12 @@
 #include "app/case_page.hpp"
 
 #include "app/mode_table.hpp"
+#include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 #include "io/data_file.hpp"
-#include "io/eo_cross_store.hpp"
-#include "io/f2l_store.hpp"
-#include "io/tsle_store.hpp"
+#include "io/practice_store.hpp"
+#include "train/f2l.hpp"
+#include "train/tsle.hpp"
 
 #include <QDate>
 #include <QDateTime>
@@ -23,6 +24,15 @@ namespace vcube {
 namespace {
 
 constexpr int kSetIdRole = Qt::UserRole;
+// A row of a practice mode's cards (F2L, TSLE): the mode, else -1.
+constexpr int kModeRole = Qt::UserRole + 1;
+
+// A practice mode's file as it is on disk (empty when there is none).
+PracticeData practiceData(const QString &dataDir, const char *file) {
+  FileRead read = readDataFile(QDir(dataDir).filePath(file), kPracticeFile);
+  return read.status == FileStatus::Read ? practiceFromJson(read.object)
+                                         : PracticeData{};
+}
 
 QString duration(std::int64_t ms) {
   std::int64_t s = ms / 1000;
@@ -92,7 +102,7 @@ TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
   layout->addWidget(streakLabel_);
 
   auto *setsTitle = new QLabel(tr("<b>Learn: what's waiting</b>"), this);
-  sets_ = table({tr("Alg set"), tr("Due"), tr("New today"), tr("In queue"),
+  sets_ = table({tr("Cases"), tr("Due"), tr("New today"), tr("In queue"),
                  tr("Learned"), QString()},
                 this);
   sets_->setToolTip(tr("Reviews due now or later today, and the new cases "
@@ -100,7 +110,11 @@ TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
                        "queue. Double-click a set to learn it."));
   connect(sets_, &QTreeWidget::itemDoubleClicked, this,
           [this](QTreeWidgetItem *item) {
-            emit learnSetRequested(item->data(0, kSetIdRole).toString());
+            if (int mode = item->data(0, kModeRole).toInt(); mode >= 0) {
+              emit practiceRequested(mode);
+            } else {
+              emit learnSetRequested(item->data(0, kSetIdRole).toString());
+            }
           });
   reviewAll_ = new QPushButton(this);
   reviewAll_->setFocusPolicy(Qt::NoFocus);
@@ -208,43 +222,23 @@ std::vector<ActivityEvent> TodayPage::events() {
   for (const LabAttempt &a : lab_.attempts()) {
     add(AppMode::AlgLab, a.timestamp, a.timeMs);
   }
-  FileRead eoCross =
-      readDataFile(QDir(dataDir_).filePath("eocross.json"), kEoCrossFile);
-  if (eoCross.status == FileStatus::Read) {
-    for (const auto &[key, attempts] : eoCrossFromJson(eoCross.object).kinds) {
-      for (const PairAttempt &a : attempts) {
-        add(AppMode::EoCross, a.timestamp, a.ms);
+  // The practice modes: every card's try and every solve kept.
+  for (const auto &[file, mode] :
+       {std::pair{"eocross.json", int(AppMode::EoCross)},
+        std::pair{"f2l.json", int(AppMode::F2L)},
+        std::pair{"tsle.json", int(AppMode::Tsle)}}) {
+    const PracticeData kept = practiceData(dataDir_, file);
+    for (const auto &[id, p] : kept.cards) {
+      for (const Attempt &a : p.attempts) {
+        add(mode, a.timestamp, 0);
       }
     }
-  }
-  FileRead f2l = readDataFile(QDir(dataDir_).filePath("f2l.json"), kF2LFile);
-  if (f2l.status == FileStatus::Read) {
-    // A Full F2L solve's pairs are also kept as pair attempts: the solve
-    // itself is what counts.
-    F2LStats stats = f2lFromJson(f2l.object);
-    for (const auto &[key, attempts] : stats.cases) {
-      for (const PairAttempt &a : attempts) {
-        if (a.drill != F2LDrill::Full) {
-          add(AppMode::F2L, a.timestamp, a.ms);
+    for (const PracticeTries *tries : {&kept.learn, &kept.timed}) {
+      for (const auto &[key, list] : *tries) {
+        for (const PracticeTry &t : list) {
+          add(mode, t.timestamp, t.ms);
         }
       }
-    }
-    for (const FullAttempt &a : stats.fulls) {
-      add(AppMode::F2L, a.timestamp, a.ms);
-    }
-  }
-  FileRead tsle = readDataFile(QDir(dataDir_).filePath("tsle.json"), kTsleFile);
-  if (tsle.status == FileStatus::Read) {
-    TsleProgress progress = tsleFromJson(tsle.object);
-    for (const auto &[key, attempts] : progress.cases) {
-      for (const PairAttempt &a : attempts) {
-        if (a.drill != F2LDrill::Full) {
-          add(AppMode::Tsle, a.timestamp, a.ms);
-        }
-      }
-    }
-    for (const FullAttempt &a : progress.fulls) {
-      add(AppMode::Tsle, a.timestamp, a.ms);
     }
   }
   return out;
@@ -261,6 +255,7 @@ void TodayPage::refresh() {
                                              count(d.newLeft), count(d.queued),
                                              count(d.learned)});
     item->setData(0, kSetIdRole, qs(set.id));
+    item->setData(0, kModeRole, -1);
     for (int c = 1; c < 5; ++c) {
       item->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
     }
@@ -281,6 +276,49 @@ void TodayPage::refresh() {
     sets_->setItemWidget(item, 5, button);
     dueTotal += d.due;
   }
+  // The cards of F2L and TSLE mode, which come in by themselves.
+  const bool eo = methodFromId(saved::practice("f2l", "method", "zz-1")
+                                   .get()
+                                   .toString()
+                                   .toStdString())
+                      .transform([](F2LMethod m) {
+                        return m == F2LMethod::ZZMinus1 || m == F2LMethod::ZZ;
+                      })
+                      .value_or(true);
+  struct Practice {
+    int mode;
+    QString name;
+    const char *file;
+    std::vector<std::string> pool;
+  };
+  for (const Practice &p :
+       {Practice{AppMode::F2L, tr("F2L pairs"), "f2l.json", pairCardPool(eo)},
+        Practice{AppMode::Tsle, tr("TSLE cases"), "tsle.json",
+                 tsleCardPool()}}) {
+    const PracticeWaiting w =
+        practiceWaiting(p.pool, practiceData(dataDir_, p.file).cards, unixNow(),
+                        localDayStart(), localDayEnd(), settings_.srs);
+    auto *item = new QTreeWidgetItem(
+        sets_, {p.name, count(w.due), count(w.newLeft),
+                count(w.total - w.started), count(w.learned)});
+    item->setData(0, kModeRole, p.mode);
+    for (int c = 1; c < 5; ++c) {
+      item->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
+    }
+    if (w.due > 0) {
+      QFont f = item->font(1);
+      f.setBold(true);
+      item->setFont(1, f);
+    }
+    auto *button = new QPushButton(w.due > 0       ? tr("Review")
+                                   : w.newLeft > 0 ? tr("Learn")
+                                                   : tr("Open"),
+                                   sets_);
+    button->setFocusPolicy(Qt::NoFocus);
+    connect(button, &QPushButton::clicked, this,
+            [this, mode = p.mode] { emit practiceRequested(mode); });
+    sets_->setItemWidget(item, 5, button);
+  }
   reviewAll_->setText(tr("Review all sets (%1 due)").arg(dueTotal));
   reviewAll_->setEnabled(dueTotal > 0);
 
@@ -299,9 +337,9 @@ void TodayPage::refresh() {
       {AppMode::Timed, QT_TR_NOOP("Timed (solves)")},
       {AppMode::Untimed, QT_TR_NOOP("Untimed (solves)")},
       {AppMode::MoveCount, QT_TR_NOOP("Move Count (solves)")},
-      {AppMode::EoCross, QT_TR_NOOP("EO Cross (states)")},
-      {AppMode::F2L, QT_TR_NOOP("F2L (pairs and solves)")},
-      {AppMode::Tsle, QT_TR_NOOP("TSLE (triggers and solves)")},
+      {AppMode::EoCross, QT_TR_NOOP("EO Cross (solves)")},
+      {AppMode::F2L, QT_TR_NOOP("F2L (cards and solves)")},
+      {AppMode::Tsle, QT_TR_NOOP("TSLE (cards and solves)")},
   };
   ActivityTotals dayTotal, weekTotal;
   for (const auto &[mode, label] : rows) {

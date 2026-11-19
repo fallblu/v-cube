@@ -3,12 +3,10 @@ add_library(vcube_io
   alglab_store.cpp
   backup.cpp
   data_file.cpp
-  eo_cross_store.cpp
-  f2l_store.cpp
   library.cpp
   move_counts.cpp
+  practice_store.cpp
   sessions.cpp
-  tsle_store.cpp
 )
 target_include_directories(vcube_io PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(vcube_io PUBLIC vcube_train Qt6::Core PRIVATE vcube_warnings)

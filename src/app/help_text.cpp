@@ -32,6 +32,66 @@ struct Section {
   std::vector<const char *> outro;
 };
 
+// The rows EO Cross, F2L and TSLE mode share: their Learn and Timed tabs
+// work the same way in each.
+#define PRACTICE_LEARN_NEW                                                     \
+  {T("Learn, a new case"), T("Enter"),                                         \
+   T("show its best solution on the cube, which is then put back to do "       \
+     "it")},                                                                   \
+      {T("Learn, a new case"), T("turning keys"),                              \
+       T("do it: the case then comes back in a minute, to do from memory")},   \
+  {                                                                            \
+    T("Learn, a new case"), T("Space"),                                        \
+        T("skip the showing: the case is known")                               \
+  }
+#define PRACTICE_LEARN_SOLVING                                                 \
+  {T("Learn, solving"), T("turning keys"),                                     \
+   T("any turn; the solve ends by itself when it is done")},                   \
+      {T("Learn, solving"), T("Backspace or Shift+Space"), T("give up")}, {    \
+    T("Learn, solving"), T("Esc"), T("start again")                            \
+  }
+#define PRACTICE_LEARN_AFTER                                                   \
+  {T("Learn, afterwards"), T("Space"), T("next")},                             \
+      {T("Learn, afterwards"), T("Enter"),                                     \
+       T("play the best solution from the start")},                            \
+      {T("Learn, afterwards"), T("Tab"),                                       \
+       T("show or hide the details (click a solution there to play it)")},     \
+      {T("Learn, afterwards"), T("turning keys"), T("turn the cube freely")},  \
+  {                                                                            \
+    T("Learn, afterwards"), T("Esc"),                                          \
+        T("the same state again, not recorded or graded")                      \
+  }
+#define PRACTICE_LEARN_CARDS                                                   \
+  {T("Learn, after a card's try"), T("1-4"),                                   \
+   T("change the grade: Again, Hard, Good, Easy")},                            \
+  {                                                                            \
+    T("Learn, nothing due"), T("Space"),                                       \
+        T("look again, taking a card in its learning steps early")             \
+  }
+#define PRACTICE_TIMED                                                         \
+  {T("Timed, virtual, before the solve"), T("turning keys"),                   \
+   T("rotations only")},                                                       \
+      {T("Timed, virtual, before the solve"), T("Space"),                      \
+       T("arm the timer: the first face turn starts it (or hold Space and "    \
+         "let go, if Settings > Drill says so)")},                             \
+      {T("Timed, virtual, solving"), T("Space"),                               \
+       T("stop now: a DNF unless the step is done (the timer stops by itself " \
+         "when it is)")},                                                      \
+      {T("Timed, physical"), T("hold Space, release"),                         \
+       T("start the timer, once the scramble is done")},                       \
+      {T("Timed, physical, solving"), T("any key"), T("stop the timer")},      \
+      {T("Timed, before or during the solve"), T("Shift+Space"),               \
+       T("give up: a DNF (Backspace instead, if Settings > Drill says so)")},  \
+      {T("Timed, solving"), T("Esc"), T("cancel: nothing is recorded")},       \
+      {T("Timed, afterwards"), T("Space"), T("next")},                         \
+      {T("Timed, afterwards"), T("Enter"),                                     \
+       T("play the best solution from the start")},                            \
+      {T("Timed, afterwards"), T("Tab"), T("show or hide the details")},       \
+      {T("Timed, afterwards"), T("Backspace"), T("make it a DNF, or not")},    \
+      {T("Timed, afterwards"), T("Delete"), T("delete the attempt")}, {        \
+    T("Timed, afterwards"), T("Esc"), T("the same state again, not recorded")  \
+  }
+
 const std::vector<Section> &sections() {
   static const std::vector<Section> all = {
       {"",
@@ -296,112 +356,41 @@ const std::vector<Section> &sections() {
        {}},
       {T("EO Cross"),
        AppMode::EoCross,
-       {},
+       {T("EO Cross, F2L and TSLE have the same two tabs with the same keys. "
+          "Learn is untimed; Timed is timed as Drill is.")},
        {T("When"), T("Key"), T("Action")},
-       {{T("ready (every drill)"), T("Space"),
-         T("show the first state; the clock starts then (on opening EO Cross "
-           "or coming back to it, and after picking a drill or an option)")},
-        {T("Bad edges"), T("0-9 / Backspace / Enter"),
-         T("type a count / correct it / give it (F/B first, then R/L if "
-           "asked)")},
-        {T("Bad edges"), T("turning keys"),
-         T("rotations, to look at the cube (also afterwards)")},
-        {T("Bad edges, afterwards"), T("Tab"),
-         T("ring the other axis's bad edges")},
-        {T("Axis choice"), T("turning keys"),
-         T("rotations only: turn the cube to the hold you would solve from")},
-        {T("Axis choice"), T("Space"),
-         T("take the hold the cube is in (the inspection time takes it for "
-           "you when it runs out)")},
-        {T("Plan blind, looking"), T("turning keys"), T("rotations only")},
-        {T("Plan blind, looking"), T("Space"),
-         T("hide the cube and do the plan (the inspection time hides it when "
-           "it runs out)")},
-        {T("Plan blind, cube hidden"), T("turning keys"),
-         T("any turn, unseen")},
-        {T("Plan blind, cube hidden"), T("Space"),
-         T("done: show the cube and how the plan went")},
-        {T("Plan blind, cube hidden"), T("Esc"),
-         T("start the moves again from where the cube was hidden")},
-        {T("Step solutions, Full EO Cross"), T("turning keys"),
-         T("any turn; the state ends by itself when the step is done in one "
-           "of your holds")},
-        {T("Step solutions, Full EO Cross"), T("Tab"),
-         T("a hint: the hold nearest the step, or the next move of an optimal "
-           "solution from here (the try counts as hinted)")},
-        {T("Step solutions, Full EO Cross"), T("Esc"),
-         T("put the cube back as it started")},
-        {T("Axis choice, Plan blind, solving"), T("Backspace"),
-         T("give up and see the solutions")},
-        {T("afterwards"), T("Space"), T("next")},
-        {T("afterwards"), T("Enter / 1-9"),
-         T("play the best solution / the solution with that number from the "
-           "start (or click it)")},
-        {T("afterwards"), T("turning keys"), T("turn the cube freely")},
-        {T("afterwards"), T("Esc"), T("the same state again, not recorded")}},
-       {T("A Space in the moment the inspection time hides the cube is "
-          "ignored, and Space with no moves done doesn't finish a plan.")}},
+       {PRACTICE_LEARN_SOLVING,
+        {T("Learn, plan then blind"), T("turning keys"),
+         T("rotations to look; the cube hides at the first face turn")},
+        {T("Learn, plan then blind"), T("Space"),
+         T("show the cube again: only then is the solve judged")},
+        PRACTICE_LEARN_AFTER,
+        PRACTICE_TIMED},
+       {}},
       {T("F2L"),
        AppMode::F2L,
        {},
        {T("When"), T("Key"), T("Action")},
-       {{T("ready (Pair solutions, Pair choice, Full F2L)"), T("Space"),
-         T("show the first state; the clock starts then (on opening F2L or "
-           "coming back to it, and after picking a drill or an option)")},
-        {T("solving"), T("turning keys"),
-         T("any turn; the clock runs from the first look")},
-        {T("Pair solutions, solving"), T("Tab"),
-         T("show the best solution's next move, done from the start (the "
-           "try counts as hinted)")},
-        {T("Pair choice, solving"), T("Tab"),
-         T("name the best pair to start with (the pick isn't counted)")},
-        {T("solving"), T("Backspace"), T("give up and see the solutions")},
-        {T("solving"), T("Esc"), T("put the cube back as it started")},
-        {T("afterwards"), T("Space"), T("next")},
-        {T("afterwards"), T("Esc"), T("the same state again, not recorded")},
-        {T("afterwards, Case explorer"), T("Enter"),
-         T("play the chosen solution from the start")},
-        {T("afterwards, Case explorer"), T("← / →"),
-         T("step back / forward through it")},
-        {T("afterwards, Case explorer"), T("1-9"),
-         T("choose a solution of the list (or click it to play it)")},
-        {T("afterwards, Case explorer"), T("turning keys"),
-         T("turn the cube freely")},
-        {T("Case explorer"), T("↑ / ↓"), T("the case before / after")},
-        {T("Case explorer"), T("Space"), T("another example of the case")},
-        {T("Case explorer"), T("Esc"), T("put the cube back")}},
-       {T("Full F2L has no hint and nothing to step through: its pairs are "
-          "compared in a table.")}},
+       {PRACTICE_LEARN_NEW,
+        PRACTICE_LEARN_SOLVING,
+        {T("Learn, one pair, solving"), T("Tab"),
+         T("a hint: a move more of the best solution each time (the card is "
+           "then graded Again)")},
+        PRACTICE_LEARN_AFTER,
+        PRACTICE_LEARN_CARDS,
+        PRACTICE_TIMED},
+       {}},
       {T("TSLE"),
        AppMode::Tsle,
        {},
        {T("When"), T("Key"), T("Action")},
-       {{T("ready (Next trigger, Full TSLE)"), T("Space"),
-         T("show the first state; the clock starts then (on opening TSLE or "
-           "coming back to it, and after picking a drill or an option)")},
-        {T("solving"), T("turning keys"),
-         T("any turn; a step is judged when the trigger is finished")},
-        {T("Guided intro, a trigger shown"), T("Enter"),
-         T("show the trigger on the cube, then put the cube back to do it")},
-        {T("Guided intro"), T("Space"),
-         T("skip the case as known; after a case, the next one")},
-        {T("Next trigger, Full TSLE, solving"), T("Tab"),
-         T("show the best step from here (the try counts as hinted)")},
-        {T("Next trigger, Full TSLE, solving"), T("Backspace"),
-         T("give up and see the good triggers")},
-        {T("solving"), T("Esc"), T("put the cube back as it started")},
-        {T("afterwards"), T("Space"), T("next")},
-        {T("afterwards"), T("Enter / 1-9"),
-         T("play the best trigger / the trigger with that number (or click "
-           "it)")},
-        {T("afterwards"), T("Esc"), T("the same state again, not recorded")},
-        {T("Case explorer"), T("Enter / 1-9"),
-         T("do the best trigger / that trigger; the list follows the cube")},
-        {T("Case explorer"), T("turning keys"),
-         T("turn the cube freely; the list follows it")},
-        {T("Case explorer"), T("↑ / ↓"), T("the case before / after")},
-        {T("Case explorer"), T("Space"), T("the case at its next AUF")},
-        {T("Case explorer"), T("Esc"), T("back to the case")}},
+       {PRACTICE_LEARN_NEW,
+        PRACTICE_LEARN_SOLVING,
+        {T("Learn, solving"), T("Tab"),
+         T("a hint: the best step from here (a card is then graded Again)")},
+        PRACTICE_LEARN_AFTER,
+        PRACTICE_LEARN_CARDS,
+        PRACTICE_TIMED},
        {}},
       {T("Alg Lab"),
        AppMode::AlgLab,

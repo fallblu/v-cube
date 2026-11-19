@@ -1,31 +1,25 @@
 #include "app/f2l_page.hpp"
 
-#include "app/session_panel.hpp"
+#include "app/cube_painter.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
-#include "train/f2l_stats.hpp"
 
 #include <QComboBox>
-#include <QDir>
-#include <QHeaderView>
-#include <QKeyEvent>
-#include <QLabel>
+#include <QFutureWatcher>
 #include <QMenu>
-#include <QMessageBox>
-#include <QPushButton>
-#include <QScrollArea>
 #include <QSignalBlocker>
-#include <QSplitter>
-#include <QTabBar>
 #include <QToolButton>
-#include <QTreeWidget>
-#include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
 
 namespace vcube {
 
 namespace {
+
+const char *const kWhole = "whole";
+
+QString costText(double cost) { return QString::number(cost, 'f', 1); }
 
 // The stickers of a slot's corner and edge, wherever they are on a cube
 // held any way.
@@ -62,107 +56,47 @@ std::vector<int> pairFacelets(const FaceletCube &cube, Slot slot) {
   return out;
 }
 
+const PairRank *rankOf(const std::vector<PairRank> &ranks, Slot slot) {
+  auto it = std::find_if(ranks.begin(), ranks.end(), [slot](const PairRank &r) {
+    return r.pair.slot == slot;
+  });
+  return it == ranks.end() ? nullptr : &*it;
+}
+
+// The corner a case is best seen from: that of a back slot it uses.
+DiagramView viewOf(PairCase c) {
+  for (std::optional<Slot> s : {c.cornerSlot(), c.edgeSlot()}) {
+    if (s == Slot::BL) {
+      return DiagramView::Iso3DBackLeft;
+    }
+    if (s == Slot::BR) {
+      return DiagramView::Iso3DBackRight;
+    }
+  }
+  for (std::optional<Slot> s : {c.cornerSlot(), c.edgeSlot()}) {
+    if (s == Slot::FL) {
+      return DiagramView::Iso3DFrontLeft;
+    }
+  }
+  return DiagramView::Iso3D;
+}
+
+// A cost over the best one, coloured by how much it is.
+QString overText(double over) {
+  return over < 0.05
+             ? coloured(kPassColour, QObject::tr("as good as the best"))
+             : coloured(over >= 2.0 ? QColor(kFailColour) : QColor(kWarnColour),
+                        QObject::tr("+%1 over the best").arg(costText(over)));
+}
+
 } // namespace
 
 F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
                  const QString &dataDir, QWidget *parent)
-    : ModePage(parent), settings_(settings), library_(library), lab_(lab),
-      store_(QDir(dataDir).filePath("f2l.json")), rng_(makeRng()) {
-  QString error;
-  if (!store_.load(&error)) {
-    QString kept =
-        store_.setAsidePath().isEmpty()
-            ? tr("It is left where it is, and nothing will be saved "
-                 "over it.")
-            : tr("It was kept as %1.")
-                  .arg(QDir::toNativeSeparators(store_.setAsidePath()));
-    QMessageBox::warning(this, "v-cube",
-                         tr("Could not read your F2L statistics (%1), so F2L "
-                            "starts afresh.")
-                                 .arg(error) +
-                             " " + kept);
-  }
-
-  buildSide();
-
-  auto *right = new QWidget(this);
-  auto *rightLayout = new QVBoxLayout(right);
-  rightLayout->setContentsMargins(0, 0, 0, 0);
-  options_ = new OptionBar(right);
-  cubeView_ = new CubeView(right);
-  cubeView_->setMinimumSize(260, 200);
-  buildOptions();
-  rightLayout->addWidget(options_);
-
-  prompt_ = new QLabel(right);
-  prompt_->setAlignment(Qt::AlignCenter);
-  prompt_->setWordWrap(true);
-  prompt_->setTextFormat(Qt::RichText);
-  QFont pf = prompt_->font();
-  pf.setPointSizeF(pf.pointSizeF() * 1.3);
-  prompt_->setFont(pf);
-  display_ = new QLabel(right);
-  display_->setAlignment(Qt::AlignCenter);
-  display_->setTextFormat(Qt::RichText);
-  QFont df = display_->font();
-  df.setPointSizeF(df.pointSizeF() * 1.8);
-  display_->setFont(df);
-  hint_ = new HintBar(right);
-  result_ = new QLabel(right);
-  result_->setObjectName("f2lResult");
-  result_->setTextFormat(Qt::RichText);
-  result_->setWordWrap(true);
-  result_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-  result_->setTextInteractionFlags(Qt::TextBrowserInteraction);
-  result_->setFocusPolicy(Qt::NoFocus);
-  result_->setOpenExternalLinks(false);
-  auto *scroll = new QScrollArea(right);
-  scroll->setFrameShape(QFrame::NoFrame);
-  scroll->setWidgetResizable(true);
-  scroll->setFocusPolicy(Qt::NoFocus);
-  scroll->setWidget(result_);
-
-  rightLayout->addWidget(prompt_);
-  rightLayout->addWidget(cubeView_, 4);
-  rightLayout->addWidget(display_);
-  rightLayout->addWidget(hint_);
-  rightLayout->addWidget(scroll, 5);
-
-  auto *split = new QSplitter(this);
-  split->setObjectName("main");
-  split->addWidget(side_);
-  split->addWidget(right);
-  split->setStretchFactor(0, 0);
-  split->setStretchFactor(1, 1);
-  split->setSizes({400, 800});
-
-  tabs_ = new QTabBar(this);
-  tabs_->setFocusPolicy(Qt::NoFocus);
-  tabs_->setExpanding(false);
-  for (const QString &name : {tr("Pair solutions"), tr("Pair choice"),
-                              tr("Full F2L"), tr("Case explorer")}) {
-    tabs_->addTab(name);
-  }
-  auto *layout = new QVBoxLayout(this);
-  layout->addWidget(tabs_);
-  layout->addWidget(split, 1);
-
-  connect(tabs_, &QTabBar::currentChanged, this, [this](int index) {
-    if (index >= 0 && static_cast<Drill>(index) != drill_) {
-      selectDrill(static_cast<Drill>(index));
-    }
-  });
-  connect(result_, &QLabel::linkActivated, this, [this](const QString &link) {
-    if (link.startsWith("sol:")) {
-      selectSolution(static_cast<std::size_t>(link.mid(4).toInt()), true);
-    }
-  });
-  clock_.setInterval(37);
-  connect(&clock_, &QTimer::timeout, this, &F2LPage::showClock);
-
+    : PracticePage(settings, dataDir, "f2l.json", parent), library_(library),
+      lab_(lab) {
   loadChoices();
-  applySettings();
-  showOptions();
+  build();
 }
 
 F2LPage::~F2LPage() {
@@ -171,59 +105,18 @@ F2LPage::~F2LPage() {
   }
 }
 
-// --- building and options ----------------------------------------------------
+// --- options -----------------------------------------------------------------
 
-void F2LPage::buildSide() {
-  side_ = new QWidget(this);
-  auto *layout = new QVBoxLayout(side_);
-  layout->setContentsMargins(0, 0, 0, 0);
-  summary_ = new QLabel(side_);
-  summary_->setWordWrap(true);
-  summary_->setTextFormat(Qt::RichText);
-  tree_ = new QTreeWidget(side_);
-  tree_->setObjectName("f2lCases");
-  tree_->setColumnCount(4);
-  tree_->setHeaderLabels(
-      {tr("Case"), tr("Tries"), tr("Over best"), tr("Time")});
-  tree_->setRootIsDecorated(false);
-  tree_->setFocusPolicy(Qt::NoFocus);
-  tree_->header()->setStretchLastSection(false);
-  tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-  for (int c = 1; c < 4; ++c) {
-    tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
-  }
-  clearButton_ = flatButton(tr("Clear statistics…"), side_);
-  layout->addWidget(summary_);
-  layout->addWidget(tree_, 1);
-  layout->addWidget(
-      helpLabel(tr("How each pair case went lately, in every drill: your "
-                   "solution's cost over the best one's, and your time. "
-                   "Weak cases are marked and come up more often in Pair "
-                   "solutions. Double-click a case to explore it."),
-                side_));
-  layout->addWidget(clearButton_, 0, Qt::AlignLeft);
-  connect(tree_, &QTreeWidget::currentItemChanged, this,
-          [this] { treeSelected(); });
-  connect(tree_, &QTreeWidget::itemDoubleClicked, this,
-          [this](QTreeWidgetItem *item) {
-            if (auto c = caseFromKey(
-                    item->data(0, Qt::UserRole).toString().toStdString())) {
-              exploreCase(*c);
-            }
-          });
-  connect(clearButton_, &QPushButton::clicked, this, &F2LPage::clearStats);
-}
-
-void F2LPage::buildOptions() {
-  methodBox_ = new QComboBox(options_);
+void F2LPage::addOptions(OptionBar *bar) {
+  methodBox_ = new QComboBox(bar);
   methodBox_->setFocusPolicy(Qt::NoFocus);
   for (int m = 0; m < kF2LMethods; ++m) {
     auto method = static_cast<F2LMethod>(m);
     methodBox_->addItem(qs(methodName(method)), qs(methodId(method)));
   }
-  options_->addPicker(tr("F2L:"), methodBox_);
+  bar->addPicker(tr("F2L:"), methodBox_);
 
-  leaveButton_ = new QToolButton(options_);
+  leaveButton_ = new QToolButton(bar);
   leaveButton_->setFocusPolicy(Qt::NoFocus);
   leaveButton_->setPopupMode(QToolButton::InstantPopup);
   auto *leaveMenu = new QMenu(leaveButton_);
@@ -245,9 +138,9 @@ void F2LPage::buildOptions() {
     });
   }
   leaveButton_->setMenu(leaveMenu);
-  leaveItem_ = options_->addPicker(tr("Last slot:"), leaveButton_);
+  leaveItem_ = bar->addPicker(tr("Last slot:"), leaveButton_);
 
-  movesButton_ = new QToolButton(options_);
+  movesButton_ = new QToolButton(bar);
   movesButton_->setFocusPolicy(Qt::NoFocus);
   movesButton_->setPopupMode(QToolButton::InstantPopup);
   auto *movesMenu = new QMenu(movesButton_);
@@ -265,27 +158,7 @@ void F2LPage::buildOptions() {
   addMove(tr("F2 and B2"), "halfFB", &F2LConfig::halfFB);
   addMove(tr("Wide turns (r, l, u, d)"), "wide", &F2LConfig::wide);
   movesButton_->setMenu(movesMenu);
-  options_->addPicker(tr("Solutions use:"), movesButton_);
-
-  stageBox_ = new QComboBox(options_);
-  stageBox_->setFocusPolicy(Qt::NoFocus);
-  stageItem_ = options_->addPicker(tr("Pair:"), stageBox_);
-
-  slotBox_ = new QComboBox(options_);
-  slotBox_->setFocusPolicy(Qt::NoFocus);
-  slotBox_->addItem(tr("Any slot"), -1);
-  for (Slot s : kF2LSlots) {
-    slotBox_->addItem(slotText(s), static_cast<int>(s));
-  }
-  slotItem_ = options_->addPicker(tr("Slot:"), slotBox_);
-  contextBox_ = new QComboBox(options_);
-  contextBox_->setFocusPolicy(Qt::NoFocus);
-  contextBox_->addItem(tr("Solved"), 1);
-  contextBox_->addItem(tr("Open"), 0);
-  contextItem_ = options_->addPicker(tr("Other slots:"), contextBox_);
-
-  options_->addViewPicker(cubeView_, "f2l");
-  options_->addStretch();
+  bar->addPicker(tr("Solutions use:"), movesButton_);
 
   connect(methodBox_, &QComboBox::activated, this, [this] {
     if (auto m =
@@ -294,24 +167,18 @@ void F2LPage::buildOptions() {
       configChanged();
     }
   });
-  for (QComboBox *box : {stageBox_, slotBox_, contextBox_}) {
-    connect(box, &QComboBox::activated, this, [this] {
-      ready_ = false;
-      saveChoices();
-      if (active_) {
-        newRound();
-      }
-    });
-  }
 }
 
 void F2LPage::loadChoices() {
-  if (auto m = methodFromId(
-          saved::f2l("method", "zz-1").get().toString().toStdString())) {
+  if (auto m = methodFromId(saved::practice("f2l", "method", "zz-1")
+                                .get()
+                                .toString()
+                                .toStdString())) {
     applyMethod(config_, *m);
   }
-  QStringList leave =
-      saved::f2l("leave", QStringList{"FR", "FL"}).get().toStringList();
+  QStringList leave = saved::practice("f2l", "leave", QStringList{"FR", "FL"})
+                          .get()
+                          .toStringList();
   bool any = false;
   for (Slot s : kF2LSlots) {
     bool on = leave.contains(slotText(s));
@@ -321,52 +188,23 @@ void F2LPage::loadChoices() {
   if (!any) {
     config_.lsSlots = F2LConfig().lsSlots;
   }
-  config_.dMoves = saved::f2l("dMoves", true).get().toBool();
-  config_.halfFB = saved::f2l("halfFB", true).get().toBool();
-  config_.wide = saved::f2l("wide", true).get().toBool();
-  drill_ = static_cast<Drill>(
-      std::clamp(saved::f2l("drill", 0).get().toInt(), 0, 3));
-  fillStages();
-  stageBox_->setCurrentIndex(
-      std::max(0, stageBox_->findData(saved::f2l("stage", 0).get().toInt())));
-  slotBox_->setCurrentIndex(
-      std::max(0, slotBox_->findData(saved::f2l("slot", -1).get().toInt())));
-  contextBox_->setCurrentIndex(std::max(
-      0, contextBox_->findData(saved::f2l("context", 1).get().toInt())));
-  QSignalBlocker block(tabs_);
-  tabs_->setCurrentIndex(static_cast<int>(drill_));
+  config_.dMoves = saved::practice("f2l", "dMoves", true).get().toBool();
+  config_.halfFB = saved::practice("f2l", "halfFB", true).get().toBool();
+  config_.wide = saved::practice("f2l", "wide", true).get().toBool();
 }
 
 void F2LPage::saveChoices() const {
-  saved::f2l("method").set(qs(methodId(methodOf(config_))));
+  saved::practice("f2l", "method").set(qs(methodId(methodOf(config_))));
   QStringList leave;
   for (Slot s : kF2LSlots) {
     if (config_.lsSlots[static_cast<std::size_t>(s)]) {
       leave << slotText(s);
     }
   }
-  saved::f2l("leave").set(leave);
-  saved::f2l("dMoves").set(config_.dMoves);
-  saved::f2l("halfFB").set(config_.halfFB);
-  saved::f2l("wide").set(config_.wide);
-  saved::f2l("drill").set(static_cast<int>(drill_));
-  saved::f2l("stage").set(stageBox_->currentData());
-  saved::f2l("slot").set(slotBox_->currentData());
-  saved::f2l("context").set(contextBox_->currentData());
-}
-
-void F2LPage::fillStages() {
-  QVariant was = stageBox_->currentData();
-  QSignalBlocker block(stageBox_);
-  stageBox_->clear();
-  stageBox_->addItem(tr("Any"), 0);
-  const QStringList names = {tr("1st"), tr("2nd"), tr("3rd"), tr("4th")};
-  int stages = stageCount(config_);
-  for (int s = 1; s <= stages; ++s) {
-    stageBox_->addItem(
-        s == stages ? tr("%1 (last)").arg(names[s - 1]) : names[s - 1], s);
-  }
-  stageBox_->setCurrentIndex(std::max(0, stageBox_->findData(was)));
+  saved::practice("f2l", "leave").set(leave);
+  saved::practice("f2l", "dMoves").set(config_.dMoves);
+  saved::practice("f2l", "halfFB").set(config_.halfFB);
+  saved::practice("f2l", "wide").set(config_.wide);
 }
 
 void F2LPage::showOptions() {
@@ -405,60 +243,16 @@ void F2LPage::showOptions() {
   text += moves.quarterFB ? " F B" : moves.halfFB ? " F2 B2" : "";
   text += moves.wide ? " r l u d" : "";
   movesButton_->setText(text);
-  stageItem_->setVisible(drill_ == Drill::Pair);
-  slotItem_->setVisible(drill_ == Drill::Explore);
-  contextItem_->setVisible(drill_ == Drill::Explore);
 }
 
 void F2LPage::configChanged() {
-  ready_ = false;
   saveChoices();
-  fillStages();
-  showOptions();
-  fillTree();
-  if (active_) {
-    newRound();
-  }
+  optionChanged();
 }
 
 void F2LPage::setConfig(const F2LConfig &config) {
   config_ = config;
   configChanged();
-}
-
-void F2LPage::selectDrill(Drill d) {
-  drill_ = d;
-  ready_ = false;
-  {
-    QSignalBlocker block(tabs_);
-    tabs_->setCurrentIndex(static_cast<int>(d));
-  }
-  saveChoices();
-  showOptions();
-  if (active_) {
-    newRound();
-  }
-}
-
-void F2LPage::exploreCase(PairCase c) {
-  explored_ = c;
-  if (drill_ != Drill::Explore) {
-    selectDrill(Drill::Explore);
-  } else if (active_) {
-    newRound();
-  }
-  selectInTree(c);
-}
-
-void F2LPage::applySettings() {
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
-  fillTree();
-  if (active_ && round_.id != 0) {
-    showPrompt();
-  }
 }
 
 void F2LPage::reloadSets() {
@@ -470,585 +264,464 @@ void F2LPage::reloadSets() {
 }
 
 void F2LPage::activated() {
-  active_ = true;
-  ready_ = false; // a state left half done isn't taken up again
   reloadSets();
-  if (round_.id == 0 || phase_ != Phase::Done) {
-    newRound();
-  }
+  PracticePage::activated();
 }
 
-void F2LPage::deactivated() {
-  active_ = false;
-  clock_.stop();
-  cubeView_->finishAnimations();
-  if (phase_ == Phase::Solving) {
-    // The clock was running: the state is given up, unrecorded, and the
-    // ready page is there on the way back.
-    showReady();
-  }
+// --- states ------------------------------------------------------------------
+
+std::vector<std::string> F2LPage::cardPool() const {
+  return pairCardPool(config_.eo);
 }
 
-void F2LPage::focusModeChanged() {
-  options_->setVisible(!focusMode());
-  tabs_->setVisible(!focusMode());
-}
-
-// --- rounds ------------------------------------------------------------------
-
-std::optional<Slot> F2LPage::target() const { return round_.target; }
-
-void F2LPage::keepUnrecorded() {
-  if (phase_ == Phase::Done && round_.id != 0 && !round_.recorded &&
-      !round_.retry && !round_.analysed && stop_) {
-    waiting_.push_back(round_);
-    stop_.reset(); // its search runs on
-  }
-}
-
-void F2LPage::showReady() {
-  keepUnrecorded();
+std::optional<PracticePage::Setup> F2LPage::setUp(bool whole,
+                                                  const std::string &card) {
   if (stop_) {
     stop_->store(true);
   }
-  round_ = {};
-  round_.id = ++rounds_;
-  phase_ = Phase::Ready;
-  clock_.stop();
-  display_->setVisible(false);
-  cube_ = FaceletCube();
-  cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
-  cubeView_->clearMarks();
-  cubeView_->setState(cube_);
-  showPrompt();
-  showKeys();
-  showResult();
-}
-
-void F2LPage::newRound(bool sameState) {
-  if (!sameState && drill_ != Drill::Explore && !ready_) {
-    showReady();
-    return;
-  }
-  keepUnrecorded();
-  if (sameState && round_.id != 0) {
-    Round again;
-    again.start = round_.start;
-    again.target = round_.target;
-    again.pcase = round_.pcase;
-    again.hold = round_.hold;
-    again.retry = true;
-    if (round_.analysed && drill_ != Drill::Full) {
-      again.analysis = round_.analysis;
-      again.analysed = true;
-    }
-    round_ = std::move(again);
-    round_.id = ++rounds_;
-    round_.analysis.round = round_.id;
-    startRound(round_.start, round_.target);
-    return;
-  }
-  round_ = {};
-  round_.id = ++rounds_;
-  round_.hold = settings_.neutrality.pick(rng_);
-  switch (drill_) {
-  case Drill::Pair: {
-    // Weak cases, and cases not tried yet, come up more often.
-    const std::vector<PairCase> &cases = pairCases(config_.eo);
-    double overall = meanPairMs(store_.data);
-    std::vector<double> weights;
-    for (PairCase c : cases) {
-      auto it = store_.data.cases.find(caseKey(c));
-      weights.push_back(summarizeCase(it == store_.data.cases.end()
-                                          ? std::vector<PairAttempt>{}
-                                          : it->second,
-                                      overall)
-                            .weight);
-    }
-    int stage = stageBox_->currentData().toInt();
-    auto setup = randomPairSetup(config_, stage,
-                                 cases[pickWeighted(weights, rng_)], rng_);
-    if (!setup) {
-      setup = randomPairSetup(config_, stage, std::nullopt, rng_);
-    }
-    startRound(setup->state, setup->target);
-    break;
-  }
-  case Drill::Choice:
-    startRound(randomChoiceState(config_, rng_), std::nullopt);
-    break;
-  case Drill::Full:
-    startRound(randomFullState(config_, rng_), std::nullopt);
-    break;
-  case Drill::Explore: {
-    const std::vector<PairCase> &cases = pairCases(config_.eo);
-    if (std::find(cases.begin(), cases.end(), explored_) == cases.end()) {
-      explored_ = cases.front();
-    }
-    int chosen = slotBox_->currentData().toInt();
-    Slot slot = chosen >= 0
-                    ? static_cast<Slot>(chosen)
-                    : kF2LSlots[std::uniform_int_distribution<std::size_t>(
-                          0, kSlots - 1)(rng_)];
-    auto setup = casePairSetup(config_, explored_, slot,
-                               contextBox_->currentData().toInt() == 1, rng_);
-    if (!setup) {
-      emit message(
-          tr("That case can't be set up in the %1 slot").arg(slotText(slot)));
-      setup = randomPairSetup(config_, 0, explored_, rng_);
-    }
-    if (setup) {
-      startRound(setup->state, setup->target);
-    }
-    break;
-  }
-  }
-}
-
-void F2LPage::startRound(const CubieCube &state, std::optional<Slot> target) {
-  if (stop_ && !round_.analysed) {
-    stop_->store(true);
-  }
-  round_.start = state;
-  round_.target = target;
-  if (target) {
-    round_.pcase = pairCaseOf(state, *target);
-  }
-  phase_ = drill_ == Drill::Explore ? Phase::Explore : Phase::Solving;
-  shown_ = 0;
-  stepped_ = 0;
-  stepping_ = true;
-  cubeView_->setColourMap(colourMapOf(round_.hold));
-  cube_ = state.toFacelets();
-  showCube();
-  round_.began = monotonicMs();
-  display_->setVisible(phase_ == Phase::Solving);
-  if (phase_ == Phase::Solving) {
-    display_->setText(clockText(0));
-    clock_.start();
+  ++requests_; // what is still being worked out is for another state
+  pair_.reset();
+  target_.reset();
+  if (whole) {
+    start_ = randomFullState(config_, rng());
   } else {
-    clock_.stop();
-    selectInTree(round_.pcase);
+    // The pair anywhere in a solve: with other slots done or not.
+    std::optional<PairSetup> setup =
+        randomPairSetup(config_, 0, caseFromKey(card), rng());
+    if (!setup) {
+      return std::nullopt;
+    }
+    start_ = setup->state;
+    target_ = setup->target;
+    pcase_ = setup->pcase;
   }
-  showPrompt();
-  showKeys();
-  if (drill_ != Drill::Full && !round_.analysed) {
-    requestAnalysis();
+  restarted();
+  Setup s;
+  s.state = start_;
+  s.hold = settings().neutrality.pick(rng());
+  s.colours = s.hold;
+  s.cube = start_.toFacelets();
+  s.group =
+      tab() == Tab::Timed ? std::string(methodId(methodOf(config_))) : kWhole;
+  if (target_) {
+    requestPair();
   }
-  showResult();
+  return s;
 }
 
-void F2LPage::showCube() {
-  cubeView_->setState(cube_);
-  markPair();
-}
-
-void F2LPage::markPair() {
-  if (!round_.target) {
-    cubeView_->clearMarks();
-    return;
-  }
-  StickerMarks marks;
-  marks.rings = pairFacelets(cube_, *round_.target);
-  cubeView_->setMarks(marks);
+void F2LPage::restarted() {
+  hintMoves_ = 0;
+  segments_.clear();
+  ranks_.clear();
+  wholeAsked_ = false;
+  wholeReady_ = false;
 }
 
 bool F2LPage::initiallySolvedKept(const CubieCube &c) const {
   return std::all_of(kF2LSlots.begin(), kF2LSlots.end(), [&](Slot s) {
-    return !slotSolved(round_.start, s) || slotSolved(c, s);
+    return !slotSolved(start_, s) || slotSolved(c, s);
   });
 }
 
-void F2LPage::turn(Move m) {
-  cube_.apply(m);
-  cubeView_->animateMove(m);
-  markPair();
-  if (phase_ != Phase::Solving) {
-    stepping_ = false; // the cube is turned freely now
-    return;
-  }
-  round_.moves.push_back(m);
-  round_.moveMs.push_back(monotonicMs() - round_.began);
-  checkDone();
-}
-
-void F2LPage::checkDone() {
-  auto c = centredCubie(cube_);
+bool F2LPage::turned() {
+  auto c = centredCubie(cube());
   if (!c || !f2lBase(*c, config_)) {
-    return;
+    return false;
   }
-  bool done = false;
-  switch (drill_) {
-  case Drill::Pair:
-    done = slotSolved(*c, *round_.target) && initiallySolvedKept(*c);
-    break;
-  case Drill::Choice:
-    if (initiallySolvedKept(*c)) {
-      for (Slot s : kF2LSlots) {
-        if (!slotSolved(round_.start, s) && slotSolved(*c, s)) {
-          round_.picked = s;
-          done = true;
-          break;
-        }
-      }
-    }
-    break;
-  case Drill::Full:
-    done = f2lDone(*c, config_);
-    break;
-  case Drill::Explore:
-    break;
-  }
-  if (done) {
-    finish(false);
-  }
+  return target_ ? slotSolved(*c, *target_) && initiallySolvedKept(*c)
+                 : f2lDone(*c, config_);
 }
 
-void F2LPage::finish(bool gaveUp) {
-  if (phase_ != Phase::Solving) {
+void F2LPage::cubeChanged() {
+  if (!target_) {
+    cubeView()->clearMarks();
     return;
   }
-  round_.gaveUp = gaveUp;
-  round_.drill = drill_;
-  round_.ms = monotonicMs() - round_.began;
-  clock_.stop();
-  phase_ = Phase::Done;
-  if (gaveUp) {
-    display_->setText(QString("<span style='color:%1'>%2</span>")
-                          .arg(kFailColour.name(), tr("Gave up")));
+  StickerMarks marks;
+  marks.rings = pairFacelets(cube(), *target_);
+  cubeView()->setMarks(marks);
+}
+
+// --- analysis ----------------------------------------------------------------
+
+AnalysisOptions F2LPage::analysisOptions() const {
+  AnalysisOptions o;
+  o.config = config_;
+  o.profile =
+      lab_.profile(saved::lab("scoreProfile").get().toString().toStdString());
+  o.reference = reference_;
+  return o;
+}
+
+double F2LPage::costOf(const Alg &moves) const {
+  return solutionCost(moves, analysisOptions());
+}
+
+bool F2LPage::analysisReady() const {
+  return target_ ? pair_.has_value() : !wholeAsked_ || wholeReady_;
+}
+
+bool F2LPage::waitsForAnalysis() const {
+  // A pair's verdict (and its card's grade) needs the best solution.
+  return target_ && !pair_;
+}
+
+void F2LPage::requestPair() {
+  stop_ = std::make_shared<std::atomic<bool>>(false);
+  auto *watcher = new QFutureWatcher<Analysis>(this);
+  connect(watcher, &QFutureWatcher<Analysis>::finished, this, [this, watcher] {
+    arrived(watcher->result());
+    watcher->deleteLater();
+  });
+  watcher->setFuture(
+      QtConcurrent::run([request = requests_, start = start_, target = *target_,
+                         options = analysisOptions(), stop = stop_] {
+        Analysis a;
+        a.request = request;
+        a.pair = analysePair(start, target, options, stop.get());
+        return a;
+      }));
+}
+
+void F2LPage::requestWhole() {
+  if (stop_) {
+    stop_->store(true);
+  }
+  stop_ = std::make_shared<std::atomic<bool>>(false);
+  wholeAsked_ = true;
+  wholeReady_ = false;
+  // Each pair from where it was begun; with none solved, the start alone,
+  // for the cheapest way through.
+  std::vector<CubieCube> befores;
+  for (const F2LSegment &s : segments_) {
+    befores.push_back(s.before);
+  }
+  if (befores.empty()) {
+    befores.push_back(start_);
+  }
+  auto *watcher = new QFutureWatcher<Analysis>(this);
+  connect(watcher, &QFutureWatcher<Analysis>::finished, this, [this, watcher] {
+    arrived(watcher->result());
+    watcher->deleteLater();
+  });
+  watcher->setFuture(
+      QtConcurrent::run([request = ++requests_, befores,
+                         options = analysisOptions(), stop = stop_] {
+        Analysis a;
+        a.request = request;
+        for (const CubieCube &before : befores) {
+          a.segments.push_back(rankPairs(before, options, stop.get()));
+        }
+        return a;
+      }));
+}
+
+void F2LPage::arrived(const Analysis &a) {
+  if (a.request != requests_) {
+    return; // for a state that is gone
+  }
+  if (a.pair) {
+    pair_ = a.pair;
   } else {
-    display_->setText(clockText(round_.ms));
+    ranks_ = a.segments;
+    wholeReady_ = true;
   }
-  stepping_ = false;
-  if (drill_ == Drill::Full) {
-    round_.segments = f2lSegments(round_.start, round_.moves, config_);
-    requestAnalysis();
-  } else if (round_.analysed) {
-    record(round_);
-  }
-  showPrompt();
-  showKeys();
-  showResult();
+  analysisArrived(item().id);
 }
 
-void F2LPage::resetCube() {
-  cubeView_->finishAnimations();
-  cube_ = round_.start.toFacelets();
-  showCube();
-  stepped_ = 0;
-  stepping_ = true;
-  if (phase_ == Phase::Solving) {
-    round_.moves.clear();
-    round_.moveMs.clear();
-    // The hint starts again too; the try still counts as hinted.
-    round_.hintMoves = 0;
-    showKeys();
-  }
+std::vector<RankedSolution> F2LPage::shownSolutions() const {
+  return pair_ ? pair_->solutions : std::vector<RankedSolution>{};
 }
 
-void F2LPage::showHintMove() {
-  if (phase_ != Phase::Solving || drill_ == Drill::Full) {
-    return;
+// --- what is said ------------------------------------------------------------
+
+QString F2LPage::cardName(const std::string &card) const {
+  std::optional<PairCase> c = caseFromKey(card);
+  return c ? qs(caseName(*c)).toHtmlEscaped() : qs(card);
+}
+
+QString F2LPage::task() const {
+  return target_ ? tr("Solve the ringed pair")
+                 : tr("Solve the %1").arg(qs(methodName(methodOf(config_))));
+}
+
+QString F2LPage::taskNote() const {
+  return target_ ? tr("%1 slot").arg(slotText(*target_)) : QString();
+}
+
+QString F2LPage::hint() {
+  if (!pair_ || !pair_->best()) {
+    return {};
   }
-  if (!round_.analysed) {
-    emit message(tr("Still working out the solutions"));
-    return;
+  // A move more of the best solution each time.
+  const Alg &best = pair_->best()->alg;
+  hintMoves_ = std::min(hintMoves_ + 1, static_cast<int>(best.size()));
+  Alg shown(best.begin(), best.begin() + hintMoves_);
+  return hintMoves_ == static_cast<int>(best.size())
+             ? tr("Hint: the best is %1").arg(qs(toString(shown)))
+             : tr("Hint: the best starts %1").arg(qs(toString(shown)));
+}
+
+Alg F2LPage::demoAlg() {
+  return pair_ && pair_->best() ? pair_->best()->alg : Alg{};
+}
+
+QString F2LPage::demoText() {
+  if (!pair_) {
+    return tr("Working out the best solutions…");
   }
-  if (drill_ == Drill::Choice) {
-    if (!round_.analysis.ranks.empty()) {
-      round_.hint = true;
-      showKeys();
+  if (!pair_->best()) {
+    return tr("No solution was found with these moves.");
+  }
+  return tr("%1; best from here: %2. Enter shows it; then do it.")
+      .arg(taskNote(),
+           "<b>" + qs(pair_->best()->text).toHtmlEscaped() + "</b>");
+}
+
+PracticePage::Outcome F2LPage::judge() {
+  Outcome o;
+  if (target_) {
+    // One pair.
+    if (!pair_ || !pair_->best()) {
+      o.verdict = tr("No solution was found with these moves.");
+      o.good = !item().gaveUp;
+      return o;
     }
-    return;
+    const RankedSolution &best = *pair_->best();
+    o.best = best.alg;
+    o.bestText =
+        qs(best.text).toHtmlEscaped() +
+        QString(" <span style='font-weight:normal'>(%1, %2)</span>")
+            .arg(movesText(best.htm), tr("cost %1").arg(costText(best.cost)));
+    o.bestMoves = best.htm;
+    if (item().gaveUp) {
+      o.verdict = coloured(kFailColour, tr("Gave up"));
+      return o;
+    }
+    const double cost = costOf(item().moves);
+    const double over = std::max(0.0, cost - best.cost);
+    o.moves = htmCount(simplify(item().moves));
+    o.extra = over;
+    o.good = over <= kGoodOver;
+    o.verdict = tr("%1, cost %2").arg(movesText(o.moves), costText(cost)) +
+                " · " + overText(over) +
+                (item().hint ? " · " + tr("with a hint") : QString());
+    return o;
   }
-  const PairAnalysis &pair = *round_.analysis.pair;
-  if (!pair.best()) {
-    return;
+  // The whole F2L.
+  const bool solved = !item().moves.empty();
+  if (!wholeAsked_) {
+    if (solved) {
+      segments_ = f2lSegments(start_, item().moves, config_);
+    }
+    requestWhole();
   }
-  // The best solution's next move, done from the start.
-  const Alg &best = pair.best()->alg;
-  round_.hint = true;
-  const int moves =
-      std::min(round_.hintMoves + 1, static_cast<int>(best.size()));
-  resetCube();
-  round_.hintMoves = moves;
-  Alg shown(best.begin(), best.begin() + round_.hintMoves);
-  cubeView_->animateSequence(shown);
-  for (Move m : shown) {
-    cube_.apply(m);
-    round_.moves.push_back(m);
-    round_.moveMs.push_back(monotonicMs() - round_.began);
+  if (wholeReady_ && !ranks_.empty() && !ranks_.front().empty()) {
+    // The cheapest way found from the start.
+    const PairRank &plan = ranks_.front().front();
+    QStringList order;
+    for (Slot s : plan.order) {
+      order << slotText(s);
+    }
+    o.bestMoves = plan.moves;
+    o.bestText =
+        order.join(" → ") +
+        QString(" <span style='font-weight:normal'>(%1, %2)</span>")
+            .arg(movesText(plan.moves),
+                 tr("cost %1").arg(costText(plan.total - plan.hidden)));
   }
-  markPair();
-  showKeys();
-  checkDone();
+  if (!solved) {
+    return o; // a physical cube: only the time, and the best way
+  }
+  o.moves = htmCount(simplify(item().moves));
+  if (item().gaveUp) {
+    o.verdict = coloured(kFailColour, tr("Not finished"));
+    return o;
+  }
+  const double cost = costOf(item().moves);
+  o.verdict = tr("F2L in %1, cost %2").arg(movesText(o.moves), costText(cost));
+  if (wholeReady_ && !ranks_.empty() && !ranks_.front().empty()) {
+    // Against the cheapest way found from the start: what the pairs
+    // chosen and their solutions cost over it together.
+    const PairRank &plan = ranks_.front().front();
+    const double over = std::max(0.0, cost - (plan.total - plan.hidden));
+    const double pairs =
+        static_cast<double>(std::max(1, pairsLeft(start_, config_)));
+    o.extra = over;
+    o.good = over <= kGoodOver * pairs;
+    o.verdict +=
+        " · " +
+        (over < 0.05
+             ? coloured(kPassColour, tr("as good as the cheapest way found"))
+             : coloured(
+                   over >= 2.0 * pairs ? QColor(kFailColour)
+                                       : QColor(kWarnColour),
+                   tr("+%1 over the cheapest way found").arg(costText(over))));
+  }
+  return o;
 }
 
-void F2LPage::showPrompt() {
-  if (phase_ == Phase::Ready) {
-    QString what = drill_ == Drill::Pair ? tr("One pair to solve at a time")
-                   : drill_ == Drill::Choice
-                       ? tr("Solve the pair you would do first")
-                       : tr("The whole F2L");
-    prompt_->setText(
-        tabs_->tabText(static_cast<int>(drill_)) +
-        "<br><span style='font-size:small'>" +
-        tr("%1, timed from the moment the cube is shown. Press Space when "
-           "you are ready.")
-            .arg(what) +
-        "</span>");
-    return;
+QString F2LPage::solutionsHtml(const PairAnalysis &pair) const {
+  const QString muted = mutedColour();
+  if (pair.solutions.empty()) {
+    return "<p>" + tr("No solution was found with these moves.") + "</p>";
   }
-  QString leaving;
-  if (config_.lastSlot) {
+  QString html = "<table align='center' cellspacing='0' cellpadding='3'>";
+  for (std::size_t i = 0; i < pair.solutions.size(); ++i) {
+    const RankedSolution &s = pair.solutions[i];
+    QString alg = playLink(s.alg, qs(s.text).toHtmlEscaped());
+    QString note;
+    if (s.fromSet()) {
+      note = tr("your set: %1").arg(qs(s.setCase).toHtmlEscaped());
+    }
+    html += QString("<tr><td>%1</td><td align='right'>%2</td>"
+                    "<td align='right'>%3</td><td style='color:%4'>%5</td>"
+                    "</tr>")
+                .arg(i == 0 ? "<b>" + alg + "</b>" : alg, movesText(s.htm),
+                     costText(s.cost), muted, note);
+  }
+  return html + "</table>";
+}
+
+QString F2LPage::wholeHtml() const {
+  const QString muted = mutedColour();
+  if (!wholeReady_) {
+    return "<p>" + tr("Working out the best solutions…") + "</p>";
+  }
+  QString html;
+  if (!segments_.empty()) {
+    html += "<table align='center' cellspacing='0' cellpadding='3'><tr "
+            "style='color:" +
+            muted + "'><th align='left'>" + tr("Pair") +
+            "</th><th align='left'>" + tr("You") +
+            "</th><th></th><th align='left'>" + tr("Best for that pair") +
+            "</th><th align='left'>" + tr("Best pair then") + "</th></tr>";
+  }
+  const QString tick = coloured(kPassColour, QStringLiteral("✓"));
+  for (std::size_t i = 0; i < segments_.size(); ++i) {
+    const F2LSegment &seg = segments_[i];
     QStringList names;
-    for (Slot s : kF2LSlots) {
-      if (config_.leaves(s)) {
-        names << slotText(s);
+    for (Slot s : seg.solved) {
+      names << slotText(s);
+    }
+    Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
+              item().moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
+    Alg simple = simplify(moves);
+    double cost = costOf(moves);
+    QString best, over, pick;
+    if (i < ranks_.size() && !ranks_[i].empty()) {
+      const std::vector<PairRank> &ranks = ranks_[i];
+      const PairRank *r =
+          seg.solved.size() == 1 ? rankOf(ranks, seg.solved[0]) : nullptr;
+      if (r && r->pair.best()) {
+        best = QString("%1 <span style='color:%2'>(%3, %4)</span>")
+                   .arg(qs(r->pair.best()->text).toHtmlEscaped(), muted,
+                        movesText(r->pair.best()->htm),
+                        costText(r->pair.best()->cost));
+        double d = cost - r->pair.best()->cost;
+        over = d < 0.05 ? tick
+                        : coloured(d >= 2.0 ? QColor(kFailColour)
+                                            : QColor(kWarnColour),
+                                   "+" + costText(d));
+        double regret = r->total - ranks.front().total;
+        pick = regret < 0.05
+                   ? tick
+                   : slotText(ranks.front().pair.slot) + " " +
+                         coloured(regret >= 2.0 ? QColor(kFailColour)
+                                                : QColor(kWarnColour),
+                                  "(" + tr("−%1").arg(costText(regret)) + ")");
       }
     }
-    leaving = names.size() == 1
-                  ? tr("the %1 slot is left for the last-slot step")
-                        .arg(names.front())
-                  : tr("one of %1 is left for the last-slot step")
-                        .arg(names.join(", "));
+    html +=
+        QString("<tr><td><b>%1</b></td><td>%2 <span style='color:%3'>(%4, "
+                "%5)</span></td><td>%6</td><td>%7</td><td>%8</td></tr>")
+            .arg(names.join(" + "), qs(toString(simple)).toHtmlEscaped(), muted,
+                 movesText(htmCount(simple)), costText(cost), over, best, pick);
   }
-  auto small = [](const QString &t) {
-    return t.isEmpty() ? QString()
-                       : "<br><span style='font-size:small'>" + t + "</span>";
-  };
-  QString pairColours;
-  if (round_.target) {
-    for (std::uint8_t f : kEdgeFacelets[slotEdge(*round_.target)]) {
-      pairColours +=
-          QString("<span style='color:%1'>■</span>")
-              .arg(cubeView_->look()
-                       .stickerColour(static_cast<std::uint8_t>(f / 9))
-                       .name());
-    }
+  if (!segments_.empty()) {
+    html += "</table>";
+    html += QString("<p style='color:%1'>%2</p>")
+                .arg(muted,
+                     tr("Costs are by your Alg Lab score profile. \"Best "
+                        "pair then\" is the pair that starts the cheapest way "
+                        "through the pairs left, with what starting with "
+                        "yours cost over it."));
   }
-  switch (drill_) {
-  case Drill::Pair: {
-    int left = pairsLeft(round_.start, config_);
-    QString stage =
-        left <= 1 ? tr("the last pair") : tr("%1 pairs to go").arg(left);
-    prompt_->setText(
-        tr("Solve the %1 pair %2")
-            .arg("<b>" + slotText(*round_.target) + "</b>", pairColours) +
-        small(leaving.isEmpty() ? stage : stage + "; " + leaving));
-    break;
+  return html;
+}
+
+QString F2LPage::detail() {
+  if (!target_) {
+    return wholeHtml();
   }
-  case Drill::Choice:
-    prompt_->setText(
-        tr("Solve the pair you would do first") +
-        small(
-            (pairsLeft(round_.start, config_) == 1
-                 ? tr("1 pair to go")
-                 : tr("%1 pairs to go").arg(pairsLeft(round_.start, config_))) +
-            (leaving.isEmpty() ? QString() : "; " + leaving)));
-    break;
-  case Drill::Full:
-    prompt_->setText(tr("Solve the F2L") + small(leaving));
-    break;
-  case Drill::Explore:
-    prompt_->setText(
-        tr("%1 — %2 slot %3")
-            .arg(qs(caseName(round_.pcase)).toHtmlEscaped(),
-                 round_.target ? slotText(*round_.target) : QString(),
-                 pairColours));
-    break;
+  if (!pair_) {
+    return "<p>" + tr("Working out the best solutions…") + "</p>";
+  }
+  QString html;
+  if (!item().gaveUp && !item().moves.empty()) {
+    html +=
+        "<p>" +
+        tr("You: %1").arg("<b>" + algText(simplify(item().moves)) + "</b>") +
+        "</p>";
+  }
+  html += "<p>" +
+          tr("The best solutions from this state (cost by your Alg Lab score "
+             "profile):") +
+          "</p>" + solutionsHtml(*pair_);
+  html += QString("<p style='color:%1'>%2</p>")
+              .arg(mutedColour(), qs(caseName(pair_->pcase)).toHtmlEscaped());
+  return html;
+}
+
+// --- the lists ---------------------------------------------------------------
+
+std::vector<PracticePage::ListRow> F2LPage::cardRows() {
+  CubeLook look = cubeView()->look();
+  look.map = kIdentityColourMap;
+  const int size = settings().thumbnailSize;
+  std::vector<ListRow> rows;
+  for (PairCase c : pairCases(config_.eo)) {
+    ListRow r;
+    r.key = caseKey(c);
+    r.name = qs(caseName(c));
+    r.section = qs(groupName(groupOf(c)));
+    r.icon = cube_painter::cachedDiagram(caseDiagram(c), viewOf(c), size, look,
+                                         devicePixelRatioF());
+    rows.push_back(std::move(r));
+  }
+  return rows;
+}
+
+std::vector<PracticePage::ListRow> F2LPage::learnGroups() {
+  return {{kWhole, tr("Whole F2L"), {}, {}}};
+}
+
+std::vector<PracticePage::ListRow> F2LPage::timedGroups() {
+  std::vector<ListRow> rows;
+  for (int m = 0; m < kF2LMethods; ++m) {
+    auto method = static_cast<F2LMethod>(m);
+    rows.push_back(
+        {std::string(methodId(method)), qs(methodName(method)), {}, {}});
+  }
+  return rows;
+}
+
+void F2LPage::groupActivated(const std::string &key) {
+  if (auto m = methodFromId(key); m && tab() == Tab::Timed) {
+    applyMethod(config_, *m);
+    configChanged();
   }
 }
 
-void F2LPage::showKeys() {
-  const QString arrows = QStringLiteral("← →");
-  if (phase_ == Phase::Ready) {
-    hint_->setHint(tr("Ready when you are."), {{"Space", tr("start")}});
-    return;
-  }
-  if (phase_ == Phase::Explore) {
-    hint_->setHint({}, {{"Enter", tr("play the solution")},
-                        {arrows, tr("step through it")},
-                        {"1-9", tr("pick a solution")},
-                        {QStringLiteral("↑ ↓"), tr("case")},
-                        {"Space", tr("another example")},
-                        {"Esc", tr("reset the cube")}});
-    return;
-  }
-  if (phase_ == Phase::Done) {
-    QList<KeyHint> keys{{"Space", tr("next")}};
-    if (drill_ != Drill::Full) {
-      keys << KeyHint{"Enter", tr("play the solution")}
-           << KeyHint{arrows, tr("step through it")}
-           << KeyHint{"1-9", tr("pick a solution")};
-    }
-    keys << KeyHint{"Esc", tr("try it again (not recorded)")};
-    hint_->setHint({}, keys);
-    return;
-  }
-  QString message;
-  QList<KeyHint> keys;
-  if (drill_ == Drill::Pair) {
-    if (round_.hintMoves > 0 && round_.analysed &&
-        round_.analysis.pair->best()) {
-      const Alg &best = round_.analysis.pair->best()->alg;
-      Alg shown(best.begin(), best.begin() + round_.hintMoves);
-      message = tr("Hint: %1 (%2 of %3 moves)")
-                    .arg(qs(toString(shown)))
-                    .arg(round_.hintMoves)
-                    .arg(best.size());
-    }
-    keys << KeyHint{"Tab", tr("show the next move")};
-  } else if (drill_ == Drill::Choice) {
-    if (round_.hint && !round_.analysis.ranks.empty()) {
-      message = tr("The best pair to start with: %1")
-                    .arg(slotText(round_.analysis.ranks.front().pair.slot));
-    }
-    keys << KeyHint{"Tab", tr("show the best pair")};
-  }
-  keys << KeyHint{"Backspace", tr("give up")}
-       << KeyHint{"Esc", tr("start again")};
-  hint_->setHint(message, keys);
-}
-
-QString F2LPage::clockText(std::int64_t ms) const {
-  return QString::number(static_cast<double>(ms) / 1000.0, 'f',
-                         settings_.decimals);
-}
-
-void F2LPage::showClock() {
-  if (phase_ == Phase::Solving) {
-    display_->setText(clockText(monotonicMs() - round_.began));
-  }
-}
-
-// --- stepping through a solution ---------------------------------------------
-
-void F2LPage::selectSolution(std::size_t index, bool play) {
-  if (phase_ == Phase::Solving || index >= shownSolutions().size()) {
-    return;
-  }
-  shown_ = index;
-  resetCube();
-  if (play) {
-    playRest();
-  }
-  showResult();
-}
-
-void F2LPage::step(int by) {
-  std::vector<RankedSolution> solutions = shownSolutions();
-  if (phase_ == Phase::Solving || shown_ >= solutions.size()) {
-    return;
-  }
-  const Alg &alg = solutions[shown_].alg;
-  if (!stepping_) {
-    resetCube();
-  }
-  if (by > 0 && stepped_ < alg.size()) {
-    Move m = alg[stepped_++];
-    cube_.apply(m);
-    cubeView_->animateMove(m);
-  } else if (by < 0 && stepped_ > 0) {
-    Move m = invert({alg[--stepped_]}).front();
-    cube_.apply(m);
-    cubeView_->animateMove(m);
-  }
-  markPair();
-}
-
-void F2LPage::playRest() {
-  std::vector<RankedSolution> solutions = shownSolutions();
-  if (phase_ == Phase::Solving || shown_ >= solutions.size()) {
-    return;
-  }
-  const Alg &alg = solutions[shown_].alg;
-  if (!stepping_ || stepped_ >= alg.size()) {
-    resetCube();
-  }
-  Alg rest(alg.begin() + static_cast<std::ptrdiff_t>(stepped_), alg.end());
-  cubeView_->animateSequence(rest);
-  cube_.apply(rest);
-  stepped_ = alg.size();
-  markPair();
-}
-
-// --- keys --------------------------------------------------------------------
-
-bool F2LPage::handleKey(QKeyEvent *e, bool press) {
-  if (e->modifiers() &
-      (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) {
-    return false;
-  }
-  if (!press || round_.id == 0) {
-    return false;
-  }
-  if (phase_ == Phase::Ready) {
-    // Only Space starts.
-    if (e->key() != Qt::Key_Space) {
-      return false;
-    }
-    ready_ = true;
-    newRound();
-    return true;
-  }
-  const bool solving = phase_ == Phase::Solving;
-  switch (e->key()) {
-  case Qt::Key_Space:
-    if (!solving) {
-      ready_ = true;
-      newRound();
-    }
-    return true;
-  case Qt::Key_Tab:
-    showHintMove();
-    return true;
-  case Qt::Key_Backspace:
-    finish(true);
-    return true;
-  case Qt::Key_Escape:
-    if (phase_ == Phase::Done) {
-      newRound(true);
-    } else {
-      resetCube();
-    }
-    return true;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    playRest();
-    return true;
-  case Qt::Key_Left:
-    step(-1);
-    return true;
-  case Qt::Key_Right:
-    step(1);
-    return true;
-  case Qt::Key_Up:
-  case Qt::Key_Down:
-    if (phase_ == Phase::Explore) {
-      const std::vector<PairCase> &cases = pairCases(config_.eo);
-      auto at = std::find(cases.begin(), cases.end(), explored_);
-      if (at != cases.end()) {
-        std::ptrdiff_t i =
-            at - cases.begin() + (e->key() == Qt::Key_Down ? 1 : -1);
-        if (i >= 0 && i < static_cast<std::ptrdiff_t>(cases.size())) {
-          exploreCase(cases[static_cast<std::size_t>(i)]);
-        }
-      }
-    }
-    return true;
-  default:
-    break;
-  }
-  if (!solving && e->key() >= Qt::Key_1 && e->key() <= Qt::Key_9) {
-    selectSolution(static_cast<std::size_t>(e->key() - Qt::Key_1), false);
-    return true;
-  }
-  if (auto m = settings_.keymap.lookup(e)) {
-    turn(*m);
-    return true;
-  }
-  return false;
+QString F2LPage::listHelp() const {
+  return tab() == Tab::Learn
+             ? tr("The pair cases by where the corner and edge are, seen for "
+                  "the front-right slot. Each is a card: new ones come in a "
+                  "few a day, and a try is Good when the pair is solved "
+                  "unaided within %1 of the best solution's cost. "
+                  "Double-click a case to practise it, ungraded.")
+                   .arg(costText(kGoodOver))
+             : tr("Timed solves by method. Double-click one to switch to it.");
 }
 
 } // namespace vcube

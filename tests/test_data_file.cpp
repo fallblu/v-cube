@@ -1,7 +1,7 @@
 #include "io/data_file.hpp"
-#include "io/eo_cross_store.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
+#include "io/practice_store.hpp"
 #include "io/sessions.hpp"
 #include "test_files.hpp"
 
@@ -82,9 +82,9 @@ TEST_CASE("files from a newer version are kept and not saved over") {
                    R"({"format": "v-cube.untimed", "version": 2})", s);
   }
   {
-    EoCrossStore s(tmp.filePath("eocross.json"));
+    PracticeStore s(tmp.filePath("eocross.json"));
     checkNewerKept(tmp.filePath("eocross.json"),
-                   R"({"format": "v-cube.eocross", "version": 2})", s);
+                   R"({"format": "v-cube.practice", "version": 2})", s);
   }
 }
 
