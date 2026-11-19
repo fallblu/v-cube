@@ -196,10 +196,19 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   split_->restoreState(saved::learnSplitter().get());
   QSplitter *right = stage_->splitter;
   right->restoreState(saved::learnRightSplitter().get());
-  connect(split_, &QSplitter::splitterMoved, this,
-          [this] { saved::learnSplitter().set(split_->saveState()); });
-  connect(right, &QSplitter::splitterMoved, this,
-          [right] { saved::learnRightSplitter().set(right->saveState()); });
+  // A drag moves a splitter with every mouse move, and each save rewrites
+  // the settings file: the sizes are saved once the dragging has paused.
+  layoutTimer_.setSingleShot(true);
+  layoutTimer_.setInterval(500);
+  connect(&layoutTimer_, &QTimer::timeout, this, &LearnPage::saveSplitters);
+  connect(split_, &QSplitter::splitterMoved, this, [this] {
+    splitMoved_ = true;
+    layoutTimer_.start();
+  });
+  connect(right, &QSplitter::splitterMoved, this, [this] {
+    rightSplitMoved_ = true;
+    layoutTimer_.start();
+  });
   sideHiddenChanged();
   int p = practiceBox_->findData(saved::learnPractice().get());
   practiceBox_->setCurrentIndex(std::max(0, p));
@@ -314,6 +323,23 @@ void LearnPage::activated() {
   if (phase() == Phase::NoCase && !context_) {
     nextCase(); // something may have fallen due meanwhile
   }
+}
+
+void LearnPage::saveSplitters() {
+  layoutTimer_.stop();
+  if (splitMoved_) {
+    saved::learnSplitter().set(split_->saveState());
+  }
+  if (rightSplitMoved_) {
+    saved::learnRightSplitter().set(stage_->splitter->saveState());
+  }
+  splitMoved_ = false;
+  rightSplitMoved_ = false;
+}
+
+void LearnPage::aboutToClose() {
+  CasePage::aboutToClose();
+  saveSplitters();
 }
 
 void LearnPage::focusModeChanged() {

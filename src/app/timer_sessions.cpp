@@ -63,6 +63,7 @@ void TimerPage::selectSession(std::size_t index) {
   store_.setCurrentIndex(index);
   if (changed) {
     deleted_.forget(); // undo is for the session it was deleted from
+    solveRows_.clear();
   }
   bool wasFinished = flow_.finished();
   flow_.nextScramble();
@@ -86,6 +87,11 @@ std::string TimerPage::splitKey(const Solve &s) {
          '\x1f' + std::to_string(s.moveTimes.size());
 }
 
+bool TimerPage::SolveRow::isOf(const Solve &s) const {
+  return moves == s.moves && timeMs == s.timeMs &&
+         moveTimes == s.moveTimes.size() && scramble == s.scramble;
+}
+
 const SolveSplits *TimerPage::splitsOf(const Solve &s) const {
   auto it = splits_.find(splitKey(s));
   return it == splits_.end() ? nullptr : &it->second;
@@ -96,8 +102,16 @@ void TimerPage::requestSplits() {
     return; // asked again when it finishes
   }
   std::vector<Solve> missing;
-  for (const Solve &s : session().solves) {
-    if (!s.moves.empty() && !splits_.contains(splitKey(s))) {
+  const auto &solves = session().solves;
+  for (std::size_t i = 0; i < solves.size(); ++i) {
+    const Solve &s = solves[i];
+    if (s.moves.empty()) {
+      continue;
+    }
+    // A row that has its splits says so without a key being built.
+    bool known =
+        i < solveRows_.size() && solveRows_[i].splits && solveRows_[i].isOf(s);
+    if (!known && !splits_.contains(splitKey(s))) {
       missing.push_back(s);
     }
   }
@@ -126,6 +140,7 @@ void TimerPage::refreshSolves() {
       llSeries(solves.size());
   std::vector<AttemptRow> rows;
   rows.reserve(solves.size());
+  solveRows_.resize(solves.size());
   for (std::size_t i = solves.size(); i-- > 0;) {
     const Solve &s = solves[i];
     AttemptRow row;
@@ -144,13 +159,25 @@ void TimerPage::refreshSolves() {
     set(kAo12, statText(ao12[i], d));
     QString moves, rate, cross, f2l, ll;
     if (virt && !s.moves.empty()) {
-      int htm =
-          solutionHtm(parseAlgOrEmpty(s.moves), settings_.simplifiedCounts);
+      SolveRow &kept = solveRows_[i];
+      if (!kept.isOf(s)) {
+        kept = {
+            s.scramble,
+            s.moves,
+            s.timeMs,
+            s.moveTimes.size(),
+            solutionHtm(parseAlgOrEmpty(s.moves), settings_.simplifiedCounts),
+            nullptr};
+      }
+      if (!kept.splits) {
+        kept.splits = splitsOf(s);
+      }
+      const int htm = kept.htm;
       moves = QString::number(htm);
       if (s.penalty != Penalty::Dnf && s.timeMs > 0) {
         rate = QString::number(tps(htm, s.timeMs), 'f', 2);
       }
-      if (const SolveSplits *sp = splitsOf(s)) {
+      if (const SolveSplits *sp = kept.splits) {
         auto text = [&](const std::optional<std::int64_t> &ms) {
           return ms ? statText(*ms, d) : QString();
         };
