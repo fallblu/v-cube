@@ -497,7 +497,8 @@ void CasePage::buildTree() {
     updateSummary();
     return;
   }
-  QStringList unticked = untickedCases(*s);
+  const QStringList untickedList = untickedCases(*s);
+  const QSet<QString> unticked(untickedList.begin(), untickedList.end());
   CubeLook look;
   look.scheme = settings_.scheme;
   look.map = colourMapOf(settings_.neutrality.main);
@@ -551,9 +552,10 @@ void CasePage::buildTree() {
 
 void CasePage::syncRows() {
   QSignalBlocker block(tree_);
-  QStringList unticked;
+  QSet<QString> unticked;
   if (const AlgSet *s = set()) {
-    unticked = untickedCases(*s);
+    const QStringList list = untickedCases(*s);
+    unticked = QSet<QString>(list.begin(), list.end());
   }
   for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
     auto *group = tree_->topLevelItem(g);
