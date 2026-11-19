@@ -13,6 +13,7 @@ and `%LOCALAPPDATA%\v-cube\` on Windows.
 | `algsets/` | Alg sets, one JSON file each |
 | `algsets/progress/` | Learn and Drill progress, one file per set |
 | `algsets/deleted/` | Deleted alg sets and their progress |
+| `deleted/` | Practice files from before the modes had their tabs |
 | `sessions.json` | Timed sessions |
 | `untimed.json` | Untimed sessions |
 | `movecounts.json` | Move Count sessions |
@@ -390,7 +391,8 @@ looked before the first face turn) and `over` (that went over the limit).
 
 Before the modes had their tabs they kept other files under the same
 names (`"v-cube.eocross"`, `"v-cube.f2l"`, `"v-cube.tsle"`). Such a file
-is deleted when the mode starts; only TSLE's OCLL algs are carried over.
+is moved to `deleted/` when the mode starts; only TSLE's OCLL algs are
+carried over.
 
 The modes' choices are in the settings file under `[eocross]`, `[f2l]` and
 `[tsle]`: `tab` (`learn`, `inspection`, `untimed` or `timed`) and

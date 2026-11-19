@@ -10,7 +10,13 @@ namespace vcube {
 namespace {
 
 // Version 2 added grip profiles; a version 1 file gets the built-in one.
-constexpr FileFormat kAlgLabFile{"v-cube.alglab", 2, false, "Alg Lab file"};
+// Version 1 files lack some of these, so none has to be there.
+constexpr FileField kAlgLabFields[] = {
+    {"sessions", true, false},   {"cases", true, false},
+    {"candidates", true, false}, {"attempts", true, false},
+    {"profiles", true, false},   {"moveSets", true, false}};
+constexpr FileFormat kAlgLabFile{"v-cube.alglab", 2, false, "Alg Lab file",
+                                 kAlgLabFields};
 
 QString q(const std::string &s) { return QString::fromStdString(s); }
 QString q(std::string_view s) {
@@ -107,15 +113,21 @@ QJsonObject profileToJson(const ErgoProfile &p) {
   return o;
 }
 
+// A cost from a file, or `fallback` when it is missing or not one a
+// profile may hold.
+double costOr(const QJsonValue &v, double fallback) {
+  return v.isDouble() && validCost(v.toDouble()) ? v.toDouble() : fallback;
+}
+
 GripModel gripsFromJson(const QJsonObject &o) {
   GripModel g;
-  g.otherMove = o["other"].toDouble(g.otherMove);
-  g.regrip = o["regrip"].toDouble(g.regrip);
-  g.hiddenRegrip = o["hiddenRegrip"].toDouble(g.hiddenRegrip);
-  g.regripStep = o["regripStep"].toDouble(g.regripStep);
-  g.strain = o["strain"].toDouble(g.strain);
-  g.start = o["start"].toDouble(g.start);
-  g.sameFinger = o["sameFinger"].toDouble(g.sameFinger);
+  g.otherMove = costOr(o["other"], g.otherMove);
+  g.regrip = costOr(o["regrip"], g.regrip);
+  g.hiddenRegrip = costOr(o["hiddenRegrip"], g.hiddenRegrip);
+  g.regripStep = costOr(o["regripStep"], g.regripStep);
+  g.strain = costOr(o["strain"], g.strain);
+  g.start = costOr(o["start"], g.start);
+  g.sameFinger = costOr(o["sameFinger"], g.sameFinger);
   for (const auto &v : o["tricks"].toArray()) {
     QJsonObject j = v.toObject();
     auto hand = handFromId(str(j["hand"]));
@@ -132,7 +144,7 @@ GripModel gripsFromJson(const QJsonObject &o) {
     t.how = str(j["how"]);
     t.from = *from;
     t.turn = std::clamp(j["turn"].toInt(0), -4, 4);
-    t.cost = j["cost"].toDouble(1.0);
+    t.cost = costOr(j["cost"], 1.0);
     t.reset = j["reset"].toBool(false);
     t.on = !j["off"].toBool(false);
     g.tricks.push_back(std::move(t));
@@ -145,14 +157,19 @@ ErgoProfile profileFromJson(const QJsonObject &o) {
   p.name = str(o["name"]);
   QJsonObject moves = o["moves"].toObject();
   for (auto it = moves.begin(); it != moves.end(); ++it) {
-    p.moves[it.key().toStdString()] = it.value().toDouble();
+    // A cost that can't be used leaves the move at the "other" cost.
+    if (it.value().isDouble() && validCost(it.value().toDouble())) {
+      p.moves[it.key().toStdString()] = it.value().toDouble();
+    }
   }
-  p.otherMove = o["other"].toDouble(2.0);
-  p.axisChange = o["axis"].toDouble(0.0);
+  p.otherMove = costOr(o["other"], 2.0);
+  p.axisChange = costOr(o["axis"], 0.0);
   for (const auto &v : o["rules"].toArray()) {
     QJsonObject r = v.toObject();
-    p.rules.push_back(
-        {str(r["first"]), str(r["second"]), r["cost"].toDouble()});
+    if (r["cost"].isDouble() && validCost(r["cost"].toDouble())) {
+      p.rules.push_back(
+          {str(r["first"]), str(r["second"]), r["cost"].toDouble()});
+    }
   }
   if (o["grips"].isObject()) {
     p.grips = gripsFromJson(o["grips"].toObject());
@@ -365,6 +382,11 @@ void AlgLabStore::fromJson(const QJsonObject &o) {
   candidates_ = std::move(d.candidates);
   attempts_ = std::move(d.attempts);
   profiles_ = std::move(d.profiles);
+  // Two of one name (from an older version, or a file edited by hand)
+  // could not be told apart.
+  for (std::size_t i = 1; i < profiles_.size(); ++i) {
+    profiles_[i].name = uniqueProfileName(profiles_[i].name, i);
+  }
   if (profiles_.empty()) {
     profiles_ = builtinErgoProfiles();
   }
@@ -474,6 +496,28 @@ int AlgLabStore::clearAttempts(const LabCaseKey &key, std::string_view alg) {
     return a.key == key && a.alg == alg;
   });
   return static_cast<int>(n);
+}
+
+std::string
+AlgLabStore::uniqueProfileName(std::string name,
+                               std::optional<std::size_t> except) const {
+  auto taken = [&](const std::string &n) {
+    for (std::size_t i = 0; i < profiles_.size(); ++i) {
+      if (i != except && profiles_[i].name == n) {
+        return true;
+      }
+    }
+    return false;
+  };
+  if (!taken(name)) {
+    return name;
+  }
+  for (int n = 2;; ++n) {
+    std::string numbered = name + " " + std::to_string(n);
+    if (!taken(numbered)) {
+      return numbered;
+    }
+  }
 }
 
 const ErgoProfile &AlgLabStore::profile(std::string_view name) const {

@@ -257,6 +257,10 @@ TEST_CASE("the files the modes kept before are dropped", "[practice][io]") {
     "ocll": {"antisune": "L' U' L U' L' U2 L", "sune": ""}})");
   QJsonObject old = removeOldPracticeFile(path);
   CHECK_FALSE(QFile::exists(path));
+  // It is kept in a folder of its own, not removed.
+  CHECK(QDir(QDir(dir.path()).filePath("deleted"))
+            .entryList({"tsle.*.json"}, QDir::Files)
+            .size() == 1);
   // The OCLL algs are carried over.
   auto notes = oldOcllNotes(old);
   REQUIRE(notes.size() == 1);

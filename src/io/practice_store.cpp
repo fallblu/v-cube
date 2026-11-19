@@ -1,8 +1,13 @@
 #include "io/practice_store.hpp"
 
 #include "io/algset_json.hpp"
+#include "io/backup.hpp"
+#include "io/json_values.hpp"
 
+#include <QDateTime>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 
@@ -43,17 +48,15 @@ QJsonObject tryToJson(const PracticeTry &t) {
 
 PracticeTry tryFromJson(const QJsonObject &o) {
   PracticeTry t;
-  t.timestamp = static_cast<std::int64_t>(o.value("timestamp").toDouble());
-  t.ms = std::max<std::int64_t>(
-      0, static_cast<std::int64_t>(o.value("ms").toDouble()));
+  t.timestamp = jsonInt64(o.value("timestamp"));
+  t.ms = jsonInt64(o.value("ms"));
   t.moves = std::max(0, o.value("moves").toInt());
   t.best = std::max(0, o.value("best").toInt());
   t.extra =
       o.contains("extra") ? std::max(0.0, o.value("extra").toDouble()) : -1.0;
   t.dnf = o.value("dnf").toBool();
   t.hint = o.value("hint").toBool();
-  t.inspectMs = std::max<std::int64_t>(
-      0, static_cast<std::int64_t>(o.value("inspect").toDouble()));
+  t.inspectMs = jsonInt64(o.value("inspect"));
   t.over = o.value("over").toBool();
   return t;
 }
@@ -151,7 +154,11 @@ QJsonObject removeOldPracticeFile(const QString &path) {
       format != "v-cube.tsle") {
     return {};
   }
-  QFile::remove(path);
+  // Kept beside the data rather than removed, so that what the mode held
+  // can still be brought back by hand. If it can't be moved it stays, and
+  // loading sets it aside as a file of the wrong format.
+  moveToDeleted(path, QFileInfo(path).dir().filePath("deleted"),
+                QDateTime::currentDateTime());
   return o;
 }
 

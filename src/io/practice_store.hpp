@@ -30,17 +30,23 @@ namespace vcube {
 QJsonObject practiceToJson(const PracticeData &data);
 PracticeData practiceFromJson(const QJsonObject &o);
 
+inline constexpr FileField kPracticeFields[] = {{"cards"},
+                                                {"learn"},
+                                                {"timed"},
+                                                {"notes"},
+                                                {"inspection", false, false},
+                                                {"choices", false, false}};
 inline constexpr FileFormat kPracticeFile{"v-cube.practice", 1, false,
-                                          "practice file"};
+                                          "practice file", kPracticeFields};
 
 using PracticeStore =
     JsonStore<PracticeData, kPracticeFile, practiceToJson, practiceFromJson>;
 
 // The three modes kept other files under the same names before they had
 // Learn and Timed tabs ("v-cube.eocross", "v-cube.f2l", "v-cube.tsle").
-// Such a file at `path` is deleted, so that the mode starts afresh; what
-// it held is returned (an empty object when there was none), for the OCLL
-// algs TSLE carries over.
+// Such a file at `path` is moved into a "deleted" folder beside it, so
+// that the mode starts afresh; what it held is returned (an empty object
+// when there was none), for the OCLL algs TSLE carries over.
 QJsonObject removeOldPracticeFile(const QString &path);
 // The OCLL algs changed from the default ones in an old TSLE file, as
 // notes ("ocll/<id>").

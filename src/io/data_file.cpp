@@ -36,20 +36,32 @@ FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
                     : QString("it is not a v-cube %1").arg(format.what));
   }
   QJsonValue v = o.value("version");
-  if (v.isUndefined()) {
-    return FileStatus::Read;
+  if (!v.isUndefined()) {
+    double version = v.toDouble(-1);
+    if (!v.isDouble() || version < 1 ||
+        version != static_cast<double>(static_cast<int>(version))) {
+      return fail(FileStatus::Unreadable, "its version isn't a version number");
+    }
+    if (version > format.version) {
+      return fail(FileStatus::Newer,
+                  QString("it was written by a newer version of v-cube: file "
+                          "version %1, and this version reads up to %2")
+                      .arg(static_cast<int>(version))
+                      .arg(format.version));
+    }
   }
-  double version = v.toDouble(-1);
-  if (!v.isDouble() || version < 1 ||
-      version != static_cast<double>(static_cast<int>(version))) {
-    return fail(FileStatus::Unreadable, "its version isn't a version number");
-  }
-  if (version > format.version) {
-    return fail(FileStatus::Newer,
-                QString("it was written by a newer version of v-cube: file "
-                        "version %1, and this version reads up to %2")
-                    .arg(static_cast<int>(version))
-                    .arg(format.version));
+  for (const FileField &field : format.fields) {
+    QJsonValue value = o.value(QLatin1String(field.key));
+    if (value.isUndefined()) {
+      if (field.required) {
+        return fail(FileStatus::Unreadable,
+                    QString("it has no \"%1\"").arg(field.key));
+      }
+    } else if (field.list ? !value.isArray() : !value.isObject()) {
+      return fail(FileStatus::Unreadable,
+                  QString("its \"%1\" is not %2")
+                      .arg(field.key, field.list ? "a list" : "an object"));
+    }
   }
   return FileStatus::Read;
 }

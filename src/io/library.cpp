@@ -162,8 +162,12 @@ void AlgLibrary::installBuiltins() {
       arr.append(id);
     }
     QString error;
-    writeFileAtomically(dir.filePath(kInstalledFile),
-                        QJsonDocument(arr).toJson(), &error);
+    if (!writeFileAtomically(dir.filePath(kInstalledFile),
+                             QJsonDocument(arr).toJson(), &error)) {
+      errors_ << QString("%1 couldn't be written, so new built-in sets may "
+                         "not be installed next time: %2")
+                     .arg(kInstalledFile, error);
+    }
   }
 }
 

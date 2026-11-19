@@ -1,6 +1,7 @@
 #include "io/move_counts.hpp"
 
 #include "io/algset_json.hpp"
+#include "io/json_values.hpp"
 
 #include <QJsonArray>
 
@@ -9,9 +10,11 @@
 namespace vcube {
 
 FileFormat moveCountFormat(SolveLog mode) {
+  static constexpr FileField kFields[] = {{"sessions", true}};
   return mode == SolveLog::MoveCount
-             ? FileFormat{"v-cube.movecount", 1, false, "Move Count file"}
-             : FileFormat{"v-cube.untimed", 1, false, "Untimed file"};
+             ? FileFormat{"v-cube.movecount", 1, false, "Move Count file",
+                          kFields}
+             : FileFormat{"v-cube.untimed", 1, false, "Untimed file", kFields};
 }
 
 std::vector<MoveCountSession> defaultMoveCountSessions(SolveLog mode) {
@@ -117,7 +120,7 @@ moveCountsFromJson(const QJsonObject &o, std::size_t *current, SolveLog mode) {
       a.scramble = ss(ao.value("scramble").toString());
       a.comment = ss(ao.value("comment").toString());
       a.solution = ss(ao.value("solution").toString());
-      a.timestamp = static_cast<std::int64_t>(ao.value("timestamp").toDouble());
+      a.timestamp = jsonInt64(ao.value("timestamp"));
       s.attempts.push_back(std::move(a));
     }
     out.push_back(std::move(s));

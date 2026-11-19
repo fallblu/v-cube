@@ -2,6 +2,7 @@
 
 #include "cube/scramble.hpp"
 #include "io/algset_json.hpp"
+#include "io/json_values.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -13,7 +14,9 @@ namespace vcube {
 namespace {
 
 // Sessions files were written without a "format" at first.
-constexpr FileFormat kSessionsFile{"v-cube.sessions", 1, true, "sessions file"};
+constexpr FileField kSessionsFields[] = {{"sessions", true}};
+constexpr FileFormat kSessionsFile{"v-cube.sessions", 1, true, "sessions file",
+                                   kSessionsFields};
 
 int penaltyCode(Penalty p) {
   return p == Penalty::Plus2 ? 1 : p == Penalty::Dnf ? 2 : 0;
@@ -41,14 +44,14 @@ QJsonArray solveToJson(const Solve &s) {
 
 Solve solveFromJson(const QJsonArray &a) {
   Solve s;
-  s.timeMs = static_cast<std::int64_t>(a.at(0).toDouble());
+  s.timeMs = jsonInt64(a.at(0));
   s.penalty = penaltyFromCode(a.at(1).toInt());
   s.scramble = ss(a.at(2).toString());
   s.comment = ss(a.at(3).toString());
-  s.timestamp = static_cast<std::int64_t>(a.at(4).toDouble());
+  s.timestamp = jsonInt64(a.at(4));
   s.moves = ss(a.at(5).toString());
   for (const auto &t : a.at(6).toArray()) {
-    s.moveTimes.push_back(static_cast<std::int64_t>(t.toDouble()));
+    s.moveTimes.push_back(jsonInt64(t));
   }
   return s;
 }
@@ -278,13 +281,13 @@ std::optional<CstimerImport> sessionsFromCstimer(const QJsonObject &o,
       }
       Solve s;
       int pen = time.at(0).toInt();
-      s.timeMs = static_cast<std::int64_t>(time.at(1).toDouble());
+      s.timeMs = jsonInt64(time.at(1));
       s.penalty = pen == -1 ? Penalty::Dnf
                   : pen > 0 ? Penalty::Plus2
                             : Penalty::None;
       s.scramble = ss(a.at(1).toString());
       s.comment = ss(a.at(2).toString());
-      s.timestamp = static_cast<std::int64_t>(a.at(3).toDouble());
+      s.timestamp = jsonInt64(a.at(3));
       // A virtual or smart cube solve's moves, with their times.
       QJsonArray solution = a.at(4).toArray();
       if (solution.size() >= 1 &&

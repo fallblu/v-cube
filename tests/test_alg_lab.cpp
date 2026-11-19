@@ -8,7 +8,15 @@
 
 #include <QDir>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QTemporaryDir>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <map>
+#include <string>
+#include <vector>
 
 using namespace vcube;
 
@@ -235,6 +243,28 @@ TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {
   d.profiles = {mine, builtinErgoProfiles()[1]};
   CHECK(algLabFromJson(algLabToJson(d)).profiles == d.profiles);
 
+  // Costs that can't be used (not numbers, below zero, nan written as
+  // null) are left out or put back to their defaults.
+  o = algLabToJson(d);
+  QJsonArray edited = o["profiles"].toArray();
+  QJsonObject bad = edited[1].toObject();
+  bad["moves"] = QJsonObject{{"R", QJsonValue()}, {"U", -1}, {"F", 3.5}};
+  bad["other"] = -4;
+  bad["rules"] = QJsonArray{
+      QJsonObject{{"first", "R"}, {"second", "U"}, {"cost", QJsonValue()}},
+      QJsonObject{{"first", "R"}, {"second", "F"}, {"cost", 0.5}}};
+  edited[1] = bad;
+  o["profiles"] = edited;
+  ErgoProfile read = algLabFromJson(o).profiles[1];
+  CHECK(read.moves == std::map<std::string, double>{{"F", 3.5}});
+  CHECK(read.otherMove == 2.0);
+  REQUIRE(read.rules.size() == 1);
+  CHECK(read.rules.front().cost == 0.5);
+  CHECK(validCost(0.0));
+  CHECK_FALSE(validCost(std::nan("")));
+  CHECK_FALSE(validCost(std::numeric_limits<double>::infinity()));
+  CHECK_FALSE(validCost(-0.5));
+
   // A version 1 file gets the built-in grip profile first.
   o = algLabToJson(d);
   QJsonArray moveOnly;
@@ -267,4 +297,32 @@ TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {
   CHECK(again.candidates({"", "1"}).size() == 1);
   CHECK(again.clearAttempts({"", "1"}, "R U") == 1);
   CHECK(again.newCaseId() == "2");
+}
+
+TEST_CASE("profiles are told apart by name", "[alglab][io]") {
+  QTemporaryDir dir;
+  REQUIRE(dir.isValid());
+  AlgLabStore store(QDir(dir.path()).filePath("alglab.json"));
+  REQUIRE(store.load());
+  const std::string first = store.profiles().front().name;
+  CHECK(store.uniqueProfileName("Mine") == "Mine");
+  CHECK(store.uniqueProfileName(first) == first + " 2");
+  // A profile may keep its own name when it is edited.
+  CHECK(store.uniqueProfileName(first, 0) == first);
+
+  // Two of one name in a file are told apart when it is read.
+  ErgoProfile twin = store.profiles().front();
+  store.profiles().push_back(twin);
+  store.profiles().push_back(twin);
+  REQUIRE(store.save());
+  AlgLabStore again(QDir(dir.path()).filePath("alglab.json"));
+  REQUIRE(again.load());
+  std::vector<std::string> names;
+  for (const ErgoProfile &p : again.profiles()) {
+    names.push_back(p.name);
+  }
+  std::sort(names.begin(), names.end());
+  CHECK(std::adjacent_find(names.begin(), names.end()) == names.end());
+  CHECK(std::find(names.begin(), names.end(), first + " 2") != names.end());
+  CHECK(std::find(names.begin(), names.end(), first + " 3") != names.end());
 }
