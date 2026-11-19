@@ -5,10 +5,9 @@ project(vcube
   DESCRIPTION "3x3 alg trainer, scrambler and timer with a virtual cube"
   LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# The standard comes from the targets' compile features (C++23, see
+# cmake/ProjectOptions.cmake); compile_commands.json from the presets.
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
