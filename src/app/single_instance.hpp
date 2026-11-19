@@ -25,6 +25,15 @@ public:
   };
   Claim claim();
 
+  // The lock file, to name in messages.
+  QString lockPath() const { return lock_.fileName(); }
+  // Who the lock says holds it ("process 123 on host"), if it says.
+  QString lockHolder() const;
+  // After Running: removes the lock, which may be left by a copy that
+  // crashed under another host name (where its process can't be checked),
+  // and takes it. False if it still can't be taken.
+  bool takeOver();
+
 signals:
   // A later copy was started: show the window.
   void activationRequested();

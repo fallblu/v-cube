@@ -19,9 +19,10 @@ struct AlgSet;
 
 // Makes QSettings use an INI file on every platform
 // (~/.config/v-cube/v-cube.ini, %APPDATA%\v-cube\v-cube.ini on Windows)
-// and copies settings over from the native store used by earlier versions.
-// Call once, after the organization and application names are set.
-void initSettingsStorage();
+// and copies settings over from the native store used by earlier versions
+// when `migrate` is set (not for a separate --data-dir profile). Call once,
+// after the organization and application names are set.
+void initSettingsStorage(bool migrate = true);
 
 // Application-wide preferences, kept in QSettings.
 struct AppSettings {
