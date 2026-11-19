@@ -695,7 +695,7 @@ PracticePage::Outcome F2LPage::judge() {
     o.moves = htmCount(simplify(item().moves));
     o.extra = std::max(0.0, mine - cheapest);
     o.good = match.has_value() || mine <= cheapest + 0.05;
-    offerAdd_ = !match && o.good;
+    offerAdd_ = !match && o.good && !tryAsChosen_.empty();
     if (match) {
       o.verdict =
           coloured(kPassColour, chosen.size() > 1 ? tr("Your solution %1 of %2")

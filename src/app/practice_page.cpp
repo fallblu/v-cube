@@ -1457,8 +1457,10 @@ void PracticePage::analysisArrived(int id) {
     conclude();
     return;
   }
-  if (!finished() || !item_.outcome) {
-    showAll(); // e.g. a new case's solution to show
+  if (!finished() || !item_.outcome || (item_.moves.empty() && !item_.gaveUp)) {
+    // e.g. a new case's solution to show; one only shown has no try to
+    // judge.
+    showAll();
     return;
   }
   // The verdict that is up is given again, and what was kept of the solve
