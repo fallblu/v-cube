@@ -237,8 +237,10 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   }
   connect(randomAufBox_, &QCheckBox::toggled, this,
           &LabTestPanel::optionsChanged);
-  connect(windowBox_, &QComboBox::currentIndexChanged, this,
-          &LabTestPanel::fillCompare);
+  connect(windowBox_, &QComboBox::currentIndexChanged, this, [this] {
+    CaseNames names;
+    fillCompare(names);
+  });
   connect(chartBox_, &QComboBox::currentIndexChanged, this, [this](int i) {
     chart_->setMode(i == 1 ? LabChart::Mode::Trend : LabChart::Mode::Spread);
   });
@@ -292,7 +294,8 @@ void LabTestPanel::applySettings() {
   if (current_) {
     showCurrent();
   }
-  fillCompare();
+  CaseNames names;
+  fillCompare(names);
 }
 
 void LabTestPanel::loadSessions() {
@@ -386,9 +389,10 @@ void LabTestPanel::refresh() {
   // session chosen, since the current alg was set up.
   rebaseCurrent();
   // Entries whose case is gone stay listed, marked, until removed.
-  fillEntries();
-  fillCompare();
-  fillTimes();
+  CaseNames names;
+  fillEntries(names);
+  fillCompare(names);
+  fillTimes(names);
   if (current_) {
     if (auto c = resolveLabCase(library_, store_, current_->c.key)) {
       current_->c = *c;
@@ -399,15 +403,26 @@ void LabTestPanel::refresh() {
   }
 }
 
-void LabTestPanel::fillEntries() {
+const std::optional<QString> &
+LabTestPanel::caseName(CaseNames &names, const LabCaseKey &key) const {
+  auto [at, isNew] = names.try_emplace(key);
+  if (isNew) {
+    if (auto c = resolveLabCase(library_, store_, key)) {
+      at->second = c->name;
+    }
+  }
+  return at->second;
+}
+
+void LabTestPanel::fillEntries(CaseNames &names) {
   const LabSession &s = session();
   std::vector<int> done = repsDone(s, store_.attempts());
   entries_->setRowCount(static_cast<int>(s.entries.size()));
   for (std::size_t i = 0; i < s.entries.size(); ++i) {
     const LabEntry &e = s.entries[i];
-    auto c = resolveLabCase(library_, store_, e.key);
+    const auto &name = caseName(names, e.key);
     int row = static_cast<int>(i);
-    entries_->setItem(row, 0, item(c ? c->name : tr("(case gone)")));
+    entries_->setItem(row, 0, item(name ? *name : tr("(case gone)")));
     entries_->setItem(row, 1, item(qs(e.alg)));
     entries_->setItem(row, 2,
                       item(QString("%1/%2").arg(done[i]).arg(s.reps), true));
@@ -416,18 +431,20 @@ void LabTestPanel::fillEntries() {
   entries_->resizeColumnToContents(2);
 }
 
-void LabTestPanel::fillCompare() {
+void LabTestPanel::fillCompare(CaseNames &names) {
   const LabSession &s = session();
   LabWindow w = window();
+  const LabAttemptGroups attempts(store_.attempts());
+  const WarmupOf warm = warmup();
   compare_->setSortingEnabled(false);
   compare_->setRowCount(static_cast<int>(s.entries.size()));
   std::vector<LabChart::Series> series;
   const int d = settings_.decimals;
   for (std::size_t i = 0; i < s.entries.size(); ++i) {
     const LabEntry &e = s.entries[i];
-    LabStats st = labStats(store_.attempts(), e.key, e.alg, s.cube, w,
-                           s.trimPercent, warmup());
-    auto c = resolveLabCase(library_, store_, e.key);
+    const std::span<const LabAttempt> own = attempts.of(e.key, e.alg);
+    LabStats st = labStats(own, e.key, e.alg, s.cube, w, s.trimPercent, warm);
+    const auto &name = caseName(names, e.key);
     int row = static_cast<int>(i);
     QColor colour = labSeriesColour(i);
     auto *algItem = item(qs(e.alg));
@@ -437,7 +454,7 @@ void LabTestPanel::fillCompare() {
       algItem->setIcon(cube_painter::caseIcon(swatch));
     }
     compare_->setItem(row, 0, algItem);
-    compare_->setItem(row, 1, item(c ? c->name : QString()));
+    compare_->setItem(row, 1, item(name ? *name : QString()));
     auto num = [&](int col, const QString &text, std::optional<double> key) {
       compare_->setItem(row, col, new SortItem(text, key));
     };
@@ -462,8 +479,7 @@ void LabTestPanel::fillCompare() {
       LabChart::Series ser;
       ser.name = qs(e.alg);
       ser.colour = colour;
-      for (const auto &a :
-           labTimed(store_.attempts(), e.key, e.alg, s.cube, w, warmup())) {
+      for (const auto &a : labTimed(own, e.key, e.alg, s.cube, w, warm)) {
         if (!a.dnf) {
           ser.times.push_back(a.timeMs);
         }
@@ -476,7 +492,7 @@ void LabTestPanel::fillCompare() {
   chart_->setSeries(std::move(series));
 }
 
-void LabTestPanel::fillTimes() {
+void LabTestPanel::fillTimes(CaseNames &names) {
   const LabSession &s = session();
   std::vector<std::size_t> rows;
   for (std::size_t i = 0; i < store_.attempts().size(); ++i) {
@@ -490,12 +506,12 @@ void LabTestPanel::fillTimes() {
   for (std::size_t r = 0; r < rows.size(); ++r) {
     std::size_t i = rows[rows.size() - 1 - r];
     const LabAttempt &a = store_.attempts()[i];
-    auto c = resolveLabCase(library_, store_, a.key);
+    const auto &name = caseName(names, a.key);
     int row = static_cast<int>(r);
     auto *num = item(QString::number(rows.size() - r), true);
     num->setData(Qt::UserRole, static_cast<qulonglong>(i));
     times_->setItem(row, 0, num);
-    times_->setItem(row, 1, item(c ? c->name : QString()));
+    times_->setItem(row, 1, item(name ? *name : QString()));
     times_->setItem(row, 2, item(qs(a.alg)));
     times_->setItem(row, 3,
                     item(a.dnf ? "DNF(" + qs(formatTime(a.timeMs, d)) + ")"
