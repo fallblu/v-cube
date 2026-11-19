@@ -31,7 +31,6 @@
 #include <QButtonGroup>
 #include <QClipboard>
 #include <QCloseEvent>
-#include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDate>
 #include <QDialog>
@@ -694,17 +693,8 @@ void MainWindow::updateBadges() {
 }
 
 void MainWindow::learnSet(const QString &setId) {
-  if (!setMode(AppMode::Learn)) {
-    return;
-  }
-  // Pick the set in Learn's set list, as a click would.
-  for (QComboBox *box : learnPage_->findChildren<QComboBox *>()) {
-    int i = box->findData(setId);
-    if (i >= 0) {
-      box->setCurrentIndex(i);
-      emit box->activated(i);
-      return;
-    }
+  if (setMode(AppMode::Learn)) {
+    learnPage_->pickSet(setId);
   }
 }
 

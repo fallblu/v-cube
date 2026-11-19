@@ -100,14 +100,8 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   tree_ = panel_->tree;
   summary_ = panel_->summary;
 
-  connect(setBox_, &QComboBox::activated, this, [this](int i) {
-    std::string id = ss(setBox_->itemData(i).toString());
-    if (id == kAcrossSetsId) {
-      selectAcrossSets();
-    } else {
-      selectSet(id);
-    }
-  });
+  connect(setBox_, &QComboBox::activated, this,
+          [this](int i) { pickSet(setBox_->itemData(i).toString()); });
   connect(tree_, &QTreeWidget::itemChanged, this,
           [this](QTreeWidgetItem *, int column) {
             if (column == 0) {
@@ -378,6 +372,17 @@ void CasePage::reloadSets() {
     setReloaded();
   } else {
     selectSet(id);
+  }
+}
+
+void CasePage::pickSet(const QString &setId) {
+  if (setBox_->findData(setId) < 0) {
+    return;
+  }
+  if (setId == kAcrossSetsId) {
+    selectAcrossSets();
+  } else {
+    selectSet(ss(setId));
   }
 }
 
