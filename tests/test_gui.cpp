@@ -1051,7 +1051,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   eo->setStep(step);
   const std::vector<Hold> holds = eo->allowedHolds();
   QCOMPARE(holds.size(), std::size_t{2}); // one cross, either EO axis
-  auto tries = [eo](const PracticeTries &all, const char *group) {
+  auto tries = [](const PracticeTries &all, const char *group) {
     auto it = all.find(group);
     return it == all.end() ? std::size_t{0} : it->second.size();
   };
