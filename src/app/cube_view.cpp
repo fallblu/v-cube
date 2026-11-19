@@ -11,7 +11,10 @@ namespace vcube {
 CubeView::CubeView(QWidget *parent) : QWidget(parent) {
   setFocusPolicy(Qt::NoFocus);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  frame_.setInterval(8);
+  // About a display frame: advance() moves by the time passed, so a
+  // faster timer only copies more frames.
+  frame_.setTimerType(Qt::PreciseTimer);
+  frame_.setInterval(16);
   connect(&frame_, &QTimer::timeout, this, &CubeView::advance);
   clock_.start();
   setAccessibleName(tr("Cube"));

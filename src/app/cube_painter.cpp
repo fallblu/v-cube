@@ -513,8 +513,9 @@ QPixmap diagram(const FaceletCube &cube, DiagramView view, int size,
 
 QPixmap cachedDiagram(const FaceletCube &cube, DiagramView view, int size,
                       const CubeLook &look, qreal devicePixelRatio) {
-  // Enough for several large sets in two sizes and a couple of looks.
-  static QCache<QByteArray, QPixmap> cache(6000);
+  // Capped by size, in KB: 64 MB keeps several large sets in two sizes and
+  // a couple of looks, and older sizes and looks give way to new ones.
+  static QCache<QByteArray, QPixmap> cache(64 * 1024);
   QByteArray key(reinterpret_cast<const char *>(cube.stickers().data()),
                  kFaceletCount);
   QDataStream out(&key, QIODeviceBase::Append);
@@ -527,7 +528,9 @@ QPixmap cachedDiagram(const FaceletCube &cube, DiagramView view, int size,
     return *hit;
   }
   QPixmap pm = diagram(cube, view, size, look, devicePixelRatio);
-  cache.insert(key, new QPixmap(pm));
+  const auto kb = std::max<qsizetype>(1, static_cast<qsizetype>(pm.width()) *
+                                             pm.height() * 4 / 1024);
+  cache.insert(key, new QPixmap(pm), kb);
   return pm;
 }
 
