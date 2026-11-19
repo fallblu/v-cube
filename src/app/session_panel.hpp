@@ -107,8 +107,6 @@ public:
   // --- the attempt table ---
   void setColumns(std::vector<AttemptColumn> columns);
   void setRows(std::vector<AttemptRow> rows);
-  // The last column takes the width left over.
-  void setStretchLast(bool on);
   // Lets the header's context menu hide the hideable columns, kept under
   // this QSettings key.
   void setHiddenColumnsKey(const QString &key);

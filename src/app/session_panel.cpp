@@ -122,6 +122,10 @@ SessionPanel::SessionPanel(QWidget *parent) : QWidget(parent) {
   table_->setContextMenuPolicy(Qt::CustomContextMenu);
   table_->setWordWrap(false);
   table_->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
+  // Columns sharing the width keep room for a time (a narrow panel
+  // scrolls rather than cutting them short).
+  table_->horizontalHeader()->setMinimumSectionSize(
+      table_->fontMetrics().horizontalAdvance(QStringLiteral("88.88")) + 12);
   layout->addWidget(table_, 1);
 
   deleteRow_ = new QWidget(this);
@@ -209,11 +213,6 @@ void SessionPanel::setColumns(std::vector<AttemptColumn> columns) {
 
 void SessionPanel::setRows(std::vector<AttemptRow> rows) {
   model_->setRows(std::move(rows));
-}
-
-void SessionPanel::setStretchLast(bool on) {
-  table_->horizontalHeader()->setStretchLastSection(on);
-  applyColumns();
 }
 
 void SessionPanel::setHiddenColumnsKey(const QString &key) {
