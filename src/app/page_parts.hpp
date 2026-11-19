@@ -143,6 +143,9 @@ private:
 // A short explanation shown under a control. Tooltips are never shown in
 // the app (see MainWindow), so what a control needs said is said here.
 QLabel *helpLabel(const QString &text, QWidget *parent);
+
+// A button that doesn't take the keyboard focus.
+QPushButton *flatButton(const QString &text, QWidget *parent);
 // Writes the tooltip of each field of the form under it as a helpLabel.
 void showTipsAsHelp(QFormLayout *form);
 

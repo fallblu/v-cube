@@ -1,5 +1,6 @@
 #include "app/session_panel.hpp"
 
+#include "app/page_parts.hpp"
 #include "app/review_dialog.hpp"
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
@@ -456,12 +457,6 @@ void addAttemptActions(ActionMenu &menu, const AttemptMenuActions &actions) {
     menu.addSeparator();
     menu.add(QObject::tr("Delete"), actions.remove);
   }
-}
-
-QPushButton *flatButton(const QString &text, QWidget *parent) {
-  auto *b = new QPushButton(text, parent);
-  b->setFocusPolicy(Qt::NoFocus);
-  return b;
 }
 
 } // namespace vcube
