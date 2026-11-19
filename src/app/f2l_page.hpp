@@ -9,7 +9,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <set>
 #include <vector>
 
 class QComboBox;
@@ -120,6 +119,7 @@ private:
   // What a background job worked out, for the request that asked.
   struct Analysis {
     int request = 0;
+    int ask = 0; // whole: which asking for the segment
     std::optional<PairAnalysis> pair;
     std::optional<std::size_t> segment; // whole: the segment's index
     std::vector<PairRank> ranks;
@@ -129,7 +129,10 @@ private:
   AlgLabStore &lab_;
   F2LConfig config_;
   std::shared_ptr<std::atomic<bool>> stop_;
+  // Stops the rankings of segments after the start, which a restart drops.
+  std::shared_ptr<std::atomic<bool>> laterStop_;
   int requests_ = 0;
+  int asks_ = 0;
 
   // The state on the cube.
   CubieCube start_;
@@ -143,7 +146,7 @@ private:
   // with no pair solved, the start).
   std::vector<F2LSegment> segments_;
   std::map<std::size_t, std::vector<PairRank>> ranks_;
-  std::set<std::size_t> asked_;
+  std::map<std::size_t, int> asked_; // segment -> the asking still wanted
   // A card's try: whether it can be added to its solutions.
   bool offerAdd_ = false;
   Alg tryAsChosen_; // the try, written for the side's own slot
