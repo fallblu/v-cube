@@ -466,7 +466,9 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     if (virt) {
       // Space stops the timer; the turning keys turn the cube.
       if (key == Qt::Key_Space) {
-        apply(flow_.space(press, now, true), now);
+        apply(flow_.space(press ? KeyEdge::Down : KeyEdge::Up, now,
+                          Scramble::Shown),
+              now);
       } else if (press && move) {
         turnDuringSolve(*move, now);
       }
@@ -515,7 +517,9 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     return true;
   }
   if (key == Qt::Key_Space) {
-    apply(flow_.space(press, now, feed_.current().has_value()), now);
+    apply(flow_.space(press ? KeyEdge::Down : KeyEdge::Up, now,
+                      feed_.current() ? Scramble::Shown : Scramble::Awaited),
+          now);
     return true;
   }
   if ((key == Qt::Key_Return || key == Qt::Key_Enter) && flow_.finished()) {

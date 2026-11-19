@@ -206,7 +206,7 @@ private:
   std::optional<CubieCube> cubeState() const;
   // Whether the virtual cube shows the current case's step done.
   bool stepDone() const;
-  void finish(std::int64_t timeMs, bool failed, bool gaveUp = false);
+  void finish(std::int64_t timeMs, DrillFlow::Result result);
   // Gives the case up before or during the solve: a DNF.
   void giveUp(std::int64_t now);
   QString giveUpKeyText() const;

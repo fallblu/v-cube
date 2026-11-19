@@ -54,7 +54,7 @@ void LearnPage::beginRecognition(const std::string &caseId) {
   current_ = Current{caseId, start, hold, false, false, world};
   last_ = cardId(caseId);
   undo_.close();
-  attempt_.begin(caseId, false, false);
+  attempt_.begin(caseId, LearnAttempt::Kind::Known);
   reveal_->clear();
   gradeRow_->setVisible(false);
   stage_->hideFamily();

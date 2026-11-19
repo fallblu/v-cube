@@ -107,7 +107,9 @@ void LearnPage::holdBack(std::function<void()> start) {
   setPhase(Phase::NoCase);
 }
 
-void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
+void LearnPage::begin(const std::string &caseId, LearnAttempt::Kind kind) {
+  const bool isNew = kind == LearnAttempt::Kind::New;
+  const bool practice = kind == LearnAttempt::Kind::Practice;
   const CaseInfo *info = infoOf(caseId);
   const AlgSet *s = set();
   const AlgCase *c = s ? s->findCase(caseId) : nullptr;
@@ -116,8 +118,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
     return;
   }
   if (!ready_) {
-    holdBack(
-        [this, caseId, isNew, practice] { begin(caseId, isNew, practice); });
+    holdBack([this, caseId, kind] { begin(caseId, kind); });
     return;
   }
   if (context_) {
@@ -139,7 +140,7 @@ void LearnPage::begin(const std::string &caseId, bool isNew, bool practice) {
   current_ = Current{caseId, start, hold, isNew, practice, world};
   last_ = cardId(caseId);
   undo_.close();
-  attempt_.begin(caseId, isNew, practice);
+  attempt_.begin(caseId, kind);
   linkNote_.clear();
   reveal_->clear();
   gradeRow_->setVisible(false);
@@ -200,7 +201,8 @@ void LearnPage::undoLast() {
   if (u.recognition) {
     beginRecognition(u.caseId);
   } else {
-    begin(u.caseId, u.isNew);
+    begin(u.caseId,
+          u.isNew ? LearnAttempt::Kind::New : LearnAttempt::Kind::Known);
   }
 }
 
@@ -565,7 +567,7 @@ void LearnPage::perform(const LearnSession::Step &step) {
     break;
   case A::GiveUp:
     attempt_.giveUp();
-    endLink(false, std::nullopt);
+    endLink(LearnAttempt::LinkEnd::Unsolved, std::nullopt);
     finish();
     resetCube(); // so the alg can be tried
     break;
@@ -660,7 +662,7 @@ void LearnPage::turn(Move m) {
   // the last layer to be lined up (PLL, say) needs its last U turn too,
   // while one that leaves the last-layer permutation free (OLL) doesn't.
   if (withinMask(*c, linkFree())) {
-    endLink(true, std::nullopt);
+    endLink(LearnAttempt::LinkEnd::Solved, std::nullopt);
     finish();
     turnUpright();
     return;
@@ -673,7 +675,7 @@ void LearnPage::turn(Move m) {
       (follower.finished() || follower.leftAt())) {
     if (auto next = seenCase(*s, *c, current_->world);
         next && eligible(next->caseId)) {
-      endLink(false, next);
+      endLink(LearnAttempt::LinkEnd::Unsolved, next);
       startLink(*next);
       showGuide();
       showSolvingStatus();
@@ -693,14 +695,17 @@ void LearnPage::turnUpright() {
   }
 }
 
-void LearnPage::endLink(bool solved, const std::optional<CaseView> &next) {
+void LearnPage::endLink(LearnAttempt::LinkEnd end,
+                        const std::optional<CaseView> &next) {
   if (!attempt_.hasLinks() || !current_ || !set()) {
     return;
   }
   const std::string id = attempt_.lastLink()->view.caseId;
   bool changed = attempt_.endLink(
-      solved, next ? std::optional<std::string>(next->caseId) : std::nullopt,
-      guide_ && guide_->follow, unixNow(), monotonicMs(), grading());
+      end, next ? std::optional<std::string>(next->caseId) : std::nullopt,
+      guide_ && guide_->follow ? LearnAttempt::Guide::EveryMove
+                               : LearnAttempt::Guide::None,
+      unixNow(), monotonicMs(), grading());
   if (chained()) {
     const LearnLink &link = *attempt_.lastLink();
     const int left = link.stepsLeft;

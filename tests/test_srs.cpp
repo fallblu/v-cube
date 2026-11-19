@@ -627,7 +627,7 @@ TEST_CASE("a drill session counts attempts, DNFs, new bests and the slowest") {
   CHECK(sum.slowest[0].caseId == "b");
   CHECK(sum.slowest[1].caseId == "a");
   CHECK(sum.slowest[1].timeMs == 2500);
-  s.setFailed(i, true);
+  s.setFailed(i, DrillSession::Mark::Failed);
   CHECK(s.summary().dnfs == 2);
   s.removeLast();
   CHECK(s.summary().count == 4);

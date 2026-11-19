@@ -1201,7 +1201,9 @@ bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
     return true;
   }
   const bool scrambleShown = !physical_ || !item_.scramble.isEmpty();
-  DrillFlow::Step step = flow_.key(flowKey(e, press), now, scrambleShown);
+  DrillFlow::Step step =
+      flow_.key(flowKey(e, press), now,
+                scrambleShown ? Scramble::Shown : Scramble::Awaited);
   perform(step, now);
   return step.handled;
 }
@@ -1256,7 +1258,9 @@ void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
     break;
   case A::Stopped:
     // On the virtual cube a DNF unless the cube shows the step done.
-    finishTimed(step.timeMs, !physical_ && !item_.done);
+    finishTimed(step.timeMs, !physical_ && !item_.done
+                                 ? DrillFlow::Result::Failed
+                                 : DrillFlow::Result::Solved);
     break;
   case A::CancelNoTurn:
     cancelTimed(tr("Stopped before any face turn: cancelled, nothing was "
@@ -1266,7 +1270,7 @@ void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
     cancelTimed(tr("Solve cancelled; nothing was recorded."));
     break;
   case A::GiveUp:
-    finishTimed(flow_.giveUp(now), true, true);
+    finishTimed(flow_.giveUp(now), DrillFlow::Result::GaveUp);
     break;
   case A::Practise:
     toggleDetail();
@@ -1308,10 +1312,11 @@ void PracticePage::runningTurn(Move m, std::int64_t now) {
   item_.moveMs.push_back(now - item_.began);
   item_.done = turned();
   cubeChanged();
-  std::optional<std::int64_t> stopped =
-      flow_.turned(face, face, now, [this] { return item_.done; });
+  std::optional<std::int64_t> stopped = flow_.turned(
+      face ? DrillFlow::Turn::OffUdFace : DrillFlow::Turn::Rotation, now,
+      [this] { return item_.done; });
   if (stopped) {
-    finishTimed(*stopped, false);
+    finishTimed(*stopped, DrillFlow::Result::Solved);
   }
 }
 
@@ -1325,7 +1330,8 @@ void PracticePage::cancelTimed(const QString &why) {
   hint_->setHint(why, hint_->keys());
 }
 
-void PracticePage::finishTimed(std::int64_t ms, bool failed, bool gaveUp) {
+void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
+  const bool failed = result != DrillFlow::Result::Solved;
   cubeView_->finishAnimations();
   item_.ms = ms;
   item_.gaveUp = failed;
@@ -1337,7 +1343,7 @@ void PracticePage::finishTimed(std::int64_t ms, bool failed, bool gaveUp) {
     bestBefore = before.bestMs;
     item_.meanBefore = before.meanMs;
   }
-  flow_.finished(ms, failed, gaveUp, bestBefore, monotonicMs());
+  flow_.finished(ms, result, bestBefore, monotonicMs());
   item_.outcome = judge();
   if (!item_.retry) {
     PracticeTry t;

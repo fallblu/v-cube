@@ -150,10 +150,12 @@ AttemptPage::Hint MoveCountPage::physicalHint() const {
   // The chips of Enter and Alt+3 record, as the keys do.
   auto *self = const_cast<MoveCountPage *>(this);
   return {tr("Type the number of moves your solution took."),
-          {{tr("Enter"), tr("record"), [self] { self->recordTyped(false); }},
+          {{tr("Enter"), tr("record"),
+            [self] { self->recordTyped(AttemptFlow::Typed::Count); }},
            {tr("Backspace"), tr("correct")},
            {tr("Esc"), tr("clear")},
-           {tr("Alt+3"), tr("DNF"), [self] { self->recordTyped(true); }}}};
+           {tr("Alt+3"), tr("DNF"),
+            [self] { self->recordTyped(AttemptFlow::Typed::Dnf); }}}};
 }
 
 AttemptPage::Hint MoveCountPage::solvingHint() const {
@@ -266,8 +268,9 @@ void MoveCountPage::requestOptimal() {
       QtConcurrent::run([job = *job] { return OptimalCache::run(job); }));
 }
 
-void MoveCountPage::recordTyped(bool dnf) {
-  apply(flow_.recordTyped(dnf, feed_.current().has_value()));
+void MoveCountPage::recordTyped(AttemptFlow::Typed typed) {
+  apply(flow_.recordTyped(typed, feed_.current() ? Scramble::Shown
+                                                 : Scramble::Awaited));
 }
 
 } // namespace vcube

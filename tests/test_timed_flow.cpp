@@ -18,9 +18,16 @@ Solve solve(std::int64_t ms, Penalty p = Penalty::None) {
   return s;
 }
 
-TimedFlow flow(bool virt, bool inspection = false, bool hide = false) {
+struct FlowSetup {
+  bool virtualCube = true;
+  bool inspection = false;
+  bool hideUntilInspection = false;
+};
+
+TimedFlow flow(const FlowSetup &s) {
   TimedFlow f;
-  f.setConfig({{300, inspection, 15000}, virt, hide});
+  f.setConfig(
+      {{300, s.inspection, 15000}, s.virtualCube, s.hideUntilInspection});
   return f;
 }
 
@@ -111,13 +118,13 @@ TEST_CASE("DeletedAttempt puts a deleted attempt back where it was",
 }
 
 TEST_CASE("TimedFlow times a physical solve with Space", "[flow]") {
-  TimedFlow f = flow(false);
-  auto e = f.space(true, 0, true);
+  TimedFlow f = flow({.virtualCube = false});
+  auto e = f.space(KeyEdge::Down, 0, Scramble::Shown);
   CHECK(e.used);
   CHECK(e.showTimer);
   CHECK(f.isHolding());
   f.tick(400, false);
-  e = f.space(false, 400, true);
+  e = f.space(KeyEdge::Up, 400, Scramble::Shown);
   CHECK(f.isRunning());
   CHECK(e.clearStatus);
   CHECK_FALSE(e.startAttempt); // no virtual cube
@@ -128,34 +135,34 @@ TEST_CASE("TimedFlow times a physical solve with Space", "[flow]") {
 }
 
 TEST_CASE("TimedFlow waits for a scramble and lets a short hold go", "[flow]") {
-  TimedFlow f = flow(false);
-  auto e = f.space(true, 0, false);
+  TimedFlow f = flow({.virtualCube = false});
+  auto e = f.space(KeyEdge::Down, 0, Scramble::Awaited);
   CHECK(e.used);
   CHECK_FALSE(e.showTimer);
   CHECK(f.isIdle());
-  f.space(true, 0, true);
-  f.space(false, 100, true); // released before the hold time
+  f.space(KeyEdge::Down, 0, Scramble::Shown);
+  f.space(KeyEdge::Up, 100, Scramble::Shown); // released before the hold time
   CHECK_FALSE(f.isRunning());
   // A popup takes the release: the hold is let go of.
-  f.space(true, 200, true);
+  f.space(KeyEdge::Down, 200, Scramble::Shown);
   f.tick(300, true);
   CHECK_FALSE(f.isHolding());
-  f.space(true, 400, true);
+  f.space(KeyEdge::Down, 400, Scramble::Shown);
   CHECK(f.dropHold());
   CHECK_FALSE(f.dropHold());
 }
 
 TEST_CASE("TimedFlow on the virtual cube", "[flow]") {
-  TimedFlow f = flow(true);
+  TimedFlow f = flow({.virtualCube = true});
   CHECK(f.move(true) == TimedFlow::MoveAnswer::Turn); // rotations allowed
-  f.space(true, 0, true);
+  f.space(KeyEdge::Down, 0, Scramble::Shown);
   CHECK(f.move(false) == TimedFlow::MoveAnswer::Ignore); // waits for release
   f.tick(300, false);
-  auto e = f.space(false, 300, true);
+  auto e = f.space(KeyEdge::Up, 300, Scramble::Shown);
   CHECK(e.startAttempt);
   CHECK(f.isRunning());
   CHECK(f.move(false) == TimedFlow::MoveAnswer::Turn);
-  e = f.space(true, 5300, true);
+  e = f.space(KeyEdge::Down, 5300, Scramble::Shown);
   CHECK(e.stopVirtual);
   auto r = f.stopVirtual(5300, false);
   REQUIRE(r);
@@ -166,7 +173,7 @@ TEST_CASE("TimedFlow on the virtual cube", "[flow]") {
   // A DNF stays: only rotations, then Space gives the next scramble.
   CHECK(f.move(false) == TimedFlow::MoveAnswer::NextScramble);
   CHECK(f.move(true) == TimedFlow::MoveAnswer::Turn);
-  e = f.space(true, 6000, true);
+  e = f.space(KeyEdge::Down, 6000, Scramble::Shown);
   CHECK(e.nextScramble);
   CHECK_FALSE(f.finished());
   // Enter only does anything after a DNF.
@@ -176,15 +183,15 @@ TEST_CASE("TimedFlow on the virtual cube", "[flow]") {
 }
 
 TEST_CASE("TimedFlow Escape cancels or leaves the DNF", "[flow]") {
-  TimedFlow f = flow(true);
+  TimedFlow f = flow({.virtualCube = true});
   auto e = f.escape();
   CHECK(e.used);
   CHECK(e.restartCube);
   CHECK(e.clearStatus);
   CHECK_FALSE(e.showLastResult);
-  f.space(true, 0, true);
+  f.space(KeyEdge::Down, 0, Scramble::Shown);
   f.tick(300, false);
-  f.space(false, 300, true);
+  f.space(KeyEdge::Up, 300, Scramble::Shown);
   e = f.escape();
   CHECK(e.cancelled);
   CHECK(e.showLastResult);
@@ -197,20 +204,24 @@ TEST_CASE("TimedFlow Escape cancels or leaves the DNF", "[flow]") {
   CHECK_FALSE(f.finished());
   // Leaving the page cancels what is under way.
   CHECK_FALSE(f.leave());
-  f.space(true, 0, true);
+  f.space(KeyEdge::Down, 0, Scramble::Shown);
   CHECK(f.leave());
   CHECK(f.isIdle());
 }
 
 TEST_CASE("TimedFlow hides the virtual cube until inspection", "[flow]") {
-  TimedFlow f = flow(true, true, true);
+  TimedFlow f = flow(
+      {.virtualCube = true, .inspection = true, .hideUntilInspection = true});
   CHECK(f.cubeHidden());
   CHECK(f.move(true) == TimedFlow::MoveAnswer::Hidden);
-  f.space(true, 0, true);
-  auto e = f.space(false, 50, true);
+  f.space(KeyEdge::Down, 0, Scramble::Shown);
+  auto e = f.space(KeyEdge::Up, 50, Scramble::Shown);
   CHECK(f.state() == SolveTimer::State::Inspecting);
   CHECK(e.clearStatus);
   CHECK_FALSE(f.cubeHidden());
-  CHECK(flow(false, true, true).cubeHidden() == false);
-  CHECK(flow(true, true, false).cubeHidden() == false);
+  CHECK(flow({.virtualCube = false,
+              .inspection = true,
+              .hideUntilInspection = true})
+            .cubeHidden() == false);
+  CHECK(flow({.virtualCube = true, .inspection = true}).cubeHidden() == false);
 }

@@ -84,8 +84,10 @@ void DrillFlow::start(std::int64_t now) {
 }
 
 std::optional<std::int64_t>
-DrillFlow::turned(bool face, bool offUd, std::int64_t now,
+DrillFlow::turned(Turn turn, std::int64_t now,
                   const std::function<bool()> &stepDone) {
+  const bool face = turn != Turn::Rotation;
+  const bool offUd = turn == Turn::OffUdFace;
   if (face) {
     ++faceTurns_;
   }
@@ -123,9 +125,11 @@ std::int64_t DrillFlow::giveUp(std::int64_t now) {
   return timeMs;
 }
 
-void DrillFlow::finished(std::int64_t timeMs, bool failed, bool gaveUp,
+void DrillFlow::finished(std::int64_t timeMs, Result result,
                          std::optional<std::int64_t> bestBefore,
                          std::int64_t now) {
+  const bool failed = result != Result::Solved;
+  const bool gaveUp = result == Result::GaveUp;
   timeMs_ = timeMs;
   failed_ = failed;
   unfinished_ = failed && !gaveUp;
@@ -204,7 +208,7 @@ std::optional<DrillFlow::Timing> DrillFlow::timing(std::int64_t timeMs,
                 std::max<std::int64_t>(0, timeMs - (firstTurnMs_ - startMs_))};
 }
 
-Step DrillFlow::key(const KeyEvent &k, std::int64_t now, bool scrambleShown) {
+Step DrillFlow::key(const KeyEvent &k, std::int64_t now, Scramble scramble) {
   // A modifier alone does nothing, and never stops the timer.
   if (k.key == Key::Modifier) {
     return {phase_ == Phase::Running, Action::None, {}, false, 0, {}};
@@ -228,7 +232,7 @@ Step DrillFlow::key(const KeyEvent &k, std::int64_t now, bool scrambleShown) {
   case Phase::Running:
     return runningKey(k, now);
   case Phase::Waiting:
-    return waitingKey(k, now, scrambleShown);
+    return waitingKey(k, now, scramble);
   }
   return {};
 }
@@ -281,7 +285,7 @@ Step DrillFlow::runningKey(const KeyEvent &k, std::int64_t now) {
 }
 
 Step DrillFlow::waitingKey(const KeyEvent &k, std::int64_t now,
-                           bool scrambleShown) {
+                           Scramble scramble) {
   using S = SolveTimer::State;
   const bool virt = config_.virtualCube;
   if (k.key == Key::Escape) {
@@ -321,7 +325,7 @@ Step DrillFlow::waitingKey(const KeyEvent &k, std::int64_t now,
   if (k.key != Key::Space) {
     return {};
   }
-  if (!virt && !scrambleShown) {
+  if (!virt && scramble == Scramble::Awaited) {
     return used(); // wait for the scramble
   }
   if (virt && config_.tapToArm) {

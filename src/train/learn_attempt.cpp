@@ -13,11 +13,11 @@ const CaseProgress *find(const SetProgress &progress, const std::string &id) {
 
 } // namespace
 
-void LearnAttempt::begin(const std::string &caseId, bool isNew, bool practice) {
+void LearnAttempt::begin(const std::string &caseId, Kind kind) {
   clear();
   caseId_ = caseId;
-  isNew_ = isNew;
-  practice_ = practice;
+  isNew_ = kind == Kind::New;
+  practice_ = kind == Kind::Practice;
 }
 
 void LearnAttempt::startTiming(std::int64_t shownAtMs, bool spoiled) {
@@ -88,9 +88,11 @@ void LearnAttempt::nextMoveHint() {
   nextHinted_ = true;
 }
 
-bool LearnAttempt::endLink(bool solved, const std::optional<std::string> &next,
-                           bool guided, std::int64_t now, std::int64_t nowMs,
+bool LearnAttempt::endLink(LinkEnd end, const std::optional<std::string> &next,
+                           Guide guide, std::int64_t now, std::int64_t nowMs,
                            const LearnGrading &g) {
+  const bool solved = end == LinkEnd::Solved;
+  const bool guided = guide == Guide::EveryMove;
   if (links_.empty()) {
     return false;
   }

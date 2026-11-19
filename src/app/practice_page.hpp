@@ -418,7 +418,7 @@ private:
   DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
   void perform(const DrillFlow::Step &step, std::int64_t now);
   void runningTurn(Move m, std::int64_t now);
-  void finishTimed(std::int64_t ms, bool failed, bool gaveUp = false);
+  void finishTimed(std::int64_t ms, DrillFlow::Result result);
   void cancelTimed(const QString &why);
   void toggleDnf();
   void deleteTry();

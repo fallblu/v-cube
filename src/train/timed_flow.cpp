@@ -54,8 +54,9 @@ TimedFlow::Effects TimedFlow::escape() {
   return e;
 }
 
-TimedFlow::Effects TimedFlow::space(bool press, std::int64_t now,
-                                    bool scrambleReady) {
+TimedFlow::Effects TimedFlow::space(KeyEdge edge, std::int64_t now,
+                                    Scramble scramble) {
+  const bool press = edge == KeyEdge::Down;
   Effects e;
   e.used = true;
   if (isRunning()) {
@@ -78,7 +79,7 @@ TimedFlow::Effects TimedFlow::space(bool press, std::int64_t now,
     return e;
   }
   if (press) {
-    if (!scrambleReady && timer_.state() != S::Inspecting) {
+    if (scramble == Scramble::Awaited && timer_.state() != S::Inspecting) {
       return e; // wait for a scramble
     }
     timer_.pressStart(now);

@@ -42,7 +42,9 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
   std::int64_t now = monotonicMs();
   bool scrambleShown =
       current_ && (onVirtualCube() || !current_->scramble.isEmpty());
-  DrillFlow::Step step = flow_.key(flowKey(e, press), now, scrambleShown);
+  DrillFlow::Step step =
+      flow_.key(flowKey(e, press), now,
+                scrambleShown ? Scramble::Shown : Scramble::Awaited);
   perform(step, now);
   return step.handled;
 }
@@ -127,9 +129,10 @@ void DrillPage::perform(const DrillFlow::Step &step, std::int64_t now) {
     if (onVirtualCube()) {
       // A DNF unless the cube shows the step done.
       cubeView_->finishAnimations();
-      finish(step.timeMs, !stepDone());
+      finish(step.timeMs, stepDone() ? DrillFlow::Result::Solved
+                                     : DrillFlow::Result::Failed);
     } else {
-      finish(step.timeMs, false);
+      finish(step.timeMs, DrillFlow::Result::Solved);
     }
     break;
   case A::CancelNoTurn:
@@ -175,18 +178,20 @@ void DrillPage::cancelSolve(const QString &why) {
 }
 
 void DrillPage::runningTurn(Move m, std::int64_t now) {
-  const bool face = !isRotation(m.type);
-  const bool offUd = face && !udTurn(attempt_.cube(), m);
+  const DrillFlow::Turn turn = isRotation(m.type) ? DrillFlow::Turn::Rotation
+                               : udTurn(attempt_.cube(), m)
+                                   ? DrillFlow::Turn::UdFace
+                                   : DrillFlow::Turn::OffUdFace;
   if (!attempt_.turn(m)) {
     return;
   }
   // The first turn of a layer off the U-D axis ends recognition.
   std::optional<std::int64_t> stopped =
-      flow_.turned(face, offUd, now, [this] { return stepDone(); });
+      flow_.turned(turn, now, [this] { return stepDone(); });
   cubeView_->animateMove(m);
   followView();
   if (stopped) {
-    finish(*stopped, false);
+    finish(*stopped, DrillFlow::Result::Solved);
   }
 }
 
@@ -213,7 +218,7 @@ bool DrillPage::stepDone() const {
 void DrillPage::giveUp(std::int64_t now) {
   std::int64_t timeMs = flow_.giveUp(now);
   cubeView_->finishAnimations();
-  finish(timeMs, true, true);
+  finish(timeMs, DrillFlow::Result::GaveUp);
 }
 
 void DrillPage::startPractice(bool aided) {
@@ -263,14 +268,15 @@ void DrillPage::practiceTurn(Move m) {
   }
 }
 
-void DrillPage::finish(std::int64_t timeMs, bool failed, bool gaveUp) {
+void DrillPage::finish(std::int64_t timeMs, DrillFlow::Result result) {
+  const bool failed = result != DrillFlow::Result::Solved;
   if (!current_ || !set()) {
     return;
   }
   const AttemptMode mode = attemptMode();
   const CaseProgress *before = progressOf(current_->caseId);
-  flow_.finished(timeMs, failed, gaveUp,
-                 before ? before->best(mode) : std::nullopt, monotonicMs());
+  flow_.finished(timeMs, result, before ? before->best(mode) : std::nullopt,
+                 monotonicMs());
   Attempt a{unixNow(), timeMs, failed, mode};
   // On the virtual cube: recognition from the case being set up to the
   // first turn off U and D, execution from there to the stop; only for a
@@ -332,7 +338,10 @@ void DrillPage::setWrong(bool wrong) {
   }
   saveProgress();
   if (sessionIndex_) {
-    session_.setFailed(*sessionIndex_, failed, flow_.newBest());
+    session_.setFailed(*sessionIndex_, failed ? DrillSession::Mark::Failed
+                                       : flow_.newBest()
+                                           ? DrillSession::Mark::NewBest
+                                           : DrillSession::Mark::Solved);
   }
   picker_.requeue(current_->caseId, failed ? settings_.drill.requeueAfter : 0);
   showStatus(); // what Space does next depends on the DNF

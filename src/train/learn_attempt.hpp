@@ -85,9 +85,11 @@ struct LearnGrading {
 // twice counts once.
 class LearnAttempt {
 public:
-  // A new attempt at `caseId`; `practice`: a learned case that isn't due,
-  // which isn't graded.
-  void begin(const std::string &caseId, bool isNew, bool practice);
+  // What an attempt is at: a case not started before, one started before,
+  // or (Practice) a learned case that isn't due, which isn't graded.
+  enum class Kind : std::uint8_t { New, Known, Practice };
+  // A new attempt at `caseId`.
+  void begin(const std::string &caseId, Kind kind);
   // The case is shown to be recognised from `shownAtMs` (monotonic); with
   // `spoiled` (a walkthrough first) recognition isn't measured.
   void startTiming(std::int64_t shownAtMs, bool spoiled = false);
@@ -130,11 +132,15 @@ public:
   void giveUp() { gaveUp_ = true; }
   bool gaveUp() const { return gaveUp_; }
 
-  // The case being solved is over: the step was finished (`solved`),
-  // stopped at `next`, or was given up. Grades its card. `guided`: the
-  // guide showed every next move. `now` is Unix seconds, `nowMs` the
-  // monotonic clock. True if a card changed.
-  bool endLink(bool solved, const std::optional<std::string> &next, bool guided,
+  // How the case being solved ended: its step was finished, or not
+  // (stopped at another case, or given up).
+  enum class LinkEnd : std::uint8_t { Solved, Unsolved };
+  // Whether the guide showed every next move of the case.
+  enum class Guide : std::uint8_t { None, EveryMove };
+  // The case being solved is over: the step was finished, stopped at
+  // `next`, or was given up. Grades its card. `now` is Unix seconds,
+  // `nowMs` the monotonic clock. True if a card changed.
+  bool endLink(LinkEnd end, const std::optional<std::string> &next, Guide guide,
                std::int64_t now, std::int64_t nowMs, const LearnGrading &g);
 
   // --- the first case's grade

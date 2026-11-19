@@ -114,6 +114,11 @@ private:
     bool isNew = false;
     bool practice = false; // a learned case that isn't due: not graded
     Mirror world;          // the mirror image the case is set up in
+    LearnAttempt::Kind kind() const {
+      return isNew      ? LearnAttempt::Kind::New
+             : practice ? LearnAttempt::Kind::Practice
+                        : LearnAttempt::Kind::Known;
+    }
   };
 
   LearnSession session_;
@@ -219,7 +224,7 @@ private:
   void startLink(const CaseView &view);
   // The case being solved is over: the step was finished, stopped at
   // `next`, or was given up. Grades its card.
-  void endLink(bool solved, const std::optional<CaseView> &next);
+  void endLink(LearnAttempt::LinkEnd end, const std::optional<CaseView> &next);
   // The link's algs again, e.g. after they were edited in the Library.
   void refreshLink();
   // Each case of a reduction set's attempt, with its step and how it went.
@@ -246,7 +251,7 @@ public:
   bool waitingForSpace() const { return static_cast<bool>(pending_); }
 
 private:
-  void begin(const std::string &caseId, bool isNew, bool practice = false);
+  void begin(const std::string &caseId, LearnAttempt::Kind kind);
   // Sets the case up on the cube in a hold, world and AUF picked for it.
   CubieCube setUp(const std::string &caseId, Mirror world, bool scramble);
   // A learned case that isn't due yet, which "Learn this case now" only

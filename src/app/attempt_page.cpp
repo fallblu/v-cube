@@ -399,7 +399,7 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
   }
   AttemptFlow::Effects fx =
       flow_.key(flowKey(e, press, move.has_value()), monotonicMs(),
-                feed_.current().has_value());
+                feed_.current() ? Scramble::Shown : Scramble::Awaited);
   if (fx.toggleAlgs) {
     return toggleAlgs();
   }
