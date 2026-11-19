@@ -6,8 +6,11 @@
 #include "io/practice_store.hpp"
 #include "io/sessions.hpp"
 
+#include <QDate>
 #include <QString>
 #include <QStringList>
+
+#include <optional>
 
 namespace vcube {
 
@@ -31,6 +34,11 @@ public:
   const QString &dataDir() const { return dataDir_; }
   // The backups folder, where a failed backup is reported.
   QString backupsDir() const;
+  // Makes today's backup (of the data folder and the settings file) if this
+  // copy hasn't made it yet, e.g. when the app is left open past midnight.
+  // Returns nullopt when it had been made, else why it failed (empty when
+  // it didn't).
+  std::optional<QString> backUpIfNewDay();
 
   AlgLibrary library;
   SessionStore sessions;
@@ -43,6 +51,7 @@ public:
 
 private:
   QString dataDir_;
+  QDate lastBackup_;
 };
 
 } // namespace vcube

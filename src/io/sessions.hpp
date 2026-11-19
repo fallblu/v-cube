@@ -26,9 +26,15 @@ class SessionStore : public SessionFileStore<Session> {
 public:
   explicit SessionStore(QString path);
 
+  // Saved in the background from its JSON cache, not a copy of every solve.
+  static constexpr bool kCachesJson = true;
+
 protected:
   QJsonObject toJson() const override;
   void fromJson(const QJsonObject &o) override;
+
+private:
+  mutable ItemJsonCache<Solve> cache_;
 };
 
 // {"format": "v-cube.sessions", "version": 1, "current": 0, "sessions":

@@ -88,10 +88,10 @@ private:
 
 } // namespace
 
-void initSettingsStorage() {
+void initSettingsStorage(bool migrate) {
   QSettings::setDefaultFormat(QSettings::IniFormat);
   QSettings ini;
-  if (QFile::exists(ini.fileName())) {
+  if (!migrate || QFile::exists(ini.fileName())) {
     return;
   }
   // Earlier versions used the native format: v-cube.conf on Linux, the
@@ -178,7 +178,8 @@ AppSettings AppSettings::load() {
     }
   }
   if (q.contains("input/keymap")) {
-    Keymap k = Keymap::fromStrings(q.value("input/keymap").toStringList());
+    Keymap k = Keymap::fromStrings(q.value("input/keymap").toStringList(),
+                                   &s.droppedKeyBindings);
     if (!k.bindings.empty()) {
       s.keymap = k;
     }

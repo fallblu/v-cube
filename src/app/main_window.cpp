@@ -423,6 +423,12 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   badgeTimer_ = new QTimer(this);
   badgeTimer_->setInterval(60 * 1000);
   connect(badgeTimer_, &QTimer::timeout, this, &MainWindow::updateBadges);
+  // A copy left open for days still makes each day's backup.
+  connect(badgeTimer_, &QTimer::timeout, this, [this] {
+    if (std::optional<QString> error = data_.backUpIfNewDay()) {
+      writeReported(data_.backupsDir(), *error);
+    }
+  });
   badgeTimer_->start();
 
   help_ = new HelpPanel(this);
@@ -461,6 +467,13 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   setMode(mode.value_or(AppMode::Learn));
   updateBadges();
   updateBanner();
+  if (settings_.droppedKeyBindings > 0) {
+    showMessage(plural(settings_.droppedKeyBindings,
+                       tr("%n key binding in the settings file couldn't be "
+                          "read and was ignored"),
+                       tr("%n key bindings in the settings file couldn't be "
+                          "read and were ignored")));
+  }
 }
 
 MainWindow::~MainWindow() {

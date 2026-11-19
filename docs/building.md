@@ -41,6 +41,22 @@ preset of the same name.
 | `windows-debug` | Debug | MSVC, Windows hosts only; installs into `install/windows-debug` |
 | `windows-release` | Release | MSVC, Windows hosts only; installs into `install/windows-release` |
 
+## Running a dev build
+
+A build you are testing should never touch your real data. Give it a
+folder of its own:
+
+```bash
+./build/debug/src/app/v-cube --data-dir /tmp/vc
+```
+
+The data files go in that folder and the settings in
+`settings/v-cube/v-cube.ini` inside it, so the single-instance lock is
+there too and the build starts even while the installed app is open. A
+relative folder is taken from the current one. Setting `VCUBE_HOME` does
+the same (`--data-dir` wins over it), and works on Windows as well.
+`--help` lists the options and `--version` prints the version.
+
 ## Tests
 
 A test preset runs the tests of its own build, so build it first:

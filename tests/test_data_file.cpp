@@ -11,6 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -18,7 +19,11 @@
 #include <QTemporaryDir>
 
 #include <atomic>
+#include <functional>
+#include <new>
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace vcube;
 using namespace vcube::testing;
@@ -190,7 +195,7 @@ TEST_CASE("a file of another mode isn't read as this one") {
   MoveCountStore moves(path);
   QString error;
   CHECK_FALSE(moves.load(&error));
-  CHECK(error.contains("untimed"));
+  CHECK(error.contains("an Untimed file"));
   CHECK(moves.sessions().size() == defaultMoveCountSessions().size());
   REQUIRE_FALSE(moves.setAsidePath().isEmpty());
   CHECK(readText(moves.setAsidePath()) ==
@@ -425,4 +430,271 @@ TEST_CASE("background writes run in order and keep the latest data") {
   finishBackgroundWrites();
   REQUIRE(read.load());
   CHECK(read.current().solves.empty());
+}
+
+namespace {
+
+// The write reports made while it lives, under an application of its own
+// (the reports go through the application's event queue).
+struct ReportLog {
+  int argc = 1;
+  char name[8] = "test";
+  char *argv[2] = {name, nullptr};
+  QCoreApplication app{argc, argv};
+  std::vector<std::pair<QString, QString>> reports;
+
+  ReportLog() {
+    setWriteReporter([this](const QString &path, const QString &error) {
+      reports.emplace_back(path, error);
+    });
+  }
+  ~ReportLog() {
+    finishBackgroundWrites();
+    setWriteReporter({});
+  }
+  void takeQueued() {
+    finishBackgroundWrites();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
+  }
+};
+
+} // namespace
+
+TEST_CASE("a direct save reports itself, as a background one does") {
+  ReportLog log;
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  SessionStore store(path);
+  REQUIRE(store.save());
+  REQUIRE(log.reports.size() == 1);
+  CHECK(log.reports[0].first == path);
+  CHECK(log.reports[0].second.isEmpty());
+
+  // One that is kept off a file it couldn't read reports why.
+  writeText(path, "{\"format\": \"v-cube.sessions\", \"version\": 99}");
+  CHECK_FALSE(store.load());
+  log.reports.clear();
+  QString error;
+  CHECK_FALSE(store.save(&error));
+  REQUIRE(log.reports.size() == 1);
+  CHECK(log.reports[0].second == error);
+  CHECK_FALSE(error.isEmpty());
+
+  // A background write is reported once, by the writer.
+  SessionStore other(tmp.filePath("other.json"));
+  log.reports.clear();
+  saveInBackground(other, nullptr, {});
+  log.takeQueued();
+  CHECK(log.reports.size() == 1);
+}
+
+TEST_CASE("a background write that throws is a failed write") {
+  ReportLog log;
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  writeText(path, "kept");
+  writeInBackground(path, [](QString *) -> bool { throw std::bad_alloc(); });
+  writeInBackground(tmp.filePath("b.json"),
+                    [](QString *) -> bool { throw 42; });
+  log.takeQueued();
+  REQUIRE(log.reports.size() == 2);
+  CHECK(log.reports[0].first == path);
+  CHECK_FALSE(log.reports[0].second.isEmpty());
+  CHECK_FALSE(log.reports[1].second.isEmpty());
+  // The file is as it was, and the writer still writes.
+  CHECK(readText(path) == "kept");
+  SessionStore store(path + "2");
+  saveInBackground(store, nullptr, {});
+  finishBackgroundWrites();
+  CHECK(QFile::exists(path + "2"));
+}
+
+TEST_CASE("a file that isn't JSON says where it stops being") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("oll.json");
+  writeText(path, "{\n  \"format\": \"v-cube.algset\",\n  \"id\": \"oll\",\n}");
+  QString error;
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  INFO(error.toStdString());
+  CHECK(error.contains("at line 4, column "));
+
+  QByteArray cut = "{\"session1\": [";
+  QString why;
+  CHECK_FALSE(sessionsFromCstimerFile(cut, &why));
+  CHECK(why.contains("line 1, column"));
+}
+
+TEST_CASE("a file of the wrong kind is named as users know it") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("set.json");
+  writeText(path, R"({"format": "v-cube.untimed", "version": 1})");
+  QString error;
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  CHECK(error == "it is an Untimed file, not an alg set");
+  writeText(path, R"({"format": "v-cube.alglab", "version": 1})");
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  CHECK(error == "it is an Alg Lab file, not an alg set");
+  writeText(path, R"({"format": "v-cube.whatever", "version": 1})");
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  CHECK(
+      error ==
+      R"(it is another kind of v-cube file ("v-cube.whatever"), not an alg set)");
+  writeText(path, R"({"format": "other", "version": 1})");
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  CHECK(error == "it is not a v-cube alg set");
+}
+
+TEST_CASE("an unreadable set says where it is and what to do") {
+  QTemporaryDir tmp;
+  writeText(tmp.filePath("installed-builtins.json"),
+            R"(["oll", "pll", "2look-oll", "2look-pll"])");
+  writeText(tmp.filePath("mine.json"), R"({"format": "v-cube.algset",)");
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.errors().size() == 1);
+  QString e = lib.errors().front();
+  CHECK(e.contains("mine.json in " + QDir::toNativeSeparators(tmp.path())));
+  CHECK(e.contains("line 1, column"));
+  CHECK(e.contains("rename it back to mine.json"));
+}
+
+TEST_CASE("keys an alg set doesn't use are named, and the set still loads") {
+  QTemporaryDir tmp;
+  writeText(tmp.filePath("installed-builtins.json"),
+            R"(["oll", "pll", "2look-oll", "2look-pll"])");
+  writeText(tmp.filePath("mine.json"), R"({"format": "v-cube.algset",
+    "version": 1, "id": "mine", "targetSecond": 2, "groups": [{"name": "G",
+    "colour": 1, "cases": [{"id": "a", "state":
+    "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB", "alg": "R"},
+    {"id": "b", "state":
+    "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB", "alg": "U"}]}]})");
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.find("mine"));
+  REQUIRE(lib.errors().size() == 1);
+  QString e = lib.errors().front();
+  CHECK(e.startsWith("mine.json"));
+  CHECK(e.contains(R"("targetSecond")"));
+  CHECK(e.contains(R"(in a group "colour")"));
+  CHECK(e.count(R"(in a case "alg")") == 1);
+  // The built-ins have none.
+  QTemporaryDir fresh;
+  AlgLibrary builtins(fresh.path(), kBuiltins);
+  builtins.load();
+  CHECK(builtins.errors().isEmpty());
+}
+
+TEST_CASE("a write that fails names the file") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("missing/folder/oll.json");
+  QString error;
+  CHECK_FALSE(writeFileAtomically(path, "{}", &error));
+  CHECK(error.contains(QDir::toNativeSeparators(path)));
+}
+
+namespace {
+
+// What the store writes is what building the file afresh gives.
+void checkWritesAfresh(SessionStore &store) {
+  REQUIRE(store.save());
+  CHECK(readText(store.path()) ==
+        QJsonDocument(sessionsToJson(store.sessions(), store.currentIndex()))
+            .toJson(QJsonDocument::Compact));
+}
+
+void checkWritesAfresh(MoveCountStore &store, SolveLog mode) {
+  REQUIRE(store.save());
+  CHECK(readText(store.path()) ==
+        QJsonDocument(
+            moveCountsToJson(store.sessions(), store.currentIndex(), mode))
+            .toJson(QJsonDocument::Compact));
+}
+
+Solve solveOf(int ms) {
+  Solve s;
+  s.timeMs = ms;
+  s.scramble = "R U R'";
+  s.moves = "R U";
+  s.moveTimes = {100, 200};
+  return s;
+}
+
+} // namespace
+
+TEST_CASE("sessions are written right however they change between saves") {
+  QTemporaryDir tmp;
+  SessionStore store(tmp.filePath("sessions.json"));
+  for (int i = 0; i < 5; ++i) {
+    store.current().solves.push_back(solveOf(1000 + i));
+  }
+  checkWritesAfresh(store);
+  store.current().solves.push_back(solveOf(2000)); // a new solve
+  checkWritesAfresh(store);
+  store.current().solves[2].penalty = Penalty::Plus2; // one in the middle
+  checkWritesAfresh(store);
+  store.current().solves[0].comment = "first"; // the first
+  checkWritesAfresh(store);
+  store.current().solves.erase(store.current().solves.begin() + 3);
+  checkWritesAfresh(store);
+  store.current().solves.back().moveTimes.push_back(300);
+  checkWritesAfresh(store);
+  store.addSession("Two").solves.push_back(solveOf(3000));
+  checkWritesAfresh(store);
+  std::swap(store.sessions()[0], store.sessions()[1]); // moved about
+  checkWritesAfresh(store);
+  store.removeSession(0);
+  checkWritesAfresh(store);
+  store.current().solves.clear();
+  checkWritesAfresh(store);
+
+  // And it reads back as it was.
+  store.current().solves.push_back(solveOf(4000));
+  REQUIRE(store.save());
+  SessionStore read(store.path());
+  REQUIRE(read.load());
+  CHECK(read.sessions().size() == store.sessions().size());
+  CHECK(read.current().solves == store.current().solves);
+}
+
+TEST_CASE("a background save writes the sessions as they were when asked") {
+  QTemporaryDir tmp;
+  SessionStore store(tmp.filePath("sessions.json"));
+  store.current().solves.push_back(solveOf(1000));
+  std::function<bool(QString *)> job = store.saveJob();
+  // Changed after the save was asked for, before it runs.
+  store.current().solves.push_back(solveOf(2000));
+  store.current().solves[0].comment = "later";
+  store.save(); // fills the cache with the later data
+  QString error;
+  REQUIRE(job(&error));
+  SessionStore read(store.path());
+  REQUIRE(read.load());
+  REQUIRE(read.current().solves.size() == 1);
+  CHECK(read.current().solves[0].comment.empty());
+}
+
+TEST_CASE("move counts are written right however they change between saves") {
+  for (SolveLog mode : {SolveLog::MoveCount, SolveLog::Untimed}) {
+    QTemporaryDir tmp;
+    MoveCountStore store(tmp.filePath("counts.json"), mode);
+    MoveCountAttempt a;
+    a.moves = 7;
+    a.scramble = "R U";
+    for (int i = 0; i < 4; ++i) {
+      a.timestamp = i;
+      store.current().attempts.push_back(a);
+    }
+    checkWritesAfresh(store, mode);
+    a.solution = "R' U'";
+    store.current().attempts.push_back(a);
+    checkWritesAfresh(store, mode);
+    store.current().attempts[1].dnf = true;
+    checkWritesAfresh(store, mode);
+    store.current().attempts[0].counted = false;
+    checkWritesAfresh(store, mode);
+    store.current().attempts.erase(store.current().attempts.begin());
+    checkWritesAfresh(store, mode);
+    store.removeSession(store.currentIndex());
+    checkWritesAfresh(store, mode);
+  }
 }

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <QByteArray>
 #include <QJsonObject>
+#include <QJsonParseError>
 #include <QString>
 
 #include <functional>
@@ -46,6 +48,10 @@ enum class FileStatus {
 FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
                            QString *error = nullptr);
 
+// A JSON parse error with where it is in `bytes`: "unterminated object at
+// line 214, column 3".
+QString parseErrorText(const QByteArray &bytes, const QJsonParseError &pe);
+
 // Reads and checks a JSON data file, without changing it.
 struct FileRead {
   FileStatus status = FileStatus::Missing;
@@ -89,8 +95,9 @@ private:
 // at a time in the order asked for, and a write still waiting is replaced
 // by a later one for the same path, so a burst of saves writes the file
 // once, with the latest data. `write` must work on its own copy of the
-// data. When it fails, `onError` runs with the reason on the GUI thread,
-// if `context` (which must be given for it) still exists.
+// data. A write that throws counts as failed. When it fails, `onError`
+// runs with the reason on the GUI thread, if `context` (which must be given
+// for it) still exists.
 void writeInBackground(const QString &path,
                        std::function<bool(QString *error)> write,
                        QObject *context = nullptr,
@@ -104,9 +111,12 @@ void finishBackgroundWrites(const QString &path = {});
 // --- write reports ----------------------------------------------------------
 
 // Receives the result of every write to a data file, background or direct
-// (those report themselves with reportWrite()): `error` is empty when the
-// write succeeded. It runs on the GUI thread, e.g. to keep a banner up
-// while a file can't be saved and take it down once it can.
+// (DataFile::save() reports itself; other direct writes call
+// reportWrite()): `error` is empty when the write succeeded. It runs on the
+// GUI thread, e.g. to keep a banner up while a file can't be saved and take
+// it down once it can. The writer and the reporter are one per process,
+// which suits an app with one main window: a second reporter replaces the
+// first.
 using WriteReporter =
     std::function<void(const QString &path, const QString &error)>;
 void setWriteReporter(WriteReporter reporter);

@@ -11,6 +11,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
+#include <QDir>
 #include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -448,7 +449,10 @@ void TimerPage::importCstimer() {
   }
   QFile f(path);
   if (!f.open(QIODevice::ReadOnly)) {
-    QMessageBox::warning(this, tr("Import"), f.errorString());
+    QMessageBox::warning(
+        this, tr("Import"),
+        tr("Couldn't open %1: %2")
+            .arg(QDir::toNativeSeparators(path), f.errorString()));
     return;
   }
   QString error;

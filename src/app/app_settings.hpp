@@ -19,9 +19,10 @@ struct AlgSet;
 
 // Makes QSettings use an INI file on every platform
 // (~/.config/v-cube/v-cube.ini, %APPDATA%\v-cube\v-cube.ini on Windows)
-// and copies settings over from the native store used by earlier versions.
-// Call once, after the organization and application names are set.
-void initSettingsStorage();
+// and copies settings over from the native store used by earlier versions
+// when `migrate` is set (not for a separate --data-dir profile). Call once,
+// after the organization and application names are set.
+void initSettingsStorage(bool migrate = true);
 
 // Application-wide preferences, kept in QSettings.
 struct AppSettings {
@@ -29,6 +30,9 @@ struct AppSettings {
   ColourScheme scheme = ColourScheme::standard();
   int animationMs = 110;
   Keymap keymap = Keymap::defaultLayout();
+  // Key bindings in the settings file that couldn't be read when loaded
+  // (not saved), to say so once.
+  int droppedKeyBindings = 0;
   // Which way the solver holds the cube for scrambles and cases in every
   // mode (scrambles are always applied white top, green front).
   ColourNeutrality neutrality;

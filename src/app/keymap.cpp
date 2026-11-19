@@ -82,12 +82,14 @@ QStringList Keymap::toStrings() const {
   return out;
 }
 
-Keymap Keymap::fromStrings(const QStringList &lines) {
+Keymap Keymap::fromStrings(const QStringList &lines, int *dropped) {
   Keymap k;
+  int skipped = 0;
   for (const QString &line : lines) {
     // The key itself may be "=", so split at the last '='.
     auto eq = line.lastIndexOf('=');
     if (eq <= 0) {
+      ++skipped;
       continue;
     }
     auto key = parseKeyText(line.left(eq));
@@ -96,7 +98,12 @@ Keymap Keymap::fromStrings(const QStringList &lines) {
       // A key turns its layer once, so R3 is bound as R'.
       k.bindings.push_back(
           {key->first, key->second, {a.front().type, a.front().amount}});
+    } else {
+      ++skipped;
     }
+  }
+  if (dropped) {
+    *dropped = skipped;
   }
   return k;
 }

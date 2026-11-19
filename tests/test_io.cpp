@@ -691,6 +691,26 @@ TEST_CASE("a lost install marker doesn't bring deleted built-ins back") {
   CHECK(first.sets().size() == 4);
 }
 
+TEST_CASE("a new built-in never goes beside the user's set of its id") {
+  QTemporaryDir tmp;
+  QDir d(tmp.path());
+  // The user's own OLL, in a file of another name, from before OLL was a
+  // built-in (the marker lists the others).
+  QByteArray mine = readText(kBuiltins + "/oll.json");
+  mine.replace("\"name\": \"OLL\"", "\"name\": \"My OLL\"");
+  REQUIRE(mine.contains("My OLL"));
+  writeText(d.filePath("my-oll.json"), mine);
+  writeText(d.filePath("installed-builtins.json"),
+            R"(["pll", "2look-oll", "2look-pll"])");
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  CHECK_FALSE(QFile::exists(d.filePath("oll.json")));
+  REQUIRE(lib.find("oll"));
+  CHECK(lib.find("oll")->name == "My OLL");
+  CHECK(readText(d.filePath("my-oll.json")) == mine);
+  CHECK(readText(d.filePath("installed-builtins.json")).contains("oll"));
+}
+
 TEST_CASE("restoring doesn't overwrite a user case that shares an id") {
   QTemporaryDir tmp;
   AlgLibrary lib(tmp.path(), kBuiltins);

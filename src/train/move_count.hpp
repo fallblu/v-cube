@@ -27,6 +27,9 @@ struct MoveCountAttempt {
   std::int64_t timestamp = 0; // Unix seconds when it was recorded
   std::string solution;       // the moves done on the virtual cube, if any
   bool counted = true; // false: no move count (an Untimed physical solve)
+
+  friend bool operator==(const MoveCountAttempt &,
+                         const MoveCountAttempt &) = default;
 };
 
 // The steps Move Count can check on the virtual cube. EO+1 and EO+2 are EO

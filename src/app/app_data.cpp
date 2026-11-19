@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QDate>
 #include <QDir>
+#include <QSettings>
 
 namespace vcube {
 
@@ -64,13 +65,25 @@ QString AppData::backupsDir() const {
   return QDir(dataDir_).filePath(kBackupsFolder);
 }
 
+std::optional<QString> AppData::backUpIfNewDay() {
+  QDate today = QDate::currentDate();
+  if (today == lastBackup_) {
+    return std::nullopt;
+  }
+  lastBackup_ = today;
+  QString error;
+  if (!makeDailyBackup(dataDir_, QSettings().fileName(), today, kBackupDays,
+                       &error)) {
+    return tr("Today's backup failed: %1").arg(error);
+  }
+  return QString();
+}
+
 AppData::LoadReport AppData::load() {
   LoadReport report;
-  QString backupError;
-  if (!makeDailyBackup(dataDir_, QDate::currentDate(), kBackupDays,
-                       &backupError)) {
-    report.backupError = tr("Today's backup failed: %1").arg(backupError);
-  }
+  // Left by saves cut short (a crash): out of the way before the backup.
+  moveSaveTemporaries(dataDir_, QDateTime::currentDateTime());
+  report.backupError = backUpIfNewDay().value_or(QString());
   library.load();
   QString error;
   if (!sessions.load(&error)) {
