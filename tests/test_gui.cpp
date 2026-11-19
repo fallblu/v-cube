@@ -93,6 +93,21 @@ QTemporaryDir *tempRoot = nullptr;
   return QDir(tempRoot->path()).filePath(name);
 }
 
+// The offscreen platform prints this for every window that is shown, tens
+// of times a run, which buries a real failure.
+QtMessageHandler testMessageHandler = nullptr;
+
+void dropNoise(QtMsgType type, const QMessageLogContext &context,
+               const QString &message) {
+  if (message.contains(
+          QLatin1String("does not support propagateSizeHints()"))) {
+    return;
+  }
+  if (testMessageHandler) {
+    testMessageHandler(type, context, message);
+  }
+}
+
 bool isUnderTemp(const QString &path) {
   if (path.isEmpty()) {
     return false;
@@ -326,6 +341,9 @@ private slots:
 };
 
 void GuiTest::initTestCase() {
+  // After QTest's own handler is in place (qExec installs it), so that the
+  // rest still goes to the test log.
+  testMessageHandler = qInstallMessageHandler(dropNoise);
   // Everything the app could read or write is in the temporary folder.
   QVERIFY(tempRoot && tempRoot->isValid());
   QVERIFY(isUnderTemp(QSettings().fileName()));

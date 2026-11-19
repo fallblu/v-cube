@@ -79,16 +79,16 @@ target_link_libraries(vcube_gui
   PUBLIC vcube_io Qt6::Widgets Qt6::Concurrent Qt6::Network
   PRIVATE vcube_warnings)
 set_target_properties(vcube_gui PROPERTIES AUTOMOC ON)
-# The built-in alg sets (read from :/algsets) and the window icon, in the
-# library so that anything linking it, the tests too, has them.
+# The built-in alg sets (read from :/algsets), every file in
+# resources/algsets, and the window icon, in the library so that anything
+# linking it, the tests too, has them.
+file(GLOB vcube_builtin_sets CONFIGURE_DEPENDS
+  ${PROJECT_SOURCE_DIR}/resources/algsets/*.json)
 qt_add_resources(vcube_gui resources
   PREFIX "/"
   BASE ${PROJECT_SOURCE_DIR}/resources
   FILES
-    ${PROJECT_SOURCE_DIR}/resources/algsets/pll.json
-    ${PROJECT_SOURCE_DIR}/resources/algsets/oll.json
-    ${PROJECT_SOURCE_DIR}/resources/algsets/2look-oll.json
-    ${PROJECT_SOURCE_DIR}/resources/algsets/2look-pll.json
+    ${vcube_builtin_sets}
     ${PROJECT_SOURCE_DIR}/resources/icons/v-cube.svg
     ${PROJECT_SOURCE_DIR}/resources/icons/v-cube-256.png
 )

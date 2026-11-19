@@ -4,12 +4,14 @@ name: CI
 # save Actions minutes. The other compilers, the oldest Qt, the sanitizers
 # and Windows run on a manual run (workflow_dispatch) and weekly, when main
 # has changed that week. Release tags build Windows too (release.yml).
+# Docs-only changes skip CI, except docs/keys.md, which the GUI test checks
+# against the key table (the last matching pattern wins).
 on:
   push:
     branches: [main]
-    paths-ignore: ["docs/**", "**.md", "LICENSE"]
+    paths: ["**", "!docs/**", "!**.md", "!LICENSE", "docs/keys.md"]
   pull_request:
-    paths-ignore: ["docs/**", "**.md", "LICENSE"]
+    paths: ["**", "!docs/**", "!**.md", "!LICENSE", "docs/keys.md"]
   workflow_dispatch:
   schedule:
     - cron: "0 6 * * 1"
