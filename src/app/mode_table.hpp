@@ -4,6 +4,7 @@
 #include <QString>
 
 #include <array>
+#include <optional>
 
 namespace vcube {
 
@@ -23,27 +24,32 @@ struct AppMode {
     AlgLab,
     F2L,
     Tsle,
-    Today,
-    Count
+    Today
   };
+  // Not an enumerator, so that a switch over the modes has no case for it.
+  static constexpr int Count = Today + 1;
 
+  // Every mode, in the order of the enum.
+  static const std::array<Id, Count> &all();
   // The order of the sidebar and the Mode menu: Today first.
   static const std::array<Id, Count> &sidebarOrder();
+  // The mode a widget or a signal carries as a number, if it is one.
+  static std::optional<Id> fromIndex(int index);
   // The heading above the mode in the sidebar ("ALGS", "SOLVES",
   // "PRACTICE"), or empty.
-  static QString sidebarHeader(int mode);
+  static QString sidebarHeader(Id mode);
   // A separator follows the mode in the Mode menu.
-  static bool menuSeparatorAfter(int mode);
+  static bool menuSeparatorAfter(Id mode);
   // The mode's name, translated.
-  static QString label(int mode);
+  static QString label(Id mode);
   // Its id in settings, e.g. "learn".
-  static QString settingsId(int mode);
-  static QKeySequence shortcut(int mode);
+  static QString settingsId(Id mode);
+  static QKeySequence shortcut(Id mode);
   // The mode with that settings id, also those of earlier versions
-  // ("timer", "scramble", "virtual", "inspection"); -1 for none.
-  static int fromSettingsId(const QString &id);
+  // ("timer", "scramble", "virtual", "inspection").
+  static std::optional<Id> fromSettingsId(const QString &id);
   // Earlier versions saved a tab instead: Timer, Trainer or Library.
-  static int fromSavedTab(int tab);
+  static std::optional<Id> fromSavedTab(int tab);
 };
 
 } // namespace vcube

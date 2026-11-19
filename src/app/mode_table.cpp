@@ -25,11 +25,25 @@ constexpr std::array<ModeInfo, AppMode::Count> kModes = {{
     {"today", QT_TRANSLATE_NOOP("MainWindow", "Today")},
 }};
 
-const ModeInfo &info(int mode) {
+const ModeInfo &info(AppMode::Id mode) {
   return kModes[static_cast<std::size_t>(mode)];
 }
 
 } // namespace
+
+const std::array<AppMode::Id, AppMode::Count> &AppMode::all() {
+  static constexpr std::array<Id, Count> modes = {
+      Learn,   Drill,  Library, Timed, Untimed, MoveCount,
+      EoCross, AlgLab, F2L,     Tsle,  Today};
+  return modes;
+}
+
+std::optional<AppMode::Id> AppMode::fromIndex(int index) {
+  if (index < 0 || index >= Count) {
+    return std::nullopt;
+  }
+  return all()[static_cast<std::size_t>(index)];
+}
 
 const std::array<AppMode::Id, AppMode::Count> &AppMode::sidebarOrder() {
   static constexpr std::array<Id, Count> order = {
@@ -38,7 +52,7 @@ const std::array<AppMode::Id, AppMode::Count> &AppMode::sidebarOrder() {
   return order;
 }
 
-QString AppMode::sidebarHeader(int mode) {
+QString AppMode::sidebarHeader(Id mode) {
   switch (mode) {
   case Learn:
     return QCoreApplication::translate("vcube::MainWindow", "ALGS");
@@ -46,22 +60,30 @@ QString AppMode::sidebarHeader(int mode) {
     return QCoreApplication::translate("vcube::MainWindow", "SOLVES");
   case EoCross:
     return QCoreApplication::translate("vcube::MainWindow", "PRACTICE");
-  default:
+  case Drill:
+  case Library:
+  case Untimed:
+  case MoveCount:
+  case AlgLab:
+  case F2L:
+  case Tsle:
+  case Today:
     return {};
   }
+  return {};
 }
 
-bool AppMode::menuSeparatorAfter(int mode) {
+bool AppMode::menuSeparatorAfter(Id mode) {
   return mode == Today || mode == AlgLab || mode == MoveCount;
 }
 
-QString AppMode::label(int mode) {
+QString AppMode::label(Id mode) {
   return QCoreApplication::translate("MainWindow", info(mode).label);
 }
 
-QString AppMode::settingsId(int mode) { return info(mode).id; }
+QString AppMode::settingsId(Id mode) { return info(mode).id; }
 
-QKeySequence AppMode::shortcut(int mode) {
+QKeySequence AppMode::shortcut(Id mode) {
   // The digit is the mode's place in the sidebar: Today 0, Learn 1, ...
   // and the key after 9 on the keyboard, -, for the eleventh (= would be
   // a twelfth's).
@@ -78,10 +100,10 @@ QKeySequence AppMode::shortcut(int mode) {
   return {};
 }
 
-int AppMode::fromSettingsId(const QString &id) {
-  for (std::size_t i = 0; i < kModes.size(); ++i) {
-    if (id == kModes[i].id) {
-      return static_cast<int>(i);
+std::optional<AppMode::Id> AppMode::fromSettingsId(const QString &id) {
+  for (Id mode : all()) {
+    if (id == info(mode).id) {
+      return mode;
     }
   }
   // Modes of earlier versions: Timer became Timed; Scramble and Virtual
@@ -96,12 +118,15 @@ int AppMode::fromSettingsId(const QString &id) {
   if (id == "inspection") {
     return EoCross;
   }
-  return -1;
+  return std::nullopt;
 }
 
-int AppMode::fromSavedTab(int tab) {
-  constexpr std::array<int, 3> fromTab = {Timed, Drill, Library};
-  return tab >= 0 && tab < 3 ? fromTab[static_cast<std::size_t>(tab)] : Learn;
+std::optional<AppMode::Id> AppMode::fromSavedTab(int tab) {
+  constexpr std::array<Id, 3> fromTab = {Timed, Drill, Library};
+  if (tab < 0 || tab >= 3) {
+    return std::nullopt;
+  }
+  return fromTab[static_cast<std::size_t>(tab)];
 }
 
 } // namespace vcube

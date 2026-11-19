@@ -226,7 +226,7 @@ class GuiTest : public QObject {
   }
 
   // Switches mode with its shortcut, as the user does.
-  bool switchTo(int mode, ModePage *expected) {
+  bool switchTo(AppMode::Id mode, ModePage *expected) {
     QTest::keySequence(window_.get(), AppMode::shortcut(mode));
     return QTest::qWaitFor([&] { return shownPage(*window_) == expected; },
                            5000);
@@ -376,7 +376,7 @@ void GuiTest::modesSwitch() {
       page<TimerPage>(),   page<UntimedPage>(), page<MoveCountPage>(),
       page<EoCrossPage>(), page<AlgLabPage>(),  page<F2LPage>(),
       page<TslePage>(),    page<TodayPage>()};
-  for (int m : AppMode::sidebarOrder()) {
+  for (AppMode::Id m : AppMode::sidebarOrder()) {
     QVERIFY2(switchTo(m, pages[static_cast<std::size_t>(m)]),
              qPrintable(AppMode::label(m)));
     QVERIFY(pages[static_cast<std::size_t>(m)]->isVisible());
@@ -395,7 +395,8 @@ void GuiTest::modesSwitch() {
   QCOMPARE(AppMode::shortcut(AppMode::Tsle),
            QKeySequence(Qt::CTRL | Qt::Key_Minus));
   // A window last left in the old Inspection mode opens in EO Cross.
-  QCOMPARE(AppMode::fromSettingsId("inspection"), int(AppMode::EoCross));
+  QCOMPARE(AppMode::fromSettingsId("inspection"),
+           std::optional<AppMode::Id>(AppMode::EoCross));
 }
 
 void GuiTest::layoutFitsHalfAScreen() {
@@ -404,7 +405,7 @@ void GuiTest::layoutFitsHalfAScreen() {
   const QSize before = window_->size();
   window_->resize(950, 650);
   QTRY_COMPARE(window_->size(), QSize(950, 650));
-  for (int m : AppMode::sidebarOrder()) {
+  for (AppMode::Id m : AppMode::sidebarOrder()) {
     QTest::keySequence(window_.get(), AppMode::shortcut(m));
     QTest::qWait(20);
     QApplication::processEvents();

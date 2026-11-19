@@ -24,7 +24,8 @@ HelpPanel::HelpPanel(QWidget *parent)
   });
 }
 
-void HelpPanel::setContext(int mode, const Keymap &keymap) {
+void HelpPanel::setContext(std::optional<AppMode::Id> mode,
+                           const Keymap &keymap) {
   mode_ = mode;
   keymap_ = keymap;
   refresh();

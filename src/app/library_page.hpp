@@ -6,6 +6,7 @@
 #include "app/cube_painter.hpp"
 #include "app/library_editor.hpp"
 #include "app/mode_page.hpp"
+#include "app/mode_table.hpp"
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
 
@@ -111,7 +112,8 @@ signals:
   // "Open in Alg Lab" on a case's alg.
   void algLabRequested(const QString &setId, const QString &caseId);
   // Show the case in Learn or Drill (an AppMode).
-  void practiceRequested(int mode, const QString &setId, const QString &caseId);
+  void practiceRequested(AppMode::Id mode, const QString &setId,
+                         const QString &caseId);
 
 private:
   using Edit = LibraryEditor::Edit;
