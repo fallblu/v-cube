@@ -283,6 +283,9 @@ class GuiTest : public QObject {
 private slots:
   void initTestCase();
   void modesSwitch();
+  void layoutFitsHalfAScreen();
+  void sidePanelHidesInANarrowWindow();
+  void keyChipsAreClickable();
   void timedPhysicalSolve();
   void untimedVirtualSolve();
   void learnStartsACase();
@@ -359,6 +362,9 @@ void GuiTest::initTestCase() {
     QCOMPARE(watcher.texts, QStringList{});
   }
   window_->show();
+  // Wide enough for the side panels, which a narrow window hides (the
+  // offscreen screen is small).
+  window_->resize(1280, 800);
   window_->activateWindow();
   QVERIFY(QTest::qWaitForWindowExposed(window_.get()));
   QVERIFY(shownPage(*window_));
@@ -390,6 +396,86 @@ void GuiTest::modesSwitch() {
            QKeySequence(Qt::CTRL | Qt::Key_Minus));
   // A window last left in the old Inspection mode opens in EO Cross.
   QCOMPARE(AppMode::fromSettingsId("inspection"), int(AppMode::EoCross));
+}
+
+void GuiTest::layoutFitsHalfAScreen() {
+  // Every mode fits a window of half a 1080p screen, and switching to it
+  // doesn't resize the window.
+  const QSize before = window_->size();
+  window_->resize(950, 650);
+  QTRY_COMPARE(window_->size(), QSize(950, 650));
+  for (int m : AppMode::sidebarOrder()) {
+    QTest::keySequence(window_.get(), AppMode::shortcut(m));
+    QTest::qWait(20);
+    QApplication::processEvents();
+    const QSize min = window_->minimumSizeHint();
+    QVERIFY2(min.width() <= 950 && min.height() <= 650,
+             qPrintable(QString("%1: %2x%3")
+                            .arg(AppMode::label(m))
+                            .arg(min.width())
+                            .arg(min.height())));
+    QVERIFY2(window_->size() == QSize(950, 650), qPrintable(AppMode::label(m)));
+    // Buttons and drop-downs are a comfortable target.
+    ModePage *shown = shownPage(*window_);
+    for (QWidget *w : shown->findChildren<QWidget *>()) {
+      if ((qobject_cast<QPushButton *>(w) || qobject_cast<QComboBox *>(w)) &&
+          w->isVisible()) {
+        QVERIFY2(w->height() >= 28, qPrintable(AppMode::label(m) + ": " +
+                                               w->metaObject()->className()));
+      }
+    }
+  }
+  window_->resize(before);
+  QVERIFY(switchTo(AppMode::Learn, page<LearnPage>()));
+}
+
+void GuiTest::sidePanelHidesInANarrowWindow() {
+  auto *timer = page<TimerPage>();
+  QVERIFY(switchTo(AppMode::Timed, timer));
+  const QSize before = window_->size();
+  QWidget *panel = timer->sidePanel();
+  QVERIFY(panel);
+  QVERIFY(!timer->sideHidden());
+  window_->resize(1600, 900);
+  QTRY_VERIFY(panel->isVisible());
+  // Narrow: the panel gives the stage its room, without being turned off.
+  window_->resize(800, 600);
+  QTRY_VERIFY(!panel->isVisible());
+  QVERIFY(!timer->sideHidden());
+  // F9 brings it back while narrow; wide again, it stays.
+  QTest::keyClick(window_.get(), Qt::Key_F9);
+  QTRY_VERIFY(panel->isVisible());
+  QTest::keyClick(window_.get(), Qt::Key_F9);
+  QTRY_VERIFY(!panel->isVisible());
+  QVERIFY(!timer->sideHidden());
+  window_->resize(1600, 900);
+  QTRY_VERIFY(panel->isVisible());
+  // Hidden by hand, it stays hidden however wide.
+  QTest::keyClick(window_.get(), Qt::Key_F9);
+  QTRY_VERIFY(!panel->isVisible());
+  QVERIFY(timer->sideHidden());
+  QTest::keyClick(window_.get(), Qt::Key_F9);
+  QTRY_VERIFY(panel->isVisible());
+  QVERIFY(!timer->sideHidden());
+  window_->resize(before);
+}
+
+void GuiTest::keyChipsAreClickable() {
+  // In a widget never shown, so that the main window keeps the keyboard.
+  QWidget host;
+  auto *strip = new KeyStrip(&host);
+  int clicked = 0;
+  strip->setKeys({{"Delete", "delete it", [&clicked] { ++clicked; }},
+                  {"Esc", "try it again"}});
+  QVERIFY(!strip->isHidden());
+  // Only a key with an action is a link.
+  QVERIFY(strip->text().contains("chip:0"));
+  QVERIFY(!strip->text().contains("chip:1"));
+  emit strip->linkActivated("chip:1");
+  emit strip->linkActivated("chip:0");
+  QTRY_COMPARE(clicked, 1);
+  strip->setKeys({});
+  QVERIFY(strip->isHidden());
 }
 
 void GuiTest::algLabTimesEachAlg() {

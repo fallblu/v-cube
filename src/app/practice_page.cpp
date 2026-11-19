@@ -150,7 +150,8 @@ void PracticePage::build() {
   rightLayout->setContentsMargins(0, 0, 0, 0);
   options_ = new OptionBar(right);
   cubeView_ = new CubeView(right);
-  cubeView_->setMinimumSize(260, 200);
+  cubeView_->setFillsArea(true);
+  cubeView_->setMinimumSize(200, 160);
 
   addOptions(options_);
   cubeBox_ = new QComboBox(options_);
@@ -227,9 +228,13 @@ void PracticePage::build() {
   }
   choiceScroll_->hide();
 
+  // One block centred in the height: the prompt, the cube, and right
+  // under it the time, the verdict, the progress, the keys and any
+  // details.
+  rightLayout->addStretch(1);
   rightLayout->addWidget(prompt_);
   rightLayout->addWidget(scrambleLabel_);
-  rightLayout->addWidget(cubeStack_, 5);
+  rightLayout->addWidget(cubeStack_, 4);
   rightLayout->addWidget(requestedHint_);
   rightLayout->addWidget(display_);
   rightLayout->addWidget(verdict_);
@@ -238,6 +243,7 @@ void PracticePage::build() {
   // The details take room from the cube only while they are open.
   rightLayout->addWidget(detailScroll_, 4);
   rightLayout->addWidget(choiceScroll_, 4);
+  rightLayout->addStretch(1);
 
   auto *split = new QSplitter(this);
   split->setObjectName("main");

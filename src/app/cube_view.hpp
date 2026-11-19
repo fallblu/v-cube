@@ -56,6 +56,12 @@ public:
   void clearMarks();
   const StickerMarks &marks() const { return marks_; }
 
+  // The 3D and top views are drawn at two thirds of the view, with room
+  // around them; a view that fills its area draws them as large as it
+  // allows, for a stage that sizes the view itself and puts what goes
+  // with the cube right against it (see SolveStage).
+  void setFillsArea(bool on);
+
   QSize sizeHint() const override { return {360, 300}; }
   QSize minimumSizeHint() const override { return {120, 100}; }
 
@@ -70,6 +76,7 @@ private:
   double progress_ = 0.0;
   int animationMs_ = 110;
   Mode mode_ = Mode::Flat;
+  bool fills_ = false;
   StickerMarks marks_;
   QTimer frame_;
   QElapsedTimer clock_;

@@ -78,11 +78,23 @@ QTreeWidget *table(const QStringList &headers, QWidget *parent) {
 
 QString count(int n) { return n > 0 ? QString::number(n) : QString("-"); }
 
+// A row's button with a gap above and below it, so that the buttons of
+// rows one under another don't touch.
+QWidget *spacedButton(QPushButton *button, QWidget *parent) {
+  auto *cell = new QWidget(parent);
+  auto *layout = new QHBoxLayout(cell);
+  layout->setContentsMargins(2, 3, 2, 3);
+  button->setParent(cell);
+  layout->addWidget(button);
+  return cell;
+}
+
 // The height of every row of both tables: that of the row buttons, so
 // that the two tables read alike.
 int rowHeight(QWidget *page) {
   QPushButton probe(QStringLiteral("Review"), page);
-  return probe.sizeHint().height() + 2;
+  // With the gap above and below the button (see spacedButton).
+  return probe.sizeHint().height() + 8;
 }
 
 void setRowHeight(QTreeWidgetItem *item, int h) {
@@ -404,7 +416,7 @@ void TodayPage::refresh() {
     QString id = qs(set.id);
     connect(button, &QPushButton::clicked, this,
             [this, id] { emit learnSetRequested(id); });
-    sets_->setItemWidget(item, 5, button);
+    sets_->setItemWidget(item, 5, spacedButton(button, sets_));
     dueTotal += d.due;
     if (firstNewSet.isEmpty() && d.newLeft > 0) {
       firstNewSet = id;
@@ -457,7 +469,7 @@ void TodayPage::refresh() {
     button->setAccessibleName(tr("%1: %2").arg(go, p.name));
     connect(button, &QPushButton::clicked, this,
             [this, mode = p.mode] { emit practiceRequested(mode); });
-    sets_->setItemWidget(item, 5, button);
+    sets_->setItemWidget(item, 5, spacedButton(button, sets_));
     if (w.due > practiceDue) {
       practiceDue = w.due;
       practiceDueMode = p.mode;

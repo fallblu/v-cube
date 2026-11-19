@@ -148,15 +148,13 @@ private:
   QWidget *viewRow_;
   OptionBar *options_;
   QToolButton *casesButton_;
-  QLabel *keysLabel_;
+  KeyStrip *keysLabel_;
   QLabel *scrambleLabel_;
   CubeView *cubeView_;
   TimeDisplay *display_;
   QLabel *statusLabel_;
   QWidget *resultRow_;
   QLabel *resultLabel_;
-  QPushButton *wrongButton_;
-  QPushButton *deleteButton_;
   QLabel *diagram_;
   QLabel *reveal_;
   QLabel *sessionLabel_;

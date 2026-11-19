@@ -14,7 +14,7 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
-| F9 | show or hide the mode's side panel (the case list, the session or the case browser) |
+| F9 | show or hide the mode's side panel (the case list, the session or the case browser; hidden by itself while the window is narrow) |
 | F11 | full screen |
 | F10 | focus mode (right-click outside the scramble, timer, cube and algs to switch it, full screen or the sidebar with the mouse) |
 | Ctrl+B | show or hide the sidebar |

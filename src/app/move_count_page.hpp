@@ -52,7 +52,6 @@ protected:
   void sessionShown() override;
   void settingsApplied() override;
   void holdShown(const QColor &colour) override;
-  void entryShown() override;
   void controlsEnabled(bool on) override;
 
 private:
@@ -64,8 +63,6 @@ private:
 
   QComboBox *stepBox_;
   QLabel *stepLabel_;
-  QPushButton *recordButton_;
-  QPushButton *dnfButton_;
 
   bool hasOptimal() const;
   // The holds the Opt column is for.

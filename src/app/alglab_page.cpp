@@ -6,6 +6,7 @@
 #include "app/app_settings.hpp"
 #include "app/grip_view.hpp"
 #include "app/lab_test_panel.hpp"
+#include "app/page_parts.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
@@ -26,6 +27,7 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSettings>
 #include <QSpinBox>
 #include <QSplitter>
@@ -133,7 +135,8 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   head->addWidget(caseTitle_, 1);
   sl->addLayout(head);
 
-  auto *filters = new QHBoxLayout;
+  // The rows of options wrap in a narrow window.
+  auto *filters = new OptionBar(search);
   statsCube_ = new QComboBox(search);
   statsCube_->addItem(tr("Physical times"));
   statsCube_->addItem(tr("Virtual times"));
@@ -226,8 +229,8 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   filters->addWidget(profileBox_);
   filters->addWidget(profileMenu);
   filters->addStretch();
-  sl->addLayout(filters);
-  auto *shown = new QHBoxLayout;
+  sl->addWidget(filters);
+  auto *shown = new OptionBar(search);
   auto *algsLabel = groupLabel(tr("Algs shown:"));
   algsLabel->setBuddy(filterBox_);
   shown->addWidget(algsLabel);
@@ -235,7 +238,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   shown->addWidget(noRotations_);
   shown->addWidget(maxHtm_);
   shown->addStretch();
-  sl->addLayout(shown);
+  sl->addWidget(shown);
   statsCube_->setAccessibleName(tr("Times of the physical or virtual cube"));
   statsWindow_->setAccessibleName(tr("Times from"));
   profileBox_->setAccessibleName(tr("Score profile"));
@@ -265,9 +268,14 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   tableSplit->addWidget(table_);
   auto *gripBox = new QGroupBox(tr("Fingertricks"), tableSplit);
   auto *gripLayout = new QVBoxLayout(gripBox);
-  grips_ = new GripView(gripBox);
-  gripLayout->addWidget(grips_);
-  gripLayout->addStretch();
+  // The fingertricks scroll in a low window rather than holding it high.
+  auto *gripScroll = new QScrollArea(gripBox);
+  gripScroll->setFrameShape(QFrame::NoFrame);
+  gripScroll->setWidgetResizable(true);
+  gripScroll->setFocusPolicy(Qt::NoFocus);
+  grips_ = new GripView(gripScroll);
+  gripScroll->setWidget(grips_);
+  gripLayout->addWidget(gripScroll);
   tableSplit->addWidget(gripBox);
   tableSplit->setStretchFactor(0, 1);
   tableSplit->setStretchFactor(1, 0);
@@ -283,7 +291,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   addRow->addWidget(pasteButton);
   sl->addLayout(addRow);
 
-  auto *actions = new QHBoxLayout;
+  auto *actions = new OptionBar(search);
   auto *toSet = new QPushButton(tr("Add to set"), search);
   auto *makeMain = new QPushButton(tr("Make main alg"), search);
   auto *toSession = new QPushButton(tr("Add to session"), search);
@@ -299,12 +307,12 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     actions->addWidget(b);
   }
   actions->addStretch();
-  sl->addLayout(actions);
+  sl->addWidget(actions);
 
   auto *gen = new QGroupBox(tr("Generator"), search);
   auto *genLayout = new QVBoxLayout(gen);
-  auto *gl = new QHBoxLayout;
-  genLayout->addLayout(gl);
+  auto *gl = new OptionBar(gen);
+  genLayout->addWidget(gl);
   genBox_ = new QComboBox(gen);
   auto *genMenu = new QToolButton(gen);
   genMenu->setText(tr("…"));

@@ -137,7 +137,8 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   auto *rightLayout = new QVBoxLayout(right);
   rightLayout->setContentsMargins(0, 0, 0, 0);
   cubeView_ = new CubeView(right);
-  cubeView_->setMinimumSize(260, 220);
+  cubeView_->setFillsArea(true);
+  cubeView_->setMinimumSize(200, 160);
   cubeView_->setToolTip(
       tr("Turn the cube as a whole to look at the case, tap Space and solve: "
          "the first face turn starts the timer and it stops when the step "
@@ -155,43 +156,41 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   scrambleLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(56);
-  rightLayout->addWidget(scrambleLabel_);
 
   display_ = new TimeDisplay(right);
   statusLabel_ = new QLabel(right);
   statusLabel_->setAlignment(Qt::AlignCenter);
   statusLabel_->setWordWrap(true);
+  // The message line and the result keep their room while hidden, so
+  // that the lines under them don't move from one state to the next.
+  statusLabel_->setMinimumHeight(statusLabel_->fontMetrics().height());
+  QSizePolicy keep = statusLabel_->sizePolicy();
+  keep.setRetainSizeWhenHidden(true);
+  statusLabel_->setSizePolicy(keep);
+  // The reason on a line of its own; wrong alg (or DNF) and deleting the
+  // attempt are clicked on their keys' chips (see showStatus()).
   resultRow_ = new QWidget(right);
-  // The reason on a line of its own, the buttons under it.
   auto *resultRows = new QVBoxLayout(resultRow_);
   resultRows->setContentsMargins(0, 0, 0, 0);
   resultLabel_ = new QLabel(resultRow_);
   resultLabel_->setWordWrap(true); // a long DNF reason mustn't widen the page
   resultLabel_->setAlignment(Qt::AlignCenter);
+  resultLabel_->setMinimumHeight(resultLabel_->fontMetrics().height());
   resultRows->addWidget(resultLabel_);
-  auto *resultLayout = new QHBoxLayout;
-  resultRows->addLayout(resultLayout);
-  wrongButton_ = new QPushButton(tr("Wrong alg (Backspace)"), resultRow_);
-  wrongButton_->setFocusPolicy(Qt::NoFocus);
-  wrongButton_->setCheckable(true);
-  deleteButton_ = new QPushButton(tr("Delete (Del)"), resultRow_);
-  deleteButton_->setFocusPolicy(Qt::NoFocus);
-  deleteButton_->setToolTip(
-      tr("Delete the attempt, e.g. one stopped by mistake. A case given up "
-         "before the timer started is set up again."));
-  resultLayout->addStretch();
-  resultLayout->addWidget(wrongButton_);
-  resultLayout->addWidget(deleteButton_);
-  resultLayout->addStretch();
-  rightLayout->addWidget(cubeView_, 8);
+  keep = resultRow_->sizePolicy();
+  keep.setRetainSizeWhenHidden(true);
+  resultRow_->setSizePolicy(keep);
+  keysLabel_ = new KeyStrip(right);
+  // One block centred in the height: the scramble, the cube, and right
+  // under it the time, the result, the message, the keys and the algs.
+  rightLayout->addStretch(1);
+  rightLayout->addWidget(scrambleLabel_);
+  rightLayout->addWidget(cubeView_, 4);
   rightLayout->addWidget(display_);
-  keysLabel_ = new QLabel(right);
-  keysLabel_->setAlignment(Qt::AlignCenter);
-  keysLabel_->setWordWrap(true);
-  keysLabel_->setTextFormat(Qt::RichText);
-  keysLabel_->setForegroundRole(QPalette::PlaceholderText);
-  keysLabel_->setProperty("vcubeHint", true);
+  rightLayout->addWidget(resultRow_);
   rightLayout->addWidget(statusLabel_);
+  // A button for what to do when there is nothing to drill (hidden
+  // otherwise).
   offerButton_ = new QPushButton(right);
   offerButton_->setFocusPolicy(Qt::NoFocus);
   offerButton_->setVisible(false);
@@ -201,7 +200,6 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
     }
   });
   rightLayout->addWidget(offerButton_, 0, Qt::AlignHCenter);
-  rightLayout->addWidget(resultRow_);
   rightLayout->addWidget(keysLabel_);
 
   // After a case: its diagram and algs side by side under the time, kept
@@ -226,14 +224,15 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   revealLayout->addWidget(reveal_, 3);
   revealLayout->addStretch(1);
   setDiagram({});
-  rightLayout->addWidget(revealBox, 1);
+  rightLayout->addWidget(revealBox);
+  rightLayout->addStretch(1);
 
   auto *split = new QSplitter(this);
   split->setObjectName("main");
   split->addWidget(left_);
   split->addWidget(right);
   split->setStretchFactor(1, 1);
-  left_->setMinimumWidth(300);
+  left_->setMinimumWidth(240);
   split->setSizes({360, 840});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split);
@@ -277,10 +276,6 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
     updateSummary();
     nextCase();
   });
-  connect(wrongButton_, &QPushButton::clicked, this,
-          [this](bool on) { setWrong(on); });
-  connect(deleteButton_, &QPushButton::clicked, this,
-          [this] { deleteAttempt(); });
   // "Cases shown in the list" follows the search and filter.
   connect(filter_, &CaseFilter::changed, this, [this] { updateSummary(); });
   connect(sessionReset, &QPushButton::clicked, this, &DrillPage::resetTally);
@@ -325,11 +320,6 @@ void DrillPage::showCubeKind() {
   cubeView_->setVisible(virt);
   viewRow_->setVisible(virt);
   scrambleLabel_->setVisible(!virt);
-  wrongButton_->setText(virt ? tr("DNF (Backspace)")
-                             : tr("Wrong alg (Backspace)"));
-  wrongButton_->setToolTip(
-      virt ? tr("Toggle DNF on the attempt")
-           : tr("Mark the attempt as failed: the wrong alg was done"));
 }
 
 DrillFlow::Config DrillPage::flowConfig() const {
@@ -497,8 +487,7 @@ void DrillPage::say(const QString &message, const QList<KeyHint> &keys) {
   offer({}, {});
   statusLabel_->setText(message);
   statusLabel_->setVisible(!message.isEmpty());
-  keysLabel_->setText(keyHintsHtml(keys, palette()));
-  keysLabel_->setVisible(!keys.isEmpty());
+  keysLabel_->setKeys(keys);
 }
 
 void DrillPage::showStatus() {
@@ -553,14 +542,15 @@ void DrillPage::showStatus() {
     }
     if (recorded && !gaveUp) {
       keys << KeyHint{tr("Backspace"),
-                      virt
-                          ? (failed ? tr("not a DNF") : tr("DNF"))
-                          : (failed ? tr("not a wrong alg") : tr("wrong alg"))};
+                      virt ? (failed ? tr("not a DNF") : tr("DNF"))
+                           : (failed ? tr("not a wrong alg") : tr("wrong alg")),
+                      [this] { setWrong(!flow_.failed()); }};
     }
     if (recorded) {
-      keys << KeyHint{tr("Delete"), gaveUp && flow_.gaveUpBeforeStart()
-                                        ? tr("take it back")
-                                        : tr("delete it")};
+      keys << KeyHint{tr("Delete"),
+                      gaveUp && flow_.gaveUpBeforeStart() ? tr("take it back")
+                                                          : tr("delete it"),
+                      [this] { deleteAttempt(); }};
     }
     keys << KeyHint{tr("Esc"), tr("try it again")};
     break;
@@ -610,7 +600,8 @@ void DrillPage::showStatus() {
   }
   if (flow_.inPractice() && recorded && !gaveUp) {
     keys << KeyHint{tr("Backspace"),
-                    virt ? tr("toggle the DNF") : tr("toggle the wrong alg")};
+                    virt ? tr("toggle the DNF") : tr("toggle the wrong alg"),
+                    [this] { setWrong(!flow_.failed()); }};
   }
   say(message, keys);
 }

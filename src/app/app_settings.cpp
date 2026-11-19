@@ -1,4 +1,5 @@
 #include "app/app_settings.hpp"
+#include "app/app_style.hpp"
 
 #include "app/colours.hpp"
 #include "train/algset.hpp"
@@ -313,7 +314,9 @@ void AppSettings::save() const {
 }
 
 void applyTheme(QApplication &app, bool dark) {
-  app.setStyle(new EdgeStyle(QStyleFactory::create("Fusion")));
+  // Taller controls and menu arrows (AppStyle) over visible field edges
+  // (EdgeStyle) over Fusion.
+  app.setStyle(new AppStyle(new EdgeStyle(QStyleFactory::create("Fusion"))));
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
   // Title bars and native dialogs follow the theme too.
   QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark

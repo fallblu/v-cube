@@ -122,9 +122,9 @@ SolveStage::SolveStage(const QString &mode, QWidget *parent) : QWidget(parent) {
   net = new NetPreview(this);
   scrambleRow->addWidget(scramble, 1);
   scrambleRow->addWidget(net);
-  layout_->addLayout(scrambleRow);
 
   cube = new CubeView(this);
+  cube->setFillsArea(true);
   display = new TimeDisplay(this);
   hint = new QLabel(this);
   hint->setAlignment(Qt::AlignCenter);
@@ -137,17 +137,14 @@ SolveStage::SolveStage(const QString &mode, QWidget *parent) : QWidget(parent) {
   buttons_ = new QHBoxLayout;
   buttons_->addStretch();
   buttons_->addStretch();
+  keys_ = new KeyStrip(this);
+  // One block centred in the height: the scramble, the cube, and right
+  // under it what goes with it (the time, the hint, the keys, buttons).
   centre = new QVBoxLayout;
   centre->addStretch(1);
-  centre->addWidget(cube, 8);
+  centre->addLayout(scrambleRow);
+  centre->addWidget(cube, 3);
   centre->addWidget(display);
-  keys_ = new QLabel(this);
-  keys_->setAlignment(Qt::AlignCenter);
-  keys_->setWordWrap(true);
-  keys_->setTextFormat(Qt::RichText);
-  keys_->setForegroundRole(QPalette::PlaceholderText);
-  keys_->setProperty("vcubeHint", true);
-  keys_->setVisible(false);
   centre->addWidget(hint);
   centre->addWidget(keys_);
   centre->addWidget(focusStats);
@@ -167,6 +164,10 @@ SolveStage::SolveStage(const QString &mode, QWidget *parent) : QWidget(parent) {
   mode_ = mode;
 }
 
+void SolveStage::setCubeStretch(int stretch) {
+  centre->setStretchFactor(cube, stretch);
+}
+
 void SolveStage::addStandardOptions() {
   options->addSpacing();
   options->addWidget(cubeBox);
@@ -176,10 +177,7 @@ void SolveStage::addStandardOptions() {
   skipButton->show();
 }
 
-void SolveStage::setKeys(const QList<KeyHint> &keys) {
-  keys_->setText(keyHintsHtml(keys, palette()));
-  keys_->setVisible(!keys.isEmpty());
-}
+void SolveStage::setKeys(const QList<KeyHint> &keys) { keys_->setKeys(keys); }
 
 void SolveStage::addButton(QWidget *button, bool first) {
   buttons_->insertWidget(first ? 1 : buttons_->count() - 1, button);
@@ -246,15 +244,78 @@ QString keyHintsHtml(const QList<KeyHint> &keys, const QPalette &palette) {
   QColor chip = palette.color(QPalette::Button);
   QColor key = palette.color(QPalette::ButtonText);
   QStringList parts;
-  for (const KeyHint &k : keys) {
-    parts << QStringLiteral("<span style=\"background-color:%1; color:%2;\">"
-                            "&nbsp;%3&nbsp;</span>&nbsp;%4")
-                 .arg(chip.name(), key.name(),
-                      // A key and its action stay on one line.
-                      k.key.toHtmlEscaped().replace(' ', "&nbsp;"),
-                      k.action.toHtmlEscaped().replace(' ', "&nbsp;"));
+  for (qsizetype i = 0; i < keys.size(); ++i) {
+    const KeyHint &k = keys[i];
+    QString part =
+        QStringLiteral("<span style=\"background-color:%1; color:%2;\">"
+                       "&nbsp;%3&nbsp;</span>&nbsp;%4")
+            .arg(chip.name(), key.name(),
+                 // A key and its action stay on one line.
+                 k.key.toHtmlEscaped().replace(' ', "&nbsp;"),
+                 k.action.toHtmlEscaped().replace(' ', "&nbsp;"));
+    if (k.click) {
+      part = QStringLiteral("<a href=\"chip:%1\" style=\"color:%2; "
+                            "text-decoration:none;\">%3</a>")
+                 .arg(i)
+                 .arg(palette.color(QPalette::Link).name(), part);
+    }
+    parts << part;
   }
   return parts.join(QStringLiteral(" &nbsp;&nbsp; "));
+}
+
+namespace {
+
+// Lets the chips of `label` that keyHintsHtml made links be clicked: the
+// click runs the action of that key of those `keys` returns.
+void makeChipsClickable(QLabel *label,
+                        std::function<const QList<KeyHint> &()> keys) {
+  label->setTextInteractionFlags(Qt::LinksAccessibleByMouse);
+  label->setFocusPolicy(Qt::NoFocus); // the keys stay with the page
+  label->setOpenExternalLinks(false);
+  QObject::connect(
+      label, &QLabel::linkActivated, label, [label, keys](const QString &link) {
+        if (!link.startsWith(QStringLiteral("chip:"))) {
+          return;
+        }
+        qsizetype i = link.mid(5).toLongLong();
+        const QList<KeyHint> &all = keys();
+        if (i < 0 || i >= all.size() || !all[i].click) {
+          return;
+        }
+        // Later: the action may change the chips.
+        QMetaObject::invokeMethod(label, all[i].click, Qt::QueuedConnection);
+      });
+}
+
+} // namespace
+
+KeyStrip::KeyStrip(QWidget *parent) : QLabel(parent) {
+  setAlignment(Qt::AlignCenter);
+  setWordWrap(true);
+  setTextFormat(Qt::RichText);
+  setForegroundRole(QPalette::PlaceholderText);
+  setProperty("vcubeHint", true);
+  makeChipsClickable(this,
+                     [this]() -> const QList<KeyHint> & { return keys_; });
+  setVisible(false);
+}
+
+void KeyStrip::setKeys(const QList<KeyHint> &keys) {
+  keys_ = keys;
+  render();
+}
+
+void KeyStrip::changeEvent(QEvent *e) {
+  QLabel::changeEvent(e);
+  if (e->type() == QEvent::PaletteChange) {
+    render();
+  }
+}
+
+void KeyStrip::render() {
+  setText(keyHintsHtml(keys_, palette()));
+  setVisible(!keys_.isEmpty());
 }
 
 HintBar::HintBar(QWidget *parent) : QLabel(parent) {
@@ -263,6 +324,8 @@ HintBar::HintBar(QWidget *parent) : QLabel(parent) {
   setTextFormat(Qt::RichText);
   setForegroundRole(QPalette::PlaceholderText);
   setProperty("vcubeHint", true);
+  makeChipsClickable(this,
+                     [this]() -> const QList<KeyHint> & { return keys_; });
 }
 
 void HintBar::setHint(const QString &message, const QList<KeyHint> &keys) {
