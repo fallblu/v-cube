@@ -742,6 +742,33 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY(cardKey(pairCardOf(f2l->startState(), *f2l->target())) == wanted);
   QTest::keyClick(window_.get(), Qt::Key_Escape); // nothing to go back to
   QCOMPARE(f2l->phase(), Phase::Choose);
+  // One typed in while the candidates are still being searched for stays,
+  // ticked, once they come.
+  {
+    AnalysisOptions own;
+    own.config = f2l->config();
+    own.profile = builtinErgoProfiles().front();
+    const std::vector<RankedSolution> found =
+        analysePair(f2l->startState(), *f2l->target(), own).solutions;
+    QVERIFY(!found.empty());
+    QCOMPARE(f2l->addOwnSolution(qs(toString(found.back().alg))), QString());
+    const Alg typed = comparableSolution(slotToSide(
+        fixedFrame(found.back().alg), PairSide::Back, *f2l->target()));
+    // The search's own come too (it finds more than one).
+    QTRY_VERIFY_WITH_TIMEOUT(f2l->candidates().size() > 1, 30000);
+    QVERIFY(std::any_of(f2l->candidates().begin(), f2l->candidates().end(),
+                        [&typed](const F2LPage::Candidate &c) {
+                          return c.ticked &&
+                                 comparableSolution(c.solution.alg) == typed;
+                        }));
+    // Untick it again, to choose as before.
+    for (std::size_t i = 0; i < f2l->candidates().size(); ++i) {
+      if (comparableSolution(f2l->candidates()[i].solution.alg) == typed) {
+        QTest::keyClick(window_.get(),
+                        static_cast<Qt::Key>(Qt::Key_1 + static_cast<int>(i)));
+      }
+    }
+  }
   QTRY_VERIFY_WITH_TIMEOUT(f2l->candidatesReady(), 30000);
   QTest::keyClick(window_.get(), Qt::Key_2);
   QTest::keyClick(window_.get(), Qt::Key_Return);

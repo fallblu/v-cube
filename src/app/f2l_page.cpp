@@ -1025,6 +1025,8 @@ void F2LPage::requestCandidates() {
 void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
   const std::vector<Alg> chosen = chosenSolutions(item().card);
   const bool first = chosen.empty();
+  // Typed in (and ticked) while the search was going: kept.
+  const std::vector<Candidate> before = std::move(candidates_);
   candidates_.clear();
   auto find = [this](const Alg &alg) {
     const Alg key = comparableSolution(alg);
@@ -1066,6 +1068,13 @@ void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
       it = add(alg, false, true);
     }
     it->ticked = true;
+  }
+  for (const Candidate &c : before) {
+    auto it = find(c.solution.alg);
+    if (it == candidates_.end()) {
+      it = add(c.solution.alg, false, true);
+    }
+    it->ticked = it->ticked || c.ticked;
   }
   candidatesReady_ = true;
   showCandidates();
