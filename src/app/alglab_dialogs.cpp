@@ -3,6 +3,7 @@
 #include "app/alglab_common.hpp"
 #include "app/app_settings.hpp"
 #include "app/grip_view.hpp"
+#include "app/page_parts.hpp"
 #include "app/ui_text.hpp"
 #include "io/algset_json.hpp"
 
@@ -359,6 +360,13 @@ GripProfileDialog::GripProfileDialog(const ErgoProfile &profile,
   }
   tricks_->resizeColumnsToContents();
   layout->addWidget(tricks_, 1);
+  // The columns' syntax, which the headers' tooltips alone would hide.
+  layout->addWidget(helpLabel(
+      tr("From: the grips the trick starts from, such as \"home, up\": far "
+         "down, down, home, up, far up (or -2 .. 2), or \"any\". Turn: steps "
+         "the hand's thumb moves, R +1 for the right hand, L -1 for the "
+         "left. Rotation: both hands let go and take the cube again home."),
+      this));
   auto *trickButtons = new QHBoxLayout;
   auto *add = new QPushButton(tr("Add trick"), this);
   auto *remove = new QPushButton(tr("Remove trick"), this);

@@ -125,9 +125,12 @@ protected:
     auto *w = qobject_cast<QWidget *>(o);
     switch (e->type()) {
     case QEvent::ToolTip:
-      if (w) {
-        show(w, tipAt(w, static_cast<QHelpEvent *>(e)->pos()));
+      // The windows in front (dialogs) have no status bar: their tips pop
+      // up as tooltips do.
+      if (!w || !inMainWindow(w)) {
+        return false;
       }
+      show(w, tipAt(w, static_cast<QHelpEvent *>(e)->pos()));
       return true; // never as a tooltip
     case QEvent::Enter:
       if (w && !w->toolTip().isEmpty()) {
@@ -159,11 +162,15 @@ private:
   QPointer<QWidget> shownFor_;
   QString shown_;
 
-  void show(QWidget *w, QString tip) {
+  // Whether w is in the main window or in a popup (a menu) of it.
+  bool inMainWindow(QWidget *w) const {
     QWidget *top = w->window();
-    // The windows in front (dialogs) have no status bar.
-    if (top != window_ && !(top->windowType() == Qt::Popup &&
-                            QApplication::activeWindow() == window_)) {
+    return top == window_ || (top->windowType() == Qt::Popup &&
+                              QApplication::activeWindow() == window_);
+  }
+
+  void show(QWidget *w, QString tip) {
+    if (!inMainWindow(w)) {
       return;
     }
     if (Qt::mightBeRichText(tip)) {
@@ -298,10 +305,11 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   f2lPage_ =
       new F2LPage(settings_, data_.library, data_.lab, data_.dataDir(), stack_);
   tslePage_ = new TslePage(settings_, data_.dataDir(), stack_);
-  todayPage_ =
-      new TodayPage(settings_, data_.library, data_.sessions, data_.untimed,
-                    data_.moveCounts, data_.lab, eoCrossPage_->data(),
-                    f2lPage_->data(), tslePage_->data(), stack_);
+  todayPage_ = new TodayPage(
+      settings_, data_.library, data_.sessions, data_.untimed, data_.moveCounts,
+      data_.lab, eoCrossPage_->data(), f2lPage_->data(), tslePage_->data(),
+      [f2l = f2lPage_] { return f2l->cardPool(); },
+      [tsle = tslePage_] { return tsle->cardPool(); }, stack_);
   pages_ = {learnPage_,   drillPage_,     libraryPage_, timedPage_,
             untimedPage_, moveCountPage_, eoCrossPage_, algLabPage_,
             f2lPage_,     tslePage_,      todayPage_};
@@ -309,16 +317,12 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
   }
+  // Alg Lab says so itself only when it saves a set without Library (it
+  // has no alg editor): with one, Library makes the change and says so.
   connect(libraryPage_, &LibraryPage::setsChanged, this,
-          [this](const QString &setId) {
-            learnPage_->reloadSets();
-            drillPage_->reloadSets();
-            timedPage_->refreshScrambleTypes(setId);
-            untimedPage_->refreshScrambleTypes(setId);
-            algLabPage_->reloadSets();
-            f2lPage_->reloadSets();
-            updateBadges();
-          });
+          &MainWindow::librarySetsChanged);
+  connect(algLabPage_, &AlgLabPage::setsChanged, this,
+          &MainWindow::librarySetsChanged);
   libraryPage_->setLab(&data_.lab);
   connect(
       libraryPage_, &LibraryPage::practiceRequested, this,
@@ -343,14 +347,6 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
                                    const QString &text) {
     return libraryPage_->setCaseAlgs(setId, caseId, std::move(algs), text);
   });
-  connect(algLabPage_, &AlgLabPage::setsChanged, this,
-          [this](const QString &setId) {
-            learnPage_->reloadSets();
-            drillPage_->reloadSets();
-            timedPage_->refreshScrambleTypes(setId);
-            untimedPage_->refreshScrambleTypes(setId);
-            updateBadges();
-          });
   connect(todayPage_, &TodayPage::learnSetRequested, this,
           &MainWindow::learnSet);
   connect(todayPage_, &TodayPage::practiceRequested, this, [this](int index) {
@@ -677,6 +673,16 @@ bool MainWindow::setMode(AppMode::Id mode) {
   updateHelp();
   updateBadges();
   return true;
+}
+
+void MainWindow::librarySetsChanged(const QString &setId) {
+  learnPage_->reloadSets();
+  drillPage_->reloadSets();
+  timedPage_->refreshScrambleTypes(setId);
+  untimedPage_->refreshScrambleTypes(setId);
+  algLabPage_->reloadSets();
+  f2lPage_->reloadSets();
+  updateBadges(); // Today reads the sets as it is shown
 }
 
 void MainWindow::updateBadges() {

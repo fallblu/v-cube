@@ -46,6 +46,8 @@ public:
           const QString &dataDir, QWidget *parent = nullptr);
   ~F2LPage() override;
 
+  // The cards the mode offers, also counted on Today.
+  std::vector<std::string> cardPool() const override;
   void activated() override;
   // The alg sets changed: the sheet's algs may be read from them.
   void reloadSets();
@@ -88,7 +90,6 @@ protected:
   }
   void addOptions(OptionBar *bar) override;
   void showOptions() override;
-  std::vector<std::string> cardPool() const override;
   std::optional<Setup> setUp(Extent extent, const std::string &card) override;
   void restarted() override;
   bool turned() override;

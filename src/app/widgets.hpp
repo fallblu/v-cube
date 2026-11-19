@@ -114,6 +114,13 @@ public:
     std::vector<StatValue> values;
   };
   void setSeries(std::vector<Series> series);
+  // What the values are, when they aren't single solves: the name of the
+  // dots in the legend, whether the ao5 and ao12 lines are drawn (without
+  // them the series are), and each value's name on the read-out (instead
+  // of its number, e.g. its date).
+  void setPointName(const QString &name);
+  void setAverages(bool on);
+  void setPointLabels(std::vector<QString> labels);
   QSize sizeHint() const override { return {400, 160}; }
 
 protected:
@@ -126,6 +133,9 @@ private:
   QString hoverText(std::size_t at) const;
   std::vector<Solve> solves_;
   std::vector<Series> series_;
+  QString pointName_;
+  std::vector<QString> pointLabels_;
+  bool averages_ = true;
   QString emptyText_;
   QString settingsKey_;
   bool moves_ = false;
@@ -136,6 +146,10 @@ private:
   // The first solve charted.
   std::size_t first() const;
   QRectF area() const;
+  // Whether the series are drawn instead of the averages.
+  bool showsSeries() const;
+  // The names written at the right ends of the lines.
+  QStringList lineNames() const;
   QString valueText(StatValue v) const;
 };
 

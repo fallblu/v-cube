@@ -3,9 +3,11 @@
 #include "cube/hold.hpp"
 #include "train/move_count.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -20,7 +22,8 @@ namespace vcube {
 // neutrality). They take a while, so they are worked out in jobs off the
 // GUI thread: missing() makes a job for the scrambles not known yet, run()
 // works it out (on any thread) and store() keeps its results, unless the
-// holds changed in the meantime (invalidate()), which makes them stale.
+// holds changed in the meantime (invalidate()), which makes them stale and
+// stops the jobs under way.
 class OptimalCache {
 public:
   using Results = std::vector<std::pair<std::string, int>>;
@@ -30,12 +33,15 @@ public:
     std::vector<Hold> holds;            // the holds the lengths are for
     std::vector<std::string> scrambles; // each once
     int round = 0;                      // the cache's, when it was made
+    // Set by invalidate(): run() stops at the next scramble.
+    std::shared_ptr<const std::atomic<bool>> stop;
   };
 
   // nullopt while it isn't known, -1 for a scramble that can't be read.
   std::optional<int> lookup(SolveStep step, const std::string &scramble,
                             bool anyHold) const;
-  // The holds changed: what is known, and the jobs under way, are stale.
+  // The holds changed (or the jobs are no longer wanted): what is known,
+  // and the jobs under way, are stale, and those jobs stop.
   void invalidate();
   // A job for the attempts' scrambles that aren't known yet (each once, in
   // their order, empty ones left out); nullopt when none are missing.
@@ -44,6 +50,7 @@ public:
                              std::span<const MoveCountAttempt> attempts) const;
   // Works a job out: each scramble's optimal length for the step in the
   // job's holds, -1 for one that can't be read (so it isn't tried again).
+  // A stopped job gives the scrambles it got to.
   static Results run(const Job &job);
   // Keeps a job's results; false (nothing kept) for a stale job.
   bool store(const Job &job, const Results &results);
@@ -52,6 +59,8 @@ private:
   using Key = std::tuple<SolveStep, std::string, bool>;
   std::map<Key, int> known_;
   int round_ = 0;
+  std::shared_ptr<std::atomic<bool>> stop_ =
+      std::make_shared<std::atomic<bool>>(false);
 };
 
 // How far over the optimal the counted, finished attempts with a known

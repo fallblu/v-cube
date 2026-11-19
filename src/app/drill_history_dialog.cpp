@@ -94,6 +94,7 @@ void showDrillHistory(QWidget *parent, const QString &caseName,
                                   "attempts):"),
                                &dialog));
   std::vector<Solve> means;
+  std::vector<QString> dates;
   TrendChart::Series bests{tr("daily best"), Role::Series3, {}};
   for (const DayRollup &d : days) {
     Solve s;
@@ -102,12 +103,18 @@ void showDrillHistory(QWidget *parent, const QString &caseName,
     s.penalty = mean ? Penalty::None : Penalty::Dnf;
     means.push_back(s);
     bests.values.push_back(d.bestMs > 0 ? StatValue(d.bestMs) : std::nullopt);
+    dates.push_back(dayText(d.day));
   }
   auto *dayChart = new TrendChart(&dialog);
   dayChart->setSettingsKey("drill/dayChart");
   dayChart->setEmptyText(tr("Days will be charted once there are two"));
-  dayChart->setSolves(means);
+  // Each dot is a day's mean, named by its date; rolling averages of
+  // those means would only mislead, so the daily best is the line.
+  dayChart->setPointName(tr("day mean"));
+  dayChart->setAverages(false);
+  dayChart->setPointLabels(std::move(dates));
   dayChart->setSeries({bests});
+  dayChart->setSolves(means);
   dayChart->setMinimumHeight(140);
   layout->addWidget(dayChart, 1);
 

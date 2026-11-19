@@ -31,6 +31,7 @@
 #include "app/tsle_page.hpp"
 #include "app/ui_state.hpp"
 #include "app/untimed_page.hpp"
+#include "app/widgets.hpp"
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
 #include "io/data_file.hpp"
@@ -42,6 +43,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QEnterEvent>
@@ -66,6 +68,7 @@
 #include <QTextBrowser>
 #include <QThreadPool>
 #include <QTimer>
+#include <QToolTip>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
 
@@ -314,6 +317,7 @@ private slots:
   void settingsDialogOpensAndCloses();
   void interfaceTextSizeScalesTheText();
   void tipsShowInTheStatusBar();
+  void trendChartNamesWhatItCharts();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
@@ -2149,6 +2153,17 @@ void GuiTest::pagesTakeTheKeyboard() {
   QCOMPARE(tables.size(), 2);
   QCOMPARE(tables[0]->visualItemRect(tables[0]->topLevelItem(0)).height(),
            tables[1]->visualItemRect(tables[1]->topLevelItem(0)).height());
+  // A refresh with the same sets writes the rows in place: the items and
+  // their buttons stay (and so the scroll position and the mouse's button).
+  QTreeWidgetItem *firstRow = tables[0]->topLevelItem(0);
+  QWidget *firstButton = tables[0]->itemWidget(firstRow, 5);
+  QTreeWidgetItem *firstMode = tables[1]->topLevelItem(0);
+  QVERIFY(firstButton);
+  today->activated();
+  QCOMPARE(tables[0]->topLevelItem(0), firstRow);
+  QCOMPARE(tables[0]->itemWidget(firstRow, 5), firstButton);
+  QCOMPARE(tables[1]->topLevelItem(0), firstMode);
+  QVERIFY(!firstButton->findChild<QPushButton *>()->text().isEmpty());
   QTest::keyClick(window_.get(), Qt::Key_Down);
   QTreeWidgetItem *picked = tables[0]->currentItem();
   QVERIFY(picked && picked->isSelected());
@@ -2402,6 +2417,47 @@ void GuiTest::tipsShowInTheStatusBar() {
   QEvent leave(QEvent::Leave);
   QApplication::sendEvent(tipped, &leave);
   QVERIFY(bar->currentMessage().isEmpty());
+
+  // A dialog has no status bar: its tips pop up as tooltips.
+  QDialog dialog(window_.get());
+  auto *button = new QPushButton("Tipped", &dialog);
+  button->setToolTip("What the button does");
+  dialog.show();
+  QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+  QHelpEvent dialogHelp(QEvent::ToolTip, QPoint(1, 1),
+                        button->mapToGlobal(QPoint(1, 1)));
+  QApplication::sendEvent(button, &dialogHelp);
+  QVERIFY(bar->currentMessage().isEmpty());
+  QTRY_COMPARE(QToolTip::text(), button->toolTip());
+  QToolTip::hideText();
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
+// A chart of something other than solves (the drill history's days) names
+// its points and lines as it is told, and its text grows with the font.
+void GuiTest::trendChartNamesWhatItCharts() {
+  TrendChart chart;
+  chart.setPointName("day mean");
+  chart.setAverages(false);
+  chart.setPointLabels({"Mon 1", "Tue 2", "Wed 3"});
+  chart.setSeries({{"daily best", Role::Series3, {1000, 1100, 900}}});
+  std::vector<Solve> means(3);
+  means[0].timeMs = 1500;
+  means[1].timeMs = 1600;
+  means[2].timeMs = 1400;
+  chart.setSolves(means);
+  const QString said = chart.accessibleDescription();
+  QVERIFY2(said.contains("Wed 3: 1.40"), qPrintable(said));
+  QVERIFY2(said.contains("daily best: 0.90"), qPrintable(said));
+  QVERIFY2(!said.contains("ao5") && !said.contains("#3"), qPrintable(said));
+  // Paints at a large text size without trouble.
+  QFont big = chart.font();
+  big.setPointSizeF(big.pointSizeF() * 1.33);
+  chart.setFont(big);
+  chart.resize(260, 140);
+  QVERIFY(!chart.grab().isNull());
 }
 
 void GuiTest::helpPanelShowsTheKeys() {

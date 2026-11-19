@@ -91,7 +91,11 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
   start();
 }
 
-MoveCountPage::~MoveCountPage() { optimalWatcher_.waitForFinished(); }
+MoveCountPage::~MoveCountPage() {
+  // Stops the job at its next scramble rather than waiting for them all.
+  optimal_.invalidate();
+  optimalWatcher_.waitForFinished();
+}
 
 void MoveCountPage::showModeWidgets(bool virtualCube) {
   bool typed = !virtualCube; // the count is typed in

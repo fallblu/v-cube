@@ -34,6 +34,8 @@ public:
            QWidget *parent = nullptr);
   ~TslePage() override;
 
+  // The cards the mode offers, also counted on Today.
+  std::vector<std::string> cardPool() const override;
   // What the page shows, for tests and scripts.
   Slot slot() const { return slot_; }
   // The state the solve began in and the one the cube is in now (both
@@ -53,7 +55,6 @@ protected:
   void addOptions(OptionBar *bar) override;
   void addButtons(OptionBar *bar) override;
   void showOptions() override;
-  std::vector<std::string> cardPool() const override;
   std::optional<Setup> setUp(Extent extent, const std::string &card) override;
   void restarted() override;
   bool turned() override;
