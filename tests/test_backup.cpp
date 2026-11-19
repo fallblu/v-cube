@@ -94,3 +94,33 @@ TEST_CASE("export copies the data and the settings to a new folder") {
   CHECK_FALSE(error.isEmpty());
   CHECK_FALSE(QFile::exists(d.filePath("data/out")));
 }
+
+TEST_CASE("an export reaching the data folder through a link is refused") {
+  QTemporaryDir tmp;
+  QDir d(tmp.path());
+  writeText(d.filePath("data/sessions.json"), "s");
+  if (!QFile::link(d.filePath("data"), d.filePath("link"))) {
+    SKIP("links can't be made here");
+  }
+  QString error;
+  CHECK_FALSE(
+      exportAllData(d.filePath("data"), {}, d.filePath("link/out"), &error));
+  CHECK(error.contains("inside the data folder"));
+  CHECK_FALSE(QFile::exists(d.filePath("data/out")));
+  // Deeper, through a folder not made yet.
+  CHECK_FALSE(exportAllData(d.filePath("data"), {}, d.filePath("link/a/b/out"),
+                            &error));
+  CHECK_FALSE(QFile::exists(d.filePath("data/a")));
+  // The data folder reached through the link is refused too.
+  CHECK_FALSE(
+      exportAllData(d.filePath("link"), {}, d.filePath("data/out"), &error));
+  CHECK_FALSE(QFile::exists(d.filePath("data/out")));
+  CHECK(readText(d.filePath("data/sessions.json")) == "s");
+
+  // A link to elsewhere is fine.
+  QDir().mkpath(d.filePath("elsewhere"));
+  REQUIRE(QFile::link(d.filePath("elsewhere"), d.filePath("away")));
+  REQUIRE(
+      exportAllData(d.filePath("data"), {}, d.filePath("away/out"), &error));
+  CHECK(readText(d.filePath("elsewhere/out/data/sessions.json")) == "s");
+}
