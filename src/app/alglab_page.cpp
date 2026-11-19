@@ -163,6 +163,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     if (made.name.empty()) {
       made.name = p.name;
     }
+    made.name = store_.uniqueProfileName(made.name);
     store_.profiles().push_back(made);
     saveStore();
     fillProfiles();
@@ -416,6 +417,17 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     }
   });
 
+  // A search of many cases only shows one of them, so what it finds is
+  // also saved every few seconds.
+  saveTimer_.setSingleShot(true);
+  saveTimer_.setInterval(5000);
+  connect(&saveTimer_, &QTimer::timeout, this, [this] {
+    if (job_ && job_->dirty) {
+      job_->dirty = false;
+      saveStore();
+    }
+  });
+
   // Choices kept from last time.
   lengthMode_->setCurrentIndex(saved::lab("lengthMode", 0).get().toInt());
   extra_->setValue(saved::lab("extra", 2).get().toInt());
@@ -617,6 +629,17 @@ void AlgLabPage::applySettings() {
 
 bool AlgLabPage::isBusy() const { return test_->isBusy(); }
 
+void AlgLabPage::aboutToClose() {
+  if (!job_) {
+    return;
+  }
+  // Stop the search and take in what it has found: its results and its
+  // last call (searchFinished, which saves) are waiting in the queue.
+  job_->stop = true;
+  jobFuture_.waitForFinished();
+  QCoreApplication::sendPostedEvents(this, QEvent::MetaCall);
+}
+
 void AlgLabPage::activated() {
   setEdits_ = 0; // Library may have changed the sets since
 
@@ -807,6 +830,9 @@ void AlgLabPage::editLabCase() {
       LabCaseDialog d(c, library_, settings_, this);
       if (d.exec() == QDialog::Accepted) {
         c = d.labCase();
+        if (job_) {
+          job_->dropped.push_back(case_->key);
+        }
         saveStore();
         fillCases();
         test_->refresh();
@@ -834,6 +860,9 @@ void AlgLabPage::deleteLabCase() {
   }
   std::erase_if(store_.cases(),
                 [&](const LabCase &c) { return c.id == k.caseId; });
+  if (job_) {
+    job_->dropped.push_back(k);
+  }
   store_.removeCandidates(k);
   for (std::size_t i = store_.attempts().size(); i-- > 0;) {
     if (store_.attempts()[i].key == k) {
@@ -866,6 +895,13 @@ void AlgLabPage::fillProfiles() {
 }
 
 const ErgoProfile &AlgLabPage::profile() const {
+  // By position, as editing and deleting go; the box lists them in order.
+  const auto &ps = store_.profiles();
+  int i = profileBox_->currentIndex();
+  if (i >= 0 && i < static_cast<int>(ps.size()) &&
+      profileBox_->count() == static_cast<int>(ps.size())) {
+    return ps[static_cast<std::size_t>(i)];
+  }
   return store_.profile(profileBox_->currentText().toStdString());
 }
 
@@ -894,8 +930,11 @@ void AlgLabPage::editProfile(bool copy) {
   auto &ps = store_.profiles();
   int i = profileBox_->currentIndex();
   if (copy || i < 0 || i >= static_cast<int>(ps.size())) {
+    edited.name = store_.uniqueProfileName(edited.name);
     ps.push_back(edited);
   } else {
+    edited.name =
+        store_.uniqueProfileName(edited.name, static_cast<std::size_t>(i));
     ps[static_cast<std::size_t>(i)] = edited;
   }
   saveStore();

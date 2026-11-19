@@ -237,7 +237,7 @@ ErgoProfile ProfileDialog::profile() const {
     bool ok = false;
     double v =
         moves_->item(r, 1) ? moves_->item(r, 1)->text().toDouble(&ok) : 0.0;
-    if (ok) {
+    if (ok && validCost(v)) {
       p.moves[moves_->item(r, 0)->text().toStdString()] = v;
     }
   }
@@ -248,7 +248,7 @@ ErgoProfile ProfileDialog::profile() const {
     };
     bool ok = false;
     double cost = text(2).toDouble(&ok);
-    if (!text(0).isEmpty() && !text(1).isEmpty() && ok) {
+    if (!text(0).isEmpty() && !text(1).isEmpty() && ok && validCost(cost)) {
       p.rules.push_back({text(0).toStdString(), text(1).toStdString(), cost});
     }
   }
@@ -491,7 +491,7 @@ ErgoProfile GripProfileDialog::profile() const {
     int turn = text(TTurn).toInt(&turnOk);
     double cost = text(TCost).toDouble(&costOk);
     if (!parsed || parsed.alg.size() != 1 || !from || !turnOk || !costOk ||
-        turn < -4 || turn > 4 || cost < 0) {
+        turn < -4 || turn > 4 || !validCost(cost)) {
       continue;
     }
     GripTrick t;

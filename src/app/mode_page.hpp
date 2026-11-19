@@ -48,6 +48,10 @@ public:
   // busy: leaving disarms it.
   virtual bool isBusy() const { return false; }
 
+  // The window is closing: finish background work and queue what is
+  // still to be saved, before the last writes are waited for.
+  virtual void aboutToClose() {}
+
   // The page was shown or hidden, e.g. to refresh shared state, start or
   // stop timers, and finish animations.
   virtual void activated() {}

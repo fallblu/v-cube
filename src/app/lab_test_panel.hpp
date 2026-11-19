@@ -87,6 +87,8 @@ private:
   Rng rng_;
   std::optional<Current> current_;
   std::optional<std::size_t> lastEntry_;
+  // Points current_ at its entry again, or moves on if that is gone.
+  void rebaseCurrent();
   std::optional<std::size_t> lastAttempt_; // index into the store
   SolveTimer timer_;
   QTimer tick_;
