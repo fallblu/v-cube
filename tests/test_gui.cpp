@@ -34,7 +34,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QDir>
+#include <QEnterEvent>
 #include <QFile>
 #include <QLabel>
 #include <QLineEdit>
@@ -45,6 +47,7 @@
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -285,6 +288,8 @@ private slots:
   void eoCrossLearnAndTimed();
   void practiceModesComeBackAsLeft();
   void settingsDialogOpensAndCloses();
+  void interfaceTextSizeScalesTheText();
+  void tipsShowInTheStatusBar();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
   void cleanupTestCase();
@@ -1555,6 +1560,81 @@ void GuiTest::settingsDialogOpensAndCloses() {
   // Closed without OK: the settings are as they were.
   QCOMPARE(settings_.holdMs, AppSettings{}.holdMs);
   QCOMPARE(shownPage(*window_), page<TimerPage>());
+}
+
+void GuiTest::interfaceTextSizeScalesTheText() {
+  // Chooses an interface text size in Settings and presses OK.
+  auto choose = [this](int percent) {
+    ModalWatcher watcher([percent](QWidget *m) {
+      auto *dialog = qobject_cast<SettingsDialog *>(m);
+      if (!dialog) {
+        return;
+      }
+      for (auto *box : dialog->findChildren<QComboBox *>()) {
+        if (box->findData(108) >= 0 && box->findData(133) >= 0) {
+          box->setCurrentIndex(box->findData(percent));
+        }
+      }
+      dialog->findChild<QDialogButtonBox *>()
+          ->button(QDialogButtonBox::Ok)
+          ->click();
+    });
+    QTest::keySequence(window_.get(), QKeySequence(Qt::CTRL | Qt::Key_Comma));
+    QTRY_VERIFY(!watcher.seen.isEmpty());
+    QTRY_VERIFY(!QApplication::activeModalWidget());
+    window_->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  };
+  QVERIFY(switchTo(AppMode::Today, page<TodayPage>()));
+  QLabel *title = nullptr;
+  for (auto *label : page<TodayPage>()->findChildren<QLabel *>()) {
+    if (label->text() == "Today") {
+      title = label;
+    }
+  }
+  QVERIFY(title);
+  const double body = QApplication::font().pointSizeF();
+  const double display = title->font().pointSizeF();
+  QVERIFY(display > body * 1.5);
+
+  // The largest size: the text and everything worked out from it grow,
+  // at once.
+  choose(133);
+  QCOMPARE(settings_.interfaceTextPercent, 133);
+  QVERIFY(QApplication::font().pointSizeF() > body * 1.3);
+  QVERIFY(page<TodayPage>()->font().pointSizeF() > body * 1.3);
+  QVERIFY(title->font().pointSizeF() > display * 1.3);
+  QCOMPARE(AppSettings::load().interfaceTextPercent, 133);
+
+  choose(100);
+  QCOMPARE(QApplication::font().pointSizeF(), body);
+  QCOMPARE(title->font().pointSizeF(), display);
+}
+
+void GuiTest::tipsShowInTheStatusBar() {
+  QVERIFY(switchTo(AppMode::Timed, page<TimerPage>()));
+  QWidget *tipped = nullptr;
+  for (auto *w : page<TimerPage>()->findChildren<QWidget *>()) {
+    if (w->isVisible() && !w->toolTip().isEmpty()) {
+      tipped = w;
+      break;
+    }
+  }
+  QVERIFY(tipped);
+  QStatusBar *bar = window_->statusBar();
+  bar->clearMessage();
+  // Never as a tooltip; in the status bar while the mouse is over it.
+  QHelpEvent help(QEvent::ToolTip, QPoint(1, 1),
+                  tipped->mapToGlobal(QPoint(1, 1)));
+  QVERIFY(QApplication::sendEvent(tipped, &help));
+  QCOMPARE(bar->currentMessage(), tipped->toolTip().simplified());
+  bar->clearMessage();
+  QEnterEvent enter(QPointF(1, 1), QPointF(1, 1), QPointF(1, 1));
+  QApplication::sendEvent(tipped, &enter);
+  QCOMPARE(bar->currentMessage(), tipped->toolTip().simplified());
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(tipped, &leave);
+  QVERIFY(bar->currentMessage().isEmpty());
 }
 
 void GuiTest::helpPanelShowsTheKeys() {

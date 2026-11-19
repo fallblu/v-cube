@@ -59,6 +59,9 @@ anyway.
   mode, with what a right-click in the mode's list offers.
 - **Keys on the page**: under the cube, each practice mode shows a short
   message and the keys that do something right now.
+- **Tips in the status bar**: nothing pops up beside the mouse; pointing
+  at a control, a list column or a statistic writes what it does in the
+  status bar instead.
 - The window reopens where you left it, with the same list widths, but
   never in full screen or focus mode. It can be as narrow as half a 1080p
   screen; option rows wrap, and the chart gives up its room before the cube
