@@ -1311,9 +1311,8 @@ void PracticePage::toggleDnf() {
   if (!item_.recorded || !flow_.setWrong(!flow_.failed())) {
     return;
   }
-  auto tries = store_.data.timed.find(timedGroupKey());
-  if (tries != store_.data.timed.end() && !tries->second.empty()) {
-    tries->second.back().dnf = flow_.failed();
+  if (PracticeTry *t = newestTry(store_.data.timed, timedGroupKey())) {
+    t->dnf = flow_.failed();
   }
   item_.gaveUp = flow_.failed();
   display_->showTime(item_.ms, flow_.failed() ? Penalty::Dnf : Penalty::None);
@@ -1324,13 +1323,7 @@ void PracticePage::toggleDnf() {
 
 void PracticePage::deleteTry() {
   if (item_.recorded) {
-    auto tries = store_.data.timed.find(timedGroupKey());
-    if (tries != store_.data.timed.end() && !tries->second.empty()) {
-      tries->second.pop_back();
-      if (tries->second.empty()) {
-        store_.data.timed.erase(tries);
-      }
-    }
+    dropNewestTry(store_.data.timed, timedGroupKey());
     item_.recorded = false;
     save();
     refreshList();
@@ -1405,13 +1398,13 @@ void PracticePage::analysisArrived(int id) {
   const Outcome before = *item_.outcome;
   item_.outcome = judge();
   if (item_.recorded && item_.card.empty()) {
-    PracticeTries &all = tabTries(store_.data, tab_);
-    auto tries = all.find(tab_ == Tab::Timed ? timedGroupKey() : item_.group);
-    if (tries != all.end() && !tries->second.empty() &&
-        (before.extra != item_.outcome->extra ||
-         before.bestMoves != item_.outcome->bestMoves)) {
-      tries->second.back().best = item_.outcome->bestMoves;
-      tries->second.back().extra = item_.outcome->extra;
+    PracticeTry *t =
+        newestTry(tabTries(store_.data, tab_),
+                  tab_ == Tab::Timed ? timedGroupKey() : item_.group);
+    if (t && (before.extra != item_.outcome->extra ||
+              before.bestMoves != item_.outcome->bestMoves)) {
+      t->best = item_.outcome->bestMoves;
+      t->extra = item_.outcome->extra;
       save();
       refreshList();
     }

@@ -66,6 +66,14 @@ struct PracticeData {
 // "virtual/eocross", "physical/zz-1".
 std::string timedKey(CubeKind cube, const std::string &group);
 
+// The newest try kept under `key`, which is the one a solve just recorded;
+// null when there is none.
+PracticeTry *newestTry(PracticeTries &tries, const std::string &key);
+// Takes it back. A group left without tries is dropped.
+void dropNewestTry(PracticeTries &tries, const std::string &key);
+// Drops every timed attempt made on a cube.
+void clearTimed(PracticeTries &timed, CubeKind cube);
+
 // How a group's tries went.
 struct PracticeSummary {
   int tries = 0;                      // in all

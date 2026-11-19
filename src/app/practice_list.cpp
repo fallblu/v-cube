@@ -344,13 +344,9 @@ void PracticeList::clear() {
   case PracticeTab::Untimed:
     data_.learn.clear();
     break;
-  case PracticeTab::Timed: {
-    const std::string prefix = timedKey(view_.cube, {});
-    std::erase_if(data_.timed, [&prefix](const auto &entry) {
-      return entry.first.starts_with(prefix);
-    });
+  case PracticeTab::Timed:
+    clearTimed(data_.timed, view_.cube);
     break;
-  }
   }
   refresh();
   emit cleared();
