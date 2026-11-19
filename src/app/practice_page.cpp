@@ -32,7 +32,6 @@ namespace vcube {
 namespace {
 
 constexpr int kKeyRole = Qt::UserRole;
-constexpr int kListColumns = 5;
 constexpr int kCardRole = Qt::UserRole + 1; // the row is a card's
 
 QString small(const QString &text) {
@@ -287,14 +286,11 @@ void PracticePage::buildSide() {
   summary_->setTextFormat(Qt::RichText);
   tree_ = new QTreeWidget(side_);
   tree_->setObjectName("practiceList");
-  tree_->setColumnCount(kListColumns);
   tree_->setRootIsDecorated(false);
   tree_->setFocusPolicy(Qt::NoFocus);
   tree_->header()->setStretchLastSection(false);
+  // The first column takes the room; fillList() sets up the others.
   tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-  for (int c = 1; c < kListColumns; ++c) {
-    tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
-  }
   listHelp_ = helpLabel({}, side_);
   clearButton_ = flatButton(tr("Clear progress…"), side_);
   layout->addWidget(summary_);
@@ -382,6 +378,10 @@ void PracticePage::optionChanged() {
   item_ = {};
   progress_.clear();
   readyPending_ = true;
+  // Only Timed and Inspection have a clock to keep up.
+  if (tab_ != Tab::Timed && tab_ != Tab::Inspection) {
+    tick_.stop();
+  }
   showBar();
   fillList();
   if (active_) {
@@ -682,6 +682,15 @@ void PracticePage::leaveChoice(bool confirmed) {
     cubeView_->finishAnimations();
     cubeView_->setState(cube_);
     analysisArrived(item_.id); // judged against the solutions as they are
+    // The grade follows the verdict, unless you gave it yourself.
+    if (item_.graded && item_.recorded && item_.grade && item_.outcome &&
+        !item_.gradedByHand) {
+      const Grade g =
+          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      if (g != *item_.grade) {
+        regrade(g);
+      }
+    }
   }
   showAll();
 }
@@ -964,6 +973,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
   if (phase_ == Phase::Done && item_.graded && item_.grade && !waiting_ &&
       e->key() >= Qt::Key_1 && e->key() <= Qt::Key_4) {
     regrade(static_cast<Grade>(e->key() - Qt::Key_1 + 1));
+    item_.gradedByHand = true;
     return true;
   }
   if (phase_ == Phase::Done && !waiting_ && doneKey(e)) {
@@ -1468,9 +1478,7 @@ void PracticePage::analysisArrived(int id) {
   const Outcome before = *item_.outcome;
   item_.outcome = judge();
   if (item_.recorded && item_.card.empty()) {
-    PracticeTries &all = tab_ == Tab::Timed        ? store_.data.timed
-                         : tab_ == Tab::Inspection ? store_.data.inspection
-                                                   : store_.data.learn;
+    PracticeTries &all = tabTries();
     auto tries = all.find(tab_ == Tab::Timed ? timedGroupKey() : item_.group);
     if (tries != all.end() && !tries->second.empty() &&
         (before.extra != item_.outcome->extra ||
@@ -1485,6 +1493,31 @@ void PracticePage::analysisArrived(int id) {
 }
 
 // --- what is shown -----------------------------------------------------------
+
+QString PracticePage::bestLine(const Outcome &o) const {
+  if (o.best.empty() && o.bestText.isEmpty()) {
+    return {};
+  }
+  return (o.bestLabel.isEmpty() ? tr("Best") : o.bestLabel) + ": <b>" +
+         (o.bestText.isEmpty() ? algText(o.best) : o.bestText) + "</b>";
+}
+
+PracticeTries &PracticePage::tabTries() {
+  return const_cast<PracticeTries &>(std::as_const(*this).tabTries());
+}
+
+const PracticeTries &PracticePage::tabTries() const {
+  switch (tab_) {
+  case Tab::Timed:
+    return store_.data.timed;
+  case Tab::Inspection:
+    return store_.data.inspection;
+  case Tab::Untimed:
+  case Tab::Learn:
+    break;
+  }
+  return store_.data.learn;
+}
 
 void PracticePage::play(const Alg &alg) {
   if (alg.empty() || item_.id == 0) {
@@ -1780,11 +1813,8 @@ void PracticePage::showVerdict() {
       if (!verdict.isEmpty()) {
         lines << verdict;
       }
-      if (!o.best.empty() || !o.bestText.isEmpty()) {
-        lines << (o.bestLabel.isEmpty() ? tr("Best") : o.bestLabel) + ": " +
-                     "<b>" +
-                     (o.bestText.isEmpty() ? algText(o.best) : o.bestText) +
-                     "</b>";
+      if (const QString best = bestLine(o); !best.isEmpty()) {
+        lines << best;
       }
     }
     const QString grade = gradeLine();
@@ -1815,12 +1845,8 @@ void PracticePage::showVerdict() {
         if (!o.verdict.isEmpty()) {
           eff << o.verdict;
         }
-        if (!o.best.empty() || !o.bestText.isEmpty()) {
-          eff << tr("Best: %1")
-                     .arg(
-                         "<b>" +
-                         (o.bestText.isEmpty() ? algText(o.best) : o.bestText) +
-                         "</b>");
+        if (const QString best = bestLine(o); !best.isEmpty()) {
+          eff << best;
         }
         if (!eff.isEmpty()) {
           html += "<p align='center'>" + eff.join("<br>") + "</p>";
@@ -1992,10 +2018,7 @@ void PracticePage::refreshList() {
       row->setForeground(1, status == tr("due") ? QBrush(kWarnColour) : muted);
       return;
     }
-    const PracticeTries &all = tab_ == Tab::Timed ? store_.data.timed
-                               : tab_ == Tab::Inspection
-                                   ? store_.data.inspection
-                                   : store_.data.learn;
+    const PracticeTries &all = tabTries();
     auto it = all.find(tab_ == Tab::Timed ? timedKey(physical_, key) : key);
     const PracticeSummary s =
         it == all.end() ? PracticeSummary{} : summarize(it->second);
