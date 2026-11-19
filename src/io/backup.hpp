@@ -16,12 +16,23 @@ inline constexpr const char *kBackupsFolder = "backups";
 inline constexpr const char *kDeletedFolder = "deleted";
 
 // Copies every file in `dataDir` (and its subfolders, but not the backup
-// and deleted folders or lock files) to <dataDir>/backups/<yyyy-MM-dd>/,
-// keeping the folder layout, unless today's copy exists. Only the newest `keep`
-// dated copies are kept. Returns false, with the reason in `error`, if a file
-// couldn't be copied.
-bool makeDailyBackup(const QString &dataDir, const QDate &today, int keep,
-                     QString *error = nullptr);
+// and deleted folders, lock files or save temporaries) to
+// <dataDir>/backups/<yyyy-MM-dd>/, keeping the folder layout, and
+// `settingsFile` (if given and there) to its settings/ subfolder, unless
+// today's copy exists. Only the newest `keep` dated copies are kept. Returns
+// false, with the reason in `error`, if a file couldn't be copied.
+bool makeDailyBackup(const QString &dataDir, const QString &settingsFile,
+                     const QDate &today, int keep, QString *error = nullptr);
+
+// Whether `name` is a temporary file left by a save that was cut short
+// (<file>.json.XXXXXX, or .ini), which never became the file itself.
+bool isSaveTemporary(const QString &name);
+
+// Moves the save temporaries in `dataDir` (outside the backup and deleted
+// folders) into <dataDir>/deleted/unsaved/, so that they don't pile up and
+// get copied into every backup, while what they hold is still there to look
+// at. Returns how many were moved. Call it before anything is saved.
+int moveSaveTemporaries(const QString &dataDir, const QDateTime &when);
 
 // Moves `file` into `folder` (made if needed) as <name>.<yyyyMMdd-hhmmss>
 // .<suffix>, so that a deleted file can still be brought back by hand.
