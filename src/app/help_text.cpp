@@ -77,13 +77,15 @@ struct Section {
    T("rotations only")},                                                       \
       {T("Timed, virtual, before the solve"), T("Space"),                      \
        T("arm the timer: the first face turn starts it (or hold Space and "    \
-         "let go, if Settings > Drill says so)")},                             \
+         "let go, if Settings > Timing and solves says so: Drill and "         \
+         "practice Timed, timer start)")},                                     \
       {T("Timed, virtual, solving"), T("Space"),                               \
        T("stop now: a DNF unless the step is done (the timer stops by itself " \
          "when it is)")},                                                      \
       {T("Timed, physical"), T("hold Space, release"),                         \
        T("start the timer, once the scramble is done")},                       \
-      {T("Timed, physical, solving"), T("any key"), T("stop the timer")},      \
+      {T("Timed, physical, solving"), T("any key but Shift, Ctrl or Alt"),     \
+       T("stop the timer")},                                                   \
       {T("Timed, before or during the solve"), T("Shift+Space"),               \
        T("give up: a DNF (Backspace instead, if Settings > Drill says so)")},  \
       {T("Timed, solving"), T("Esc"), T("cancel: nothing is recorded")},       \

@@ -729,15 +729,16 @@ they were.
 
 ### Timed
 
-Timed works exactly as [Drill](#drill) does, with the same settings
-(Settings > Drill):
+Timed works exactly as [Drill](#drill) does, with Drill's settings
+(Settings > Drill and the *Drill and practice Timed* rows of Settings >
+Timing and solves):
 
 - **Virtual cube**: the state is shown and can only be turned as a whole.
   A tap of `Space` arms the timer, the first face turn starts it, and it
   stops by itself when the step is done. `Space` stops it early: a DNF
   unless the step is done.
 - **Physical cube** (**Cube** in the bar): a scramble is shown. Hold
-  `Space` and let go to start; any key stops. Nothing can be checked, so
+  `Space` and let go to start; any key but Shift, Ctrl or Alt stops. Nothing can be checked, so
   mark a DNF yourself.
 
 The result is about speed: the time, then your moves, turns per second
