@@ -32,7 +32,6 @@ namespace vcube {
 namespace {
 
 constexpr int kKeyRole = Qt::UserRole;
-constexpr int kListColumns = 5;
 constexpr int kCardRole = Qt::UserRole + 1; // the row is a card's
 
 QString small(const QString &text) {
@@ -287,14 +286,11 @@ void PracticePage::buildSide() {
   summary_->setTextFormat(Qt::RichText);
   tree_ = new QTreeWidget(side_);
   tree_->setObjectName("practiceList");
-  tree_->setColumnCount(kListColumns);
   tree_->setRootIsDecorated(false);
   tree_->setFocusPolicy(Qt::NoFocus);
   tree_->header()->setStretchLastSection(false);
+  // The first column takes the room; fillList() sets up the others.
   tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-  for (int c = 1; c < kListColumns; ++c) {
-    tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
-  }
   listHelp_ = helpLabel({}, side_);
   clearButton_ = flatButton(tr("Clear progress…"), side_);
   layout->addWidget(summary_);
@@ -382,6 +378,10 @@ void PracticePage::optionChanged() {
   item_ = {};
   progress_.clear();
   readyPending_ = true;
+  // Only Timed and Inspection have a clock to keep up.
+  if (tab_ != Tab::Timed && tab_ != Tab::Inspection) {
+    tick_.stop();
+  }
   showBar();
   fillList();
   if (active_) {
