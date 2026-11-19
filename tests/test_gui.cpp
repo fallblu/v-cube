@@ -740,8 +740,11 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY(!f2l->graded());
   QVERIFY(f2l->cube() == f2l->startCube());
   QTest::keyClick(window_.get(), Qt::Key_Tab);
-  auto *hint = f2l->findChild<HintBar *>();
-  QVERIFY2(hint->message().startsWith("Hint:"), qPrintable(hint->message()));
+  // Under the cube, larger than the text around it.
+  auto *hint = f2l->findChild<QLabel *>("practiceHint");
+  QVERIFY(hint && hint->isVisible());
+  QVERIFY2(hint->text().startsWith("Hint:"), qPrintable(hint->text()));
+  QVERIFY(hint->font().pointSizeF() > QApplication::font().pointSizeF());
   QVERIFY(f2l->cube() == f2l->startCube());
   QTest::keyClick(window_.get(), Qt::Key_Backspace);
   QCOMPARE(f2l->phase(), Phase::Done);

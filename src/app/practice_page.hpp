@@ -366,6 +366,7 @@ private:
   TimeDisplay *display_ = nullptr;
   HintBar *hint_ = nullptr;
   QLabel *verdict_ = nullptr;
+  QLabel *requestedHint_ = nullptr; // Tab's hint, under the cube
   QLabel *progressLabel_ = nullptr;
   QLabel *detail_ = nullptr;
   QScrollArea *detailScroll_ = nullptr;

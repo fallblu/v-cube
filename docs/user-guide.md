@@ -644,7 +644,8 @@ time:
    back in a minute to do from memory. `Space` skips the showing for a
    case you know.
 2. A **due case** is set up without its name. Solve it. `Tab` gives a
-   hint, `Backspace` gives up, `Esc` starts again.
+   hint, shown large under the cube; `Backspace` gives up, `Esc` starts
+   again.
 3. The card is graded **Good** when you solved it unaided and well, and
    **Again** after a hint, giving up or a poor solution. `1`–`4` change
    the grade to Again, Hard, Good or Easy.
