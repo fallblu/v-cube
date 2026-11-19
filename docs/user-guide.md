@@ -768,7 +768,10 @@ leaves open).
   listed too, ticked to start with. `1`–`9` tick and untick, a click on a
   solution plays it on the cube, and the field under the list takes one of
   your own, as done for the slot shown. `Enter` confirms. After a try of
-  the card, `0` changes them (`Esc` leaves them as they were).
+  the card, `0` changes them (`Esc` leaves them as they were). Solutions
+  a method doesn't allow (an F quarter turn chosen with CFOP, under ZZ)
+  don't count with it: a case with none left is chosen for again, and the
+  others are kept for the method they were chosen with.
 - **Good** is one of your solutions, from any AUF and however the cube was
   turned, or anything that costs no more than the cheapest of them; `+`
   then adds what you did to your solutions. `Tab` while solving shows a

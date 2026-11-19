@@ -61,6 +61,9 @@ public:
   std::vector<RankedSolution> shownSolutions() const;
   // The card's chosen solutions, written for its side's own slot.
   std::vector<Alg> chosenSolutions(const std::string &card) const;
+  // The card on the cube's chosen solutions that can be done from its state
+  // with the method's moves (one chosen with another method may not).
+  std::vector<Alg> usableSolutions() const;
   // The solutions offered while choosing (written for the side's own
   // slot), whether each is ticked, and whether they are worked out.
   struct Candidate {
@@ -154,8 +157,12 @@ private:
   // Choosing.
   std::vector<Candidate> candidates_;
   bool candidatesReady_ = false;
-  int candidateRequest_ = 0;
-  std::map<std::string, std::vector<RankedSolution>> searched_; // by card
+  // What the candidates were searched for (card, method's moves, profile),
+  // the search going on and what stops it, and what each search found.
+  std::string searchKey() const;
+  std::string searching_;
+  std::shared_ptr<std::atomic<bool>> candidateStop_;
+  std::map<std::string, std::vector<RankedSolution>> searched_;
 
   QComboBox *methodBox_ = nullptr;
   QToolButton *leaveButton_ = nullptr;
