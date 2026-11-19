@@ -1244,7 +1244,7 @@ void MainWindow::applyWindowSettings() {
   double scale = settings_.hintTextPercent / 100.0;
   QFont base = QApplication::font();
   QFont hint = base;
-  hint.setPointSizeF(base.pointSizeF() * scale);
+  scaleSize(hint, base, scale);
   for (ModePage *page : pages_) {
     for (QLabel *label : page->findChildren<QLabel *>()) {
       // Labels given a font of their own keep it.

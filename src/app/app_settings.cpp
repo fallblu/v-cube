@@ -360,6 +360,11 @@ void applyTheme(QApplication &app, bool dark) {
     p.setColor(QPalette::ButtonText, text);
     p.setColor(QPalette::BrightText, Qt::white);
     p.setColor(QPalette::Highlight, accent);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    // Spelled out, or a platform with an accent of its own (Windows 11)
+    // would bring the desktop's to the controls that use it.
+    p.setColor(QPalette::Accent, accent);
+#endif
     p.setColor(QPalette::HighlightedText, Qt::white);
     p.setColor(QPalette::Link, QColor(0x1a, 0x62, 0xc0));
     p.setColor(QPalette::Light, Qt::white);
@@ -398,6 +403,9 @@ void applyTheme(QApplication &app, bool dark) {
   p.setColor(QPalette::ButtonText, text);
   p.setColor(QPalette::BrightText, Qt::white);
   p.setColor(QPalette::Highlight, accent);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+  p.setColor(QPalette::Accent, accent); // as in the light theme
+#endif
   p.setColor(QPalette::HighlightedText, Qt::white);
   p.setColor(QPalette::Link, QColor(0x6a, 0xaa, 0xff));
   p.setColor(QPalette::Mid, QColor(0x3a, 0x3b, 0x40));

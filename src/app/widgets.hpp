@@ -9,11 +9,13 @@
 #include "train/timer.hpp"
 
 #include <QColor>
+#include <QDate>
 #include <QFuture>
 #include <QLabel>
 #include <QPixmap>
 #include <QRectF>
 #include <QSize>
+#include <QTimeZone>
 #include <QWidget>
 
 #include <cstdint>
@@ -184,5 +186,8 @@ std::int64_t monotonicMs();
 std::int64_t unixNow();
 std::int64_t localDayStart();
 std::int64_t localDayEnd();
+// Unix seconds of the first moment of `day` in `zone`: 01:00 where the
+// clocks go forward at midnight.
+std::int64_t dayStart(const QDate &day, const QTimeZone &zone);
 
 } // namespace vcube

@@ -31,15 +31,6 @@ double roleScale(TextRole role) {
   return 1.0;
 }
 
-// `base` at `scale` times its size, in points or pixels as it is given.
-void scaleSize(QFont &f, const QFont &base, double scale) {
-  if (base.pointSizeF() > 0) {
-    f.setPointSizeF(base.pointSizeF() * scale);
-  } else if (base.pixelSize() > 0) {
-    f.setPixelSize(static_cast<int>(std::lround(base.pixelSize() * scale)));
-  }
-}
-
 // Only the size and the weight: the rest comes from the widget's parent.
 QFont roleOnly(TextRole role, bool bold) {
   QFont f;
@@ -56,6 +47,14 @@ std::optional<QFont> &systemFont() {
 }
 
 } // namespace
+
+void scaleSize(QFont &f, const QFont &base, double scale) {
+  if (base.pointSizeF() > 0) {
+    f.setPointSizeF(base.pointSizeF() * scale);
+  } else if (base.pixelSize() > 0) {
+    f.setPixelSize(static_cast<int>(std::lround(base.pixelSize() * scale)));
+  }
+}
 
 void setTextRole(QWidget *w, TextRole role, bool bold) {
   w->setProperty(kRoleProperty, static_cast<int>(role) + 1);

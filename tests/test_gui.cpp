@@ -26,6 +26,7 @@
 #include "app/quiz_practice.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
+#include "app/text_style.hpp"
 #include "app/timed_driver.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
@@ -340,6 +341,9 @@ private slots:
   void trendChartNamesWhatItCharts();
   void trendChartHoverKeepsThePlot();
   void helpPanelShowsTheKeys();
+  void floatingHelpPanelPassesKeysOn();
+  void aDayStartsAfterAMissingMidnight();
+  void spaceHoldEndsWhenTheWindowIsLeft();
   void aLockFromAnotherHostCanBeTakenOver();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
@@ -2228,6 +2232,11 @@ void GuiTest::themeColoursAreReadable() {
     // White text on a selection, a grade badge or the banner.
     QVERIFY(contrast(pal.color(QPalette::HighlightedText),
                      pal.color(QPalette::Highlight)) >= 4.5);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    // The accent is the app's, not the desktop's.
+    QCOMPARE(pal.color(QPalette::Accent), pal.color(QPalette::Highlight));
+    QVERIFY(pal.isBrushSet(QPalette::Active, QPalette::Accent));
+#endif
     for (Role r :
          {Role::GradeAgain, Role::GradeHard, Role::GradeGood, Role::GradeEasy,
           Role::GradeNone, Role::GradeWalked, Role::Banner}) {
@@ -2491,6 +2500,16 @@ void GuiTest::settingsDialogOpensAndCloses() {
 }
 
 void GuiTest::interfaceTextSizeScalesTheText() {
+  // A size scales in the unit the font gives it, points or pixels.
+  {
+    QFont points, pixels, f;
+    points.setPointSizeF(10);
+    pixels.setPixelSize(14);
+    scaleSize(f, points, 1.5);
+    QCOMPARE(f.pointSizeF(), 15.0);
+    scaleSize(f, pixels, 1.5);
+    QCOMPARE(f.pixelSize(), 21);
+  }
   // Chooses an interface text size in Settings and presses OK.
   auto choose = [this](int percent) {
     ModalWatcher watcher([percent](QWidget *m) {
@@ -2652,6 +2671,81 @@ void GuiTest::helpPanelShowsTheKeys() {
   QTRY_VERIFY(text->toPlainText() != timed);
   QTest::keyClick(window_.get(), Qt::Key_F1);
   QTRY_VERIFY(!help->isVisible());
+}
+
+// The help panel floated is a window of its own: keys pressed while it is
+// the active window still reach the page (Space starts Timed's clock).
+void GuiTest::floatingHelpPanelPassesKeysOn() {
+  auto *timed = page<TimerPage>();
+  QVERIFY(switchTo(AppMode::Timed, timed));
+  auto *help = page<HelpPanel>();
+  QTest::keyClick(window_.get(), Qt::Key_F1);
+  QTRY_VERIFY(help->isVisible());
+  help->setFloating(true);
+  QVERIFY(help->isWindow());
+  help->activateWindow();
+  QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget *>(help));
+  QVERIFY(QTest::qWaitFor(
+      [&] {
+        QTest::keyPress(help, Qt::Key_Space);
+        QTest::qWait(settings_.holdMs + 150);
+        QTest::keyRelease(help, Qt::Key_Space);
+        return timed->isBusy();
+      },
+      10000));
+  QTest::qWait(50);
+  QTest::keyClick(help, Qt::Key_A); // any key stops it
+  QVERIFY(!timed->isBusy());
+  help->setFloating(false);
+  help->hide();
+  window_->activateWindow();
+  QTRY_VERIFY(window_->isActiveWindow());
+}
+
+// Space held in Timed, then another window takes the keyboard (Alt+Tab)
+// and the release goes there: the hold is dropped rather than left
+// waiting, nothing starts, and the next hold works as before.
+void GuiTest::spaceHoldEndsWhenTheWindowIsLeft() {
+  auto *timed = page<TimerPage>();
+  QVERIFY(switchTo(AppMode::Timed, timed));
+  QTest::keyPress(window_.get(), Qt::Key_Space);
+  QTest::qWait(settings_.holdMs + 150);
+  QVERIFY(timed->isBusy()); // the hold is shown
+  QWidget other;
+  other.show();
+  other.activateWindow();
+  QTRY_COMPARE(QApplication::activeWindow(), &other);
+  QVERIFY(!timed->isBusy());
+  QTest::keyRelease(&other, Qt::Key_Space); // lost to the other window
+  window_->activateWindow();
+  QTRY_VERIFY(window_->isActiveWindow());
+  QVERIFY(!timed->isBusy());
+  QVERIFY(QTest::qWaitFor(
+      [&] {
+        holdSpace();
+        return timed->isBusy();
+      },
+      10000));
+  QTest::qWait(50);
+  QTest::keyClick(window_.get(), Qt::Key_A); // any key stops it
+  QVERIFY(!timed->isBusy());
+}
+
+// São Paulo's clocks went from 00:00 to 01:00 on 4 November 2018: that
+// day started at 01:00 local time (03:00 UTC), and lasted 23 hours.
+void GuiTest::aDayStartsAfterAMissingMidnight() {
+  const QTimeZone zone("America/Sao_Paulo");
+  if (!zone.isValid() ||
+      zone.offsetFromUtc(QDateTime(QDate(2018, 11, 5), QTime(12, 0),
+                                   QTimeZone::UTC)) != -2 * 3600) {
+    QSKIP("no history for America/Sao_Paulo here");
+  }
+  const QDate day(2018, 11, 4);
+  const std::int64_t start = dayStart(day, zone);
+  QCOMPARE(start,
+           QDateTime(day, QTime(3, 0), QTimeZone::UTC).toSecsSinceEpoch());
+  QCOMPARE(dayStart(day.addDays(1), zone) - start, 23 * 3600);
+  QCOMPARE(dayStart(day.addDays(-1), zone) + 24 * 3600, start);
 }
 
 // A lock left by a crash under another host name is never stale by

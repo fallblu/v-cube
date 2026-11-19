@@ -1179,3 +1179,35 @@ TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {
   CHECK(solves[1].moves == "r U");
   CHECK(solves[2].moves.empty());
 }
+
+TEST_CASE("a built-in set's file from a newer version is not restored over") {
+  QTemporaryDir tmp;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    lib.progress("pll")["T"].record({100, 1500, false});
+    REQUIRE(lib.saveProgress("pll"));
+  }
+  finishBackgroundWrites();
+  // pll.json as a later version writes it (after a downgrade).
+  const QString path = QDir(tmp.path()).filePath("pll.json");
+  QFile f(path);
+  REQUIRE(f.open(QIODevice::ReadOnly));
+  QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+  f.close();
+  o["version"] = 99;
+  REQUIRE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  f.write(QJsonDocument(o).toJson());
+  f.close();
+
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE_FALSE(lib.find("pll"));
+  QString error;
+  CHECK_FALSE(lib.restoreBuiltin("pll", &error));
+  CHECK(error.contains("pll.json"));
+  // Nothing moved or made: the file, its progress and no pll-2.
+  CHECK_FALSE(lib.find("pll-2"));
+  CHECK(QFile::exists(path));
+  CHECK(QFile::exists(QDir(tmp.path()).filePath("progress/pll.json")));
+}

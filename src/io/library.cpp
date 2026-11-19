@@ -428,6 +428,18 @@ bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
     return false;
   }
   AlgSet *current = find(id);
+  if (!current && QFile::exists(pathFor(id))) {
+    // Its file is there but wasn't loaded (written by a newer v-cube, or
+    // not openable): left as it is, as is its progress, rather than a
+    // second set made beside it.
+    if (error) {
+      *error = QString("%1 is in the data folder but couldn't be loaded, so "
+                       "the built-in set isn't restored beside it; update "
+                       "v-cube, or move the file out while v-cube is closed")
+                   .arg(QFileInfo(pathFor(id)).fileName());
+    }
+    return false;
+  }
   if (!current) {
     // Progress left behind (its set's file was set aside, or removed by
     // hand) goes where a deleted set's does, so the restored set starts

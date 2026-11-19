@@ -34,14 +34,19 @@ std::int64_t monotonicMs() {
 
 std::int64_t unixNow() { return QDateTime::currentSecsSinceEpoch(); }
 
+std::int64_t dayStart(const QDate &day, const QTimeZone &zone) {
+  // Not QDateTime(day, QTime(0, 0)): a midnight that doesn't exist is then
+  // resolved as the Qt version sees fit.
+  return day.startOfDay(zone).toSecsSinceEpoch();
+}
+
 std::int64_t localDayStart() {
-  QDateTime now = QDateTime::currentDateTime();
-  return QDateTime(now.date(), QTime(0, 0)).toSecsSinceEpoch();
+  return dayStart(QDate::currentDate(), QTimeZone(QTimeZone::LocalTime));
 }
 
 std::int64_t localDayEnd() {
-  QDateTime now = QDateTime::currentDateTime();
-  return QDateTime(now.date().addDays(1), QTime(0, 0)).toSecsSinceEpoch();
+  return dayStart(QDate::currentDate().addDays(1),
+                  QTimeZone(QTimeZone::LocalTime));
 }
 
 namespace {

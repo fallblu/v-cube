@@ -276,6 +276,8 @@ void PracticePage::showBar() {
 
 DrillFlow::Config PracticePage::flowConfig() const {
   const DrillSettings &d = settings_.drill;
+  // Space never practises after a DNF here: the practice modes have no
+  // practice stage (Esc tries the same state again instead).
   return {!physical_,          d.tapToArm, d.autoStop,
           d.shiftSpaceGivesUp, false,      d.holdMs};
 }

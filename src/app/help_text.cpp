@@ -63,7 +63,8 @@ struct Section {
        T("delete the try")},                                                   \
   {                                                                            \
     T("Learn or Untimed, afterwards"), T("Esc"),                               \
-        T("the same state again, not recorded or graded")                      \
+        T("the same state again; the try just made stays, the retry isn't "    \
+          "recorded or graded")                                                \
   }
 #define PRACTICE_LEARN_CARDS                                                   \
   {T("Learn, after a card's try"), T("1-4"),                                   \
@@ -91,14 +92,20 @@ struct Section {
       {T("Timed, before or during the solve"), T("Shift+Space"),               \
        T("give up: a DNF (Backspace instead, if Settings > Drill says so)")},  \
       {T("Timed, solving"), T("Esc"), T("cancel: nothing is recorded")},       \
-      {T("Timed, afterwards"), T("Space"), T("next")},                         \
+      {T("Timed, afterwards"), T("Space"),                                     \
+       T("next, after a DNF too (Drill's \"Space practises the case\" "        \
+         "doesn't "                                                            \
+         "apply: Esc tries the same state again)")},                           \
       {T("Timed, afterwards"), T("Enter"),                                     \
        T("play the best solution from the start")},                            \
       {T("Timed, afterwards"), T("Tab"),                                       \
        T("show or hide where the time went and the details")},                 \
       {T("Timed, afterwards"), T("Backspace"), T("make it a DNF, or not")},    \
       {T("Timed, afterwards"), T("Delete"), T("delete the attempt")}, {        \
-    T("Timed, afterwards"), T("Esc"), T("the same state again, not recorded")  \
+    T("Timed, afterwards"), T("Esc"),                                          \
+        T("the same state again; the attempt just made stays, the retry "      \
+          "isn't "                                                             \
+          "recorded")                                                          \
   }
 
 const std::vector<Section> &sections() {
