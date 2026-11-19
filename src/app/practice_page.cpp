@@ -682,6 +682,15 @@ void PracticePage::leaveChoice(bool confirmed) {
     cubeView_->finishAnimations();
     cubeView_->setState(cube_);
     analysisArrived(item_.id); // judged against the solutions as they are
+    // The grade follows the verdict, unless you gave it yourself.
+    if (item_.graded && item_.recorded && item_.grade && item_.outcome &&
+        !item_.gradedByHand) {
+      const Grade g =
+          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      if (g != *item_.grade) {
+        regrade(g);
+      }
+    }
   }
   showAll();
 }
@@ -964,6 +973,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
   if (phase_ == Phase::Done && item_.graded && item_.grade && !waiting_ &&
       e->key() >= Qt::Key_1 && e->key() <= Qt::Key_4) {
     regrade(static_cast<Grade>(e->key() - Qt::Key_1 + 1));
+    item_.gradedByHand = true;
     return true;
   }
   if (phase_ == Phase::Done && !waiting_ && doneKey(e)) {

@@ -290,6 +290,7 @@ protected:
     bool hidden = false; // blind: the cube is out of sight
     std::optional<Outcome> outcome;
     std::optional<Grade> grade;
+    bool gradedByHand = false; // with 1-4, not as judged
     SrsCard cardBefore; // as it was before the grade
   };
   const Item &item() const { return item_; }
@@ -433,12 +434,12 @@ private:
   void showVerdict();
   void showSummary();
   QString gradeLine() const;
-  QString timedLine() const;
   // "Best: <alg>" (or the outcome's own label), or nothing to show.
   QString bestLine(const Outcome &o) const;
   // The tries of the tab that is up.
   PracticeTries &tabTries();
   const PracticeTries &tabTries() const;
+  QString timedLine() const;
   QString inspectionLine() const;
   QString splitsHtml();
   void rowActivated(QTreeWidgetItem *row);
