@@ -331,12 +331,12 @@ void TimerPage::showDetails(int index) {
   }
   const Solve &s = solves[static_cast<std::size_t>(index)];
   int d = settings_.decimals;
-  QList<QPair<QString, QString>> rows;
+  QList<DetailRow> rows;
   rows.append({tr("Result"), qs(formatSolve(s, d))});
   rows.append({tr("Date"), dateTimeText(s.timestamp)});
-  rows.append({"Scramble", qs(s.scramble)});
+  rows.append({tr("Scramble"), qs(s.scramble), true});
   if (!s.moves.empty()) {
-    rows.append({"Solution", qs(s.moves)});
+    rows.append({tr("Solution"), qs(s.moves), true});
     int htm = solutionHtm(parseAlgOrEmpty(s.moves), settings_.simplifiedCounts);
     rows.append({tr("Moves"), QString::number(htm)});
     if (s.timeMs > 0) {

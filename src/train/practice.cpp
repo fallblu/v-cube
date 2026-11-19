@@ -2,8 +2,6 @@
 
 #include "train/today.hpp"
 
-#include <algorithm>
-
 namespace vcube {
 
 namespace {
@@ -14,19 +12,6 @@ void addCapped(std::vector<PracticeTry> &tries, const PracticeTry &t) {
     tries.erase(tries.begin(), tries.end() - static_cast<std::ptrdiff_t>(
                                                  PracticeData::kPerGroup));
   }
-}
-
-bool sameCard(const SrsCard &a, const SrsCard &b) {
-  return a.state == b.state && a.step == b.step && a.ease == b.ease &&
-         a.intervalDays == b.intervalDays && a.due == b.due &&
-         a.reps == b.reps && a.lapses == b.lapses &&
-         a.introduced == b.introduced && a.marked == b.marked &&
-         a.suspended == b.suspended && a.buriedUntil == b.buriedUntil;
-}
-
-bool sameAttempt(const Attempt &a, const Attempt &b) {
-  return a.timestamp == b.timestamp && a.timeMs == b.timeMs &&
-         a.failed == b.failed && a.mode == b.mode;
 }
 
 } // namespace
@@ -42,23 +27,6 @@ void PracticeData::addInspection(const std::string &group,
 
 void PracticeData::addTimed(const std::string &key, const PracticeTry &t) {
   addCapped(timed[key], t);
-}
-
-bool operator==(const PracticeData &a, const PracticeData &b) {
-  if (a.learn != b.learn || a.timed != b.timed || a.notes != b.notes ||
-      a.inspection != b.inspection || a.choices != b.choices ||
-      a.cards.size() != b.cards.size()) {
-    return false;
-  }
-  return std::equal(a.cards.begin(), a.cards.end(), b.cards.begin(),
-                    [](const auto &x, const auto &y) {
-                      return x.first == y.first &&
-                             sameCard(x.second.card, y.second.card) &&
-                             std::equal(x.second.attempts.begin(),
-                                        x.second.attempts.end(),
-                                        y.second.attempts.begin(),
-                                        y.second.attempts.end(), sameAttempt);
-                    });
 }
 
 std::string timedKey(bool physical, const std::string &group) {

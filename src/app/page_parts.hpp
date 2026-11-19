@@ -6,6 +6,7 @@
 #include <QVariant>
 #include <QWidget>
 
+#include <algorithm>
 #include <functional>
 
 class QButtonGroup;
@@ -49,6 +50,24 @@ public:
 private:
   FlowLayout *layout_;
 };
+
+// A picker's options (a combo box's items, a SegmentedPicker's) carry the
+// enum value they stand for, so that nothing depends on their order in the
+// picker.
+template <typename Enum> QVariant enumData(Enum value) {
+  return static_cast<int>(value);
+}
+// The chosen option's value; `none` when nothing is chosen.
+template <typename Enum, typename Picker>
+Enum currentEnum(const Picker *picker, Enum none) {
+  QVariant data = picker->currentData();
+  return data.isValid() ? static_cast<Enum>(data.toInt()) : none;
+}
+// Chooses the option that stands for `value`, or the first if none does.
+template <typename Enum, typename Picker>
+void selectEnum(Picker *picker, Enum value) {
+  picker->setCurrentIndex(std::max(0, picker->findData(enumData(value))));
+}
 
 // A choice among a few named options shown side by side, the chosen one
 // pressed in: for a choice worth seeing at a glance (what Learn practises),

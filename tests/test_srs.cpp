@@ -264,6 +264,18 @@ TEST_CASE("learn avoids repeating the last case while another is due") {
   CHECK(*pickLearnCase({"a"}, prog, 100, 0, cfg, "a").caseId == "a");
 }
 
+TEST_CASE("a drill order keeps its name in settings") {
+  CHECK(pickModeId(PickMode::Random) == "random");
+  CHECK(pickModeId(PickMode::Weighted) == "weighted");
+  CHECK(pickModeId(PickMode::InOrder) == "inorder");
+  CHECK(pickModeId(PickMode::Recap) == "recap");
+  for (PickMode m : {PickMode::Random, PickMode::Weighted, PickMode::InOrder,
+                     PickMode::Recap}) {
+    CHECK(pickModeFromId(pickModeId(m)) == m);
+  }
+  CHECK_FALSE(pickModeFromId("shuffled"));
+}
+
 TEST_CASE("random drill order never repeats a case straight away") {
   CasePicker p;
   p.setMode(PickMode::Random);

@@ -927,18 +927,17 @@ QString statListing(const QString &heading, std::span<const Solve> solves,
 }
 
 void showSolveDetails(QWidget *parent, const QString &title,
-                      const QList<QPair<QString, QString>> &rows,
+                      const QList<DetailRow> &rows,
                       const std::function<void()> &review) {
   QDialog dialog(parent);
   dialog.setWindowTitle(title);
   auto *layout = new QVBoxLayout(&dialog);
   auto *form = new QFormLayout;
-  for (const auto &[name, value] : rows) {
+  for (const auto &[name, value, copyable] : rows) {
     auto *label = new QLabel(value.isEmpty() ? QString("–") : value, &dialog);
     label->setWordWrap(true);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse);
     label->setMinimumWidth(360);
-    bool copyable = name == "Scramble" || name == "Solution";
     if (copyable && !value.isEmpty()) {
       auto *row = new QHBoxLayout;
       row->addWidget(label, 1);

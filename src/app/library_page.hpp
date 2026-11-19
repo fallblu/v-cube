@@ -6,6 +6,7 @@
 #include "app/cube_painter.hpp"
 #include "app/library_editor.hpp"
 #include "app/mode_page.hpp"
+#include "app/mode_table.hpp"
 #include "io/library.hpp"
 #include "train/case_logic.hpp"
 
@@ -111,7 +112,8 @@ signals:
   // "Open in Alg Lab" on a case's alg.
   void algLabRequested(const QString &setId, const QString &caseId);
   // Show the case in Learn or Drill (an AppMode).
-  void practiceRequested(int mode, const QString &setId, const QString &caseId);
+  void practiceRequested(AppMode::Id mode, const QString &setId,
+                         const QString &caseId);
 
 private:
   using Edit = LibraryEditor::Edit;
@@ -168,7 +170,9 @@ private:
   QAction *moveDownAction_;
 
   AlgSet *set() { return editor_.set(); }
+  const AlgSet *set() const { return editor_.set(); }
   AlgCase *currentCase() { return editor_.currentCase(); }
+  const AlgCase *currentCase() const { return editor_.currentCase(); }
 
   // The one way the page catches up with a change of the library, from an
   // edit, an undo or a redo.

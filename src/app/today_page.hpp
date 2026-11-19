@@ -36,7 +36,7 @@ class HintBar;
 class TodayPage : public ModePage {
   Q_OBJECT
 public:
-  TodayPage(AppSettings &settings, AlgLibrary &library,
+  TodayPage(AppSettings &settings, const AlgLibrary &library,
             const SessionStore &timed, const MoveCountStore &untimed,
             const MoveCountStore &moveCounts, const AlgLabStore &lab,
             const PracticeData &eoCross, const PracticeData &f2l,
@@ -48,7 +48,7 @@ public:
     int due = 0;
     int newLeft = 0;
   };
-  Totals totals();
+  Totals totals() const;
 
   bool handleKey(QKeyEvent *e, bool press) override;
   void activated() override;
@@ -65,7 +65,7 @@ signals:
 
 private:
   AppSettings &settings_;
-  AlgLibrary &library_;
+  const AlgLibrary &library_;
   const SessionStore &timed_;
   const MoveCountStore &untimed_;
   const MoveCountStore &moveCounts_;
@@ -86,7 +86,7 @@ private:
   std::function<void()> nextAction_;
   int dueTotal_ = 0;
 
-  std::map<std::string, SetWaiting> dueBySet();
+  std::map<std::string, SetWaiting> dueBySet() const;
   std::vector<ActivityEvent> events();
   void refresh();
   // Opens a row of the sets table: its set in Learn, or its practice

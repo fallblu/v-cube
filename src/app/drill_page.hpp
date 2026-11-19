@@ -8,6 +8,7 @@
 #include "train/drill_flow.hpp"
 #include "train/drill_session.hpp"
 #include "train/move_count.hpp"
+#include "train/stats.hpp"
 
 #include <QFutureWatcher>
 #include <QStringList>
@@ -95,7 +96,7 @@ protected:
   void startSet() override;
   void setReloaded() override;
   void startCase(const std::string &caseId) override;
-  QString startCaseLabel(const std::string &caseId) override;
+  QString startCaseLabel(const std::string &caseId) const override;
   void extendCaseMenu(QMenu &menu,
                       const std::vector<std::string> &caseIds) override;
   void extendModeMenu(QMenu &menu) override;
@@ -112,6 +113,11 @@ private:
   std::function<void()> offerRun_;
   using Phase = DrillFlow::Phase;
   enum class Pool { Learned, All, Learning, Queue, Weakest };
+  // "learned", "ticked" (for All, as saved settings have it), "learning",
+  // "queue" or "weakest", as settings keep it.
+  static QString poolId(Pool pool);
+  // nullopt for any other text.
+  static std::optional<Pool> poolFromId(const QString &id);
   // The scope drop-down's values: the ticked cases, those shown, a group.
   static inline const QString kScopeTicked = "ticked";
   static inline const QString kScopeShown = "shown";
@@ -174,10 +180,10 @@ private:
   Pool poolChoice() const;
   // The cases the scope chooses, and of those the pool's, which can be
   // drilled.
-  std::vector<std::string> scopeCases();
-  std::vector<std::string> pool();
+  std::vector<std::string> scopeCases() const;
+  std::vector<std::string> pool() const;
   // The case is in the set, with a passing alg.
-  bool drillable(const std::string &caseId);
+  bool drillable(const std::string &caseId) const;
   void fillScopes();
   void loadChoices();
   void nextCase();
@@ -200,7 +206,7 @@ private:
   // The virtual cube as the solver sees it.
   std::optional<CubieCube> cubeState() const;
   // Whether the virtual cube shows the current case's step done.
-  bool stepDone();
+  bool stepDone() const;
   void finish(std::int64_t timeMs, bool failed, bool gaveUp = false);
   // Gives the case up before or during the solve: a DNF.
   void giveUp(std::int64_t now);
@@ -216,12 +222,12 @@ private:
   void deleteAttempt();
   // Clears the drill times of the cases in this cube's drill mode.
   void clearTimes(const std::vector<std::string> &caseIds);
-  QString caseName(const std::string &caseId);
+  QString caseName(const std::string &caseId) const;
   void showResult();
   void showReveal();
   void refreshSession();
   // The summary of the session's attempts from `from` on.
-  QString sessionText(std::size_t from);
+  QString sessionText(std::size_t from) const;
   // Shows the case diagram beside the algs, or hides it (null pixmap).
   void setDiagram(const QPixmap &pixmap);
   // The keys of the phase the flow is in, under the cube.

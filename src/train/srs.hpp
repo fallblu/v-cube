@@ -66,6 +66,7 @@ struct SrsCard {
   bool suspended = false;
   // Left out of Learn until this time (the end of the day it was buried).
   std::int64_t buriedUntil = 0;
+  friend bool operator==(const SrsCard &, const SrsCard &) = default;
 };
 
 inline constexpr std::int64_t kSecondsPerDay = 86400;
@@ -123,6 +124,7 @@ struct Attempt {
   std::int64_t executionMs = 0;
   // A recognition review: the case was recognised, not solved.
   bool recognitionOnly = false;
+  friend bool operator==(const Attempt &, const Attempt &) = default;
 };
 
 // The local calendar day of a Unix time, as days since 1970-01-01.
@@ -155,6 +157,7 @@ struct CaseProgress {
   std::vector<Attempt> attempts; // oldest first, capped per mode
   // Per drill mode, the attempts that dropped out of `attempts`.
   std::map<AttemptMode, DrillArchive> archive;
+  friend bool operator==(const CaseProgress &, const CaseProgress &) = default;
 
   static constexpr std::size_t kMaxAttempts = 100; // per mode
   // Adds the attempt; a drill attempt that drops out of the cap is kept in

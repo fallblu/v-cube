@@ -22,6 +22,7 @@
 #include <QVBoxLayout>
 
 #include <cmath>
+#include <utility>
 
 namespace vcube {
 
@@ -180,9 +181,17 @@ void CasePage::fillGroupRows() {
 
 AlgSet *CasePage::set() { return library_.find(setId_); }
 
+const AlgSet *CasePage::set() const {
+  return std::as_const(library_).find(setId_);
+}
+
 SetProgress &CasePage::progress() { return library_.progress(setId_); }
 
-const CaseProgress *CasePage::progressOf(const std::string &caseId) {
+const SetProgress &CasePage::progress() const {
+  return std::as_const(library_).progress(setId_);
+}
+
+const CaseProgress *CasePage::progressOf(const std::string &caseId) const {
   const SetProgress &p = progress();
   auto it = p.find(caseId);
   return it == p.end() ? nullptr : &it->second;
@@ -192,7 +201,7 @@ std::string CasePage::cardId(const std::string &caseId) const {
   return byFamily() ? families_.representative(caseId) : caseId;
 }
 
-const CaseProgress *CasePage::cardOf(const std::string &caseId) {
+const CaseProgress *CasePage::cardOf(const std::string &caseId) const {
   return progressOf(cardId(caseId));
 }
 
@@ -327,7 +336,7 @@ void CasePage::deactivated() { filter_->release(); }
 
 void CasePage::focusModeChanged() { left_->setVisible(!focusMode()); }
 
-QString CasePage::setItemText(const AlgSet &s) {
+QString CasePage::setItemText(const AlgSet &s) const {
   return QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount());
 }
 
@@ -753,7 +762,7 @@ bool CasePage::fillCaseMenu(QMenu &menu, QTreeWidgetItem *item) {
   return true;
 }
 
-double CasePage::yawFor(const std::string &caseId, Mirror world) {
+double CasePage::yawFor(const std::string &caseId, Mirror world) const {
   const AlgSet *s = set();
   const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
   DiagramView view = g ? s->specFor(*g).view : DiagramView::Iso3D;

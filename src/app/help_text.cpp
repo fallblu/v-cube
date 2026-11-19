@@ -563,16 +563,17 @@ QString sectionHtml(const Section &s, const Keymap &keymap) {
 
 } // namespace
 
-QString controlsHtml(int mode, const Keymap &keymap) {
+QString controlsHtml(std::optional<AppMode::Id> mode, const Keymap &keymap) {
   QString html;
   const auto &all = sections();
+  auto current = [&](const Section &s) { return mode && s.mode == *mode; };
   for (const Section &s : all) {
-    if (s.mode == mode && mode >= 0) {
+    if (current(s)) {
       html += sectionHtml(s, keymap);
     }
   }
   for (const Section &s : all) {
-    if (s.title[0] != 0 && !(s.mode == mode && mode >= 0)) {
+    if (s.title[0] != 0 && !current(s)) {
       html += sectionHtml(s, keymap);
     }
   }
