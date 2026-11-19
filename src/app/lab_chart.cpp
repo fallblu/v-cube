@@ -1,6 +1,7 @@
 #include "app/lab_chart.hpp"
 
 #include "app/colours.hpp"
+#include "app/text_style.hpp"
 #include "app/widgets.hpp"
 #include "train/stats.hpp"
 
@@ -72,6 +73,7 @@ void LabChart::setEmptyText(const QString &text) {
 void LabChart::paintEvent(QPaintEvent *) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
+  p.setFont(withTabularFigures(font()));
   const QPalette &pal = palette();
   const QColor ink = pal.color(QPalette::WindowText);
   // Secondary text in the role tuned for 4.5:1; only the grid line is a
@@ -98,7 +100,7 @@ void LabChart::paintEvent(QPaintEvent *) {
 
   // Legend across the top, the algs in order and numbered: the numbers
   // also name each box or line, so that colour isn't the only key.
-  QFontMetrics fm(font());
+  QFontMetrics fm(p.font());
   const int lineH = fm.height();
   auto number = [](std::size_t i) { return QString::number(i + 1); };
   double x = 8, y = 4;
@@ -255,12 +257,16 @@ void LabChart::paintEvent(QPaintEvent *) {
     if (box.right() > width()) {
       box.moveRight(d.at.x() - 10);
     }
+    if (box.left() < 0) {
+      box.moveLeft(0);
+    }
     if (box.top() < 0) {
       box.moveTop(d.at.y() + 10);
     }
-    p.setPen(Qt::NoPen);
+    // An edge, as the tooltip colour is close to the light window.
+    p.setPen(QPen(pal.color(QPalette::Mid), 1));
     p.setBrush(pal.color(QPalette::ToolTipBase));
-    p.drawRoundedRect(box, 4, 4);
+    p.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4);
     p.setPen(pal.color(QPalette::ToolTipText));
     p.drawText(box, Qt::AlignCenter, text);
   }

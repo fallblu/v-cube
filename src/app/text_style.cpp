@@ -89,6 +89,33 @@ void setInterfaceTextPercent(int percent) {
   }
 }
 
+QFont withTabularFigures(QFont f) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+  f.setFeature(QFont::Tag("tnum"), 1);
+#endif
+  return f;
+}
+
+void useTabularFigures(QWidget *w) {
+  // Only the feature is set: the size and family come from the parent.
+  w->setFont(withTabularFigures(QFont()));
+}
+
+int scaledToText(int pixels) {
+  static const double scale = [] {
+    const QFont now = QApplication::font();
+    const QFont system = systemFont().value_or(now);
+    if (system.pointSizeF() > 0 && now.pointSizeF() > 0) {
+      return now.pointSizeF() / system.pointSizeF();
+    }
+    if (system.pixelSize() > 0 && now.pixelSize() > 0) {
+      return static_cast<double>(now.pixelSize()) / system.pixelSize();
+    }
+    return 1.0;
+  }();
+  return static_cast<int>(std::lround(pixels * scale));
+}
+
 int interfaceTextPixels(int percent) {
   QFont f = systemFont().value_or(QApplication::font());
   scaleSize(f, f, percent / 100.0);

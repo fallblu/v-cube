@@ -38,6 +38,7 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGraphicsOpacityEffect>
 #include <QGridLayout>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -50,6 +51,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPointer>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QScreen>
 #include <QSplitter>
@@ -402,9 +404,20 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       "QLabel { background: rgba(0, 0, 0, 170); color: white; "
       "border-radius: 6px; padding: 6px 14px; }");
   focusHint_->hide();
+  // It fades in and out rather than snapping.
+  auto *opacity = new QGraphicsOpacityEffect(focusHint_);
+  focusHint_->setGraphicsEffect(opacity);
+  focusHintFade_ = new QPropertyAnimation(opacity, "opacity", this);
+  focusHintFade_->setDuration(150);
+  connect(focusHintFade_, &QPropertyAnimation::finished, this, [this] {
+    if (focusHintFade_->endValue().toDouble() == 0.0) {
+      focusHint_->hide();
+    }
+  });
   focusHintTimer_ = new QTimer(this);
   focusHintTimer_->setSingleShot(true);
-  connect(focusHintTimer_, &QTimer::timeout, focusHint_, &QWidget::hide);
+  connect(focusHintTimer_, &QTimer::timeout, this,
+          [this] { fadeFocusHint(false); });
 
   // Each mode's side panel, hidden or shown as it was left.
   for (AppMode::Id m : AppMode::all()) {
@@ -727,7 +740,7 @@ void MainWindow::setFocusMode(bool on) {
   if (on) {
     showFocusHint();
   } else {
-    focusHint_->hide();
+    fadeFocusHint(false);
   }
 }
 
@@ -751,14 +764,40 @@ void MainWindow::showOverlay(const QString &text, int ms) {
   // Placed once the layout has settled (at start-up, after the window is
   // shown).
   QTimer::singleShot(0, focusHint_, [this] {
-    QWidget *area = centralWidget();
-    // At the bottom, clear of the page's header and scramble.
-    focusHint_->move((area->width() - focusHint_->width()) / 2,
-                     area->height() - focusHint_->height() - 16);
+    placeFocusHint();
     focusHint_->raise();
-    focusHint_->show();
+    fadeFocusHint(true);
   });
   focusHintTimer_->start(ms);
+}
+
+void MainWindow::placeFocusHint() {
+  QWidget *area = centralWidget();
+  // At the bottom, clear of the page's header and scramble.
+  focusHint_->move((area->width() - focusHint_->width()) / 2,
+                   area->height() - focusHint_->height() - 16);
+}
+
+void MainWindow::fadeFocusHint(bool in) {
+  if (!in && focusHint_->isHidden()) {
+    return;
+  }
+  auto *opacity =
+      static_cast<QGraphicsOpacityEffect *>(focusHint_->graphicsEffect());
+  focusHintFade_->stop();
+  focusHintFade_->setStartValue(focusHint_->isHidden() ? 0.0
+                                                       : opacity->opacity());
+  focusHintFade_->setEndValue(in ? 1.0 : 0.0);
+  focusHint_->show();
+  focusHintFade_->start();
+}
+
+void MainWindow::resizeEvent(QResizeEvent *e) {
+  QMainWindow::resizeEvent(e);
+  // Full screen on and off (F11) while the overlay is up keeps it centred.
+  if (focusHint_ && focusHint_->isVisible()) {
+    placeFocusHint();
+  }
 }
 
 void MainWindow::contextMenuEvent(QContextMenuEvent *e) {

@@ -1,6 +1,7 @@
 #include "app/widgets.hpp"
 
 #include "app/colours.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 
 #include "cube/solver.hpp"
@@ -459,10 +460,11 @@ void TrendChart::paintEvent(QPaintEvent *) {
     plot_.setDevicePixelRatio(dpr);
     plot_.fill(Qt::transparent);
     QPainter pp(&plot_);
-    pp.setFont(font());
+    pp.setFont(withTabularFigures(font()));
     renderPlot(pp);
   }
   QPainter p(this);
+  p.setFont(withTabularFigures(font()));
   p.drawPixmap(0, 0, plot_);
   std::size_t from = first();
   std::size_t n = solves_.size() - from;

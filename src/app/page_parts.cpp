@@ -240,8 +240,11 @@ int SegmentedPicker::findData(const QVariant &value) const {
 }
 
 QString keyHintsHtml(const QList<KeyHint> &keys, const QPalette &palette) {
-  // A chip: the key on a slightly raised background, in the text colour.
+  // A chip: the key on a raised background, in the text colour. The
+  // button colour is a step further from the window, which it is close to.
   QColor chip = palette.color(QPalette::Button);
+  chip = palette.color(QPalette::Window).lightness() >= 128 ? chip.darker(108)
+                                                            : chip.lighter(120);
   QColor key = palette.color(QPalette::ButtonText);
   QStringList parts;
   for (qsizetype i = 0; i < keys.size(); ++i) {

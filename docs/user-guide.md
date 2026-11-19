@@ -889,7 +889,7 @@ Edit > Settings… (`Ctrl+,`). Each option is explained under it.
 
 | Tab | What is there |
 | --- | --- |
-| **Appearance** | theme, the interface text size (all the text, up to about 16 px), sticker colours, the scramble, timer and hint text sizes, the size of case pictures, decimal places |
+| **Appearance** | theme, the interface text size (all the text, up to about 16 px; case pictures and colour swatches follow it from the next start), sticker colours, the scramble, timer and hint text sizes, the size of case pictures, decimal places |
 | **Colour neutrality** | see [above](#colour-neutrality) |
 | **Timing and solves** | hold times for the solve modes and Drill (up to 2 s), how Drill's virtual timer starts and stops, WCA inspection and its beeps, auto-stop when solved, hiding the cube until inspection, simplified move counts, Move Count's Opt holds |
 | **Cube and keys** | turn speed and the turning keys |

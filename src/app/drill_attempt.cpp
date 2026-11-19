@@ -446,7 +446,7 @@ void DrillPage::showReveal() {
             "</p>";
   }
   reveal_->setText(html);
-  setDiagram(caseDiagram(current_->caseId, current_->state, kDiagramSize,
+  setDiagram(caseDiagram(current_->caseId, current_->state, diagramSize(),
                          colourMapOf(current_->hold), current_->world));
 }
 

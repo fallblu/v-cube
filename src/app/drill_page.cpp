@@ -206,12 +206,12 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   // After a case: its diagram and algs side by side under the time, kept
   // together rather than spread across the page.
   auto *revealBox = new QWidget(right);
-  revealBox->setMinimumHeight(kDiagramSize);
+  revealBox->setMinimumHeight(diagramSize());
   auto *revealLayout = new QHBoxLayout(revealBox);
   revealLayout->setContentsMargins(0, 0, 0, 0);
   diagram_ = new QLabel(revealBox);
   diagram_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-  diagram_->setFixedSize(kDiagramSize, kDiagramSize);
+  diagram_->setFixedSize(diagramSize(), diagramSize());
   reveal_ = new QLabel(revealBox);
   reveal_->setTextFormat(Qt::RichText);
   reveal_->setWordWrap(true);

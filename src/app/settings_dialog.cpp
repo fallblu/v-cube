@@ -105,7 +105,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     auto *b = new QPushButton(general);
     b->setToolTip(tr("Colour of the %1 face in the WCA orientation")
                       .arg(tr(kFaceNames[i])));
-    b->setFixedSize(40, 28);
+    b->setFixedSize(scaledToText(40), scaledToText(28));
     b->setAccessibleName(tr("%1 face colour").arg(tr(kFaceNames[i])));
     colourButtons_[i] = b;
     // The face's letter under its swatch.

@@ -190,7 +190,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   caseLayout->setContentsMargins(0, 0, 0, 0);
   auto *caseTop = new QHBoxLayout;
   caseDiagram_ = new QLabel(caseBox_);
-  caseDiagram_->setFixedSize(kDiagramSize, kDiagramSize);
+  caseDiagram_->setFixedSize(diagramSize(), diagramSize());
   auto *caseForm = new QFormLayout;
   caseNameEdit_ = new QLineEdit(caseBox_);
   caseForm->addRow(tr("Name:"), caseNameEdit_);
