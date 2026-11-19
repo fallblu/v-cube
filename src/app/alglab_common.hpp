@@ -71,9 +71,6 @@ const ErgoProfile *labGuideProfile(const AlgLabStore &store,
 // The same with the profile chosen in Alg Lab.
 const ErgoProfile *labGuideProfile(const AlgLabStore &store);
 
-// Colours for the algs compared in a chart, in a fixed order (eight).
-QColor seriesColour(std::size_t i, bool dark);
-
 // Seconds with the app's decimals, "DNF" or "–".
 QString labTime(std::optional<std::int64_t> ms, int decimals);
 

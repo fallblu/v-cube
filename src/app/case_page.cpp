@@ -521,7 +521,7 @@ void CasePage::buildTree() {
       FaceletCube masked =
           maskedFacelets(info ? info->state : c.state, spec.mask, spec.free);
       item->setIcon(
-          0, QIcon(cube_painter::cachedDiagram(
+          0, cube_painter::caseIcon(cube_painter::cachedDiagram(
                  masked, spec.view, settings_.thumbnailSize, look, dpr)));
       QStringList algs;
       for (const auto &a : c.algs) {

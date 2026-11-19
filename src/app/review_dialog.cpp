@@ -69,7 +69,8 @@ Alg rotationTo(const FaceletCube &cube, Hold h) {
 QString escaped(const std::string &text) { return qs(text).toHtmlEscaped(); }
 
 QString muted(const QString &html) {
-  return "<span style='color:gray'>" + html + "</span>";
+  return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + html +
+         "</span>";
 }
 
 QString moveWord(int n) {

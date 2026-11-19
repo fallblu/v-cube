@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace vcube {
 
@@ -245,7 +246,8 @@ std::size_t TrendChart::first() const {
 }
 
 QRectF TrendChart::area() const {
-  return QRectF(rect()).adjusted(44, 10, -10, -20);
+  // Room on the right for the name at the end of each line.
+  return QRectF(rect()).adjusted(44, 10, -40, -20);
 }
 
 QString TrendChart::valueText(StatValue v) const {
@@ -346,10 +348,14 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.drawText(QRectF(0, y - 8, 40, 16), Qt::AlignRight | Qt::AlignVCenter,
                QString::number(v, 'f', decimals));
   }
-  auto drawSeries = [&](const std::vector<StatValue> &vals, const QColor &c,
-                        double width) {
+  // Each line is named at its right end, so that the lines aren't told
+  // apart by colour alone.
+  std::vector<std::pair<double, std::pair<QString, QColor>>> ends;
+  auto drawSeries = [&](const std::vector<StatValue> &vals, const QString &name,
+                        const QColor &c, double width) {
     QPainterPath path;
     bool started = false;
+    std::optional<QPointF> last;
     for (std::size_t i = 0; i < n; ++i) {
       std::size_t at = from + i;
       if (at >= vals.size() || !vals[at] || *vals[at] == kDnfTime) {
@@ -357,6 +363,7 @@ void TrendChart::paintEvent(QPaintEvent *) {
         continue;
       }
       QPointF pt(px(i), py(static_cast<double>(*vals[at]) / 1000.0));
+      last = pt;
       if (started) {
         path.lineTo(pt);
       } else {
@@ -367,6 +374,9 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.setPen(QPen(c, width));
     p.setBrush(Qt::NoBrush);
     p.drawPath(path);
+    if (last) {
+      ends.push_back({last->y(), {name, c}});
+    }
   };
   QColor single = palette().color(QPalette::WindowText);
   single.setAlpha(splits ? 60 : 110);
@@ -380,16 +390,33 @@ void TrendChart::paintEvent(QPaintEvent *) {
   std::vector<std::pair<QString, QColor>> legend;
   if (splits) {
     for (const Series &s : series_) {
-      drawSeries(s.values, s.colour, 1.6);
-      legend.emplace_back(s.name, s.colour);
+      QColor c = roleColour(s.colour);
+      drawSeries(s.values, s.name, c, 1.6);
+      legend.emplace_back(s.name, c);
     }
   } else {
-    drawSeries(rollingAverages(solves_, 5), QColor(0x3d, 0x8e, 0xf0), 1.8);
-    drawSeries(rollingAverages(solves_, 12), QColor(0xff, 0x8a, 0x3d), 1.8);
-    legend = {{"ao5", QColor(0x3d, 0x8e, 0xf0)},
-              {"ao12", QColor(0xff, 0x8a, 0x3d)}};
+    QColor ao5 = roleColour(Role::Series1);
+    QColor ao12 = roleColour(Role::Series2);
+    drawSeries(rollingAverages(solves_, 5), "ao5", ao5, 1.8);
+    drawSeries(rollingAverages(solves_, 12), "ao12", ao12, 1.8);
+    legend = {{"ao5", ao5}, {"ao12", ao12}};
   }
-  legend.emplace_back(tr("single"), single);
+  // The names at the line ends, nudged apart where they would overlap.
+  std::sort(ends.begin(), ends.end(),
+            [](const auto &a, const auto &b) { return a.first < b.first; });
+  const double lineH = p.fontMetrics().height();
+  double above = -1e9;
+  for (auto &end : ends) {
+    end.first = std::max(end.first, above + lineH);
+    above = end.first;
+  }
+  for (const auto &[y, label] : ends) {
+    p.setPen(label.second);
+    p.drawText(QRectF(area.right() + 4, y - lineH / 2,
+                      width() - area.right() - 4, lineH),
+               Qt::AlignLeft | Qt::AlignVCenter, label.first);
+  }
+  legend.emplace_back(tr("single"), axis);
   double x = area.left() + 4;
   for (const auto &[name, colour] : legend) {
     p.setPen(colour);

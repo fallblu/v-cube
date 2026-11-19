@@ -205,9 +205,9 @@ void TimerPage::refreshSolves() {
                            .arg(sum.count));
   chart_->setSolves(solves);
   if (virt) {
-    chart_->setSeries({{tr("cross"), QColor(0x3d, 0xd6, 0x6b), crossSeries},
-                       {tr("F2L"), QColor(0x3d, 0x8e, 0xf0), f2lSeries},
-                       {tr("LL"), QColor(0xff, 0x8a, 0x3d), llSeries}});
+    chart_->setSeries({{tr("cross"), Role::Series3, crossSeries},
+                       {tr("F2L"), Role::Series1, f2lSeries},
+                       {tr("LL"), Role::Series2, llSeries}});
   } else {
     chart_->setSeries({});
   }

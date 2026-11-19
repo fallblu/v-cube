@@ -47,6 +47,18 @@ inline const QString kNoValue = QStringLiteral("-");
 // An alg or a result that passes, passes with a remark, or fails.
 inline const StatusColour kPassColour{Status::Good};
 inline const StatusColour kWarnColour{Status::Warning};
-inline const QColor kFailColour(0xe6, 0x66, 0x66);
+inline const RoleColour kFailColour{Role::Fail};
+
+// The mark on a value over its target (a slow time, moves over the
+// optimum), so that colour isn't the only sign of it.
+inline const QString kOverMark = QStringLiteral("▲");
+
+// Rich text for a value over its target: marked and in the warning colour,
+// or bold and in the fail colour as well when it is far over.
+inline QString overMarked(const QString &text, bool far = false) {
+  const QString marked = kOverMark + "&nbsp;" + text;
+  return far ? coloured(kFailColour, "<b>" + marked + "</b>")
+             : coloured(kWarnColour, marked);
+}
 
 } // namespace vcube

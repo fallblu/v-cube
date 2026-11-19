@@ -1,18 +1,90 @@
 #include "app/app_settings.hpp"
 
+#include "app/colours.hpp"
 #include "train/algset.hpp"
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QPainter>
 #include <QPalette>
+#include <QProxyStyle>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStyleFactory>
 #include <QStyleHints>
+#include <QStyleOption>
 
 #include <algorithm>
 
 namespace vcube {
+
+namespace {
+
+// Fusion draws the edges of text fields, spin boxes and check boxes a shade
+// darker than the window, which can't be seen on the dark theme (and is
+// faint on the light one). This draws them again in the field edge colour,
+// 3:1 or more against the window and the field in either theme; a field
+// with the focus keeps Fusion's highlighted edge.
+class EdgeStyle : public QProxyStyle {
+public:
+  using QProxyStyle::QProxyStyle;
+
+  void drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPainter *p,
+                     const QWidget *w) const override {
+    QProxyStyle::drawPrimitive(pe, opt, p, w);
+    switch (pe) {
+    case PE_FrameLineEdit:
+      if (!(opt->state & State_HasFocus)) {
+        roundedEdge(p, opt->rect);
+      }
+      break;
+    case PE_IndicatorCheckBox:
+      p->save();
+      p->setRenderHint(QPainter::Antialiasing, false);
+      p->setPen(roleColour(Role::FieldEdge));
+      p->setBrush(Qt::NoBrush);
+      p->drawRect(opt->rect.adjusted(0, 0, -1, -1));
+      p->restore();
+      break;
+    case PE_IndicatorRadioButton:
+      p->save();
+      p->setRenderHint(QPainter::Antialiasing, true);
+      p->setPen(QPen(roleColour(Role::FieldEdge), 1.0));
+      p->setBrush(Qt::NoBrush);
+      p->drawEllipse(QRectF(opt->rect).adjusted(1.5, 1.5, -1.5, -1.5));
+      p->restore();
+      break;
+    default:
+      break;
+    }
+  }
+
+  void drawComplexControl(ComplexControl cc, const QStyleOptionComplex *opt,
+                          QPainter *p, const QWidget *w) const override {
+    QProxyStyle::drawComplexControl(cc, opt, p, w);
+    if (cc != CC_SpinBox || (opt->state & State_HasFocus)) {
+      return;
+    }
+    const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(opt);
+    if (spin && spin->frame) {
+      roundedEdge(p, opt->rect);
+    }
+  }
+
+private:
+  // Fusion's field outline: a rounded rectangle on the half pixel.
+  static void roundedEdge(QPainter *p, const QRect &r) {
+    p->save();
+    p->setRenderHint(QPainter::Antialiasing, true);
+    p->translate(0.5, 0.5);
+    p->setPen(roleColour(Role::FieldEdge));
+    p->setBrush(Qt::NoBrush);
+    p->drawRoundedRect(r.adjusted(0, 0, -1, -1), 2, 2);
+    p->restore();
+  }
+};
+
+} // namespace
 
 void initSettingsStorage() {
   QSettings::setDefaultFormat(QSettings::IniFormat);
@@ -236,7 +308,7 @@ void AppSettings::save() const {
 }
 
 void applyTheme(QApplication &app, bool dark) {
-  app.setStyle(QStyleFactory::create("Fusion"));
+  app.setStyle(new EdgeStyle(QStyleFactory::create("Fusion")));
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
   // Title bars and native dialogs follow the theme too.
   QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark
@@ -255,14 +327,14 @@ void applyTheme(QApplication &app, bool dark) {
     p.setColor(QPalette::AlternateBase, QColor(0xf5, 0xf5, 0xf7));
     p.setColor(QPalette::ToolTipBase, QColor(0xff, 0xff, 0xe8));
     p.setColor(QPalette::ToolTipText, text);
-    p.setColor(QPalette::PlaceholderText, QColor(0x6b, 0x6c, 0x72));
+    p.setColor(QPalette::PlaceholderText, QColor(0x62, 0x63, 0x6a));
     p.setColor(QPalette::Text, text);
     p.setColor(QPalette::Button, QColor(0xe4, 0xe4, 0xe8));
     p.setColor(QPalette::ButtonText, text);
     p.setColor(QPalette::BrightText, Qt::white);
     p.setColor(QPalette::Highlight, accent);
     p.setColor(QPalette::HighlightedText, Qt::white);
-    p.setColor(QPalette::Link, accent);
+    p.setColor(QPalette::Link, QColor(0x1a, 0x62, 0xc0));
     p.setColor(QPalette::Light, Qt::white);
     p.setColor(QPalette::Midlight, QColor(0xe0, 0xe0, 0xe4));
     p.setColor(QPalette::Mid, QColor(0xb8, 0xb8, 0xbe));
@@ -278,21 +350,22 @@ void applyTheme(QApplication &app, bool dark) {
   QColor window(0x26, 0x27, 0x2b);
   QColor base(0x1c, 0x1d, 0x21);
   QColor text(0xe6, 0xe6, 0xe8);
-  QColor accent(0x3d, 0x8e, 0xf0);
+  // Dark enough for white text on a selection.
+  QColor accent(0x2f, 0x72, 0xd0);
   p.setColor(QPalette::Window, window);
   p.setColor(QPalette::WindowText, text);
   p.setColor(QPalette::Base, base);
   p.setColor(QPalette::AlternateBase, QColor(0x23, 0x24, 0x29));
   p.setColor(QPalette::ToolTipBase, QColor(0x33, 0x34, 0x39));
   p.setColor(QPalette::ToolTipText, text);
-  p.setColor(QPalette::PlaceholderText, QColor(0x8a, 0x8b, 0x91));
+  p.setColor(QPalette::PlaceholderText, QColor(0x9d, 0x9e, 0xa4));
   p.setColor(QPalette::Text, text);
   p.setColor(QPalette::Button, QColor(0x31, 0x32, 0x37));
   p.setColor(QPalette::ButtonText, text);
   p.setColor(QPalette::BrightText, Qt::white);
   p.setColor(QPalette::Highlight, accent);
   p.setColor(QPalette::HighlightedText, Qt::white);
-  p.setColor(QPalette::Link, accent.lighter(120));
+  p.setColor(QPalette::Link, QColor(0x6a, 0xaa, 0xff));
   p.setColor(QPalette::Mid, QColor(0x3a, 0x3b, 0x40));
   p.setColor(QPalette::Dark, QColor(0x18, 0x18, 0x1b));
   p.setColor(QPalette::Light, QColor(0x45, 0x46, 0x4c));

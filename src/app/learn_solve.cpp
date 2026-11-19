@@ -862,7 +862,7 @@ void LearnPage::showReveal() {
   const AlgFollower &follower = attempt_.follower();
   if (phase() == Phase::Done && attempt_.leftAlgs()) {
     QString moves = movesHtml(follower.moves(), follower.leftAt());
-    html += "<p style='color:gray'>" +
+    html += "<p style='color:" + roleColour(Role::Muted).name() + "'>" +
             (follower.startedOver()
                  ? tr("Your moves after starting over: %1").arg(moves)
                  : tr("Your moves: %1").arg(moves));
@@ -912,7 +912,7 @@ void LearnPage::showGrade() {
                                                   when, settings_.srs))));
     b->setChecked(!attempt_.walkedThrough() && chosen == grade);
   }
-  const QString grey = "#6b6f78";
+  const QString grey = roleColour(Role::GradeNone).name();
   auto outcome = [this](const QString &text, const QString &colour,
                         const QString &detail) {
     stage_->showOutcome(text, colour, detail);
@@ -938,7 +938,7 @@ void LearnPage::showGrade() {
     return;
   }
   if (attempt_.walkedThrough()) {
-    outcome(tr("Walked through"), "#5a6b80",
+    outcome(tr("Walked through"), roleColour(Role::GradeWalked).name(),
             tr("Not graded: it comes back in %1 to do from "
                "memory. 1-4 grade it now instead.")
                 .arg(next));

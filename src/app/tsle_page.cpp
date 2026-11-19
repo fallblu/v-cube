@@ -327,10 +327,9 @@ QString TslePage::demoText() {
 
 QString TslePage::stepVerdict(const Step &step) const {
   if (step.before.ocll()) {
-    return step.extra == 0
-               ? coloured(kPassColour, tr("OCLL solved"))
-               : coloured(kWarnColour, tr("OCLL solved, +%1 over your alg")
-                                           .arg(movesText(step.extra)));
+    return step.extra == 0 ? coloured(kPassColour, tr("OCLL solved"))
+                           : overMarked(tr("OCLL solved, +%1 over your alg")
+                                            .arg(movesText(step.extra)));
   }
   if (!step.good) {
     int before = tsleStepsLeft(step.before), after = tsleStepsLeft(step.after);
@@ -342,9 +341,9 @@ QString TslePage::stepVerdict(const Step &step) const {
   }
   return step.extra == 0
              ? coloured(kPassColour, tr("The best trigger from this AUF"))
-             : coloured(kWarnColour, tr("A good trigger, but +%1 over the best "
-                                        "from this AUF")
-                                         .arg(movesText(step.extra)));
+             : overMarked(tr("A good trigger, but +%1 over the best "
+                             "from this AUF")
+                              .arg(movesText(step.extra)));
 }
 
 PracticePage::Outcome TslePage::judge() {
@@ -408,9 +407,8 @@ PracticePage::Outcome TslePage::judge() {
       tr("TSLE in %1").arg(movesText(o.moves)) + " · " +
       (o.moves <= o.bestMoves
            ? coloured(kPassColour, tr("as short as the best way"))
-           : coloured(o.moves - o.bestMoves >= 3 ? QColor(kFailColour)
-                                                 : QColor(kWarnColour),
-                      tr("+%1 over the best way").arg(o.moves - o.bestMoves)));
+           : overMarked(tr("+%1 over the best way").arg(o.moves - o.bestMoves),
+                        o.moves - o.bestMoves >= 3));
   return o;
 }
 
@@ -446,12 +444,12 @@ QString TslePage::optionsHtml(TsleState state) const {
     if (o.finish) {
       leaves += " · " + algText(o.finish->alg);
     }
-    QString mark =
-        o.best   ? coloured(kPassColour, tr("best from this AUF"))
-        : o.good ? coloured(kWarnColour, tr("good, +%1").arg(o.total - best))
-                 : QString("<span style='color:%1'>%2</span>")
-                       .arg(muted, tr("a step more, %1 fewer")
-                                       .arg(movesText(best - o.total)));
+    QString mark = o.best ? coloured(kPassColour, tr("best from this AUF"))
+                   : o.good
+                       ? overMarked(tr("good, +%1").arg(o.total - best))
+                       : QString("<span style='color:%1'>%2</span>")
+                             .arg(muted, tr("a step more, %1 fewer")
+                                             .arg(movesText(best - o.total)));
     QString alg = playLink(o.alg, algText(o.alg));
     html += QString("<tr><td>%1</td><td>%2</td><td align='right'>%3</td>"
                     "<td>%4</td></tr>")
@@ -542,8 +540,8 @@ std::vector<PracticePage::ListRow> TslePage::caseRows(bool oclls) {
     r.section = level == 0   ? tr("OCLL")
                 : level == 1 ? tr("1 step left")
                              : tr("%1 steps left").arg(level);
-    r.icon = cube_painter::cachedDiagram(tsleDiagram(c), DiagramView::Iso3D,
-                                         size, look, devicePixelRatioF());
+    r.icon = cube_painter::caseIcon(cube_painter::cachedDiagram(
+        tsleDiagram(c), DiagramView::Iso3D, size, look, devicePixelRatioF()));
     rows.push_back(std::move(r));
   }
   return rows;

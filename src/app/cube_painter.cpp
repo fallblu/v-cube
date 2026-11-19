@@ -178,6 +178,38 @@ QPolygonF rectPolygon(const QRectF &r) {
       {r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft()});
 }
 
+// A sticker of a flat view, and the size of its marks.
+struct FlatSticker {
+  QRectF rect;
+  QColor colour;
+  int facelet = -1;
+  double markSize = 0;
+};
+
+// Flat stickers on a plate in the body colour: each sticker gets a rim of
+// `rim` around it, and where stickers are no more than two rims apart the
+// rims join into one plate. The plate keeps white and yellow stickers apart
+// from a light window and blue and red ones from a dark one.
+void drawFlatStickers(QPainter &p, const std::vector<FlatSticker> &stickers,
+                      double radius, double rim, const QColor &body,
+                      const StickerMarks *marks) {
+  p.setPen(Qt::NoPen);
+  p.setBrush(body);
+  for (const FlatSticker &s : stickers) {
+    p.drawRoundedRect(s.rect.adjusted(-rim, -rim, rim, rim), radius + rim,
+                      radius + rim);
+  }
+  for (const FlatSticker &s : stickers) {
+    p.setPen(Qt::NoPen);
+    p.setBrush(s.colour);
+    p.drawRoundedRect(s.rect, radius, radius);
+    if (marks) {
+      drawMarks(p, rectPolygon(s.rect), s.colour, s.markSize, *marks,
+                s.facelet);
+    }
+  }
+}
+
 // Where paintNet() draws each face's 3x3 block, and the cell size.
 struct NetGeometry {
   double cell = 0;
@@ -347,16 +379,13 @@ void paintNet(QPainter &p, const QRectF &area, const FaceletCube &cube,
   p.save();
   p.setRenderHint(QPainter::Antialiasing, true);
   NetGeometry net(area);
+  std::vector<FlatSticker> stickers;
   for (int i = 0; i < kFaceletCount; ++i) {
-    QRectF rect = net.sticker(i);
-    QColor colour = look.stickerColour(cube[i]);
-    p.setPen(Qt::NoPen);
-    p.setBrush(colour);
-    p.drawRoundedRect(rect, net.cell * 0.12, net.cell * 0.12);
-    if (marks) {
-      drawMarks(p, rectPolygon(rect), colour, net.cell * 0.8, *marks, i);
-    }
+    stickers.push_back(
+        {net.sticker(i), look.stickerColour(cube[i]), i, net.cell * 0.8});
   }
+  drawFlatStickers(p, stickers, net.cell * 0.12, std::max(1.0, net.gap / 2),
+                   look.scheme.body, marks);
   p.restore();
 }
 
@@ -376,6 +405,7 @@ void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
   double height = (6.0 + kSpacing) * cell;
   QPointF origin(area.center().x() - width / 2, area.center().y() - height / 2);
   const auto &layout = flatLayout();
+  std::vector<FlatSticker> stickers;
   for (int r = 0; r < kFlatRows; ++r) {
     double y = origin.y() + r * cell + (r >= 3 ? kSpacing * cell : 0.0);
     for (int c = 0; c < kFlatColumns; ++c) {
@@ -393,16 +423,12 @@ void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
       QRectF rect(x + gap / 2, y + gap / 2, w - gap, cell - gap);
       int facelet =
           layout[static_cast<std::size_t>(r)][static_cast<std::size_t>(c)];
-      QColor colour = look.stickerColour(cube[facelet]);
-      p.setPen(Qt::NoPen);
-      p.setBrush(colour);
-      p.drawRoundedRect(rect, cell * 0.1, cell * 0.1);
-      if (marks) {
-        drawMarks(p, rectPolygon(rect), colour, std::min(w, cell) * 0.8, *marks,
-                  facelet);
-      }
+      stickers.push_back({rect, look.stickerColour(cube[facelet]), facelet,
+                          std::min(w, cell) * 0.8});
     }
   }
+  drawFlatStickers(p, stickers, cell * 0.1, std::max(1.0, gap / 2),
+                   look.scheme.body, marks);
   p.restore();
 }
 
@@ -418,11 +444,10 @@ void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,
   double gap = std::max(1.0, cell * 0.07);
   QPointF topLeft(area.center().x() - 1.5 * cell,
                   area.center().y() - 1.5 * cell);
+  std::vector<FlatSticker> stickers;
   auto fill = [&](const QRectF &r, std::uint8_t v) {
-    p.setPen(Qt::NoPen);
-    p.setBrush(look.stickerColour(v));
-    p.drawRoundedRect(r.adjusted(gap / 2, gap / 2, -gap / 2, -gap / 2),
-                      cell * 0.1, cell * 0.1);
+    stickers.push_back({r.adjusted(gap / 2, gap / 2, -gap / 2, -gap / 2),
+                        look.stickerColour(v)});
   };
   for (int i = 0; i < 9; ++i) {
     fill(QRectF(topLeft.x() + (i % 3) * cell, topLeft.y() + (i / 3) * cell,
@@ -447,6 +472,8 @@ void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,
                 cell),
          cube[11 - k]);
   }
+  drawFlatStickers(p, stickers, cell * 0.1, std::max(1.0, gap / 2),
+                   look.scheme.body, nullptr);
   p.restore();
 }
 
@@ -502,6 +529,14 @@ QPixmap cachedDiagram(const FaceletCube &cube, DiagramView view, int size,
   QPixmap pm = diagram(cube, view, size, look, devicePixelRatio);
   cache.insert(key, new QPixmap(pm));
   return pm;
+}
+
+QIcon caseIcon(const QPixmap &picture) {
+  QIcon icon;
+  for (QIcon::Mode mode : {QIcon::Normal, QIcon::Active, QIcon::Selected}) {
+    icon.addPixmap(picture, mode);
+  }
+  return icon;
 }
 
 } // namespace cube_painter

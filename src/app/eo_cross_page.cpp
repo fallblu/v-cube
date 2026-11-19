@@ -274,9 +274,9 @@ PracticePage::Outcome EoCrossPage::judge() {
       " · " +
       (over == 0
            ? coloured(kPassColour, tr("optimal"))
-           : coloured(
-                 over >= 3 ? QColor(kFailColour) : QColor(kWarnColour),
-                 tr("+%1 over the optimum (%2)").arg(over).arg(o.bestMoves)));
+           : overMarked(
+                 tr("+%1 over the optimum (%2)").arg(over).arg(o.bestMoves),
+                 over >= 3));
   return o;
 }
 
@@ -302,10 +302,9 @@ QString EoCrossPage::breakdownHtml() const {
   for (const EoPart &p : b.parts) {
     Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(p.begin),
               item().moves.begin() + static_cast<std::ptrdiff_t>(p.end));
-    QString lost = p.lost <= 0 ? coloured(kPassColour, tr("nothing"))
-                               : coloured(p.lost >= 3 ? QColor(kFailColour)
-                                                      : QColor(kWarnColour),
-                                          "+" + QString::number(p.lost));
+    QString lost = p.lost <= 0
+                       ? coloured(kPassColour, tr("nothing"))
+                       : overMarked("+" + QString::number(p.lost), p.lost >= 3);
     html += QString("<tr><td>%1</td><td><b>%2</b></td><td align='right'>%3"
                     "</td><td align='right'>%4</td><td align='right'>%5</td>"
                     "</tr>")

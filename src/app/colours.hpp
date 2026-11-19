@@ -54,6 +54,44 @@ struct StatusColour {
   QString name() const { return statusColour(status).name(); }
 };
 
+// Colours for the roles the palette has no entry for, each with a shade for
+// each theme, chosen to reach 4.5:1 as text (3:1 for lines and marks) on
+// the window and list backgrounds of their theme.
+enum class Role {
+  Fail,    // a failed result or an error, as text
+  Info,    // a neutral count picked out from the text, as Learn's Due
+  Muted,   // secondary text: the palette's PlaceholderText
+  Series1, // the lines of a chart, in order (ao5, ao12, ...)
+  Series2,
+  Series3,
+  GradeAgain, // grade badges and buttons, with OnBadge text on them
+  GradeHard,
+  GradeGood,
+  GradeEasy,
+  GradeNone, // an outcome that isn't graded
+  GradeWalked,
+  OnBadge,   // text on a grade badge or button, or on the banner
+  Banner,    // the save error banner
+  FieldEdge, // the edge of a text field, spin box or check box
+};
+QColor roleColour(Role r);
+
+// A role colour that follows the theme, as StatusColour does:
+// `const RoleColour kFailColour{Role::Fail}`.
+struct RoleColour {
+  Role role;
+  operator QColor() const { return roleColour(role); }
+  operator QBrush() const { return roleColour(role); }
+  QString name() const { return roleColour(role).name(); }
+};
+
+// The colours for the algs compared in Alg Lab's chart, in a fixed order
+// (eight, then again), 3:1 or more on the current theme's backgrounds.
+QColor labSeriesColour(std::size_t i);
+
+// Whether the dark theme is the one shown.
+bool darkTheme();
+
 // "White", "Red", ... for a colour slot.
 QString colourName(int slot);
 

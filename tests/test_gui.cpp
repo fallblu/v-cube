@@ -4,6 +4,8 @@
 // QApplication exists, so the user's own data is never read or written.
 #include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
+#include "app/colours.hpp"
+#include "app/cube_painter.hpp"
 #include "app/cube_view.hpp"
 #include "app/drill_page.hpp"
 #include "app/eo_cross_page.hpp"
@@ -40,6 +42,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -55,7 +58,9 @@
 #include <QTimer>
 #include <QTreeWidget>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <functional>
 #include <memory>
@@ -284,6 +289,7 @@ private slots:
   void tsleLearnAndTimed();
   void eoCrossLearnAndTimed();
   void practiceModesComeBackAsLeft();
+  void themeColoursAreReadable();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
@@ -1535,6 +1541,91 @@ void GuiTest::libraryAddsAnAlgAndUndoes() {
   QCOMPARE(savedAlgs("pll", "Ua"), std::vector<std::string>{});
   // The T perm alg was never touched.
   QCOMPARE(savedAlgs("pll", "T"), std::vector<std::string>{kTPerm});
+}
+
+namespace {
+
+// The WCAG contrast ratio of two colours.
+double contrast(const QColor &a, const QColor &b) {
+  auto luminance = [](const QColor &c) {
+    auto channel = [](double v) {
+      return v <= 0.03928 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(c.redF()) + 0.7152 * channel(c.greenF()) +
+           0.0722 * channel(c.blueF());
+  };
+  double la = luminance(a), lb = luminance(b);
+  return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
+}
+
+} // namespace
+
+void GuiTest::themeColoursAreReadable() {
+  for (bool dark : {true, false}) {
+    applyTheme(*qApp, dark);
+    QCOMPARE(darkTheme(), dark);
+    const QPalette pal = QGuiApplication::palette();
+    const QColor window = pal.color(QPalette::Window);
+    const QColor base = pal.color(QPalette::Base);
+    auto readable = [&](const QColor &c, double need, const char *what) {
+      for (const QColor &bg : {window, base}) {
+        QVERIFY2(contrast(c, bg) >= need,
+                 qPrintable(QString("%1 %2 on %3 (%4 theme): %5")
+                                .arg(what, c.name(), bg.name(),
+                                     dark ? "dark" : "light")
+                                .arg(contrast(c, bg), 0, 'f', 2)));
+      }
+    };
+    // Text.
+    readable(roleColour(Role::Fail), 4.5, "fail");
+    readable(roleColour(Role::Info), 4.5, "info");
+    readable(roleColour(Role::Muted), 4.5, "muted");
+    readable(statusColour(Status::Good), 4.5, "good");
+    readable(statusColour(Status::Warning), 4.5, "warning");
+    readable(statusColour(Status::Bad), 4.5, "bad");
+    readable(pal.color(QPalette::Link), 4.5, "link");
+    // The keys strip's chips are buttons with muted text on them.
+    QVERIFY(contrast(roleColour(Role::Muted), pal.color(QPalette::Button)) >=
+            4.5);
+    // Chart lines, named in their colours.
+    for (Role r : {Role::Series1, Role::Series2, Role::Series3}) {
+      readable(roleColour(r), 4.5, "chart series");
+    }
+    // Alg Lab's series are marks with names beside them.
+    for (std::size_t i = 0; i < 8; ++i) {
+      readable(labSeriesColour(i), 3.0, "lab series");
+    }
+    readable(roleColour(Role::FieldEdge), 3.0, "field edge");
+    // White text on a selection, a grade badge or the banner.
+    QVERIFY(contrast(pal.color(QPalette::HighlightedText),
+                     pal.color(QPalette::Highlight)) >= 4.5);
+    for (Role r :
+         {Role::GradeAgain, Role::GradeHard, Role::GradeGood, Role::GradeEasy,
+          Role::GradeNone, Role::GradeWalked, Role::Banner}) {
+      QVERIFY(contrast(roleColour(Role::OnBadge), roleColour(r)) >= 4.5);
+    }
+  }
+  applyTheme(*qApp, settings_.darkTheme);
+
+  // A selected row shows a case picture as it is.
+  QPixmap picture(8, 8);
+  picture.fill(QColor(0xff, 0xd5, 0x00));
+  QIcon icon = cube_painter::caseIcon(picture);
+  QCOMPARE(icon.pixmap(8, 8, QIcon::Selected).toImage(),
+           icon.pixmap(8, 8, QIcon::Normal).toImage());
+
+  // A flat sticker sits on a plate of the body colour, so that a white one
+  // still has an edge on a light window.
+  CubeLook look;
+  QPixmap net(480, 360);
+  net.fill(Qt::transparent);
+  {
+    QPainter p(&net);
+    cube_painter::paintNet(p, QRectF(0, 0, 480, 360), FaceletCube(), look);
+  }
+  // Between the first two U stickers (cells of 40 px, U's block at x 120).
+  QImage image = net.toImage();
+  QCOMPARE(image.pixelColor(160, 20).rgb(), look.scheme.body.rgb());
 }
 
 void GuiTest::settingsDialogOpensAndCloses() {

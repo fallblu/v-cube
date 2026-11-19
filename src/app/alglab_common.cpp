@@ -142,16 +142,6 @@ const ErgoProfile *labGuideProfile(const AlgLabStore &store) {
   return labGuideProfile(store, saved::lab("scoreProfile").get().toString());
 }
 
-QColor seriesColour(std::size_t i, bool dark) {
-  static constexpr std::array<const char *, 8> light = {
-      "#2a78d6", "#eb6834", "#1baf7a", "#eda100",
-      "#e87ba4", "#008300", "#6250d6", "#e34948"};
-  static constexpr std::array<const char *, 8> darkHex = {
-      "#3987e5", "#d95926", "#199e70", "#c98500",
-      "#d55181", "#008300", "#9085e9", "#e66767"};
-  return QColor(dark ? darkHex[i % 8] : light[i % 8]);
-}
-
 QString labTime(std::optional<std::int64_t> ms, int decimals) {
   if (!ms) {
     return QStringLiteral("–");
