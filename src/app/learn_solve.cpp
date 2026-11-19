@@ -1,4 +1,5 @@
 #include "app/learn_page.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/case_history_dialog.hpp"
 #include "app/train_keys.hpp"
@@ -190,6 +191,16 @@ void LearnPage::undoLast() {
     adoptSet();
   }
   updateAllRows();
+  if (u.fromList) {
+    // Nothing came up for it: whatever is on the cube stays.
+    int n = static_cast<int>(u.cards.size());
+    emit message(plural(n, tr("Took back the change to %n case"),
+                        tr("Took back the change to %n cases")));
+    if (phase() == Phase::NoCase) {
+      nextCase();
+    }
+    return;
+  }
   const AlgCase *c = set() ? set()->findCase(u.caseId) : nullptr;
   emit message(
       tr("Took back the grade of %1").arg(c ? qs(c->name) : QString()));
@@ -504,7 +515,7 @@ void LearnPage::say(const QString &message, const QList<KeyHint> &keys,
 }
 
 bool LearnPage::handleKey(QKeyEvent *e, bool press) {
-  LearnSession::Step step = session_.key(sessionKey(e, press));
+  LearnSession::Step step = session_.key(sessionKey(e, press), monotonicMs());
   perform(step);
   return step.handled;
 }

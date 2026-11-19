@@ -26,6 +26,12 @@ void LearnAttempt::startTiming(std::int64_t shownAtMs, bool spoiled) {
   recognitionSpoiled_ = spoiled;
 }
 
+void LearnAttempt::spoilRecognition() {
+  if (recognitionMs_ == 0) {
+    recognitionSpoiled_ = true;
+  }
+}
+
 void LearnAttempt::clear() {
   // The grade itself stays until the next case is graded.
   Grade grade = grade_, autoGrade = autoGrade_;
@@ -152,8 +158,12 @@ bool LearnAttempt::endLink(LinkEnd end, const std::optional<std::string> &next,
       // at its first learning step to be done from memory.
       CaseProgress &cp = progress[gradedCard_];
       cardBefore_ = cp.card;
-      g.undo->push(
-          {g.setId, caseId_, isNew_, false, {{gradedCard_, cp.card, 0}}});
+      g.undo->push({g.setId,
+                    caseId_,
+                    isNew_,
+                    false,
+                    {{gradedCard_, cp.card, 0, {}}},
+                    false});
       gradedCards_.push_back(gradedCard_);
       introduce(cp.card, now, *g.srs);
       walkedThrough_ = true;
@@ -183,10 +193,11 @@ bool LearnAttempt::endLink(LinkEnd end, const std::optional<std::string> &next,
   if (first) {
     cardBefore_ = cp.card;
     attemptTime_ = now;
-    g.undo->push({g.setId, caseId_, isNew_, false, {{card, cp.card, now}}});
+    g.undo->push(
+        {g.setId, caseId_, isNew_, false, {{card, cp.card, now, {}}}, false});
     graded_ = true;
   } else if (LearnUndo *open = g.undo->open()) {
-    open->cards.push_back({card, cp.card, now});
+    open->cards.push_back({card, cp.card, now, {}});
   }
   gradedCards_.push_back(card);
   Attempt attempt{now, 0, link.grade == Grade::Again, AttemptMode::Learn};
@@ -250,8 +261,9 @@ bool LearnAttempt::regrade(Grade grade, std::int64_t now,
 
 void LearnAttempt::recalled(bool knew, std::int64_t nowMs, std::int64_t now,
                             const LearnGrading &g) {
-  recognitionMs_ =
-      knew ? std::max<std::int64_t>(1, nowMs - shownAtMs_) : std::int64_t{0};
+  recognitionMs_ = knew && !recognitionSpoiled_
+                       ? std::max<std::int64_t>(1, nowMs - shownAtMs_)
+                       : std::int64_t{0};
   gradedCard_ = g.cardId(caseId_);
   const CaseProgress *cp = find(*g.progress, gradedCard_);
   cardBefore_ = cp ? cp->card : SrsCard{};
@@ -262,7 +274,8 @@ void LearnAttempt::recalled(bool knew, std::int64_t nowMs, std::int64_t now,
 void LearnAttempt::gradeRecognition(Grade grade, std::int64_t now,
                                     const LearnGrading &g) {
   CaseProgress &cp = (*g.progress)[gradedCard_];
-  LearnUndo u{g.setId, caseId_, false, true, {{gradedCard_, cp.card, now}}};
+  LearnUndo u{g.setId, caseId_, false, true, {{gradedCard_, cp.card, now, {}}},
+              false};
   Attempt a{now, 0, grade == Grade::Again, AttemptMode::Learn};
   a.recognitionMs = recognitionMs_;
   a.recognitionOnly = true;

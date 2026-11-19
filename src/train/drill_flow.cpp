@@ -198,6 +198,13 @@ bool DrillFlow::loseKeyboard() {
   return true;
 }
 
+void DrillFlow::windowLost() {
+  if (firstTurnMs_ == 0 &&
+      (phase_ == Phase::Waiting || phase_ == Phase::Running)) {
+    timingValid_ = false;
+  }
+}
+
 std::optional<DrillFlow::Timing> DrillFlow::timing(std::int64_t timeMs,
                                                    bool failed) const {
   // Only for a case solved, which was recognised rightly.
