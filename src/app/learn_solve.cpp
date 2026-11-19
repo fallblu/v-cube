@@ -69,7 +69,7 @@ QString reasonsText(const GradeWhy &w) {
 } // namespace
 
 CubieCube LearnPage::setUp(const std::string &caseId, Mirror world,
-                           bool scramble) {
+                           FreePieces pieces) {
   const CaseInfo *info = infoOf(caseId);
   const AlgSet *s = set();
   const CaseGroup *g = s ? s->groupOf(caseId) : nullptr;
@@ -77,9 +77,9 @@ CubieCube LearnPage::setUp(const std::string &caseId, Mirror world,
     return {};
   }
   // From a random side, as in Drill, when the set asks for random U turns,
-  // and with the pieces the step leaves free anywhere when `scramble`.
+  // and with the pieces the step leaves free anywhere when they are scrambled.
   return withRandomAufs(
-      *s, setUpCase(info->state, s->specFor(*g).free, world, scramble, rng_),
+      *s, setUpCase(info->state, s->specFor(*g).free, world, pieces, rng_),
       rng_);
 }
 
@@ -136,7 +136,9 @@ void LearnPage::begin(const std::string &caseId, LearnAttempt::Kind kind) {
   const CaseProgress *cp = cardOf(caseId);
   bool reviewed = cp && (cp->card.state == CardState::Review ||
                          cp->card.state == CardState::Relearning);
-  CubieCube start = setUp(caseId, world, s->reduction || reviewed);
+  CubieCube start = setUp(caseId, world,
+                          s->reduction || reviewed ? FreePieces::Scrambled
+                                                   : FreePieces::AsDrawn);
   current_ = Current{caseId, start, hold, isNew, practice, world};
   last_ = cardId(caseId);
   undo_.close();
@@ -536,7 +538,8 @@ void LearnPage::perform(const LearnSession::Step &step) {
       break;
     }
     // Checks again, and (early) takes a learning case if nothing is due.
-    nextCase(step.action == A::NextEarly);
+    nextCase(step.action == A::NextEarly ? LearnAhead::Early
+                                         : LearnAhead::WhenDue);
     break;
   case A::Turn:
     turn(*step.move);
@@ -601,7 +604,7 @@ void LearnPage::perform(const LearnSession::Step &step) {
     showContextResult();
     break;
   case A::ContextGiveUp:
-    finishContext(true);
+    finishContext(ContextPractice::End::GaveUp);
     break;
   case A::ContextReset:
     resetContext();
@@ -638,7 +641,7 @@ void LearnPage::turn(Move m) {
   cubeView_->animateMove(m);
   if (phase() == Phase::Context && context_) {
     if (context_->turned(m, cube_)) {
-      finishContext(false);
+      finishContext(ContextPractice::End::Solved);
     }
     return;
   }

@@ -333,7 +333,7 @@ std::vector<std::string> F2LPage::cardPool() const {
   return pairCardPool(config_.edges());
 }
 
-std::optional<PracticePage::Setup> F2LPage::setUp(bool whole,
+std::optional<PracticePage::Setup> F2LPage::setUp(Extent extent,
                                                   const std::string &card) {
   if (stop_) {
     stop_->store(true);
@@ -345,7 +345,7 @@ std::optional<PracticePage::Setup> F2LPage::setUp(bool whole,
   card_.reset();
   ranks_.clear();
   asked_.clear();
-  if (whole) {
+  if (extent == Extent::Whole) {
     start_ = randomFullState(config_, rng());
   } else {
     std::optional<PairCard> c = cardFromKey(card);

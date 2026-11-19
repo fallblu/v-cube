@@ -163,8 +163,8 @@ TEST_CASE("a cube is followed through its cases to the end", "[reduction]") {
   const PieceMask &free = set.spec.free;
   for (int i = 0; i < 20; ++i) {
     const AlgCase &two = *set.findCase("two");
-    CubieCube cube =
-        withRandomAufs(set, setUpCase(two.state, free, {}, true, rng), rng);
+    CubieCube cube = withRandomAufs(
+        set, setUpCase(two.state, free, {}, FreePieces::Scrambled, rng), rng);
     auto view = seenCase(set, cube);
     REQUIRE(view);
     CHECK(view->caseId == "two");
@@ -192,8 +192,9 @@ TEST_CASE("slot cases come up mirrored in a mirror world", "[reduction]") {
     for (const char *id : {"one", "two", "three"}) {
       const AlgCase &c = *set.findCase(id);
       CHECK_FALSE(slotIndependent(c.state, free, world));
-      CubieCube cube =
-          withRandomAufs(set, setUpCase(c.state, free, world, true, rng), rng);
+      CubieCube cube = withRandomAufs(
+          set, setUpCase(c.state, free, world, FreePieces::Scrambled, rng),
+          rng);
       auto view = seenCase(set, cube, world);
       REQUIRE(view);
       CHECK(view->caseId == id);
@@ -228,8 +229,9 @@ TEST_CASE("cases that don't depend on the slot keep their algs",
   const AlgCase &sune = *set.findCase("sune");
   for (Mirror world : kMirrors) {
     CHECK(slotIndependent(sune.state, free, world));
-    CubieCube cube =
-        withRandomAufs(set, setUpCase(sune.state, free, world, true, rng), rng);
+    CubieCube cube = withRandomAufs(
+        set, setUpCase(sune.state, free, world, FreePieces::Scrambled, rng),
+        rng);
     auto view = seenCase(set, cube, world);
     REQUIRE(view);
     CHECK(view->caseId == "sune");
@@ -246,7 +248,8 @@ TEST_CASE("cases that don't depend on the slot keep their algs",
   // looks like an antisune, done as the set's antisune.
   Mirror leftRight{true, false};
   const AlgCase &three = *set.findCase("three");
-  CubieCube cube = setUpCase(three.state, free, leftRight, false, rng);
+  CubieCube cube =
+      setUpCase(three.state, free, leftRight, FreePieces::AsDrawn, rng);
   Chain chain = solveChain(set, cube, leftRight);
   REQUIRE(chain.complete);
   REQUIRE(chain.steps.size() == 2);
@@ -294,8 +297,9 @@ TEST_CASE("a follower fed by algsFor follows mirrored and reducing steps",
     for (const char *id : {"one", "two", "three", "sune"}) {
       INFO(id << " in world " << world.leftRight << world.frontBack);
       const AlgCase &c = *set.findCase(id);
-      CubieCube cube =
-          withRandomAufs(set, setUpCase(c.state, free, world, true, rng), rng);
+      CubieCube cube = withRandomAufs(
+          set, setUpCase(c.state, free, world, FreePieces::Scrambled, rng),
+          rng);
       auto view = seenCase(set, cube, world);
       REQUIRE(view);
       REQUIRE(view->caseId == id);
@@ -340,7 +344,8 @@ TEST_CASE("a follower fed by algsFor follows mirrored and reducing steps",
   // the algs at its first turn.
   Mirror leftRight{true, false};
   const AlgCase &one = *set.findCase("one");
-  CubieCube cube = setUpCase(one.state, free, leftRight, false, rng);
+  CubieCube cube =
+      setUpCase(one.state, free, leftRight, FreePieces::AsDrawn, rng);
   auto view = seenCase(set, cube, leftRight);
   REQUIRE(view);
   std::vector<Alg> algs;

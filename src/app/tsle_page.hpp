@@ -54,7 +54,7 @@ protected:
   void addButtons(OptionBar *bar) override;
   void showOptions() override;
   std::vector<std::string> cardPool() const override;
-  std::optional<Setup> setUp(bool whole, const std::string &card) override;
+  std::optional<Setup> setUp(Extent extent, const std::string &card) override;
   void restarted() override;
   bool turned() override;
   Outcome judge() override;
@@ -105,7 +105,9 @@ private:
   QString pathHtml(TsleState state) const;
   QString stepVerdict(const Step &step) const;
   QString caseText(TsleState state) const;
-  std::vector<ListRow> caseRows(bool oclls);
+  // The rows of the cases: TSLE's own, or the OCLLs they end in as well.
+  enum class Rows { TsleOnly, WithOclls };
+  std::vector<ListRow> caseRows(Rows which);
   void editOcllAlgs();
 };
 

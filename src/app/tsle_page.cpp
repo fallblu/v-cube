@@ -154,7 +154,7 @@ Slot TslePage::randomSlot() {
 
 std::vector<std::string> TslePage::cardPool() const { return tsleCardPool(); }
 
-std::optional<PracticePage::Setup> TslePage::setUp(bool whole,
+std::optional<PracticePage::Setup> TslePage::setUp(Extent extent,
                                                    const std::string &card) {
   TsleState state;
   if (!card.empty()) {
@@ -180,7 +180,7 @@ std::optional<PracticePage::Setup> TslePage::setUp(bool whole,
   s.cube = s.state.toFacelets();
   // Timed attempts are kept by the case they start from.
   s.group = tab() == Tab::Timed ? tsleKey(tsleCase(state)) : kWhole;
-  (void)whole;
+  (void)extent;
   return s;
 }
 
@@ -524,13 +524,13 @@ QString TslePage::detail() {
 
 // --- the lists ---------------------------------------------------------------
 
-std::vector<PracticePage::ListRow> TslePage::caseRows(bool oclls) {
+std::vector<PracticePage::ListRow> TslePage::caseRows(Rows which) {
   CubeLook look = cubeView()->look();
   look.map = kIdentityColourMap;
   const int size = settings().thumbnailSize;
   std::vector<ListRow> rows;
   for (TsleState c : tsleCases()) {
-    if (c.ocll() && !oclls) {
+    if (c.ocll() && which == Rows::TsleOnly) {
       continue;
     }
     const int level = sectionOf(c);
@@ -548,7 +548,7 @@ std::vector<PracticePage::ListRow> TslePage::caseRows(bool oclls) {
 }
 
 std::vector<PracticePage::ListRow> TslePage::cardRows() {
-  return caseRows(false);
+  return caseRows(Rows::TsleOnly);
 }
 
 std::vector<PracticePage::Split> TslePage::splits() {
@@ -566,7 +566,7 @@ std::vector<PracticePage::ListRow> TslePage::untimedGroups() {
 }
 
 std::vector<PracticePage::ListRow> TslePage::timedGroups() {
-  return caseRows(true);
+  return caseRows(Rows::WithOclls);
 }
 
 QString TslePage::listHelp() const {

@@ -630,7 +630,7 @@ void LearnPage::updateCardRows(const std::string &caseId) {
   }
 }
 
-void LearnPage::nextCase(bool early) {
+void LearnPage::nextCase(LearnAhead ahead) {
   pending_ = nullptr; // what comes next is worked out afresh
   idleTimer_.stop();
   reveal_->clear();
@@ -659,7 +659,7 @@ void LearnPage::nextCase(bool early) {
   LearnPickOptions options;
   options.last = last_;
   options.rng = &rng_;
-  options.early = early;
+  options.early = ahead == LearnAhead::Early;
   options.dayEnd = localDayEnd();
   options.newCases = !acrossSets();
   LearnPick pick = pickLearnCase(pool(), progress(), unixNow(), localDayStart(),
@@ -829,8 +829,8 @@ void LearnPage::showIdle(const LearnPick &pick) {
                                   : tr("check again")}};
     // What can be done instead of waiting.
     if (waiting) {
-      actions.push_back(
-          {tr("Next learning case now"), [this] { nextCase(true); }});
+      actions.push_back({tr("Next learning case now"),
+                         [this] { nextCase(LearnAhead::Early); }});
     }
     if (!acrossSets() && pick.queued == 0 && unstarted) {
       int count = learnCount_->value();

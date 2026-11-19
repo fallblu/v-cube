@@ -50,7 +50,7 @@ void LearnPage::beginRecognition(const std::string &caseId) {
   idleTimer_.stop();
   Hold hold = pickHold();
   Mirror world = pickWorld(caseId);
-  CubieCube start = setUp(caseId, world, true);
+  CubieCube start = setUp(caseId, world, FreePieces::Scrambled);
   current_ = Current{caseId, start, hold, false, false, world};
   last_ = cardId(caseId);
   undo_.close();
@@ -158,7 +158,7 @@ void LearnPage::nextQuiz() {
       std::find(others.begin(), others.end(), id) - others.begin());
 
   Hold hold = pickHold();
-  CubieCube start = setUp(id, Mirror{}, true);
+  CubieCube start = setUp(id, Mirror{}, FreePieces::Scrambled);
   current_ = Current{id, start, hold, false, true, Mirror{}};
   last_ = id;
   cubeView_->setColourMap(colourMapOf(hold));
@@ -240,11 +240,11 @@ void LearnPage::resetContext() {
   setPhase(Phase::Context);
 }
 
-void LearnPage::finishContext(bool gaveUp) {
+void LearnPage::finishContext(ContextPractice::End end) {
   if (!context_) {
     return;
   }
-  context_->finish(gaveUp);
+  context_->finish(end);
   setPhase(Phase::ContextDone);
   showContextResult();
 }

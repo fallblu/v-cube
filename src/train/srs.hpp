@@ -248,6 +248,10 @@ struct LearnPick {
   int queued = 0; // cases waiting in the learn queue
 };
 
+// Whether learning cards wait until they are due, or are taken early when
+// nothing else is left (LearnPickOptions::early).
+enum class LearnAhead : std::uint8_t { WhenDue, Early };
+
 // What pickLearnCase may choose from, and how.
 struct LearnPickOptions {
   std::string last;     // avoided when another case is due

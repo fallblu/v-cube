@@ -199,7 +199,7 @@ private:
   // set up from the cases learned so far where it can be.
   void startContext();
   void resetContext();
-  void finishContext(bool gaveUp);
+  void finishContext(ContextPractice::End end);
   void showContextStatus();
   void showContextResult();
   void leaveContext();
@@ -231,7 +231,7 @@ private:
   QString chainHtml() const;
   // The next case: `early` takes a learning card before it is due when
   // nothing else is.
-  void nextCase(bool early = false);
+  void nextCase(LearnAhead ahead = LearnAhead::WhenDue);
   // Across sets: the next due case of any set, switching the list to its
   // set; false when nothing is due anywhere.
   bool nextAcrossSets();
@@ -253,7 +253,7 @@ public:
 private:
   void begin(const std::string &caseId, LearnAttempt::Kind kind);
   // Sets the case up on the cube in a hold, world and AUF picked for it.
-  CubieCube setUp(const std::string &caseId, Mirror world, bool scramble);
+  CubieCube setUp(const std::string &caseId, Mirror world, FreePieces pieces);
   // A learned case that isn't due yet, which "Learn this case now" only
   // practises.
   bool notDue(const std::string &caseId) const;

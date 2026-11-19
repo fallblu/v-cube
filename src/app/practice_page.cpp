@@ -531,11 +531,11 @@ void PracticePage::save() {
 
 // --- items -------------------------------------------------------------------
 
-void PracticePage::next(bool early) {
+void PracticePage::next(LearnAhead ahead) {
   if (tab_ == Tab::Timed) {
     nextTimed();
   } else {
-    nextLearn(early);
+    nextLearn(ahead);
   }
 }
 
@@ -570,10 +570,10 @@ void PracticePage::setProgress(const QStringList &lines) {
   showVerdict();
 }
 
-void PracticePage::begin(const Setup &setup, bool whole) {
+void PracticePage::begin(const Setup &setup, Extent extent) {
   item_ = {};
   item_.id = ++items_;
-  item_.whole = whole;
+  item_.whole = extent == Extent::Whole;
   item_.group = setup.group;
   item_.start = setup.cube;
   item_.colours = setup.colours;
@@ -597,18 +597,18 @@ void PracticePage::begin(const Setup &setup, bool whole) {
   showHidden(false);
 }
 
-void PracticePage::nextLearn(bool early) {
+void PracticePage::nextLearn(LearnAhead ahead) {
   if (tab_ == Tab::Inspection && readyPending_) {
     showReady();
     return;
   }
   if (whole()) {
-    std::optional<Setup> s = setUp(true, {});
+    std::optional<Setup> s = setUp(Extent::Whole, {});
     if (!s) {
       showIdle(tr("No state could be set up with these options"));
       return;
     }
-    begin(*s, true);
+    begin(*s, Extent::Whole);
     phase_ = Phase::Solving;
     cubeChanged();
     if (tab_ == Tab::Inspection && active_) {
@@ -626,7 +626,7 @@ void PracticePage::nextLearn(bool early) {
   options.last = lastCard_;
   options.rng = &rng_;
   options.dayEnd = localDayEnd();
-  options.early = early;
+  options.early = ahead == LearnAhead::Early;
   LearnPick pick = pickLearnCase(pool, store_.data.cards, now, localDayStart(),
                                  settings_.srs, options);
   if (!pick.caseId) {
@@ -649,13 +649,13 @@ void PracticePage::nextLearn(bool early) {
     refreshList();
     return;
   }
-  std::optional<Setup> s = setUp(false, *pick.caseId);
+  std::optional<Setup> s = setUp(Extent::Unit, *pick.caseId);
   if (!s) {
     showIdle(tr("%1 can't be set up with these options")
                  .arg(cardName(*pick.caseId)));
     return;
   }
-  begin(*s, false);
+  begin(*s, Extent::Unit);
   item_.card = *pick.caseId;
   item_.isNew = pick.isNew;
   item_.graded = !pick.isNew;
@@ -690,8 +690,8 @@ void PracticePage::showChoosing() {
   }
 }
 
-void PracticePage::leaveChoice(bool confirmed) {
-  if (confirmed) {
+void PracticePage::leaveChoice(Choice choice) {
+  if (choice == Choice::Confirmed) {
     if (!confirmChoice()) {
       return;
     }
@@ -727,13 +727,13 @@ void PracticePage::practiseCard(const std::string &card) {
     showBar();
     fillList();
   }
-  std::optional<Setup> s = setUp(false, card);
+  std::optional<Setup> s = setUp(Extent::Unit, card);
   if (!s) {
     emit message(
         tr("%1 can't be set up with these options").arg(cardName(card)));
     return;
   }
-  begin(*s, false);
+  begin(*s, Extent::Unit);
   item_.card = card;
   phase_ = Phase::Solving;
   cubeChanged();
@@ -746,13 +746,13 @@ void PracticePage::practiseCard(const std::string &card) {
 
 void PracticePage::nextTimed() {
   flow_.setConfig(flowConfig());
-  std::optional<Setup> s = setUp(true, {});
+  std::optional<Setup> s = setUp(Extent::Whole, {});
   if (!s) {
     flow_.noCase();
     showIdle(tr("No state could be set up with these options"));
     return;
   }
-  begin(*s, true);
+  begin(*s, Extent::Whole);
   flow_.setUp(monotonicMs());
   display_->showTime(0);
   cubeChanged();
@@ -881,11 +881,11 @@ bool PracticePage::handleChooseKey(QKeyEvent *e) {
   switch (e->key()) {
   case Qt::Key_Return:
   case Qt::Key_Enter:
-    leaveChoice(true);
+    leaveChoice(Choice::Confirmed);
     return true;
   case Qt::Key_Escape:
     if (afterChoice_ == Phase::Done) {
-      leaveChoice(false);
+      leaveChoice(Choice::Cancelled);
     }
     return true;
   case Qt::Key_Space:
@@ -911,7 +911,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
   if (phase_ == Phase::Idle) {
     if (e->key() == Qt::Key_Space || e->key() == Qt::Key_Return ||
         e->key() == Qt::Key_Enter) {
-      next(true);
+      next(LearnAhead::Early);
       return true;
     }
     return false;
@@ -939,9 +939,9 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
       introduced();
     } else if (item_.hidden) {
       showHidden(false);
-      finishLearn(!item_.done);
+      finishLearn(item_.done ? Try::Finished : Try::GaveUp);
     } else if (shift) {
-      finishLearn(true);
+      finishLearn(Try::GaveUp);
     }
     return true;
   case Qt::Key_Tab:
@@ -961,7 +961,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
   case Qt::Key_Backspace:
     if (phase_ == Phase::Solving) {
       showHidden(false);
-      finishLearn(true);
+      finishLearn(Try::GaveUp);
     }
     return true;
   case Qt::Key_Escape:
@@ -1041,11 +1041,12 @@ void PracticePage::learnTurn(Move m) {
   if (phase_ == Phase::Demo) {
     introduced();
   } else if (!item_.hidden) {
-    finishLearn(false);
+    finishLearn(Try::Finished);
   }
 }
 
-void PracticePage::finishLearn(bool gaveUp) {
+void PracticePage::finishLearn(Try how) {
+  const bool gaveUp = how == Try::GaveUp;
   if (phase_ != Phase::Solving) {
     return;
   }

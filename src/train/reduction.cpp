@@ -127,7 +127,8 @@ std::optional<CaseView> seenCase(const AlgSet &set, const CubieCube &cube,
 }
 
 CubieCube setUpCase(const CubieCube &state, const PieceMask &free, Mirror world,
-                    bool scramble, Rng &rng) {
+                    FreePieces pieces, Rng &rng) {
+  const bool scramble = pieces == FreePieces::Scrambled;
   if (slotIndependent(state, free, world)) {
     return scramble ? randomState(mirrorMask(free, world), rng) * state : state;
   }

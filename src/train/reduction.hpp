@@ -55,10 +55,11 @@ std::optional<CaseView> seenCase(const AlgSet &set, const CubieCube &cube,
                                  Mirror world = {});
 
 // A case set up in `world`, without U turns around it: `state` is the case
-// as it is drawn and `free` its step's free pieces, which are scrambled
-// when `scramble` is set.
+// as it is drawn and `free` its step's free pieces, which stay as they are
+// drawn or are scrambled.
+enum class FreePieces : std::uint8_t { AsDrawn, Scrambled };
 CubieCube setUpCase(const CubieCube &state, const PieceMask &free, Mirror world,
-                    bool scramble, Rng &rng);
+                    FreePieces pieces, Rng &rng);
 
 // An alg of a case as it is done from a cube showing the case: with the
 // U turns it needs there written in, and mirrored for a mirrored view.
