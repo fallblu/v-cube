@@ -103,6 +103,9 @@ public:
   virtual std::vector<Tab> tabs() const = 0;
   // Timed's cube.
   bool physical() const { return physical_; }
+  CubeKind cubeKind() const {
+    return physical_ ? CubeKind::Physical : CubeKind::Virtual;
+  }
   void setPhysical(bool on);
   const FaceletCube &cube() const { return cube_; }
   // The state the solve started from, as shown.

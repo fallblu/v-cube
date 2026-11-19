@@ -76,13 +76,13 @@ TEST_CASE("built-in cases are distinct and accept standard algs") {
                            "T: R U R' U' R' F R2 U' R' U' R U R' F'\n"
                            "M2 U M U2 M' U M2\n"
                            "x R2 D2 R U R' D2 R U' R x'\n",
-                           false);
+                           NewCases::Skip);
   CHECK(report.added == 3);
   CHECK(p.findCase("T")->algs.size() == 1);
   CHECK(p.findCase("Ua")->algs.size() == 1);
   CHECK(p.findCase("Ab")->algs.size() == 1);
   AlgSet o = *oll;
-  report = importAlgs(o, "R U R' U R U2 R'\nF R U R' U' F'\n", false);
+  report = importAlgs(o, "R U R' U R U2 R'\nF R U R' U' F'\n", NewCases::Skip);
   CHECK(report.added == 2);
   CHECK(o.findCase("oll27")->algs.size() == 1);
   CHECK(o.findCase("oll45")->algs.size() == 1);
@@ -176,7 +176,8 @@ TEST_CASE("a tilted Aa perm alg shows the case the usual way up") {
   auto pll = readAlgSetFile(kBuiltins + "/pll.json", nullptr);
   REQUIRE(pll);
   AlgSet set = *pll;
-  auto report = importAlgs(set, "x R' U R' D2 R U' R' D2 R2 x'\n", false);
+  auto report =
+      importAlgs(set, "x R' U R' D2 R U' R' D2 R2 x'\n", NewCases::Skip);
   REQUIRE(report.added == 1);
   const CaseGroup *group = nullptr;
   const AlgCase *aa = nullptr;

@@ -86,7 +86,9 @@ private:
   void advance();
   // Says in the accessible description whether the cube shown is solved.
   void describe();
-  void enqueue(Move m, bool typed);
+  // A move typed by the solver, or one of a sequence played to them.
+  enum class Source { Typed, Played };
+  void enqueue(Move m, Source source);
   QRectF drawArea() const;
   // marks_ moved back through the turns still to animate, onto the stickers
   // of the state shown now.

@@ -52,22 +52,22 @@ TEST_CASE("parseStatId reads single, moN and aoN", "[stats]") {
 TEST_CASE("statSpan finds the solves behind a statistic", "[stats]") {
   std::vector<Solve> s = {solve(5000), solve(3000), solve(4000),
                           solve(9000), solve(3500), solve(6000)};
-  auto single = statSpan(s, *parseStatId("single"), false);
+  auto single = statSpan(s, *parseStatId("single"), StatPick::Current);
   REQUIRE(single);
   CHECK(single->from == 5);
-  auto bestSingle = statSpan(s, *parseStatId("single"), true);
+  auto bestSingle = statSpan(s, *parseStatId("single"), StatPick::Best);
   REQUIRE(bestSingle);
   CHECK(bestSingle->from == 1);
   CHECK(bestSingle->count == 1);
-  auto cur = statSpan(s, *parseStatId("ao5"), false);
+  auto cur = statSpan(s, *parseStatId("ao5"), StatPick::Current);
   REQUIRE(cur);
   CHECK(cur->from == 1);
   CHECK(cur->count == 5);
-  auto bestMo3 = statSpan(s, *parseStatId("mo3"), true);
+  auto bestMo3 = statSpan(s, *parseStatId("mo3"), StatPick::Best);
   REQUIRE(bestMo3);
   CHECK(bestMo3->from == 0); // 5, 3, 4 is the best mean of 3
-  CHECK_FALSE(statSpan(s, *parseStatId("ao12"), false));
-  CHECK_FALSE(statSpan({}, *parseStatId("single"), false));
+  CHECK_FALSE(statSpan(s, *parseStatId("ao12"), StatPick::Current));
+  CHECK_FALSE(statSpan({}, *parseStatId("single"), StatPick::Current));
 }
 
 TEST_CASE("sessionStats gives each statistic's current and best", "[stats]") {

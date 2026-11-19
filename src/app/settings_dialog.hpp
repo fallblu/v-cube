@@ -95,7 +95,8 @@ private:
   void refreshNeutrality();
   void refreshKeys();
   // Binds the key and move entered, to the selected row or as a new one.
-  void setBinding(bool changeSelected);
+  enum class Bind { ChangeSelected, AddNew };
+  void setBinding(Bind bind);
   // The selected binding's row, or -1.
   int selectedBinding() const;
   void updateKeyButtons();

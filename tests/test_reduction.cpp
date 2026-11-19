@@ -131,7 +131,7 @@ TEST_CASE("pasted steps go to the case named and make no cases",
   auto plan = planPaste(set,
                         readPaste("two: R U2 R'\n"
                                   "R U R'\n"),
-                        true, 0);
+                        NewCases::Create, 0);
   REQUIRE(plan.results.size() == 2);
   CHECK(plan.results[0].outcome == PasteOutcome::Added);
   CHECK(plan.results[0].caseId == "two");

@@ -358,7 +358,8 @@ void openStatLink(QWidget *parent, const QString &link,
   if (!stat) {
     return;
   }
-  std::optional<StatSpan> span = statSpan(solves, *stat, best, view.unit);
+  std::optional<StatSpan> span = statSpan(
+      solves, *stat, best ? StatPick::Best : StatPick::Current, view.unit);
   if (!span) {
     return;
   }

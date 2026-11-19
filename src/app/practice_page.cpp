@@ -1172,7 +1172,7 @@ void PracticePage::endDemo() {
 // --- Timed -------------------------------------------------------------------
 
 std::string PracticePage::timedGroupKey() const {
-  return timedKey(physical_, item_.group);
+  return timedKey(cubeKind(), item_.group);
 }
 
 DrillFlow::KeyEvent PracticePage::flowKey(const QKeyEvent *e,
@@ -2028,7 +2028,7 @@ void PracticePage::refreshList() {
       return;
     }
     const PracticeTries &all = tabTries();
-    auto it = all.find(tab_ == Tab::Timed ? timedKey(physical_, key) : key);
+    auto it = all.find(tab_ == Tab::Timed ? timedKey(cubeKind(), key) : key);
     const PracticeSummary s =
         it == all.end() ? PracticeSummary{} : summarize(it->second);
     row->setText(1, s.tries ? QString::number(s.tries) : kNoValue);
@@ -2215,7 +2215,7 @@ void PracticePage::clearProgress() {
     store_.data.learn.clear();
     break;
   case Tab::Timed: {
-    const std::string prefix = timedKey(physical_, {});
+    const std::string prefix = timedKey(cubeKind(), {});
     std::erase_if(store_.data.timed, [&prefix](const auto &entry) {
       return entry.first.starts_with(prefix);
     });

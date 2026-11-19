@@ -226,15 +226,16 @@ struct PastePlan {
 // solves (any AUF the set allows, any rotations). An alg that solves
 // another case than the one named, or several cases when none is named,
 // isn't filed but reported. An alg that solves no case makes a new case in
-// group `newCaseGroup` (named from the line, or numbered) when
-// `createCases` is set, except in a set solved a step at a time, where a
-// step alg doesn't tell its case. Later lines see the cases earlier lines
-// made.
+// group `newCaseGroup` (named from the line, or numbered) with
+// NewCases::Create, except in a set solved a step at a time, where a step
+// alg doesn't tell its case. Later lines see the cases earlier lines made.
+enum class NewCases : std::uint8_t { Create, Skip };
 PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
-                    bool createCases, std::size_t newCaseGroup);
+                    NewCases newCases, std::size_t newCaseGroup);
 
 // planPaste() of readPaste(text) applied to `set`, with new cases going to
 // the last group.
-ImportReport importAlgs(AlgSet &set, const std::string &text, bool createCases);
+ImportReport importAlgs(AlgSet &set, const std::string &text,
+                        NewCases newCases);
 
 } // namespace vcube

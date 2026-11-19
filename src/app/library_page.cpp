@@ -354,7 +354,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
               setList_->setCurrentItem(item);
             }
             QMenu menu(this);
-            fillContextMenu(&menu, true);
+            fillContextMenu(&menu, MenuOf::Sets);
             menu.exec(setList_->viewport()->mapToGlobal(pos));
           });
   connect(caseTree_, &QTreeWidget::customContextMenuRequested, this,
@@ -364,7 +364,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
               caseTree_->setCurrentItem(item);
             }
             QMenu menu(this);
-            fillContextMenu(&menu, false);
+            fillContextMenu(&menu, MenuOf::Cases);
             menu.exec(caseTree_->viewport()->mapToGlobal(pos));
           });
   connect(caseTree_, &QTreeWidget::currentItemChanged, this,
@@ -534,10 +534,10 @@ QList<QAction *> LibraryPage::editActions() const {
   return {undoAction_, redoAction_, editSeparator_};
 }
 
-void LibraryPage::fillContextMenu(QMenu *menu, bool forSets) {
+void LibraryPage::fillContextMenu(QMenu *menu, MenuOf list) {
   updateActions();
   menu->setToolTipsVisible(true);
-  for (QAction *a : (forSets ? setMenu_ : caseMenu_)->actions()) {
+  for (QAction *a : (list == MenuOf::Sets ? setMenu_ : caseMenu_)->actions()) {
     menu->addAction(a);
   }
 }

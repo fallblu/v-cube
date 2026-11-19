@@ -2,6 +2,7 @@
 
 #include "cube/scramble.hpp"
 #include "train/srs.hpp"
+#include "train/stats.hpp"
 
 #include <cstdint>
 #include <map>
@@ -63,7 +64,7 @@ struct PracticeData {
 };
 
 // "virtual/eocross", "physical/zz-1".
-std::string timedKey(bool physical, const std::string &group);
+std::string timedKey(CubeKind cube, const std::string &group);
 
 // How a group's tries went.
 struct PracticeSummary {

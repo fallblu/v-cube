@@ -256,8 +256,10 @@ private:
   void selectAcrossSets();
   // Starts the case chosen in the list, giving the keys back first.
   void startCaseFromList(const std::string &id);
-  // `cached`: reuse what was worked out for the set before.
-  void computeInfo(bool cached = false);
+  // Works the set's cases out afresh, or reuses what was worked out for
+  // the set before.
+  enum class Info { Fresh, Cached };
+  void computeInfo(Info info = Info::Fresh);
   // Builds the case list, keeping its scroll position and collapsed groups.
   void buildTree();
   // Brings the ticks and rows up to date without drawing the thumbnails

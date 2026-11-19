@@ -80,11 +80,13 @@ private:
 
   StepSpec *scopeSpec(); // nullptr for a group without its own settings
   void loadScope();
+  // Whether what can't be read is said to the user.
+  enum class Errors { Shown, Silent };
   // Stores the scope's step settings into `into`; false if the free-piece
-  // tokens can't be read (shown when `showErrors`).
-  bool storeScope(AlgSet &into, bool showErrors);
+  // tokens can't be read.
+  bool storeScope(AlgSet &into, Errors errors);
   // Everything the widgets hold, over `into`.
-  bool readWidgets(AlgSet &into, bool showErrors);
+  bool readWidgets(AlgSet &into, Errors errors);
   void choosePreviewCases();
   void updatePreview();
 };

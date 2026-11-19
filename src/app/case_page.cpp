@@ -414,7 +414,7 @@ void CasePage::selectAcrossSets() {
   }
   saved::setCaseSet(mode_, QString(kAcrossSetsId));
   setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
-  computeInfo(true);
+  computeInfo(Info::Cached);
   buildTree();
   startSet();
 }
@@ -426,7 +426,7 @@ void CasePage::showSet(const std::string &id) {
   filter_->clearSearch();
   setId_ = id;
   saved::shownSet(mode_).set(qs(setId_));
-  computeInfo(true);
+  computeInfo(Info::Cached);
   buildTree();
 }
 
@@ -450,8 +450,8 @@ void CasePage::startCaseFromList(const std::string &id) {
   startCase(id);
 }
 
-void CasePage::computeInfo(bool cached) {
-  if (cached) {
+void CasePage::computeInfo(Info info) {
+  if (info == Info::Cached) {
     if (auto it = infoCache_.find(setId_); it != infoCache_.end()) {
       info_ = it->second.info;
       families_ = it->second.families;

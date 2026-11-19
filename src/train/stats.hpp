@@ -73,8 +73,10 @@ std::vector<StatValue> rollingAverages(std::span<const Solve> all,
                                        std::int64_t unit = kWcaUnit);
 // The index of the first solve of the best rolling average (or mean) of n,
 // nullopt when there are fewer than n solves.
+enum class Rolling : std::uint8_t { Average, Mean };
 std::optional<std::size_t> bestAverageStart(std::span<const Solve> all,
-                                            std::size_t n, bool mean = false,
+                                            std::size_t n,
+                                            Rolling rolling = Rolling::Average,
                                             std::int64_t unit = kWcaUnit);
 // The solves an average of these solves drops as best and worst (indices
 // into `solves`): none for 3 solves, else ceil(n/20) of each.
@@ -119,8 +121,9 @@ struct StatSpan {
 // The current one (the last solve, or the last N) or the best one (the
 // first best solve, or the start of the best rolling mean or average);
 // nullopt when there are too few solves.
+enum class StatPick : std::uint8_t { Current, Best };
 std::optional<StatSpan> statSpan(std::span<const Solve> all, StatId id,
-                                 bool best, std::int64_t unit = kWcaUnit);
+                                 StatPick pick, std::int64_t unit = kWcaUnit);
 
 // One statistic's current and best values.
 struct StatLine {

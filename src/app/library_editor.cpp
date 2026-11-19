@@ -25,13 +25,15 @@ public:
                  LibraryEditor::Edit edit)
       : QUndoCommand(text), editor_(editor), edit_(std::move(edit)) {}
 
-  void undo() override { editor_->applyEdit(edit_, true, text()); }
+  void undo() override {
+    editor_->applyEdit(edit_, LibraryEditor::Step::Undo, text());
+  }
   void redo() override {
     if (done_) {
       done_ = false; // done before it was pushed
       return;
     }
-    editor_->applyEdit(edit_, false, text());
+    editor_->applyEdit(edit_, LibraryEditor::Step::Redo, text());
   }
 
 private:
@@ -195,7 +197,8 @@ void LibraryEditor::push(const QString &text, Edit edit) {
   undo_->push(new SetEditCommand(this, text, std::move(edit)));
 }
 
-void LibraryEditor::applyEdit(Edit &edit, bool undoing, const QString &text) {
+void LibraryEditor::applyEdit(Edit &edit, Step step, const QString &text) {
+  const bool undoing = step == Step::Undo;
   const std::optional<AlgSet> &to = undoing ? edit.before : edit.after;
   const std::optional<AlgSet> &from = undoing ? edit.after : edit.before;
   const std::string &id = edit.setId;

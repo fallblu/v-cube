@@ -41,9 +41,10 @@ private:
   };
   std::vector<Entry> entries_;
 
-  // Lays the items out in `rect`, moving them only when `apply` is set;
+  // Lays the items out in `rect`, moving them only with Pass::Apply;
   // returns the height used.
-  int doLayout(const QRect &rect, bool apply) const;
+  enum class Pass { Measure, Apply };
+  int doLayout(const QRect &rect, Pass pass) const;
   int spacingOr(int fallback) const;
 };
 

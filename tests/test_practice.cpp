@@ -103,13 +103,13 @@ TEST_CASE("untimed tries are summed up by moves", "[practice]") {
 TEST_CASE("a group keeps its newest tries", "[practice]") {
   PracticeData d;
   for (std::size_t i = 0; i < PracticeData::kPerGroup + 5; ++i) {
-    d.addTimed(timedKey(false, "zz-1"),
+    d.addTimed(timedKey(CubeKind::Virtual, "zz-1"),
                timedTry(static_cast<std::int64_t>(i), 1000));
   }
   const auto &kept = d.timed.at("virtual/zz-1");
   CHECK(kept.size() == PracticeData::kPerGroup);
   CHECK(kept.front().timestamp == 5);
-  CHECK(timedKey(true, "eo") == "physical/eo");
+  CHECK(timedKey(CubeKind::Physical, "eo") == "physical/eo");
 }
 
 TEST_CASE("cards come in by themselves, a few a day", "[practice]") {
@@ -212,7 +212,7 @@ TEST_CASE("practice data survives the file", "[practice][io]") {
   dnf.timestamp = 1794000300;
   dnf.dnf = true;
   d.addLearn("whole", dnf);
-  d.addTimed(timedKey(true, "zz-1"), timedTry(1794000400, 14200));
+  d.addTimed(timedKey(CubeKind::Physical, "zz-1"), timedTry(1794000400, 14200));
   PracticeTry planned;
   planned.timestamp = 1794000500;
   planned.inspectMs = 16200;

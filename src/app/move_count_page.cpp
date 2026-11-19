@@ -32,7 +32,8 @@ QString stepText(SolveStep step) { return qs(std::string(stepName(step))); }
 
 MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
                              AlgLibrary &library, QWidget *parent)
-    : AttemptPage(settings, store, library, "movecount", true, parent) {
+    : AttemptPage(settings, store, library, "movecount", SolveLog::MoveCount,
+                  parent) {
   QWidget *row = stage()->options;
   stepBox_ = new QComboBox(row);
   stepBox_->setFocusPolicy(Qt::NoFocus);

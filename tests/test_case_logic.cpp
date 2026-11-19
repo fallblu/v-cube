@@ -164,7 +164,7 @@ TEST_CASE("pasted algs are matched to their cases") {
                            "(U2) R U R' U' R' F R F'\n"
                            "R U R' U R U2 R'\n"
                            "R U Q\n",
-                           false);
+                           NewCases::Skip);
   CHECK(report.added == 3);
   CHECK(report.duplicates == 1);
   CHECK(report.unmatched.size() == 1);
@@ -172,7 +172,7 @@ TEST_CASE("pasted algs are matched to their cases") {
   CHECK(set.findCase("sune")->algs.size() == 2);
   CHECK(set.findCase("t")->algs.size() == 1);
 
-  report = importAlgs(set, "Line: F R U R' U' F'\n", true);
+  report = importAlgs(set, "Line: F R U R' U' F'\n", NewCases::Create);
   CHECK(report.created == 1);
   CHECK(set.caseCount() == 3);
   CHECK(set.findCase("Line"));
@@ -184,7 +184,7 @@ TEST_CASE("pasted lines may carry comments and copied characters") {
       importAlgs(set,
                  "Sune: R U R\xE2\x80\x99 U R U2 R' // the usual one\n"
                  "R\xC2\xA0U R' U' R' F R F'  // T / chameleon\n",
-                 false);
+                 NewCases::Skip);
   CHECK(report.added == 2);
   CHECK(report.invalid.empty());
   CHECK(report.unmatched.empty());
@@ -215,7 +215,7 @@ TEST_CASE("pasted algs are matched with the set's AUF settings") {
   auto ref = matchCase(set, parseAlgOrEmpty("R U R' U R U2 R'"));
   REQUIRE(ref);
   CHECK(set.groups[ref->group].cases[ref->index].id == "b");
-  auto report = importAlgs(set, "R U R' U R U2 R'\n", false);
+  auto report = importAlgs(set, "R U R' U R U2 R'\n", NewCases::Skip);
   CHECK(report.added == 1);
   CHECK(set.findCase("b")->algs.size() == 1);
   CHECK(set.findCase("a")->algs.empty());
@@ -233,7 +233,7 @@ TEST_CASE("a pasted alg goes to the case its line names") {
                                   "R U R' U R U2 R'\n"
                                   "T: R U R' U R U2 R'\n"
                                   "t: F R U R' U' F'\n"),
-                        true, 0);
+                        NewCases::Create, 0);
   REQUIRE(plan.results.size() == 4);
   CHECK(plan.results[0].outcome == PasteOutcome::Added);
   CHECK(plan.results[0].caseId == "sune-2");
@@ -254,7 +254,7 @@ TEST_CASE("a pasted alg goes to the case its line names") {
   // A chosen case skips the matching.
   auto items = readPaste("R U R' U R U2 R'\n");
   items[0].caseId = "sune";
-  plan = planPaste(set, items, false, 0);
+  plan = planPaste(set, items, NewCases::Skip, 0);
   CHECK(plan.results[0].outcome == PasteOutcome::Added);
   CHECK(plan.set.findCase("sune")->algs.size() == 1);
 }
@@ -263,8 +263,8 @@ TEST_CASE("a pasted alg goes to the named case it solves when names repeat") {
   // Groups for different slots may use the same case names.
   AlgSet set = ollLikeSet();
   set.groups[0].cases[1].name = "Sune";
-  auto plan =
-      planPaste(set, readPaste("Sune: R U R' U' R' F R F'\n"), false, 0);
+  auto plan = planPaste(set, readPaste("Sune: R U R' U' R' F R F'\n"),
+                        NewCases::Skip, 0);
   CHECK(plan.results[0].outcome == PasteOutcome::Added);
   CHECK(plan.results[0].caseId == "t");
 }
@@ -283,7 +283,7 @@ TEST_CASE("pasted spreadsheet rows are name, then algs") {
   CHECK(items[3].name.empty());
   CHECK(items[3].line == 3);
   AlgSet set = ollLikeSet();
-  auto report = importAlgs(set, "Sune\tR U R' U R U2 R'\n", false);
+  auto report = importAlgs(set, "Sune\tR U R' U R U2 R'\n", NewCases::Skip);
   CHECK(report.added == 1);
 }
 
@@ -293,7 +293,7 @@ TEST_CASE("pasted new cases go to the chosen group") {
   auto plan = planPaste(set,
                         readPaste("Line: F R U R' U' F'\n"
                                   "Line: U F R U R' U' F'\n"),
-                        true, 0);
+                        NewCases::Create, 0);
   CHECK(plan.results[0].outcome == PasteOutcome::NewCase);
   CHECK(plan.set.groups[0].cases.size() == 3);
   CHECK(plan.set.groups[1].cases.empty());

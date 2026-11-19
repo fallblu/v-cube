@@ -326,7 +326,7 @@ TEST_CASE("rolling averages are those of each window") {
         }
         CHECK(rolling[end - 1] == expected);
       }
-      CHECK(bestAverageStart(all, n, false, unit) == bestAt);
+      CHECK(bestAverageStart(all, n, Rolling::Average, unit) == bestAt);
       CHECK(bestAverage(all, n, unit) == best);
     }
   }

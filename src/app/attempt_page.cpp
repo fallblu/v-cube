@@ -50,10 +50,10 @@ AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press,
 } // namespace
 
 AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
-                         AlgLibrary &library, const QString &mode,
-                         bool moveCount, QWidget *parent)
+                         AlgLibrary &library, const QString &mode, SolveLog log,
+                         QWidget *parent)
     : ModePage(parent), settings_(settings), store_(store), library_(library),
-      feed_(library), moveCountFlow_(moveCount) {
+      feed_(library), moveCountFlow_(log == SolveLog::MoveCount) {
   // --- left column: sessions, stats, attempts ---
   panel_ = new SessionPanel(this);
   panel_->setStatsClickable(true);
