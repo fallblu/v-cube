@@ -9,6 +9,7 @@
 #include "app/mode_table.hpp"
 #include "app/paste_dialog.hpp"
 #include "app/set_properties_dialog.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "train/reduction.hpp"
@@ -49,7 +50,7 @@ namespace {
 constexpr int kCaseRole = Qt::UserRole;
 constexpr int kGroupRole = Qt::UserRole + 1;
 
-constexpr int kDiagramSize = 160;
+inline int diagramSize() { return scaledToText(kLargeDiagram); }
 
 } // namespace
 

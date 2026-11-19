@@ -7,6 +7,7 @@
 #include "app/grip_view.hpp"
 #include "app/lab_test_panel.hpp"
 #include "app/page_parts.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
@@ -42,7 +43,7 @@ namespace vcube {
 
 namespace {
 
-constexpr int kDiagramSize = 110;
+int diagramSize() { return scaledToText(kSmallDiagram); }
 
 // The move-set drop-downs: each item holds its move set's text, "custom"
 // opens the dialog.
@@ -126,7 +127,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   auto *sl = new QVBoxLayout(search);
   auto *head = new QHBoxLayout;
   diagram_ = new QLabel(search);
-  diagram_->setFixedSize(kDiagramSize, kDiagramSize);
+  diagram_->setFixedSize(diagramSize(), diagramSize());
   diagram_->setAlignment(Qt::AlignCenter);
   caseTitle_ = new QLabel(search);
   caseTitle_->setWordWrap(true);
@@ -796,7 +797,7 @@ void AlgLabPage::showCase(const std::optional<LabCaseKey> &k) {
     return;
   }
   diagram_->setPixmap(
-      labDiagram(*case_, settings_, kDiagramSize, devicePixelRatioF()));
+      labDiagram(*case_, settings_, diagramSize(), devicePixelRatioF()));
   QString free = qs(freeToString(case_->free));
   QStringList aufs;
   if (case_->aufBefore) {

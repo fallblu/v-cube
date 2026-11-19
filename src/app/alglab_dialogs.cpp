@@ -1,4 +1,5 @@
 #include "app/alglab_dialogs.hpp"
+#include "app/text_style.hpp"
 
 #include "app/alglab_common.hpp"
 #include "app/app_settings.hpp"
@@ -577,7 +578,8 @@ LabCaseDialog::LabCaseDialog(const LabCase &c, const AlgLibrary &library,
   left->addWidget(buttons);
   layout->addLayout(left, 1);
   diagram_ = new QLabel(this);
-  diagram_->setFixedSize(150, 150);
+  diagram_->setFixedSize(scaledToText(kLargeDiagram),
+                         scaledToText(kLargeDiagram));
   diagram_->setAlignment(Qt::AlignCenter);
   layout->addWidget(diagram_, 0, Qt::AlignTop);
 
@@ -638,7 +640,8 @@ void LabCaseDialog::validate() {
     ll.lastLayer(Free::PermAndOri, Free::PermAndOri);
     r.spec.view =
         withinMask(r.state, ll) ? DiagramView::TopLayer : DiagramView::Iso3D;
-    diagram_->setPixmap(labDiagram(r, settings_, 150, devicePixelRatioF()));
+    diagram_->setPixmap(labDiagram(r, settings_, scaledToText(kLargeDiagram),
+                                   devicePixelRatioF()));
   } else {
     diagram_->clear();
   }

@@ -887,7 +887,10 @@ void showTextDialog(QWidget *parent, const QString &title,
   edit->setReadOnly(true);
   edit->setLineWrapMode(QPlainTextEdit::NoWrap);
   QFont mono = edit->font();
-  mono.setFamilies({"DejaVu Sans Mono", "Noto Sans Mono", "Monospace"});
+  // The first of these that is installed: Linux, Windows, then macOS.
+  mono.setFamilies({"DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono",
+                    "Cascadia Mono", "Consolas", "Menlo", "Courier New",
+                    "Monospace"});
   mono.setStyleHint(QFont::Monospace);
   edit->setFont(mono);
   layout->addWidget(edit);

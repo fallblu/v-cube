@@ -1,4 +1,5 @@
 #include "app/settings_dialog.hpp"
+#include "app/colours.hpp"
 #include "app/page_parts.hpp"
 #include "app/text_style.hpp"
 
@@ -104,7 +105,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     auto *b = new QPushButton(general);
     b->setToolTip(tr("Colour of the %1 face in the WCA orientation")
                       .arg(tr(kFaceNames[i])));
-    b->setFixedSize(40, 28);
+    b->setFixedSize(scaledToText(40), scaledToText(28));
     b->setAccessibleName(tr("%1 face colour").arg(tr(kFaceNames[i])));
     colourButtons_[i] = b;
     // The face's letter under its swatch.
@@ -450,15 +451,26 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
 }
 
 void SettingsDialog::refreshColours() {
+  styleColourButtons();
+  refreshNeutrality();
+}
+
+void SettingsDialog::styleColourButtons() {
   for (std::size_t i = 0; i < 6; ++i) {
+    // The edge in the field edge colour, and states drawn by hand: the
+    // stylesheet takes Fusion's away, and the focus has to show.
+    const QColor face = settings_.scheme.faces[i];
     colourButtons_[i]->setStyleSheet(
-        QString(
-            "background-color: %1; border: 1px solid #222; border-radius: 3px;")
-            .arg(settings_.scheme.faces[i].name()));
+        QString("QPushButton { background-color: %1; border: 1px solid %2; "
+                "border-radius: 3px; }"
+                "QPushButton:hover { background-color: %3; }"
+                "QPushButton:pressed { background-color: %4; }"
+                "QPushButton:focus { border: 2px solid palette(highlight); }")
+            .arg(face.name(), roleColour(Role::FieldEdge).name(),
+                 face.lighter(112).name(), face.darker(115).name()));
     colourButtons_[i]->setAccessibleDescription(
         settings_.scheme.faces[i].name());
   }
-  refreshNeutrality();
 }
 
 void SettingsDialog::showNeutralityTab() { tabs_->setCurrentIndex(1); }
@@ -762,6 +774,14 @@ void SettingsDialog::setBinding(Bind bind) {
   }
   refreshKeys();
   keyTable_->setCurrentCell(row, 0);
+}
+
+void SettingsDialog::changeEvent(QEvent *event) {
+  QDialog::changeEvent(event);
+  // The swatch edges follow a theme applied with the dialog open.
+  if (event->type() == QEvent::PaletteChange && colourButtons_[5]) {
+    styleColourButtons();
+  }
 }
 
 bool SettingsDialog::eventFilter(QObject *watched, QEvent *event) {

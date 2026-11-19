@@ -165,7 +165,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   statusLabel_->setWordWrap(true);
   // The message line and the result keep their room while hidden, so
   // that the lines under them don't move from one state to the next.
-  statusLabel_->setMinimumHeight(statusLabel_->fontMetrics().height());
+  keepOneLineHigh(statusLabel_);
   QSizePolicy keep = statusLabel_->sizePolicy();
   keep.setRetainSizeWhenHidden(true);
   statusLabel_->setSizePolicy(keep);
@@ -177,7 +177,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   resultLabel_ = new QLabel(resultRow_);
   resultLabel_->setWordWrap(true); // a long DNF reason mustn't widen the page
   resultLabel_->setAlignment(Qt::AlignCenter);
-  resultLabel_->setMinimumHeight(resultLabel_->fontMetrics().height());
+  keepOneLineHigh(resultLabel_);
   resultRows->addWidget(resultLabel_);
   keep = resultRow_->sizePolicy();
   keep.setRetainSizeWhenHidden(true);
@@ -207,12 +207,12 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   // After a case: its diagram and algs side by side under the time, kept
   // together rather than spread across the page.
   auto *revealBox = new QWidget(right);
-  revealBox->setMinimumHeight(kDiagramSize);
+  revealBox->setMinimumHeight(diagramSize());
   auto *revealLayout = new QHBoxLayout(revealBox);
   revealLayout->setContentsMargins(0, 0, 0, 0);
   diagram_ = new QLabel(revealBox);
   diagram_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-  diagram_->setFixedSize(kDiagramSize, kDiagramSize);
+  diagram_->setFixedSize(diagramSize(), diagramSize());
   reveal_ = new QLabel(revealBox);
   reveal_->setTextFormat(Qt::RichText);
   reveal_->setWordWrap(true);

@@ -15,6 +15,7 @@ class QAction;
 class QButtonGroup;
 class QDockWidget;
 class QLabel;
+class QPropertyAnimation;
 class QStackedWidget;
 class QTimer;
 
@@ -47,6 +48,7 @@ protected:
   void changeEvent(QEvent *e) override;
   void closeEvent(QCloseEvent *e) override;
   void contextMenuEvent(QContextMenuEvent *e) override;
+  void resizeEvent(QResizeEvent *e) override;
 
 private:
   AppSettings &settings_;
@@ -62,6 +64,9 @@ private:
   QMenu *modeMenu_ = nullptr;
   QLabel *focusHint_;
   QTimer *focusHintTimer_;
+  QPropertyAnimation *focusHintFade_ = nullptr;
+  void placeFocusHint();
+  void fadeFocusHint(bool in);
   HelpPanel *help_ = nullptr;
   QWidget *banner_ = nullptr;
   QLabel *bannerText_ = nullptr;

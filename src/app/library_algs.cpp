@@ -151,7 +151,7 @@ void LibraryPage::loadCase() {
   const CaseAnalysis *a = editor_.analysisOf(c->id);
   caseDiagram_->setPixmap(cube_painter::diagram(
       maskedFacelets(a ? a->display : c->state, spec.mask, spec.free),
-      spec.view, kDiagramSize, look(), devicePixelRatioF()));
+      spec.view, diagramSize(), look(), devicePixelRatioF()));
   caseGroup_->setText(qs(group.name) +
                       (group.spec ? tr(" (its own step settings)") : ""));
   int passing = a ? static_cast<int>(a->passing.size()) : 0;

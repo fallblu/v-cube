@@ -1,5 +1,6 @@
 #include "app/practice_html.hpp"
 
+#include "app/colours.hpp"
 #include "app/ui_text.hpp"
 #include "train/move_count.hpp"
 #include "train/stats.hpp"
@@ -31,6 +32,21 @@ QString gradeName(Grade g) {
     return QObject::tr("Easy");
   }
   return {};
+}
+
+// Learn's grade badge colours (gradeColour() in alg_html.cpp).
+QColor gradeBadgeColour(Grade g) {
+  switch (g) {
+  case Grade::Again:
+    return roleColour(Role::GradeAgain);
+  case Grade::Hard:
+    return roleColour(Role::GradeHard);
+  case Grade::Good:
+    return roleColour(Role::GradeGood);
+  case Grade::Easy:
+    return roleColour(Role::GradeEasy);
+  }
+  return roleColour(Role::GradeNone);
 }
 
 } // namespace
@@ -74,11 +90,13 @@ QString bestLine(const PracticeOutcome &o) {
 
 QString gradeLine(Grade grade, std::int64_t due, std::int64_t now,
                   std::int64_t dayEnd) {
-  const QColor colour =
-      grade == Grade::Again ? QColor(kFailColour) : QColor(kPassColour);
-  return tr("%1 · it comes back %2")
-      .arg(coloured(colour, "<b>" + gradeName(grade) + "</b>"),
-           dueText(due, now, dayEnd));
+  // A badge in the grade's colour, as Learn shows it.
+  const QString badge =
+      QString("<span style=\"background-color: %1; color: %2;\">"
+              "&nbsp;<b>%3</b>&nbsp;</span>")
+          .arg(gradeBadgeColour(grade).name(), roleColour(Role::OnBadge).name(),
+               gradeName(grade));
+  return tr("%1 · it comes back %2").arg(badge, dueText(due, now, dayEnd));
 }
 
 QString timedLine(const TimedResult &r, int decimals) {

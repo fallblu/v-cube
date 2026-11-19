@@ -11,6 +11,7 @@
 #include <QColor>
 #include <QFuture>
 #include <QLabel>
+#include <QPixmap>
 #include <QRectF>
 #include <QSize>
 #include <QWidget>
@@ -18,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -64,6 +66,9 @@ void markScrambleLabel(QLabel *label);
 void setDisplayFontSizes(int scramblePt, int timerPt);
 // Runs `call` with 8 or 12 when a timer's inspection passes 8 s or 12 s.
 void setInspectionCallHandler(std::function<void(int seconds)> call);
+// Keeps `widget` at least one line of its font high, now and whenever its
+// font changes (as with the interface text size).
+void keepOneLineHigh(QWidget *widget);
 
 // A state to scramble to, in the solver's frame, and the alg set case it
 // sets up (if any).
@@ -99,7 +104,8 @@ class TrendChart : public QWidget {
   Q_OBJECT
 public:
   explicit TrendChart(QWidget *parent = nullptr);
-  void setSolves(const std::vector<Solve> &solves);
+  // Only each solve's time and penalty are kept.
+  void setSolves(std::span<const Solve> solves);
   // Shown until there are two values to chart.
   void setEmptyText(const QString &text);
   // The values are move counts: the axis is in whole moves.
@@ -125,13 +131,28 @@ public:
 
 protected:
   void paintEvent(QPaintEvent *) override;
+  void changeEvent(QEvent *e) override;
   void mouseMoveEvent(QMouseEvent *e) override;
   void leaveEvent(QEvent *e) override;
   void contextMenuEvent(QContextMenuEvent *e) override;
 
 private:
   QString hoverText(std::size_t at) const;
-  std::vector<Solve> solves_;
+  // What is kept of each solve: enough to chart it and name its value.
+  struct Point {
+    std::int64_t timeMs = 0; // raw, without the +2
+    Penalty penalty = Penalty::None;
+  };
+  std::vector<Point> solves_;
+  // The rolling ao5 and ao12 ending at each solve, worked out once per
+  // setSolves().
+  std::vector<StatValue> ao5_, ao12_;
+  // Everything but the hover line and the read-out, drawn when the data,
+  // size, pixel ratio, palette or font change; a hover only draws those
+  // two over it.
+  QPixmap plot_;
+  void invalidate();
+  void renderPlot(QPainter &p);
   std::vector<Series> series_;
   QString pointName_;
   std::vector<QString> pointLabels_;
