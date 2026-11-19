@@ -19,4 +19,10 @@ void selectQtPlatform();
 // Returns false if no file manager could be started.
 bool openFolder(const QString &path);
 
+// On Unix, makes SIGTERM and SIGHUP (logout, `wsl --shutdown`) quit the
+// app as closing its window does, so that the saves still being written
+// finish and the window's layout is kept. Elsewhere it does nothing. Call
+// once, after the application is made.
+void quitOnTerminationSignals();
+
 } // namespace vcube

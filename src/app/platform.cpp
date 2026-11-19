@@ -1,9 +1,18 @@
 #include "app/platform.hpp"
 
+#include <QApplication>
 #include <QDesktopServices>
 #include <QFile>
 #include <QProcess>
 #include <QUrl>
+
+#ifdef Q_OS_UNIX
+#include <QSocketNotifier>
+
+#include <csignal>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
 
 namespace vcube {
 
@@ -68,6 +77,44 @@ bool openFolder(const QString &path) {
     return openFolderInExplorer(path);
   }
   return QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+#ifdef Q_OS_UNIX
+namespace {
+
+// The handler only writes to one end; the event loop reads the other.
+int gSignalFds[2] = {-1, -1};
+
+void onTerminationSignal(int) {
+  char c = 1;
+  [[maybe_unused]] ssize_t n = ::write(gSignalFds[0], &c, 1);
+}
+
+} // namespace
+#endif
+
+void quitOnTerminationSignals() {
+#ifdef Q_OS_UNIX
+  if (gSignalFds[0] != -1 ||
+      ::socketpair(AF_UNIX, SOCK_STREAM, 0, gSignalFds) != 0) {
+    return;
+  }
+  auto *notifier = new QSocketNotifier(gSignalFds[1], QSocketNotifier::Read,
+                                       QCoreApplication::instance());
+  QObject::connect(notifier, &QSocketNotifier::activated, notifier, [] {
+    char c = 0;
+    [[maybe_unused]] ssize_t n = ::read(gSignalFds[1], &c, 1);
+    // As closing the window does: what it saves on closing is saved, and
+    // the app quits once the last window has closed.
+    QApplication::closeAllWindows();
+  });
+  struct sigaction action = {};
+  action.sa_handler = onTerminationSignal;
+  sigemptyset(&action.sa_mask);
+  action.sa_flags = SA_RESTART;
+  sigaction(SIGTERM, &action, nullptr);
+  sigaction(SIGHUP, &action, nullptr);
+#endif
 }
 
 } // namespace vcube
