@@ -1320,15 +1320,10 @@ void F2LPage::groupActivated(const std::string &key) {
 QString F2LPage::listHelp() const {
   switch (tab()) {
   case Tab::Learn:
-    return tr("The pair cases by where the corner and edge are, seen for the "
-              "front-right slot, each for the front slots and for the back "
-              "ones. Each is a card: new ones come in a few a day, and you "
-              "choose the solutions you'll use when one does. A try is Good "
-              "when it is one of them or as cheap. Double-click a case to "
-              "practise it, ungraded.");
+    return tr("The pair cases, each a card (F1 explains more). Double-click "
+              "one to practise it, ungraded.");
   case Tab::Untimed:
-    return tr("Your untimed F2L solves: how many, their moves lately and how "
-              "much they cost over the cheapest way found.");
+    return tr("Your untimed F2L solves (F1 explains the columns).");
   default:
     return tr("Timed solves by method. Double-click one to switch to it.");
   }

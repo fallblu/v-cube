@@ -49,6 +49,7 @@ private:
   QComboBox *themeBox_;
   QSpinBox *animationSpin_;
   QSpinBox *scrambleFontSpin_;
+  QComboBox *interfaceTextBox_;
   QComboBox *hintTextBox_;
   QComboBox *thumbnailBox_;
   std::array<QPushButton *, 6> colourButtons_{};

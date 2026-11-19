@@ -4,6 +4,7 @@
 #include "app/page_parts.hpp"
 
 #include "app/drill_history_dialog.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "train/alg_follow.hpp"
 
@@ -152,9 +153,6 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   scrambleLabel_->setWordWrap(true);
   scrambleLabel_->setAlignment(Qt::AlignCenter);
   scrambleLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont sf = scrambleLabel_->font();
-  sf.setPointSize(17);
-  scrambleLabel_->setFont(sf);
   markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(56);
   rightLayout->addWidget(scrambleLabel_);
@@ -222,9 +220,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   reveal_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   reveal_->setMaximumWidth(560);
   reveal_->setMinimumWidth(0);
-  QFont rf = reveal_->font();
-  rf.setPointSize(rf.pointSize() + 3);
-  reveal_->setFont(rf);
+  setTextRole(reveal_, TextRole::Heading);
   revealLayout->addStretch(1);
   revealLayout->addWidget(diagram_, 0, Qt::AlignTop);
   revealLayout->addWidget(reveal_, 3);

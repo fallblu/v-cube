@@ -4,6 +4,7 @@
 
 #include "app/review_dialog.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "io/data_file.hpp"
 #include "train/step_solver.hpp"
 
@@ -305,7 +306,7 @@ void TimerPage::showDetails(int index) {
   int d = settings_.decimals;
   QList<QPair<QString, QString>> rows;
   rows.append({tr("Result"), qs(formatSolve(s, d))});
-  rows.append({tr("Date"), dateText(s.timestamp)});
+  rows.append({tr("Date"), dateTimeText(s.timestamp)});
   rows.append({"Scramble", qs(s.scramble)});
   if (!s.moves.empty()) {
     rows.append({"Solution", qs(s.moves)});
@@ -436,8 +437,8 @@ void TimerPage::importCstimer() {
   }
   QStringList notes;
   if (imported->emptySkipped > 0) {
-    notes << tr("%n empty session(s) left out", nullptr,
-                imported->emptySkipped);
+    notes << plural(imported->emptySkipped, tr("%n empty session left out"),
+                    tr("%n empty sessions left out"));
   }
   if (!imported->others.empty()) {
     QStringList names;
@@ -476,11 +477,12 @@ void TimerPage::exportCstimer() {
   }
   QMessageBox::information(
       this, tr("Export"),
-      tr("Exported %1 sessions to %2.\n\nIn cstimer, import it with Data "
+      tr("Exported %1 to %2.\n\nIn cstimer, import it with Data "
          "Import/Export > \"Import session(s) from other timers\", which adds "
          "the sessions to yours. (\"Import from file\" would replace all your "
          "cstimer data with them.)")
-          .arg(store_.sessions().size())
+          .arg(counted(static_cast<int>(store_.sessions().size()),
+                       tr("session"), tr("sessions")))
           .arg(path));
 }
 

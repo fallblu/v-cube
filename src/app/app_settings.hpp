@@ -33,9 +33,10 @@ struct AppSettings {
   // mode (scrambles are always applied white top, green front).
   ColourNeutrality neutrality;
 
-  // Text sizes: the scramble (points), the hints and status messages (per
-  // cent of the normal text) and the case thumbnails in Learn and Drill
-  // (pixels).
+  // Text sizes: all the interface's text (per cent of the system font),
+  // the scramble (points), the hints and status messages (per cent of the
+  // interface text) and the case thumbnails in Learn and Drill (pixels).
+  int interfaceTextPercent = 100;
   int scrambleFontPt = 17;
   int hintTextPercent = 120;
   int thumbnailSize = 38;
@@ -75,6 +76,7 @@ struct AppSettings {
   static constexpr int kMinScrambleFontPt = 9, kMaxScrambleFontPt = 40;
   static constexpr int kMinTimerFontPt = 20, kMaxTimerFontPt = 150;
   static constexpr int kMinHintPercent = 80, kMaxHintPercent = 200;
+  static constexpr int kMinInterfacePercent = 80, kMaxInterfacePercent = 200;
   static constexpr int kMinThumbnail = 32, kMaxThumbnail = 96;
 
   static AppSettings load();
@@ -88,7 +90,8 @@ enum class SettingsPart : unsigned {
   Cube = 1 << 1,       // scheme, animationMs
   Keys = 1 << 2,       // keymap
   Neutrality = 1 << 3, // neutrality
-  Text = 1 << 4,       // scrambleFontPt, hintTextPercent, timerFontPt
+  // interfaceTextPercent, scrambleFontPt, hintTextPercent, timerFontPt
+  Text = 1 << 4,
   Thumbnails = 1 << 5, // thumbnailSize
   // holdMs, inspection, inspectionSounds, decimals, autoStop,
   // hideBeforeInspection

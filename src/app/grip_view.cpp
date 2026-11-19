@@ -145,12 +145,13 @@ void GripView::replan() {
       tr("right thumb %1, left thumb %2")
           .arg(qs(gripName(p.start.right)), qs(gripName(p.start.left)));
   QString text = tr("<b>Start:</b> %1 &nbsp;·&nbsp; <b>Cost</b> %2 (tricks "
-                    "%3, regrips and strain %4) &nbsp;·&nbsp; %n regrip(s)",
-                    nullptr, p.regrips)
-                     .arg(start, cost(p.total), cost(p.tricks), cost(p.extras));
+                    "%3, regrips and strain %4) &nbsp;·&nbsp; %5")
+                     .arg(start, cost(p.total), cost(p.tricks), cost(p.extras),
+                          plural(p.regrips, tr("%n regrip"), tr("%n regrips")));
   if (p.untricked > 0) {
-    text += tr(" &nbsp;·&nbsp; %n move(s) with no trick in the profile",
-               nullptr, p.untricked);
+    text += " &nbsp;·&nbsp; " +
+            plural(p.untricked, tr("%n move with no trick in the profile"),
+                   tr("%n moves with no trick in the profile"));
   }
   bool picked = std::any_of(choice_.forced.begin(), choice_.forced.end(),
                             [](int f) { return f >= 0; });

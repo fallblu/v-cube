@@ -2,6 +2,7 @@
 
 #include "app/case_history_dialog.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
 #include <QActionGroup>
@@ -174,9 +175,6 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   for (int g = 0; g < 4; ++g) {
     auto grade = static_cast<Grade>(g + 1);
     QPushButton *b = stage_->gradeButtons[static_cast<std::size_t>(g)];
-    b->setToolTip(tr("Grade the case %1 (key %2)")
-                      .arg(tr(gradeName(grade)).toLower())
-                      .arg(g + 1));
     connect(b, &QPushButton::clicked, this, [this, grade] {
       if (phase() == Phase::Recalled) {
         gradeRecognition(grade);
@@ -693,8 +691,7 @@ QString LearnPage::whenText(std::int64_t due) {
     // A review is due all day: only the day matters.
     QDate day = QDateTime::fromSecsSinceEpoch(due).date();
     qint64 days = QDate::currentDate().daysTo(day);
-    return days == 1 ? tr("tomorrow")
-                     : tr("on %1").arg(QLocale().toString(day, "ddd d MMM"));
+    return days == 1 ? tr("tomorrow") : tr("on %1").arg(dateText(day));
   }
   std::int64_t d = due - now;
   if (d <= 0) {

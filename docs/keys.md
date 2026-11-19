@@ -117,6 +117,8 @@ For about 0.3 s after the timer stops, keys are ignored, so that a second press 
 
 Ctrl- or Shift-click selects several cases.
 
+In a case's alg list, the first passing alg is the main alg. Drag the algs to reorder them (or Alt+Up and Alt+Down), F2 or double-click one to edit it, Delete to remove it, right-click for more.
+
 ## Case lists (Learn, Drill, Library)
 
 | Where | Key | Action |
@@ -221,6 +223,8 @@ EO Cross, F2L and TSLE share their keys. EO Cross has the Inspection, Untimed an
 | Timed, afterwards | Delete | delete the attempt |
 | Timed, afterwards | Esc | the same state again, not recorded |
 
+The list beside the cube, on the Inspection tab: your plans by step, with how many, how many did the step, the time you looked and how far over the optimum of your holds they were lately. On the Untimed tab: your untimed solves by step, with how many, their moves lately and how far over the optimum of your holds they were. Double-click a step to practise it.
+
 ## F2L
 
 | When | Key | Action |
@@ -258,6 +262,8 @@ EO Cross, F2L and TSLE share their keys. EO Cross has the Inspection, Untimed an
 | Timed, afterwards | Delete | delete the attempt |
 | Timed, afterwards | Esc | the same state again, not recorded |
 
+The list beside the cube, on the Learn tab: the pair cases by where the corner and edge are, seen for the front-right slot, each for the front slots and for the back ones. Each is a card: new ones come in a few a day, and you choose the solutions you'll use when one does. A try is Good when it is one of them or as cheap. Double-click a case to practise it, ungraded. On the Untimed tab: your untimed F2L solves, with how many, their moves lately and how much they cost over the cheapest way found.
+
 ## TSLE
 
 | When | Key | Action |
@@ -289,6 +295,8 @@ EO Cross, F2L and TSLE share their keys. EO Cross has the Inspection, Untimed an
 | Timed, afterwards | Backspace | make it a DNF, or not |
 | Timed, afterwards | Delete | delete the attempt |
 | Timed, afterwards | Esc | the same state again, not recorded |
+
+The list beside the cube, on the Learn tab: the cases by steps left (a step is a trigger, or the OCLL that ends a chain), drawn for the front-right slot with the edge at UF. A name gives the edge, the slot's corner place (N oriented, CW, CCW) and the twists at URF, UFL, ULB, UBR. Double-click a case to practise it, ungraded. On the Untimed tab: your untimed solves, with how many, their moves lately and how far over the best way they were.
 
 ## Alg Lab
 

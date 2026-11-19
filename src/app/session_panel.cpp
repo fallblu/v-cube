@@ -459,14 +459,6 @@ void addAttemptActions(ActionMenu &menu, const AttemptMenuActions &actions) {
   }
 }
 
-QString dateText(std::int64_t unixSeconds) {
-  if (unixSeconds <= 0) {
-    return {};
-  }
-  return QLocale().toString(QDateTime::fromSecsSinceEpoch(unixSeconds),
-                            QLocale::ShortFormat);
-}
-
 QPushButton *flatButton(const QString &text, QWidget *parent) {
   auto *b = new QPushButton(text, parent);
   b->setFocusPolicy(Qt::NoFocus);

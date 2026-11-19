@@ -17,10 +17,12 @@
 #include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/sounds.hpp"
+#include "app/text_style.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
 #include "app/tsle_page.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
 
@@ -40,10 +42,15 @@
 #include <QGridLayout>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QHeaderView>
+#include <QHelpEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMouseEvent>
+#include <QPointer>
 #include <QPushButton>
 #include <QScreen>
 #include <QSplitter>
@@ -51,6 +58,8 @@
 #include <QStatusBar>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
+#include <QTabBar>
+#include <QTextDocumentFragment>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -61,20 +70,135 @@ namespace vcube {
 
 namespace {
 
-// Swallows every tooltip in the app, so nothing pops up beside the mouse.
-class NoToolTips : public QObject {
+// The tip of a widget at `pos` (in its coordinates): an item's or a
+// header section's in a view, a tab's, a menu action's, else the widget's
+// own or the nearest parent's.
+QString tipAt(QWidget *w, QPoint pos) {
+  if (auto *view = qobject_cast<QAbstractItemView *>(w->parentWidget());
+      view && view->viewport() == w) {
+    if (auto *header = qobject_cast<QHeaderView *>(view)) {
+      int section = header->logicalIndexAt(pos);
+      return section < 0 || !header->model()
+                 ? QString()
+                 : header->model()
+                       ->headerData(section, header->orientation(),
+                                    Qt::ToolTipRole)
+                       .toString();
+    }
+    QString tip = view->indexAt(pos).data(Qt::ToolTipRole).toString();
+    return tip.isEmpty() ? view->toolTip() : tip;
+  }
+  if (auto *tabs = qobject_cast<QTabBar *>(w)) {
+    int tab = tabs->tabAt(pos);
+    return tab < 0 ? tabs->toolTip() : tabs->tabToolTip(tab);
+  }
+  if (auto *menu = qobject_cast<QMenu *>(w)) {
+    QAction *action = menu->actionAt(pos);
+    // An action's tip is its text unless one is set.
+    if (!menu->toolTipsVisible() || !action ||
+        action->toolTip() == QString(action->text()).remove('&')) {
+      return {};
+    }
+    return action->toolTip();
+  }
+  for (QWidget *at = w; at; at = at->parentWidget()) {
+    if (!at->toolTip().isEmpty()) {
+      return at->toolTip();
+    }
+    if (at->isWindow()) {
+      break;
+    }
+  }
+  return {};
+}
+
+// Tooltips never pop up beside the mouse, where they would cover the cube
+// and the lists: the tip of what the mouse is over is written in the status
+// bar instead, as soon as the mouse comes onto it.
+class TipsInStatusBar : public QObject {
 public:
-  using QObject::QObject;
+  explicit TipsInStatusBar(QMainWindow *window)
+      : QObject(window), window_(window) {}
 
 protected:
-  bool eventFilter(QObject *, QEvent *e) override {
-    return e->type() == QEvent::ToolTip;
+  bool eventFilter(QObject *o, QEvent *e) override {
+    auto *w = qobject_cast<QWidget *>(o);
+    switch (e->type()) {
+    case QEvent::ToolTip:
+      if (w) {
+        show(w, tipAt(w, static_cast<QHelpEvent *>(e)->pos()));
+      }
+      return true; // never as a tooltip
+    case QEvent::Enter:
+      if (w && !w->toolTip().isEmpty()) {
+        show(w, w->toolTip());
+      }
+      break;
+    case QEvent::MouseMove:
+      // Over a list, a header, a tab bar or a menu, the tip changes with
+      // the item under the mouse.
+      if (w && (qobject_cast<QAbstractItemView *>(w->parentWidget()) ||
+                qobject_cast<QTabBar *>(w) || qobject_cast<QMenu *>(w))) {
+        show(w, tipAt(w, static_cast<QMouseEvent *>(e)->position().toPoint()));
+      }
+      break;
+    case QEvent::Leave:
+    case QEvent::Hide:
+      if (w && w == shownFor_) {
+        clear();
+      }
+      break;
+    default:
+      break;
+    }
+    return false;
+  }
+
+private:
+  QMainWindow *window_;
+  QPointer<QWidget> shownFor_;
+  QString shown_;
+
+  void show(QWidget *w, QString tip) {
+    QWidget *top = w->window();
+    // The windows in front (dialogs) have no status bar.
+    if (top != window_ && !(top->windowType() == Qt::Popup &&
+                            QApplication::activeWindow() == window_)) {
+      return;
+    }
+    if (Qt::mightBeRichText(tip)) {
+      tip = QTextDocumentFragment::fromHtml(tip).toPlainText();
+    }
+    tip = tip.simplified();
+    if (tip.isEmpty()) {
+      if (w == shownFor_) {
+        clear();
+      }
+      return;
+    }
+    QStatusBar *bar = window_->statusBar();
+    // A message of the page's own stays until it times out.
+    if (!bar->currentMessage().isEmpty() && bar->currentMessage() != shown_) {
+      return;
+    }
+    shown_ = tip;
+    shownFor_ = w;
+    bar->showMessage(tip);
+  }
+
+  void clear() {
+    QStatusBar *bar = window_->statusBar();
+    if (!shown_.isEmpty() && bar->currentMessage() == shown_) {
+      bar->clearMessage();
+    }
+    shown_.clear();
+    shownFor_ = nullptr;
   }
 };
 
 // Names every button that shows only an icon, a colour or "…" by what its
 // tooltip says, as it is first shown, so that assistive technology can
-// say what it is (the tooltip itself is never shown, see NoToolTips).
+// say what it is (the tooltip itself never pops up, see TipsInStatusBar).
 class AccessibleNames : public QObject {
 public:
   using QObject::QObject;
@@ -306,7 +430,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   resizeDocks({help_}, {340}, Qt::Horizontal);
   help_->hide();
   buildMenus();
-  qApp->installEventFilter(new NoToolTips(this));
+  qApp->installEventFilter(new TipsInStatusBar(this));
   qApp->installEventFilter(new AccessibleNames(this));
   qApp->installEventFilter(
       new KeyRouter(this, [this] { return currentPage(); }, this));
@@ -362,9 +486,7 @@ QWidget *MainWindow::buildSidebar() {
   modeButtons_->setExclusive(true);
   auto header = [&](const QString &text) {
     auto *label = new QLabel(text, bar);
-    QFont f = label->font();
-    f.setBold(true);
-    label->setFont(f);
+    setTextRole(label, TextRole::Body, true);
     label->setForegroundRole(QPalette::PlaceholderText);
     label->setContentsMargins(6, 10, 0, 4);
     layout->addWidget(label);
@@ -540,14 +662,17 @@ void MainWindow::updateBadges() {
   for (int m : {AppMode::Today, AppMode::Learn}) {
     auto *b = static_cast<SidebarButton *>(modeButtons_->button(m));
     b->setBadge(t.due > 0 ? QString::number(t.due) : QString());
-    b->setAccessibleName(
-        t.due > 0 ? tr("%1, %n review(s) due", "", t.due).arg(AppMode::label(m))
-                  : AppMode::label(m));
+    b->setAccessibleName(t.due > 0 ? plural(t.due, tr("%1, %n review due"),
+                                            tr("%1, %n reviews due"))
+                                         .arg(AppMode::label(m))
+                                   : AppMode::label(m));
     b->setToolTip(
-        tr("%1 (%2): %n review(s) due", "", t.due)
+        plural(t.due, tr("%1 (%2): %n review due"),
+               tr("%1 (%2): %n reviews due"))
             .arg(AppMode::label(m),
                  AppMode::shortcut(m).toString(QKeySequence::NativeText)) +
-        (t.newLeft > 0 ? tr(", %n new case(s) left today", "", t.newLeft)
+        (t.newLeft > 0 ? plural(t.newLeft, tr(", %n new case left today"),
+                                tr(", %n new cases left today"))
                        : QString()));
   }
 }
@@ -995,6 +1120,8 @@ void MainWindow::settingsChanged(SettingsParts parts) {
 }
 
 void MainWindow::applyWindowSettings() {
+  // First, as the other sizes are worked out from it.
+  setInterfaceTextPercent(settings_.interfaceTextPercent);
   styleSidebar();
   setDisplayFontSizes(settings_.scrambleFontPt, settings_.timerFontPt);
   // The hints under the timer and cube (muted, wrapped labels) and the

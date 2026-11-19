@@ -6,6 +6,8 @@
 #include "app/colours.hpp"
 #include "app/cube_painter.hpp"
 #include "app/lab_chart.hpp"
+#include "app/text_style.hpp"
+#include "app/ui_text.hpp"
 #include "io/algset_json.hpp"
 
 #include <QCheckBox>
@@ -133,10 +135,7 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   algLabel_ = new QLabel(top);
   algLabel_->setAlignment(Qt::AlignCenter);
   algLabel_->setWordWrap(true);
-  QFont big = algLabel_->font();
-  big.setPointSizeF(big.pointSizeF() * 1.5);
-  big.setBold(true);
-  algLabel_->setFont(big);
+  setTextRole(algLabel_, TextRole::Title, true);
   algLabel_->setTextInteractionFlags(Qt::NoTextInteraction);
   diagram_ = new QLabel(top);
   diagram_->setAlignment(Qt::AlignCenter);
@@ -473,9 +472,7 @@ void LabTestPanel::fillTimes() {
       notes << tr("virtual");
     }
     times_->setItem(row, 4, item(notes.join(", ")));
-    times_->setItem(row, 5,
-                    item(QDateTime::fromSecsSinceEpoch(a.timestamp)
-                             .toString("yyyy-MM-dd hh:mm")));
+    times_->setItem(row, 5, item(dateTimeText(a.timestamp)));
   }
   times_->resizeColumnsToContents();
 }
@@ -542,9 +539,11 @@ void LabTestPanel::deleteSession() {
   }
   if (QMessageBox::question(
           this, tr("Delete session"),
-          tr("Delete the session \"%1\"? Its %n time(s) stay with their algs "
-             "(in the all-time statistics).",
-             nullptr, times)
+          plural(times,
+                 tr("Delete the session \"%1\"? Its %n time stays with its "
+                    "alg (in the all-time statistics)."),
+                 tr("Delete the session \"%1\"? Its %n times stay with their "
+                    "algs (in the all-time statistics)."))
               .arg(qs(session().name))) != QMessageBox::Yes) {
     return;
   }
@@ -771,9 +770,11 @@ void LabTestPanel::showStatus() {
     break;
   }
   case Phase::Finished:
-    text = tr("Every alg has its %n rep(s). Raise the reps or add algs to "
-              "carry on.",
-              nullptr, session().reps);
+    text = plural(session().reps,
+                  tr("Every alg has its %n rep. Raise the reps or add algs "
+                     "to carry on."),
+                  tr("Every alg has its %n reps. Raise the reps or add algs "
+                     "to carry on."));
     break;
   }
   status_->setHint(text, keys);

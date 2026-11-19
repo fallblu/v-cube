@@ -3,6 +3,7 @@
 #include "app/alglab_common.hpp"
 #include "app/app_settings.hpp"
 #include "app/grip_view.hpp"
+#include "app/ui_text.hpp"
 #include "io/algset_json.hpp"
 
 #include <QCheckBox>
@@ -514,10 +515,10 @@ void GripProfileDialog::updateTry() {
   ErgoProfile p = profile();
   int bad = tricks_->rowCount() - static_cast<int>(p.grips->tricks.size());
   problems_->setText(
-      bad > 0 ? tr("%n row(s) can't be read and will be left out (a move "
-                   "such as R2, grips such as \"home, up\", a whole number "
-                   "turn and a cost).",
-                   nullptr, bad)
+      bad > 0 ? plural(bad, tr("%n row can't be read and will be left out"),
+                       tr("%n rows can't be read and will be left out")) +
+                    tr(" (a move such as R2, grips such as \"home, up\", a "
+                       "whole number turn and a cost).")
               : QString());
   tryView_->setAlg(tryAlg_->text(), &*p.grips, tr("Type an alg to try."));
 }

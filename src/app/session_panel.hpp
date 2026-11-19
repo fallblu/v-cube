@@ -259,8 +259,6 @@ struct AttemptMenuActions {
 };
 void addAttemptActions(ActionMenu &menu, const AttemptMenuActions &actions);
 
-// A date for the attempt lists: the locale's short format, or "" for none.
-QString dateText(std::int64_t unixSeconds);
 // A button that doesn't take the keyboard focus.
 QPushButton *flatButton(const QString &text, QWidget *parent);
 

@@ -24,10 +24,7 @@ QString tr(const char *text) {
   return QCoreApplication::translate("vcube::CaseHistory", text);
 }
 
-QString dateText(std::int64_t t) {
-  return t <= 1 ? QString("-")
-                : QDateTime::fromSecsSinceEpoch(t).toString("yyyy-MM-dd hh:mm");
-}
+QString whenText(std::int64_t t) { return t <= 1 ? kNoValue : dateTimeText(t); }
 
 QString stateText(CardState s) {
   switch (s) {
@@ -58,14 +55,14 @@ void showCaseHistory(QWidget *parent, const QString &caseName,
     info = tr("<p><b>%1</b>, %2. Introduced %3%4. Reviews %5, lapses %6, "
               "ease %7%, interval %8 d, due %9.</p>")
                .arg(caseName.toHtmlEscaped(), stateText(k.state),
-                    dateText(k.introduced),
+                    whenText(k.introduced),
                     k.marked ? tr(" (marked as learned)") : QString())
                .arg(k.reps)
                .arg(k.lapses)
                .arg(std::lround(k.ease * 100))
                .arg(k.intervalDays, 0, 'f', 1)
                .arg(k.state == CardState::Review
-                        ? dateText(k.due)
+                        ? whenText(k.due)
                         : dueText(card, unixNow(), localDayEnd()));
     if (k.suspended) {
       info += "<p>" + tr("Suspended: left out of Learn.") + "</p>";
@@ -119,7 +116,7 @@ void showCaseHistory(QWidget *parent, const QString &caseName,
     auto ms = [](std::int64_t t) {
       return t > 0 ? secondsText(static_cast<double>(t)) : QString("-");
     };
-    QStringList cells = {dateText(a->timestamp),
+    QStringList cells = {whenText(a->timestamp),
                          mode,
                          result,
                          ms(a->timeMs),

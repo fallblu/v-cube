@@ -68,6 +68,9 @@ anyway.
   mode, with what a right-click in the mode's list offers.
 - **Keys on the page**: under the cube, each practice mode shows a short
   message and the keys that do something right now.
+- **Tips in the status bar**: nothing pops up beside the mouse; pointing
+  at a control, a list column or a statistic writes what it does in the
+  status bar instead.
 - The window reopens where you left it, with the same list widths, but
   never in full screen or focus mode. It can be as narrow as half a 1080p
   screen; option rows wrap, and the chart gives up its room before the cube
@@ -665,7 +668,8 @@ time:
    back in a minute to do from memory. `Space` skips the showing for a
    case you know.
 2. A **due case** is set up without its name. Solve it. `Tab` gives a
-   hint, `Backspace` gives up, `Esc` starts again.
+   hint, shown large under the cube; `Backspace` gives up, `Esc` starts
+   again.
 3. The card is graded **Good** when you solved it unaided and well, and
    **Again** after a hint, giving up or a poor solution. `1`–`4` change
    the grade to Again, Hard, Good or Easy.
@@ -877,7 +881,7 @@ Edit > Settings… (`Ctrl+,`). Each option is explained under it.
 
 | Tab | What is there |
 | --- | --- |
-| **Appearance** | theme, sticker colours, text sizes, the size of case pictures, decimal places |
+| **Appearance** | theme, the interface text size (all the text, up to about 16 px), sticker colours, the scramble, timer and hint text sizes, the size of case pictures, decimal places |
 | **Colour neutrality** | see [above](#colour-neutrality) |
 | **Timing and solves** | hold times for the solve modes and Drill (up to 2 s), how Drill's virtual timer starts and stops, WCA inspection and its beeps, auto-stop when solved, hiding the cube until inspection, simplified move counts, Move Count's Opt holds |
 | **Cube and keys** | turn speed and the turning keys |

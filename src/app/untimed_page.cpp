@@ -108,7 +108,7 @@ void UntimedPage::addCells(std::vector<AttemptCell> &cells,
   };
   if (scramblesOnly()) {
     add(qs(a.scramble), false);
-    add(dateText(a.timestamp));
+    add(dateTimeText(a.timestamp));
     return;
   }
   add(qs(formatAttempt(a)));

@@ -2,6 +2,7 @@
 
 #include "app/colours.hpp"
 #include "app/cube_view.hpp"
+#include "app/text_style.hpp"
 #include "cube/move.hpp"
 #include "io/algset_json.hpp"
 #include "train/alg_guide.hpp"
@@ -26,9 +27,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   header = new QLabel(top);
   header->setTextFormat(Qt::RichText);
   header->setAlignment(Qt::AlignCenter);
-  QFont hf = header->font();
-  hf.setPointSize(hf.pointSize() + 2);
-  header->setFont(hf);
+  setTextRole(header, TextRole::Heading);
   topLayout->addWidget(header);
   cube = new CubeView(top);
   cube->setMinimumSize(200, 160);
@@ -46,9 +45,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   guide_->setAlignment(Qt::AlignCenter);
   guide_->setWordWrap(true);
   guide_->setTextFormat(Qt::RichText);
-  QFont gf = guide_->font();
-  gf.setPointSize(gf.pointSize() + 5);
-  guide_->setFont(gf);
+  setTextRole(guide_, TextRole::Title);
   guide_->setVisible(false);
   bottomLayout->addWidget(guide_);
   bottomLayout->addWidget(status);
@@ -72,10 +69,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   gradeRows->setContentsMargins(0, 0, 0, 0);
   auto *outcome = new QHBoxLayout;
   gradeBadge_ = new QLabel(gradeRow);
-  QFont bf = gradeBadge_->font();
-  bf.setPointSize(bf.pointSize() + 3);
-  bf.setBold(true);
-  gradeBadge_->setFont(bf);
+  setTextRole(gradeBadge_, TextRole::Heading, true);
   gradeBadge_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   gradeLabel_ = new QLabel(gradeRow);
   gradeLabel_->setWordWrap(true);
@@ -112,9 +106,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   reveal->setWordWrap(true);
   reveal->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
   reveal->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont rf = reveal->font();
-  rf.setPointSize(rf.pointSize() + 3);
-  reveal->setFont(rf);
+  setTextRole(reveal, TextRole::Heading);
   auto *revealScroll = new QScrollArea(bottom);
   revealScroll->setWidget(reveal);
   revealScroll->setWidgetResizable(true);

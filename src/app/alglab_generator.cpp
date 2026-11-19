@@ -6,6 +6,7 @@
 #include "app/app_settings.hpp"
 #include "app/grip_view.hpp"
 #include "app/lab_test_panel.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
 #include "train/ergonomics.hpp"
@@ -114,9 +115,11 @@ void AlgLabPage::runSearch(std::vector<ResolvedCase> cases) {
         last = tr("No alg of %1 up to %2 moves.").arg(moves).arg(out.deepest);
       } else {
         last =
-            tr("%n alg(s), shortest %1 moves, every alg up to %2 moves "
-               "found%3.",
-               nullptr, out.found)
+            plural(out.found,
+                   tr("%n alg, shortest %1 moves, every alg up to %2 moves "
+                      "found%3."),
+                   tr("%n algs, shortest %1 moves, every alg up to %2 moves "
+                      "found%3."))
                 .arg(out.shortest)
                 .arg(out.deepest)
                 .arg(out.end == SearchEnd::Capped ? tr(" (stopped at the cap)")
@@ -166,9 +169,11 @@ void AlgLabPage::runBatch(bool wholeSet) {
   }
   if (QMessageBox::question(
           this, tr("Find algs"),
-          tr("Search %n case(s) with %1, keeping at most %2 algs each? It "
-             "runs in the background; Stop ends it.",
-             nullptr, static_cast<int>(cases.size()))
+          plural(static_cast<int>(cases.size()),
+                 tr("Search %n case with %1, keeping at most %2 algs? It "
+                    "runs in the background; Stop ends it."),
+                 tr("Search %n cases with %1, keeping at most %2 algs each? "
+                    "It runs in the background; Stop ends it."))
               .arg(qs(genSet_.display()))
               .arg(maxResults_->value())) != QMessageBox::Yes) {
     return;
@@ -194,7 +199,8 @@ void AlgLabPage::searchFinished() {
   updateGenControls();
   fillTable();
   if (found > 0) {
-    emit message(tr("The generator added %n alg(s).", nullptr, found));
+    emit message(plural(found, tr("The generator added %n alg."),
+                        tr("The generator added %n algs.")));
   }
 }
 

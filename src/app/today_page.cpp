@@ -3,7 +3,9 @@
 
 #include "app/mode_table.hpp"
 #include "app/page_parts.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/data_file.hpp"
 #include "io/practice_store.hpp"
@@ -111,10 +113,7 @@ TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
       dataDir_(std::move(dataDir)) {
   auto *layout = new QVBoxLayout(this);
   auto *title = new QLabel(tr("Today"), this);
-  QFont tf = title->font();
-  tf.setPointSizeF(tf.pointSizeF() * 1.6);
-  tf.setBold(true);
-  title->setFont(tf);
+  setTextRole(title, TextRole::Display, true);
   streakLabel_ = new QLabel(this);
   layout->addWidget(title);
   layout->addWidget(streakLabel_);
@@ -123,10 +122,7 @@ TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
   next_ = new QPushButton(this);
   next_->setObjectName("todayNext");
   next_->setFocusPolicy(Qt::NoFocus);
-  QFont nf = next_->font();
-  nf.setBold(true);
-  nf.setPointSizeF(nf.pointSizeF() * 1.15);
-  next_->setFont(nf);
+  setTextRole(next_, TextRole::Heading, true);
   next_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   nextNote_ = new QLabel(this);
   nextNote_->setWordWrap(true);
@@ -585,11 +581,14 @@ void TodayPage::refresh() {
                              "starts one."));
   } else if (streak.doneToday) {
     streakLabel_->setText(
-        tr("Practice streak: %n day(s), today included.", "", streak.days));
+        plural(streak.days, tr("Practice streak: %n day, today included."),
+               tr("Practice streak: %n days, today included.")));
   } else {
-    streakLabel_->setText(tr("Practice streak: %n day(s). Practise today to "
-                             "keep it going.",
-                             "", streak.days));
+    streakLabel_->setText(plural(streak.days,
+                                 tr("Practice streak: %n day. Practise today "
+                                    "to keep it going."),
+                                 tr("Practice streak: %n days. Practise today "
+                                    "to keep it going.")));
   }
 }
 

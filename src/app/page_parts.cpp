@@ -4,6 +4,7 @@
 #include "app/flow_layout.hpp"
 #include "app/scramble_source.hpp"
 #include "app/session_panel.hpp"
+#include "app/text_style.hpp"
 #include "app/widgets.hpp"
 
 #include <QButtonGroup>
@@ -52,24 +53,47 @@ QLabel *helpLabel(const QString &text, QWidget *parent) {
   auto *label = new QLabel(text, parent);
   label->setWordWrap(true);
   label->setForegroundRole(QPalette::PlaceholderText);
-  QFont f = label->font();
-  f.setPointSizeF(f.pointSizeF() * 0.9);
-  label->setFont(f);
+  setTextRole(label, TextRole::Caption);
   return label;
 }
 
 void showTipsAsHelp(QFormLayout *form) {
   for (int row = form->rowCount() - 1; row >= 0; --row) {
     QLayoutItem *item = form->itemAt(row, QFormLayout::FieldRole);
-    if (!item) {
+    const bool spanning = !item;
+    if (spanning) {
       item = form->itemAt(row, QFormLayout::SpanningRole);
     }
     QWidget *field = item ? item->widget() : nullptr;
     if (!field || field->toolTip().isEmpty()) {
       continue;
     }
-    form->insertRow(row + 1, QString(),
-                    helpLabel(field->toolTip(), form->parentWidget()));
+    // The field and its help as one cell, so that each help line sits
+    // close under its own field and every row is spaced alike.
+    QFormLayout::TakeRowResult taken = form->takeRow(row);
+    QWidget *label = taken.labelItem ? taken.labelItem->widget() : nullptr;
+    if (!label && !spanning) {
+      // An empty label, so that the row is laid out as the others are.
+      label = new QLabel(form->parentWidget());
+    }
+    delete taken.labelItem;
+    delete taken.fieldItem;
+    auto *cell = new QWidget(form->parentWidget());
+    auto *column = new QVBoxLayout(cell);
+    column->setContentsMargins(0, 0, 0, 0);
+    column->setSpacing(2);
+    const bool grows =
+        field->sizePolicy().horizontalPolicy() & QSizePolicy::ExpandFlag;
+    column->addWidget(field, 0, grows ? Qt::Alignment() : Qt::AlignLeft);
+    column->addWidget(helpLabel(field->toolTip(), cell));
+    if (spanning) {
+      form->insertRow(row, cell);
+    } else {
+      form->insertRow(row, label, cell);
+      if (auto *text = qobject_cast<QLabel *>(label)) {
+        text->setBuddy(field);
+      }
+    }
   }
 }
 
@@ -93,9 +117,6 @@ SolveStage::SolveStage(const QString &mode, QWidget *parent) : QWidget(parent) {
   scramble->setWordWrap(true);
   scramble->setAlignment(Qt::AlignCenter);
   scramble->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont sf = scramble->font();
-  sf.setPointSize(17);
-  scramble->setFont(sf);
   markScrambleLabel(scramble);
   scramble->setMinimumHeight(60);
   net = new NetPreview(this);

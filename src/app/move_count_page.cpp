@@ -4,6 +4,7 @@
 
 #include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
+#include "app/text_style.hpp"
 #include "train/step_solver.hpp"
 
 #include <QComboBox>
@@ -54,16 +55,11 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
   QWidget *right = cubeView_->parentWidget();
   stepLabel_ = new QLabel(right);
   stepLabel_->setAlignment(Qt::AlignCenter);
-  QFont stepFont = stepLabel_->font();
-  stepFont.setPointSizeF(stepFont.pointSizeF() * 1.3);
-  stepFont.setBold(true);
-  stepLabel_->setFont(stepFont);
-  stepLabel_->setToolTip(tr("The session and the step it is for"));
+  setTextRole(stepLabel_, TextRole::Title, true);
   stage()->addAboveCube(stepLabel_);
 
   recordButton_ = flatButton(tr("Record (Enter)"), right);
   dnfButton_ = flatButton("DNF", right);
-  recordButton_->setToolTip(tr("Record the move count for this scramble"));
   dnfButton_->setToolTip(tr("Record this scramble as DNF, e.g. when the step "
                             "went wrong (Alt+3)"));
   stage()->addButton(dnfButton_, true);
