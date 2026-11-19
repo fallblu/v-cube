@@ -2,6 +2,7 @@
 
 #include "app/key_router.hpp"
 #include "app/session_panel.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "io/session_store.hpp"
@@ -167,9 +168,7 @@ void PracticePage::build() {
   prompt_->setAlignment(Qt::AlignCenter);
   prompt_->setWordWrap(true);
   prompt_->setTextFormat(Qt::RichText);
-  QFont pf = prompt_->font();
-  pf.setPointSizeF(pf.pointSizeF() * 1.3);
-  prompt_->setFont(pf);
+  setTextRole(prompt_, TextRole::Title);
 
   scrambleLabel_ = new QLabel(right);
   scrambleLabel_->setAlignment(Qt::AlignCenter);
@@ -186,15 +185,22 @@ void PracticePage::build() {
 
   display_ = new TimeDisplay(right);
   display_->setAlignment(Qt::AlignCenter);
+  // A hint asked for is what is being looked for: under the cube, as large
+  // as an alg being done.
+  requestedHint_ = new QLabel(right);
+  requestedHint_->setObjectName("practiceHint");
+  requestedHint_->setAlignment(Qt::AlignCenter);
+  requestedHint_->setWordWrap(true);
+  requestedHint_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  setTextRole(requestedHint_, TextRole::Title, true);
+  requestedHint_->hide();
   hint_ = new HintBar(right);
   verdict_ = new QLabel(right);
   verdict_->setObjectName("practiceVerdict");
   verdict_->setAlignment(Qt::AlignCenter);
   verdict_->setWordWrap(true);
   verdict_->setTextFormat(Qt::RichText);
-  QFont vf = verdict_->font();
-  vf.setPointSizeF(vf.pointSizeF() * 1.15);
-  verdict_->setFont(vf);
+  setTextRole(verdict_, TextRole::Heading);
   progressLabel_ = new QLabel(right);
   progressLabel_->setObjectName("practiceProgress");
   progressLabel_->setAlignment(Qt::AlignCenter);
@@ -229,6 +235,7 @@ void PracticePage::build() {
   rightLayout->addWidget(prompt_);
   rightLayout->addWidget(scrambleLabel_);
   rightLayout->addWidget(cubeStack_, 4);
+  rightLayout->addWidget(requestedHint_);
   rightLayout->addWidget(display_);
   rightLayout->addWidget(verdict_);
   rightLayout->addWidget(progressLabel_);
@@ -940,8 +947,8 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
         emit message(tr("Still working out the best solutions"));
       } else {
         item_.hint = true;
+        requestedHint_->setText(text);
         showKeys();
-        hint_->setHint(text, hint_->keys());
       }
     } else if (phase_ == Phase::Done) {
       toggleDetail();
@@ -1555,6 +1562,10 @@ void PracticePage::showAll() {
   if (!built_) {
     return;
   }
+  // Tab's hint stays while the case is being solved.
+  if (!item_.hint || phase_ != Phase::Solving) {
+    requestedHint_->clear();
+  }
   showCubeKind();
   showPrompt();
   showKeys();
@@ -1612,6 +1623,8 @@ void PracticePage::showPrompt() {
 }
 
 void PracticePage::showKeys() {
+  requestedHint_->setVisible(item_.hint && phase_ == Phase::Solving &&
+                             !requestedHint_->text().isEmpty());
   QList<KeyHint> keys;
   QString message;
   const bool best = item_.outcome && !item_.outcome->best.empty();

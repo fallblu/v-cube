@@ -175,7 +175,19 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   middleLayout->addWidget(caseTree_, 1);
   // --- the case ---
   caseBox_ = new QGroupBox(tr("Case"), this);
-  auto *caseLayout = new QVBoxLayout(caseBox_);
+  // Until a case is selected the box says only that; the editor is shown
+  // with a case.
+  auto *caseOuter = new QVBoxLayout(caseBox_);
+  caseEmpty_ =
+      new QLabel(tr("Select a case to see and edit its algs"), caseBox_);
+  caseEmpty_->setAlignment(Qt::AlignCenter);
+  caseEmpty_->setWordWrap(true);
+  caseEmpty_->setForegroundRole(QPalette::PlaceholderText);
+  caseContent_ = new QWidget(caseBox_);
+  caseOuter->addWidget(caseEmpty_, 1);
+  caseOuter->addWidget(caseContent_, 1);
+  auto *caseLayout = new QVBoxLayout(caseContent_);
+  caseLayout->setContentsMargins(0, 0, 0, 0);
   auto *caseTop = new QHBoxLayout;
   caseDiagram_ = new QLabel(caseBox_);
   caseDiagram_->setFixedSize(kDiagramSize, kDiagramSize);
@@ -229,11 +241,9 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   auto *caseTabs = new QTabWidget(caseBox_);
   auto *algsTab = new QWidget(caseTabs);
   auto *algsLayout = new QVBoxLayout(algsTab);
-  auto *algHelp =
-      new QLabel(tr("The first passing alg is the main alg. Drag to reorder "
-                    "(or Alt+Up and Alt+Down), F2 or double-click to edit, "
-                    "Delete to remove, right-click for more."),
-                 caseBox_);
+  auto *algHelp = new QLabel(
+      tr("The first passing alg is the main alg (F1 lists the keys)."),
+      caseBox_);
   algHelp->setWordWrap(true);
   algHelp->setForegroundRole(QPalette::PlaceholderText);
   algsLayout->addWidget(algHelp);
@@ -473,7 +483,7 @@ void LibraryPage::buildActions() {
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V));
   renameAction_ = action(tr("&Rename…"), &LibraryPage::renameSelected,
                          QKeySequence(Qt::Key_F2));
-  deleteAction_ = action(tr("&Delete…"), &LibraryPage::deleteSelected,
+  deleteAction_ = action(tr("&Delete"), &LibraryPage::deleteSelected,
                          QKeySequence(QKeySequence::Delete));
   moveUpAction_ = action(
       tr("Move &up"), [this] { moveSelected(-1); },
@@ -549,8 +559,8 @@ void LibraryPage::updateActions() {
   moveDownAction_->setEnabled(s && (alg || cases || groups));
   moveToMenu_->setEnabled(s && cases && s->groups.size() > 1);
   deleteAction_->setText(alg      ? tr("&Remove alg")
-                         : groups ? tr("&Delete group…")
-                                  : tr("&Delete…"));
+                         : groups ? tr("&Delete group")
+                                  : tr("&Delete"));
   renameAction_->setText(alg ? tr("&Edit alg") : tr("&Rename…"));
 }
 
@@ -687,7 +697,7 @@ void LibraryPage::fillCaseItem(QTreeWidgetItem *item, const AlgSet &s,
   item->setText(0, qs(c.name));
   item->setData(0, kCaseRole, qs(c.id));
   item->setIcon(
-      0, QIcon(cube_painter::cachedDiagram(
+      0, cube_painter::caseIcon(cube_painter::cachedDiagram(
              maskedFacelets(a ? a->display : c.state, spec.mask, spec.free),
              spec.view, 40, look(), devicePixelRatioF())));
   item->setText(1, QString::number(c.algs.size()));
@@ -804,6 +814,13 @@ void LibraryPage::selectCase(const QString &setId, const QString &caseId) {
   buildCaseTree();
   loadCase();
   newAlgEdit_->setFocus();
+}
+
+void LibraryPage::pasteAlgsInto(const QString &setId) {
+  selectCase(setId, {});
+  if (editor_.setId == ss(setId)) {
+    pasteAlgs();
+  }
 }
 
 bool LibraryPage::undoLast() {

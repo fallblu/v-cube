@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace vcube {
 
@@ -90,7 +91,41 @@ TimeDisplay::TimeDisplay(QWidget *parent) : QLabel(parent) {
   f.setStyleHint(QFont::Monospace);
   setFont(f);
   setMinimumHeight(QFontMetrics(f).height());
+  setAccessibleName(tr("Timer"));
   showTime(0);
+}
+
+void TimeDisplay::setCue(HoldCue cue) {
+  if (cue == cue_) {
+    return;
+  }
+  cue_ = cue;
+  setAccessibleDescription(
+      cue == HoldCue::Holding ? tr("Holding: keep holding until ready")
+      : cue == HoldCue::Ready ? tr("Ready: let go to start")
+                              : QString());
+  update();
+}
+
+void TimeDisplay::paintEvent(QPaintEvent *e) {
+  QLabel::paintEvent(e);
+  if (cue_ == HoldCue::None) {
+    return;
+  }
+  // A ring (hold on) or a filled dot (let go) on each side of the time.
+  QPainter p(this);
+  p.setRenderHint(QPainter::Antialiasing);
+  QFontMetricsF fm(font());
+  double d = std::max(8.0, fm.height() * 0.22);
+  double half = fm.horizontalAdvance(text()) / 2.0;
+  QPointF centre(width() / 2.0, height() / 2.0);
+  QColor c = palette().color(QPalette::WindowText);
+  p.setPen(QPen(c, std::max(2.0, d / 5.0)));
+  p.setBrush(cue_ == HoldCue::Ready ? QBrush(c) : QBrush(Qt::NoBrush));
+  for (double side : {-1.0, 1.0}) {
+    QPointF at = centre + QPointF(side * (half + d * 1.2), 0);
+    p.drawEllipse(at, d / 2.0, d / 2.0);
+  }
 }
 
 void TimeDisplay::setColour(const QColor &c) {
@@ -106,6 +141,7 @@ void TimeDisplay::setColour(const QColor &c) {
 
 void TimeDisplay::showText(const QString &text, const QColor &colour) {
   beforeHold_.reset();
+  setCue(HoldCue::None);
   show(text, colour);
 }
 
@@ -171,11 +207,13 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
     show(inspection ? inspectText
                     : QString::fromStdString(formatTime(0, decimals_)),
          statusColour(Status::Bad));
+    setCue(HoldCue::Holding);
     break;
   case S::Ready:
     show(inspection ? inspectText
                     : QString::fromStdString(formatTime(0, decimals_)),
          statusColour(Status::Good));
+    setCue(HoldCue::Ready);
     break;
   case S::Running: {
     // One decimal while running keeps the display calm, like cstimer.
@@ -208,6 +246,7 @@ TrendChart::TrendChart(QWidget *parent)
   // room the cube, scramble and timer leave over.
   setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
   setMouseTracking(true);
+  setAccessibleName(tr("Trend chart"));
 }
 
 void TrendChart::setEmptyText(const QString &text) {
@@ -230,6 +269,13 @@ void TrendChart::setSettingsKey(const QString &key) {
 void TrendChart::setSolves(const std::vector<Solve> &solves) {
   solves_ = solves;
   hover_ = -1;
+  // The last solve and its averages in words, for assistive technology.
+  setAccessibleDescription(
+      solves_.empty() ? emptyText_
+                      : tr("%1 solves. Last: %2")
+                            .arg(solves_.size())
+                            .arg(hoverText(solves_.size() - 1)
+                                     .replace('\n', QStringLiteral(", "))));
   update();
 }
 
@@ -245,7 +291,10 @@ std::size_t TrendChart::first() const {
 }
 
 QRectF TrendChart::area() const {
-  return QRectF(rect()).adjusted(44, 10, -10, -20);
+  // Under the plot, a line for the read-out of the solve under the mouse,
+  // then the legend; on the right, room for
+  // the name at the end of each line.
+  return QRectF(rect()).adjusted(44, 10, -40, -38);
 }
 
 QString TrendChart::valueText(StatValue v) const {
@@ -346,10 +395,14 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.drawText(QRectF(0, y - 8, 40, 16), Qt::AlignRight | Qt::AlignVCenter,
                QString::number(v, 'f', decimals));
   }
-  auto drawSeries = [&](const std::vector<StatValue> &vals, const QColor &c,
-                        double width) {
+  // Each line is named at its right end, so that the lines aren't told
+  // apart by colour alone.
+  std::vector<std::pair<double, std::pair<QString, QColor>>> ends;
+  auto drawSeries = [&](const std::vector<StatValue> &vals, const QString &name,
+                        const QColor &c, double width) {
     QPainterPath path;
     bool started = false;
+    std::optional<QPointF> last;
     for (std::size_t i = 0; i < n; ++i) {
       std::size_t at = from + i;
       if (at >= vals.size() || !vals[at] || *vals[at] == kDnfTime) {
@@ -357,6 +410,7 @@ void TrendChart::paintEvent(QPaintEvent *) {
         continue;
       }
       QPointF pt(px(i), py(static_cast<double>(*vals[at]) / 1000.0));
+      last = pt;
       if (started) {
         path.lineTo(pt);
       } else {
@@ -367,6 +421,9 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.setPen(QPen(c, width));
     p.setBrush(Qt::NoBrush);
     p.drawPath(path);
+    if (last) {
+      ends.push_back({last->y(), {name, c}});
+    }
   };
   QColor single = palette().color(QPalette::WindowText);
   single.setAlpha(splits ? 60 : 110);
@@ -380,16 +437,33 @@ void TrendChart::paintEvent(QPaintEvent *) {
   std::vector<std::pair<QString, QColor>> legend;
   if (splits) {
     for (const Series &s : series_) {
-      drawSeries(s.values, s.colour, 1.6);
-      legend.emplace_back(s.name, s.colour);
+      QColor c = roleColour(s.colour);
+      drawSeries(s.values, s.name, c, 1.6);
+      legend.emplace_back(s.name, c);
     }
   } else {
-    drawSeries(rollingAverages(solves_, 5), QColor(0x3d, 0x8e, 0xf0), 1.8);
-    drawSeries(rollingAverages(solves_, 12), QColor(0xff, 0x8a, 0x3d), 1.8);
-    legend = {{"ao5", QColor(0x3d, 0x8e, 0xf0)},
-              {"ao12", QColor(0xff, 0x8a, 0x3d)}};
+    QColor ao5 = roleColour(Role::Series1);
+    QColor ao12 = roleColour(Role::Series2);
+    drawSeries(rollingAverages(solves_, 5), "ao5", ao5, 1.8);
+    drawSeries(rollingAverages(solves_, 12), "ao12", ao12, 1.8);
+    legend = {{"ao5", ao5}, {"ao12", ao12}};
   }
-  legend.emplace_back(tr("single"), single);
+  // The names at the line ends, nudged apart where they would overlap.
+  std::sort(ends.begin(), ends.end(),
+            [](const auto &a, const auto &b) { return a.first < b.first; });
+  const double lineH = p.fontMetrics().height();
+  double above = -1e9;
+  for (auto &end : ends) {
+    end.first = std::max(end.first, above + lineH);
+    above = end.first;
+  }
+  for (const auto &[y, label] : ends) {
+    p.setPen(label.second);
+    p.drawText(QRectF(area.right() + 4, y - lineH / 2,
+                      width() - area.right() - 4, lineH),
+               Qt::AlignLeft | Qt::AlignVCenter, label.first);
+  }
+  legend.emplace_back(tr("single"), axis);
   double x = area.left() + 4;
   for (const auto &[name, colour] : legend) {
     p.setPen(colour);
@@ -402,29 +476,22 @@ void TrendChart::paintEvent(QPaintEvent *) {
                Qt::AlignRight | Qt::AlignVCenter,
                tr("last %1 of %2").arg(n).arg(solves_.size()));
   }
-  // The solve under the mouse.
+  // The solve under the mouse: a line across the plot, and its values on
+  // the read-out line under it (tooltips are off in the app).
+  QRectF readout(area.left(), area.bottom() + 2, area.width(), 16);
   if (hover_ >= 0 && static_cast<std::size_t>(hover_) >= from &&
       static_cast<std::size_t>(hover_) < solves_.size()) {
     double hx = px(static_cast<std::size_t>(hover_) - from);
     p.setPen(QPen(axis, 0.8));
     p.drawLine(QPointF(hx, area.top()), QPointF(hx, area.bottom()));
-    // Its details, in the corner of the chart away from the mouse.
-    QString text = hoverText(static_cast<std::size_t>(hover_));
-    QRectF box = p.fontMetrics()
-                     .boundingRect(QRect(0, 0, 400, 400), 0, text)
-                     .toRectF()
-                     .adjusted(-6, -4, 6, 4);
-    bool right = hx < area.center().x();
-    box.moveTopLeft(
-        QPointF(right ? area.right() - box.width() - 4 : area.left() + 4,
-                area.top() + 4));
-    QColor back = palette().color(QPalette::Base);
-    back.setAlpha(220);
-    p.setPen(QPen(axis, 0.8));
-    p.setBrush(back);
-    p.drawRoundedRect(box, 4, 4);
     p.setPen(palette().color(QPalette::Text));
-    p.drawText(box.adjusted(6, 4, -6, -4), Qt::AlignLeft | Qt::AlignTop, text);
+    p.drawText(readout, Qt::AlignLeft | Qt::AlignVCenter,
+               hoverText(static_cast<std::size_t>(hover_))
+                   .replace('\n', QStringLiteral("    ")));
+  } else {
+    p.setPen(axis);
+    p.drawText(readout, Qt::AlignLeft | Qt::AlignVCenter,
+               tr("Point at the chart to read a solve's values"));
   }
 }
 

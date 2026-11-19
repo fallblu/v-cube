@@ -67,6 +67,10 @@ public:
   void activated() override;
   void deactivated() override;
 
+signals:
+  // Done for now: drill the set (its weakest cases, when it was drilled).
+  void drillSetRequested(const QString &setId, bool weakest);
+
 protected:
   void focusModeChanged() override;
   // Enter in the "Start learning" count starts learning when a number was

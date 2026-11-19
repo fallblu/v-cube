@@ -4,6 +4,7 @@
 #include "app/page_parts.hpp"
 
 #include "app/drill_history_dialog.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "train/alg_follow.hpp"
 
@@ -153,9 +154,6 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   scrambleLabel_->setWordWrap(true);
   scrambleLabel_->setAlignment(Qt::AlignCenter);
   scrambleLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont sf = scrambleLabel_->font();
-  sf.setPointSize(17);
-  scrambleLabel_->setFont(sf);
   markScrambleLabel(scrambleLabel_);
   scrambleLabel_->setMinimumHeight(56);
 
@@ -191,6 +189,17 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   rightLayout->addWidget(display_);
   rightLayout->addWidget(resultRow_);
   rightLayout->addWidget(statusLabel_);
+  // A button for what to do when there is nothing to drill (hidden
+  // otherwise).
+  offerButton_ = new QPushButton(right);
+  offerButton_->setFocusPolicy(Qt::NoFocus);
+  offerButton_->setVisible(false);
+  connect(offerButton_, &QPushButton::clicked, this, [this] {
+    if (auto run = offerRun_) {
+      run();
+    }
+  });
+  rightLayout->addWidget(offerButton_, 0, Qt::AlignHCenter);
   rightLayout->addWidget(keysLabel_);
 
   // After a case: its diagram and algs side by side under the time, kept
@@ -209,9 +218,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   reveal_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   reveal_->setMaximumWidth(560);
   reveal_->setMinimumWidth(0);
-  QFont rf = reveal_->font();
-  rf.setPointSize(rf.pointSize() + 3);
-  reveal_->setFont(rf);
+  setTextRole(reveal_, TextRole::Heading);
   revealLayout->addStretch(1);
   revealLayout->addWidget(diagram_, 0, Qt::AlignTop);
   revealLayout->addWidget(reveal_, 3);
@@ -271,14 +278,33 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   });
   // "Cases shown in the list" follows the search and filter.
   connect(filter_, &CaseFilter::changed, this, [this] { updateSummary(); });
-  connect(sessionReset, &QPushButton::clicked, this, [this] {
-    session_.clear();
-    sessionIndex_.reset();
-    recapFrom_ = 0;
-    refreshSession();
-  });
+  connect(sessionReset, &QPushButton::clicked, this, &DrillPage::resetTally);
   init();
   refreshSession();
+}
+
+void DrillPage::drillSet(const QString &setId, bool weakest) {
+  if (isBusy()) {
+    return;
+  }
+  chooseSet(ss(setId));
+  int i = poolBox_->findData(poolName(weakest ? 4 : 0));
+  if (i >= 0 && setId_ == ss(setId)) {
+    poolBox_->setCurrentIndex(i);
+    emit poolBox_->activated(i);
+  }
+}
+
+void DrillPage::resetTally() {
+  session_.clear();
+  sessionIndex_.reset();
+  recapFrom_ = 0;
+  refreshSession();
+}
+
+void DrillPage::extendModeMenu(QMenu &menu) {
+  menu.addSeparator();
+  menu.addAction(tr("Reset tally"), this, &DrillPage::resetTally);
 }
 
 bool DrillPage::onVirtualCube() const { return cubeBox_->currentIndex() == 0; }
@@ -451,7 +477,14 @@ QString DrillPage::giveUpKeyText() const {
                                            : tr("Backspace");
 }
 
+void DrillPage::offer(const QString &text, std::function<void()> run) {
+  offerRun_ = std::move(run);
+  offerButton_->setText(text);
+  offerButton_->setVisible(static_cast<bool>(offerRun_));
+}
+
 void DrillPage::say(const QString &message, const QList<KeyHint> &keys) {
+  offer({}, {});
   statusLabel_->setText(message);
   statusLabel_->setVisible(!message.isEmpty());
   keysLabel_->setKeys(keys);
@@ -663,6 +696,16 @@ void DrillPage::nextCase() {
       }
     }
     say(text);
+    if (s && tickedEligible().empty() && tickedCount() > 0 &&
+        excludedCount() > 0 &&
+        scopeBox_->currentData().toString() == kScopeTicked) {
+      offer(tr("Paste algs in Library…"),
+            [this] { emit pasteAlgsRequested(qs(setId_)); });
+    } else if (s && cases.empty() && !scopeCases().empty() &&
+               poolChoice() == Pool::Learned) {
+      offer(tr("Learn them in Learn"),
+            [this] { emit learnSetRequested(qs(setId_)); });
+    }
     flow_.noCase();
     return;
   }

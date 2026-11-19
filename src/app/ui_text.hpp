@@ -1,9 +1,13 @@
 #pragma once
 
 #include "app/colours.hpp"
+#include "app/ui_text.hpp"
 #include "cube/move.hpp"
 #include "train/solve_review.hpp"
 
+#include <QDate>
+#include <QDateTime>
+#include <QLocale>
 #include <QObject>
 #include <QString>
 
@@ -21,6 +25,29 @@ inline QString qs(std::string_view s) {
 // "1 alg", "3 algs".
 inline QString counted(int n, const QString &one, const QString &many) {
   return QString("%1 %2").arg(n).arg(n == 1 ? one : many);
+}
+
+// `one` for 1 and `many` otherwise, with %n replaced by `n`: "1 alg
+// hidden", "3 algs hidden". No plural translation is loaded, so tr()'s %n
+// alone would show "alg(s)".
+inline QString plural(int n, const QString &one, const QString &many) {
+  QString s = n == 1 ? one : many;
+  return s.replace(QLatin1String("%n"), QString::number(n));
+}
+
+// Dates, everywhere in the locale's short format.
+// A day: "21/11/2026".
+inline QString dateText(const QDate &day) {
+  return QLocale().toString(day, QLocale::ShortFormat);
+}
+// A day and a time (to the minute) from Unix seconds: "21/11/2026 13:34",
+// or "" for none.
+inline QString dateTimeText(std::int64_t unixSeconds) {
+  if (unixSeconds <= 0) {
+    return {};
+  }
+  return QLocale().toString(QDateTime::fromSecsSinceEpoch(unixSeconds),
+                            QLocale::ShortFormat);
 }
 
 // "1 move", "12 moves".
@@ -47,6 +74,18 @@ inline const QString kNoValue = QStringLiteral("-");
 // An alg or a result that passes, passes with a remark, or fails.
 inline const StatusColour kPassColour{Status::Good};
 inline const StatusColour kWarnColour{Status::Warning};
-inline const QColor kFailColour(0xe6, 0x66, 0x66);
+inline const RoleColour kFailColour{Role::Fail};
+
+// The mark on a value over its target (a slow time, moves over the
+// optimum), so that colour isn't the only sign of it.
+inline const QString kOverMark = QStringLiteral("▲");
+
+// Rich text for a value over its target: marked and in the warning colour,
+// or bold and in the fail colour as well when it is far over.
+inline QString overMarked(const QString &text, bool far = false) {
+  const QString marked = kOverMark + "&nbsp;" + text;
+  return far ? coloured(kFailColour, "<b>" + marked + "</b>")
+             : coloured(kWarnColour, marked);
+}
 
 } // namespace vcube

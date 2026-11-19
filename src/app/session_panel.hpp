@@ -111,6 +111,11 @@ public:
   // this QSettings key.
   void setHiddenColumnsKey(const QString &key);
 
+  // For the page's menu in the menu bar: the column chooser of the
+  // header's context menu, and each clickable statistic's solves, so that
+  // the command list finds them too.
+  void fillMenu(QMenu &menu);
+
   // --- the delete and undo buttons (hidden until shown) ---
   void setDeleteRowVisible(bool on);
   void setDeleteEnabled(bool on);
@@ -143,9 +148,11 @@ private:
   QPushButton *undoButton_;
   TrendChart *chart_;
   QString hiddenKey_;
+  bool statsClickable_ = false;
 
   void applyColumns();
   void showColumnMenu(const QPoint &pos);
+  void fillColumnMenu(QMenu &menu);
 };
 
 // --- shared pieces of the session pages ------------------------------------
@@ -250,8 +257,6 @@ struct AttemptMenuActions {
 };
 void addAttemptActions(ActionMenu &menu, const AttemptMenuActions &actions);
 
-// A date for the attempt lists: the locale's short format, or "" for none.
-QString dateText(std::int64_t unixSeconds);
 // A button that doesn't take the keyboard focus.
 QPushButton *flatButton(const QString &text, QWidget *parent);
 

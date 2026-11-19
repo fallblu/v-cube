@@ -4,6 +4,7 @@
 #include "app/colours.hpp"
 #include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
+#include "app/ui_text.hpp"
 #include "io/data_file.hpp"
 #include "train/optimal_cache.hpp"
 
@@ -13,6 +14,7 @@
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
 #include <QSplitter>
 #include <QToolButton>
@@ -693,7 +695,7 @@ void AttemptPage::showDetails(int index) {
     rows.append({tr("Moves"), qs(formatAttempt(a))});
   }
   addDetails(rows, a);
-  rows.append({tr("Date"), dateText(a.timestamp)});
+  rows.append({tr("Date"), dateTimeText(a.timestamp)});
   rows.append({"Scramble", qs(a.scramble)});
   if (!a.solution.empty()) {
     rows.append({"Solution", qs(a.solution)});
@@ -787,8 +789,8 @@ QString AttemptPage::scrambleStatsHtml() const {
                      .arg(todayCount);
   if (!attempts.empty()) {
     html += tr("<p>First: %1<br>Last: %2</p>")
-                .arg(dateText(attempts.front().timestamp),
-                     dateText(attempts.back().timestamp));
+                .arg(dateTimeText(attempts.front().timestamp),
+                     dateTimeText(attempts.back().timestamp));
   }
   return html;
 }
@@ -1019,5 +1021,7 @@ void AttemptPage::save() {
     emit message(tr("Could not save sessions: %1").arg(error));
   });
 }
+
+void AttemptPage::fillModeMenu(QMenu &menu) { panel_->fillMenu(menu); }
 
 } // namespace vcube

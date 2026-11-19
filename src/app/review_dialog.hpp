@@ -9,6 +9,7 @@
 #include <QDialog>
 #include <QFutureWatcher>
 #include <QList>
+#include <QTimer>
 
 #include <cstdint>
 #include <functional>
@@ -20,6 +21,7 @@ class QComboBox;
 class QLabel;
 class QPushButton;
 class QSlider;
+class QToolButton;
 
 namespace vcube {
 
@@ -100,6 +102,8 @@ private:
   QComboBox *pairSetBox_;
   QLabel *pairsLabel_;
   QPushButton *retryButton_;
+  QToolButton *playButton_ = nullptr;
+  QTimer playTimer_; // steps the replay forward while playing
 
   void buildPairSets();
   void showPosition(std::size_t at);
@@ -113,6 +117,9 @@ private:
   void startOptima();
   void startPairOptima();
   void step(int by);
+  // Plays the replay a move at a time (from the start when at the end),
+  // or stops.
+  void setPlaying(bool on);
 };
 
 // A small dialog with what is kept for a solve, a row per item ("Date",

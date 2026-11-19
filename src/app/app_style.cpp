@@ -22,7 +22,8 @@ bool opensMenu(const QStyleOptionToolButton &o) {
 
 } // namespace
 
-AppStyle::AppStyle() : QProxyStyle(QStyleFactory::create("Fusion")) {}
+AppStyle::AppStyle(QStyle *base)
+    : QProxyStyle(base ? base : QStyleFactory::create("Fusion")) {}
 
 QSize AppStyle::sizeFromContents(ContentsType type, const QStyleOption *option,
                                  const QSize &size,

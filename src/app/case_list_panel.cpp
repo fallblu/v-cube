@@ -94,6 +94,8 @@ void CaseListPanel::setTickButtonsVisible(bool on) {
 
 QString CaseListPanel::tickAllText() const { return tickAllButton_->text(); }
 
+QString CaseListPanel::tickNoneText() const { return tickNoneButton_->text(); }
+
 void CaseListPanel::setSortable(bool on) {
   sortable_ = on;
   if (!on) {
@@ -136,6 +138,11 @@ void CaseListPanel::filterChanged() {
 
 void CaseListPanel::showHeaderMenu(const QPoint &pos) {
   QMenu menu(this);
+  fillColumnMenu(menu);
+  menu.exec(tree->header()->viewport()->mapToGlobal(pos));
+}
+
+void CaseListPanel::fillColumnMenu(QMenu &menu) {
   for (int c = 1; c < tree->columnCount(); ++c) {
     QAction *a = menu.addAction(tree->headerItem()->text(c));
     a->setCheckable(true);
@@ -151,7 +158,6 @@ void CaseListPanel::showHeaderMenu(const QPoint &pos) {
       saved::hiddenColumns(mode_, defaultHidden_).set(hidden);
     });
   }
-  menu.exec(tree->header()->viewport()->mapToGlobal(pos));
 }
 
 void CaseListPanel::applyHiddenColumns() {

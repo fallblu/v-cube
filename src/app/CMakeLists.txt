@@ -61,6 +61,7 @@ add_library(vcube_gui STATIC
   settings_dialog.cpp
   single_instance.cpp
   sounds.cpp
+  text_style.cpp
   timer_page.cpp
   timer_sessions.cpp
   today_page.cpp

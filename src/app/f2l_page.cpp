@@ -109,9 +109,8 @@ DiagramView backViewOf(PairCase c) {
 QString overText(double over, const QString &best) {
   return over < kSameCost
              ? coloured(kPassColour, QObject::tr("as good as %1").arg(best))
-             : coloured(over >= kFarOver ? QColor(kFailColour)
-                                         : QColor(kWarnColour),
-                        QObject::tr("+%1 over %2").arg(costText(over), best));
+             : overMarked(QObject::tr("+%1 over %2").arg(costText(over), best),
+                          over >= kFarOver);
 }
 
 QString slotsText(const std::vector<Slot> &solved) {
@@ -585,11 +584,10 @@ QString F2LPage::pairLine(std::size_t i) const {
   const QString pick =
       regret < kSameCost
           ? coloured(kPassColour, tr("the best pair"))
-          : coloured(regret >= kFarOver ? QColor(kFailColour)
-                                        : QColor(kWarnColour),
-                     tr("%1 was better (−%2)")
-                         .arg(slotText(ranks->second.front().pair.slot),
-                              costText(regret)));
+          : overMarked(tr("%1 was better (−%2)")
+                           .arg(slotText(ranks->second.front().pair.slot),
+                                costText(regret)),
+                       regret >= kFarOver);
   return tr("%1: %2 · %3")
       .arg(name, pick, overText(cost - r->pair.best()->cost, tr("its best")));
 }
@@ -779,10 +777,9 @@ PracticePage::Outcome F2LPage::judge() {
         " · " +
         (over < kSameCost
              ? coloured(kPassColour, tr("as good as the cheapest way found"))
-             : coloured(
-                   over >= kFarOver * pairs ? QColor(kFailColour)
-                                            : QColor(kWarnColour),
-                   tr("+%1 over the cheapest way found").arg(costText(over))));
+             : overMarked(
+                   tr("+%1 over the cheapest way found").arg(costText(over)),
+                   over >= kFarOver * pairs));
   }
   return o;
 }
@@ -897,17 +894,14 @@ QString F2LPage::wholeHtml() const {
                         movesText(r->pair.best()->htm),
                         costText(r->pair.best()->cost));
         double d = cost - r->pair.best()->cost;
-        over = d < kSameCost ? tick
-                             : coloured(d >= kFarOver ? QColor(kFailColour)
-                                                      : QColor(kWarnColour),
-                                        "+" + costText(d));
+        over =
+            d < kSameCost ? tick : overMarked("+" + costText(d), d >= kFarOver);
         double regret = r->total - ranks.front().total;
         pick = regret < kSameCost
                    ? tick
                    : slotText(ranks.front().pair.slot) + " " +
-                         coloured(regret >= kFarOver ? QColor(kFailColour)
-                                                     : QColor(kWarnColour),
-                                  "(" + tr("−%1").arg(costText(regret)) + ")");
+                         overMarked("(" + tr("−%1").arg(costText(regret)) + ")",
+                                    regret >= kFarOver);
       }
     }
     html +=
@@ -1280,8 +1274,8 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
                (side == PairSide::Front ? tr("front") : tr("back"));
       r.section = qs(groupName(groupOf(c)));
       if (side == PairSide::Front) {
-        r.icon = cube_painter::cachedDiagram(caseDiagram(c), viewOf(c), size,
-                                             look, devicePixelRatioF());
+        r.icon = cube_painter::caseIcon(cube_painter::cachedDiagram(
+            caseDiagram(c), viewOf(c), size, look, devicePixelRatioF()));
       } else {
         auto picture = backPictures.find(r.key);
         if (picture == backPictures.end()) {
@@ -1293,8 +1287,8 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
                                               : caseDiagram(c))
                         .first;
         }
-        r.icon = cube_painter::cachedDiagram(picture->second, backViewOf(c),
-                                             size, look, devicePixelRatioF());
+        r.icon = cube_painter::caseIcon(cube_painter::cachedDiagram(
+            picture->second, backViewOf(c), size, look, devicePixelRatioF()));
       }
       rows.push_back(std::move(r));
     }
@@ -1326,15 +1320,10 @@ void F2LPage::groupActivated(const std::string &key) {
 QString F2LPage::listHelp() const {
   switch (tab()) {
   case Tab::Learn:
-    return tr("The pair cases by where the corner and edge are, seen for the "
-              "front-right slot, each for the front slots and for the back "
-              "ones. Each is a card: new ones come in a few a day, and you "
-              "choose the solutions you'll use when one does. A try is Good "
-              "when it is one of them or as cheap. Double-click a case to "
-              "practise it, ungraded.");
+    return tr("The pair cases, each a card (F1 explains more). Double-click "
+              "one to practise it, ungraded.");
   case Tab::Untimed:
-    return tr("Your untimed F2L solves: how many, their moves lately and how "
-              "much they cost over the cheapest way found.");
+    return tr("Your untimed F2L solves (F1 explains the columns).");
   default:
     return tr("Timed solves by method. Double-click one to switch to it.");
   }

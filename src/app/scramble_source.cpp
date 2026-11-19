@@ -6,6 +6,7 @@
 #include "app/app_settings.hpp"
 #include "app/case_page.hpp"
 #include "app/cube_painter.hpp"
+#include "app/text_style.hpp"
 #include "train/case_logic.hpp"
 
 #include <QPainter>
@@ -96,9 +97,7 @@ ScrambleAlgs::ScrambleAlgs(AlgLibrary &library, QString settingsKey,
   label_->setWordWrap(true);
   label_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
   label_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont f = label_->font();
-  f.setPointSize(f.pointSize() + 3);
-  label_->setFont(f);
+  setTextRole(label_, TextRole::Heading);
   label_->setMinimumHeight(110);
   connect(button_, &QPushButton::toggled, this, [this](bool on) {
     saved::showAlgs(settingsKey_).set(on);

@@ -17,7 +17,8 @@ class AppStyle : public QProxyStyle {
 public:
   static constexpr int kMinControlHeight = 28;
 
-  AppStyle();
+  // Over `base` (Fusion when none), which it takes.
+  explicit AppStyle(QStyle *base = nullptr);
 
   QSize sizeFromContents(ContentsType type, const QStyleOption *option,
                          const QSize &size,

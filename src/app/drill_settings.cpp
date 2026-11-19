@@ -42,6 +42,7 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
                                    QWidget *parent)
     : QWidget(parent), settings_(settings) {
   auto *form = new QFormLayout(this);
+  form->setRowWrapPolicy(QFormLayout::WrapLongRows);
   form_ = form;
   startBox_ = new QComboBox(this);
   startBox_->addItem(tr("Tap Space, then the first face turn starts it"), true);
@@ -117,9 +118,9 @@ void DrillSettingsTab::moveTimingRows(QFormLayout *to, int row) {
   };
   // In the order they end up under the other modes' hold time.
   const Moved rows[] = {
-      {holdSpin_, tr("Hold Space before starting, in Drill:")},
-      {startBox_, tr("Drill's virtual cube timer starts:")},
-      {autoStopBox_, tr("Drill's timer stops:")},
+      {holdSpin_, tr("Drill hold to start:")},
+      {startBox_, tr("Drill timer start:")},
+      {autoStopBox_, tr("Drill timer stop:")},
   };
   int at = row + 1;
   for (const Moved &m : rows) {

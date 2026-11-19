@@ -274,9 +274,9 @@ PracticePage::Outcome EoCrossPage::judge() {
       " · " +
       (over == 0
            ? coloured(kPassColour, tr("optimal"))
-           : coloured(
-                 over >= 3 ? QColor(kFailColour) : QColor(kWarnColour),
-                 tr("+%1 over the optimum (%2)").arg(over).arg(o.bestMoves)));
+           : overMarked(
+                 tr("+%1 over the optimum (%2)").arg(over).arg(o.bestMoves),
+                 over >= 3));
   return o;
 }
 
@@ -302,10 +302,9 @@ QString EoCrossPage::breakdownHtml() const {
   for (const EoPart &p : b.parts) {
     Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(p.begin),
               item().moves.begin() + static_cast<std::ptrdiff_t>(p.end));
-    QString lost = p.lost <= 0 ? coloured(kPassColour, tr("nothing"))
-                               : coloured(p.lost >= 3 ? QColor(kFailColour)
-                                                      : QColor(kWarnColour),
-                                          "+" + QString::number(p.lost));
+    QString lost = p.lost <= 0
+                       ? coloured(kPassColour, tr("nothing"))
+                       : overMarked("+" + QString::number(p.lost), p.lost >= 3);
     html += QString("<tr><td>%1</td><td><b>%2</b></td><td align='right'>%3"
                     "</td><td align='right'>%4</td><td align='right'>%5</td>"
                     "</tr>")
@@ -426,12 +425,10 @@ void EoCrossPage::groupActivated(const std::string &key) {
 QString EoCrossPage::listHelp() const {
   switch (tab()) {
   case Tab::Inspection:
-    return tr("Your plans by step: how many, how many did the step, the "
-              "time you looked and how far over the optimum of your holds "
-              "they were lately. Double-click a step to practise it.");
+    return tr("Your plans by step (F1 explains the columns). Double-click a "
+              "step to practise it.");
   case Tab::Untimed:
-    return tr("Your untimed solves by step: how many, their moves lately and "
-              "how far over the optimum of your holds they were. "
+    return tr("Your untimed solves by step (F1 explains the columns). "
               "Double-click a step to practise it.");
   default:
     return tr("Timed solves by step. Double-click a step to switch to it.");

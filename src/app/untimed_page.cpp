@@ -2,6 +2,7 @@
 #include "app/page_parts.hpp"
 
 #include "app/review_dialog.hpp"
+#include "app/ui_text.hpp"
 #include "train/solve_review.hpp"
 #include "train/step_solver.hpp"
 
@@ -39,7 +40,7 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
   algRow->addWidget(applyButton);
   algLayout->addLayout(algRow);
   algError_ = new QLabel(algPanel_);
-  algError_->setStyleSheet("color: #e66");
+  algError_->setStyleSheet("color: " + kFailColour.name());
   algError_->setVisible(false);
   algLayout->addWidget(algError_);
   addBelowCentre(algPanel_);
@@ -107,7 +108,7 @@ void UntimedPage::addCells(std::vector<AttemptCell> &cells,
   };
   if (scramblesOnly()) {
     add(qs(a.scramble), false);
-    add(dateText(a.timestamp));
+    add(dateTimeText(a.timestamp));
     return;
   }
   add(qs(formatAttempt(a)));

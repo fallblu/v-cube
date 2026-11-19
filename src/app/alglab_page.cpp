@@ -7,6 +7,7 @@
 #include "app/grip_view.hpp"
 #include "app/lab_test_panel.hpp"
 #include "app/page_parts.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
 #include "train/ergonomics.hpp"
@@ -209,18 +210,41 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   maxHtm_->setSpecialValueText(tr("any length"));
   maxHtm_->setPrefix(tr("≤ "));
   maxHtm_->setSuffix(tr(" HTM"));
+  // Two groups, each named: what the time and score columns show, and
+  // which algs are listed.
+  auto groupLabel = [search](const QString &text) {
+    auto *label = new QLabel(text, search);
+    QFont f = label->font();
+    f.setBold(true);
+    label->setFont(f);
+    return label;
+  };
+  auto *timesLabel = groupLabel(tr("Times shown:"));
+  timesLabel->setBuddy(statsCube_);
+  filters->addWidget(timesLabel);
   filters->addWidget(statsCube_);
   filters->addWidget(statsWindow_);
+  filters->addSpacing(12);
   filters->addWidget(new QLabel(tr("Score:"), search));
   filters->addWidget(profileBox_);
   filters->addWidget(profileMenu);
-  filters->addSpacing(12);
-  filters->addWidget(new QLabel(tr("Show:"), search));
-  filters->addWidget(filterBox_);
-  filters->addWidget(noRotations_);
-  filters->addWidget(maxHtm_);
   filters->addStretch();
   sl->addWidget(filters);
+  auto *shown = new OptionBar(search);
+  auto *algsLabel = groupLabel(tr("Algs shown:"));
+  algsLabel->setBuddy(filterBox_);
+  shown->addWidget(algsLabel);
+  shown->addWidget(filterBox_);
+  shown->addWidget(noRotations_);
+  shown->addWidget(maxHtm_);
+  shown->addStretch();
+  sl->addWidget(shown);
+  statsCube_->setAccessibleName(tr("Times of the physical or virtual cube"));
+  statsWindow_->setAccessibleName(tr("Times from"));
+  profileBox_->setAccessibleName(tr("Score profile"));
+  profileMenu->setAccessibleName(tr("Score profile menu"));
+  filterBox_->setAccessibleName(tr("Moves the algs may use"));
+  maxHtm_->setAccessibleName(tr("Longest alg shown"));
 
   table_ = new QTableWidget(0, ColumnCount, search);
   table_->setHorizontalHeaderLabels(
@@ -271,6 +295,12 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   auto *toSet = new QPushButton(tr("Add to set"), search);
   auto *makeMain = new QPushButton(tr("Make main alg"), search);
   auto *toSession = new QPushButton(tr("Add to session"), search);
+  // The one prominent button: what the tab is mostly for.
+  QFont tf = toSession->font();
+  tf.setBold(true);
+  toSession->setFont(tf);
+  toSession->setDefault(true);
+  toSession->setAutoDefault(false);
   auto *remove = new QPushButton(tr("Remove"), search);
   auto *clear = new QPushButton(tr("Clear times…"), search);
   for (QPushButton *b : {toSession, toSet, makeMain, remove, clear}) {
@@ -286,6 +316,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   genBox_ = new QComboBox(gen);
   auto *genMenu = new QToolButton(gen);
   genMenu->setText(tr("…"));
+  genMenu->setAccessibleName(tr("Move set menu"));
   genMenu->setPopupMode(QToolButton::InstantPopup);
   auto *gm = new QMenu(genMenu);
   gm->addAction(tr("Edit the move set…"), this, [this] {
@@ -527,7 +558,56 @@ bool AlgLabPage::handleKey(QKeyEvent *e, bool press) {
     }
     return true;
   }
-  return false;
+  // The candidate table takes the keyboard as Library's lists do: the
+  // arrows pick algs (with Shift, several), Enter adds them to the
+  // session and Delete removes them. The case list keeps its own arrows
+  // while it has the focus.
+  if (e->modifiers() & ~(Qt::KeypadModifier | Qt::ShiftModifier)) {
+    return false;
+  }
+  if (caseTree_->hasFocus()) {
+    return false;
+  }
+  switch (e->key()) {
+  case Qt::Key_Up:
+  case Qt::Key_Down:
+  case Qt::Key_PageUp:
+  case Qt::Key_PageDown:
+  case Qt::Key_Home:
+  case Qt::Key_End:
+    if (!press || table_->rowCount() == 0) {
+      return false;
+    }
+    if (!table_->hasFocus()) {
+      table_->setFocus(Qt::ShortcutFocusReason);
+      if (!table_->currentIndex().isValid() ||
+          table_->selectedItems().isEmpty()) {
+        table_->selectRow(e->key() == Qt::Key_Up || e->key() == Qt::Key_End
+                              ? table_->rowCount() - 1
+                              : 0);
+        return true;
+      }
+      // The table moves its selection as it would with the focus.
+      QApplication::sendEvent(table_, e);
+      return true;
+    }
+    return false;
+  case Qt::Key_Return:
+  case Qt::Key_Enter:
+    if (press && !selectedAlgs().empty()) {
+      addToSession();
+      return true;
+    }
+    return false;
+  case Qt::Key_Delete:
+    if (press && !selectedAlgs().empty()) {
+      removeCandidates();
+      return true;
+    }
+    return false;
+  default:
+    return false;
+  }
 }
 
 void AlgLabPage::applySettings() {
@@ -747,8 +827,8 @@ void AlgLabPage::deleteLabCase() {
   }
   if (QMessageBox::question(
           this, tr("Delete lab case"),
-          tr("Delete \"%1\" with its candidates and %n time(s)?", nullptr,
-             times)
+          plural(times, tr("Delete \"%1\" with its candidates and %n time?"),
+                 tr("Delete \"%1\" with its candidates and %n times?"))
               .arg(case_->name)) != QMessageBox::Yes) {
     return;
   }

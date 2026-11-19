@@ -1,6 +1,7 @@
 #include "app/drill_history_dialog.hpp"
 
 #include "app/case_page.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
 #include <QCoreApplication>
@@ -23,7 +24,7 @@ QString tr(const char *text) {
 }
 
 QString dayText(std::int64_t day) {
-  return QDate(1970, 1, 1).addDays(day).toString("yyyy-MM-dd");
+  return dateText(QDate(1970, 1, 1).addDays(day));
 }
 
 } // namespace
@@ -64,12 +65,12 @@ void showDrillHistory(QWidget *parent, const QString &caseName,
     return qs(formatSolve(s, decimals));
   };
   QString info =
-      (virt ? tr("<p><b>%1</b> on the virtual cube: %2 attempts in all, %3 "
+      (virt ? tr("<p><b>%1</b> on the virtual cube: %2 in all, %3 "
                  "failed. Best %4, mean of the last 5 %5, median %6.</p>")
-            : tr("<p><b>%1</b> on a physical cube: %2 attempts in all, %3 "
+            : tr("<p><b>%1</b> on a physical cube: %2 in all, %3 "
                  "failed. Best %4, mean of the last 5 %5, median %6.</p>"))
           .arg(caseName.toHtmlEscaped())
-          .arg(total)
+          .arg(counted(total, tr("attempt"), tr("attempts")))
           .arg(fails)
           .arg(seconds(progress && progress->best(mode)
                            ? std::optional<double>(*progress->best(mode))
@@ -93,7 +94,7 @@ void showDrillHistory(QWidget *parent, const QString &caseName,
                                   "attempts):"),
                                &dialog));
   std::vector<Solve> means;
-  TrendChart::Series bests{tr("daily best"), QColor(0x3d, 0xd6, 0x6b), {}};
+  TrendChart::Series bests{tr("daily best"), Role::Series3, {}};
   for (const DayRollup &d : days) {
     Solve s;
     auto mean = d.meanMs();

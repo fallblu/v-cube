@@ -81,8 +81,11 @@ private:
   QTimer frame_;
   QElapsedTimer clock_;
   qint64 lastFrame_ = 0;
+  int describedSolved_ = -1; // the accessible description says so (0/1)
 
   void advance();
+  // Says in the accessible description whether the cube shown is solved.
+  void describe();
   void enqueue(Move m, bool typed);
   QRectF drawArea() const;
   // marks_ moved back through the turns still to animate, onto the stickers

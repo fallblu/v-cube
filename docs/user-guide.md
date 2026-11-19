@@ -37,16 +37,25 @@ anyway.
   Learn can still bring in today, the cases queued and the cases learned.
   The cards of F2L and TSLE mode are listed with the sets, with a button
   that opens the mode's Learn tab. It also shows your practice streak and what you did in each mode, with
-  the time spent, today and over the last 7 days. Each set has a button to
-  review or learn it, and **Review all sets** reviews every set's due cases
-  together. The sidebar's Today and Learn buttons show the number of
-  reviews due.
+  the time spent, today and over the last 7 days. The button at the top
+  says what to do next: review every set's due cases together, else F2L or
+  TSLE cards that are due, else learn new cases (or that nothing is due).
+  Each row has a button to **Review due**, **Learn new** or **Open** it.
+  From the keyboard, ↑ and ↓ pick a row, Enter opens it, R reviews every
+  set and Space presses the button at the top. The sidebar's Today and
+  Learn buttons show the number of reviews due on their right.
 - **Keyboard controls** (`F1`): the keys, in a panel beside the page, with
   the current mode's first and your own turning keys. The panel can be
   undocked.
 - **Command list** (`Ctrl+K`): type part of any menu command, or of a
   choice on the page (alg set, session, scramble type, cube, view), and
-  press Enter.
+  press Enter. Commands are grouped under **Go** (the modes), **This
+  page** (the page's choices and its menu) and **Menus**, with their keys
+  on the right; with nothing typed, the last few commands you ran come
+  first. Each mode's own menu (named after it) has what its lists offer
+  on a right-click: in Learn and Drill also Tick all, Tick none and the
+  list's columns (and Drill's Reset tally), in Timed, Untimed and Move
+  Count the session table's columns and each statistic's solves.
 - **Side panel** (`F9`): hides or shows the mode's side panel (the case
   list, the session, the case browser), giving the cube the whole page.
   Each mode remembers it. In a narrow window the panel hides by itself and
@@ -62,6 +71,9 @@ anyway.
   message and the keys that do something right now. A key whose action is
   in the link colour can be clicked too, e.g. DNF and delete in Drill, or
   +2, DNF, delete and review in Timed.
+- **Tips in the status bar**: nothing pops up beside the mouse; pointing
+  at a control, a list column or a statistic writes what it does in the
+  status bar instead.
 - The window reopens where you left it, with the same list widths, but
   never in full screen or focus mode. It can be as narrow as half a 1080p
   screen; option rows wrap, and the chart gives up its room before the cube
@@ -137,10 +149,14 @@ cases**: list order, the order queued, shuffled, one from each group in
 turn, shortest alg first, or fewest steps left first (for sets solved a
 step at a time).
 
-**With nothing due**, the page says when the next review is and how the
-day went, and offers buttons for what else there is: the next learning
-case early, new cases, another set's reviews, or every set's reviews. It
-checks again by itself when a case falls due.
+**With nothing due**, the page says **Done for today** (or **Done for
+now** when more falls due later today) with the day's numbers a line each
+and when the next review is, and offers buttons for what else there is:
+the next learning case early, new cases, drilling the set (its weakest
+cases once it has been drilled), another set's reviews, or every set's
+reviews. It checks again by itself when a case falls due. When no ticked
+case has an alg yet, **Paste algs in Library…** opens Library's Paste
+algs for the set (Drill has the same button).
 
 **The bar above the cube** has the alg set (each with its due count, and
 **All sets: due reviews** to review every set together), **Practise**, the
@@ -166,7 +182,8 @@ practice run that doesn't change the schedule.
 
 The Recog column is each case's mean recognition time: from the case being
 set up to your first turn of a layer other than U or D, in Learn and in
-Drill on the virtual cube. Lapses and Ease (hidden at first) come from its
+Drill on the virtual cube; one slower than the "slow to recognise" setting
+is marked ▲. Lapses and Ease (hidden at first) come from its
 card. A case forgotten 6 times is flagged as a leech. Right-click the
 header to choose columns.
 
@@ -267,7 +284,8 @@ ignored for a moment so a second press doesn't skip it.
 
 **Statistics.** The list shows, per case, the recent average, the best
 time (kept for good), the fail rate and the weakness (how often Weighted
-picks it); a group's row sums its cases. Click a column header to sort.
+picks it); a group's row sums its cases. An average over the set's target
+time is marked ▲. Click a column header to sort.
 Right-click a case for its drill history (a chart of its last 100
 attempts, and every attempt by day) or to clear its times. The tally under
 the list counts attempts, mean, DNFs and new bests since **Reset tally**,
@@ -392,12 +410,17 @@ greyed out with the reason. The columns are:
   standard deviation and DNF rate, over all time, the current test session
   or the last 50 attempts.
 
-**Show** filters to the algs of a move set, **No rotations** hides algs
-with x, y or z, and the length box hides longer algs. Type an alg under
-the list to add it, or **Paste algs…**. **Add to set** and **Make main
-alg** edit the set (Ctrl+Z takes them back), **Add to session** puts the
-selected algs in the current test session, **Remove** forgets kept
-candidates and **Clear times…** forgets the selected algs' times.
+The time columns appear once an alg listed has times. **Times shown**
+picks the cube and the attempts the time columns cover, and the profile
+of the Score. **Algs shown** filters to the algs of a move set, **No
+rotations** hides algs with x, y or z, and the length box hides longer
+algs. Type an alg under the list to add it, or **Paste algs…**. **Add to
+session** puts the selected algs in the current test session, **Add to
+set** and **Make main alg** edit the set (Ctrl+Z takes them back),
+**Remove** forgets kept candidates and **Clear times…** forgets the
+selected algs' times. The list takes the keyboard too: the arrow keys
+select algs (Shift for several), Enter adds them to the session and
+Delete removes them.
 
 **The generator** (fold it away with the **Generator** button) finds every
 alg of a move set that solves the case, shortest first.
@@ -488,7 +511,8 @@ Double-click an alg in the session's list to time it next.
 
 **Compare** shows the session's algs side by side: the statistics and a
 chart, either each alg's spread (dots, with a box for the middle half and
-a line at the median) or the times in order. **Times** lists the attempts;
+a line at the median) or the times in order, each alg numbered as in the
+legend. **Times** lists the attempts;
 right-click one to toggle DNF, count a time that left the alg, or delete
 it. An alg's times are kept across sessions, separately for each cube, and
 deleting a session keeps them.
@@ -509,8 +533,10 @@ turn as done instead.
 **The solve list**: right-click a solve to copy its scramble or solution
 or open **Details…**, which has its date and comment too. Delete removes
 the last solve and Ctrl+Z puts it back. Click a statistic to see its
-solves. Averages are rounded as the WCA does. The chart's right-click menu
-picks how many solves it shows (12 to 500).
+solves. Averages are rounded as the WCA does. The chart names each line
+(ao5, ao12, or the splits) at its right end; its right-click menu picks how
+many solves it shows (12 to 500); pointing at the chart shows that solve's
+time and averages on the line under it.
 
 ### Timed
 
@@ -585,7 +611,8 @@ The step can be done on any colour and axis.
 
 **Review** (double-click a solve, or Alt+R for the last) works for all
 three solve modes. It replays the solve on its own cube (←/→, Home/End or
-the slider), marks where EO, EO+1, EO+2, EO Cross and ZZ F2L were first
+the slider, or Space or the play button to play it a move at a time),
+marks where EO, EO+1, EO+2, EO Cross and ZZ F2L were first
 done, and says how many moves each took and in which hold. For EO to EO
 Cross and the cross it lists the optimal solutions, in your holds and over
 every colour and axis.
@@ -645,7 +672,8 @@ time:
    back in a minute to do from memory. `Space` skips the showing for a
    case you know.
 2. A **due case** is set up without its name. Solve it. `Tab` gives a
-   hint, `Backspace` gives up, `Esc` starts again.
+   hint, shown large under the cube; `Backspace` gives up, `Esc` starts
+   again.
 3. The card is graded **Good** when you solved it unaided and well, and
    **Again** after a hint, giving up or a poor solution. `1`–`4` change
    the grade to Again, Hard, Good or Easy.
@@ -655,7 +683,8 @@ card in its learning steps early, and the Untimed tab is always there to
 practise.
 
 **After a solve** there is one line, the verdict, and the best solution
-under it. `Tab` opens the details (they take room from the cube only
+under it. A result over the best is marked ▲, and is bold as well when it
+is far over. `Tab` opens the details (they take room from the cube only
 while open); click a solution there to play it. `Enter` plays the best
 solution from the start, `Space` goes on, and `Esc` gives the same state
 again, unrecorded and ungraded.
@@ -856,7 +885,7 @@ Edit > Settings… (`Ctrl+,`). Each option is explained under it.
 
 | Tab | What is there |
 | --- | --- |
-| **Appearance** | theme, sticker colours, text sizes, the size of case pictures, decimal places |
+| **Appearance** | theme, the interface text size (all the text, up to about 16 px), sticker colours, the scramble, timer and hint text sizes, the size of case pictures, decimal places |
 | **Colour neutrality** | see [above](#colour-neutrality) |
 | **Timing and solves** | hold times for the solve modes and Drill (up to 2 s), how Drill's virtual timer starts and stops, WCA inspection and its beeps, auto-stop when solved, hiding the cube until inspection, simplified move counts, Move Count's Opt holds |
 | **Cube and keys** | turn speed and the turning keys |

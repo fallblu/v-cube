@@ -14,6 +14,15 @@ CubeView::CubeView(QWidget *parent) : QWidget(parent) {
   frame_.setInterval(8);
   connect(&frame_, &QTimer::timeout, this, &CubeView::advance);
   clock_.start();
+  setAccessibleName(tr("Cube"));
+}
+
+void CubeView::describe() {
+  int solved = shown_.isSolved() ? 1 : 0;
+  if (solved != describedSolved_) {
+    describedSolved_ = solved;
+    setAccessibleDescription(solved ? tr("Solved") : tr("Not solved"));
+  }
 }
 
 QString CubeView::modeName(Mode m) {
@@ -203,6 +212,7 @@ QRectF CubeView::drawArea() const {
 }
 
 void CubeView::paintEvent(QPaintEvent *) {
+  describe();
   QPainter p(this);
   QRectF area = drawArea();
   StickerMarks marks = shownMarks();

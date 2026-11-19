@@ -259,14 +259,22 @@ const std::vector<Section> &sections() {
                     "alg in the alg list")},
         {T("Alt+Up / Alt+Down"),
          T("move the selected cases, group or alg up / down")}},
-       {T("Ctrl- or Shift-click selects several cases.")}},
+       {T("Ctrl- or Shift-click selects several cases."),
+        T("In a case's alg list, the first passing alg is the main alg. Drag "
+          "the algs to reorder them (or Alt+Up and Alt+Down), F2 or "
+          "double-click one to edit it, Delete to remove it, right-click for "
+          "more.")}},
       {T("Case lists (Learn, Drill, Library)"),
        kNoMode,
        {},
        {T("Where"), T("Key"), T("Action")},
        {{T("search box"), T("Enter"), T("give the keys back to the cube")},
         {T("search box"), T("Esc"), T("clear the search")}},
-       {}},
+       {T("In Learn and Drill, the mode's menu in the menu bar has the "
+          "selected cases' actions, Tick all, Tick none and the list's "
+          "columns (and Drill's Reset tally), so the command list (Ctrl+K) "
+          "finds them. In Timed, Untimed and Move Count, it has the session "
+          "table's columns and each statistic's solves.")}},
       {T("Timed"),
        AppMode::Timed,
        {},
@@ -354,7 +362,8 @@ const std::vector<Section> &sections() {
        {T("In the solve review (Alt+R, or double-click a solve):")},
        {T("Key"), T("Action")},
        {{T("← / →"), T("step the replay back / forward")},
-        {T("Home / End"), T("to the scramble / to the end")}},
+        {T("Home / End"), T("to the scramble / to the end")},
+        {T("Space"), T("play the replay a move at a time, or pause it")}},
        {}},
       {T("EO Cross"),
        AppMode::EoCross,
@@ -374,7 +383,12 @@ const std::vector<Section> &sections() {
         PRACTICE_LEARN_SOLVING,
         PRACTICE_LEARN_AFTER,
         PRACTICE_TIMED},
-       {}},
+       {T("The list beside the cube, on the Inspection tab: your plans by "
+          "step, with how many, how many did the step, the time you looked "
+          "and how far over the optimum of your holds they were lately. On "
+          "the Untimed tab: your untimed solves by step, with how many, their "
+          "moves lately and how far over the optimum of your holds they were. "
+          "Double-click a step to practise it.")}},
       {T("F2L"),
        AppMode::F2L,
        {},
@@ -397,7 +411,14 @@ const std::vector<Section> &sections() {
         {T("Learn, after a try as cheap as yours"), T("+"),
          T("add what you did to the case's solutions")},
         PRACTICE_TIMED},
-       {}},
+       {T("The list beside the cube, on the Learn tab: the pair cases by "
+          "where the corner and edge are, seen for the front-right slot, each "
+          "for the front slots and for the back ones. Each is a card: new ones "
+          "come in a few a day, and you choose the solutions you'll use when "
+          "one does. A try is Good when it is one of them or as cheap. "
+          "Double-click a case to practise it, ungraded. On the Untimed tab: "
+          "your untimed F2L solves, with how many, their moves lately and how "
+          "much they cost over the cheapest way found.")}},
       {T("TSLE"),
        AppMode::Tsle,
        {},
@@ -409,13 +430,26 @@ const std::vector<Section> &sections() {
         PRACTICE_LEARN_AFTER,
         PRACTICE_LEARN_CARDS,
         PRACTICE_TIMED},
-       {}},
+       {T("The list beside the cube, on the Learn tab: the cases by steps "
+          "left (a step is a trigger, or the OCLL that ends a chain), drawn "
+          "for the front-right slot with the edge at UF. A name gives the "
+          "edge, the slot's corner place (N oriented, CW, CCW) and the twists "
+          "at URF, UFL, ULB, UBR. Double-click a case to practise it, "
+          "ungraded. On the Untimed tab: your untimed solves, with how many, "
+          "their moves lately and how far over the best way they were.")}},
       {T("Alg Lab"),
        AppMode::AlgLab,
-       {T("The Search tab is used with the mouse: Enter in the field under the "
-          "list adds the alg typed. These keys are for the Test tab.")},
+       {T("In the Search tab the list of algs takes the arrow keys while the "
+          "case list doesn't have the keyboard. The other keys are for the "
+          "Test tab.")},
        {T("When"), T("Key"), T("Action")},
-       {{T("Before the session or after its last rep"), T("Space"),
+       {{T("Search tab"), T("↑ / ↓, Page Up / Page Down, Home / End"),
+         T("select an alg (with Shift, several)")},
+        {T("Search tab"), T("Enter"),
+         T("add the selected algs to the session")},
+        {T("Search tab"), T("Delete"), T("remove the selected algs")},
+        {T("Search tab, alg field"), T("Enter"), T("add the alg typed")},
+        {T("Before the session or after its last rep"), T("Space"),
          T("start: the next alg is set up")},
         {T("Physical, case set up"), T("Space held, then let go"),
          T("start the timer (hold until the time turns green)")},
@@ -437,12 +471,15 @@ const std::vector<Section> &sections() {
           "an alg in the session's list to time it next.")}},
       {T("Today"),
        AppMode::Today,
-       {T("Each set has a button to review or learn it; Review all sets "
-          "reviews every set's due cases together.")},
-       {},
-       {
-
-       },
+       {T("The button at the top does what is next: review what is due, "
+          "else learn new cases. Each set has a button to review or learn "
+          "it.")},
+       {T("Key"), T("Action")},
+       {{T("↑ / ↓, Home / End"), T("pick a set (or F2L or TSLE's cards)")},
+        {T("Enter"), T("open the set picked in Learn (with none picked, the "
+                       "button at the top)")},
+        {T("R"), T("review every set's due cases together")},
+        {T("Space"), T("the button at the top")}},
        {}},
   };
   return all;
@@ -500,19 +537,23 @@ QString sectionHtml(const Section &s, const Keymap &keymap) {
   for (const char *p : s.intro) {
     html += "<p>" + inlineHtml(tr(p)) + "</p>";
   }
-  if (!s.rows.empty()) {
-    html += "<table cellspacing=\"0\" cellpadding=\"3\">";
-    for (const auto &row : s.rows) {
-      html += "<tr>";
-      for (std::size_t i = 0; i < row.size(); ++i) {
-        // The key column: the last but one.
-        bool key = i + 2 == row.size();
-        QString cell = inlineHtml(tr(row[i]));
-        html += key ? "<td><b>" + cell + "</b></td>" : "<td>" + cell + "</td>";
-      }
-      html += "</tr>";
+  // Each row on two lines, as the panel is narrow: when and the key, then
+  // what it does across the whole width.
+  for (const auto &row : s.rows) {
+    if (row.empty()) {
+      continue;
     }
-    html += "</table>";
+    QStringList first;
+    for (std::size_t i = 0; i + 1 < row.size(); ++i) {
+      // The key: the last but one column.
+      QString cell = inlineHtml(tr(row[i]));
+      first << (i + 2 == row.size() ? "<b>" + cell + "</b>"
+                                    : "<i>" + cell + "</i>");
+    }
+    html += "<p style=\"margin-top:8px; margin-bottom:0\">" +
+            first.join(" &nbsp;·&nbsp; ") + "</p>";
+    html += "<p style=\"margin-top:1px; margin-bottom:0; margin-left:14px\">" +
+            inlineHtml(tr(row.back())) + "</p>";
   }
   for (const char *p : s.outro) {
     html += "<p>" + inlineHtml(tr(p)) + "</p>";

@@ -2,6 +2,7 @@
 
 #include "app/colours.hpp"
 #include "app/cube_view.hpp"
+#include "app/text_style.hpp"
 #include "cube/move.hpp"
 #include "io/algset_json.hpp"
 #include "train/alg_guide.hpp"
@@ -26,9 +27,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   header = new QLabel(top);
   header->setTextFormat(Qt::RichText);
   header->setAlignment(Qt::AlignCenter);
-  QFont hf = header->font();
-  hf.setPointSize(hf.pointSize() + 2);
-  header->setFont(hf);
+  setTextRole(header, TextRole::Heading);
   cube = new CubeView(top);
   // The header and the cube sit at the bottom of the room above the
   // splitter, so that the status and the keys are right under the cube.
@@ -53,9 +52,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   guide_->setAlignment(Qt::AlignCenter);
   guide_->setWordWrap(true);
   guide_->setTextFormat(Qt::RichText);
-  QFont gf = guide_->font();
-  gf.setPointSize(gf.pointSize() + 5);
-  guide_->setFont(gf);
+  setTextRole(guide_, TextRole::Title);
   guide_->setVisible(false);
   bottomLayout->addWidget(guide_);
   bottomLayout->addWidget(status);
@@ -73,10 +70,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   gradeRows->setContentsMargins(0, 0, 0, 0);
   auto *outcome = new QHBoxLayout;
   gradeBadge_ = new QLabel(gradeRow);
-  QFont bf = gradeBadge_->font();
-  bf.setPointSize(bf.pointSize() + 3);
-  bf.setBold(true);
-  gradeBadge_->setFont(bf);
+  setTextRole(gradeBadge_, TextRole::Heading, true);
   gradeBadge_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   gradeLabel_ = new QLabel(gradeRow);
   gradeLabel_->setWordWrap(true);
@@ -113,9 +107,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   reveal->setWordWrap(true);
   reveal->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
   reveal->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  QFont rf = reveal->font();
-  rf.setPointSize(rf.pointSize() + 3);
-  reveal->setFont(rf);
+  setTextRole(reveal, TextRole::Heading);
   auto *revealScroll = new QScrollArea(bottom);
   revealScroll->setWidget(reveal);
   revealScroll->setWidgetResizable(true);
@@ -215,9 +207,9 @@ void CaseStage::showOutcome(const QString &badge, const QString &colour,
                             const QString &detail) {
   gradeBadge_->setText(badge);
   gradeBadge_->setStyleSheet(
-      QString("QLabel { background: %1; color: white; border-radius: 4px; "
+      QString("QLabel { background: %1; color: %2; border-radius: 4px; "
               "padding: 2px 10px; }")
-          .arg(colour));
+          .arg(colour, roleColour(Role::OnBadge).name()));
   // On one line beside the badge while it fits, wrapped after that.
   gradeLabel_->setText(detail);
   gradeLabel_->setMinimumWidth(
@@ -253,9 +245,13 @@ void CaseStage::showQuizAnswer(std::size_t right, std::size_t chosen) {
     }
     std::size_t k = button++;
     if (k == right) {
-      b->setStyleSheet("background:#2f9e55; color:white; font-weight:bold");
+      b->setStyleSheet(QString("background:%1; color:%2; font-weight:bold")
+                           .arg(roleColour(Role::GradeGood).name(),
+                                roleColour(Role::OnBadge).name()));
     } else if (k == chosen) {
-      b->setStyleSheet("background:#d9453b; color:white");
+      b->setStyleSheet(QString("background:%1; color:%2")
+                           .arg(roleColour(Role::GradeAgain).name(),
+                                roleColour(Role::OnBadge).name()));
     }
     b->setEnabled(k == right || k == chosen);
   }

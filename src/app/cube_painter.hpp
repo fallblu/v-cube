@@ -5,6 +5,7 @@
 #include "train/algset.hpp"
 
 #include <QColor>
+#include <QIcon>
 #include <QPainter>
 #include <QPixmap>
 #include <QPointF>
@@ -79,6 +80,10 @@ QPixmap diagram(const FaceletCube &cube, DiagramView view, int size,
 // for the case lists, which are rebuilt often.
 QPixmap cachedDiagram(const FaceletCube &cube, DiagramView view, int size,
                       const CubeLook &look, qreal devicePixelRatio = 1.0);
+
+// A list icon of a picture that a selected row shows as it is, rather than
+// tinted in the selection colour, so that its colours stay true.
+QIcon caseIcon(const QPixmap &picture);
 
 } // namespace cube_painter
 

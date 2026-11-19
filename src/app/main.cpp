@@ -2,6 +2,7 @@
 #include "app/main_window.hpp"
 #include "app/platform.hpp"
 #include "app/single_instance.hpp"
+#include "app/text_style.hpp"
 #include "cube/solver.hpp"
 #include "io/data_file.hpp"
 
@@ -30,6 +31,7 @@ int main(int argc, char **argv) {
 
   vcube::AppSettings settings = vcube::AppSettings::load();
   vcube::applyTheme(app, settings.darkTheme);
+  vcube::setInterfaceTextPercent(settings.interfaceTextPercent);
 
   QString dataDir = QDir(QStandardPaths::writableLocation(
                              QStandardPaths::GenericDataLocation))

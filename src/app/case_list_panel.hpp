@@ -8,6 +8,7 @@ class QComboBox;
 class QFormLayout;
 class QHBoxLayout;
 class QLabel;
+class QMenu;
 class QPushButton;
 class QTreeWidget;
 class QVBoxLayout;
@@ -55,6 +56,11 @@ public:
   void tickShown(bool on);
   // "Tick all", or "Tick shown" while the list is filtered.
   QString tickAllText() const;
+  // "Tick none", or "Untick shown" while the list is filtered.
+  QString tickNoneText() const;
+  // A checkable action per column after "Case", to hide or show it (the
+  // header's context menu).
+  void fillColumnMenu(QMenu &menu);
 
 private:
   QString mode_;

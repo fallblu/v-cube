@@ -476,8 +476,8 @@ void LibraryPage::pasteAlgs() {
   int left = static_cast<int>(r.unmatched.size() + r.ambiguous.size() +
                               r.invalid.size());
   if (left) {
-    text +=
-        tr("; %n not added are kept for the next Paste algs", nullptr, left);
+    text += plural(left, tr("; %n not added is kept for the next Paste algs"),
+                   tr("; %n not added are kept for the next Paste algs"));
   }
   emit message(text + ".");
 }

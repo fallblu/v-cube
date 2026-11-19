@@ -4,6 +4,9 @@
 // QApplication exists, so the user's own data is never read or written.
 #include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
+#include "app/colours.hpp"
+#include "app/command_palette.hpp"
+#include "app/cube_painter.hpp"
 #include "app/cube_view.hpp"
 #include "app/drill_page.hpp"
 #include "app/eo_cross_page.hpp"
@@ -34,17 +37,22 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QDir>
+#include <QEnterEvent>
 #include <QFile>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -55,7 +63,9 @@
 #include <QTimer>
 #include <QTreeWidget>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <functional>
 #include <memory>
@@ -287,7 +297,12 @@ private slots:
   void tsleLearnAndTimed();
   void eoCrossLearnAndTimed();
   void practiceModesComeBackAsLeft();
+  void themeColoursAreReadable();
+  void pagesTakeTheKeyboard();
+  void commandListGroupsAndRemembers();
   void settingsDialogOpensAndCloses();
+  void interfaceTextSizeScalesTheText();
+  void tipsShowInTheStatusBar();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
   void cleanupTestCase();
@@ -821,8 +836,11 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY(!f2l->graded());
   QVERIFY(f2l->cube() == f2l->startCube());
   QTest::keyClick(window_.get(), Qt::Key_Tab);
-  auto *hint = f2l->findChild<HintBar *>();
-  QVERIFY2(hint->message().startsWith("Hint:"), qPrintable(hint->message()));
+  // Under the cube, larger than the text around it.
+  auto *hint = f2l->findChild<QLabel *>("practiceHint");
+  QVERIFY(hint && hint->isVisible());
+  QVERIFY2(hint->text().startsWith("Hint:"), qPrintable(hint->text()));
+  QVERIFY(hint->font().pointSizeF() > QApplication::font().pointSizeF());
   QVERIFY(f2l->cube() == f2l->startCube());
   QTest::keyClick(window_.get(), Qt::Key_Backspace);
   QCOMPARE(f2l->phase(), Phase::Done);
@@ -1623,6 +1641,204 @@ void GuiTest::libraryAddsAnAlgAndUndoes() {
   QCOMPARE(savedAlgs("pll", "T"), std::vector<std::string>{kTPerm});
 }
 
+namespace {
+
+// The WCAG contrast ratio of two colours.
+double contrast(const QColor &a, const QColor &b) {
+  auto luminance = [](const QColor &c) {
+    auto channel = [](double v) {
+      return v <= 0.03928 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(c.redF()) + 0.7152 * channel(c.greenF()) +
+           0.0722 * channel(c.blueF());
+  };
+  double la = luminance(a), lb = luminance(b);
+  return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
+}
+
+} // namespace
+
+void GuiTest::themeColoursAreReadable() {
+  for (bool dark : {true, false}) {
+    applyTheme(*qApp, dark);
+    QCOMPARE(darkTheme(), dark);
+    const QPalette pal = QGuiApplication::palette();
+    const QColor window = pal.color(QPalette::Window);
+    const QColor base = pal.color(QPalette::Base);
+    auto readable = [&](const QColor &c, double need, const char *what) {
+      for (const QColor &bg : {window, base}) {
+        QVERIFY2(contrast(c, bg) >= need,
+                 qPrintable(QString("%1 %2 on %3 (%4 theme): %5")
+                                .arg(what, c.name(), bg.name(),
+                                     dark ? "dark" : "light")
+                                .arg(contrast(c, bg), 0, 'f', 2)));
+      }
+    };
+    // Text.
+    readable(roleColour(Role::Fail), 4.5, "fail");
+    readable(roleColour(Role::Info), 4.5, "info");
+    readable(roleColour(Role::Muted), 4.5, "muted");
+    readable(statusColour(Status::Good), 4.5, "good");
+    readable(statusColour(Status::Warning), 4.5, "warning");
+    readable(statusColour(Status::Bad), 4.5, "bad");
+    readable(pal.color(QPalette::Link), 4.5, "link");
+    // The keys strip's chips are buttons with muted text on them.
+    QVERIFY(contrast(roleColour(Role::Muted), pal.color(QPalette::Button)) >=
+            4.5);
+    // Chart lines, named in their colours.
+    for (Role r : {Role::Series1, Role::Series2, Role::Series3}) {
+      readable(roleColour(r), 4.5, "chart series");
+    }
+    // Alg Lab's series are marks with names beside them.
+    for (std::size_t i = 0; i < 8; ++i) {
+      readable(labSeriesColour(i), 3.0, "lab series");
+    }
+    readable(roleColour(Role::FieldEdge), 3.0, "field edge");
+    // White text on a selection, a grade badge or the banner.
+    QVERIFY(contrast(pal.color(QPalette::HighlightedText),
+                     pal.color(QPalette::Highlight)) >= 4.5);
+    for (Role r :
+         {Role::GradeAgain, Role::GradeHard, Role::GradeGood, Role::GradeEasy,
+          Role::GradeNone, Role::GradeWalked, Role::Banner}) {
+      QVERIFY(contrast(roleColour(Role::OnBadge), roleColour(r)) >= 4.5);
+    }
+  }
+  applyTheme(*qApp, settings_.darkTheme);
+
+  // A selected row shows a case picture as it is.
+  QPixmap picture(8, 8);
+  picture.fill(QColor(0xff, 0xd5, 0x00));
+  QIcon icon = cube_painter::caseIcon(picture);
+  QCOMPARE(icon.pixmap(8, 8, QIcon::Selected).toImage(),
+           icon.pixmap(8, 8, QIcon::Normal).toImage());
+
+  // A flat sticker sits on a plate of the body colour, so that a white one
+  // still has an edge on a light window.
+  CubeLook look;
+  QPixmap net(480, 360);
+  net.fill(Qt::transparent);
+  {
+    QPainter p(&net);
+    cube_painter::paintNet(p, QRectF(0, 0, 480, 360), FaceletCube(), look);
+  }
+  // Between the first two U stickers (cells of 40 px, U's block at x 120).
+  QImage image = net.toImage();
+  QCOMPARE(image.pixelColor(160, 20).rgb(), look.scheme.body.rgb());
+}
+
+// Today, Alg Lab's Search tab and the mode menus work from the keyboard
+// (and the command list), and a page's message goes with it.
+void GuiTest::pagesTakeTheKeyboard() {
+  // Alg Lab's candidates: the arrows select, Enter adds to the session.
+  auto *lab = page<AlgLabPage>();
+  QVERIFY(switchTo(AppMode::AlgLab, lab));
+  lab->selectCase("pll", "T");
+  QTabWidget *tabs = lab->findChild<QTabWidget *>();
+  QVERIFY(tabs);
+  tabs->setCurrentIndex(0);
+  QTableWidget *candidates = nullptr;
+  for (QTableWidget *t : lab->findChildren<QTableWidget *>()) {
+    if (t->columnCount() > 10 && t->horizontalHeaderItem(1) &&
+        t->horizontalHeaderItem(1)->text() == "HTM") {
+      candidates = t;
+    }
+  }
+  QVERIFY(candidates);
+  QVERIFY(candidates->rowCount() >= 1);
+  candidates->clearSelection();
+  window_->setFocus();
+  QTest::keyClick(window_.get(), Qt::Key_Down);
+  QVERIFY(!candidates->selectedItems().isEmpty());
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QVERIFY2(window_->statusBar()->currentMessage().startsWith("Added"),
+           qPrintable(window_->statusBar()->currentMessage()));
+  // The times kept (by algLabTimesEachAlg): the time columns show.
+  QVERIFY(!candidates->isColumnHidden(candidates->columnCount() - 1));
+
+  // The message doesn't follow to another mode.
+  auto *today = page<TodayPage>();
+  QVERIFY(switchTo(AppMode::Today, today));
+  QCOMPARE(window_->statusBar()->currentMessage(), QString());
+
+  // Today: one button for what is next, rows as tall in both tables, and
+  // the keys pick and open a set.
+  QPushButton *next = today->findChild<QPushButton *>("todayNext");
+  QVERIFY(next);
+  QVERIFY(!next->text().isEmpty());
+  auto tables = today->findChildren<QTreeWidget *>();
+  QCOMPARE(tables.size(), 2);
+  QCOMPARE(tables[0]->visualItemRect(tables[0]->topLevelItem(0)).height(),
+           tables[1]->visualItemRect(tables[1]->topLevelItem(0)).height());
+  QTest::keyClick(window_.get(), Qt::Key_Down);
+  QTreeWidgetItem *picked = tables[0]->currentItem();
+  QVERIFY(picked && picked->isSelected());
+  QCOMPARE(picked->text(0), QString("PLL"));
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QTRY_COMPARE(shownPage(*window_), page<LearnPage>());
+
+  // Drill's mode menu has what its buttons and the list's header offer.
+  auto *drill = page<DrillPage>();
+  QVERIFY(switchTo(AppMode::Drill, drill));
+  QMenu menu;
+  drill->fillModeMenu(menu);
+  QStringList texts;
+  for (QAction *a : menu.actions()) {
+    texts << a->text();
+  }
+  QVERIFY2(texts.contains("Reset tally"), qPrintable(texts.join(", ")));
+  QVERIFY(texts.contains("Tick all"));
+  QVERIFY(texts.contains("Columns"));
+
+  // Library shows only a line until a case is selected.
+  auto *library = page<LibraryPage>();
+  QVERIFY(switchTo(AppMode::Library, library));
+  library->selectCase("pll", {});
+  QLabel *empty = nullptr;
+  for (QLabel *l : library->findChildren<QLabel *>()) {
+    if (l->text() == "Select a case to see and edit its algs") {
+      empty = l;
+    }
+  }
+  QVERIFY(empty);
+  QVERIFY(empty->isVisible());
+  library->selectCase("pll", "T");
+  QVERIFY(!empty->isVisible());
+}
+
+// The command list: headings that can't be selected, keys on the right,
+// and the commands last run first when nothing is typed.
+void GuiTest::commandListGroupsAndRemembers() {
+  int ran = 0;
+  auto commands = [&ran] {
+    return std::vector<CommandPalette::Command>{
+        {"Go: Learn", "Ctrl+1", [] {}, "Go"},
+        {"Tick all", {}, [&ran] { ++ran; }, "This page"},
+        {"View: Sidebar (on)", "Ctrl+B", [] {}, "Menus"}};
+  };
+  {
+    CommandPalette palette(commands(), window_.get());
+    auto *list = palette.findChild<QListWidget *>();
+    QVERIFY(list);
+    QCOMPARE(list->count(), 6); // three headings
+    QCOMPARE(list->item(0)->text(), QString("Go"));
+    QVERIFY(!(list->item(0)->flags() & Qt::ItemIsSelectable));
+    QCOMPARE(list->item(1)->text(), QString("Learn")); // under "Go"
+    QCOMPARE(list->currentRow(), 1);
+    auto *search = palette.findChild<QLineEdit *>();
+    QVERIFY(search);
+    QTest::keyClick(search, Qt::Key_Down); // over the heading
+    QCOMPARE(list->currentItem()->text(), QString("Tick all"));
+    QTest::keyClick(search, Qt::Key_Return);
+  }
+  QTRY_COMPARE(ran, 1);
+  CommandPalette palette(commands(), window_.get());
+  auto *list = palette.findChild<QListWidget *>();
+  QVERIFY(list);
+  QCOMPARE(list->item(0)->text(), QString("Recent"));
+  QCOMPARE(list->item(1)->text(), QString("Tick all"));
+  window_->activateWindow();
+}
+
 void GuiTest::settingsDialogOpensAndCloses() {
   QVERIFY(switchTo(AppMode::Timed, page<TimerPage>()));
   bool settingsShown = false;
@@ -1641,6 +1857,81 @@ void GuiTest::settingsDialogOpensAndCloses() {
   // Closed without OK: the settings are as they were.
   QCOMPARE(settings_.holdMs, AppSettings{}.holdMs);
   QCOMPARE(shownPage(*window_), page<TimerPage>());
+}
+
+void GuiTest::interfaceTextSizeScalesTheText() {
+  // Chooses an interface text size in Settings and presses OK.
+  auto choose = [this](int percent) {
+    ModalWatcher watcher([percent](QWidget *m) {
+      auto *dialog = qobject_cast<SettingsDialog *>(m);
+      if (!dialog) {
+        return;
+      }
+      for (auto *box : dialog->findChildren<QComboBox *>()) {
+        if (box->findData(108) >= 0 && box->findData(133) >= 0) {
+          box->setCurrentIndex(box->findData(percent));
+        }
+      }
+      dialog->findChild<QDialogButtonBox *>()
+          ->button(QDialogButtonBox::Ok)
+          ->click();
+    });
+    QTest::keySequence(window_.get(), QKeySequence(Qt::CTRL | Qt::Key_Comma));
+    QTRY_VERIFY(!watcher.seen.isEmpty());
+    QTRY_VERIFY(!QApplication::activeModalWidget());
+    window_->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  };
+  QVERIFY(switchTo(AppMode::Today, page<TodayPage>()));
+  QLabel *title = nullptr;
+  for (auto *label : page<TodayPage>()->findChildren<QLabel *>()) {
+    if (label->text() == "Today") {
+      title = label;
+    }
+  }
+  QVERIFY(title);
+  const double body = QApplication::font().pointSizeF();
+  const double display = title->font().pointSizeF();
+  QVERIFY(display > body * 1.5);
+
+  // The largest size: the text and everything worked out from it grow,
+  // at once.
+  choose(133);
+  QCOMPARE(settings_.interfaceTextPercent, 133);
+  QVERIFY(QApplication::font().pointSizeF() > body * 1.3);
+  QVERIFY(page<TodayPage>()->font().pointSizeF() > body * 1.3);
+  QVERIFY(title->font().pointSizeF() > display * 1.3);
+  QCOMPARE(AppSettings::load().interfaceTextPercent, 133);
+
+  choose(100);
+  QCOMPARE(QApplication::font().pointSizeF(), body);
+  QCOMPARE(title->font().pointSizeF(), display);
+}
+
+void GuiTest::tipsShowInTheStatusBar() {
+  QVERIFY(switchTo(AppMode::Timed, page<TimerPage>()));
+  QWidget *tipped = nullptr;
+  for (auto *w : page<TimerPage>()->findChildren<QWidget *>()) {
+    if (w->isVisible() && !w->toolTip().isEmpty()) {
+      tipped = w;
+      break;
+    }
+  }
+  QVERIFY(tipped);
+  QStatusBar *bar = window_->statusBar();
+  bar->clearMessage();
+  // Never as a tooltip; in the status bar while the mouse is over it.
+  QHelpEvent help(QEvent::ToolTip, QPoint(1, 1),
+                  tipped->mapToGlobal(QPoint(1, 1)));
+  QVERIFY(QApplication::sendEvent(tipped, &help));
+  QCOMPARE(bar->currentMessage(), tipped->toolTip().simplified());
+  bar->clearMessage();
+  QEnterEvent enter(QPointF(1, 1), QPointF(1, 1), QPointF(1, 1));
+  QApplication::sendEvent(tipped, &enter);
+  QCOMPARE(bar->currentMessage(), tipped->toolTip().simplified());
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(tipped, &leave);
+  QVERIFY(bar->currentMessage().isEmpty());
 }
 
 void GuiTest::helpPanelShowsTheKeys() {
