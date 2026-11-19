@@ -188,20 +188,22 @@ In the solve review (Alt+R, or double-click a solve):
 
 ## EO Cross
 
-EO Cross, F2L and TSLE have the same two tabs with the same keys. Learn is untimed; Timed is timed as Drill is.
+EO Cross, F2L and TSLE share their keys. EO Cross has the Inspection, Untimed and Timed tabs; F2L and TSLE Learn, Untimed and Timed. Timed is timed as Drill is.
 
 | When | Key | Action |
 | --- | --- | --- |
-| Learn, solving | turning keys | any turn; the solve ends by itself when it is done |
-| Learn, solving | Backspace or Shift+Space | give up |
-| Learn, solving | Esc | start again |
-| Learn, plan then blind | turning keys | rotations to look; the cube hides at the first face turn |
-| Learn, plan then blind | Space | show the cube again: only then is the solve judged |
-| Learn, afterwards | Space | next |
-| Learn, afterwards | Enter | play the best solution from the start |
-| Learn, afterwards | Tab | show or hide the details (click a solution there to play it) |
-| Learn, afterwards | turning keys | turn the cube freely |
-| Learn, afterwards | Esc | the same state again, not recorded or graded |
+| Inspection, before a sitting's first state | Space | show a state and start the inspection clock |
+| Inspection, planning | turning keys | rotations to look; the first face turn stops the clock and hides the cube |
+| Inspection, blind | Space | show the cube again: only then is the plan judged |
+| Inspection, planning or blind | Esc | the same state again, the clock too; not recorded |
+| solving | turning keys | any turn; the solve ends by itself when it is done |
+| solving | Backspace or Shift+Space | give up |
+| solving | Esc | start again |
+| Learn or Untimed, afterwards | Space | next |
+| Learn or Untimed, afterwards | Enter | play the best solution from the start |
+| Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
+| Learn or Untimed, afterwards | turning keys | turn the cube freely |
+| Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
 | Timed, virtual, before the solve | turning keys | rotations only |
 | Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Drill says so) |
 | Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
@@ -211,7 +213,7 @@ EO Cross, F2L and TSLE have the same two tabs with the same keys. Learn is untim
 | Timed, solving | Esc | cancel: nothing is recorded |
 | Timed, afterwards | Space | next |
 | Timed, afterwards | Enter | play the best solution from the start |
-| Timed, afterwards | Tab | show or hide the details |
+| Timed, afterwards | Tab | show or hide where the time went and the details |
 | Timed, afterwards | Backspace | make it a DNF, or not |
 | Timed, afterwards | Delete | delete the attempt |
 | Timed, afterwards | Esc | the same state again, not recorded |
@@ -220,20 +222,25 @@ EO Cross, F2L and TSLE have the same two tabs with the same keys. Learn is untim
 
 | When | Key | Action |
 | --- | --- | --- |
-| Learn, a new case | Enter | show its best solution on the cube, which is then put back to do it |
+| Learn, choosing a case's solutions | 1-9 | tick or untick a solution (a click on one plays it) |
+| Learn, choosing a case's solutions | Enter | keep the ones ticked |
+| Learn, changing a case's solutions | Esc | leave them as they were |
+| Learn, a new case | Enter | show its solution on the cube, which is then put back to do it |
 | Learn, a new case | turning keys | do it: the case then comes back in a minute, to do from memory |
 | Learn, a new case | Space | skip the showing: the case is known |
-| Learn, solving | turning keys | any turn; the solve ends by itself when it is done |
-| Learn, solving | Backspace or Shift+Space | give up |
-| Learn, solving | Esc | start again |
-| Learn, one pair, solving | Tab | a hint: a move more of the best solution each time (the card is then graded Again) |
-| Learn, afterwards | Space | next |
-| Learn, afterwards | Enter | play the best solution from the start |
-| Learn, afterwards | Tab | show or hide the details (click a solution there to play it) |
-| Learn, afterwards | turning keys | turn the cube freely |
-| Learn, afterwards | Esc | the same state again, not recorded or graded |
+| solving | turning keys | any turn; the solve ends by itself when it is done |
+| solving | Backspace or Shift+Space | give up |
+| solving | Esc | start again |
+| Learn, solving | Tab | a hint: a move more of your solution each time (the card is then graded Again) |
+| Learn or Untimed, afterwards | Space | next |
+| Learn or Untimed, afterwards | Enter | play the best solution from the start |
+| Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
+| Learn or Untimed, afterwards | turning keys | turn the cube freely |
+| Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
 | Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
 | Learn, nothing due | Space | look again, taking a card in its learning steps early |
+| Learn, after a card's try | 0 | change the case's solutions |
+| Learn, after a try as cheap as yours | + | add what you did to the case's solutions |
 | Timed, virtual, before the solve | turning keys | rotations only |
 | Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Drill says so) |
 | Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
@@ -243,7 +250,7 @@ EO Cross, F2L and TSLE have the same two tabs with the same keys. Learn is untim
 | Timed, solving | Esc | cancel: nothing is recorded |
 | Timed, afterwards | Space | next |
 | Timed, afterwards | Enter | play the best solution from the start |
-| Timed, afterwards | Tab | show or hide the details |
+| Timed, afterwards | Tab | show or hide where the time went and the details |
 | Timed, afterwards | Backspace | make it a DNF, or not |
 | Timed, afterwards | Delete | delete the attempt |
 | Timed, afterwards | Esc | the same state again, not recorded |
@@ -252,18 +259,18 @@ EO Cross, F2L and TSLE have the same two tabs with the same keys. Learn is untim
 
 | When | Key | Action |
 | --- | --- | --- |
-| Learn, a new case | Enter | show its best solution on the cube, which is then put back to do it |
+| Learn, a new case | Enter | show its solution on the cube, which is then put back to do it |
 | Learn, a new case | turning keys | do it: the case then comes back in a minute, to do from memory |
 | Learn, a new case | Space | skip the showing: the case is known |
-| Learn, solving | turning keys | any turn; the solve ends by itself when it is done |
-| Learn, solving | Backspace or Shift+Space | give up |
-| Learn, solving | Esc | start again |
-| Learn, solving | Tab | a hint: the best step from here (a card is then graded Again) |
-| Learn, afterwards | Space | next |
-| Learn, afterwards | Enter | play the best solution from the start |
-| Learn, afterwards | Tab | show or hide the details (click a solution there to play it) |
-| Learn, afterwards | turning keys | turn the cube freely |
-| Learn, afterwards | Esc | the same state again, not recorded or graded |
+| solving | turning keys | any turn; the solve ends by itself when it is done |
+| solving | Backspace or Shift+Space | give up |
+| solving | Esc | start again |
+| solving | Tab | a hint: the best step from here (a card is then graded Again) |
+| Learn or Untimed, afterwards | Space | next |
+| Learn or Untimed, afterwards | Enter | play the best solution from the start |
+| Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
+| Learn or Untimed, afterwards | turning keys | turn the cube freely |
+| Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
 | Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
 | Learn, nothing due | Space | look again, taking a card in its learning steps early |
 | Timed, virtual, before the solve | turning keys | rotations only |
@@ -275,7 +282,7 @@ EO Cross, F2L and TSLE have the same two tabs with the same keys. Learn is untim
 | Timed, solving | Esc | cancel: nothing is recorded |
 | Timed, afterwards | Space | next |
 | Timed, afterwards | Enter | play the best solution from the start |
-| Timed, afterwards | Tab | show or hide the details |
+| Timed, afterwards | Tab | show or hide where the time went and the details |
 | Timed, afterwards | Backspace | make it a DNF, or not |
 | Timed, afterwards | Delete | delete the attempt |
 | Timed, afterwards | Esc | the same state again, not recorded |

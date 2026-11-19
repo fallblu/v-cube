@@ -9,7 +9,7 @@ and `F1` in the app shows the current mode's.
 - [Solves](#solves): [Timed](#timed), [Untimed](#untimed),
   [Move Count](#move-count), [Review](#review),
   [scramble types](#scramble-types)
-- [Practice](#practice): [Learn](#learn-1) and [Timed](#timed-1) tabs, [EO Cross](#eo-cross), [F2L](#f2l), [TSLE](#tsle)
+- [Practice](#practice): [Learn](#learn-1), [Inspection](#inspection), [Untimed](#untimed-1) and [Timed](#timed-1) tabs, [EO Cross](#eo-cross), [F2L](#f2l), [TSLE](#tsle)
 - [Colour neutrality](#colour-neutrality),
   [the virtual cube](#the-virtual-cube), [Settings](#settings)
 
@@ -29,8 +29,9 @@ inspection is running.
 
 **Nothing timed starts by itself.** Learn times a case from the moment
 it is shown, so it opens on a ready page and shows nothing until you press
-`Space`. Timed, Drill, Alg Lab and the Timed tabs of EO Cross, F2L and
-TSLE wait for Space or the first turn anyway.
+`Space`, and so does EO Cross's Inspection tab. Timed, Drill, Alg Lab and
+the Timed tabs of EO Cross, F2L and TSLE wait for Space or the first turn
+anyway.
 
 - **Today** shows, for each alg set, the reviews due today, the new cases
   Learn can still bring in today, the cases queued and the cases learned.
@@ -610,12 +611,17 @@ Timed and Untimed offer:
 ## Practice
 
 Three modes that take a ZZ solve a step at a time: **EO Cross**, **F2L**
-and **TSLE**. They work the same way. Each has two tabs:
+and **TSLE**. They work the same way. Each has three tabs:
 
-- **Learn** is untimed and on the virtual cube. You solve at your own
-  pace, then see how it compares with the best solution.
-- **Timed** is the whole step against the clock, on the virtual cube or a
-  physical one.
+- **Learn** (F2L and TSLE): one case at a time, as cards, untimed on the
+  virtual cube.
+- **Inspection** (EO Cross): plan the step within an inspection time,
+  then do it blind.
+- **Untimed**: the whole step on the virtual cube at your own pace, for
+  efficiency: a line on each pair or trigger as you go, then how the solve
+  compares with the best.
+- **Timed**: the whole step against the clock, on the virtual cube or a
+  physical one, for speed.
 
 **States are what a solve gives you.** EO Cross starts from a random-state
 scramble, F2L from a random state with the cross (and EO) done, TSLE from
@@ -623,24 +629,17 @@ a random last-slot state. Nothing is picked by how your last tries went.
 
 ### Learn
 
-**Scope** (F2L and TSLE) picks what comes up:
-
-- **One pair** / **One trigger**: one case at a time. Each case is a
-  **card**, scheduled with spaced repetition exactly as an alg set's cases
-  are in the [Learn mode](#learn), with the same settings.
-- **Whole F2L** / **Whole TSLE**: the whole step, as practice. These
-  solves are kept, not graded.
-
-EO Cross has no finite list of cases, so it has no cards and no Scope:
-every solve is of the step chosen in **Step**.
-
+Each case is a **card**, scheduled with spaced repetition exactly as an
+alg set's cases are in the [Learn mode](#learn), with the same settings.
 **Cards come in by themselves**, a few a day (*New cases per day* and
-*New cases learning at once* in Settings > Learn), easiest first. Each time:
+*New cases learning at once* in Settings > Learn), easiest first. Each
+time:
 
-1. A **new case** is shown before you try it. `Enter` plays its best
-   solution on the cube, which is then put back; do it yourself and the
-   case is in. It comes back in a minute to do from memory. `Space` skips
-   the showing for a case you know.
+1. A **new case** is shown before you try it (in F2L you first choose its
+   solutions, see [F2L](#f2l)). `Enter` plays the solution on the cube,
+   which is then put back; do it yourself and the case is in. It comes
+   back in a minute to do from memory. `Space` skips the showing for a
+   case you know.
 2. A **due case** is set up without its name. Solve it. `Tab` gives a
    hint, `Backspace` gives up, `Esc` starts again.
 3. The card is graded **Good** when you solved it unaided and well, and
@@ -648,19 +647,48 @@ every solve is of the step chosen in **Step**.
    the grade to Again, Hard, Good or Easy.
 
 When nothing is due the page says when the next card is. `Space` takes a
-card in its learning steps early, and Scope's whole step is always there
-to practise.
+card in its learning steps early, and the Untimed tab is always there to
+practise.
 
 **After a solve** there is one line, the verdict, and the best solution
-under it. `Tab` opens the details; click a solution there to play it.
-`Enter` plays the best solution from the start, `Space` goes on, and `Esc`
-gives the same state again, unrecorded and ungraded.
+under it. `Tab` opens the details (they take room from the cube only
+while open); click a solution there to play it. `Enter` plays the best
+solution from the start, `Space` goes on, and `Esc` gives the same state
+again, unrecorded and ungraded.
 
 **The list** on the left shows the cards with when they are due (new, due,
-or in how long), their reviews and lapses. Double-click a case
-to practise it at once, ungraded. Above the list are the counts due, new
-left today and learned, and how your whole-step solves have gone lately.
-F2L and TSLE cards also appear in [Today](#the-window).
+or in how long), their reviews and lapses. Double-click a case to practise
+it at once, ungraded. Above the list are the counts due, new left today
+and learned. F2L and TSLE cards also appear in [Today](#the-window).
+
+### Inspection
+
+EO Cross only. The first state of a sitting waits for `Space` (nothing
+timed starts by itself). Then the inspection clock counts down while you
+look at the cube, turning it only as a whole, and plan. Your **first face
+turn** stops the clock and hides the cube: do your plan from memory, then
+`Space` shows the cube again and the plan is judged, with the time you
+looked. A plan that didn't do the step counts as not done. **Inspection**
+in the bar sets the limit (none, 8, 10, 15 as in the WCA, 20 or 30
+seconds); going over it is marked, but the plan is judged all the same.
+After the verdict, `Space` brings the next state at once. `Esc` while
+planning gives the same state again, unrecorded.
+
+The list shows, per step, your tries, how many did the step, the time you
+looked and how far over the optimum the plans were lately.
+
+### Untimed
+
+The whole step on the virtual cube, at your own pace. As each unit goes
+in, a line under the cube says how it went: in F2L whether it was the
+best pair to do then and how its solution compares with the best for it;
+in TSLE whether the trigger was the best from that AUF, good, or not. At
+the end the verdict compares the whole solve with the best way, and `Tab`
+shows it unit by unit. A solve under way is still there when you come
+back to the mode.
+
+The list shows your solves, their moves lately and how far over the best
+they were.
 
 ### Timed
 
@@ -675,14 +703,19 @@ Timed works exactly as [Drill](#drill) does, with the same settings
   `Space` and let go to start; any key stops. Nothing can be checked, so
   mark a DNF yourself.
 
-`Shift+Space` gives up. Afterwards `Backspace` toggles the DNF, `Delete`
-deletes the attempt, `Tab` opens the details, `Enter` plays the best
-solution, `Space` goes on and `Esc` gives the same state again,
-unrecorded.
+The result is about speed: the time, then your moves, turns per second
+(TPS) and how the time compares with your recent mean. `Tab` shows **where
+the time went** (each pair, trigger or part of the EO Cross with its time,
+the pause before its first turn and its TPS) and how efficient the solve
+was against the best.
 
-**The list** shows your solves, mean (of the last 12) and best per group,
-kept apart for the two cubes: per step in EO Cross, per method in F2L, per
-starting case in TSLE.
+`Shift+Space` gives up. Afterwards `Backspace` toggles the DNF, `Delete`
+deletes the attempt, `Enter` plays the best solution, `Space` goes on and
+`Esc` gives the same state again, unrecorded.
+
+**The list** shows your solves, mean (of the last 12), best and TPS per
+group, kept apart for the two cubes: per step in EO Cross, per method in
+F2L, per starting case in TSLE.
 
 ### EO Cross
 
@@ -692,10 +725,8 @@ axis. The cube is shown in your main hold; turn it as a whole to solve
 from another. Your moves (HTM) are compared with the **optimum**: the
 shortest solution over all those holds for the state on the cube.
 
-**Solve** (Learn) is *In view*, or *Plan, then blind*: look at the cube
-(rotations only) and plan the step; the cube hides at your first face
-turn and you do the plan unseen. `Space` shows the cube again, and only
-then is the solve judged: not done if the step isn't.
+EO Cross has no finite list of cases, so it has no cards: its tabs are
+[Inspection](#inspection), [Untimed](#untimed-1) and [Timed](#timed-1).
 
 **The details** list every hold with its optimum and a few optimal
 solutions that aren't reorderings of each other. For an EO Cross they
@@ -705,9 +736,6 @@ and EO Cross were first done, and each part shows its moves and what it
 
 ### F2L
 
-Your moves are compared with solutions searched for the exact state on
-the cube, so open slots get used and nothing depends on a case list.
-
 **The bar** sets the F2L of your method:
 
 - **F2L**: *ZZ F2L - 1 (ZZ-CT)*, the default, leaves one slot for the
@@ -716,29 +744,41 @@ the cube, so open slots get used and nothing depends on a case list.
   EO.
 - **Last slot** (F2L - 1): the slots that may be the one left; FR and FL
   by default.
-- **Solutions use**: R, U and L always, and by default D turns, F2 and B2
-  (which keep EO) and wide turns. Wide turns and free F and B turns only
-  apply without EO; a wide turn costs 1.0 on top of your profile's cost.
-  Solutions never have slices or rotations.
 
-Solutions within two moves of the shortest are ranked by **cost**: the
-fingertrick cost under the score profile chosen in Alg Lab. The matching
-alg of your ZZ F2L set is listed with them and marked.
+Solutions are searched for with every move the method allows: R, U, L, D,
+F2 and B2 in ZZ, and also F, B and wide turns without EO (a wide turn
+costs 1.0 on top of your profile's cost); never slices or rotations.
+Those within two moves of the shortest are ranked by **cost**: the
+fingertrick cost under the score profile chosen in Alg Lab.
 
 The cube is in the **flat view** by default, which hides what a real cube
 hides: the back slots and the back of the top layer.
 
-- **One pair** (Learn): the pair to solve is ringed, at some point of a
-  solve: other slots may be done already. There are 83 cards for a ZZ F2L
-  (167 without EO), by where the corner and edge are, seen for the
-  front-right slot. A try is **Good** when its cost is within 1.0 of the
-  best solution's. `Tab` shows a move more of the best solution each
-  time.
-- **Whole F2L** (Learn and Timed): the verdict gives your moves and cost,
-  and how far that was over the cheapest way found from the start (the
-  order of pairs and their solutions together). The details list each
-  pair with your moves, the best solution from where you were, and the
-  pair that would have been best to do then.
+**Learn** has a card for each pair case for the **front** slots and
+another for the **back** ones: 166 for a ZZ F2L (334 without EO), by where
+the corner and edge are, seen for the front-right slot. A card is set up
+in one of its side's two slots with the pair ringed and the other slots
+solved (but for those its pieces sit in, and perhaps the slot ZZ-CT
+leaves open).
+
+- **Choosing solutions**: when a case comes in you choose the solutions
+  you'll use for it, from its best 8 for the side's own slot (FR or BR;
+  in FL and BL they are done mirrored, and shown so). The alg of your set
+  of pair cases (read once from the set, or its newest deleted copy) is
+  listed too, ticked to start with. `1`–`9` tick and untick, a click on a
+  solution plays it on the cube, and the field under the list takes one of
+  your own, as done for the slot shown. `Enter` confirms. After a try of
+  the card, `0` changes them (`Esc` leaves them as they were).
+- **Good** is one of your solutions, from any AUF and however the cube was
+  turned, or anything that costs no more than the cheapest of them; `+`
+  then adds what you did to your solutions. `Tab` while solving shows a
+  move more of your first solution each time.
+
+**Untimed and Timed** do the whole F2L. The verdict gives your moves and
+cost, and how far that was over the cheapest way found from the start
+(the order of pairs and their solutions together). The details list each
+pair with your moves, the best solution from where you were, and the pair
+that would have been best to do then.
 
 ### TSLE
 
@@ -763,12 +803,14 @@ state uses one at random, with that slot's triggers (`L' U L` for
 front-left); a case is tracked once whatever the slot. OCLL algs are shown
 as written, never mirrored, and **OCLL algs…** changes them.
 
-- **One trigger** (Learn): a case at a random AUF; do the next step. There
-  are 97 cards, the cases with fewest steps left first (the OCLLs are
-  known algs and have none). Any good trigger is **Good**; the verdict
-  says whether it was the best from that AUF. `Tab` shows the best step.
-- **Whole TSLE** (Learn and Timed): the whole step, through the closing
-  OCLL. The details compare it trigger by trigger.
+- **Learn**: a case at a random AUF; do the next step. There are 97
+  cards, the cases with fewest steps left first (the OCLLs are known algs
+  and have none). Any good trigger is **Good**; the verdict says whether
+  it was the best from that AUF. `Tab` shows the best step.
+- **Untimed and Timed**: the whole step, through the closing OCLL. An
+  OCLL alg joined on to the trigger before it (`R' R` cancelling) counts
+  joined, as the best way does. The details compare the solve trigger by
+  trigger.
 
 A name such as `UF CW 0120` gives the edge (UF, or FR for in the slot),
 the slot corner's place (N oriented, CW, CCW) and the twists at URF, UFL,
