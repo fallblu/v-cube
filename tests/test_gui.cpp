@@ -977,7 +977,10 @@ void GuiTest::f2lLearnAndTimed() {
     QCOMPARE(f2l->progressLines().size(), qsizetype{1});
     QTRY_VERIFY_WITH_TIMEOUT(!f2l->progressLines().front().contains("…"),
                              30000);
-    QVERIFY2(f2l->progressLines().front().contains("its best"),
+    // (An alg that happens to put a second pair in with its own is said
+    // to do them together, with nothing to set it against.)
+    QVERIFY2(f2l->progressLines().front().contains("its best") ||
+                 f2l->progressLines().front().contains("together"),
              qPrintable(f2l->progressLines().front()));
     QTest::keyClick(window_.get(), Qt::Key_Escape); // from the start again
     QVERIFY(f2l->progressLines().isEmpty());
