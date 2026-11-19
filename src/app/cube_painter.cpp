@@ -504,6 +504,14 @@ QPixmap cachedDiagram(const FaceletCube &cube, DiagramView view, int size,
   return pm;
 }
 
+QIcon caseIcon(const QPixmap &picture) {
+  QIcon icon;
+  for (QIcon::Mode mode : {QIcon::Normal, QIcon::Active, QIcon::Selected}) {
+    icon.addPixmap(picture, mode);
+  }
+  return icon;
+}
+
 } // namespace cube_painter
 
 } // namespace vcube

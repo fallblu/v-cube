@@ -542,8 +542,8 @@ std::vector<PracticePage::ListRow> TslePage::caseRows(bool oclls) {
     r.section = level == 0   ? tr("OCLL")
                 : level == 1 ? tr("1 step left")
                              : tr("%1 steps left").arg(level);
-    r.icon = cube_painter::cachedDiagram(tsleDiagram(c), DiagramView::Iso3D,
-                                         size, look, devicePixelRatioF());
+    r.icon = cube_painter::caseIcon(cube_painter::cachedDiagram(
+        tsleDiagram(c), DiagramView::Iso3D, size, look, devicePixelRatioF()));
     rows.push_back(std::move(r));
   }
   return rows;

@@ -687,7 +687,7 @@ void LibraryPage::fillCaseItem(QTreeWidgetItem *item, const AlgSet &s,
   item->setText(0, qs(c.name));
   item->setData(0, kCaseRole, qs(c.id));
   item->setIcon(
-      0, QIcon(cube_painter::cachedDiagram(
+      0, cube_painter::caseIcon(cube_painter::cachedDiagram(
              maskedFacelets(a ? a->display : c.state, spec.mask, spec.free),
              spec.view, 40, look(), devicePixelRatioF())));
   item->setText(1, QString::number(c.algs.size()));

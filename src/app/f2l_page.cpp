@@ -1280,8 +1280,8 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
                (side == PairSide::Front ? tr("front") : tr("back"));
       r.section = qs(groupName(groupOf(c)));
       if (side == PairSide::Front) {
-        r.icon = cube_painter::cachedDiagram(caseDiagram(c), viewOf(c), size,
-                                             look, devicePixelRatioF());
+        r.icon = cube_painter::caseIcon(cube_painter::cachedDiagram(
+            caseDiagram(c), viewOf(c), size, look, devicePixelRatioF()));
       } else {
         auto picture = backPictures.find(r.key);
         if (picture == backPictures.end()) {
@@ -1293,8 +1293,8 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
                                               : caseDiagram(c))
                         .first;
         }
-        r.icon = cube_painter::cachedDiagram(picture->second, backViewOf(c),
-                                             size, look, devicePixelRatioF());
+        r.icon = cube_painter::caseIcon(cube_painter::cachedDiagram(
+            picture->second, backViewOf(c), size, look, devicePixelRatioF()));
       }
       rows.push_back(std::move(r));
     }
