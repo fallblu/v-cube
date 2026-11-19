@@ -229,11 +229,9 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   auto *caseTabs = new QTabWidget(caseBox_);
   auto *algsTab = new QWidget(caseTabs);
   auto *algsLayout = new QVBoxLayout(algsTab);
-  auto *algHelp =
-      new QLabel(tr("The first passing alg is the main alg. Drag to reorder "
-                    "(or Alt+Up and Alt+Down), F2 or double-click to edit, "
-                    "Delete to remove, right-click for more."),
-                 caseBox_);
+  auto *algHelp = new QLabel(
+      tr("The first passing alg is the main alg (F1 lists the keys)."),
+      caseBox_);
   algHelp->setWordWrap(true);
   algHelp->setForegroundRole(QPalette::PlaceholderText);
   algsLayout->addWidget(algHelp);

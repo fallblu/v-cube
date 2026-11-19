@@ -573,15 +573,11 @@ std::vector<PracticePage::ListRow> TslePage::timedGroups() {
 
 QString TslePage::listHelp() const {
   if (tab() == Tab::Untimed) {
-    return tr("Your untimed solves: how many, their moves lately and how far "
-              "over the best way they were.");
+    return tr("Your untimed solves (F1 explains the columns).");
   }
   return tab() == Tab::Learn
-             ? tr("The cases by steps left (a step is a trigger, or the OCLL "
-                  "that ends a chain), drawn for the front-right slot with "
-                  "the edge at UF. A name gives the edge, the slot's corner "
-                  "place (N oriented, CW, CCW) and the twists at URF, UFL, "
-                  "ULB, UBR. Double-click a case to practise it, ungraded.")
+             ? tr("The cases by steps left (F1 explains the names). "
+                  "Double-click one to practise it, ungraded.")
              : tr("Timed solves by the case they started from.");
 }
 

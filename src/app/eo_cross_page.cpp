@@ -426,12 +426,10 @@ void EoCrossPage::groupActivated(const std::string &key) {
 QString EoCrossPage::listHelp() const {
   switch (tab()) {
   case Tab::Inspection:
-    return tr("Your plans by step: how many, how many did the step, the "
-              "time you looked and how far over the optimum of your holds "
-              "they were lately. Double-click a step to practise it.");
+    return tr("Your plans by step (F1 explains the columns). Double-click a "
+              "step to practise it.");
   case Tab::Untimed:
-    return tr("Your untimed solves by step: how many, their moves lately and "
-              "how far over the optimum of your holds they were. "
+    return tr("Your untimed solves by step (F1 explains the columns). "
               "Double-click a step to practise it.");
   default:
     return tr("Timed solves by step. Double-click a step to switch to it.");
