@@ -35,31 +35,7 @@ namespace {
 constexpr int kKeyRole = Qt::UserRole;
 constexpr int kCardRole = Qt::UserRole + 1; // the row is a card's
 
-QString small(const QString &text) {
-  return text.isEmpty()
-             ? QString()
-             : "<br><span style='font-size:small'>" + text + "</span>";
-}
-
-QString gradeName(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return QObject::tr("Again");
-  case Grade::Hard:
-    return QObject::tr("Hard");
-  case Grade::Good:
-    return QObject::tr("Good");
-  case Grade::Easy:
-    return QObject::tr("Easy");
-  }
-  return {};
-}
-
 QString oneDecimal(double v) { return QString::number(v, 'f', 1); }
-
-QString seconds(std::int64_t ms) {
-  return QObject::tr("%1 s").arg(QString::number(ms / 1000.0, 'f', 1));
-}
 
 } // namespace
 
@@ -95,21 +71,6 @@ int PracticePage::tabIndex(Tab t) const {
   const std::vector<Tab> all = tabs();
   auto it = std::find(all.begin(), all.end(), t);
   return it == all.end() ? 0 : static_cast<int>(it - all.begin());
-}
-
-QString dueText(std::int64_t due, std::int64_t now, std::int64_t dayEnd) {
-  const std::int64_t in = due - now;
-  if (in <= 0) {
-    return QObject::tr("now");
-  }
-  if (in < 3600) {
-    return QObject::tr("in %1 min").arg(std::max<std::int64_t>(1, in / 60));
-  }
-  if (due < dayEnd) {
-    return QObject::tr("in %1 h").arg(in / 3600);
-  }
-  const std::int64_t days = (due - dayEnd) / kSecondsPerDay + 1;
-  return days == 1 ? QObject::tr("tomorrow") : QObject::tr("in %1 d").arg(days);
 }
 
 PracticePage::PracticePage(AppSettings &settings, const QString &dataDir,
@@ -508,8 +469,7 @@ QString PracticePage::detailHtml() const {
 }
 
 QString PracticePage::clockText(std::int64_t ms) const {
-  // As the timer shows it.
-  return qs(formatTime(StatValue(ms), settings_.decimals));
+  return vcube::clockText(ms, settings_.decimals);
 }
 
 QString PracticePage::mutedColour() const {
@@ -644,8 +604,8 @@ void PracticePage::nextLearn(LearnAhead ahead) {
                        "steps."));
     }
     showIdle(tr("Nothing is due") +
-             small(why.trimmed() + " " +
-                   tr("The Untimed tab is there to practise meanwhile.")));
+             smallLine(why.trimmed() + " " +
+                       tr("The Untimed tab is there to practise meanwhile.")));
     refreshList();
     return;
   }
@@ -1414,25 +1374,8 @@ void PracticePage::showInspection() {
   const std::int64_t limit = inspectionLimitMs();
   const std::int64_t used =
       item_.inspecting ? monotonicMs() - item_.inspectStart : item_.inspectMs;
-  QString text;
-  QColor colour = palette().color(QPalette::WindowText);
-  if (limit > 0 && used <= limit) {
-    // Counting down whole seconds, as an inspection timer does.
-    text = QString::number((limit - used + 999) / 1000);
-    if (limit - used < 3000) {
-      colour = QColor(kWarnColour);
-    }
-  } else if (limit > 0) {
-    text = "+" + QString::number((used - limit) / 1000.0, 'f', 1);
-    colour = QColor(kFailColour);
-  } else {
-    text = QString::number(used / 1000.0, 'f', 1);
-  }
-  if (!item_.inspecting) {
-    text = tr("Looked %1").arg(seconds(used));
-  }
-  display_->setText(
-      QString("<span style='color:%1'>%2</span>").arg(colour.name(), text));
+  display_->setText(inspectionClock(used, limit, item_.inspecting,
+                                    palette().color(QPalette::WindowText)));
 }
 
 void PracticePage::onTick() {
@@ -1495,14 +1438,6 @@ void PracticePage::analysisArrived(int id) {
 }
 
 // --- what is shown -----------------------------------------------------------
-
-QString PracticePage::bestLine(const Outcome &o) const {
-  if (o.best.empty() && o.bestText.isEmpty()) {
-    return {};
-  }
-  return (o.bestLabel.isEmpty() ? tr("Best") : o.bestLabel) + ": <b>" +
-         (o.bestText.isEmpty() ? algText(o.best) : o.bestText) + "</b>";
-}
 
 PracticeTries &PracticePage::tabTries() {
   return const_cast<PracticeTries &>(std::as_const(*this).tabTries());
@@ -1569,22 +1504,14 @@ void PracticePage::showPrompt() {
   } else if (tab_ != Tab::Timed && phase_ == Phase::Idle) {
     text = idleText_;
   } else if (phase_ == Phase::Ready && tab_ == Tab::Inspection) {
-    const std::int64_t limit = inspectionLimitMs();
-    text = tr("Ready when you are") +
-           small(limit > 0 ? tr("Space shows a state and starts %1 s of "
-                                "inspection: look with rotations, then do your "
-                                "plan blind.")
-                                 .arg(limit / 1000)
-                           : tr("Space shows a state and starts the inspection "
-                                "clock: look with rotations, then do your plan "
-                                "blind."));
+    text = inspectionReadyPrompt(inspectionLimitMs());
   } else if (tab_ == Tab::Learn && phase_ == Phase::Choose) {
     text = (afterChoice_ == Phase::Done
                 ? tr("Your solutions for %1").arg(cardName(item_.card))
                 : tr("New case: %1").arg(cardName(item_.card))) +
-           small(choosingText());
+           smallLine(choosingText());
   } else if (tab_ == Tab::Learn && phase_ == Phase::Demo) {
-    text = tr("New case: %1").arg(cardName(item_.card)) + small(demoText());
+    text = tr("New case: %1").arg(cardName(item_.card)) + smallLine(demoText());
   } else {
     QStringList notes;
     if (!item_.card.empty()) {
@@ -1603,7 +1530,7 @@ void PracticePage::showPrompt() {
     if (tab_ == Tab::Learn && phase_ == Phase::Solving && !item_.card.empty()) {
       notes.removeFirst();
     }
-    text = task() + small(notes.join(" · "));
+    text = task() + smallLine(notes.join(" · "));
   }
   prompt_->setText(text);
   scrambleLabel_->setText(item_.scramble.isEmpty()
@@ -1753,88 +1680,46 @@ QString PracticePage::gradeLine() const {
   if (it == store_.data.cards.end()) {
     return {};
   }
-  const QColor colour =
-      *item_.grade == Grade::Again ? QColor(kFailColour) : QColor(kPassColour);
-  return tr("%1 · it comes back %2")
-      .arg(coloured(colour, "<b>" + gradeName(*item_.grade) + "</b>"),
-           dueText(it->second.card.due, unixNow(), localDayEnd()));
+  return vcube::gradeLine(*item_.grade, it->second.card.due, unixNow(),
+                          localDayEnd());
 }
 
 QString PracticePage::timedLine() const {
-  // The result of a timed solve is about the time: its moves and turns a
-  // second, and how it compares with the recent ones.
-  QStringList parts;
-  const int moves = item_.outcome ? item_.outcome->moves : 0;
-  if (moves > 0) {
-    parts << movesText(moves);
-    if (item_.ms > 0 && !item_.gaveUp) {
-      parts << tr("%1 TPS").arg(QString::number(
-          moves * 1000.0 / static_cast<double>(item_.ms), 'f', 2));
-    }
-  }
-  if (item_.gaveUp) {
-    parts.prepend(coloured(kFailColour, tr("DNF")));
-  } else if (item_.meanBefore && item_.ms > 0) {
-    const double d = static_cast<double>(item_.ms) - *item_.meanBefore;
-    const QString mean =
-        clockText(static_cast<std::int64_t>(*item_.meanBefore));
-    const QString by = clockText(static_cast<std::int64_t>(std::abs(d)));
-    parts << (d <= 0 ? coloured(kPassColour,
-                                tr("%1 under your mean (%2)").arg(by, mean))
-                     : tr("%1 over your mean (%2)").arg(by, mean));
-  }
-  return parts.join(" · ");
+  return vcube::timedLine({.moves = item_.outcome ? item_.outcome->moves : 0,
+                           .ms = item_.ms,
+                           .dnf = item_.gaveUp,
+                           .meanBefore = item_.meanBefore},
+                          settings_.decimals);
 }
 
 QString PracticePage::inspectionLine() const {
-  if (tab_ != Tab::Inspection || item_.inspectMs <= 0) {
-    return {};
-  }
-  const std::int64_t limit = inspectionLimitMs();
-  QString text = tr("looked %1").arg(seconds(item_.inspectMs));
-  if (limit > 0 && item_.inspectMs > limit) {
-    text = coloured(kFailColour,
-                    tr("looked %1, over the %2 limit")
-                        .arg(seconds(item_.inspectMs), seconds(limit)));
-  }
-  return text;
+  return tab_ == Tab::Inspection
+             ? vcube::inspectionLine(item_.inspectMs, inspectionLimitMs())
+             : QString();
 }
 
 void PracticePage::showVerdict() {
-  QStringList lines;
-  if (waiting_) {
-    lines << tr("Working out the best solutions…");
-  } else if (finished() && item_.outcome) {
+  PracticeVerdict v;
+  v.waiting = waiting_;
+  v.note = note_;
+  if (!waiting_ && finished() && item_.outcome) {
     const Outcome &o = *item_.outcome;
     if (tab_ == Tab::Timed) {
       // How efficient it was is in the details.
-      const QString line = timedLine();
-      if (!line.isEmpty()) {
-        lines << line;
-      }
+      v.result = timedLine();
     } else {
-      QString verdict = o.verdict;
+      v.result = o.verdict;
       const QString looked = inspectionLine();
       if (!looked.isEmpty()) {
-        verdict += (verdict.isEmpty() ? QString() : " · ") + looked;
+        v.result += (v.result.isEmpty() ? QString() : " · ") + looked;
       }
-      if (!verdict.isEmpty()) {
-        lines << verdict;
-      }
-      if (const QString best = bestLine(o); !best.isEmpty()) {
-        lines << best;
-      }
+      v.best = bestLine(o);
     }
-    const QString grade = gradeLine();
-    if (!grade.isEmpty()) {
-      lines << grade;
-    }
+    v.grade = gradeLine();
   }
-  if (!note_.isEmpty()) {
-    lines << coloured(QColor(mutedColour()), note_);
-  }
-  verdict_->setText(lines.join("<br>"));
-  verdict_->setVisible(!lines.isEmpty());
+  const QString verdict = vcube::verdictHtml(v, mutedColour());
+  verdict_->setText(verdict);
+  verdict_->setVisible(!verdict.isEmpty());
   // The units done so far, while the solve is under way.
   const bool solving = tab_ == Tab::Untimed && phase_ == Phase::Solving;
   progressLabel_->setText(solving ? progress_.join("<br>") : QString());
@@ -1846,19 +1731,10 @@ void PracticePage::showVerdict() {
   if (open) {
     QString html;
     if (tab_ == Tab::Timed) {
-      html += splitsHtml();
+      html += splitsHtml(splits(), item_.moves, item_.moveMs,
+                         settings_.decimals, mutedColour());
       if (item_.outcome) {
-        const Outcome &o = *item_.outcome;
-        QStringList eff;
-        if (!o.verdict.isEmpty()) {
-          eff << o.verdict;
-        }
-        if (const QString best = bestLine(o); !best.isEmpty()) {
-          eff << best;
-        }
-        if (!eff.isEmpty()) {
-          html += "<p align='center'>" + eff.join("<br>") + "</p>";
-        }
+        html += efficiencyHtml(*item_.outcome);
       }
     }
     html += detail();
@@ -1866,64 +1742,6 @@ void PracticePage::showVerdict() {
   } else {
     detail_->clear();
   }
-}
-
-QString PracticePage::splitsHtml() {
-  const std::vector<Split> parts = splits();
-  if (parts.empty() || item_.moveMs.size() != item_.moves.size() ||
-      item_.moves.empty()) {
-    return {};
-  }
-  const QString muted = mutedColour();
-  QString html =
-      "<p>" + tr("Where the time went:") +
-      "</p><table align='center' cellspacing='0' cellpadding='3'><tr "
-      "style='color:" +
-      muted + "'><th align='left'>" + tr("Part") + "</th><th>" + tr("Time") +
-      "</th><th>" + tr("Pause before") + "</th><th>" + tr("Moves") +
-      "</th><th>" + tr("TPS") + "</th></tr>";
-  std::size_t from = 0;
-  std::int64_t at = 0; // when the part before ended
-  auto row = [&](const QString &name, std::size_t end) {
-    end = std::min(end, item_.moves.size());
-    if (end <= from) {
-      return;
-    }
-    // The first turn of the part (rotations before it are looking).
-    std::size_t first = from;
-    while (first < end && isRotation(item_.moves[first].type)) {
-      ++first;
-    }
-    const std::int64_t ended = item_.moveMs[end - 1];
-    const std::int64_t began = first < end ? item_.moveMs[first] : ended;
-    const std::int64_t pause = std::max<std::int64_t>(0, began - at);
-    const std::int64_t time = std::max<std::int64_t>(0, ended - at);
-    Alg moves(item_.moves.begin() + static_cast<std::ptrdiff_t>(from),
-              item_.moves.begin() + static_cast<std::ptrdiff_t>(end));
-    const int htm = htmCount(simplify(moves));
-    const std::int64_t turning = ended - began;
-    html +=
-        QString("<tr><td>%1</td><td align='right'>%2</td><td "
-                "align='right'>%3</td><td align='right'>%4</td><td "
-                "align='right'>%5</td></tr>")
-            .arg(name, clockText(time), clockText(pause))
-            .arg(htm)
-            .arg(turning > 0 && htm > 1
-                     ? QString::number(
-                           htm * 1000.0 / static_cast<double>(turning), 'f', 1)
-                     : kNoValue);
-    from = end;
-    at = ended;
-  };
-  for (const Split &p : parts) {
-    row(p.name, p.end);
-  }
-  row(tr("the rest"), item_.moves.size());
-  return html + "</table><p style='color:" + muted + "'>" +
-         tr("A part's time runs from the end of the one before; the pause "
-            "is the time before its first turn, and TPS is of the turning "
-            "alone.") +
-         "</p>";
 }
 
 // --- the list ----------------------------------------------------------------
@@ -2044,9 +1862,10 @@ void PracticePage::refreshList() {
       row->setText(
           2, s.tries ? QString("%1%").arg(qRound(100.0 * s.solved / s.tries))
                      : kNoValue);
-      row->setText(3, s.meanInspectMs
-                          ? seconds(static_cast<std::int64_t>(*s.meanInspectMs))
-                          : kNoValue);
+      row->setText(3,
+                   s.meanInspectMs
+                       ? tenthsText(static_cast<std::int64_t>(*s.meanInspectMs))
+                       : kNoValue);
       row->setText(4, s.meanExtra ? "+" + oneDecimal(*s.meanExtra) : kNoValue);
       break;
     case Tab::Untimed:
@@ -2100,9 +1919,10 @@ void PracticePage::showSummary() {
                          .arg(counted(s.tries, tr("try"), tr("tries")))
                          .arg(s.solved);
       if (s.meanInspectMs) {
-        line += ", " +
-                tr("looked %1 on average")
-                    .arg(seconds(static_cast<std::int64_t>(*s.meanInspectMs)));
+        line +=
+            ", " +
+            tr("looked %1 on average")
+                .arg(tenthsText(static_cast<std::int64_t>(*s.meanInspectMs)));
       }
       if (s.overTime > 0) {
         line += ", " + tr("%1 over the limit").arg(s.overTime);

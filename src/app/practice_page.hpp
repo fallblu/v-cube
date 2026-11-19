@@ -4,6 +4,7 @@
 #include "app/cube_view.hpp"
 #include "app/mode_page.hpp"
 #include "app/page_parts.hpp"
+#include "app/practice_html.hpp"
 #include "app/widgets.hpp"
 #include "io/practice_store.hpp"
 #include "train/drill_flow.hpp"
@@ -186,17 +187,7 @@ protected:
   // The cube changed (a turn, a reset): e.g. to mark stickers.
   virtual void cubeChanged() {}
 
-  // How a solve went.
-  struct Outcome {
-    QString verdict;   // one line of rich text
-    Alg best;          // the best solution from the start; empty if none
-    QString bestText;  // how it is written (default: the alg)
-    QString bestLabel; // what the best is called (default: "Best")
-    int moves = 0;
-    int bestMoves = 0;
-    double extra = -1.0;
-    bool good = false; // a card's try: solved well
-  };
+  using Outcome = PracticeOutcome;
   // Asked once the solve is over, and again when the mode says its
   // analysis arrived.
   virtual Outcome judge() = 0;
@@ -238,12 +229,9 @@ protected:
   }
   virtual QList<KeyHint> doneKeys() const { return {}; }
 
-  // The parts of a solve, for the Timed tab's splits: each named, ending
-  // after a move of the solve (an index into item().moves, exclusive).
-  struct Split {
-    QString name;
-    std::size_t end = 0;
-  };
+  // The parts of a solve, for the Timed tab's splits: each ends after a
+  // move of the solve (an index into item().moves, exclusive).
+  using Split = PracticeSplit;
   virtual std::vector<Split> splits() { return {}; }
 
   // The lists.
@@ -445,19 +433,13 @@ private:
   void showVerdict();
   void showSummary();
   QString gradeLine() const;
-  // "Best: <alg>" (or the outcome's own label), or nothing to show.
-  QString bestLine(const Outcome &o) const;
   // The tries of the tab that is up.
   PracticeTries &tabTries();
   const PracticeTries &tabTries() const;
   QString timedLine() const;
   QString inspectionLine() const;
-  QString splitsHtml();
   void rowActivated(QTreeWidgetItem *row);
   void clearProgress();
 };
-
-// "in 10 min", "in 4 d", "tomorrow".
-QString dueText(std::int64_t due, std::int64_t now, std::int64_t dayEnd);
 
 } // namespace vcube
