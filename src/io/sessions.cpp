@@ -228,7 +228,20 @@ std::optional<CstimerImport> sessionsFromCstimer(const QJsonObject &o,
   QJsonObject sessionData;
   QJsonValue sd = o.value("properties").toObject().value("sessionData");
   if (sd.isString()) {
-    sessionData = QJsonDocument::fromJson(sd.toString().toUtf8()).object();
+    // Read as nothing it would give every session a default name and the
+    // 3x3 type, other puzzles' sessions among them.
+    QJsonParseError pe;
+    QJsonDocument names = QJsonDocument::fromJson(sd.toString().toUtf8(), &pe);
+    if (!names.isObject()) {
+      if (error) {
+        *error = QString("the session names and types couldn't be read (%1)")
+                     .arg(pe.error != QJsonParseError::NoError
+                              ? pe.errorString()
+                              : QString("not an object"));
+      }
+      return std::nullopt;
+    }
+    sessionData = names.object();
   } else {
     sessionData = sd.toObject();
   }
@@ -251,11 +264,25 @@ std::optional<CstimerImport> sessionsFromCstimer(const QJsonObject &o,
     }
     any = true;
     QJsonValue value = it.value();
-    // Some exports store each session as a JSON string.
-    QJsonArray solves =
-        value.isString()
-            ? QJsonDocument::fromJson(value.toString().toUtf8()).array()
-            : value.toArray();
+    // Some exports store each session as a JSON string. One that doesn't
+    // read is not an empty session: its solves would be left out unsaid.
+    QJsonArray solves = value.toArray();
+    if (value.isString()) {
+      QJsonParseError pe;
+      QJsonDocument stored =
+          QJsonDocument::fromJson(value.toString().toUtf8(), &pe);
+      if (!stored.isArray()) {
+        if (error) {
+          *error = QString("session %1 couldn't be read (%2)")
+                       .arg(number)
+                       .arg(pe.error != QJsonParseError::NoError
+                                ? pe.errorString()
+                                : QString("not a list of solves"));
+        }
+        return std::nullopt;
+      }
+      solves = stored.array();
+    }
     QJsonObject meta = sessionData.value(QString::number(number)).toObject();
     Entry e{number, meta.value("rank").toInt(number), {}};
     e.session.cube = CubeKind::Physical;
