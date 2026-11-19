@@ -9,8 +9,11 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
+#include <QSet>
 
 #include <algorithm>
+#include <optional>
 
 namespace vcube {
 
@@ -116,6 +119,30 @@ void AlgLibrary::installBuiltins() {
     }
     marker.close();
   }
+  // The sets already here, by id as load() matches them, whatever their
+  // files are called: a built-in is never written beside the user's own set
+  // of that id, where it would win as the file named for the id.
+  std::optional<QSet<QString>> present;
+  auto isPresent = [&](const std::string &id) {
+    if (!present) {
+      present.emplace();
+      for (const QString &file : dir.entryList({"*.json"}, QDir::Files)) {
+        if (file == kInstalledFile) {
+          continue;
+        }
+        present->insert(sanitizeId(ss(file.chopped(5))));
+        QFile f(dir.filePath(file));
+        if (f.open(QIODevice::ReadOnly)) {
+          QJsonValue v =
+              QJsonDocument::fromJson(f.readAll()).object().value("id");
+          if (v.isString()) {
+            present->insert(sanitizeId(ss(v.toString())));
+          }
+        }
+      }
+    }
+    return present->contains(sanitizeId(id));
+  };
   bool changed = false;
   if (!known) {
     // Without the marker, a library that already has sets can't tell
@@ -128,7 +155,7 @@ void AlgLibrary::installBuiltins() {
       for (const AlgSet &set : shipped()) {
         QString id = qs(set.id);
         if (!installed.contains(id)) {
-          if (!QFile::exists(pathFor(set.id))) {
+          if (!isPresent(set.id)) {
             missing << qs(set.name);
           }
           installed << id;
@@ -155,7 +182,7 @@ void AlgLibrary::installBuiltins() {
     if (installed.contains(id)) {
       continue;
     }
-    if (!QFile::exists(pathFor(set->id)) && !save(*set, &error)) {
+    if (!isPresent(set->id) && !save(*set, &error)) {
       errors_ << QString("installing %1: %2").arg(file, error);
       continue;
     }
