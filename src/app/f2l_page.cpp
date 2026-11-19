@@ -136,8 +136,10 @@ F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
 }
 
 F2LPage::~F2LPage() {
-  if (stop_) {
-    stop_->store(true);
+  for (const auto &stop : {stop_, laterStop_}) {
+    if (stop) {
+      stop->store(true);
+    }
   }
 }
 
@@ -376,7 +378,12 @@ void F2LPage::restarted() {
   offerAdd_ = false;
   // From the start again: the ways on from later states are of no use.
   std::erase_if(ranks_, [](const auto &e) { return e.first != 0; });
-  std::erase_if(asked_, [](std::size_t i) { return i != 0; });
+  std::erase_if(asked_, [](const auto &e) { return e.first != 0; });
+  // What is still being worked out for them is for states that are gone.
+  if (laterStop_) {
+    laterStop_->store(true);
+  }
+  laterStop_ = std::make_shared<std::atomic<bool>>(false);
 }
 
 bool F2LPage::initiallySolvedKept(const CubieCube &c) const {
@@ -468,17 +475,19 @@ void F2LPage::requestRanks(std::size_t segment, const CubieCube &before) {
   if (asked_.contains(segment)) {
     return;
   }
-  asked_.insert(segment);
+  const int ask = ++asks_;
+  asked_[segment] = ask;
   auto *watcher = new QFutureWatcher<Analysis>(this);
   connect(watcher, &QFutureWatcher<Analysis>::finished, this, [this, watcher] {
     arrived(watcher->result());
     watcher->deleteLater();
   });
-  watcher->setFuture(
-      QtConcurrent::run([request = requests_, segment, before,
-                         options = analysisOptions(), stop = stop_] {
+  watcher->setFuture(QtConcurrent::run(
+      [request = requests_, ask, segment, before, options = analysisOptions(),
+       stop = segment == 0 ? stop_ : laterStop_] {
         Analysis a;
         a.request = request;
+        a.ask = ask;
         a.segment = segment;
         a.ranks = rankPairs(before, options, stop.get());
         return a;
@@ -491,7 +500,13 @@ void F2LPage::arrived(const Analysis &a) {
   }
   if (a.pair) {
     pair_ = a.pair;
-  } else if (a.segment && asked_.contains(*a.segment)) {
+  } else if (a.segment) {
+    // Asked again since (after a restart), from another state: the newer
+    // asking's answer is the one wanted.
+    auto asked = asked_.find(*a.segment);
+    if (asked == asked_.end() || asked->second != a.ask) {
+      return;
+    }
     ranks_[*a.segment] = a.ranks;
     updateProgress();
   }
