@@ -56,6 +56,7 @@
 #include <QTreeWidget>
 
 #include <array>
+#include <cstdio>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -1337,6 +1338,9 @@ void GuiTest::cleanupTestCase() {
 }
 
 int main(int argc, char **argv) {
+  // Unbuffered, so that what was printed is seen even if the test dies.
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+  std::setvbuf(stderr, nullptr, _IONBF, 0);
   // Before anything reads a path: the offscreen platform, and settings,
   // data and cache in a temporary folder. XDG_* folders must be absolute,
   // or Qt falls back to the user's own.
