@@ -1,18 +1,90 @@
 #include "app/app_settings.hpp"
 
+#include "app/colours.hpp"
 #include "train/algset.hpp"
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QPainter>
 #include <QPalette>
+#include <QProxyStyle>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStyleFactory>
 #include <QStyleHints>
+#include <QStyleOption>
 
 #include <algorithm>
 
 namespace vcube {
+
+namespace {
+
+// Fusion draws the edges of text fields, spin boxes and check boxes a shade
+// darker than the window, which can't be seen on the dark theme (and is
+// faint on the light one). This draws them again in the field edge colour,
+// 3:1 or more against the window and the field in either theme; a field
+// with the focus keeps Fusion's highlighted edge.
+class EdgeStyle : public QProxyStyle {
+public:
+  using QProxyStyle::QProxyStyle;
+
+  void drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPainter *p,
+                     const QWidget *w) const override {
+    QProxyStyle::drawPrimitive(pe, opt, p, w);
+    switch (pe) {
+    case PE_FrameLineEdit:
+      if (!(opt->state & State_HasFocus)) {
+        roundedEdge(p, opt->rect);
+      }
+      break;
+    case PE_IndicatorCheckBox:
+      p->save();
+      p->setRenderHint(QPainter::Antialiasing, false);
+      p->setPen(roleColour(Role::FieldEdge));
+      p->setBrush(Qt::NoBrush);
+      p->drawRect(opt->rect.adjusted(0, 0, -1, -1));
+      p->restore();
+      break;
+    case PE_IndicatorRadioButton:
+      p->save();
+      p->setRenderHint(QPainter::Antialiasing, true);
+      p->setPen(QPen(roleColour(Role::FieldEdge), 1.0));
+      p->setBrush(Qt::NoBrush);
+      p->drawEllipse(QRectF(opt->rect).adjusted(1.5, 1.5, -1.5, -1.5));
+      p->restore();
+      break;
+    default:
+      break;
+    }
+  }
+
+  void drawComplexControl(ComplexControl cc, const QStyleOptionComplex *opt,
+                          QPainter *p, const QWidget *w) const override {
+    QProxyStyle::drawComplexControl(cc, opt, p, w);
+    if (cc != CC_SpinBox || (opt->state & State_HasFocus)) {
+      return;
+    }
+    const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(opt);
+    if (spin && spin->frame) {
+      roundedEdge(p, opt->rect);
+    }
+  }
+
+private:
+  // Fusion's field outline: a rounded rectangle on the half pixel.
+  static void roundedEdge(QPainter *p, const QRect &r) {
+    p->save();
+    p->setRenderHint(QPainter::Antialiasing, true);
+    p->translate(0.5, 0.5);
+    p->setPen(roleColour(Role::FieldEdge));
+    p->setBrush(Qt::NoBrush);
+    p->drawRoundedRect(r.adjusted(0, 0, -1, -1), 2, 2);
+    p->restore();
+  }
+};
+
+} // namespace
 
 void initSettingsStorage() {
   QSettings::setDefaultFormat(QSettings::IniFormat);
@@ -236,7 +308,7 @@ void AppSettings::save() const {
 }
 
 void applyTheme(QApplication &app, bool dark) {
-  app.setStyle(QStyleFactory::create("Fusion"));
+  app.setStyle(new EdgeStyle(QStyleFactory::create("Fusion")));
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
   // Title bars and native dialogs follow the theme too.
   QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark
