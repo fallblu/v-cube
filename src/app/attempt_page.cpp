@@ -99,6 +99,9 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
 
   // --- right column: scramble, cube or entry, chart ---
   stage_ = new SolveStage(mode, this);
+  // The cube is what these modes are about: it takes more of the height
+  // than in Timed, and all that the chart leaves when that is hidden.
+  stage_->setCubeStretch(6);
   QWidget *right = stage_;
   cubeBox_ = stage_->cubeBox;
   cubeView_ = stage_->cube;

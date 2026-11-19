@@ -64,7 +64,8 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   layout->setContentsMargins(4, 4, 4, 4);
 
   // Sessions and their options.
-  auto *sessionRow = new QHBoxLayout;
+  // The rows of options wrap in a narrow window.
+  auto *sessionRow = new OptionBar(this);
   sessionBox_ = new QComboBox(this);
   sessionBox_->setMinimumContentsLength(14);
   auto *newButton = new QPushButton(tr("New…"), this);
@@ -75,9 +76,9 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   sessionRow->addWidget(newButton);
   sessionRow->addWidget(renameButton);
   sessionRow->addWidget(deleteButton);
-  layout->addLayout(sessionRow);
+  layout->addWidget(sessionRow);
 
-  auto *options = new QHBoxLayout;
+  auto *options = new OptionBar(this);
   cubeBox_ = new QComboBox(this);
   cubeBox_->addItem(tr("Physical cube"));
   cubeBox_->addItem(tr("Virtual cube"));
@@ -101,7 +102,7 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
     options->addWidget(w);
   }
   options->addStretch();
-  layout->addLayout(options);
+  layout->addWidget(options);
 
   auto *split = new QSplitter(Qt::Vertical, this);
   split->setObjectName("test");
@@ -124,7 +125,7 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   entryButtons->addWidget(downButton);
   entryButtons->addStretch();
   entryBox->addLayout(entryButtons);
-  topLayout->addLayout(entryBox, 1);
+  topLayout->addLayout(entryBox, 2);
 
   // The attempt.
   auto *run = new QVBoxLayout;
@@ -146,12 +147,12 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   scrambleLabel_->setWordWrap(true);
   markScrambleLabel(scrambleLabel_);
   cubeView_ = new CubeView(top);
-  viewRow_ = new QWidget(top);
-  auto *viewLayout = new QHBoxLayout(viewRow_);
-  viewLayout->setContentsMargins(0, 0, 0, 0);
-  viewLayout->addStretch();
-  viewLayout->addWidget(new QLabel(tr("View:"), viewRow_));
-  viewLayout->addWidget(createViewSelector(cubeView_, "alglab", viewRow_));
+  // As in the other stages: the cube takes the room the pane has, with
+  // the time and the status right under it.
+  cubeView_->setFillsArea(true);
+  // The view is chosen at the end of the options' row, as in the other
+  // stages.
+  viewRow_ = options->addViewPicker(cubeView_, "alglab");
   display_ = new TimeDisplay(top);
   display_->setAlignment(Qt::AlignCenter);
   status_ = new HintBar(top);
@@ -162,10 +163,15 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   run->addWidget(diagram_);
   run->addWidget(scrambleLabel_);
   run->addWidget(cubeView_, 1);
-  run->addWidget(viewRow_);
   run->addWidget(display_);
   run->addWidget(status_);
-  topLayout->addLayout(run, 1);
+  topLayout->addLayout(run, 3);
+  // Shown for an attempt (see showCurrent()): the cube on the virtual
+  // cube, else the case's picture and the scramble.
+  for (QWidget *w : std::initializer_list<QWidget *>{
+           cubeView_, viewRow_, diagram_, scrambleLabel_}) {
+    w->hide();
+  }
 
   // Comparison and times.
   bottom_ = new QTabWidget(split);
@@ -202,8 +208,11 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   times_->setContextMenuPolicy(Qt::CustomContextMenu);
   times_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
   bottom_->addTab(times_, tr("Times"));
-  split->setStretchFactor(0, 1);
-  split->setStretchFactor(1, 1);
+  split->setStretchFactor(0, 3);
+  split->setStretchFactor(1, 2);
+  // The comparison may be squeezed in a low window (its table scrolls),
+  // so that the window can be as low as the other modes'.
+  bottom_->setMinimumHeight(100);
   layout->addWidget(split, 1);
 
   tick_.setInterval(16);

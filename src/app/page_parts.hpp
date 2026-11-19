@@ -6,6 +6,8 @@
 #include <QVariant>
 #include <QWidget>
 
+#include <functional>
+
 class QButtonGroup;
 class QComboBox;
 class QFormLayout;
@@ -71,10 +73,31 @@ private:
   QList<QVariant> data_;
 };
 
-// A key and what it does now, e.g. {"Space", "next case"}.
+// A key and what it does now, e.g. {"Space", "next case"}. With `click`
+// the chip can be clicked to do the same (in place of a button for it).
 struct KeyHint {
   QString key;
   QString action;
+  std::function<void()> click = {};
+};
+
+// The keys that do something now, as a line of chips (see keyHintsHtml);
+// the chips of keys with a click action can be clicked. Hidden while there
+// are none.
+class KeyStrip : public QLabel {
+  Q_OBJECT
+public:
+  explicit KeyStrip(QWidget *parent = nullptr);
+
+  void setKeys(const QList<KeyHint> &keys);
+  const QList<KeyHint> &keys() const { return keys_; }
+
+protected:
+  void changeEvent(QEvent *e) override;
+
+private:
+  QList<KeyHint> keys_;
+  void render();
 };
 
 // The line under the stage that says what is going on and which keys do
@@ -105,9 +128,10 @@ QLabel *helpLabel(const QString &text, QWidget *parent);
 void showTipsAsHelp(QFormLayout *form);
 
 // The right-hand side of a mode that solves scrambles (Timed, Untimed,
-// Move Count): the option bar, the scramble with its net, then, centred,
-// the cube, the readout, a hint, the focus-mode statistics and a row of
-// buttons, and the session's chart at the bottom. The page fills the
+// Move Count): the option bar, then, as one block centred in the height,
+// the scramble with its net, the cube, the readout, a hint, the keys, the
+// focus-mode statistics and a row of buttons, and the session's chart at
+// the bottom. The page fills the
 // option bar, adds its buttons and wires everything.
 class SolveStage : public QWidget {
   Q_OBJECT
@@ -125,6 +149,9 @@ public:
   // The keys that do something now, as chips under the hint.
   void setKeys(const QList<KeyHint> &keys);
   QVBoxLayout *centre;
+  // The cube's share of the height left in the block, against 1 above
+  // and 1 below the block (3 unless set).
+  void setCubeStretch(int stretch);
 
   // The options every solve mode ends its bar with: the session's cube,
   // the view (returned, to hide on a physical cube) and "Skip scramble".
@@ -147,13 +174,14 @@ public:
 private:
   QVBoxLayout *layout_;
   QHBoxLayout *buttons_;
-  QLabel *keys_;
+  KeyStrip *keys_;
   TrendChart *chart_ = nullptr;
   QString mode_;
 };
 
 // The rich text of key chips alone, for a label that words its own
-// message: "[Space] next · [Esc] reset".
+// message: "[Space] next · [Esc] reset". A key with a click action is a
+// link ("chip:<index>"), its action in the link colour.
 QString keyHintsHtml(const QList<KeyHint> &keys, const QPalette &palette);
 
 } // namespace vcube

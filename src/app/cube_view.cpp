@@ -193,6 +193,11 @@ StickerMarks movedMarks(const StickerMarks &marks, Move m) {
   return out;
 }
 
+void CubeView::setFillsArea(bool on) {
+  fills_ = on;
+  update();
+}
+
 QRectF CubeView::drawArea() const {
   return QRectF(rect()).adjusted(6, 6, -6, -6);
 }
@@ -206,7 +211,7 @@ void CubeView::paintEvent(QPaintEvent *) {
   // given, centred; the net keeps the full area so its stickers stay easy
   // to click.
   QRectF cubeArea = area;
-  if (mode_ == Mode::ThreeD || mode_ == Mode::Flat) {
+  if (!fills_ && (mode_ == Mode::ThreeD || mode_ == Mode::Flat)) {
     QSizeF size = area.size() * (2.0 / 3.0);
     cubeArea = QRectF(QPointF(), size);
     cubeArea.moveCenter(area.center());

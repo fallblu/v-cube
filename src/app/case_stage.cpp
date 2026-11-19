@@ -29,16 +29,23 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   QFont hf = header->font();
   hf.setPointSize(hf.pointSize() + 2);
   header->setFont(hf);
-  topLayout->addWidget(header);
   cube = new CubeView(top);
+  // The header and the cube sit at the bottom of the room above the
+  // splitter, so that the status and the keys are right under the cube.
+  // The cube takes two thirds of the room (as a view not filling its area
+  // would draw it).
+  cube->setFillsArea(true);
   cube->setMinimumSize(200, 160);
   options = new OptionBar(top);
-  topLayout->insertWidget(0, options);
-  topLayout->addWidget(cube, 1);
+  topLayout->addWidget(options);
+  topLayout->addStretch(1);
+  topLayout->addWidget(header);
+  topLayout->addWidget(cube, 2);
 
   auto *bottom = new QWidget(this);
   auto *bottomLayout = new QVBoxLayout(bottom);
-  bottomLayout->setContentsMargins(0, 0, 0, 0);
+  // Clear of the splitter's grip above.
+  bottomLayout->setContentsMargins(0, 4, 0, 0);
   status = new QLabel(bottom);
   status->setAlignment(Qt::AlignCenter);
   status->setWordWrap(true);
@@ -52,13 +59,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   guide_->setVisible(false);
   bottomLayout->addWidget(guide_);
   bottomLayout->addWidget(status);
-  keys_ = new QLabel(bottom);
-  keys_->setAlignment(Qt::AlignCenter);
-  keys_->setWordWrap(true);
-  keys_->setTextFormat(Qt::RichText);
-  keys_->setForegroundRole(QPalette::PlaceholderText);
-  keys_->setProperty("vcubeHint", true);
-  keys_->setVisible(false);
+  keys_ = new KeyStrip(bottom);
   bottomLayout->addWidget(keys_);
   actionRow_ = new QWidget(bottom);
   auto *actionLayout = new QHBoxLayout(actionRow_);
@@ -132,16 +133,16 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   splitter->addWidget(bottom);
   splitter->setStretchFactor(0, 1);
   splitter->setChildrenCollapsible(false);
+  // A handle of its own height, so that its grip isn't drawn over the
+  // text under it.
+  splitter->setHandleWidth(10);
   splitter->setSizes({520, 260});
   auto *layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->addWidget(splitter);
 }
 
-void CaseStage::setKeys(const QList<KeyHint> &keys) {
-  keys_->setText(keyHintsHtml(keys, palette()));
-  keys_->setVisible(!keys.isEmpty());
-}
+void CaseStage::setKeys(const QList<KeyHint> &keys) { keys_->setKeys(keys); }
 
 void CaseStage::setActions(const std::vector<Action> &actions) {
   auto *row = static_cast<QHBoxLayout *>(actionRow_->layout());

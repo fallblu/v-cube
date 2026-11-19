@@ -82,7 +82,7 @@ signals:
 
 private:
   QLabel *guide_;
-  QLabel *keys_;
+  KeyStrip *keys_;
   QWidget *actionRow_;
   QLabel *gradeBadge_;
   QLabel *gradeLabel_;
