@@ -22,7 +22,8 @@ class QTreeWidget;
 namespace vcube {
 
 // What is waiting and what was done, across the modes: each alg set's
-// reviews due and new cases left in Learn, the practice streak, and the
+// reviews due and new cases left in Learn, the same for the cards of F2L
+// and TSLE mode, the practice streak, and the
 // solves and time per mode today and over the last 7 days.
 class TodayPage : public ModePage {
   Q_OBJECT
@@ -48,6 +49,9 @@ public:
 signals:
   // A set was double-clicked: learn it.
   void learnSetRequested(const QString &setId);
+  // The cards of a practice mode (F2L, TSLE) were asked for: its Learn
+  // tab, one unit at a time.
+  void practiceRequested(int mode);
 
 private:
   AppSettings &settings_;

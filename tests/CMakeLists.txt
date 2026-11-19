@@ -40,11 +40,9 @@ add_executable(vcube_tests
   test_alg_lab.cpp
   test_grips.cpp
   test_eo_cross.cpp
-  test_eo_cross_io.cpp
   test_f2l.cpp
-  test_f2l_io.cpp
+  test_practice.cpp
   test_tsle.cpp
-  test_tsle_io.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)

@@ -30,11 +30,9 @@ add_library(vcube_gui STATIC
   help_panel.cpp
   help_text.cpp
   eo_cross_page.cpp
-  eo_cross_page_results.cpp
   f2l_page.cpp
+  practice_page.cpp
   tsle_page.cpp
-  tsle_page_results.cpp
-  f2l_page_results.cpp
   key_router.cpp
   lab_chart.cpp
   lab_test_panel.cpp

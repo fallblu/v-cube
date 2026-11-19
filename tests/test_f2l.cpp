@@ -1,5 +1,4 @@
 #include "train/f2l.hpp"
-#include "train/f2l_stats.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -162,17 +161,6 @@ TEST_CASE("every case can be set up in every method", "[f2l]") {
     }
   }
   F2LConfig config;
-  for (Slot s : kF2LSlots) {
-    for (bool solved : {true, false}) {
-      PairCase pc = pairCases(true)[40];
-      auto setup = casePairSetup(config, pc, s, solved, rng);
-      REQUIRE(setup);
-      CHECK(pairCaseOf(setup->state, s) == pc);
-      if (!solved) {
-        CHECK(unsolvedSlots(setup->state).size() == 4);
-      }
-    }
-  }
   // A late stage leaves fewer slots open.
   for (int i = 0; i < 10; ++i) {
     PairCase top = pairCases(true)[0];
@@ -205,9 +193,9 @@ TEST_CASE("pairs are ranked by the cheapest way on", "[f2l]") {
     F2LConfig config = configOf(m);
     AnalysisOptions options = optionsFor(config);
     for (int i = 0; i < 3; ++i) {
-      CubieCube state = randomChoiceState(config, rng);
-      REQUIRE(pairsLeft(state, config) >= 1);
-      REQUIRE(unsolvedSlots(state).size() >= 2);
+      CubieCube state = randomFullState(config, rng);
+      REQUIRE(pairsLeft(state, config) >= 3);
+      REQUIRE(unsolvedSlots(state).size() == 4);
       std::vector<PairRank> ranks = rankPairs(state, options);
       REQUIRE(ranks.size() == unsolvedSlots(state).size());
       for (std::size_t k = 0; k < ranks.size(); ++k) {
@@ -248,45 +236,4 @@ TEST_CASE("a solve is split into its pairs", "[f2l]") {
   CHECK(segs[1].begin == 3);
   CHECK(segs[1].end == moves.size());
   CHECK(segs[1].solved == std::vector<Slot>{Slot::FR});
-}
-
-TEST_CASE("weak cases weigh more", "[f2l]") {
-  CHECK(summarizeCase({}, 0).weight == kUnseenWeight);
-  PairAttempt good;
-  good.ms = 2000;
-  PairAttempt bad = good;
-  bad.excess = 3.0;
-  PairAttempt hinted = good;
-  hinted.hint = true;
-  PairAttempt slow = good;
-  slow.ms = 6000;
-  CaseSummary g = summarizeCase({good, good}, 2000);
-  CHECK_FALSE(g.weak);
-  CHECK(g.attempts == 2);
-  CHECK(summarizeCase({bad}, 2000).weight > g.weight);
-  CHECK(summarizeCase({bad}, 2000).weak);
-  CHECK(summarizeCase({hinted}, 2000).weight > g.weight);
-  CHECK(summarizeCase({slow}, 2000).weight > g.weight);
-  // Old attempts stop counting.
-  std::vector<PairAttempt> improved{bad, bad};
-  improved.insert(improved.end(), kRecentAttempts, good);
-  CHECK(summarizeCase(improved, 2000).weight == g.weight);
-
-  F2LStats stats;
-  for (std::size_t i = 0; i < F2LStats::kPerCase + 5; ++i) {
-    good.timestamp = static_cast<std::int64_t>(i);
-    stats.add("k", good);
-  }
-  CHECK(stats.cases["k"].size() == F2LStats::kPerCase);
-  CHECK(stats.cases["k"].front().timestamp == 5);
-  CHECK(meanPairMs(stats) == 2000.0);
-
-  Rng rng(1);
-  std::array<int, 3> hits{};
-  for (int i = 0; i < 3000; ++i) {
-    ++hits[pickWeighted({1.0, 0.0, 9.0}, rng)];
-  }
-  CHECK(hits[1] == 0);
-  CHECK(hits[2] > hits[0] * 5);
-  CHECK(pickWeighted({}, rng) == 0);
 }

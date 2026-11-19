@@ -150,6 +150,14 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
           });
   connect(todayPage_, &TodayPage::learnSetRequested, this,
           &MainWindow::learnSet);
+  connect(todayPage_, &TodayPage::practiceRequested, this, [this](int mode) {
+    PracticePage *page = mode == AppMode::F2L
+                             ? static_cast<PracticePage *>(f2lPage_)
+                             : static_cast<PracticePage *>(tslePage_);
+    if (setMode(mode)) {
+      page->showCards();
+    }
+  });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
                          static_cast<CasePage *>(drillPage_)}) {
     connect(page, &CasePage::editCaseRequested, this,

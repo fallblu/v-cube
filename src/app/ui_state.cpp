@@ -38,7 +38,12 @@ void removeObsolete() {
   for (const char *key :
        {"window/tab", "window/focus", "trainer/virtual", "trainer/showScramble",
         "timer/virtual", "timer/cubeMode", "scramble/type", "scramble/showAlgs",
-        "virtual/scrambleType", "virtual/showAlgs", "ui/view/virtual"}) {
+        "virtual/scrambleType", "virtual/showAlgs", "ui/view/virtual",
+        // The drills EO Cross, F2L and TSLE had before their Learn and
+        // Timed tabs.
+        "eocross/drill", "eocross/bad", "eocross/axes", "eocross/limit",
+        "f2l/drill", "f2l/stage", "f2l/slot", "f2l/context", "tsle/drill",
+        "tsle/allCases", "tsle/slot"}) {
     q.remove(key);
   }
 }
@@ -137,15 +142,9 @@ Stored<QVariant> lab(const char *name, const QVariant &fallback) {
   return {QStringLiteral("alglab/") + name, fallback};
 }
 
-Stored<QVariant> f2l(const char *name, const QVariant &fallback) {
-  return {QStringLiteral("f2l/") + name, fallback};
-}
-
-Stored<QVariant> eoCross(const char *name, const QVariant &fallback) {
-  return {QStringLiteral("eocross/") + name, fallback};
-}
-Stored<QVariant> tsle(const char *name, const QVariant &fallback) {
-  return {QStringLiteral("tsle/") + name, fallback};
+Stored<QVariant> practice(const QString &mode, const char *name,
+                          const QVariant &fallback) {
+  return {mode + "/" + name, fallback};
 }
 
 } // namespace vcube::saved

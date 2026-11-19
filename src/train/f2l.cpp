@@ -482,6 +482,14 @@ const std::vector<PairCase> &pairCases(bool eo) {
   return cases[eo ? 1 : 0];
 }
 
+std::vector<std::string> pairCardPool(bool eo) {
+  std::vector<std::string> pool;
+  for (PairCase c : pairCases(eo)) {
+    pool.push_back(caseKey(c));
+  }
+  return pool;
+}
+
 Mirror slotMirror(Slot s) {
   return {s == Slot::FL || s == Slot::BL, s == Slot::BL || s == Slot::BR};
 }
@@ -605,80 +613,6 @@ std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
     return out;
   }
   return std::nullopt;
-}
-
-std::optional<PairSetup> casePairSetup(const F2LConfig &config, PairCase wanted,
-                                       Slot target, bool othersSolved,
-                                       Rng &rng) {
-  std::vector<Slot> open{target};
-  auto add = [&open](Slot s) {
-    if (std::find(open.begin(), open.end(), s) == open.end()) {
-      open.push_back(s);
-    }
-  };
-  for (Slot s : slotsNeeded(wanted, target)) {
-    add(s);
-  }
-  if (!othersSolved) {
-    for (Slot s : kF2LSlots) {
-      add(s);
-    }
-  } else {
-    // The slot left to the end stays open: one the case uses, if any.
-    std::vector<Slot> leavable;
-    for (Slot s : kF2LSlots) {
-      if (config.leaves(s) && s != target) {
-        leavable.push_back(s);
-      }
-    }
-    bool has = std::any_of(leavable.begin(), leavable.end(), [&](Slot s) {
-      return std::find(open.begin(), open.end(), s) != open.end();
-    });
-    if (!has && !leavable.empty()) {
-      add(pickOne(leavable, rng));
-    }
-  }
-  std::sort(open.begin(), open.end());
-  auto state = stateWithCase(open, config.eo, target, wanted, rng);
-  if (!state) {
-    return std::nullopt;
-  }
-  return PairSetup{*state, target, wanted};
-}
-
-CubieCube randomChoiceState(const F2LConfig &config, Rng &rng) {
-  std::vector<Slot> leavable;
-  for (Slot s : kF2LSlots) {
-    if (config.leaves(s)) {
-      leavable.push_back(s);
-    }
-  }
-  std::vector<Slot> slots(kF2LSlots.begin(), kF2LSlots.end());
-  std::shuffle(slots.begin(), slots.end(), rng);
-  std::vector<Slot> open;
-  if (leavable.empty()) {
-    // Two to four pairs to go.
-    auto n = std::uniform_int_distribution<std::size_t>(2, 4)(rng);
-    open.assign(slots.begin(), slots.begin() + static_cast<std::ptrdiff_t>(n));
-  } else {
-    // The slot to leave and two or three more; or just two that can
-    // both be left, to choose between.
-    std::shuffle(leavable.begin(), leavable.end(), rng);
-    int kinds = leavable.size() >= 2 ? 3 : 2;
-    int kind = std::uniform_int_distribution<int>(0, kinds - 1)(rng);
-    if (kind == 2) {
-      open = {leavable[0], leavable[1]};
-    } else {
-      open.push_back(leavable[0]);
-      for (Slot s : slots) {
-        if (s != leavable[0] && open.size() < (kind == 0 ? 4U : 3U)) {
-          open.push_back(s);
-        }
-      }
-    }
-  }
-  std::sort(open.begin(), open.end());
-  return randomF2LState(open, config.eo, rng);
 }
 
 CubieCube randomFullState(const F2LConfig &config, Rng &rng) {

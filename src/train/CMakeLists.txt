@@ -14,12 +14,12 @@ add_library(vcube_train
   families.cpp
   eo_cross.cpp
   f2l.cpp
-  f2l_stats.cpp
   tsle.cpp
   learn_attempt.cpp
   learn_session.cpp
   move_count.cpp
   move_set.cpp
+  practice.cpp
   optimal_cache.cpp
   reduction.cpp
   solve_review.cpp

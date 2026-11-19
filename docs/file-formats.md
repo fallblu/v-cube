@@ -16,9 +16,9 @@ and `%LOCALAPPDATA%\v-cube\` on Windows.
 | `sessions.json` | Timed sessions |
 | `untimed.json` | Untimed sessions |
 | `movecounts.json` | Move Count sessions |
-| `eocross.json` | EO Cross statistics |
-| `f2l.json` | F2L statistics |
-| `tsle.json` | TSLE progress |
+| `eocross.json` | EO Cross: Learn solves and timed attempts |
+| `f2l.json` | F2L: cards, Learn solves and timed attempts |
+| `tsle.json` | TSLE: cards, Learn solves, timed attempts and OCLL algs |
 | `alglab.json` | Alg Lab: lab cases, candidates, test sessions, times, profiles |
 | `backups/` | Daily backups |
 | `v-cube.lock` | Marks the running copy, so a second one hands over to it |
@@ -79,9 +79,7 @@ Every data file is a JSON object with a `format` and a `version`:
 | Timed sessions | `v-cube.sessions` (may be missing) | 1 |
 | Untimed sessions | `v-cube.untimed` | 1 |
 | Move Count sessions | `v-cube.movecount` | 1 |
-| EO Cross | `v-cube.eocross` | 1 |
-| F2L | `v-cube.f2l` | 1 |
-| TSLE | `v-cube.tsle` | 1 |
+| EO Cross, F2L, TSLE | `v-cube.practice` | 1 |
 | Alg Lab | `v-cube.alglab` | 2 (added grip profiles; a version 1 file gets the built-in one) |
 
 A file with another `format` can't be read. A missing `version` is read as
@@ -333,126 +331,55 @@ alg-set types become `333`.
 A new Untimed file starts with one session; a new Move Count file with one
 virtual-cube session per step.
 
-## EO Cross
+## EO Cross, F2L and TSLE
 
-`eocross.json` (`"v-cube.eocross"`), EO Cross mode's statistics:
-
-```json
-{
-  "format": "v-cube.eocross", "version": 1,
-  "kinds": {
-    "solve/eocross/6": [
-      {"timestamp": 1794000000, "ms": 9310, "moves": 13, "best": 11,
-       "excess": 2, "hint": true}
-    ],
-    "plan/eo+2/4": [{"timestamp": 1794000000, "ms": 7200, "moves": 0,
-                     "best": 6, "excess": 0, "gaveUp": true}],
-    "full/8": [], "edges/4": [], "axis/eoline": []
-  }
-}
-```
-
-`kinds` has the last 50 tries of each kind of state in each drill. A key
-is the drill (`edges`, `axis`, `plan`, `solve` or `full`), then the step
-for the drills that have one (`axis`, `plan`, `solve`: `eo`, `eoline`,
-`eo+1`, `eo+2` or `eocross`), then the number of edges bad for the
-front-back axis as the cube was first shown (0, 2, ... 12; not for
-`axis`). A try is written as F2L mode's are, and its numbers mean:
-
-| Drill | `ms` | `moves` | `best` | `excess` |
-| --- | --- | --- | --- | --- |
-| `edges` | to the last answer | the F/B count given | the right one | how far off the counts were, over the axes asked |
-| `axis` | to the pick | the optimum of the hold picked | the best hold's | their difference |
-| `plan` | the inspection time used | the moves done unseen | the optimum over your holds | the moves over it |
-| `solve`, `full` | from the first look to the step done | the moves done | the optimum over your holds | the moves over it |
-
-`gaveUp` is also written for a plan that didn't do its step and for an
-Axis choice that ran out of time off your holds; `moves` and `excess` are
-then 0. Keys that aren't kinds are dropped on reading.
-
-The mode's choices (drill, step, the bad edges pinned, axes, inspection
-time) are in the settings file under `[eocross]`.
-
-`inspection.json` and `blind.json`, from the removed Inspection and Blind
-modes, are no longer read or written.
-
-## F2L
-
-`f2l.json` (`"v-cube.f2l"`), F2L mode's statistics:
+`eocross.json`, `f2l.json` and `tsle.json` (all `"v-cube.practice"`) hold
+what each of the three practice modes keeps:
 
 ```json
 {
-  "format": "v-cube.f2l", "version": 1,
-  "cases": {
-    "URF1-UB0": [
-      {"timestamp": 1794000000, "ms": 2310, "moves": 8, "best": 7,
-       "excess": 0.45, "hint": true, "drill": "choice"}
-    ]
-  },
-  "choices": [{"timestamp": 1794000000, "rank": 2, "of": 3, "regret": 1.2}],
-  "fulls": [{"timestamp": 1794000000, "ms": 14200, "moves": 31, "pairs": 3,
-             "excess": 4.1}]
+  "format": "v-cube.practice", "version": 1,
+  "cards": {"cases": {"URF1-UB0": {"card": {"state": 2, "due": 1794086400},
+                                   "attempts": [[1794000000, 0, 0, "learn"]]}}},
+  "learn": {"whole": [{"timestamp": 1794000200, "moves": 31, "best": 24,
+                       "extra": 4.5, "hint": true}]},
+  "timed": {"virtual/zz-1": [{"timestamp": 1794000400, "ms": 14200,
+                              "moves": 31, "best": 24, "extra": 4.5}],
+            "physical/zz-1": [{"timestamp": 1794000500, "ms": 15900,
+                               "dnf": true}]},
+  "notes": {"ocll/antisune": "L' U' L U' L' U2 L"}
 }
 ```
 
-- `cases`: the last 50 tries of each pair case. A case's key is where the
-  pair's corner and edge are, seen for the front-right slot (other slots
-  are mirrored onto it) and up to a U turn: the corner's place and twist
-  (0 to 2), then the edge's place and flip (0 or 1). With the corner in the
-  top layer it is at URF; with only the edge there, the edge is at UF. A
-  try has its time `ms` (from the state being shown to the pair solved),
-  its `moves` (HTM), the `best` solution's moves, the `excess` (its cost
-  over the best solution's, by the Alg Lab score profile then chosen), and
-  optionally `hint` (a hint was shown), `gaveUp`, and the `drill` it was
-  done in when that isn't Pair solutions (`choice` or `full`).
-- `choices`: the last 500 pairs picked in Pair choice: the pick's `rank`
-  among the `of` pairs that could be solved (1 the best) and its `regret`,
-  the cost of the way on from it over the best pair's.
-- `fulls`: the last 500 Full F2L solves: time, moves (HTM), the `pairs`
-  solved and the summed `excess` of the pairs over their best solutions.
+- `cards`: Learn's cards, written as an alg set's [progress](#progress)
+  is. The key is the case: a pair case in F2L (`URF1-UB0`: where the
+  corner and edge are, with the twist and flip), a TSLE case
+  (`UF-CW-0120`). EO Cross has none. A case never started is put in the
+  learn queue when the mode first asks for a card.
+- `learn`: Learn's solves that aren't a card's, by group, the last 200 of
+  each: `whole` in F2L and TSLE, the step (`eo`, `eoline`, `eo+1`, `eo+2`,
+  `eocross`) in EO Cross.
+- `timed`: timed attempts, the last 200 of each group, by cube and group:
+  `virtual/` or `physical/`, then the step (EO Cross), the method (F2L:
+  `zz-1`, `zz`, `cfop`, `cfop-1`) or the case the solve started from
+  (TSLE).
+- `notes`: TSLE's OCLL algs changed from the default ones, as
+  `ocll/<id>`. An alg that doesn't solve its OCLL is ignored.
 
-The mode's choices (drill, method, the slots that may be left, the moves
-solutions use, the stage, and the Case explorer's slot and context) are in
-the settings file under `[f2l]`.
+A try has `timestamp` and, left out when they don't apply: `ms` (timed
+attempts), `moves` (HTM; none on a physical cube), `best` (the best
+solution's moves), `extra` (what the solve was over the best: moves, or in
+F2L fingertrick cost; left out when it isn't known), `dnf` (given up, or
+stopped with the step not done) and `hint`.
 
-## TSLE
+Before the modes had Learn and Timed tabs they kept other files under the
+same names (`"v-cube.eocross"`, `"v-cube.f2l"`, `"v-cube.tsle"`). Such a
+file is deleted when the mode starts; only TSLE's OCLL algs are carried
+over.
 
-`tsle.json` (`"v-cube.tsle"`), TSLE mode's progress:
-
-```json
-{
-  "format": "v-cube.tsle", "version": 1,
-  "cases": {
-    "UF-CW-0120": [
-      {"timestamp": 1794000000, "ms": 1800, "moves": 4, "best": 3,
-       "excess": 1, "hint": true, "drill": "full"}
-    ]
-  },
-  "introduced": ["UF-CW-0120"],
-  "fulls": [{"timestamp": 1794000000, "ms": 6100, "moves": 14, "pairs": 3,
-             "excess": 2}],
-  "ocll": {"sune": "L' U2 L U L' U L"}
-}
-```
-
-- `cases`: the last 50 tries of each case, written as F2L mode's are. A
-  case's key is the case seen for the front-right slot: where the slot's
-  edge is (`UF`, with the cube turned so, or `FR` for in the slot), the
-  slot's corner place (`N` oriented, `CW`, `CCW`) and the twists at URF,
-  UFL, ULB and UBR (0 oriented, 1 clockwise, 2 anticlockwise). `excess` is
-  in moves: a good trigger's moves over the best way from that AUF, or 3
-  for a trigger that isn't good. `drill` is `full` for a step of a Full
-  TSLE solve.
-- `introduced`: the cases Guided intro has been through (the seven OCLLs
-  need none).
-- `fulls`: the last 500 Full TSLE solves: time, moves (step by step, as
-  done), the steps taken (`pairs`) and their summed `excess`.
-- `ocll`: the OCLL algs that differ from the default ones, by `sune`,
-  `antisune`, `h`, `pi`, `headlights`, `chameleon` or `bowtie` (empty if
-  none do). An alg that doesn't solve its OCLL is dropped on reading.
-
-The mode's choices (drill, last slots, cases, the Case explorer's slot) are
-in the settings file under `[tsle]`.
+The modes' choices are in the settings file under `[eocross]`, `[f2l]` and
+`[tsle]`: `tab`, `scope` and `physical` in each, and the mode's own
+options.
 
 ## Alg Lab
 

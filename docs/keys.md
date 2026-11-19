@@ -188,71 +188,97 @@ In the solve review (Alt+R, or double-click a solve):
 
 ## EO Cross
 
+EO Cross, F2L and TSLE have the same two tabs with the same keys. Learn is untimed; Timed is timed as Drill is.
+
 | When | Key | Action |
 | --- | --- | --- |
-| ready (every drill) | Space | show the first state; the clock starts then (on opening EO Cross or coming back to it, and after picking a drill or an option) |
-| Bad edges | 0-9 / Backspace / Enter | type a count / correct it / give it (F/B first, then R/L if asked) |
-| Bad edges | turning keys | rotations, to look at the cube (also afterwards) |
-| Bad edges, afterwards | Tab | ring the other axis's bad edges |
-| Axis choice | turning keys | rotations only: turn the cube to the hold you would solve from |
-| Axis choice | Space | take the hold the cube is in (the inspection time takes it for you when it runs out) |
-| Plan blind, looking | turning keys | rotations only |
-| Plan blind, looking | Space | hide the cube and do the plan (the inspection time hides it when it runs out) |
-| Plan blind, cube hidden | turning keys | any turn, unseen |
-| Plan blind, cube hidden | Space | done: show the cube and how the plan went |
-| Plan blind, cube hidden | Esc | start the moves again from where the cube was hidden |
-| Step solutions, Full EO Cross | turning keys | any turn; the state ends by itself when the step is done in one of your holds |
-| Step solutions, Full EO Cross | Tab | a hint: the hold nearest the step, or the next move of an optimal solution from here (the try counts as hinted) |
-| Step solutions, Full EO Cross | Esc | put the cube back as it started |
-| Axis choice, Plan blind, solving | Backspace | give up and see the solutions |
-| afterwards | Space | next |
-| afterwards | Enter / 1-9 | play the best solution / the solution with that number from the start (or click it) |
-| afterwards | turning keys | turn the cube freely |
-| afterwards | Esc | the same state again, not recorded |
-
-A Space in the moment the inspection time hides the cube is ignored, and Space with no moves done doesn't finish a plan.
+| Learn, solving | turning keys | any turn; the solve ends by itself when it is done |
+| Learn, solving | Backspace or Shift+Space | give up |
+| Learn, solving | Esc | start again |
+| Learn, plan then blind | turning keys | rotations to look; the cube hides at the first face turn |
+| Learn, plan then blind | Space | show the cube again: only then is the solve judged |
+| Learn, afterwards | Space | next |
+| Learn, afterwards | Enter | play the best solution from the start |
+| Learn, afterwards | Tab | show or hide the details (click a solution there to play it) |
+| Learn, afterwards | turning keys | turn the cube freely |
+| Learn, afterwards | Esc | the same state again, not recorded or graded |
+| Timed, virtual, before the solve | turning keys | rotations only |
+| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Drill says so) |
+| Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
+| Timed, physical | hold Space, release | start the timer, once the scramble is done |
+| Timed, physical, solving | any key | stop the timer |
+| Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
+| Timed, solving | Esc | cancel: nothing is recorded |
+| Timed, afterwards | Space | next |
+| Timed, afterwards | Enter | play the best solution from the start |
+| Timed, afterwards | Tab | show or hide the details |
+| Timed, afterwards | Backspace | make it a DNF, or not |
+| Timed, afterwards | Delete | delete the attempt |
+| Timed, afterwards | Esc | the same state again, not recorded |
 
 ## F2L
 
 | When | Key | Action |
 | --- | --- | --- |
-| ready (Pair solutions, Pair choice, Full F2L) | Space | show the first state; the clock starts then (on opening F2L or coming back to it, and after picking a drill or an option) |
-| solving | turning keys | any turn; the clock runs from the first look |
-| Pair solutions, solving | Tab | show the best solution's next move, done from the start (the try counts as hinted) |
-| Pair choice, solving | Tab | name the best pair to start with (the pick isn't counted) |
-| solving | Backspace | give up and see the solutions |
-| solving | Esc | put the cube back as it started |
-| afterwards | Space | next |
-| afterwards | Esc | the same state again, not recorded |
-| afterwards, Case explorer | Enter | play the chosen solution from the start |
-| afterwards, Case explorer | ← / → | step back / forward through it |
-| afterwards, Case explorer | 1-9 | choose a solution of the list (or click it to play it) |
-| afterwards, Case explorer | turning keys | turn the cube freely |
-| Case explorer | ↑ / ↓ | the case before / after |
-| Case explorer | Space | another example of the case |
-| Case explorer | Esc | put the cube back |
-
-Full F2L has no hint and nothing to step through: its pairs are compared in a table.
+| Learn, a new case | Enter | show its best solution on the cube, which is then put back to do it |
+| Learn, a new case | turning keys | do it: the case then comes back in a minute, to do from memory |
+| Learn, a new case | Space | skip the showing: the case is known |
+| Learn, solving | turning keys | any turn; the solve ends by itself when it is done |
+| Learn, solving | Backspace or Shift+Space | give up |
+| Learn, solving | Esc | start again |
+| Learn, one pair, solving | Tab | a hint: a move more of the best solution each time (the card is then graded Again) |
+| Learn, afterwards | Space | next |
+| Learn, afterwards | Enter | play the best solution from the start |
+| Learn, afterwards | Tab | show or hide the details (click a solution there to play it) |
+| Learn, afterwards | turning keys | turn the cube freely |
+| Learn, afterwards | Esc | the same state again, not recorded or graded |
+| Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
+| Learn, nothing due | Space | look again, taking a card in its learning steps early |
+| Timed, virtual, before the solve | turning keys | rotations only |
+| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Drill says so) |
+| Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
+| Timed, physical | hold Space, release | start the timer, once the scramble is done |
+| Timed, physical, solving | any key | stop the timer |
+| Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
+| Timed, solving | Esc | cancel: nothing is recorded |
+| Timed, afterwards | Space | next |
+| Timed, afterwards | Enter | play the best solution from the start |
+| Timed, afterwards | Tab | show or hide the details |
+| Timed, afterwards | Backspace | make it a DNF, or not |
+| Timed, afterwards | Delete | delete the attempt |
+| Timed, afterwards | Esc | the same state again, not recorded |
 
 ## TSLE
 
 | When | Key | Action |
 | --- | --- | --- |
-| ready (Next trigger, Full TSLE) | Space | show the first state; the clock starts then (on opening TSLE or coming back to it, and after picking a drill or an option) |
-| solving | turning keys | any turn; a step is judged when the trigger is finished |
-| Guided intro, a trigger shown | Enter | show the trigger on the cube, then put the cube back to do it |
-| Guided intro | Space | skip the case as known; after a case, the next one |
-| Next trigger, Full TSLE, solving | Tab | show the best step from here (the try counts as hinted) |
-| Next trigger, Full TSLE, solving | Backspace | give up and see the good triggers |
-| solving | Esc | put the cube back as it started |
-| afterwards | Space | next |
-| afterwards | Enter / 1-9 | play the best trigger / the trigger with that number (or click it) |
-| afterwards | Esc | the same state again, not recorded |
-| Case explorer | Enter / 1-9 | do the best trigger / that trigger; the list follows the cube |
-| Case explorer | turning keys | turn the cube freely; the list follows it |
-| Case explorer | ↑ / ↓ | the case before / after |
-| Case explorer | Space | the case at its next AUF |
-| Case explorer | Esc | back to the case |
+| Learn, a new case | Enter | show its best solution on the cube, which is then put back to do it |
+| Learn, a new case | turning keys | do it: the case then comes back in a minute, to do from memory |
+| Learn, a new case | Space | skip the showing: the case is known |
+| Learn, solving | turning keys | any turn; the solve ends by itself when it is done |
+| Learn, solving | Backspace or Shift+Space | give up |
+| Learn, solving | Esc | start again |
+| Learn, solving | Tab | a hint: the best step from here (a card is then graded Again) |
+| Learn, afterwards | Space | next |
+| Learn, afterwards | Enter | play the best solution from the start |
+| Learn, afterwards | Tab | show or hide the details (click a solution there to play it) |
+| Learn, afterwards | turning keys | turn the cube freely |
+| Learn, afterwards | Esc | the same state again, not recorded or graded |
+| Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
+| Learn, nothing due | Space | look again, taking a card in its learning steps early |
+| Timed, virtual, before the solve | turning keys | rotations only |
+| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Drill says so) |
+| Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
+| Timed, physical | hold Space, release | start the timer, once the scramble is done |
+| Timed, physical, solving | any key | stop the timer |
+| Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
+| Timed, solving | Esc | cancel: nothing is recorded |
+| Timed, afterwards | Space | next |
+| Timed, afterwards | Enter | play the best solution from the start |
+| Timed, afterwards | Tab | show or hide the details |
+| Timed, afterwards | Backspace | make it a DNF, or not |
+| Timed, afterwards | Delete | delete the attempt |
+| Timed, afterwards | Esc | the same state again, not recorded |
 
 ## Alg Lab
 

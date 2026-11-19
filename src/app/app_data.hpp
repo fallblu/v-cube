@@ -12,8 +12,8 @@ namespace vcube {
 
 // The data files the modes share, in the data folder: the alg sets and
 // their progress, the timer sessions, the untimed solves and the move
-// counts, and Alg Lab's file. (EO Cross, F2L and TSLE keep their own
-// files.)
+// counts, and Alg Lab's file. (EO Cross, F2L and TSLE each keep a file of
+// their own, see PracticeStore.)
 class AppData {
 public:
   explicit AppData(QString dataDir);
