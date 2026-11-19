@@ -7,6 +7,7 @@
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
+#include "train/practice.hpp"
 #include "train/today.hpp"
 
 #include <QTimer>
@@ -38,7 +39,8 @@ public:
   TodayPage(AppSettings &settings, AlgLibrary &library,
             const SessionStore &timed, const MoveCountStore &untimed,
             const MoveCountStore &moveCounts, const AlgLabStore &lab,
-            QString dataDir, QWidget *parent = nullptr);
+            const PracticeData &eoCross, const PracticeData &f2l,
+            const PracticeData &tsle, QWidget *parent = nullptr);
 
   // Learn's due reviews (and learning steps) and the new cases left today,
   // over every set, for the sidebar.
@@ -68,7 +70,11 @@ private:
   const MoveCountStore &untimed_;
   const MoveCountStore &moveCounts_;
   const AlgLabStore &lab_;
-  QString dataDir_;
+  // What the practice modes' pages keep, as they have it in memory: read
+  // from there, a refresh opens no file and sees what was just recorded.
+  const PracticeData &eoCross_;
+  const PracticeData &f2l_;
+  const PracticeData &tsle_;
   QLabel *streakLabel_;
   QPushButton *next_;
   QLabel *nextNote_;

@@ -7,14 +7,11 @@
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
-#include "io/data_file.hpp"
-#include "io/practice_store.hpp"
 #include "train/f2l.hpp"
 #include "train/tsle.hpp"
 
 #include <QDate>
 #include <QDateTime>
-#include <QDir>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -30,13 +27,6 @@ namespace {
 constexpr int kSetIdRole = Qt::UserRole;
 // A row of a practice mode's cards (F2L, TSLE): the mode, else -1.
 constexpr int kModeRole = Qt::UserRole + 1;
-
-// A practice mode's file as it is on disk (empty when there is none).
-PracticeData practiceData(const QString &dataDir, const char *file) {
-  FileRead read = readDataFile(QDir(dataDir).filePath(file), kPracticeFile);
-  return read.status == FileStatus::Read ? practiceFromJson(read.object)
-                                         : PracticeData{};
-}
 
 QString duration(std::int64_t ms) {
   std::int64_t s = ms / 1000;
@@ -119,10 +109,11 @@ std::vector<std::string> learnPool(const AlgSet &set) {
 TodayPage::TodayPage(AppSettings &settings, AlgLibrary &library,
                      const SessionStore &timed, const MoveCountStore &untimed,
                      const MoveCountStore &moveCounts, const AlgLabStore &lab,
-                     QString dataDir, QWidget *parent)
+                     const PracticeData &eoCross, const PracticeData &f2l,
+                     const PracticeData &tsle, QWidget *parent)
     : ModePage(parent), settings_(settings), library_(library), timed_(timed),
-      untimed_(untimed), moveCounts_(moveCounts), lab_(lab),
-      dataDir_(std::move(dataDir)) {
+      untimed_(untimed), moveCounts_(moveCounts), lab_(lab), eoCross_(eoCross),
+      f2l_(f2l), tsle_(tsle) {
   auto *layout = new QVBoxLayout(this);
   auto *title = new QLabel(tr("Today"), this);
   setTextRole(title, TextRole::Display, true);
@@ -349,11 +340,10 @@ std::vector<ActivityEvent> TodayPage::events() {
     add(AppMode::AlgLab, a.timestamp, a.timeMs);
   }
   // The practice modes: every card's try and every solve kept.
-  for (const auto &[file, mode] :
-       {std::pair{"eocross.json", int(AppMode::EoCross)},
-        std::pair{"f2l.json", int(AppMode::F2L)},
-        std::pair{"tsle.json", int(AppMode::Tsle)}}) {
-    const PracticeData kept = practiceData(dataDir_, file);
+  for (const auto &[data, mode] : {std::pair{&eoCross_, int(AppMode::EoCross)},
+                                   std::pair{&f2l_, int(AppMode::F2L)},
+                                   std::pair{&tsle_, int(AppMode::Tsle)}}) {
+    const PracticeData &kept = *data;
     for (const auto &[id, p] : kept.cards) {
       for (const Attempt &a : p.attempts) {
         add(mode, a.timestamp, 0);
@@ -438,16 +428,15 @@ void TodayPage::refresh() {
   struct Practice {
     int mode;
     QString name;
-    const char *file;
+    const PracticeData &data;
     std::vector<std::string> pool;
   };
   for (const Practice &p :
-       {Practice{AppMode::F2L, tr("F2L pairs"), "f2l.json", pairCardPool(eo)},
-        Practice{AppMode::Tsle, tr("TSLE cases"), "tsle.json",
-                 tsleCardPool()}}) {
+       {Practice{AppMode::F2L, tr("F2L pairs"), f2l_, pairCardPool(eo)},
+        Practice{AppMode::Tsle, tr("TSLE cases"), tsle_, tsleCardPool()}}) {
     const PracticeWaiting w =
-        practiceWaiting(p.pool, practiceData(dataDir_, p.file).cards, unixNow(),
-                        localDayStart(), localDayEnd(), settings_.srs);
+        practiceWaiting(p.pool, p.data.cards, unixNow(), localDayStart(),
+                        localDayEnd(), settings_.srs);
     auto *item = new QTreeWidgetItem(
         sets_, {p.name, count(w.due), count(w.newLeft),
                 count(w.total - w.started), count(w.learned)});
