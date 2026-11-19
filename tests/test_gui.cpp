@@ -67,6 +67,7 @@
 #include <QThreadPool>
 #include <QTimer>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 
 #include <algorithm>
 #include <array>
@@ -1629,6 +1630,38 @@ void GuiTest::learnStartsACase() {
   QVERIFY(!p["T"].attempts.empty());
   QVERIFY(!p["T"].attempts.back().failed);
   QVERIFY(p["T"].attempts.back().mode == AttemptMode::Learn);
+
+  // Resetting it from the case list goes on the undo stack: Ctrl+Z
+  // brings its schedule and Learn attempts back.
+  const SrsCard card = p["T"].card;
+  const std::vector<Attempt> attempts = p["T"].attempts;
+  QTreeWidgetItem *row = nullptr;
+  for (auto *tree : learn->findChildren<QTreeWidget *>()) {
+    for (QTreeWidgetItemIterator it(tree); *it && !row; ++it) {
+      if ((*it)->data(0, Qt::UserRole).toString() == "T") {
+        row = *it;
+        tree->setCurrentItem(row);
+      }
+    }
+  }
+  QVERIFY(row);
+  QMenu menu;
+  learn->fillModeMenu(menu);
+  QAction *reset = nullptr;
+  for (QAction *a : menu.actions()) {
+    if (a->text() == "Reset learning progress") {
+      reset = a;
+    }
+  }
+  QVERIFY(reset);
+  reset->trigger();
+  p = savedProgress("pll");
+  QCOMPARE(p["T"].card.reps, 0);
+  QVERIFY(p["T"].attempts.empty());
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  p = savedProgress("pll");
+  QVERIFY(p["T"].card == card);
+  QVERIFY(p["T"].attempts == attempts);
 }
 
 void GuiTest::quizAsksAmongLookAlikes() {

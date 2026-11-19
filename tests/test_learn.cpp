@@ -496,11 +496,47 @@ TEST_CASE("learn: a recognition review is graded by hand") {
 TEST_CASE("learn: the undo stack keeps the last grades") {
   LearnUndoStack undo;
   for (int i = 0; i < 12; ++i) {
-    undo.push({"set", std::to_string(i), false, false, {}});
+    undo.push({"set", std::to_string(i), false, false, {}, false});
   }
   CHECK(undo.size() == LearnUndoStack::kDepth);
   REQUIRE(undo.open());
   undo.close();
   CHECK_FALSE(undo.open());
   CHECK(undo.pop()->caseId == "11");
+}
+
+TEST_CASE("learn: a change from the case list is taken back whole") {
+  Setup set;
+  set.reviewCard("a");
+  set.reviewCard("b");
+  set.progress["a"].record({kNow - 20, 0, false, AttemptMode::Learn});
+  set.progress["a"].record({kNow - 10, 900, false, AttemptMode::VirtualDrill});
+  set.progress["a"].record({kNow - 5, 0, true, AttemptMode::Learn});
+  const SetProgress before = set.progress;
+
+  LearnUndo u = listChange(set.progress, "set", {"a", "b", "c"});
+  CHECK(u.fromList);
+  for (const char *id : {"a", "b", "c"}) {
+    resetLearning(set.progress[id]);
+  }
+  // c had nothing to reset: it is left out.
+  REQUIRE(keepChanged(u, set.progress));
+  REQUIRE(u.cards.size() == 2);
+  CHECK(set.progress["a"].attempts.size() == 1); // its drill time stays
+  set.undo.push(std::move(u), false);
+  CHECK_FALSE(set.undo.open());
+
+  // A drill time recorded since stays too.
+  set.progress["a"].record({kNow, 800, false, AttemptMode::VirtualDrill});
+  takeBack(set.progress, *set.undo.pop());
+  CHECK(set.progress["a"].card == before.at("a").card);
+  CHECK(set.progress["b"].card == before.at("b").card);
+  REQUIRE(set.progress["a"].attempts.size() == 4);
+  CHECK(set.progress["a"].attempts[0].timestamp == kNow - 20);
+  CHECK(set.progress["a"].attempts[2].failed);
+  CHECK(set.progress["a"].attempts[3].timestamp == kNow);
+
+  // A change that changes nothing isn't kept.
+  LearnUndo none = listChange(set.progress, "set", {"a"});
+  CHECK_FALSE(keepChanged(none, set.progress));
 }
