@@ -2,6 +2,7 @@
 
 #include "app/colours.hpp"
 #include "app/cube_view.hpp"
+#include "app/page_parts.hpp"
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
@@ -128,32 +129,57 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   slider_->setFocusPolicy(Qt::NoFocus);
   leftLayout->addWidget(slider_);
   auto *buttons = new QHBoxLayout;
-  auto button = [&](QStyle::StandardPixmap icon, const QString &tip,
+  auto button = [&](QStyle::StandardPixmap icon, const QString &name,
                     auto &&fn) {
     auto *b = new QToolButton(left);
     b->setIcon(style()->standardIcon(icon));
-    b->setToolTip(tip);
+    b->setToolTip(name);
+    b->setAccessibleName(name);
     b->setFocusPolicy(Qt::NoFocus);
+    QSize icons = b->iconSize();
+    b->setIconSize(icons * 1.4);
     connect(b, &QToolButton::clicked, this, fn);
     buttons->addWidget(b);
+    return b;
   };
   buttons->addStretch();
-  button(QStyle::SP_MediaSkipBackward, tr("To the scramble (Home)"),
-         [this] { showPosition(0); });
-  button(QStyle::SP_MediaSeekBackward, tr("Back one move (←)"), [this] {
-    if (at_ > 0) {
-      showPosition(at_ - 1);
-    }
+  button(QStyle::SP_MediaSkipBackward, tr("To the scramble (Home)"), [this] {
+    setPlaying(false);
+    showPosition(0);
   });
+  button(QStyle::SP_MediaSeekBackward, tr("Back one move (←)"),
+         [this] { step(-1); });
+  playButton_ = button(QStyle::SP_MediaPlay, tr("Play (Space)"),
+                       [this] { setPlaying(!playTimer_.isActive()); });
   button(QStyle::SP_MediaSeekForward, tr("Forward one move (→)"),
-         [this] { showPosition(std::min(at_ + 1, replay_.size())); });
-  button(QStyle::SP_MediaSkipForward, tr("To the end (End)"),
-         [this] { showPosition(replay_.size()); });
+         [this] { step(1); });
+  button(QStyle::SP_MediaSkipForward, tr("To the end (End)"), [this] {
+    setPlaying(false);
+    showPosition(replay_.size());
+  });
   buttons->addStretch();
   leftLayout->addLayout(buttons);
   positionLabel_ = new QLabel(left);
   positionLabel_->setAlignment(Qt::AlignCenter);
   leftLayout->addWidget(positionLabel_);
+  // The keys, as on the stages.
+  auto *keys = new HintBar(left);
+  keys->setHint({}, {{tr("← →"), tr("step")},
+                     {tr("Home / End"), tr("start / end")},
+                     {tr("Space"), tr("play or pause")}});
+  leftLayout->addWidget(keys);
+  // A move at a time, a little slower than a turn is animated.
+  playTimer_.setInterval(std::max(300, settings_.animationMs + 200));
+  connect(&playTimer_, &QTimer::timeout, this, [this] {
+    if (at_ >= replay_.size()) {
+      setPlaying(false);
+      return;
+    }
+    showPosition(at_ + 1);
+    if (at_ >= replay_.size()) {
+      setPlaying(false);
+    }
+  });
 
   // --- right: what happened, and what could have ---
   auto *right = new QWidget;
@@ -273,8 +299,17 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   };
   shortcut(Qt::Key_Left, [this] { step(-1); });
   shortcut(Qt::Key_Right, [this] { step(1); });
-  shortcut(Qt::Key_Home, [this] { showPosition(0); });
-  shortcut(Qt::Key_End, [this] { showPosition(replay_.size()); });
+  shortcut(Qt::Key_Home, [this] {
+    setPlaying(false);
+    showPosition(0);
+  });
+  shortcut(Qt::Key_End, [this] {
+    setPlaying(false);
+    showPosition(replay_.size());
+  });
+  shortcut(Qt::Key_Space, [this] { setPlaying(!playTimer_.isActive()); });
+  connect(slider_, &QSlider::sliderPressed, this,
+          [this] { setPlaying(false); });
 
   connect(slider_, &QSlider::valueChanged, this, [this](int v) {
     if (static_cast<std::size_t>(v) != at_) {
@@ -374,7 +409,28 @@ ReviewDialog::~ReviewDialog() {
 
 void ReviewDialog::setRetryEnabled(bool on) { retryButton_->setVisible(on); }
 
+void ReviewDialog::setPlaying(bool on) {
+  if (on && at_ >= replay_.size()) {
+    showPosition(0); // from the start again
+  }
+  on = on && !replay_.empty();
+  if (!playButton_) {
+    return;
+  }
+  if (on) {
+    playTimer_.start();
+  } else {
+    playTimer_.stop();
+  }
+  playButton_->setIcon(
+      style()->standardIcon(on ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
+  QString name = on ? tr("Pause (Space)") : tr("Play (Space)");
+  playButton_->setToolTip(name);
+  playButton_->setAccessibleName(name);
+}
+
 void ReviewDialog::step(int by) {
+  setPlaying(false);
   if (by < 0) {
     if (at_ > 0) {
       showPosition(at_ - 1);
@@ -489,6 +545,7 @@ void ReviewDialog::showSplits() {
 }
 
 void ReviewDialog::play(const Alg &alg, const QString &name) {
+  setPlaying(false);
   replay_ = alg;
   replayName_ = name;
   slider_->blockSignals(true);
