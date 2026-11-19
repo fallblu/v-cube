@@ -272,7 +272,7 @@ void ProfileDialog::updateTry() {
 
 namespace {
 
-enum TrickCol {
+enum TrickCol : int {
   TOn,
   TMove,
   THand,

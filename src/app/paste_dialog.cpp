@@ -21,7 +21,13 @@ namespace vcube {
 
 namespace {
 
-enum Column { LineColumn, AlgColumn, CaseColumn, ResultColumn, ColumnCount };
+enum Column : int {
+  LineColumn,
+  AlgColumn,
+  CaseColumn,
+  ResultColumn,
+  ColumnCount
+};
 
 // Combo entries after the candidates.
 constexpr int kNotAdded = -1;
