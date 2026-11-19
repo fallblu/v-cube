@@ -362,7 +362,6 @@ void AttemptPage::showEntry() {
   } else {
     display_->showText(qs(entry.text()));
   }
-  entryShown();
 }
 
 void AttemptPage::showPhase() {
