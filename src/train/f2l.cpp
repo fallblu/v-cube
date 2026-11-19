@@ -69,8 +69,8 @@ const UTurns &uTurns() {
 
 PairCase normalized(int corner, int edge) {
   const UTurns &u = uTurns();
-  PairCase c{static_cast<std::uint8_t>(corner),
-             static_cast<std::uint8_t>(edge)};
+  PairCase c = {static_cast<std::uint8_t>(corner),
+                static_cast<std::uint8_t>(edge)};
   for (int i = 0; i < 4; ++i) {
     bool there = c.cornerOnTop() ? c.corner / 3 == URF
                                  : !c.edgeOnTop() || c.edge / 2 == UF;

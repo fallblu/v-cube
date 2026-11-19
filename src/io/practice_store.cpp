@@ -13,7 +13,7 @@ namespace vcube {
 namespace {
 
 QJsonObject tryToJson(const PracticeTry &t) {
-  QJsonObject o{{"timestamp", static_cast<double>(t.timestamp)}};
+  QJsonObject o = {{"timestamp", static_cast<double>(t.timestamp)}};
   if (t.ms != 0) {
     o["ms"] = static_cast<double>(t.ms);
   }
@@ -85,7 +85,7 @@ QJsonObject practiceToJson(const PracticeData &data) {
     }
     choices[QString::fromStdString(key)] = list;
   }
-  QJsonObject o{
+  QJsonObject o = {
       {"format", kPracticeFile.format},      {"version", kPracticeFile.version},
       {"cards", progressToJson(data.cards)}, {"learn", triesToJson(data.learn)},
       {"timed", triesToJson(data.timed)},    {"notes", notes}};
