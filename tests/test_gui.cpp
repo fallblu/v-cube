@@ -644,6 +644,16 @@ void GuiTest::f2lLearnAndTimed() {
   }
   QVERIFY(sideOf(*f2l->target()) == PairSide::Front ||
           cardFromKey(pool[1])->side == PairSide::Back);
+  // Only shown, it has no try to judge when its solutions change.
+  QVERIFY(f2l->verdictHtml().contains("Shown"));
+  QTest::keyClick(window_.get(), Qt::Key_0);
+  QCOMPARE(f2l->phase(), Phase::Choose);
+  QTRY_VERIFY_WITH_TIMEOUT(f2l->candidatesReady(), 30000);
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QCOMPARE(f2l->phase(), Phase::Done);
+  QVERIFY2(f2l->verdictHtml().contains("Shown"),
+           qPrintable(f2l->verdictHtml()));
+  QVERIFY(!f2l->offersToAdd());
   QTest::keyClick(window_.get(), Qt::Key_Space);
   QCOMPARE(f2l->phase(), Phase::Idle);
   QVERIFY2(f2l->promptHtml().contains("Nothing is due"),

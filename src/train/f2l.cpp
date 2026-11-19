@@ -597,11 +597,20 @@ Alg sideToSlot(const Alg &alg, PairSide side, Slot slot) {
 Alg comparableSolution(const Alg &moves) {
   Alg a = simplify(fixedFrame(moves));
   auto isU = [](Move m) { return m.type == MoveType::U; };
-  while (!a.empty() && isU(a.front())) {
-    a.erase(a.begin());
-  }
-  while (!a.empty() && isU(a.back())) {
-    a.pop_back();
+  auto isUD = [&isU](Move m) { return isU(m) || m.type == MoveType::D; };
+  // The U turns among the U and D turns it starts and ends with (which
+  // turn in either order) are the AUF; without them, what is left may
+  // simplify, and start or end with more.
+  for (bool changed = true; changed;) {
+    const std::size_t before = a.size();
+    auto front = std::find_if_not(a.begin(), a.end(), isUD);
+    a.erase(std::remove_if(a.begin(), front, isU), front);
+    auto back = std::find_if_not(a.rbegin(), a.rend(), isUD).base();
+    a.erase(std::remove_if(back, a.end(), isU), a.end());
+    changed = a.size() != before;
+    if (changed) {
+      a = simplify(a);
+    }
   }
   return ordered(a);
 }
