@@ -434,6 +434,11 @@ private:
   void showSummary();
   QString gradeLine() const;
   QString timedLine() const;
+  // "Best: <alg>" (or the outcome's own label), or nothing to show.
+  QString bestLine(const Outcome &o) const;
+  // The tries of the tab that is up.
+  PracticeTries &tabTries();
+  const PracticeTries &tabTries() const;
   QString inspectionLine() const;
   QString splitsHtml();
   void rowActivated(QTreeWidgetItem *row);
