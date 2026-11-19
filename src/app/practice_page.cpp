@@ -816,151 +816,127 @@ bool PracticePage::handleKey(QKeyEvent *e, bool press) {
   if (tab_ == Tab::Timed) {
     return handleTimedKey(e, press);
   }
-  return press && item_.id != 0 && handleLearnKey(e);
+  if (!press || item_.id == 0) {
+    return false;
+  }
+  TrainKeyEvent k = trainKeyEvent(e, press, KeyChords::None);
+  k.move = settings_.keymap.lookup(e);
+  return perform(PracticeFlow::key(k, flowState()), e);
 }
 
-bool PracticePage::handleChooseKey(QKeyEvent *e) {
-  switch (e->key()) {
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
+PracticeFlow::State PracticePage::flowState() {
+  return {.tab = tab_,
+          .phase = phase_,
+          .choosingAgain = afterChoice_ == Phase::Done,
+          .hidden = item_.hidden,
+          .done = item_.done,
+          .inspecting = item_.inspecting,
+          .hints = hasHints() && !blind(),
+          .waiting = waiting_,
+          .best = item_.outcome && !item_.outcome->best.empty(),
+          .detailOpen = detailOpen_,
+          .graded = item_.graded && item_.grade.has_value(),
+          .chooser = choicePanel() && !item_.card.empty(),
+          .recorded = item_.recorded && item_.card.empty(),
+          .shiftSpaceGivesUp = settings_.drill.shiftSpaceGivesUp};
+}
+
+bool PracticePage::perform(const PracticeFlow::Step &step, QKeyEvent *e) {
+  using A = PracticeFlow::Action;
+  switch (step.action) {
+  case A::None:
+  case A::Undo:
+    break;
+  case A::NextEarly:
+    next(LearnAhead::Early);
+    break;
+  case A::Start:
+    readyPending_ = false;
+    next();
+    break;
+  case A::ConfirmChoice:
     leaveChoice(Choice::Confirmed);
-    return true;
-  case Qt::Key_Escape:
-    if (afterChoice_ == Phase::Done) {
-      leaveChoice(Choice::Cancelled);
-    }
-    return true;
-  case Qt::Key_Space:
-  case Qt::Key_Tab:
-  case Qt::Key_Backspace:
-    return true;
-  default:
     break;
-  }
-  if (e->key() >= Qt::Key_1 && e->key() <= Qt::Key_9) {
-    choiceKey(e->key() - Qt::Key_0);
-    return true;
-  }
-  if (settings_.keymap.lookup(e)) {
+  case A::CancelChoice:
+    leaveChoice(Choice::Cancelled);
+    break;
+  case A::ChoiceKey:
+    choiceKey(step.digit);
+    break;
+  case A::ChooseFirst:
     emit message(tr("Choose first: Enter when your solutions are ticked"));
-    return true;
-  }
-  return false;
-}
-
-bool PracticePage::handleLearnKey(QKeyEvent *e) {
-  const bool shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  if (phase_ == Phase::Idle) {
-    if (e->key() == Qt::Key_Space || e->key() == Qt::Key_Return ||
-        e->key() == Qt::Key_Enter) {
-      next(LearnAhead::Early);
-      return true;
-    }
-    return false;
-  }
-  if (phase_ == Phase::Ready) {
-    if (e->key() == Qt::Key_Space) {
-      readyPending_ = false;
-      next();
-      return true;
-    }
-    return false;
-  }
-  if (phase_ == Phase::Choose) {
-    return handleChooseKey(e);
-  }
-  switch (e->key()) {
-  case Qt::Key_Space:
-    if (phase_ == Phase::Done) {
-      if (waiting_) {
-        emit message(tr("Still working out the best solutions"));
-      } else {
-        next();
-      }
-    } else if (phase_ == Phase::Demo) {
-      introduced();
-    } else if (item_.hidden) {
-      showHidden(false);
-      finishLearn(item_.done ? Try::Finished : Try::GaveUp);
-    } else if (shift && settings_.drill.shiftSpaceGivesUp) {
-      finishLearn(Try::GaveUp);
-    }
-    return true;
-  case Qt::Key_Tab:
-    if (phase_ == Phase::Solving && hasHints() && !item_.hidden) {
-      const QString text = hint();
-      if (text.isEmpty()) {
-        emit message(tr("Still working out the best solutions"));
-      } else {
-        item_.hint = true;
-        requestedHint_->setText(text);
-        showKeys();
-      }
-    } else if (phase_ == Phase::Done) {
-      toggleDetail();
-    }
-    return true;
-  case Qt::Key_Backspace:
-    // Drill's give-up key, which is Shift+Space unless set otherwise: one
-    // press of Backspace mustn't record a DNF that can't be taken back.
-    if (phase_ == Phase::Solving) {
-      if (settings_.drill.shiftSpaceGivesUp) {
-        hint_->setHint(
-            timedHintText(DrillFlow::Hint::GiveUpKey, settings_.drill),
-            hint_->keys());
-      } else {
-        showHidden(false);
-        finishLearn(Try::GaveUp);
-      }
-    }
-    return true;
-  case Qt::Key_Delete:
-    if (phase_ == Phase::Done && !waiting_) {
-      deleteLearnTry();
-    }
-    return true;
-  case Qt::Key_Escape:
-    if (phase_ == Phase::Done) {
-      if (!waiting_) {
-        sameAgain();
-      }
-    } else if (tab_ == Tab::Inspection) {
-      sameAgain(); // the clock again too, and not recorded
+    break;
+  case A::Next:
+    next();
+    break;
+  case A::StillWorking:
+    emit message(tr("Still working out the best solutions"));
+    break;
+  case A::Introduced:
+    introduced();
+    break;
+  case A::Reveal:
+    showHidden(false);
+    finishLearn(step.gaveUp ? Try::GaveUp : Try::Finished);
+    break;
+  case A::GiveUp:
+    showHidden(false);
+    finishLearn(Try::GaveUp);
+    break;
+  case A::GiveUpKeyHint:
+    hint_->setHint(timedHintText(DrillFlow::Hint::GiveUpKey, settings_.drill),
+                   hint_->keys());
+    break;
+  case A::Hint:
+    if (const QString text = hint(); text.isEmpty()) {
+      emit message(tr("Still working out the best solutions"));
     } else {
-      resetCube();
-      showAll();
+      item_.hint = true;
+      requestedHint_->setText(text);
+      showKeys();
     }
-    return true;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    if (phase_ == Phase::Demo) {
-      playDemo();
-    } else if (phase_ == Phase::Done) {
-      playBest();
+    break;
+  case A::ToggleDetail:
+    toggleDetail();
+    break;
+  case A::DeleteTry:
+    deleteLearnTry();
+    break;
+  case A::Retry:
+    sameAgain();
+    break;
+  case A::ResetCube:
+    resetCube();
+    showAll();
+    break;
+  case A::PlayDemo:
+    playDemo();
+    break;
+  case A::PlayBest:
+    playBest();
+    break;
+  case A::Regrade:
+    regrade(step.grade);
+    item_.gradedByHand = true;
+    break;
+  case A::ChooseAgain:
+    chooseAgain();
+    break;
+  case A::ModeKey:
+    // The mode's own keys first; the turning keys turn the cube freely.
+    if (doneKey(e)) {
+      return true;
     }
-    return true;
-  default:
+    if (step.move) {
+      learnTurn(*step.move);
+      return true;
+    }
+    return false;
+  case A::Turn:
+    learnTurn(*step.move);
     break;
   }
-  if (phase_ == Phase::Done && item_.graded && item_.grade && !waiting_ &&
-      e->key() >= Qt::Key_1 && e->key() <= Qt::Key_4) {
-    regrade(static_cast<Grade>(e->key() - Qt::Key_1 + 1));
-    item_.gradedByHand = true;
-    return true;
-  }
-  if (phase_ == Phase::Done && !waiting_ && doneKey(e)) {
-    return true;
-  }
-  if (phase_ == Phase::Done && e->key() == Qt::Key_0 && choicePanel() &&
-      !item_.card.empty()) {
-    chooseAgain();
-    return true;
-  }
-  if (auto m = settings_.keymap.lookup(e)) {
-    learnTurn(*m);
-    return true;
-  }
-  return false;
+  return step.handled;
 }
 
 // --- Learn -------------------------------------------------------------------
@@ -1514,19 +1490,7 @@ void PracticePage::showKeys() {
   const bool best = item_.outcome && !item_.outcome->best.empty();
   const PracticeKeys k =
       tab_ != Tab::Timed
-          ? untimedKeys({.phase = phase_,
-                         .choosingAgain = afterChoice_ == Phase::Done,
-                         .hidden = item_.hidden,
-                         .inspecting = item_.inspecting,
-                         .hints = hasHints() && !blind(),
-                         .waiting = waiting_,
-                         .best = best,
-                         .detailOpen = detailOpen_,
-                         .graded = item_.graded && item_.grade.has_value(),
-                         .chooser = choicePanel() && !item_.card.empty(),
-                         .recorded = item_.recorded && item_.card.empty(),
-                         .giveUpKey = giveUpKeyName(settings_.drill),
-                         .modeKeys = doneKeys()})
+          ? untimedKeys(flowState(), doneKeys())
           : timedKeys(flow_, settings_.drill,
                       {.physical = physical_,
                        .scrambleShown = !item_.scramble.isEmpty(),

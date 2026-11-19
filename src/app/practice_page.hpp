@@ -11,6 +11,7 @@
 #include "io/practice_store.hpp"
 #include "train/drill_flow.hpp"
 #include "train/practice.hpp"
+#include "train/practice_flow.hpp"
 
 #include <QFutureWatcher>
 #include <QIcon>
@@ -378,8 +379,10 @@ private:
   void scrambleReady();
 
   // --- the tabs that aren't timed
-  bool handleLearnKey(QKeyEvent *e);
-  bool handleChooseKey(QKeyEvent *e);
+  // Where the tab is, as its keys and their hints are read.
+  PracticeFlow::State flowState();
+  // Does what the flow asked after a key (`e`, for the mode's own keys).
+  bool perform(const PracticeFlow::Step &step, QKeyEvent *e);
   void enterChoice(Phase after);
   // Leaves the choice of solutions, keeping what was ticked or not.
   enum class Choice { Confirmed, Cancelled };

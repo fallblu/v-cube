@@ -20,6 +20,7 @@ add_library(vcube_train
   move_count.cpp
   move_set.cpp
   practice.cpp
+  practice_flow.cpp
   optimal_cache.cpp
   reduction.cpp
   solve_review.cpp

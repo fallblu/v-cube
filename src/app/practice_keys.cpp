@@ -16,9 +16,11 @@ KeyHint detailKey(bool open) {
 
 } // namespace
 
-PracticeKeys untimedKeys(const UntimedKeysState &s) {
+PracticeKeys untimedKeys(const PracticeFlow::State &s,
+                         const QList<KeyHint> &modeKeys) {
   QList<KeyHint> keys;
   QString message;
+  const QString giveUpKey = giveUpKeyName(s.shiftSpaceGivesUp);
   switch (s.phase) {
   case PracticePhase::Idle:
     keys = {{"Space", tr("look again")}};
@@ -43,7 +45,7 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     if (s.hidden) {
       message = tr("The cube is hidden: do what you planned.");
       keys = {{"Space", tr("show the cube")},
-              {s.giveUpKey, tr("give up")},
+              {giveUpKey, tr("give up")},
               {"Esc", tr("start again")}};
       break;
     }
@@ -53,7 +55,7 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     if (s.hints) {
       keys << KeyHint{"Tab", tr("hint")};
     }
-    keys << KeyHint{s.giveUpKey, tr("give up")}
+    keys << KeyHint{giveUpKey, tr("give up")}
          << KeyHint{"Esc", tr("start again")};
     break;
   case PracticePhase::Done:
@@ -69,7 +71,7 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     if (s.graded) {
       keys << KeyHint{"1-4", tr("change the grade")};
     }
-    keys << s.modeKeys;
+    keys << modeKeys;
     if (s.chooser) {
       keys << KeyHint{"0", tr("change your solutions")};
     }
@@ -82,8 +84,12 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
   return {message, keys};
 }
 
+QString giveUpKeyName(bool shiftSpaceGivesUp) {
+  return shiftSpaceGivesUp ? tr("Shift+Space") : tr("Backspace");
+}
+
 QString giveUpKeyName(const DrillSettings &drill) {
-  return drill.shiftSpaceGivesUp ? tr("Shift+Space") : tr("Backspace");
+  return giveUpKeyName(drill.shiftSpaceGivesUp);
 }
 
 PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,

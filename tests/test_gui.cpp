@@ -1969,13 +1969,13 @@ void GuiTest::practiceKeysFollowThePhase() {
     return all.join(' ');
   };
   using P = PracticePhase;
-  auto untimed = [](P phase, auto set) {
-    UntimedKeysState s;
+  auto untimed = [](P phase, auto set, const QList<KeyHint> &modeKeys = {}) {
+    PracticeFlow::State s;
     s.phase = phase;
     set(s);
-    return untimedKeys(s);
+    return untimedKeys(s, modeKeys);
   };
-  auto asIs = [](UntimedKeysState &) {};
+  auto asIs = [](PracticeFlow::State &) {};
   QCOMPARE(names(untimed(P::Idle, asIs)), QString("Space"));
   QCOMPARE(names(untimed(P::Choose, asIs)), QString("1-9 Enter"));
   QCOMPARE(names(untimed(P::Choose, [](auto &s) { s.choosingAgain = true; })),
@@ -1984,7 +1984,7 @@ void GuiTest::practiceKeysFollowThePhase() {
            QString("Tab Shift+Space Esc"));
   // Drill's give-up key, whichever it is.
   QCOMPARE(
-      names(untimed(P::Solving, [](auto &s) { s.giveUpKey = "Backspace"; })),
+      names(untimed(P::Solving, [](auto &s) { s.shiftSpaceGivesUp = false; })),
       QString("Backspace Esc"));
   // A hidden cube has no hint to give, and says so.
   const PracticeKeys hidden =
@@ -1996,15 +1996,63 @@ void GuiTest::practiceKeysFollowThePhase() {
       untimed(P::Done, [](auto &s) { s.waiting = s.best = true; });
   QVERIFY(waiting.keys.isEmpty() && !waiting.message.isEmpty());
   QCOMPARE(names(untimed(P::Done,
-                         [](auto &s) {
-                           s.best = s.graded = s.chooser = true;
-                           s.modeKeys = {{"+", "add"}};
-                         })),
+                         [](auto &s) { s.best = s.graded = s.chooser = true; },
+                         {{"+", "add"}})),
            QString("Space Enter Tab 1-4 + 0 Esc"));
   QCOMPARE(names(untimed(P::Done, asIs)), QString("Space Tab Esc"));
   // An Untimed or Inspection try just kept can be deleted.
   QCOMPARE(names(untimed(P::Done, [](auto &s) { s.recorded = true; })),
            QString("Space Tab Delete Esc"));
+
+  // Every key a hint names does something in the state it is shown in:
+  // the hints and the keys are read from the same state.
+  auto keyOf = [](const QString &name) -> std::optional<TrainKeyEvent> {
+    TrainKeyEvent k;
+    if (name == "Space" || name == "Shift+Space") {
+      k.key = TrainKey::Space;
+      k.shift = name == "Shift+Space";
+    } else if (name == "Backspace") {
+      k.key = TrainKey::Backspace;
+    } else if (name == "Enter") {
+      k.key = TrainKey::Enter;
+    } else if (name == "Tab") {
+      k.key = TrainKey::Tab;
+    } else if (name == "Esc") {
+      k.key = TrainKey::Escape;
+    } else if (name == "Delete") {
+      k.key = TrainKey::Delete;
+    } else if (name == "1-9" || name == "1-4" || name == "0") {
+      k.key = TrainKey::Digit;
+      k.digit = name == "0" ? 0 : 1;
+    } else {
+      return std::nullopt;
+    }
+    return k;
+  };
+  for (int bits = 0; bits < (1 << 10); ++bits) {
+    for (P phase :
+         {P::Idle, P::Ready, P::Choose, P::Demo, P::Solving, P::Done}) {
+      PracticeFlow::State s;
+      s.phase = phase;
+      s.tab = bits & 1 ? PracticeTab::Inspection : PracticeTab::Learn;
+      s.hidden = bits & 2;
+      s.waiting = bits & 4;
+      s.hints = bits & 8;
+      s.graded = bits & 16;
+      s.chooser = bits & 32;
+      s.recorded = bits & 64;
+      s.choosingAgain = bits & 128;
+      s.shiftSpaceGivesUp = bits & 256;
+      s.best = bits & 512;
+      for (const KeyHint &h : untimedKeys(s).keys) {
+        const std::optional<TrainKeyEvent> k = keyOf(h.key);
+        QVERIFY2(k, qPrintable(h.key));
+        const PracticeFlow::Step step = PracticeFlow::key(*k, s);
+        QVERIFY2(step.handled && step.action != PracticeFlow::Action::None,
+                 qPrintable(h.key));
+      }
+    }
+  }
 
   DrillFlow flow;
   DrillFlow::Config config;
