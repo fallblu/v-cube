@@ -207,7 +207,6 @@ void PracticePage::build() {
   });
   connect(&scrambles_, &QFutureWatcher<GeneratedScramble>::finished, this,
           &PracticePage::scrambleReady);
-  tick_.setInterval(37);
   connect(&tick_, &QTimer::timeout, this, &PracticePage::onTick);
 
   built_ = true;
@@ -312,10 +311,6 @@ void PracticePage::optionChanged() {
   item_ = {};
   progress_.clear();
   readyPending_ = true;
-  // Only Timed and Inspection have a clock to keep up.
-  if (tab_ != Tab::Timed && tab_ != Tab::Inspection) {
-    tick_.stop();
-  }
   showBar();
   fillList();
   if (active_) {
@@ -359,9 +354,7 @@ void PracticePage::activated() {
     refreshList();
     showSummary();
   }
-  if (tab_ == Tab::Timed || tab_ == Tab::Inspection) {
-    tick_.start();
-  }
+  updateTick();
 }
 
 void PracticePage::deactivated() {
@@ -383,6 +376,7 @@ void PracticePage::deactivated() {
 void PracticePage::windowDeactivated() {
   if (tab_ == Tab::Timed && flow_.loseKeyboard()) {
     display_->showTimer(flow_.timer(), monotonicMs());
+    updateTick();
   }
 }
 
@@ -522,9 +516,6 @@ void PracticePage::nextLearn(LearnAhead ahead) {
     begin(*s, Extent::Whole);
     phase_ = Phase::Solving;
     cubeChanged();
-    if (tab_ == Tab::Inspection && active_) {
-      tick_.start();
-    }
     showAll();
     return;
   }
@@ -670,9 +661,6 @@ void PracticePage::nextTimed() {
   if (physical_) {
     requestScramble();
   }
-  if (active_) {
-    tick_.start();
-  }
   showAll();
 }
 
@@ -712,9 +700,6 @@ void PracticePage::sameAgain() {
     display_->showTime(0);
   } else {
     phase_ = Phase::Solving;
-  }
-  if (tab_ == Tab::Inspection && active_) {
-    tick_.start();
   }
   showAll();
 }
@@ -782,6 +767,10 @@ bool PracticePage::handleKey(QKeyEvent *e, bool press) {
                   (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
     return false;
   }
+  struct Update {
+    PracticePage *page;
+    ~Update() { page->updateTick(); }
+  } update{this};
   if (tab_ == Tab::Timed) {
     return handleTimedKey(e, press);
   }
@@ -1256,6 +1245,21 @@ void PracticePage::showInspection() {
                                     palette().color(QPalette::WindowText)));
 }
 
+void PracticePage::updateTick() {
+  // The clock is only redrawn while it changes: a hold of Space or a solve
+  // on the Timed tab, the inspection clock running.
+  const bool busy = active_ && ((tab_ == Tab::Timed && flow_.busy()) ||
+                                (tab_ == Tab::Inspection && item_.inspecting &&
+                                 phase_ == Phase::Solving));
+  if (busy != tick_.isActive()) {
+    if (busy) {
+      tick_.start(16); // as Drill's and the timer's
+    } else {
+      tick_.stop();
+    }
+  }
+}
+
 void PracticePage::onTick() {
   if (tab_ == Tab::Inspection) {
     if (item_.inspecting && phase_ == Phase::Solving) {
@@ -1266,7 +1270,9 @@ void PracticePage::onTick() {
   if (tab_ != Tab::Timed) {
     return;
   }
-  driver_.tick(monotonicMs());
+  if (driver_.tick(monotonicMs())) {
+    updateTick();
+  }
 }
 
 // --- analysis ----------------------------------------------------------------
@@ -1336,6 +1342,7 @@ void PracticePage::showAll() {
   if (!built_) {
     return;
   }
+  updateTick();
   // Tab's hint stays while the case is being solved.
   if (!item_.hint || phase_ != Phase::Solving) {
     requestedHint_->clear();

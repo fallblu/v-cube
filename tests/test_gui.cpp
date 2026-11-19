@@ -1067,6 +1067,7 @@ void GuiTest::f2lLearnAndTimed() {
   f2l->setPhysical(true);
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Waiting);
   QVERIFY(f2l->cubeHidden());
+  QVERIFY(!f2l->ticking()); // nothing to redraw while it waits
   QTRY_VERIFY_WITH_TIMEOUT(!f2l->scrambleText().isEmpty(), 30000);
   {
     // The scramble gives the state, held as the solve is.
@@ -1078,9 +1079,11 @@ void GuiTest::f2lLearnAndTimed() {
   holdSpace();
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Running);
   QVERIFY(f2l->isBusy());
+  QVERIFY(f2l->ticking());
   QTest::qWait(DrillFlow::kMinPhysicalMs + 100);
   QTest::keyClick(window_.get(), Qt::Key_A);
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Revealed);
+  QVERIFY(!f2l->ticking());
   const std::string physicalGroup = timedKey(CubeKind::Physical, "zz-1");
   QCOMPARE(f2l->data().timed.at(physicalGroup).size(), std::size_t{1});
   QCOMPARE(f2l->data().timed.at(physicalGroup).back().moves, 0);
@@ -1354,9 +1357,11 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(eo->inspectionLimit(), 15);
   QCOMPARE(eo->phase(), Phase::Ready);
   QVERIFY(eo->promptHtml().contains("Ready"));
+  QVERIFY(!eo->ticking());
   QTest::keyClick(window_.get(), Qt::Key_Space);
   QCOMPARE(eo->phase(), Phase::Solving);
   QVERIFY(eo->inspecting());
+  QVERIFY(eo->ticking());
   QCOMPARE(eo->shownHold(), settings_.neutrality.main);
   QVERIFY(!doneHold(eo->cube(), step, holds));
   typeMoves(parseAlgOrEmpty("y"));
@@ -1366,6 +1371,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QTest::qWait(30);
   int optimum = solveOptimally();
   QVERIFY(!eo->inspecting());
+  QVERIFY(!eo->ticking());
   QVERIFY(eo->inspectedMs() > 0);
   QVERIFY(eo->cubeHidden());
   QCOMPARE(eo->phase(), Phase::Solving);

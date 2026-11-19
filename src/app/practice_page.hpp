@@ -126,6 +126,8 @@ public:
   // clock runs or with no inspection).
   std::int64_t inspectedMs() const { return item_.inspectMs; }
   bool inspecting() const { return item_.inspecting; }
+  // The clock is being redrawn.
+  bool ticking() const { return tick_.isActive(); }
   // The scramble of a physical attempt ("" until it is worked out).
   QString scrambleText() const { return item_.scramble; }
   // The mode's solutions for the state are worked out.
@@ -421,6 +423,8 @@ private:
   void toggleDnf();
   void deleteTry();
   void deleteLearnTry(); // Delete on a finished Untimed or Inspection try
+  // Runs the tick while the clock changes, and stops it otherwise.
+  void updateTick();
   void onTick();
   std::string timedGroupKey() const;
 
