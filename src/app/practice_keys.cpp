@@ -84,54 +84,21 @@ PracticeKeys untimedKeys(const PracticeFlow::State &s,
   return {message, keys};
 }
 
-QString giveUpKeyName(bool shiftSpaceGivesUp) {
-  return shiftSpaceGivesUp ? tr("Shift+Space") : tr("Backspace");
-}
-
-QString giveUpKeyName(const DrillSettings &drill) {
-  return giveUpKeyName(drill.shiftSpaceGivesUp);
-}
-
 PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,
                        const TimedKeysState &s) {
   QList<KeyHint> keys;
   QString message;
-  const KeyHint giveUp{giveUpKeyName(drill), tr("give up")};
   switch (flow.phase()) {
   case DrillFlow::Phase::NoCase:
     keys = {{"Space", tr("look again")}};
     break;
   case DrillFlow::Phase::Waiting:
-    if (s.physical) {
-      message =
-          s.scrambleShown ? tr("Scramble, then start the timer.") : QString();
-      keys = {{tr("hold Space"), tr("start on letting go")}, giveUp};
-    } else if (flow.armed()) {
-      message = tr("Ready: the first face turn starts the timer.");
-      keys = {{"Esc", tr("not yet")}, giveUp};
-    } else if (drill.tapToArm) {
-      message = tr("Turn the cube as a whole to look at it.");
-      keys = {{"Space", tr("ready: the first face turn starts the timer")},
-              giveUp};
-    } else {
-      message = tr("Turn the cube as a whole to look at it.");
-      keys = {{tr("hold Space"), tr("start on letting go or turning")}, giveUp};
-    }
+  case DrillFlow::Phase::Running: {
+    TimedSolveKeys solve = timedSolveKeys(flow, drill, s.scrambleShown);
+    message = solve.message;
+    keys = solve.keys;
     break;
-  case DrillFlow::Phase::Running:
-    if (s.physical) {
-      keys = {{tr("any key but Shift, Ctrl, Alt"), tr("stop")},
-              giveUp,
-              {"Esc", tr("cancel")}};
-    } else if (drill.autoStop) {
-      message = tr("The timer stops when the step is done.");
-      keys = {{"Space", tr("stop now (a DNF unless done)")},
-              giveUp,
-              {"Esc", tr("cancel")}};
-    } else {
-      keys = {{"Space", tr("stop")}, giveUp, {"Esc", tr("cancel")}};
-    }
-    break;
+  }
   case DrillFlow::Phase::Revealed:
     keys << KeyHint{"Space", tr("next")};
     if (s.best) {
@@ -153,23 +120,6 @@ PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,
     break;
   }
   return {message, keys};
-}
-
-QString timedHintText(DrillFlow::Hint hint, const DrillSettings &drill) {
-  switch (hint) {
-  case DrillFlow::Hint::GiveUpKey:
-    return tr("Shift+Space gives the solve up.");
-  case DrillFlow::Hint::KeepHolding:
-    return tr("Keep holding Space until the time turns green, then let go "
-              "or start turning.");
-  case DrillFlow::Hint::OnlyRotations:
-    return drill.tapToArm
-               ? tr("Only rotations until the timer starts: tap Space first.")
-               : tr("Only rotations until the timer starts (hold Space).");
-  case DrillFlow::Hint::None:
-    break;
-  }
-  return {};
 }
 
 } // namespace vcube

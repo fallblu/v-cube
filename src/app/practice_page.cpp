@@ -111,6 +111,7 @@ void PracticePage::build() {
 
   display_ = new TimeDisplay(right);
   display_->setAlignment(Qt::AlignCenter);
+  driver_.setDisplay(display_);
   // A hint asked for is what is being looked for: under the cube, as large
   // as an alg being done.
   requestedHint_ = new QLabel(right);
@@ -852,8 +853,7 @@ bool PracticePage::perform(const PracticeFlow::Step &step, QKeyEvent *e) {
     finishLearn(Try::GaveUp);
     break;
   case A::GiveUpKeyHint:
-    hint_->setHint(timedHintText(DrillFlow::Hint::GiveUpKey, settings_.drill),
-                   hint_->keys());
+    timedSay(timedHintText(DrillFlow::Hint::GiveUpKey, settings_.drill));
     break;
   case A::Hint:
     if (const QString text = hint(); text.isEmpty()) {
@@ -1101,113 +1101,64 @@ bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
     return true;
   }
   const bool scrambleShown = !physical_ || !item_.scramble.isEmpty();
-  DrillFlow::Step step =
-      flow_.key(flowKey(e, press), now,
-                scrambleShown ? Scramble::Shown : Scramble::Awaited);
-  perform(step, now);
-  return step.handled;
+  return driver_.key(flowKey(e, press), now,
+                     scrambleShown ? Scramble::Shown : Scramble::Awaited);
 }
 
-void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
-  using A = DrillFlow::Action;
-  switch (step.action) {
-  case A::None:
-  case A::PracticeReset:
-  case A::PracticeTurn:
-    break;
-  case A::NextFromIdle:
-  case A::NextCase:
-    next();
-    break;
-  case A::Retry:
-    sameAgain();
-    break;
-  case A::ResetWaiting:
-    display_->showTime(0);
-    if (!physical_) {
-      resetCube();
-    }
-    showKeys();
-    break;
-  case A::Rotate:
-    // Looking at the cube before the start: part of the solve's moves, so
-    // that the hold it is solved in is known.
-    applyTurn(*step.move);
-    item_.moves.push_back(*step.move);
-    item_.moveMs.push_back(0);
-    cubeChanged();
-    break;
-  case A::Start:
-    item_.began = now;
-    showKeys();
-    if (step.move) {
-      runningTurn(*step.move, now);
-    } else {
-      display_->showTimer(flow_.timer(), now);
-    }
-    break;
-  case A::Armed:
-    display_->showTimer(flow_.timer(), now);
-    showKeys();
-    break;
-  case A::TimerShown:
-    display_->showTimer(flow_.timer(), now);
-    break;
-  case A::Turn:
-    runningTurn(*step.move, now);
-    break;
-  case A::Stopped:
-    // On the virtual cube a DNF unless the cube shows the step done.
-    finishTimed(step.timeMs, !physical_ && !item_.done
-                                 ? DrillFlow::Result::Failed
-                                 : DrillFlow::Result::Solved);
-    break;
-  case A::CancelNoTurn:
-    cancelTimed(tr("Stopped before any face turn: cancelled, nothing was "
-                   "recorded."));
-    break;
-  case A::Cancel:
-    cancelTimed(tr("Solve cancelled; nothing was recorded."));
-    break;
-  case A::GiveUp:
-    finishTimed(flow_.giveUp(now), DrillFlow::Result::GaveUp);
-    break;
-  case A::Practise:
-    toggleDetail();
-    break;
-  case A::ToggleWrong:
-    toggleDnf();
-    break;
-  case A::Delete:
-    deleteTry();
-    break;
-  case A::Hint:
-    hint_->setHint(timedHintText(step.hint, settings_.drill), hint_->keys());
-    break;
-  }
+void PracticePage::timedNext(bool fromIdle) {
+  (void)fromIdle;
+  next();
 }
 
-void PracticePage::runningTurn(Move m, std::int64_t now) {
-  const bool face = !isRotation(m.type);
+void PracticePage::timedRetry() { sameAgain(); }
+
+void PracticePage::timedResetCube() { resetCube(); }
+
+void PracticePage::timedRotate(Move m) {
+  // Looking at the cube before the start: part of the solve's moves, so
+  // that the hold it is solved in is known.
+  applyTurn(m);
+  item_.moves.push_back(m);
+  item_.moveMs.push_back(0);
+  cubeChanged();
+}
+
+void PracticePage::timedStarted(std::int64_t now) { item_.began = now; }
+
+std::optional<DrillFlow::Turn> PracticePage::timedTurn(Move m,
+                                                       std::int64_t now) {
   applyTurn(m);
   item_.moves.push_back(m);
   item_.moveMs.push_back(now - item_.began);
   item_.done = turned();
   cubeChanged();
-  std::optional<std::int64_t> stopped = flow_.turned(
-      face ? DrillFlow::Turn::OffUdFace : DrillFlow::Turn::Rotation, now,
-      [this] { return item_.done; });
-  if (stopped) {
-    finishTimed(*stopped, DrillFlow::Result::Solved);
-  }
+  return isRotation(m.type) ? DrillFlow::Turn::Rotation
+                            : DrillFlow::Turn::OffUdFace;
 }
 
-void PracticePage::cancelTimed(const QString &why) {
-  flow_.cancelSolve();
-  display_->showTime(0);
-  if (!physical_) {
-    resetCube();
-  }
+void PracticePage::timedFinish(std::int64_t ms, DrillFlow::Result result) {
+  finishTimed(ms, result);
+}
+
+void PracticePage::timedPractise(bool aided) {
+  // No practice here: Tab shows how efficient the solve was.
+  (void)aided;
+  toggleDetail();
+}
+
+void PracticePage::timedToggleWrong() { toggleDnf(); }
+
+void PracticePage::timedDelete() { deleteTry(); }
+
+void PracticePage::timedFinishAnimations() { cubeView_->finishAnimations(); }
+
+void PracticePage::timedShowKeys() { showKeys(); }
+
+void PracticePage::timedSay(const QString &text) {
+  hint_->setHint(text, hint_->keys());
+}
+
+void PracticePage::timedCancelled(const QString &why) {
   showAll();
   hint_->setHint(why, hint_->keys());
 }
@@ -1315,18 +1266,7 @@ void PracticePage::onTick() {
   if (tab_ != Tab::Timed) {
     return;
   }
-  const std::int64_t now = monotonicMs();
-  // A popup or dialog took the keyboard: Space's release won't come.
-  if (flow_.holding() && (QApplication::activePopupWidget() ||
-                          QApplication::activeModalWidget())) {
-    flow_.loseKeyboard();
-    display_->showTimer(flow_.timer(), now);
-    return;
-  }
-  flow_.tick(now);
-  if (flow_.busy()) {
-    display_->showTimer(flow_.timer(), now);
-  }
+  driver_.tick(monotonicMs());
 }
 
 // --- analysis ----------------------------------------------------------------
@@ -1460,8 +1400,7 @@ void PracticePage::showKeys() {
       tab_ != Tab::Timed
           ? untimedKeys(flowState(), doneKeys())
           : timedKeys(flow_, settings_.drill,
-                      {.physical = physical_,
-                       .scrambleShown = !item_.scramble.isEmpty(),
+                      {.scrambleShown = !item_.scramble.isEmpty(),
                        .best = best,
                        .detailOpen = detailOpen_,
                        .recorded = item_.recorded});

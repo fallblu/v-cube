@@ -26,6 +26,7 @@
 #include "app/quiz_practice.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
+#include "app/timed_driver.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
 #include "app/train_keys.hpp"
@@ -324,6 +325,7 @@ private slots:
   void theSameKeyTwiceArrivesTwice();
   void undoneDeletionKeepsProgressUnderANewId();
   void appDataLoadsThePracticeFiles();
+  void timedDriverDoesWhatTheFlowAsks();
   void cleanupTestCase();
 };
 
@@ -2066,7 +2068,6 @@ void GuiTest::practiceKeysFollowThePhase() {
   config.virtualCube = false;
   flow.setConfig(config);
   flow.setUp(0);
-  timed.physical = true;
   const PracticeKeys awaited = timedKeys(flow, drill, timed);
   QCOMPARE(names(awaited), QString("hold Space Shift+Space"));
   QVERIFY(awaited.message.isEmpty());
@@ -2639,6 +2640,105 @@ void GuiTest::appDataLoadsThePracticeFiles() {
   PracticeStore again(QDir(dir.path()).filePath("tsle.json"));
   QVERIFY(again.load());
   QCOMPARE(again.data.notes, data.tsle.data.notes);
+}
+
+void GuiTest::timedDriverDoesWhatTheFlowAsks() {
+  // The host Drill and the practice Timed tabs give the driver: what it
+  // was asked to do, in order.
+  struct Host : TimedHost {
+    QStringList calls;
+    bool done = false;
+    void timedNext(bool fromIdle) override {
+      calls << (fromIdle ? "next from idle" : "next");
+    }
+    void timedRetry() override { calls << "retry"; }
+    void timedResetCube() override { calls << "reset"; }
+    void timedRotate(Move) override { calls << "rotate"; }
+    void timedStarted(std::int64_t) override { calls << "started"; }
+    std::optional<DrillFlow::Turn> timedTurn(Move m, std::int64_t) override {
+      calls << "turn";
+      return isRotation(m.type) ? DrillFlow::Turn::Rotation
+                                : DrillFlow::Turn::OffUdFace;
+    }
+    bool timedStepDone() override { return done; }
+    void timedFinish(std::int64_t, DrillFlow::Result r) override {
+      calls << (r == DrillFlow::Result::Solved   ? "solved"
+                : r == DrillFlow::Result::Failed ? "failed"
+                                                 : "gave up");
+    }
+    void timedPractise(bool) override { calls << "practise"; }
+    void timedToggleWrong() override { calls << "wrong"; }
+    void timedDelete() override { calls << "delete"; }
+    void timedFinishAnimations() override {}
+    void timedShowKeys() override {}
+    void timedSay(const QString &text) override { calls << "say " + text; }
+    void timedCancelled(const QString &why) override {
+      calls << "cancelled " + why;
+    }
+  } host;
+  DrillSettings drill;
+  drill.tapToArm = true;
+  drill.autoStop = true;
+  drill.shiftSpaceGivesUp = true;
+  TimeDisplay display;
+  TimedDriver driver(host, drill);
+  driver.setDisplay(&display);
+  DrillFlow::Config config;
+  config.virtualCube = true;
+  driver.flow().setConfig(config);
+  driver.flow().setUp(0);
+  auto press = [](TrainKey key, bool shift = false) {
+    TrainKeyEvent k;
+    k.key = key;
+    k.shift = shift;
+    return k;
+  };
+  auto turn = [](MoveType t) {
+    TrainKeyEvent k;
+    k.move = Move{t, 1};
+    return k;
+  };
+  auto release = [&press] {
+    TrainKeyEvent k = press(TrainKey::Space);
+    k.press = false;
+    return k;
+  };
+  std::int64_t now = 1000;
+  // A face turn before the timer can start is said, a rotation looks.
+  QVERIFY(driver.key(turn(MoveType::R), now, Scramble::Shown));
+  QCOMPARE(host.calls.takeFirst(),
+           "say " + timedHintText(DrillFlow::Hint::OnlyRotations, drill));
+  QVERIFY(driver.key(turn(MoveType::Y), now, Scramble::Shown));
+  QCOMPARE(host.calls.takeFirst(), QString("rotate"));
+  // Backspace says which key gives up.
+  driver.key(press(TrainKey::Backspace), now, Scramble::Shown);
+  QVERIFY(host.calls.takeFirst().contains("Shift+Space"));
+  // Armed, the first face turn starts the timer and is a turn of the
+  // solve; the turn that does the step stops it.
+  driver.key(press(TrainKey::Space), now, Scramble::Shown);
+  driver.key(release(), now, Scramble::Shown);
+  host.calls.clear();
+  driver.key(turn(MoveType::R), now += 100, Scramble::Shown);
+  QCOMPARE(host.calls, QStringList({"started", "turn"}));
+  host.calls.clear();
+  host.done = true;
+  driver.key(turn(MoveType::U), now += 500, Scramble::Shown);
+  QCOMPARE(host.calls, QStringList({"turn", "solved"}));
+  host.calls.clear();
+  // Esc during a solve cancels it, saying so.
+  driver.flow().setUp(now);
+  driver.key(press(TrainKey::Space), now, Scramble::Shown);
+  driver.key(release(), now, Scramble::Shown);
+  host.done = false;
+  driver.key(turn(MoveType::R), now += 100, Scramble::Shown);
+  host.calls.clear();
+  driver.key(press(TrainKey::Escape), now += 100, Scramble::Shown);
+  QCOMPARE(host.calls, QStringList({"reset", "cancelled " + cancelledText()}));
+  QCOMPARE(driver.flow().phase(), DrillFlow::Phase::Waiting);
+  // Shift+Space gives up.
+  host.calls.clear();
+  driver.key(press(TrainKey::Space, true), now, Scramble::Shown);
+  QCOMPARE(host.calls, QStringList({"gave up"}));
 }
 
 void GuiTest::cleanupTestCase() {

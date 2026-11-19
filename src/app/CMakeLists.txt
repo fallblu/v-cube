@@ -36,6 +36,7 @@ add_library(vcube_gui STATIC
   practice_keys.cpp
   practice_list.cpp
   practice_page.cpp
+  timed_driver.cpp
   tsle_page.cpp
   train_keys.cpp
   key_router.cpp

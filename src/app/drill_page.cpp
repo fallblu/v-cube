@@ -159,6 +159,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   scrambleLabel_->setMinimumHeight(56);
 
   display_ = new TimeDisplay(right);
+  driver_.setDisplay(display_);
   statusLabel_ = new QLabel(right);
   statusLabel_->setAlignment(Qt::AlignCenter);
   statusLabel_->setWordWrap(true);
@@ -378,8 +379,8 @@ void DrillPage::deactivated() {
   cubeView_->finishAnimations();
   tick_.stop();
   if (flow_.leave()) {
-    cancelSolve(tr("The solve was left and cancelled; nothing was "
-                   "recorded."));
+    driver_.cancel(tr("The solve was left and cancelled; nothing was "
+                      "recorded."));
   } else if (flow_.phase() == Phase::Waiting) {
     display_->showTime(0);
     showStatus();
@@ -479,11 +480,6 @@ void DrillPage::startCase(const std::string &caseId) {
   }
 }
 
-QString DrillPage::giveUpKeyText() const {
-  return settings_.drill.shiftSpaceGivesUp ? tr("Shift+Space")
-                                           : tr("Backspace");
-}
-
 void DrillPage::offer(const QString &text, std::function<void()> run) {
   offerRun_ = std::move(run);
   offerButton_->setText(text);
@@ -499,7 +495,7 @@ void DrillPage::say(const QString &message, const QList<KeyHint> &keys) {
 
 void DrillPage::showStatus() {
   const bool virt = onVirtualCube();
-  const KeyHint giveUp{giveUpKeyText(), tr("give up")};
+  const KeyHint giveUp{giveUpKeyName(settings_.drill), tr("give up")};
   const bool recorded = flow_.recorded();
   const bool failed = flow_.failed();
   const bool gaveUp = flow_.gaveUp();
@@ -509,35 +505,13 @@ void DrillPage::showStatus() {
   case Phase::NoCase:
     return;
   case Phase::Waiting:
-    if (!virt) {
-      message = tr("Scramble, then start the timer.");
-      keys = {{tr("hold Space"), tr("start on letting go")}, giveUp};
-    } else if (flow_.armed()) {
-      message = tr("Ready: the first face turn starts the timer.");
-      keys = {{tr("Esc"), tr("not yet")}, giveUp};
-    } else if (settings_.drill.tapToArm) {
-      message = tr("Turn the cube as a whole to look at the case.");
-      keys = {{tr("Space"), tr("ready: the first face turn starts the timer")},
-              giveUp};
-    } else {
-      message = tr("Turn the cube as a whole to look at the case.");
-      keys = {{tr("hold Space"), tr("start on letting go or turning")}, giveUp};
-    }
+  case Phase::Running: {
+    TimedSolveKeys solve = timedSolveKeys(
+        flow_, settings_.drill, current_ && !current_->scramble.isEmpty());
+    message = solve.message;
+    keys = solve.keys;
     break;
-  case Phase::Running:
-    if (!virt) {
-      keys = {{tr("any key but Shift, Ctrl, Alt"), tr("stop")},
-              giveUp,
-              {tr("Esc"), tr("cancel")}};
-    } else if (settings_.drill.autoStop) {
-      message = tr("The timer stops when the step is done.");
-      keys = {{tr("Space"), tr("stop now (a DNF unless done)")},
-              giveUp,
-              {tr("Esc"), tr("cancel")}};
-    } else {
-      keys = {{tr("Space"), tr("stop")}, giveUp, {tr("Esc"), tr("cancel")}};
-    }
-    break;
+  }
   case Phase::Revealed: {
     if (!recorded) {
       message = tr("Deleted; nothing is recorded.");
@@ -826,18 +800,8 @@ void DrillPage::scrambleReady() {
 }
 
 void DrillPage::onTick() {
-  std::int64_t now = monotonicMs();
-  // A popup or dialog took the keyboard: Space's release won't come.
-  if (flow_.holding() && (QApplication::activePopupWidget() ||
-                          QApplication::activeModalWidget())) {
-    flow_.loseKeyboard();
-    display_->showTimer(flow_.timer(), now);
+  if (driver_.tick(monotonicMs())) {
     updateControls();
-    return;
-  }
-  flow_.tick(now);
-  if (isBusy()) {
-    display_->showTimer(flow_.timer(), now);
   }
 }
 

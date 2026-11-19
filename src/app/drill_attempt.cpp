@@ -39,14 +39,10 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
     DrillPage *page;
     ~Update() { page->updateControls(); }
   } update{this};
-  std::int64_t now = monotonicMs();
   bool scrambleShown =
       current_ && (onVirtualCube() || !current_->scramble.isEmpty());
-  DrillFlow::Step step =
-      flow_.key(flowKey(e, press), now,
-                scrambleShown ? Scramble::Shown : Scramble::Awaited);
-  perform(step, now);
-  return step.handled;
+  return driver_.key(flowKey(e, press), monotonicMs(),
+                     scrambleShown ? Scramble::Shown : Scramble::Awaited);
 }
 
 DrillFlow::KeyEvent DrillPage::flowKey(const QKeyEvent *e, bool press) const {
@@ -57,142 +53,52 @@ DrillFlow::KeyEvent DrillPage::flowKey(const QKeyEvent *e, bool press) const {
   return k;
 }
 
-QString DrillPage::hintText(DrillFlow::Hint hint) const {
-  switch (hint) {
-  case DrillFlow::Hint::GiveUpKey:
-    return tr("%1 gives the case up.").arg(giveUpKeyText());
-  case DrillFlow::Hint::KeepHolding:
-    return tr("Keep holding Space until the time turns green, then let go or "
-              "start turning.");
-  case DrillFlow::Hint::OnlyRotations:
-    return settings_.drill.tapToArm
-               ? tr("Only rotations until the timer starts: tap Space first.")
-               : tr("Only rotations until the timer starts (hold Space).");
-  case DrillFlow::Hint::None:
-    break;
+void DrillPage::timedNext(bool fromIdle) {
+  if (fromIdle && picker_.recapDone()) {
+    picker_.restartRecap();
+    recapFrom_ = session_.size();
   }
-  return {};
+  nextCase();
 }
 
-void DrillPage::perform(const DrillFlow::Step &step, std::int64_t now) {
-  using A = DrillFlow::Action;
-  switch (step.action) {
-  case A::None:
-    break;
-  case A::NextFromIdle:
-    if (picker_.recapDone()) {
-      picker_.restartRecap();
-      recapFrom_ = session_.size();
-    }
-    nextCase();
-    break;
-  case A::NextCase:
-    nextCase();
-    break;
-  case A::Retry:
-    retryCase();
-    break;
-  case A::ResetWaiting:
-    display_->showTime(0);
-    if (onVirtualCube()) {
-      resetCube(); // back to the case as it was set up
-    }
-    showStatus();
-    break;
-  case A::Rotate:
-    if (attempt_.turn(*step.move)) {
-      cubeView_->animateMove(*step.move);
-    }
-    break;
-  case A::Start:
-    if (onVirtualCube()) {
-      attempt_.start();
-    }
-    showStatus();
-    if (step.move) {
-      runningTurn(*step.move, now); // the turn that started it counts
-    } else {
-      display_->showTimer(flow_.timer(), now);
-    }
-    break;
-  case A::Armed:
-    display_->showTimer(flow_.timer(), now);
-    showStatus();
-    break;
-  case A::TimerShown:
-    display_->showTimer(flow_.timer(), now);
-    break;
-  case A::Turn:
-    runningTurn(*step.move, now);
-    break;
-  case A::Stopped:
-    if (onVirtualCube()) {
-      // A DNF unless the cube shows the step done.
-      cubeView_->finishAnimations();
-      finish(step.timeMs, stepDone() ? DrillFlow::Result::Solved
-                                     : DrillFlow::Result::Failed);
-    } else {
-      finish(step.timeMs, DrillFlow::Result::Solved);
-    }
-    break;
-  case A::CancelNoTurn:
-    cancelSolve(tr("Stopped before any face turn: cancelled, nothing was "
-                   "recorded."));
-    break;
-  case A::Cancel:
-    cancelSolve(tr("Solve cancelled; nothing was recorded."));
-    break;
-  case A::GiveUp:
-    giveUp(now);
-    break;
-  case A::Practise:
-  case A::PracticeReset:
-    startPractice(step.aided);
-    break;
-  case A::PracticeTurn:
-    practiceTurn(*step.move);
-    break;
-  case A::ToggleWrong:
-    setWrong(!flow_.failed());
-    break;
-  case A::Delete:
-    deleteAttempt();
-    break;
-  case A::Hint:
-    statusLabel_->setText(hintText(step.hint));
-    statusLabel_->show();
-    break;
+void DrillPage::timedRotate(Move m) {
+  if (attempt_.turn(m)) {
+    cubeView_->animateMove(m);
   }
 }
 
-void DrillPage::cancelSolve(const QString &why) {
-  flow_.cancelSolve();
-  cubeView_->finishAnimations();
-  display_->showTime(0);
+void DrillPage::timedStarted(std::int64_t now) {
+  (void)now;
   if (onVirtualCube()) {
-    resetCube();
+    attempt_.start();
   }
-  showStatus();
-  statusLabel_->setText((why + " " + statusLabel_->text()).trimmed());
-  statusLabel_->show();
 }
 
-void DrillPage::runningTurn(Move m, std::int64_t now) {
+std::optional<DrillFlow::Turn> DrillPage::timedTurn(Move m, std::int64_t now) {
+  (void)now;
   const DrillFlow::Turn turn = isRotation(m.type) ? DrillFlow::Turn::Rotation
                                : udTurn(attempt_.cube(), m)
                                    ? DrillFlow::Turn::UdFace
                                    : DrillFlow::Turn::OffUdFace;
   if (!attempt_.turn(m)) {
-    return;
+    return std::nullopt;
   }
-  // The first turn of a layer off the U-D axis ends recognition.
-  std::optional<std::int64_t> stopped =
-      flow_.turned(turn, now, [this] { return stepDone(); });
   cubeView_->animateMove(m);
   followView();
-  if (stopped) {
-    finish(*stopped, DrillFlow::Result::Solved);
-  }
+  return turn;
+}
+
+void DrillPage::timedFinishAnimations() { cubeView_->finishAnimations(); }
+
+void DrillPage::timedSay(const QString &text) {
+  statusLabel_->setText(text);
+  statusLabel_->show();
+}
+
+void DrillPage::timedCancelled(const QString &why) {
+  showStatus();
+  statusLabel_->setText((why + " " + statusLabel_->text()).trimmed());
+  statusLabel_->show();
 }
 
 std::optional<CubieCube> DrillPage::cubeState() const {
@@ -213,12 +119,6 @@ bool DrillPage::stepDone() const {
   // last U turn too, while one that leaves the last-layer permutation free
   // (OLL) doesn't.
   return c && withinMask(*c, mirrorMask(s->specFor(*g).free, current_->world));
-}
-
-void DrillPage::giveUp(std::int64_t now) {
-  std::int64_t timeMs = flow_.giveUp(now);
-  cubeView_->finishAnimations();
-  finish(timeMs, DrillFlow::Result::GaveUp);
 }
 
 void DrillPage::startPractice(bool aided) {

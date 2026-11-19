@@ -7,6 +7,7 @@
 #include "app/practice_html.hpp"
 #include "app/practice_keys.hpp"
 #include "app/practice_list.hpp"
+#include "app/timed_driver.hpp"
 #include "app/widgets.hpp"
 #include "io/practice_store.hpp"
 #include "train/drill_flow.hpp"
@@ -61,7 +62,7 @@ namespace vcube {
 //
 // A mode says what its tabs, states, cases and solutions are (the
 // virtuals below); the page does the rest.
-class PracticePage : public ModePage {
+class PracticePage : public ModePage, private TimedHost {
   Q_OBJECT
 public:
   using Tab = PracticeTab;
@@ -314,7 +315,8 @@ private:
   Phase afterChoice_ = Phase::Solving;
   QStringList progress_;
   Phase phase_ = Phase::Idle;
-  DrillFlow flow_;
+  TimedDriver driver_{*this, settings_.drill};
+  DrillFlow &flow_ = driver_.flow();
   Item item_;
   int items_ = 0;
   bool active_ = false;
@@ -399,10 +401,23 @@ private:
   // --- Timed
   bool handleTimedKey(QKeyEvent *e, bool press);
   DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
-  void perform(const DrillFlow::Step &step, std::int64_t now);
-  void runningTurn(Move m, std::int64_t now);
   void finishTimed(std::int64_t ms, DrillFlow::Result result);
-  void cancelTimed(const QString &why);
+  // What the Timed tab's flow asks for (see TimedHost).
+  void timedNext(bool fromIdle) override;
+  void timedRetry() override;
+  void timedResetCube() override;
+  void timedRotate(Move m) override;
+  void timedStarted(std::int64_t now) override;
+  std::optional<DrillFlow::Turn> timedTurn(Move m, std::int64_t now) override;
+  bool timedStepDone() override { return item_.done; }
+  void timedFinish(std::int64_t ms, DrillFlow::Result result) override;
+  void timedPractise(bool aided) override;
+  void timedToggleWrong() override;
+  void timedDelete() override;
+  void timedFinishAnimations() override;
+  void timedShowKeys() override;
+  void timedSay(const QString &text) override;
+  void timedCancelled(const QString &why) override;
   void toggleDnf();
   void deleteTry();
   void deleteLearnTry(); // Delete on a finished Untimed or Inspection try
