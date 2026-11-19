@@ -4,6 +4,9 @@
 #include "app/cube_view.hpp"
 #include "app/mode_page.hpp"
 #include "app/page_parts.hpp"
+#include "app/practice_html.hpp"
+#include "app/practice_keys.hpp"
+#include "app/practice_list.hpp"
 #include "app/widgets.hpp"
 #include "io/practice_store.hpp"
 #include "train/drill_flow.hpp"
@@ -20,12 +23,9 @@
 class QComboBox;
 class QKeyEvent;
 class QLabel;
-class QPushButton;
 class QScrollArea;
 class QStackedWidget;
 class QTabBar;
-class QTreeWidget;
-class QTreeWidgetItem;
 
 namespace vcube {
 
@@ -63,18 +63,12 @@ namespace vcube {
 class PracticePage : public ModePage {
   Q_OBJECT
 public:
-  enum class Tab { Learn, Inspection, Untimed, Timed };
+  using Tab = PracticeTab;
   // What a state is of: the whole step, or one unit of it.
   enum class Extent { Whole, Unit };
   // The phases of the tabs that aren't timed (the Timed tab's are
   // DrillFlow's).
-  //   Idle     no card is due; Space looks again
-  //   Ready    Inspection: Space shows a state and starts the clock
-  //   Choose   a new case's solutions are chosen (see choicePanel())
-  //   Demo     a new case: Enter shows its solution, then it is done
-  //   Solving  Tab a hint, Backspace gives up, Esc starts again
-  //   Done     the verdict is up
-  enum class Phase { Idle, Ready, Choose, Demo, Solving, Done };
+  using Phase = PracticePhase;
   // "learn", "inspection", "untimed", "timed".
   static QString tabId(Tab t);
   static QString tabName(Tab t);
@@ -92,7 +86,7 @@ public:
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;
-  QWidget *sidePanel() const override { return side_; }
+  QWidget *sidePanel() const override { return list_; }
 
   // What the page shows, for tests and scripts.
   Tab tab() const { return tab_; }
@@ -186,17 +180,7 @@ protected:
   // The cube changed (a turn, a reset): e.g. to mark stickers.
   virtual void cubeChanged() {}
 
-  // How a solve went.
-  struct Outcome {
-    QString verdict;   // one line of rich text
-    Alg best;          // the best solution from the start; empty if none
-    QString bestText;  // how it is written (default: the alg)
-    QString bestLabel; // what the best is called (default: "Best")
-    int moves = 0;
-    int bestMoves = 0;
-    double extra = -1.0;
-    bool good = false; // a card's try: solved well
-  };
+  using Outcome = PracticeOutcome;
   // Asked once the solve is over, and again when the mode says its
   // analysis arrived.
   virtual Outcome judge() = 0;
@@ -238,21 +222,13 @@ protected:
   }
   virtual QList<KeyHint> doneKeys() const { return {}; }
 
-  // The parts of a solve, for the Timed tab's splits: each named, ending
-  // after a move of the solve (an index into item().moves, exclusive).
-  struct Split {
-    QString name;
-    std::size_t end = 0;
-  };
+  // The parts of a solve, for the Timed tab's splits: each ends after a
+  // move of the solve (an index into item().moves, exclusive).
+  using Split = PracticeSplit;
   virtual std::vector<Split> splits() { return {}; }
 
   // The lists.
-  struct ListRow {
-    std::string key;
-    QString name;
-    QString section; // rows are grouped under these, in order
-    QIcon icon;
-  };
+  using ListRow = PracticeList::Row;
   // The cards (keys are card ids).
   virtual std::vector<ListRow> cardRows() { return {}; }
   // The groups the Untimed (and Inspection) tab's solves are kept under.
@@ -350,14 +326,9 @@ private:
   std::string lastCard_;
   QString idleText_;
   QString note_; // said once under the verdict (a cancelled solve, ...)
-  std::int64_t sittingStart_ = 0;
   QFutureWatcher<GeneratedScramble> scrambles_;
 
-  QWidget *side_ = nullptr;
-  QLabel *summary_ = nullptr;
-  QTreeWidget *tree_ = nullptr;
-  QLabel *listHelp_ = nullptr;
-  QPushButton *clearButton_ = nullptr;
+  PracticeList *list_ = nullptr;
   QTabBar *tabs_ = nullptr;
   OptionBar *options_ = nullptr;
   QComboBox *cubeBox_ = nullptr;
@@ -445,19 +416,8 @@ private:
   void showVerdict();
   void showSummary();
   QString gradeLine() const;
-  // "Best: <alg>" (or the outcome's own label), or nothing to show.
-  QString bestLine(const Outcome &o) const;
-  // The tries of the tab that is up.
-  PracticeTries &tabTries();
-  const PracticeTries &tabTries() const;
   QString timedLine() const;
   QString inspectionLine() const;
-  QString splitsHtml();
-  void rowActivated(QTreeWidgetItem *row);
-  void clearProgress();
 };
-
-// "in 10 min", "in 4 d", "tomorrow".
-QString dueText(std::int64_t due, std::int64_t now, std::int64_t dayEnd);
 
 } // namespace vcube

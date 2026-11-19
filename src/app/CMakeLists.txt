@@ -32,6 +32,9 @@ add_library(vcube_gui STATIC
   help_text.cpp
   eo_cross_page.cpp
   f2l_page.cpp
+  practice_html.cpp
+  practice_keys.cpp
+  practice_list.cpp
   practice_page.cpp
   tsle_page.cpp
   train_keys.cpp
@@ -55,6 +58,7 @@ add_library(vcube_gui STATIC
   mode_page.hpp
   mode_table.cpp
   platform.cpp
+  quiz_practice.cpp
   review_dialog.cpp
   scramble_source.cpp
   session_panel.cpp

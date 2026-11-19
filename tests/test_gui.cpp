@@ -20,6 +20,9 @@
 #include "app/mode_table.hpp"
 #include "app/move_count_page.hpp"
 #include "app/page_parts.hpp"
+#include "app/practice_html.hpp"
+#include "app/practice_keys.hpp"
+#include "app/quiz_practice.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
 #include "app/timer_page.hpp"
@@ -292,6 +295,7 @@ private slots:
   void timedPhysicalSolve();
   void untimedVirtualSolve();
   void learnStartsACase();
+  void quizAsksAmongLookAlikes();
   void drillArmsAndStopsItself();
   void libraryAddsAnAlgAndUndoes();
   void algLabTimesEachAlg();
@@ -300,6 +304,8 @@ private slots:
   void tsleLearnAndTimed();
   void eoCrossLearnAndTimed();
   void practiceModesComeBackAsLeft();
+  void practiceResultsAreWorded();
+  void practiceKeysFollowThePhase();
   void themeColoursAreReadable();
   void pagesTakeTheKeyboard();
   void keysAreReadTheSameForEveryPage();
@@ -1625,6 +1631,76 @@ void GuiTest::learnStartsACase() {
   QVERIFY(p["T"].attempts.back().mode == AttemptMode::Learn);
 }
 
+void GuiTest::quizAsksAmongLookAlikes() {
+  AlgSet set;
+  std::vector<std::string> ticked;
+  auto addGroup = [&](const std::string &prefix, int cases) {
+    CaseGroup g;
+    g.name = prefix;
+    for (int i = 1; i <= cases; ++i) {
+      AlgCase c;
+      c.id = prefix + std::to_string(i);
+      c.name = "Case " + c.id;
+      ticked.push_back(c.id);
+      g.cases.push_back(c);
+    }
+    set.groups.push_back(g);
+  };
+  addGroup("a", 8);
+  addGroup("b", 2);
+  Rng rng = makeRng();
+  auto none = [](const std::string &) { return false; };
+  auto nameOf = [](const std::string &id) { return qs("Case " + id); };
+
+  // One case is nothing to choose from.
+  QVERIFY(!QuizPractice::pick(set, {"a1"}, none, {}, rng));
+  QVERIFY(!QuizPractice::pick(set, {}, none, {}, rng));
+
+  for (int i = 0; i < 60; ++i) {
+    auto quiz = QuizPractice::pick(set, ticked, none, "a1", rng);
+    QVERIFY(quiz);
+    const std::string id = quiz->caseId();
+    QVERIFY(id != "a1"); // not the last one again
+    QStringList names = quiz->names(set);
+    QCOMPARE(static_cast<std::size_t>(names.size()), quiz->choices());
+    QVERIFY(quiz->answer() < quiz->choices());
+    QCOMPARE(names[static_cast<qsizetype>(quiz->answer())], nameOf(id));
+    QCOMPARE(names.removeDuplicates(), qsizetype{0});
+    // The choices are the case's look-alikes: its own group, six at most.
+    QCOMPARE(quiz->choices(), id.front() == 'a' ? std::size_t{6} : 2u);
+    for (const QString &name : names) {
+      QVERIFY(name.startsWith(qs("Case ") + QChar(id.front())));
+    }
+  }
+
+  // Cases already started are asked first, once there are two.
+  auto started = [](const std::string &id) { return id.front() == 'b'; };
+  for (int i = 0; i < 20; ++i) {
+    auto quiz = QuizPractice::pick(set, ticked, started, "b1", rng);
+    QVERIFY(quiz);
+    QCOMPARE(quiz->caseId(), std::string("b2"));
+    QCOMPARE(quiz->choices(), std::size_t{2});
+  }
+  auto one = [](const std::string &id) { return id == "b1"; };
+  bool other = false;
+  for (int i = 0; i < 60 && !other; ++i) {
+    other = QuizPractice::pick(set, ticked, one, {}, rng)->caseId() != "b1";
+  }
+  QVERIFY(other);
+
+  // The answer is timed from the case being shown.
+  auto quiz = QuizPractice::pick(set, ticked, started, "b1", rng);
+  QVERIFY(quiz);
+  quiz->shown(100);
+  const QuizPractice::Result right = quiz->answered(quiz->answer(), 350);
+  QVERIFY(right.right);
+  QCOMPARE(right.ms, std::int64_t{250});
+  QVERIFY(!quiz->resultText(&set, right).contains("Case b2"));
+  const QuizPractice::Result wrong = quiz->answered(1 - quiz->answer(), 350);
+  QVERIFY(!wrong.right);
+  QCOMPARE(quiz->resultText(&set, wrong), QString("It was Case b2."));
+}
+
 void GuiTest::drillArmsAndStopsItself() {
   auto *drill = page<DrillPage>();
   QVERIFY(switchTo(AppMode::Drill, drill));
@@ -1707,6 +1783,177 @@ double contrast(const QColor &a, const QColor &b) {
 }
 
 } // namespace
+
+void GuiTest::practiceResultsAreWorded() {
+  // The splits: a part's time runs from the end of the one before, its
+  // pause to its first turn, and its TPS is of the turning alone.
+  const Alg moves = parseAlgOrEmpty("R U R' y F");
+  const std::vector<std::int64_t> at = {1000, 1500, 2000, 2500, 4000};
+  const std::vector<PracticeSplit> parts = {{"pair", 3}};
+  QVERIFY(splitsHtml({}, moves, at, 2, "#888888").isEmpty());
+  QVERIFY(splitsHtml(parts, moves, {1000}, 2, "#888888").isEmpty());
+  QVERIFY(splitsHtml(parts, {}, {}, 2, "#888888").isEmpty());
+  auto row = [](const QString &name, std::int64_t time, std::int64_t pause,
+                const QString &htm, const QString &tps) {
+    return QString("<tr><td>%1</td><td align='right'>%2</td><td "
+                   "align='right'>%3</td><td align='right'>%4</td><td "
+                   "align='right'>%5</td></tr>")
+        .arg(name, clockText(time, 2), clockText(pause, 2), htm, tps);
+  };
+  const QString splits = splitsHtml(parts, moves, at, 2, "#888888");
+  QVERIFY2(splits.contains(row("pair", 2000, 1000, "3", "3.0")),
+           qPrintable(splits));
+  // What is left after the parts: the rotation before its turn is looking,
+  // and one move has no speed.
+  QVERIFY2(splits.contains(row("the rest", 2000, 2000, "1", "-")),
+           qPrintable(splits));
+  // A part that ends past the solve takes what there is, and nothing is
+  // left for the rest.
+  const QString whole = splitsHtml({{"all", 9}}, moves, at, 2, "#888888");
+  QVERIFY2(whole.contains(row("all", 4000, 1000, "4", "1.3")),
+           qPrintable(whole));
+  QVERIFY(!whole.contains("the rest"));
+
+  // A timed solve: its moves and speed, and how it compares.
+  QCOMPARE(
+      timedLine({.moves = 20, .ms = 10000, .dnf = false, .meanBefore = {}}, 2),
+      QString("20 moves · 2.00 TPS"));
+  const QString under = timedLine(
+      {.moves = 0, .ms = 10000, .dnf = false, .meanBefore = 12000.0}, 2);
+  QVERIFY2(under.contains(QString("%1 under your mean (%2)")
+                              .arg(clockText(2000, 2), clockText(12000, 2))),
+           qPrintable(under));
+  const QString over = timedLine(
+      {.moves = 0, .ms = 10000, .dnf = false, .meanBefore = 9000.0}, 2);
+  QCOMPARE(over, QString("%1 over your mean (%2)")
+                     .arg(clockText(1000, 2), clockText(9000, 2)));
+  const QString dnf = timedLine(
+      {.moves = 20, .ms = 10000, .dnf = true, .meanBefore = 9000.0}, 2);
+  QVERIFY2(dnf.contains("DNF") && dnf.endsWith("20 moves") &&
+               !dnf.contains("TPS") && !dnf.contains("mean"),
+           qPrintable(dnf));
+
+  // The Inspection clock counts down whole seconds, then up over the
+  // limit; stopped, it says the time looked.
+  const QColor ink(1, 2, 3);
+  auto clock = [&ink](std::int64_t used, std::int64_t limit, bool running) {
+    return inspectionClock(used, limit, running, ink);
+  };
+  QCOMPARE(clock(1000, 15000, true),
+           QString("<span style='color:#010203'>14</span>"));
+  QVERIFY(clock(12500, 15000, true).endsWith(">3</span>"));
+  QVERIFY(!clock(12500, 15000, true).contains("#010203"));
+  QVERIFY(clock(16000, 15000, true).endsWith(">+1.0</span>"));
+  QCOMPARE(clock(9300, 0, true),
+           QString("<span style='color:#010203'>9.3</span>"));
+  QVERIFY(clock(9300, 15000, false).endsWith(">Looked 9.3 s</span>"));
+  QVERIFY(inspectionLine(0, 15000).isEmpty());
+  QCOMPARE(inspectionLine(9300, 15000), QString("looked 9.3 s"));
+  QVERIFY(inspectionLine(16000, 15000)
+              .contains("looked 16.0 s, over the 15.0 s limit"));
+
+  // The verdict: nothing of the result while it is being worked out.
+  PracticeVerdict v;
+  v.result = "2 moves over";
+  v.best = "Best: <b>R U R'</b>";
+  v.note = "Deleted";
+  QCOMPARE(verdictHtml(v, "#888888"),
+           QString("2 moves over<br>Best: <b>R U R'</b><br>"
+                   "<span style='color:#888888'>Deleted</span>"));
+  v.waiting = true;
+  QVERIFY(!verdictHtml(v, "#888888").contains("2 moves over"));
+  QVERIFY(verdictHtml({}, "#888888").isEmpty());
+  PracticeOutcome o;
+  QVERIFY(bestLine(o).isEmpty() && efficiencyHtml(o).isEmpty());
+  o.best = parseAlgOrEmpty("R U R'");
+  QCOMPARE(bestLine(o), QString("Best: <b>R U R'</b>"));
+  o.bestLabel = "Yours";
+  o.bestText = "<i>as chosen</i>";
+  QCOMPARE(bestLine(o), QString("Yours: <b><i>as chosen</i></b>"));
+
+  // When a card comes back.
+  const std::int64_t now = 1000000, dayEnd = now + 7200;
+  QCOMPARE(dueText(now, now, dayEnd), QString("now"));
+  QCOMPARE(dueText(now + 30, now, dayEnd), QString("in 1 min"));
+  QCOMPARE(dueText(now + 3600, now, dayEnd), QString("in 1 h"));
+  QCOMPARE(dueText(dayEnd, now, dayEnd), QString("tomorrow"));
+  QCOMPARE(dueText(dayEnd + 3 * 86400, now, dayEnd), QString("in 4 d"));
+}
+
+void GuiTest::practiceKeysFollowThePhase() {
+  auto names = [](const PracticeKeys &k) {
+    QStringList all;
+    for (const KeyHint &h : k.keys) {
+      all << h.key;
+    }
+    return all.join(' ');
+  };
+  using P = PracticePhase;
+  auto untimed = [](P phase, auto set) {
+    UntimedKeysState s;
+    s.phase = phase;
+    set(s);
+    return untimedKeys(s);
+  };
+  auto asIs = [](UntimedKeysState &) {};
+  QCOMPARE(names(untimed(P::Idle, asIs)), QString("Space"));
+  QCOMPARE(names(untimed(P::Choose, asIs)), QString("1-9 Enter"));
+  QCOMPARE(names(untimed(P::Choose, [](auto &s) { s.choosingAgain = true; })),
+           QString("1-9 Enter Esc"));
+  QCOMPARE(names(untimed(P::Solving, [](auto &s) { s.hints = true; })),
+           QString("Tab Backspace Esc"));
+  // A hidden cube has no hint to give, and says so.
+  const PracticeKeys hidden =
+      untimed(P::Solving, [](auto &s) { s.hidden = s.hints = true; });
+  QCOMPARE(names(hidden), QString("Space Backspace Esc"));
+  QVERIFY(!hidden.message.isEmpty());
+  // Nothing goes on while the verdict is worked out.
+  const PracticeKeys waiting =
+      untimed(P::Done, [](auto &s) { s.waiting = s.best = true; });
+  QVERIFY(waiting.keys.isEmpty() && !waiting.message.isEmpty());
+  QCOMPARE(names(untimed(P::Done,
+                         [](auto &s) {
+                           s.best = s.graded = s.chooser = true;
+                           s.modeKeys = {{"+", "add"}};
+                         })),
+           QString("Space Enter Tab 1-4 + 0 Esc"));
+  QCOMPARE(names(untimed(P::Done, asIs)), QString("Space Tab Esc"));
+
+  DrillFlow flow;
+  DrillFlow::Config config;
+  DrillSettings drill;
+  drill.tapToArm = true;
+  drill.shiftSpaceGivesUp = true;
+  TimedKeysState timed;
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space"));
+  config.virtualCube = false;
+  flow.setConfig(config);
+  flow.setUp(0);
+  timed.physical = true;
+  const PracticeKeys awaited = timedKeys(flow, drill, timed);
+  QCOMPARE(names(awaited), QString("hold Space Shift+Space"));
+  QVERIFY(awaited.message.isEmpty());
+  timed.scrambleShown = true;
+  QVERIFY(!timedKeys(flow, drill, timed).message.isEmpty());
+  drill.shiftSpaceGivesUp = false;
+  config.virtualCube = true;
+  flow.setConfig(config);
+  flow.setUp(0);
+  timed = {};
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space Backspace"));
+  // The result: only an attempt that is kept can be marked or deleted.
+  flow.finished(1000, DrillFlow::Result::Solved, {}, 0);
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space Tab Esc"));
+  timed.best = timed.recorded = true;
+  QCOMPARE(names(timedKeys(flow, drill, timed)),
+           QString("Space Enter Tab Backspace Delete Esc"));
+
+  QVERIFY(timedHintText(DrillFlow::Hint::None, drill).isEmpty());
+  DrillSettings held = drill;
+  held.tapToArm = false;
+  QVERIFY(timedHintText(DrillFlow::Hint::OnlyRotations, drill) !=
+          timedHintText(DrillFlow::Hint::OnlyRotations, held));
+}
 
 void GuiTest::themeColoursAreReadable() {
   for (bool dark : {true, false}) {

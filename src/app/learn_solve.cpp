@@ -440,7 +440,7 @@ void LearnPage::setPhase(Phase p) {
   case Phase::Quiz:
     showGuide();
     say(tr("Which case is this? Rotations and U and D turns look at it."),
-        {{tr("1-%1").arg(quizChoices_.size()), tr("answer")}});
+        {{tr("1-%1").arg(quiz_ ? quiz_->choices() : 0), tr("answer")}});
     break;
   case Phase::QuizDone:
     break;

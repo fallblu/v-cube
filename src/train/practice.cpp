@@ -33,6 +33,28 @@ std::string timedKey(CubeKind cube, const std::string &group) {
   return (cube == CubeKind::Physical ? "physical/" : "virtual/") + group;
 }
 
+PracticeTry *newestTry(PracticeTries &tries, const std::string &key) {
+  auto it = tries.find(key);
+  return it == tries.end() || it->second.empty() ? nullptr : &it->second.back();
+}
+
+void dropNewestTry(PracticeTries &tries, const std::string &key) {
+  auto it = tries.find(key);
+  if (it != tries.end() && !it->second.empty()) {
+    it->second.pop_back();
+    if (it->second.empty()) {
+      tries.erase(it);
+    }
+  }
+}
+
+void clearTimed(PracticeTries &timed, CubeKind cube) {
+  const std::string prefix = timedKey(cube, {});
+  std::erase_if(timed, [&prefix](const auto &entry) {
+    return entry.first.starts_with(prefix);
+  });
+}
+
 PracticeSummary summarize(const std::vector<PracticeTry> &tries) {
   return summarize(tries, 0);
 }
