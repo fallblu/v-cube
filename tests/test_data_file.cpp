@@ -194,7 +194,7 @@ TEST_CASE("a file of another mode isn't read as this one") {
   MoveCountStore moves(path);
   QString error;
   CHECK_FALSE(moves.load(&error));
-  CHECK(error.contains("untimed"));
+  CHECK(error.contains("an Untimed file"));
   CHECK(moves.sessions().size() == defaultMoveCountSessions().size());
   REQUIRE_FALSE(moves.setAsidePath().isEmpty());
   CHECK(readText(moves.setAsidePath()) ==
@@ -506,4 +506,87 @@ TEST_CASE("a background write that throws is a failed write") {
   saveInBackground(store, nullptr, {});
   finishBackgroundWrites();
   CHECK(QFile::exists(path + "2"));
+}
+
+TEST_CASE("a file that isn't JSON says where it stops being") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("oll.json");
+  writeText(path, "{\n  \"format\": \"v-cube.algset\",\n  \"id\": \"oll\",\n}");
+  QString error;
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  INFO(error.toStdString());
+  CHECK(error.contains("at line 4, column "));
+
+  QByteArray cut = "{\"session1\": [";
+  QString why;
+  CHECK_FALSE(sessionsFromCstimerFile(cut, &why));
+  CHECK(why.contains("line 1, column"));
+}
+
+TEST_CASE("a file of the wrong kind is named as users know it") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("set.json");
+  writeText(path, R"({"format": "v-cube.untimed", "version": 1})");
+  QString error;
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  CHECK(error == "it is an Untimed file, not an alg set");
+  writeText(path, R"({"format": "v-cube.alglab", "version": 1})");
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  CHECK(error == "it is an Alg Lab file, not an alg set");
+  writeText(path, R"({"format": "v-cube.whatever", "version": 1})");
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  CHECK(
+      error ==
+      R"(it is another kind of v-cube file ("v-cube.whatever"), not an alg set)");
+  writeText(path, R"({"format": "other", "version": 1})");
+  CHECK_FALSE(readAlgSetFile(path, &error));
+  CHECK(error == "it is not a v-cube alg set");
+}
+
+TEST_CASE("an unreadable set says where it is and what to do") {
+  QTemporaryDir tmp;
+  writeText(tmp.filePath("installed-builtins.json"),
+            R"(["oll", "pll", "2look-oll", "2look-pll"])");
+  writeText(tmp.filePath("mine.json"), R"({"format": "v-cube.algset",)");
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.errors().size() == 1);
+  QString e = lib.errors().front();
+  CHECK(e.contains("mine.json in " + QDir::toNativeSeparators(tmp.path())));
+  CHECK(e.contains("line 1, column"));
+  CHECK(e.contains("rename it back to mine.json"));
+}
+
+TEST_CASE("keys an alg set doesn't use are named, and the set still loads") {
+  QTemporaryDir tmp;
+  writeText(tmp.filePath("installed-builtins.json"),
+            R"(["oll", "pll", "2look-oll", "2look-pll"])");
+  writeText(tmp.filePath("mine.json"), R"({"format": "v-cube.algset",
+    "version": 1, "id": "mine", "targetSecond": 2, "groups": [{"name": "G",
+    "colour": 1, "cases": [{"id": "a", "state":
+    "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB", "alg": "R"},
+    {"id": "b", "state":
+    "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB", "alg": "U"}]}]})");
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.find("mine"));
+  REQUIRE(lib.errors().size() == 1);
+  QString e = lib.errors().front();
+  CHECK(e.startsWith("mine.json"));
+  CHECK(e.contains(R"("targetSecond")"));
+  CHECK(e.contains(R"(in a group "colour")"));
+  CHECK(e.count(R"(in a case "alg")") == 1);
+  // The built-ins have none.
+  QTemporaryDir fresh;
+  AlgLibrary builtins(fresh.path(), kBuiltins);
+  builtins.load();
+  CHECK(builtins.errors().isEmpty());
+}
+
+TEST_CASE("a write that fails names the file") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("missing/folder/oll.json");
+  QString error;
+  CHECK_FALSE(writeFileAtomically(path, "{}", &error));
+  CHECK(error.contains(QDir::toNativeSeparators(path)));
 }

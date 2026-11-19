@@ -30,6 +30,9 @@ struct AppSettings {
   ColourScheme scheme = ColourScheme::standard();
   int animationMs = 110;
   Keymap keymap = Keymap::defaultLayout();
+  // Key bindings in the settings file that couldn't be read when loaded
+  // (not saved), to say so once.
+  int droppedKeyBindings = 0;
   // Which way the solver holds the cube for scrambles and cases in every
   // mode (scrambles are always applied white top, green front).
   ColourNeutrality neutrality;

@@ -212,9 +212,8 @@ std::optional<CstimerImport> sessionsFromCstimerFile(const QByteArray &bytes,
   QJsonDocument doc = QJsonDocument::fromJson(bytes, &pe);
   if (pe.error != QJsonParseError::NoError) {
     if (error) {
-      *error = QString("the file isn't complete JSON (%1 at character %2)")
-                   .arg(pe.errorString())
-                   .arg(pe.offset);
+      *error = QString("the file isn't complete JSON (%1)")
+                   .arg(parseErrorText(bytes, pe));
     }
     return std::nullopt;
   }

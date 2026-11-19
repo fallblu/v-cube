@@ -1,6 +1,8 @@
 #pragma once
 
+#include <QByteArray>
 #include <QJsonObject>
+#include <QJsonParseError>
 #include <QString>
 
 #include <functional>
@@ -45,6 +47,10 @@ enum class FileStatus {
 // with the reason in `error` for the last two.
 FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
                            QString *error = nullptr);
+
+// A JSON parse error with where it is in `bytes`: "unterminated object at
+// line 214, column 3".
+QString parseErrorText(const QByteArray &bytes, const QJsonParseError &pe);
 
 // Reads and checks a JSON data file, without changing it.
 struct FileRead {

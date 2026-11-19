@@ -467,6 +467,13 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   setMode(mode.value_or(AppMode::Learn));
   updateBadges();
   updateBanner();
+  if (settings_.droppedKeyBindings > 0) {
+    showMessage(plural(settings_.droppedKeyBindings,
+                       tr("%n key binding in the settings file couldn't be "
+                          "read and was ignored"),
+                       tr("%n key bindings in the settings file couldn't be "
+                          "read and were ignored")));
+  }
 }
 
 MainWindow::~MainWindow() {

@@ -39,11 +39,15 @@ QString unreadableSetMessage(const QString &path, const QString &error,
     return QString("%1: %2").arg(file, error);
   }
   QString kept = setAside(path);
+  QString folder = QDir::toNativeSeparators(QFileInfo(path).absolutePath());
   return kept.isEmpty()
-             ? QString("%1 couldn't be read (%2) or moved aside")
-                   .arg(file, error)
-             : QString("%1 couldn't be read (%2), so it was kept as %3")
-                   .arg(file, error, QFileInfo(kept).fileName());
+             ? QString("%1 in %2 couldn't be read (%3) or moved aside; fix "
+                       "it while v-cube is closed (File > Open data folder)")
+                   .arg(file, folder, error)
+             : QString("%1 in %2 couldn't be read (%3), so it was kept as "
+                       "%4. Fix it and rename it back to %1 while v-cube is "
+                       "closed (File > Open data folder)")
+                   .arg(file, folder, error, QFileInfo(kept).fileName());
 }
 
 QString sanitizeId(const std::string &id) {
@@ -223,10 +227,18 @@ void AlgLibrary::load() {
     QString error;
     FileStatus status = FileStatus::Read;
     QString path = dir.filePath(file);
-    auto set = readAlgSetFile(path, &error, &status);
+    QStringList unknown;
+    auto set = readAlgSetFile(path, &error, &status, &unknown);
     if (!set) {
       errors_ << unreadableSetMessage(dir.filePath(file), error, status);
       continue;
+    }
+    if (!unknown.isEmpty()) {
+      // Loaded all the same; a misspelt key would otherwise do nothing
+      // without a word.
+      errors_ << QString("%1 has keys v-cube doesn't read, which were "
+                         "ignored and go when the set is next saved: %2")
+                     .arg(file, unknown.join(", "));
     }
     // A file put here by hand may have an id that add() would have changed:
     // the set is used without the slashes, which the file keeps until the

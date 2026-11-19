@@ -94,7 +94,10 @@ Every data file is a JSON object with a `format` and a `version`:
 | Alg Lab | `v-cube.alglab` | 2 (added grip profiles; a version 1 file gets the built-in one) |
 
 A file with another `format` can't be read. A missing `version` is read as
-1. Unknown keys are ignored and missing keys take the defaults below.
+1. Unknown keys are ignored (in an alg set, the app names them at startup,
+so that a misspelt key doesn't go unnoticed) and missing keys take the
+defaults below. A file that isn't valid JSON is reported with the line and
+column where it stops being so.
 
 Times are in milliseconds and timestamps in Unix seconds unless said
 otherwise. Scrambles, algs and solutions are move text (`R U R' U'`, `r`,

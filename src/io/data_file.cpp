@@ -16,6 +16,7 @@
 #include <exception>
 #include <mutex>
 #include <thread>
+#include <utility>
 
 namespace vcube {
 
@@ -24,7 +25,43 @@ namespace {
 // Set on the background writer's thread, whose writes it reports itself.
 thread_local bool tOnWriter = false;
 
+// What each kind of v-cube file is called in messages, by its format id
+// (as each FileFormat's `what`).
+QString formatName(const QString &format) {
+  static const std::pair<const char *, const char *> kNames[] = {
+      {"v-cube.sessions", "sessions file"},
+      {"v-cube.untimed", "Untimed file"},
+      {"v-cube.movecount", "Move Count file"},
+      {"v-cube.algset", "alg set"},
+      {"v-cube.progress", "progress file"},
+      {"v-cube.practice", "practice file"},
+      {"v-cube.alglab", "Alg Lab file"},
+  };
+  for (const auto &[id, name] : kNames) {
+    if (format == QLatin1String(id)) {
+      return name;
+    }
+  }
+  return {};
+}
+
+// "a sessions file", "an alg set".
+QString withArticle(const QString &what) {
+  bool vowel = !what.isEmpty() && QString("aeiouAEIOU").contains(what[0]);
+  return (vowel ? "an " : "a ") + what;
+}
+
 } // namespace
+
+QString parseErrorText(const QByteArray &bytes, const QJsonParseError &pe) {
+  QByteArray before = bytes.left(pe.offset);
+  qsizetype line = before.count('\n') + 1;
+  qsizetype column = before.size() - (before.lastIndexOf('\n') + 1) + 1;
+  return QString("%1 at line %2, column %3")
+      .arg(pe.errorString())
+      .arg(line)
+      .arg(column);
+}
 
 FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
                            QString *error) {
@@ -37,12 +74,17 @@ FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
   QJsonValue f = o.value("format");
   if (f.isUndefined() ? !format.formatOptional
                       : f.toString() != format.format) {
-    QString found = f.toString();
-    return fail(FileStatus::Unreadable,
-                found.startsWith("v-cube.")
-                    ? QString("it is a %1 file, not a %2")
-                          .arg(found.mid(7), format.what)
-                    : QString("it is not a v-cube %1").arg(format.what));
+    QString id = f.toString();
+    QString found = formatName(id);
+    return fail(
+        FileStatus::Unreadable,
+        !found.isEmpty()
+            ? QString("it is %1, not %2")
+                  .arg(withArticle(found), withArticle(format.what))
+        : id.startsWith("v-cube.")
+            ? QString("it is another kind of v-cube file (\"%1\"), not %2")
+                  .arg(id, withArticle(format.what))
+            : QString("it is not a v-cube %1").arg(format.what));
   }
   QJsonValue v = o.value("version");
   if (!v.isUndefined()) {
@@ -93,9 +135,10 @@ FileRead readDataFile(const QString &path, const FileFormat &format) {
   }
   r.status = FileStatus::Unreadable;
   QJsonParseError pe;
-  QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
+  QByteArray bytes = f.readAll();
+  QJsonDocument doc = QJsonDocument::fromJson(bytes, &pe);
   if (pe.error != QJsonParseError::NoError) {
-    r.error = pe.errorString();
+    r.error = parseErrorText(bytes, pe);
     return r;
   }
   if (!doc.isObject()) {

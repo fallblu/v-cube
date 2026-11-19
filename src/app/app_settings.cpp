@@ -178,7 +178,8 @@ AppSettings AppSettings::load() {
     }
   }
   if (q.contains("input/keymap")) {
-    Keymap k = Keymap::fromStrings(q.value("input/keymap").toStringList());
+    Keymap k = Keymap::fromStrings(q.value("input/keymap").toStringList(),
+                                   &s.droppedKeyBindings);
     if (!k.bindings.empty()) {
       s.keymap = k;
     }
