@@ -205,23 +205,37 @@ void AlgLibrary::load() {
     // the set is used without the slashes, which the file keeps until the
     // set is next saved. Its progress file is named the same either way.
     std::replace(set->id.begin(), set->id.end(), '/', '-');
-    auto same = std::find_if(sets_.begin(), sets_.end(),
-                             [&](const AlgSet &s) { return s.id == set->id; });
+    // Ids that differ only in case or punctuation ("ZZ F2L", "zz-f2l") would
+    // share one progress file, each saving over the other's: one set too.
+    QString sanitized = sanitizeId(set->id);
+    auto same = std::find_if(sets_.begin(), sets_.end(), [&](const AlgSet &s) {
+      return s.id == set->id || sanitizeId(s.id) == sanitized;
+    });
     if (same != sets_.end()) {
       // Two files of one set, such as a copy made in a file manager: keep
       // the one named for the id, so that edits never go over it from the
       // other, and leave the other alone.
-      QString canonical = sanitizeId(set->id) + ".json";
-      QString kept = QFileInfo(paths_[set->id]).fileName();
+      QString canonical = sanitized + ".json";
+      QString kept = QFileInfo(paths_[same->id]).fileName();
       QString skipped = file;
+      std::string keptId = same->id;
+      std::string skippedId = set->id;
       if (file == canonical && kept != canonical) {
         std::swap(kept, skipped);
+        std::swap(keptId, skippedId);
+        paths_.erase(same->id);
         *same = std::move(*set);
         paths_[same->id] = path;
       }
-      errors_ << QString("%1 has the same set id (\"%2\") as %3, so it was "
-                         "not loaded; give it another id or remove it")
-                     .arg(skipped, qs(same->id), kept);
+      errors_ << (keptId == skippedId
+                      ? QString("%1 has the same set id (\"%2\") as %3, so it "
+                                "was not loaded; give it another id or "
+                                "remove it")
+                            .arg(skipped, qs(keptId), kept)
+                      : QString("%1 has a set id (\"%2\") that shares its "
+                                "progress file with %3's (\"%4\"), so it was "
+                                "not loaded; give it another id or remove it")
+                            .arg(skipped, qs(skippedId), kept, qs(keptId)));
       continue;
     }
     paths_[set->id] = path;

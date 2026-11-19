@@ -514,6 +514,58 @@ TEST_CASE("a stray copy of a set file never overwrites the set") {
   CHECK_FALSE(QFile::exists(tmp.filePath("my oll.json")));
 }
 
+TEST_CASE("set ids that differ only in case or punctuation are one set") {
+  QTemporaryDir tmp;
+  AlgSet set;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    set = *lib.find("pll");
+  }
+  set.builtin = false;
+  // "A.json" sorts first, but "zz-f2l.json" is named for both ids.
+  set.id = "ZZ F2L";
+  set.name = "Hand-made";
+  REQUIRE(writeAlgSetFile(set, tmp.filePath("A.json"), nullptr));
+  set.id = "zz-f2l";
+  set.name = "Mine";
+  REQUIRE(writeAlgSetFile(set, tmp.filePath("zz-f2l.json"), nullptr));
+  set.id = "Zz.F2L";
+  set.name = "Another";
+  REQUIRE(writeAlgSetFile(set, tmp.filePath("B.json"), nullptr));
+  QByteArray handMade = readText(tmp.filePath("A.json"));
+  QByteArray another = readText(tmp.filePath("B.json"));
+
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.errors().size() == 2);
+  // B.json is found to clash with A.json, which then gives way.
+  CHECK(lib.errors()[0].startsWith("B.json"));
+  CHECK(lib.errors()[1].startsWith("A.json"));
+  CHECK(lib.errors()[1].contains("progress file"));
+  CHECK(lib.errors()[1].contains("zz-f2l.json"));
+  CHECK_FALSE(lib.find("ZZ F2L"));
+  CHECK_FALSE(lib.find("Zz.F2L"));
+  REQUIRE(lib.find("zz-f2l"));
+  CHECK(lib.find("zz-f2l")->name == "Mine");
+  CHECK(lib.pathFor("zz-f2l") == tmp.filePath("zz-f2l.json"));
+  CHECK(lib.sets().size() == 5);
+  lib.progress("zz-f2l")["T"].record({100, 1500, false});
+  REQUIRE(lib.saveProgress("zz-f2l"));
+  REQUIRE(lib.save(*lib.find("zz-f2l")));
+  CHECK(readText(tmp.filePath("A.json")) == handMade);
+  CHECK(readText(tmp.filePath("B.json")) == another);
+
+  // Without a file named for the id, the first one loads.
+  QFile::remove(tmp.filePath("zz-f2l.json"));
+  AlgLibrary again(tmp.path(), kBuiltins);
+  again.load();
+  REQUIRE(again.errors().size() == 1);
+  CHECK(again.errors()[0].contains("B.json"));
+  CHECK(again.find("ZZ F2L"));
+  CHECK_FALSE(again.find("Zz.F2L"));
+}
+
 TEST_CASE("of two files with one set id, one loads and the other is named") {
   QTemporaryDir tmp;
   QByteArray mine;
