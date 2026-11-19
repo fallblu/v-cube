@@ -46,6 +46,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QFile>
 #include <QLabel>
@@ -53,6 +54,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QSettings>
@@ -318,6 +320,7 @@ private slots:
   void interfaceTextSizeScalesTheText();
   void tipsShowInTheStatusBar();
   void trendChartNamesWhatItCharts();
+  void trendChartHoverKeepsThePlot();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
@@ -2458,6 +2461,38 @@ void GuiTest::trendChartNamesWhatItCharts() {
   chart.setFont(big);
   chart.resize(260, 140);
   QVERIFY(!chart.grab().isNull());
+}
+
+// A long session: hovering only draws the marker over the plot drawn
+// before, so it is quick, and leaves the plot as it was.
+void GuiTest::trendChartHoverKeepsThePlot() {
+  TrendChart chart;
+  std::vector<Solve> solves(20000);
+  for (std::size_t i = 0; i < solves.size(); ++i) {
+    solves[i].timeMs = 9000 + static_cast<std::int64_t>((i * 7919) % 5000);
+  }
+  chart.setSolves(solves);
+  chart.resize(760, 260); // not shown: the main window keeps the focus
+  const QImage before = chart.grab().toImage();
+  QElapsedTimer timer;
+  timer.start();
+  for (int x = 100; x < 300; x += 2) {
+    QMouseEvent move(QEvent::MouseMove, QPointF(x, 100), QPointF(x, 100),
+                     Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&chart, &move);
+    (void)chart.grab(); // paints it
+  }
+  // 100 hovers: about a whole plot drawn each, before the plot was kept.
+  QVERIFY2(timer.elapsed() < 2000,
+           qPrintable(QString::number(timer.elapsed())));
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(&chart, &leave);
+  QCOMPARE(chart.grab().toImage(), before);
+  // A new solve is charted.
+  solves.push_back(solves.front());
+  solves.back().timeMs = 60000;
+  chart.setSolves(solves);
+  QVERIFY(chart.grab().toImage() != before);
 }
 
 void GuiTest::helpPanelShowsTheKeys() {
