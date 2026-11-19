@@ -1,10 +1,18 @@
 name: CI
 
+# A push or pull request runs only the format check and the GCC build, to
+# save Actions minutes. The other compilers, the oldest Qt, the sanitizers
+# and Windows run on a manual run (workflow_dispatch) and weekly, when main
+# has changed that week. Release tags build Windows too (release.yml).
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "**.md", "LICENSE"]
   pull_request:
+    paths-ignore: ["docs/**", "**.md", "LICENSE"]
   workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,7 +25,22 @@ env:
   QT_QPA_PLATFORM: offscreen
 
 jobs:
+  # On the weekly run: whether main has a commit from the last seven days.
+  recent:
+    name: Changed this week
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          age=$(( $(date +%s) - $(git log -1 --format=%ct) ))
+          echo "changed=$([ "$age" -lt 604800 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   format:
+    if: github.event_name != 'schedule'
     name: Format
     runs-on: ubuntu-24.04
     steps:
@@ -29,35 +52,20 @@ jobs:
         run: git ls-files -z '*.cpp' '*.hpp' | xargs -0 clang-format --dry-run --Werror
 
   linux:
-    name: Linux ${{ matrix.name }}
+    name: Linux GCC
+    needs: recent
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'schedule' || needs.recent.outputs.changed == 'true')
     runs-on: ubuntu-24.04
     strategy:
-      fail-fast: false
       matrix:
         include:
-          - name: GCC
-            cxx: g++-14
+          - cxx: g++-14
             qt: 6.8.3
             qt-modules: qtmultimedia
             sanitize: OFF
-          - name: Clang
-            cxx: clang++-18
-            qt: 6.8.3
-            qt-modules: qtmultimedia
-            sanitize: OFF
-          - name: ASan + UBSan
-            cxx: g++-14
-            qt: 6.8.3
-            qt-modules: ""
-            sanitize: ON
-          # The oldest Qt that CMakeLists.txt accepts, without the optional
-          # Qt Multimedia.
-          - name: Qt 6.5
-            cxx: g++-13
-            qt: 6.5.3
-            qt-modules: ""
-            sanitize: OFF
-    steps:
+    steps: &linux-steps
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -83,8 +91,45 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  # Only on a manual run, or weekly when main has changed.
+  linux-full:
+    name: Linux ${{ matrix.name }}
+    needs: recent
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && needs.recent.outputs.changed == 'true'))
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Clang
+            cxx: clang++-18
+            qt: 6.8.3
+            qt-modules: qtmultimedia
+            sanitize: OFF
+          - name: ASan + UBSan
+            cxx: g++-14
+            qt: 6.8.3
+            qt-modules: ""
+            sanitize: ON
+          # The oldest Qt that CMakeLists.txt accepts, without the optional
+          # Qt Multimedia.
+          - name: Qt 6.5
+            cxx: g++-13
+            qt: 6.5.3
+            qt-modules: ""
+            sanitize: OFF
+    steps: *linux-steps
+
   windows:
     name: Windows MSVC
+    needs: recent
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && needs.recent.outputs.changed == 'true'))
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
