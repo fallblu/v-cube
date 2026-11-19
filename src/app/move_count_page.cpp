@@ -190,7 +190,7 @@ void MoveCountPage::describeReview(ReviewedSolve &solve, int index) const {
   solve.step = session().step;
 }
 
-void MoveCountPage::addDetails(QList<QPair<QString, QString>> &rows,
+void MoveCountPage::addDetails(QList<DetailRow> &rows,
                                const MoveCountAttempt &a) const {
   rows.append({tr("Step"), stepText(session().step)});
   if (std::optional<int> best = optimalOf(a); best && *best >= 0) {

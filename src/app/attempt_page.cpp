@@ -690,15 +690,15 @@ void AttemptPage::showDetails(int index) {
     return;
   }
   const MoveCountAttempt &a = attempts[static_cast<std::size_t>(index)];
-  QList<QPair<QString, QString>> rows;
+  QList<DetailRow> rows;
   if (a.counted) {
     rows.append({tr("Moves"), qs(formatAttempt(a))});
   }
   addDetails(rows, a);
   rows.append({tr("Date"), dateTimeText(a.timestamp)});
-  rows.append({"Scramble", qs(a.scramble)});
+  rows.append({tr("Scramble"), qs(a.scramble), true});
   if (!a.solution.empty()) {
-    rows.append({"Solution", qs(a.solution)});
+    rows.append({tr("Solution"), qs(a.solution), true});
   }
   rows.append({tr("Comment"), qs(a.comment)});
   showSolveDetails(this, tr("Solve #%1").arg(index + 1), rows,

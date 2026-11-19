@@ -29,6 +29,7 @@ class QVBoxLayout;
 
 namespace vcube {
 
+struct DetailRow;
 struct ReviewedSolve;
 
 // What Untimed and Move Count mode share (UntimedPage, MoveCountPage):
@@ -124,7 +125,7 @@ protected:
     return !a.solution.empty();
   }
   virtual void describeReview(ReviewedSolve &solve, int index) const = 0;
-  virtual void addDetails(QList<QPair<QString, QString>> &rows,
+  virtual void addDetails(QList<DetailRow> &rows,
                           const MoveCountAttempt &a) const {
     (void)rows;
     (void)a;
