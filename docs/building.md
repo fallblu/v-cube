@@ -25,6 +25,13 @@ cmake --build --preset release
 ./build/release/src/app/v-cube
 ```
 
+The apt line needs Ubuntu 25.04+ or Debian 13+: Ubuntu 24.04 LTS (the
+default WSL distro) ships Qt 6.4, and configure then stops with "Could not
+find a configuration file for package Qt6". There, install Qt 6.5+ with
+[aqtinstall](https://github.com/miurahr/aqtinstall) or the Qt installer and
+pass its folder, e.g. `cmake --preset release
+-DCMAKE_PREFIX_PATH=$HOME/Qt/6.8.3/gcc_64`.
+
 `cmake --install build/release --prefix ~/.local` installs the app with its
 desktop entry, icons and docs.
 
@@ -77,6 +84,17 @@ There are two test programs:
   `src/app/help_text.cpp`; run it once with `VCUBE_WRITE_DOCS=1` to rewrite
   the file after changing the table.
 
+The GUI test is one ctest entry (`gui`). To run the unit tests alone, or
+one GUI test function (the program sets the offscreen platform and its
+temporary folders itself):
+
+```bash
+ctest --preset debug -E gui
+build/debug/tests/vcube_gui_tests modesSwitch
+```
+
+`vcube_gui_tests -functions` lists the functions.
+
 Under `asan`, LeakSanitizer uses `tests/lsan.supp` for a leak inside Qt.
 
 ## Build options
@@ -104,7 +122,20 @@ CI checks every `.cpp` and `.hpp` against `.clang-format` with clang-format
 
 ```bash
 pipx install clang-format==21.1.8
+# Check, as CI does:
 git ls-files -z '*.cpp' '*.hpp' | xargs -0 clang-format --dry-run --Werror
+# Fix:
+git ls-files -z '*.cpp' '*.hpp' | xargs -0 clang-format -i
+```
+
+## Editor setup
+
+Every preset writes `compile_commands.json` into `build/<preset>/`. For
+clangd, link the one you build from to the source root (the link is
+ignored by git):
+
+```bash
+ln -s build/debug/compile_commands.json
 ```
 
 ## Windows
@@ -204,19 +235,31 @@ and linuxdeploy is pinned to a release (`LINUXDEPLOY_TAG` and
 
 ## CI
 
-`.github/workflows/ci.yml` runs Format and Linux GCC on pushes to `main`
-and on pull requests, and every job on a manual run and weekly when `main`
-has changed. A change to docs only (Markdown, `docs/`, `LICENSE`) skips it,
-except one to `docs/keys.md`, which the GUI test checks.
+`.github/workflows/ci.yml` runs only Format and Linux GCC on pushes to
+`main` and on pull requests; the other jobs run on a manual run and weekly
+when `main` has changed that week. A green push is therefore not a pass
+of Clang, the sanitizers, Qt 6.5 or MSVC. A change to docs only
+(Markdown, `docs/`, `LICENSE`) skips CI, except one to `docs/keys.md`,
+which the GUI test checks.
+
+On push and pull request, and on a manual run (Linux GCC weekly as well):
 
 | Job | What it does |
 | --- | --- |
 | Format | clang-format 21.1.8 |
 | Linux GCC | g++ 14, Qt 6.8.3 with Qt Multimedia, Debug, warnings as errors, tests |
-| Linux Clang | clang++ 18, otherwise the same |
+
+On a manual run, and weekly when `main` changed:
+
+| Job | What it does |
+| --- | --- |
+| Linux Clang | clang++ 18, otherwise as Linux GCC |
 | Linux ASan + UBSan | g++ 14, Qt 6.8.3 without Qt Multimedia, sanitizers on; undefined behaviour fails the test |
 | Linux Qt 6.5 | g++ 13 and Qt 6.5.3 (the oldest accepted), without Qt Multimedia |
 | Windows MSVC | `windows-release` with warnings as errors, tests and `cpack`; the zip is kept as an artifact |
+
+Start a full run with `gh workflow run ci.yml` (add `--ref <branch>` for
+another branch) or from the Actions tab.
 
 ## Source layout
 
