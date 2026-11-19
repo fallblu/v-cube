@@ -11,6 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -18,7 +19,10 @@
 #include <QTemporaryDir>
 
 #include <atomic>
+#include <new>
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace vcube;
 using namespace vcube::testing;
@@ -425,4 +429,81 @@ TEST_CASE("background writes run in order and keep the latest data") {
   finishBackgroundWrites();
   REQUIRE(read.load());
   CHECK(read.current().solves.empty());
+}
+
+namespace {
+
+// The write reports made while it lives, under an application of its own
+// (the reports go through the application's event queue).
+struct ReportLog {
+  int argc = 1;
+  char name[8] = "test";
+  char *argv[2] = {name, nullptr};
+  QCoreApplication app{argc, argv};
+  std::vector<std::pair<QString, QString>> reports;
+
+  ReportLog() {
+    setWriteReporter([this](const QString &path, const QString &error) {
+      reports.emplace_back(path, error);
+    });
+  }
+  ~ReportLog() {
+    finishBackgroundWrites();
+    setWriteReporter({});
+  }
+  void takeQueued() {
+    finishBackgroundWrites();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
+  }
+};
+
+} // namespace
+
+TEST_CASE("a direct save reports itself, as a background one does") {
+  ReportLog log;
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  SessionStore store(path);
+  REQUIRE(store.save());
+  REQUIRE(log.reports.size() == 1);
+  CHECK(log.reports[0].first == path);
+  CHECK(log.reports[0].second.isEmpty());
+
+  // One that is kept off a file it couldn't read reports why.
+  writeText(path, "{\"format\": \"v-cube.sessions\", \"version\": 99}");
+  CHECK_FALSE(store.load());
+  log.reports.clear();
+  QString error;
+  CHECK_FALSE(store.save(&error));
+  REQUIRE(log.reports.size() == 1);
+  CHECK(log.reports[0].second == error);
+  CHECK_FALSE(error.isEmpty());
+
+  // A background write is reported once, by the writer.
+  SessionStore other(tmp.filePath("other.json"));
+  log.reports.clear();
+  saveInBackground(other, nullptr, {});
+  log.takeQueued();
+  CHECK(log.reports.size() == 1);
+}
+
+TEST_CASE("a background write that throws is a failed write") {
+  ReportLog log;
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  writeText(path, "kept");
+  writeInBackground(path, [](QString *) -> bool { throw std::bad_alloc(); });
+  writeInBackground(tmp.filePath("b.json"),
+                    [](QString *) -> bool { throw 42; });
+  log.takeQueued();
+  REQUIRE(log.reports.size() == 2);
+  CHECK(log.reports[0].first == path);
+  CHECK_FALSE(log.reports[0].second.isEmpty());
+  CHECK_FALSE(log.reports[1].second.isEmpty());
+  // The file is as it was, and the writer still writes.
+  CHECK(readText(path) == "kept");
+  SessionStore store(path + "2");
+  saveInBackground(store, nullptr, {});
+  finishBackgroundWrites();
+  CHECK(QFile::exists(path + "2"));
 }

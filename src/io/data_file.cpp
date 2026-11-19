@@ -13,10 +13,18 @@
 #include <cmath>
 #include <condition_variable>
 #include <deque>
+#include <exception>
 #include <mutex>
 #include <thread>
 
 namespace vcube {
+
+namespace {
+
+// Set on the background writer's thread, whose writes it reports itself.
+thread_local bool tOnWriter = false;
+
+} // namespace
 
 FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
                            QString *error) {
@@ -133,23 +141,31 @@ FileStatus DataFile::load(QJsonObject &out, QString *error) {
 }
 
 bool DataFile::save(const QJsonObject &o, QString *error) const {
+  QString why;
+  bool ok = false;
   if (keptOff()) {
-    if (error) {
-      *error = keptOffReason_;
-    }
-    return false;
+    why = keptOffReason_;
+  } else {
+    QDir().mkpath(QFileInfo(path_).absolutePath());
+    ok = writeFileAtomically(
+        path_, QJsonDocument(o).toJson(QJsonDocument::Compact), &why);
   }
-  QDir().mkpath(QFileInfo(path_).absolutePath());
-  return writeFileAtomically(
-      path_, QJsonDocument(o).toJson(QJsonDocument::Compact), error);
+  if (!tOnWriter) {
+    // A direct save; the writer reports the ones it runs.
+    reportWrite(path_, ok, why);
+  }
+  if (error) {
+    *error = why;
+  }
+  return ok;
 }
 
 // --- background writes ------------------------------------------------------
 
 namespace {
 
-thread_local bool tOnWriter = false;
-
+// One writer and one reporter for the whole process: the app has one main
+// window, which sets the reporter (see setWriteReporter()).
 std::mutex gReporterMutex;
 WriteReporter gReporter;
 
@@ -235,7 +251,18 @@ private:
       runningPath_ = job.path;
       lock.unlock();
       QString error;
-      bool ok = job.write(&error);
+      bool ok = false;
+      // Anything thrown (such as running out of memory on a huge file) is
+      // a failed write, not the end of the app: the file is left as it was.
+      try {
+        ok = job.write(&error);
+      } catch (const std::exception &e) {
+        error = QString("%1 couldn't be written: %2")
+                    .arg(QDir::toNativeSeparators(job.path),
+                         QString::fromLocal8Bit(e.what()));
+      } catch (...) {
+        error.clear();
+      }
       if (!ok && error.isEmpty()) {
         error = QString("%1 couldn't be written")
                     .arg(QDir::toNativeSeparators(job.path));
