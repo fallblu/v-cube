@@ -902,7 +902,7 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY2(hint->text().startsWith("Hint:"), qPrintable(hint->text()));
   QVERIFY(hint->font().pointSizeF() > QApplication::font().pointSizeF());
   QVERIFY(f2l->cube() == f2l->startCube());
-  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
   QCOMPARE(f2l->phase(), Phase::Done);
   QCOMPARE(f2l->data().cards.at(key).attempts.size(), attempts);
   QCOMPARE(card(key).reps, 1);
@@ -1394,9 +1394,36 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(eo->inspecting());
   QVERIFY(!eo->cubeHidden());
   QVERIFY(eo->scrambled() == planned);
+  // Backspace only says which key gives up (Drill's: Shift+Space)...
+  auto *bar = eo->findChild<HintBar *>();
+  QVERIFY(bar);
+  QVERIFY(std::ranges::any_of(
+      bar->keys(), [](const KeyHint &k) { return k.key == "Shift+Space"; }));
   QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  QVERIFY2(bar->message().contains("Shift+Space"), qPrintable(bar->message()));
+  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
   QCOMPARE(eo->phase(), Phase::Done);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
+  QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
+  // ...and Delete takes a try just recorded back (a retry has none).
+  auto hasDelete = [bar] {
+    return std::ranges::any_of(
+        bar->keys(), [](const KeyHint &k) { return k.key == "Delete"; });
+  };
+  QVERIFY(!hasDelete());
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
+  QCOMPARE(eo->phase(), Phase::Done);
+  QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
+  QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{3});
+  QVERIFY(eo->data().inspection.at("eocross").back().dnf);
+  QVERIFY(hasDelete());
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
+  QVERIFY(!hasDelete());
+  QTest::keyClick(window_.get(), Qt::Key_Delete); // only the one just made
   QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
   auto *tree = eo->findChild<QTreeWidget *>("practiceList");
   QCOMPARE(tree->columnCount(), 5);
@@ -1430,7 +1457,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(eo->phase(), Phase::Solving);
   QVERIFY(eo->scrambled() == state);
   QVERIFY(eo->cube() == eo->startCube());
-  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
   QCOMPARE(eo->phase(), Phase::Done);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().learn, "eocross"), std::size_t{1});
@@ -1917,11 +1944,15 @@ void GuiTest::practiceKeysFollowThePhase() {
   QCOMPARE(names(untimed(P::Choose, [](auto &s) { s.choosingAgain = true; })),
            QString("1-9 Enter Esc"));
   QCOMPARE(names(untimed(P::Solving, [](auto &s) { s.hints = true; })),
-           QString("Tab Backspace Esc"));
+           QString("Tab Shift+Space Esc"));
+  // Drill's give-up key, whichever it is.
+  QCOMPARE(
+      names(untimed(P::Solving, [](auto &s) { s.giveUpKey = "Backspace"; })),
+      QString("Backspace Esc"));
   // A hidden cube has no hint to give, and says so.
   const PracticeKeys hidden =
       untimed(P::Solving, [](auto &s) { s.hidden = s.hints = true; });
-  QCOMPARE(names(hidden), QString("Space Backspace Esc"));
+  QCOMPARE(names(hidden), QString("Space Shift+Space Esc"));
   QVERIFY(!hidden.message.isEmpty());
   // Nothing goes on while the verdict is worked out.
   const PracticeKeys waiting =
@@ -1934,6 +1965,9 @@ void GuiTest::practiceKeysFollowThePhase() {
                          })),
            QString("Space Enter Tab 1-4 + 0 Esc"));
   QCOMPARE(names(untimed(P::Done, asIs)), QString("Space Tab Esc"));
+  // An Untimed or Inspection try just kept can be deleted.
+  QCOMPARE(names(untimed(P::Done, [](auto &s) { s.recorded = true; })),
+           QString("Space Tab Delete Esc"));
 
   DrillFlow flow;
   DrillFlow::Config config;

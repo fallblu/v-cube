@@ -46,7 +46,9 @@ struct Section {
 #define PRACTICE_LEARN_SOLVING                                                 \
   {T("solving"), T("turning keys"),                                            \
    T("any turn; the solve ends by itself when it is done")},                   \
-      {T("solving"), T("Backspace or Shift+Space"), T("give up")}, {           \
+      {T("solving"), T("Shift+Space"),                                         \
+       T("give up (Backspace instead, if Settings > Drill says so)")},         \
+  {                                                                            \
     T("solving"), T("Esc"), T("start again")                                   \
   }
 #define PRACTICE_LEARN_AFTER                                                   \
@@ -57,6 +59,8 @@ struct Section {
        T("show or hide the details (click a solution there to play it)")},     \
       {T("Learn or Untimed, afterwards"), T("turning keys"),                   \
        T("turn the cube freely")},                                             \
+      {T("Untimed or Inspection, afterwards"), T("Delete"),                    \
+       T("delete the try")},                                                   \
   {                                                                            \
     T("Learn or Untimed, afterwards"), T("Esc"),                               \
         T("the same state again, not recorded or graded")                      \
