@@ -56,13 +56,34 @@ Solve solveFromJson(const QJsonArray &a) {
   return s;
 }
 
+// The file, with each session's solves from `solvesJson`.
+template <typename SolvesJson>
+QJsonObject sessionsJson(const std::vector<Session> &sessions,
+                         std::size_t current, SolvesJson solvesJson) {
+  QJsonArray arr;
+  for (const auto &s : sessions) {
+    arr.append(QJsonObject{{"name", qs(s.name)},
+                           {"scrambleType", qs(s.scrambleType)},
+                           {"cube", qs(std::string(cubeKindId(s.cube)))},
+                           {"solves", solvesJson(s)}});
+  }
+  return QJsonObject{{"format", kSessionsFile.format},
+                     {"version", 1},
+                     {"current", static_cast<int>(current)},
+                     {"sessions", arr}};
+}
+
 } // namespace
 
 SessionStore::SessionStore(QString path)
     : SessionFileStore(std::move(path), kSessionsFile) {}
 
 QJsonObject SessionStore::toJson() const {
-  return sessionsToJson(sessions_, current_);
+  cache_.trim(sessions_.size());
+  std::size_t i = 0;
+  return sessionsJson(sessions_, current_, [&](const Session &s) {
+    return cache_.array(i++, s.solves, solveToJson);
+  });
 }
 
 void SessionStore::fromJson(const QJsonObject &o) {
@@ -73,21 +94,13 @@ void SessionStore::fromJson(const QJsonObject &o) {
 
 QJsonObject sessionsToJson(const std::vector<Session> &sessions,
                            std::size_t current) {
-  QJsonArray arr;
-  for (const auto &s : sessions) {
+  return sessionsJson(sessions, current, [](const Session &s) {
     QJsonArray solves;
     for (const auto &solve : s.solves) {
       solves.append(solveToJson(solve));
     }
-    arr.append(QJsonObject{{"name", qs(s.name)},
-                           {"scrambleType", qs(s.scrambleType)},
-                           {"cube", qs(std::string(cubeKindId(s.cube)))},
-                           {"solves", solves}});
-  }
-  return QJsonObject{{"format", kSessionsFile.format},
-                     {"version", 1},
-                     {"current", static_cast<int>(current)},
-                     {"sessions", arr}};
+    return solves;
+  });
 }
 
 std::vector<Session> sessionsFromJson(const QJsonObject &o,

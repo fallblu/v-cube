@@ -30,6 +30,8 @@ struct Solve {
   // Milliseconds from the start of the solve to each move of `moves` (as
   // parsed), if they were kept; empty for solves from before they were.
   std::vector<std::int64_t> moveTimes;
+
+  friend bool operator==(const Solve &, const Solve &) = default;
 };
 
 // Time used for statistics: DNF sorts after everything.

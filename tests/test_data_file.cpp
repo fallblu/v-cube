@@ -19,6 +19,7 @@
 #include <QTemporaryDir>
 
 #include <atomic>
+#include <functional>
 #include <new>
 #include <string>
 #include <utility>
@@ -589,4 +590,111 @@ TEST_CASE("a write that fails names the file") {
   QString error;
   CHECK_FALSE(writeFileAtomically(path, "{}", &error));
   CHECK(error.contains(QDir::toNativeSeparators(path)));
+}
+
+namespace {
+
+// What the store writes is what building the file afresh gives.
+void checkWritesAfresh(SessionStore &store) {
+  REQUIRE(store.save());
+  CHECK(readText(store.path()) ==
+        QJsonDocument(sessionsToJson(store.sessions(), store.currentIndex()))
+            .toJson(QJsonDocument::Compact));
+}
+
+void checkWritesAfresh(MoveCountStore &store, SolveLog mode) {
+  REQUIRE(store.save());
+  CHECK(readText(store.path()) ==
+        QJsonDocument(
+            moveCountsToJson(store.sessions(), store.currentIndex(), mode))
+            .toJson(QJsonDocument::Compact));
+}
+
+Solve solveOf(int ms) {
+  Solve s;
+  s.timeMs = ms;
+  s.scramble = "R U R'";
+  s.moves = "R U";
+  s.moveTimes = {100, 200};
+  return s;
+}
+
+} // namespace
+
+TEST_CASE("sessions are written right however they change between saves") {
+  QTemporaryDir tmp;
+  SessionStore store(tmp.filePath("sessions.json"));
+  for (int i = 0; i < 5; ++i) {
+    store.current().solves.push_back(solveOf(1000 + i));
+  }
+  checkWritesAfresh(store);
+  store.current().solves.push_back(solveOf(2000)); // a new solve
+  checkWritesAfresh(store);
+  store.current().solves[2].penalty = Penalty::Plus2; // one in the middle
+  checkWritesAfresh(store);
+  store.current().solves[0].comment = "first"; // the first
+  checkWritesAfresh(store);
+  store.current().solves.erase(store.current().solves.begin() + 3);
+  checkWritesAfresh(store);
+  store.current().solves.back().moveTimes.push_back(300);
+  checkWritesAfresh(store);
+  store.addSession("Two").solves.push_back(solveOf(3000));
+  checkWritesAfresh(store);
+  std::swap(store.sessions()[0], store.sessions()[1]); // moved about
+  checkWritesAfresh(store);
+  store.removeSession(0);
+  checkWritesAfresh(store);
+  store.current().solves.clear();
+  checkWritesAfresh(store);
+
+  // And it reads back as it was.
+  store.current().solves.push_back(solveOf(4000));
+  REQUIRE(store.save());
+  SessionStore read(store.path());
+  REQUIRE(read.load());
+  CHECK(read.sessions().size() == store.sessions().size());
+  CHECK(read.current().solves == store.current().solves);
+}
+
+TEST_CASE("a background save writes the sessions as they were when asked") {
+  QTemporaryDir tmp;
+  SessionStore store(tmp.filePath("sessions.json"));
+  store.current().solves.push_back(solveOf(1000));
+  std::function<bool(QString *)> job = store.saveJob();
+  // Changed after the save was asked for, before it runs.
+  store.current().solves.push_back(solveOf(2000));
+  store.current().solves[0].comment = "later";
+  store.save(); // fills the cache with the later data
+  QString error;
+  REQUIRE(job(&error));
+  SessionStore read(store.path());
+  REQUIRE(read.load());
+  REQUIRE(read.current().solves.size() == 1);
+  CHECK(read.current().solves[0].comment.empty());
+}
+
+TEST_CASE("move counts are written right however they change between saves") {
+  for (SolveLog mode : {SolveLog::MoveCount, SolveLog::Untimed}) {
+    QTemporaryDir tmp;
+    MoveCountStore store(tmp.filePath("counts.json"), mode);
+    MoveCountAttempt a;
+    a.moves = 7;
+    a.scramble = "R U";
+    for (int i = 0; i < 4; ++i) {
+      a.timestamp = i;
+      store.current().attempts.push_back(a);
+    }
+    checkWritesAfresh(store, mode);
+    a.solution = "R' U'";
+    store.current().attempts.push_back(a);
+    checkWritesAfresh(store, mode);
+    store.current().attempts[1].dnf = true;
+    checkWritesAfresh(store, mode);
+    store.current().attempts[0].counted = false;
+    checkWritesAfresh(store, mode);
+    store.current().attempts.erase(store.current().attempts.begin());
+    checkWritesAfresh(store, mode);
+    store.removeSession(store.currentIndex());
+    checkWritesAfresh(store, mode);
+  }
 }

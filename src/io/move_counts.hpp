@@ -43,6 +43,10 @@ class MoveCountStore : public SessionFileStore<MoveCountSession> {
 public:
   explicit MoveCountStore(QString path, SolveLog mode = SolveLog::MoveCount);
 
+  // Saved in the background from its JSON cache, not a copy of every
+  // attempt.
+  static constexpr bool kCachesJson = true;
+
 protected:
   std::vector<MoveCountSession> defaults() const override;
   QJsonObject toJson() const override;
@@ -50,6 +54,7 @@ protected:
 
 private:
   SolveLog mode_;
+  mutable ItemJsonCache<MoveCountAttempt> cache_;
 };
 
 // {"format": "v-cube.movecount", "version": 1, "current": 0, "sessions":
