@@ -531,11 +531,11 @@ void PracticePage::save() {
 
 // --- items -------------------------------------------------------------------
 
-void PracticePage::next(bool early) {
+void PracticePage::next(LearnAhead ahead) {
   if (tab_ == Tab::Timed) {
     nextTimed();
   } else {
-    nextLearn(early);
+    nextLearn(ahead);
   }
 }
 
@@ -570,10 +570,10 @@ void PracticePage::setProgress(const QStringList &lines) {
   showVerdict();
 }
 
-void PracticePage::begin(const Setup &setup, bool whole) {
+void PracticePage::begin(const Setup &setup, Extent extent) {
   item_ = {};
   item_.id = ++items_;
-  item_.whole = whole;
+  item_.whole = extent == Extent::Whole;
   item_.group = setup.group;
   item_.start = setup.cube;
   item_.colours = setup.colours;
@@ -597,18 +597,18 @@ void PracticePage::begin(const Setup &setup, bool whole) {
   showHidden(false);
 }
 
-void PracticePage::nextLearn(bool early) {
+void PracticePage::nextLearn(LearnAhead ahead) {
   if (tab_ == Tab::Inspection && readyPending_) {
     showReady();
     return;
   }
   if (whole()) {
-    std::optional<Setup> s = setUp(true, {});
+    std::optional<Setup> s = setUp(Extent::Whole, {});
     if (!s) {
       showIdle(tr("No state could be set up with these options"));
       return;
     }
-    begin(*s, true);
+    begin(*s, Extent::Whole);
     phase_ = Phase::Solving;
     cubeChanged();
     if (tab_ == Tab::Inspection && active_) {
@@ -626,7 +626,7 @@ void PracticePage::nextLearn(bool early) {
   options.last = lastCard_;
   options.rng = &rng_;
   options.dayEnd = localDayEnd();
-  options.early = early;
+  options.early = ahead == LearnAhead::Early;
   LearnPick pick = pickLearnCase(pool, store_.data.cards, now, localDayStart(),
                                  settings_.srs, options);
   if (!pick.caseId) {
@@ -649,13 +649,13 @@ void PracticePage::nextLearn(bool early) {
     refreshList();
     return;
   }
-  std::optional<Setup> s = setUp(false, *pick.caseId);
+  std::optional<Setup> s = setUp(Extent::Unit, *pick.caseId);
   if (!s) {
     showIdle(tr("%1 can't be set up with these options")
                  .arg(cardName(*pick.caseId)));
     return;
   }
-  begin(*s, false);
+  begin(*s, Extent::Unit);
   item_.card = *pick.caseId;
   item_.isNew = pick.isNew;
   item_.graded = !pick.isNew;
@@ -690,8 +690,8 @@ void PracticePage::showChoosing() {
   }
 }
 
-void PracticePage::leaveChoice(bool confirmed) {
-  if (confirmed) {
+void PracticePage::leaveChoice(Choice choice) {
+  if (choice == Choice::Confirmed) {
     if (!confirmChoice()) {
       return;
     }
@@ -708,8 +708,9 @@ void PracticePage::leaveChoice(bool confirmed) {
     // The grade follows the verdict, unless you gave it yourself.
     if (item_.graded && item_.recorded && item_.grade && item_.outcome &&
         !item_.gradedByHand) {
-      const Grade g =
-          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+                                     .hinted = item_.hint,
+                                     .gaveUp = item_.gaveUp});
       if (g != *item_.grade) {
         regrade(g);
       }
@@ -726,13 +727,13 @@ void PracticePage::practiseCard(const std::string &card) {
     showBar();
     fillList();
   }
-  std::optional<Setup> s = setUp(false, card);
+  std::optional<Setup> s = setUp(Extent::Unit, card);
   if (!s) {
     emit message(
         tr("%1 can't be set up with these options").arg(cardName(card)));
     return;
   }
-  begin(*s, false);
+  begin(*s, Extent::Unit);
   item_.card = card;
   phase_ = Phase::Solving;
   cubeChanged();
@@ -745,13 +746,13 @@ void PracticePage::practiseCard(const std::string &card) {
 
 void PracticePage::nextTimed() {
   flow_.setConfig(flowConfig());
-  std::optional<Setup> s = setUp(true, {});
+  std::optional<Setup> s = setUp(Extent::Whole, {});
   if (!s) {
     flow_.noCase();
     showIdle(tr("No state could be set up with these options"));
     return;
   }
-  begin(*s, true);
+  begin(*s, Extent::Whole);
   flow_.setUp(monotonicMs());
   display_->showTime(0);
   cubeChanged();
@@ -880,11 +881,11 @@ bool PracticePage::handleChooseKey(QKeyEvent *e) {
   switch (e->key()) {
   case Qt::Key_Return:
   case Qt::Key_Enter:
-    leaveChoice(true);
+    leaveChoice(Choice::Confirmed);
     return true;
   case Qt::Key_Escape:
     if (afterChoice_ == Phase::Done) {
-      leaveChoice(false);
+      leaveChoice(Choice::Cancelled);
     }
     return true;
   case Qt::Key_Space:
@@ -910,7 +911,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
   if (phase_ == Phase::Idle) {
     if (e->key() == Qt::Key_Space || e->key() == Qt::Key_Return ||
         e->key() == Qt::Key_Enter) {
-      next(true);
+      next(LearnAhead::Early);
       return true;
     }
     return false;
@@ -938,9 +939,9 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
       introduced();
     } else if (item_.hidden) {
       showHidden(false);
-      finishLearn(!item_.done);
+      finishLearn(item_.done ? Try::Finished : Try::GaveUp);
     } else if (shift) {
-      finishLearn(true);
+      finishLearn(Try::GaveUp);
     }
     return true;
   case Qt::Key_Tab:
@@ -960,7 +961,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
   case Qt::Key_Backspace:
     if (phase_ == Phase::Solving) {
       showHidden(false);
-      finishLearn(true);
+      finishLearn(Try::GaveUp);
     }
     return true;
   case Qt::Key_Escape:
@@ -1040,11 +1041,12 @@ void PracticePage::learnTurn(Move m) {
   if (phase_ == Phase::Demo) {
     introduced();
   } else if (!item_.hidden) {
-    finishLearn(false);
+    finishLearn(Try::Finished);
   }
 }
 
-void PracticePage::finishLearn(bool gaveUp) {
+void PracticePage::finishLearn(Try how) {
+  const bool gaveUp = how == Try::GaveUp;
   if (phase_ != Phase::Solving) {
     return;
   }
@@ -1073,8 +1075,9 @@ void PracticePage::conclude() {
     if (item_.graded) {
       CaseProgress &p = store_.data.cards[item_.card];
       item_.cardBefore = p.card;
-      const Grade g =
-          practiceGrade(item_.outcome->good, item_.hint, item_.gaveUp);
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+                                     .hinted = item_.hint,
+                                     .gaveUp = item_.gaveUp});
       review(p.card, g, now, settings_.srs, &rng_);
       p.record({now, 0, g == Grade::Again, AttemptMode::Learn});
       item_.grade = g;
@@ -1169,7 +1172,7 @@ void PracticePage::endDemo() {
 // --- Timed -------------------------------------------------------------------
 
 std::string PracticePage::timedGroupKey() const {
-  return timedKey(physical_, item_.group);
+  return timedKey(cubeKind(), item_.group);
 }
 
 DrillFlow::KeyEvent PracticePage::flowKey(const QKeyEvent *e,
@@ -1199,7 +1202,9 @@ bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
     return true;
   }
   const bool scrambleShown = !physical_ || !item_.scramble.isEmpty();
-  DrillFlow::Step step = flow_.key(flowKey(e, press), now, scrambleShown);
+  DrillFlow::Step step =
+      flow_.key(flowKey(e, press), now,
+                scrambleShown ? Scramble::Shown : Scramble::Awaited);
   perform(step, now);
   return step.handled;
 }
@@ -1254,7 +1259,9 @@ void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
     break;
   case A::Stopped:
     // On the virtual cube a DNF unless the cube shows the step done.
-    finishTimed(step.timeMs, !physical_ && !item_.done);
+    finishTimed(step.timeMs, !physical_ && !item_.done
+                                 ? DrillFlow::Result::Failed
+                                 : DrillFlow::Result::Solved);
     break;
   case A::CancelNoTurn:
     cancelTimed(tr("Stopped before any face turn: cancelled, nothing was "
@@ -1264,7 +1271,7 @@ void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
     cancelTimed(tr("Solve cancelled; nothing was recorded."));
     break;
   case A::GiveUp:
-    finishTimed(flow_.giveUp(now), true, true);
+    finishTimed(flow_.giveUp(now), DrillFlow::Result::GaveUp);
     break;
   case A::Practise:
     toggleDetail();
@@ -1306,10 +1313,11 @@ void PracticePage::runningTurn(Move m, std::int64_t now) {
   item_.moveMs.push_back(now - item_.began);
   item_.done = turned();
   cubeChanged();
-  std::optional<std::int64_t> stopped =
-      flow_.turned(face, face, now, [this] { return item_.done; });
+  std::optional<std::int64_t> stopped = flow_.turned(
+      face ? DrillFlow::Turn::OffUdFace : DrillFlow::Turn::Rotation, now,
+      [this] { return item_.done; });
   if (stopped) {
-    finishTimed(*stopped, false);
+    finishTimed(*stopped, DrillFlow::Result::Solved);
   }
 }
 
@@ -1323,7 +1331,8 @@ void PracticePage::cancelTimed(const QString &why) {
   hint_->setHint(why, hint_->keys());
 }
 
-void PracticePage::finishTimed(std::int64_t ms, bool failed, bool gaveUp) {
+void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
+  const bool failed = result != DrillFlow::Result::Solved;
   cubeView_->finishAnimations();
   item_.ms = ms;
   item_.gaveUp = failed;
@@ -1335,7 +1344,7 @@ void PracticePage::finishTimed(std::int64_t ms, bool failed, bool gaveUp) {
     bestBefore = before.bestMs;
     item_.meanBefore = before.meanMs;
   }
-  flow_.finished(ms, failed, gaveUp, bestBefore, monotonicMs());
+  flow_.finished(ms, result, bestBefore, monotonicMs());
   item_.outcome = judge();
   if (!item_.retry) {
     PracticeTry t;
@@ -2019,7 +2028,7 @@ void PracticePage::refreshList() {
       return;
     }
     const PracticeTries &all = tabTries();
-    auto it = all.find(tab_ == Tab::Timed ? timedKey(physical_, key) : key);
+    auto it = all.find(tab_ == Tab::Timed ? timedKey(cubeKind(), key) : key);
     const PracticeSummary s =
         it == all.end() ? PracticeSummary{} : summarize(it->second);
     row->setText(1, s.tries ? QString::number(s.tries) : kNoValue);
@@ -2206,7 +2215,7 @@ void PracticePage::clearProgress() {
     store_.data.learn.clear();
     break;
   case Tab::Timed: {
-    const std::string prefix = timedKey(physical_, {});
+    const std::string prefix = timedKey(cubeKind(), {});
     std::erase_if(store_.data.timed, [&prefix](const auto &entry) {
       return entry.first.starts_with(prefix);
     });

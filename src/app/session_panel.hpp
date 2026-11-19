@@ -119,7 +119,8 @@ public:
   // --- the delete and undo buttons (hidden until shown) ---
   void setDeleteRowVisible(bool on);
   void setDeleteEnabled(bool on);
-  void setUndo(bool visible, bool enabled);
+  void setUndoVisible(bool on);
+  void setUndoEnabled(bool on);
 
   // The session's trend chart, for the page to lay out.
   TrendChart *chart() const { return chart_; }

@@ -193,9 +193,9 @@ std::optional<std::size_t> bestRollingStart(std::span<const Solve> all,
 } // namespace
 
 std::optional<std::size_t> bestAverageStart(std::span<const Solve> all,
-                                            std::size_t n, bool mean,
+                                            std::size_t n, Rolling rolling,
                                             std::int64_t unit) {
-  if (mean) {
+  if (rolling == Rolling::Mean) {
     return bestRollingStart(
         all, n, [unit](std::span<const Solve> s) { return meanOf(s, unit); });
   }
@@ -213,13 +213,13 @@ std::optional<std::size_t> bestAverageStart(std::span<const Solve> all,
 
 StatValue bestAverage(std::span<const Solve> all, std::size_t n,
                       std::int64_t unit) {
-  auto at = bestAverageStart(all, n, false, unit);
+  auto at = bestAverageStart(all, n, Rolling::Average, unit);
   return at ? averageOf(all.subspan(*at, n), unit) : StatValue{};
 }
 
 StatValue bestMean(std::span<const Solve> all, std::size_t n,
                    std::int64_t unit) {
-  auto at = bestAverageStart(all, n, true, unit);
+  auto at = bestAverageStart(all, n, Rolling::Mean, unit);
   return at ? meanOf(all.subspan(*at, n), unit) : StatValue{};
 }
 
@@ -369,7 +369,8 @@ std::optional<StatId> parseStatId(std::string_view id) {
 }
 
 std::optional<StatSpan> statSpan(std::span<const Solve> all, StatId id,
-                                 bool best, std::int64_t unit) {
+                                 StatPick pick, std::int64_t unit) {
+  const bool best = pick == StatPick::Best;
   if (all.empty()) {
     return std::nullopt;
   }
@@ -390,8 +391,9 @@ std::optional<StatSpan> statSpan(std::span<const Solve> all, StatId id,
   if (!best) {
     return StatSpan{all.size() - id.n, id.n};
   }
-  std::optional<std::size_t> at =
-      bestAverageStart(all, id.n, id.kind == StatId::Kind::Mean, unit);
+  std::optional<std::size_t> at = bestAverageStart(
+      all, id.n,
+      id.kind == StatId::Kind::Mean ? Rolling::Mean : Rolling::Average, unit);
   if (!at) {
     return std::nullopt;
   }

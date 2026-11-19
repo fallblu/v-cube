@@ -85,7 +85,7 @@ bool isLabel(const QLayoutItem *item) {
 
 } // namespace
 
-int FlowLayout::doLayout(const QRect &rect, bool apply) const {
+int FlowLayout::doLayout(const QRect &rect, Pass pass) const {
   QMargins m = contentsMargins();
   QRect area = rect.marginsRemoved(m);
   int gap = spacingOr(6);
@@ -190,7 +190,7 @@ int FlowLayout::doLayout(const QRect &rect, bool apply) const {
       y += vgap;
     }
     first = false;
-    if (apply) {
+    if (pass == Pass::Apply) {
       int px = area.left();
       for (auto &[i, w] : placed) {
         QLayoutItem *item = entries_[i].item;
@@ -208,7 +208,7 @@ int FlowLayout::doLayout(const QRect &rect, bool apply) const {
 }
 
 int FlowLayout::heightForWidth(int width) const {
-  return doLayout(QRect(0, 0, width, 0), false);
+  return doLayout(QRect(0, 0, width, 0), Pass::Measure);
 }
 
 QSize FlowLayout::minimumSize() const {
@@ -256,7 +256,7 @@ QSize FlowLayout::sizeHint() const {
 
 void FlowLayout::setGeometry(const QRect &rect) {
   QLayout::setGeometry(rect);
-  doLayout(rect, true);
+  doLayout(rect, Pass::Apply);
 }
 
 } // namespace vcube

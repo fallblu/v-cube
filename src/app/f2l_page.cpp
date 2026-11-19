@@ -300,10 +300,10 @@ void F2LPage::importSheet() {
     sheetLooked_ = true;
     return;
   }
-  for (const std::string &key : pairCardPool(true)) {
+  for (const std::string &key : pairCardPool(Edges::Oriented)) {
     std::optional<PairCard> card = cardFromKey(key);
     std::optional<CubieCube> state =
-        card ? cardState(*card, true, rng()) : std::nullopt;
+        card ? cardState(*card, Edges::Oriented, rng()) : std::nullopt;
     if (!state) {
       continue;
     }
@@ -330,10 +330,10 @@ std::optional<std::string> F2LPage::sheetAlg(const std::string &card) const {
 // --- states ------------------------------------------------------------------
 
 std::vector<std::string> F2LPage::cardPool() const {
-  return pairCardPool(config_.eo);
+  return pairCardPool(config_.edges());
 }
 
-std::optional<PracticePage::Setup> F2LPage::setUp(bool whole,
+std::optional<PracticePage::Setup> F2LPage::setUp(Extent extent,
                                                   const std::string &card) {
   if (stop_) {
     stop_->store(true);
@@ -345,7 +345,7 @@ std::optional<PracticePage::Setup> F2LPage::setUp(bool whole,
   card_.reset();
   ranks_.clear();
   asked_.clear();
-  if (whole) {
+  if (extent == Extent::Whole) {
     start_ = randomFullState(config_, rng());
   } else {
     std::optional<PairCard> c = cardFromKey(card);
@@ -1059,7 +1059,7 @@ void F2LPage::requestCandidates() {
     std::optional<PairCard> c = cardFromKey(card);
     Rng rng = makeRng();
     std::optional<CubieCube> state =
-        c ? cardState(*c, options.config.eo, rng) : std::nullopt;
+        c ? cardState(*c, options.config.edges(), rng) : std::nullopt;
     if (!state) {
       return std::vector<RankedSolution>{};
     }
@@ -1082,28 +1082,30 @@ void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
                         });
   };
   const AnalysisOptions options = analysisOptions();
-  auto add = [this, &options](const Alg &alg, bool sheet, bool custom) {
+  // Where a candidate comes from: the search, the sheet, or the user's own.
+  enum class From { Search, Sheet, Custom };
+  auto add = [this, &options](const Alg &alg, From from) {
     Candidate c;
     c.solution.alg = alg;
     c.solution.text = toString(alg);
     c.solution.htm = htmCount(comparableSolution(alg));
     c.solution.cost = compareCost(alg, options);
-    c.sheet = sheet;
-    c.custom = custom;
+    c.sheet = from == From::Sheet;
+    c.custom = from == From::Custom;
     auto at = std::find_if(
         candidates_.begin(), candidates_.end(),
         [&c](const Candidate &o) { return c.solution.cost < o.solution.cost; });
     return candidates_.insert(at, std::move(c));
   };
   for (const RankedSolution &s : searched) {
-    add(s.alg, false, false);
+    add(s.alg, From::Search);
   }
   if (std::optional<std::string> sheet = sheetAlg(item().card)) {
     Alg alg = parseAlgOrEmpty(*sheet);
     if (!alg.empty()) {
       auto it = find(alg);
       if (it == candidates_.end()) {
-        it = add(alg, true, false);
+        it = add(alg, From::Sheet);
       }
       it->sheet = true;
       it->ticked = first; // to start with
@@ -1112,14 +1114,14 @@ void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
   for (const Alg &alg : chosen) {
     auto it = find(alg);
     if (it == candidates_.end()) {
-      it = add(alg, false, true);
+      it = add(alg, From::Custom);
     }
     it->ticked = true;
   }
   for (const Candidate &c : before) {
     auto it = find(c.solution.alg);
     if (it == candidates_.end()) {
-      it = add(c.solution.alg, false, true);
+      it = add(c.solution.alg, From::Custom);
     }
     it->ticked = it->ticked || c.ticked;
   }
@@ -1267,7 +1269,7 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
   // The back cards' pictures, worked out once.
   static std::map<std::string, FaceletCube> backPictures;
   Rng pictures(1);
-  for (PairCase c : pairCases(config_.eo)) {
+  for (PairCase c : pairCases(config_.edges())) {
     for (PairSide side : {PairSide::Front, PairSide::Back}) {
       ListRow r;
       r.key = cardKey({side, c});
@@ -1281,8 +1283,9 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
         auto picture = backPictures.find(r.key);
         if (picture == backPictures.end()) {
           // With EO unless the case has the edge flipped.
-          std::optional<CubieCube> state =
-              cardState({side, c}, c.edge % 2 == 0, pictures);
+          std::optional<CubieCube> state = cardState(
+              {side, c}, c.edge % 2 == 0 ? Edges::Oriented : Edges::Any,
+              pictures);
           picture = backPictures
                         .emplace(r.key, state ? pairDiagram(*state, Slot::BR)
                                               : caseDiagram(c))

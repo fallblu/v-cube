@@ -70,7 +70,7 @@ private:
   std::optional<int> optimalOf(const MoveCountAttempt &a) const;
   // Works out the optimal lengths the attempt list is missing.
   void requestOptimal();
-  void recordTyped(bool dnf);
+  void recordTyped(AttemptFlow::Typed typed);
 };
 
 } // namespace vcube

@@ -36,7 +36,9 @@ public:
   void reset();
   // A turn of the cube (now `cube`): true once every pair is solved.
   bool turned(Move m, const FaceletCube &cube);
-  void finish(bool gaveUp) { gaveUp_ = gaveUp; }
+  // How the practice ended: every pair solved, or given up.
+  enum class End { Solved, GaveUp };
+  void finish(End end) { gaveUp_ = end == End::GaveUp; }
 
   // The keys, while solving and once done.
   QString statusText(bool done) const;

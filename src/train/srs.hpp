@@ -104,7 +104,12 @@ bool isLeech(const SrsCard &card, const SrsConfig &config);
 // Learn-mode grade, from correctness rather than time: Good when the case
 // was solved from memory with one of its algs, Again after a hint, giving
 // up or leaving the algs.
-Grade learnGrade(bool hinted, bool gaveUp, bool leftAlgs);
+struct LearnTry {
+  bool hinted = false;
+  bool gaveUp = false;
+  bool leftAlgs = false;
+};
+Grade learnGrade(const LearnTry &t);
 
 // Which mode an attempt was made in. Learn attempts are untimed and drive
 // the SRS card; drill attempts are timed and feed the time statistics,
@@ -242,6 +247,10 @@ struct LearnPick {
   bool learningLimitReached = false;
   int queued = 0; // cases waiting in the learn queue
 };
+
+// Whether learning cards wait until they are due, or are taken early when
+// nothing else is left (LearnPickOptions::early).
+enum class LearnAhead : std::uint8_t { WhenDue, Early };
 
 // What pickLearnCase may choose from, and how.
 struct LearnPickOptions {

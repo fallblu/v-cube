@@ -31,11 +31,12 @@ TEST_CASE("new cards go through learning steps then graduate") {
 }
 
 TEST_CASE("learn grades come from correctness, not time") {
-  CHECK(learnGrade(false, false, false) == Grade::Good);
-  CHECK(learnGrade(true, false, false) == Grade::Again);
-  CHECK(learnGrade(false, true, false) == Grade::Again);
-  CHECK(learnGrade(false, false, true) == Grade::Again);
-  CHECK(learnGrade(true, true, true) == Grade::Again);
+  CHECK(learnGrade({}) == Grade::Good);
+  CHECK(learnGrade({.hinted = true}) == Grade::Again);
+  CHECK(learnGrade({.gaveUp = true}) == Grade::Again);
+  CHECK(learnGrade({.leftAlgs = true}) == Grade::Again);
+  CHECK(learnGrade({.hinted = true, .gaveUp = true, .leftAlgs = true}) ==
+        Grade::Again);
 }
 
 TEST_CASE("drill statistics ignore learn attempts") {
@@ -626,7 +627,7 @@ TEST_CASE("a drill session counts attempts, DNFs, new bests and the slowest") {
   CHECK(sum.slowest[0].caseId == "b");
   CHECK(sum.slowest[1].caseId == "a");
   CHECK(sum.slowest[1].timeMs == 2500);
-  s.setFailed(i, true);
+  s.setFailed(i, DrillSession::Mark::Failed);
   CHECK(s.summary().dnfs == 2);
   s.removeLast();
   CHECK(s.summary().count == 4);

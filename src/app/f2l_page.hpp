@@ -89,7 +89,7 @@ protected:
   void addOptions(OptionBar *bar) override;
   void showOptions() override;
   std::vector<std::string> cardPool() const override;
-  std::optional<Setup> setUp(bool whole, const std::string &card) override;
+  std::optional<Setup> setUp(Extent extent, const std::string &card) override;
   void restarted() override;
   bool turned() override;
   void cubeChanged() override;

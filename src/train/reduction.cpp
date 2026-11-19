@@ -127,7 +127,8 @@ std::optional<CaseView> seenCase(const AlgSet &set, const CubieCube &cube,
 }
 
 CubieCube setUpCase(const CubieCube &state, const PieceMask &free, Mirror world,
-                    bool scramble, Rng &rng) {
+                    FreePieces pieces, Rng &rng) {
+  const bool scramble = pieces == FreePieces::Scrambled;
   if (slotIndependent(state, free, world)) {
     return scramble ? randomState(mirrorMask(free, world), rng) * state : state;
   }
@@ -160,8 +161,7 @@ std::vector<ViewAlg> algsFor(const AlgSet &set, const CaseGroup &group,
       // others as they are written.
       const std::string &text =
           out.empty() && analysis.main == i ? analysis.mainAlg : c.algs[i];
-      auto fit = fitAlg(canonical, parseAlgOrEmpty(text), free, set.aufBefore,
-                        set.aufAfter);
+      auto fit = fitAlg(canonical, parseAlgOrEmpty(text), free, aufsOf(set));
       // A reduction set's last steps read as its other steps do.
       alg.text = !fit ? text
                  : set.reduction && fit->after == 0

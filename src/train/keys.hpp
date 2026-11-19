@@ -47,6 +47,13 @@ struct TrainKeyEvent {
   bool modified = false; // Ctrl, Alt or Meta held
 };
 
+// A key going down or coming back up.
+enum class KeyEdge : std::uint8_t { Down, Up };
+
+// Whether a scramble is shown to solve. While one is still awaited no
+// solve starts and nothing is recorded.
+enum class Scramble : std::uint8_t { Shown, Awaited };
+
 // Space held to start a solve, as the flows keep it and the time display
 // shows it: it must be held for the hold time (Ready) before letting go
 // starts the solve.

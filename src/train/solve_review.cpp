@@ -140,8 +140,7 @@ std::shared_ptr<const PairIndex> buildIndex(const AlgSet &set) {
         for (const auto &original : c.algs) {
           std::string text =
               world.none() ? original : mirrorAlgText(original, world);
-          AlgCheck check =
-              checkAlg(state, text, free, set.aufBefore, set.aufAfter);
+          AlgCheck check = checkAlg(state, text, free, aufsOf(set));
           if (check.passes()) {
             pc.algs.push_back({text, parseAlgOrEmpty(text), check.fit->before});
           }
@@ -373,7 +372,9 @@ bool isPairSet(const AlgSet &set) {
 }
 
 F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
-                          const AlgSet *reference, bool eo, bool simplified) {
+                          const AlgSet *reference, Edges edges,
+                          bool simplified) {
+  const bool eo = edges == Edges::Oriented;
   F2LBreakdown out;
   FaceletCube f = start;
   std::size_t k = 0;
@@ -499,7 +500,9 @@ SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
   std::optional<std::size_t> eoCross = markOf(SolveStep::EOCross);
   std::optional<std::size_t> f2l = markOf(SolveStep::CFOPF2L);
   out.zz = eoCross && (!f2l || *eoCross < *f2l);
-  F2LBreakdown b = f2lBreakdown(start, solution, nullptr, out.zz, simplified);
+  F2LBreakdown b =
+      f2lBreakdown(start, solution, nullptr,
+                   out.zz ? Edges::Oriented : Edges::Any, simplified);
   if (!b.found) {
     return out;
   }
@@ -697,10 +700,10 @@ PairPlan cheapestPairOrder(const CubieCube &state, const AlgSet &reference) {
 }
 
 CubieCube randomPairState(const std::vector<Slot> &open, Rng &rng) {
-  PieceMask mask = PieceMask{}.lastLayer(true, true, false);
+  PieceMask mask = PieceMask{}.lastLayer(Free::PermAndOri, Free::Perm);
   for (Slot s : open) {
-    mask.corners({slotCorner(s)}, true, true);
-    mask.edges({slotEdge(s)}, true, false);
+    mask.corners({slotCorner(s)}, Free::PermAndOri);
+    mask.edges({slotEdge(s)}, Free::Perm);
   }
   mask.normalize();
   CubieCube c;

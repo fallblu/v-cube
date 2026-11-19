@@ -21,6 +21,13 @@ namespace vcube {
 class AlgGuide;
 class CubeView;
 
+// How the stage's guide is shown (see CaseStage::showGuide).
+struct GuideOptions {
+  bool nextOnly = false;
+  bool solving = false;
+  bool deviated = false;
+};
+
 // Where Learn shows a case: the virtual cube above, with a header and a
 // row of options, and below it what is said about the case: the guide,
 // the status, the grade, the quiz's answers, the algs and the case's
@@ -44,8 +51,7 @@ public:
   // or following each next move), or with `nextOnly` the next move alone
   // (a learning-step hint). While `solving`, a cube between two moves or
   // off the alg (`deviated`) is said so. Null hides it.
-  void showGuide(const AlgGuide *guide, bool nextOnly, bool solving,
-                 bool deviated);
+  void showGuide(const AlgGuide *guide, const GuideOptions &how = {});
   // The keys that do something now, as chips under the status.
   void setKeys(const QList<KeyHint> &keys);
   // Buttons under the status for what can be done next (none hides them).

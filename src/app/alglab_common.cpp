@@ -32,7 +32,7 @@ std::optional<ResolvedCase> resolveLabCase(const AlgLibrary &library,
     r.spec.free = r.free;
     // From above when only the last layer is unsolved.
     PieceMask ll;
-    ll.lastLayer(true, true, true);
+    ll.lastLayer(Free::PermAndOri, Free::PermAndOri);
     r.spec.view =
         withinMask(r.state, ll) ? DiagramView::TopLayer : DiagramView::Iso3D;
     return r;
@@ -92,12 +92,12 @@ const CandidateFacts &CandidateCache::of(const ResolvedCase &c,
   f.rotations = std::any_of(f.moves.begin(), f.moves.end(),
                             [](Move m) { return isRotation(m.type); });
   if (!f.moves.empty()) {
-    f.fit = fitAlg(c.state, f.moves, c.free, c.aufBefore, c.aufAfter);
+    f.fit = fitAlg(c.state, f.moves, c.free, aufsOf(c));
   }
   if (f.fit) {
     f.shown = qs(withAufs(f.key, *f.fit));
   } else {
-    AlgCheck check = checkAlg(c.state, f.key, c.free, c.aufBefore, c.aufAfter);
+    AlgCheck check = checkAlg(c.state, f.key, c.free, aufsOf(c));
     f.shown = qs(f.key) + "   (" + qs(describeCheck(check)) + ")";
   }
   return facts_.emplace(alg, std::move(f)).first->second;

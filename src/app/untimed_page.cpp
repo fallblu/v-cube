@@ -18,7 +18,8 @@ namespace vcube {
 
 UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
                          AlgLibrary &library, QWidget *parent)
-    : AttemptPage(settings, store, library, "untimed", false, parent),
+    : AttemptPage(settings, store, library, "untimed", SolveLog::Untimed,
+                  parent),
       eoCheck_(settings) {
   QWidget *right = cubeView_->parentWidget();
   algs_ = new ScrambleAlgs(library, "untimed/showAlgs", right);

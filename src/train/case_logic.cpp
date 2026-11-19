@@ -107,8 +107,9 @@ std::optional<int> uTurnQuarters(std::string_view token) {
 } // namespace
 
 std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
-                             const PieceMask &free, bool aufBefore,
-                             bool aufAfter) {
+                             const PieceMask &free, Aufs aufs) {
+  const bool aufBefore = allowsAufBefore(aufs);
+  const bool aufAfter = allowsAufAfter(aufs);
   if (alg.empty()) {
     return std::nullopt;
   }
@@ -358,7 +359,9 @@ std::string describeUnsolved(const Unsolved &u) {
 }
 
 AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
-                  const PieceMask &free, bool aufBefore, bool aufAfter) {
+                  const PieceMask &free, Aufs aufs) {
+  const bool aufBefore = allowsAufBefore(aufs);
+  const bool aufAfter = allowsAufAfter(aufs);
   AlgCheck r;
   ParseResult parsed = parseAlg(alg);
   if (!parsed) {
@@ -370,7 +373,7 @@ AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
     return r;
   }
   r.moves = htmCount(parsed.alg);
-  r.fit = fitAlg(state, parsed.alg, free, aufBefore, aufAfter);
+  r.fit = fitAlg(state, parsed.alg, free, aufs);
   if (r.fit) {
     return r;
   }
@@ -478,14 +481,17 @@ std::optional<std::string> withoutLeadingMoves(std::string_view text,
 
 } // namespace
 
-std::optional<DisplayOrientation>
-displayOrientation(const CubieCube &state, const std::string &mainAlg,
-                   const PieceMask &free, bool aufBefore, bool aufAfter) {
+std::optional<DisplayOrientation> displayOrientation(const CubieCube &state,
+                                                     const std::string &mainAlg,
+                                                     const PieceMask &free,
+                                                     Aufs aufs) {
+  const bool aufBefore = allowsAufBefore(aufs);
+  const bool aufAfter = allowsAufAfter(aufs);
   ParseResult parsed = parseAlg(mainAlg);
   if (!parsed) {
     return std::nullopt;
   }
-  auto fit = fitAlg(state, parsed.alg, free, aufBefore, aufAfter);
+  auto fit = fitAlg(state, parsed.alg, free, aufs);
   if (!fit) {
     return std::nullopt;
   }
@@ -535,7 +541,7 @@ displayOrientation(const CubieCube &state, const std::string &mainAlg,
   }
   // By construction the rest solves the case as shown without a U turn
   // first; fall back to the stored case if it somehow doesn't.
-  auto check = fitAlg(*shown, rest, free, false, aufAfter);
+  auto check = fitAlg(*shown, rest, free, aufAfter ? Aufs::After : Aufs::None);
   if (!check) {
     return canonical;
   }
@@ -544,8 +550,7 @@ displayOrientation(const CubieCube &state, const std::string &mainAlg,
 
 AlgCheck checkCaseAlg(const AlgSet &set, const CaseGroup &group,
                       const AlgCase &c, std::string_view alg) {
-  AlgCheck check = checkAlg(c.state, alg, set.specFor(group).free,
-                            set.aufBefore, set.aufAfter);
+  AlgCheck check = checkAlg(c.state, alg, set.specFor(group).free, aufsOf(set));
   if (set.reduction && !check.passes() && !check.parseError && !check.empty) {
     // A step: done as written, it stops at another case of the set.
     FaceletCube f = c.state.toFacelets();
@@ -577,8 +582,8 @@ CaseAnalysis analyzeCase(const AlgSet &set, const CaseGroup &group,
   if (!a.passing.empty()) {
     a.main = a.passing.front();
     a.mainAlg = trim(c.algs[*a.main]);
-    if (auto d = displayOrientation(c.state, c.algs[*a.main], free,
-                                    set.aufBefore, set.aufAfter)) {
+    if (auto d =
+            displayOrientation(c.state, c.algs[*a.main], free, aufsOf(set))) {
       a.display = d->state;
       a.mainAlg = d->alg;
     }
@@ -588,15 +593,16 @@ CaseAnalysis analyzeCase(const AlgSet &set, const CaseGroup &group,
 
 namespace {
 
+enum class Matches { First, All };
 std::vector<CaseRef> casesSolvedBy(const AlgSet &set, const Alg &alg,
-                                   bool firstOnly) {
+                                   Matches matches) {
+  const bool firstOnly = matches == Matches::First;
   std::vector<CaseRef> out;
   for (std::size_t g = 0; g < set.groups.size(); ++g) {
     const auto &group = set.groups[g];
     const PieceMask &free = set.specFor(group).free;
     for (std::size_t i = 0; i < group.cases.size(); ++i) {
-      if (fitAlg(group.cases[i].state, alg, free, set.aufBefore,
-                 set.aufAfter)) {
+      if (fitAlg(group.cases[i].state, alg, free, aufsOf(set))) {
         out.push_back(CaseRef{g, i});
         if (firstOnly) {
           return out;
@@ -610,12 +616,12 @@ std::vector<CaseRef> casesSolvedBy(const AlgSet &set, const Alg &alg,
 } // namespace
 
 std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg) {
-  auto found = casesSolvedBy(set, alg, true);
+  auto found = casesSolvedBy(set, alg, Matches::First);
   return found.empty() ? std::nullopt : std::optional(found.front());
 }
 
 std::vector<CaseRef> matchCases(const AlgSet &set, const Alg &alg) {
-  return casesSolvedBy(set, alg, false);
+  return casesSolvedBy(set, alg, Matches::All);
 }
 
 CubieCube withRandomAufs(const AlgSet &set, const CubieCube &state, Rng &rng) {
@@ -771,7 +777,8 @@ std::vector<PasteItem> readPaste(const std::string &text) {
 }
 
 PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
-                    bool createCases, std::size_t newCaseGroup) {
+                    NewCases newCases, std::size_t newCaseGroup) {
+  const bool createCases = newCases == NewCases::Create;
   PastePlan plan;
   plan.set = set;
   AlgSet &work = plan.set;
@@ -892,8 +899,8 @@ PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
 }
 
 ImportReport importAlgs(AlgSet &set, const std::string &text,
-                        bool createCases) {
-  PastePlan plan = planPaste(set, readPaste(text), createCases,
+                        NewCases newCases) {
+  PastePlan plan = planPaste(set, readPaste(text), newCases,
                              set.groups.empty() ? 0 : set.groups.size() - 1);
   set = std::move(plan.set);
   return plan.report;

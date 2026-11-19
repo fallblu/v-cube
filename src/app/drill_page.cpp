@@ -738,10 +738,11 @@ void DrillPage::retryCase() {
   // The case as it is drawn, in its world, with the step's free pieces
   // scrambled and random U turns around it.
   current_->caseState = info->state;
-  current_->state = withRandomAufs(
-      *s,
-      setUpCase(info->state, s->specFor(*g).free, current_->world, true, rng_),
-      rng_);
+  current_->state =
+      withRandomAufs(*s,
+                     setUpCase(info->state, s->specFor(*g).free,
+                               current_->world, FreePieces::Scrambled, rng_),
+                     rng_);
   current_->scramble.clear();
   missText_.clear();
   sessionIndex_.reset();

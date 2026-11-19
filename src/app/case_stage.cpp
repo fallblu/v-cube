@@ -156,8 +156,10 @@ void CaseStage::setActions(const std::vector<Action> &actions) {
   actionRow_->setVisible(!actions.empty());
 }
 
-void CaseStage::showGuide(const AlgGuide *g, bool nextOnly, bool solving,
-                          bool deviated) {
+void CaseStage::showGuide(const AlgGuide *g, const GuideOptions &how) {
+  const bool nextOnly = how.nextOnly;
+  const bool solving = how.solving;
+  const bool deviated = how.deviated;
   guide_->setVisible(g != nullptr);
   if (!g) {
     guide_->clear();

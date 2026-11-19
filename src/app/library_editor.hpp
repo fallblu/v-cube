@@ -96,7 +96,8 @@ public:
   void removed(Edit edit, const QString &text);
 
   // Undoes or redoes an edit (see the undo stack's commands).
-  void applyEdit(Edit &edit, bool undoing, const QString &text);
+  enum class Step { Undo, Redo };
+  void applyEdit(Edit &edit, Step step, const QString &text);
 
 private:
   AlgLibrary &library_;

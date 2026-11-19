@@ -76,13 +76,13 @@ TEST_CASE("built-in cases are distinct and accept standard algs") {
                            "T: R U R' U' R' F R2 U' R' U' R U R' F'\n"
                            "M2 U M U2 M' U M2\n"
                            "x R2 D2 R U R' D2 R U' R x'\n",
-                           false);
+                           NewCases::Skip);
   CHECK(report.added == 3);
   CHECK(p.findCase("T")->algs.size() == 1);
   CHECK(p.findCase("Ua")->algs.size() == 1);
   CHECK(p.findCase("Ab")->algs.size() == 1);
   AlgSet o = *oll;
-  report = importAlgs(o, "R U R' U R U2 R'\nF R U R' U' F'\n", false);
+  report = importAlgs(o, "R U R' U R U2 R'\nF R U R' U' F'\n", NewCases::Skip);
   CHECK(report.added == 2);
   CHECK(o.findCase("oll27")->algs.size() == 1);
   CHECK(o.findCase("oll45")->algs.size() == 1);
@@ -145,8 +145,7 @@ TEST_CASE("built-in cases keep their last layer on top whatever the main "
         for (const char *prefix : prefixes) {
           std::string alg = withPrefix(prefix, base);
           INFO(set->id << " " << c.id << ": " << alg);
-          REQUIRE(checkAlg(c.state, alg, free, set->aufBefore, set->aufAfter)
-                      .passes());
+          REQUIRE(checkAlg(c.state, alg, free, aufsOf(*set)).passes());
           AlgCase one = c;
           one.algs = {alg};
           CaseAnalysis a = analyzeCase(*set, g, one);
@@ -157,8 +156,8 @@ TEST_CASE("built-in cases keep their last layer on top whatever the main "
           CHECK(left.edgesMisplaced[1] + left.edgesFlipped[1] == 0);
           CHECK(left.edgesMisplaced[2] + left.edgesFlipped[2] == 0);
           // The alg as shown solves the case as shown with no U first.
-          CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), free, false,
-                       set->aufAfter));
+          CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), free,
+                       set->aufAfter ? Aufs::After : Aufs::None));
           // Adding more algs leaves the case shown as its first alg has it.
           withAlgs.algs.push_back(alg);
           CaseAnalysis all = analyzeCase(*set, g, withAlgs);
@@ -177,7 +176,8 @@ TEST_CASE("a tilted Aa perm alg shows the case the usual way up") {
   auto pll = readAlgSetFile(kBuiltins + "/pll.json", nullptr);
   REQUIRE(pll);
   AlgSet set = *pll;
-  auto report = importAlgs(set, "x R' U R' D2 R U' R' D2 R2 x'\n", false);
+  auto report =
+      importAlgs(set, "x R' U R' D2 R U' R' D2 R2 x'\n", NewCases::Skip);
   REQUIRE(report.added == 1);
   const CaseGroup *group = nullptr;
   const AlgCase *aa = nullptr;

@@ -84,7 +84,7 @@ protected:
   // subclass adds its own widgets, sets the scramble type box with
   // setTypeBox() and then calls start().
   AttemptPage(AppSettings &settings, MoveCountStore &store, AlgLibrary &library,
-              const QString &mode, bool moveCount, QWidget *parent);
+              const QString &mode, SolveLog log, QWidget *parent);
 
   // --- for the subclass to build the page ---
   // Adds "Scramble:", the type box (and `extra` after it, if any), the

@@ -30,27 +30,29 @@ namespace {
 // The Moves, TPS, Cross (EO Cross in a ZZ solve), F2L and LL columns come
 // from a virtual solve's move times.
 std::vector<AttemptColumn> columns(bool virt) {
-  auto col = [](const char *id, const QString &title, bool hideable,
-                bool available) {
+  // Whether the column can be hidden from the header's menu.
+  enum class Hide { Never, Allowed };
+  auto col = [](const char *id, const QString &title, Hide hide,
+                bool available = true) {
     AttemptColumn c;
     c.id = id;
     c.title = title;
     // The number fits its contents; the others share the width evenly.
     c.fit = c.id == "#";
-    c.hideable = hideable;
+    c.hideable = hide == Hide::Allowed;
     c.available = available;
     return c;
   };
   return {
-      col("#", "#", false, true),
-      col("time", QObject::tr("Time"), false, true),
-      col("ao5", "ao5", true, true),
-      col("ao12", "ao12", true, true),
-      col("moves", QObject::tr("Moves"), true, virt),
-      col("tps", QObject::tr("TPS"), true, virt),
-      col("cross", QObject::tr("Cross"), true, virt),
-      col("f2l", QObject::tr("F2L"), true, virt),
-      col("ll", QObject::tr("LL"), true, virt),
+      col("#", "#", Hide::Never),
+      col("time", QObject::tr("Time"), Hide::Never),
+      col("ao5", "ao5", Hide::Allowed),
+      col("ao12", "ao12", Hide::Allowed),
+      col("moves", QObject::tr("Moves"), Hide::Allowed, virt),
+      col("tps", QObject::tr("TPS"), Hide::Allowed, virt),
+      col("cross", QObject::tr("Cross"), Hide::Allowed, virt),
+      col("f2l", QObject::tr("F2L"), Hide::Allowed, virt),
+      col("ll", QObject::tr("LL"), Hide::Allowed, virt),
   };
 }
 
@@ -302,7 +304,8 @@ void TimerPage::updateControls() {
     w->setEnabled(!busy);
   }
   panel_->setDeleteEnabled(!busy && any);
-  panel_->setUndo(deleted_.has(), !busy);
+  panel_->setUndoVisible(deleted_.has());
+  panel_->setUndoEnabled(!busy);
 }
 
 QWidget *TimerPage::sidePanel() const { return panel_; }
@@ -466,7 +469,9 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     if (virt) {
       // Space stops the timer; the turning keys turn the cube.
       if (key == Qt::Key_Space) {
-        apply(flow_.space(press, now, true), now);
+        apply(flow_.space(press ? KeyEdge::Down : KeyEdge::Up, now,
+                          Scramble::Shown),
+              now);
       } else if (press && move) {
         turnDuringSolve(*move, now);
       }
@@ -515,7 +520,9 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
     return true;
   }
   if (key == Qt::Key_Space) {
-    apply(flow_.space(press, now, feed_.current().has_value()), now);
+    apply(flow_.space(press ? KeyEdge::Down : KeyEdge::Up, now,
+                      feed_.current() ? Scramble::Shown : Scramble::Awaited),
+          now);
     return true;
   }
   if ((key == Qt::Key_Return || key == Qt::Key_Enter) && flow_.finished()) {

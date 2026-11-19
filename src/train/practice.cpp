@@ -29,8 +29,8 @@ void PracticeData::addTimed(const std::string &key, const PracticeTry &t) {
   addCapped(timed[key], t);
 }
 
-std::string timedKey(bool physical, const std::string &group) {
-  return (physical ? "physical/" : "virtual/") + group;
+std::string timedKey(CubeKind cube, const std::string &group) {
+  return (cube == CubeKind::Physical ? "physical/" : "virtual/") + group;
 }
 
 PracticeSummary summarize(const std::vector<PracticeTry> &tries) {
@@ -152,8 +152,8 @@ PracticeWaiting practiceWaiting(const std::vector<std::string> &pool,
   return out;
 }
 
-Grade practiceGrade(bool solvedWell, bool hinted, bool gaveUp) {
-  return solvedWell && !hinted && !gaveUp ? Grade::Good : Grade::Again;
+Grade practiceGrade(const CardTry &t) {
+  return t.solvedWell && !t.hinted && !t.gaveUp ? Grade::Good : Grade::Again;
 }
 
 } // namespace vcube

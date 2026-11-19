@@ -129,8 +129,8 @@ public:
   // Move Count, physical: the count typed so far.
   const TypedCount &entry() const { return entry_; }
 
-  // A key down or up. `scrambleReady`: a scramble is shown to solve.
-  Effects key(const KeyEvent &k, std::int64_t now, bool scrambleReady);
+  // A key down or up.
+  Effects key(const KeyEvent &k, std::int64_t now, Scramble scramble);
   // Advances a hold. With `popupOpen` (a popup or dialog took the keys)
   // a hold is let go of, as its release won't come.
   Effects tick(std::int64_t now, bool popupOpen);
@@ -144,7 +144,8 @@ public:
   // solved), with the solution's count.
   Effects solveEnded(bool reached, int count, const std::string &solution);
   // Move Count, physical: records the count typed (or DNF).
-  Effects recordTyped(bool dnf, bool scrambleReady);
+  enum class Typed : std::uint8_t { Count, Dnf };
+  Effects recordTyped(Typed typed, Scramble scramble);
   // Skip scramble: on to the next one, or from a retry back to the
   // scrambles.
   Effects skip();
@@ -178,11 +179,11 @@ private:
 
   void setPhase(Phase p, Effects &e);
   void cancelHold(Effects &e);
-  void pressStart(std::int64_t now, bool ready, Effects &e);
-  void releaseStart(bool ready, Effects &e);
+  void pressStart(std::int64_t now, Scramble scramble, Effects &e);
+  void releaseStart(Scramble scramble, Effects &e);
   void next(Effects &e);
   void endRetry(Effects &e);
-  void recordTyped(bool dnf, bool ready, Effects &e);
+  void recordTyped(Typed typed, Scramble scramble, Effects &e);
   void skip(Effects &e);
 };
 

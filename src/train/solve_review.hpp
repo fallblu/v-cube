@@ -48,6 +48,10 @@ std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
 
 // F2L slots in the solver's frame (cross on D), by their corner and edge.
 enum class Slot : std::uint8_t { FR, FL, BL, BR };
+
+// Whether every edge is oriented for the F/B axis, as ZZ has them after
+// EO, or the edges may be flipped, as in CFOP.
+enum class Edges : std::uint8_t { Oriented, Any };
 inline constexpr int kSlots = 4;
 std::string_view slotName(Slot s); // "FR", "FL", "BL", "BR"
 Corner slotCorner(Slot s);         // DFR, DLF, DBL, DRB
@@ -106,7 +110,8 @@ struct F2LBreakdown {
   bool complete = false; // every slot was solved in the end
 };
 F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
-                          const AlgSet *reference, bool eo = true,
+                          const AlgSet *reference,
+                          Edges edges = Edges::Oriented,
                           bool simplified = true);
 
 // The shortest <R, U, L> solution of a slot's pair from a ZZ F2L state (in

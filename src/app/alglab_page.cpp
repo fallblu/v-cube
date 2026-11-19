@@ -46,9 +46,10 @@ constexpr int kDiagramSize = 110;
 
 // The move-set drop-downs: each item holds its move set's text, "custom"
 // opens the dialog.
-void addMoveSets(QComboBox *box, const AlgLabStore &store, bool any) {
+enum class AnyMoves { Left, Offered }; // the filter's "Any moves" item
+void addMoveSets(QComboBox *box, const AlgLabStore &store, AnyMoves any) {
   box->clear();
-  if (any) {
+  if (any == AnyMoves::Offered) {
     box->addItem(QObject::tr("Any moves"), QString());
   }
   for (const auto &p : builtinMoveSets()) {
@@ -149,9 +150,10 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   profileMenu->setText(tr("Profile…"));
   profileMenu->setPopupMode(QToolButton::InstantPopup);
   auto *pm = new QMenu(profileMenu);
-  pm->addAction(tr("Edit this profile…"), this, [this] { editProfile(false); });
+  pm->addAction(tr("Edit this profile…"), this,
+                [this] { editProfile(ProfileEdit::InPlace); });
   pm->addAction(tr("New profile from this one…"), this,
-                [this] { editProfile(true); });
+                [this] { editProfile(ProfileEdit::Copy); });
   pm->addAction(tr("New grip profile…"), this, [this] {
     ErgoProfile p = builtinErgoProfiles().front();
     p.name = tr("My grips").toStdString();
@@ -367,8 +369,9 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   batchButton_ = new QPushButton(tr("Whole group…"), gen);
   auto *bm = new QMenu(batchButton_);
   bm->addAction(tr("Every case in this case's group"), this,
-                [this] { runBatch(false); });
-  bm->addAction(tr("Every case in this set"), this, [this] { runBatch(true); });
+                [this] { runBatch(Batch::Group); });
+  bm->addAction(tr("Every case in this set"), this,
+                [this] { runBatch(Batch::WholeSet); });
   batchButton_->setMenu(bm);
   stopButton_ = new QPushButton(tr("Stop"), gen);
   genStatus_ = new QLabel(gen);
@@ -516,8 +519,10 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   connect(addButton, &QPushButton::clicked, this, &AlgLabPage::addTyped);
   connect(pasteButton, &QPushButton::clicked, this,
           &AlgLabPage::pasteCandidates);
-  connect(toSet, &QPushButton::clicked, this, [this] { addToSet(false); });
-  connect(makeMain, &QPushButton::clicked, this, [this] { addToSet(true); });
+  connect(toSet, &QPushButton::clicked, this,
+          [this] { addToSet(SetAlg::Add); });
+  connect(makeMain, &QPushButton::clicked, this,
+          [this] { addToSet(SetAlg::MakeMain); });
   connect(toSession, &QPushButton::clicked, this, &AlgLabPage::addToSession);
   connect(remove, &QPushButton::clicked, this, &AlgLabPage::removeCandidates);
   connect(clear, &QPushButton::clicked, this, &AlgLabPage::clearTimes);
@@ -911,7 +916,8 @@ const ErgoProfile &AlgLabPage::profile() const {
   return store_.profile(profileBox_->currentText().toStdString());
 }
 
-void AlgLabPage::editProfile(bool copy) {
+void AlgLabPage::editProfile(ProfileEdit edit) {
+  const bool copy = edit == ProfileEdit::Copy;
   ErgoProfile p = profile();
   if (copy) {
     p.name += " (copy)";
@@ -958,8 +964,8 @@ void AlgLabPage::editProfile(bool copy) {
 
 void AlgLabPage::fillMoveSetBoxes() {
   loading_ = true;
-  addMoveSets(genBox_, store_, false);
-  addMoveSets(filterBox_, store_, true);
+  addMoveSets(genBox_, store_, AnyMoves::Left);
+  addMoveSets(filterBox_, store_, AnyMoves::Offered);
   selectMoveSet(genBox_, genSet_);
   if (filterOn_) {
     selectMoveSet(filterBox_, filterSet_);

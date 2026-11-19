@@ -229,18 +229,18 @@ TEST_CASE("lab setups put the alg's case in front of it", "[alglab]") {
   PieceMask oll = *parseFree("LL:p");
   for (int i = 0; i < 20; ++i) {
     // An alg that needs a U turn first: from the setup it fits without.
-    CubieCube s =
-        labSetup(sune, "U R U R' U R U2 R'", oll, true, true, false, rng);
-    auto fit = fitAlg(s, parseAlgOrEmpty("R U R' U R U2 R'"), oll, false, true);
+    CubieCube s = labSetup(sune, "U R U R' U R U2 R'", oll, Aufs::Both,
+                           LabAuf::Done, rng);
+    auto fit = fitAlg(s, parseAlgOrEmpty("R U R' U R U2 R'"), oll, Aufs::After);
     CHECK(fit);
   }
   PieceMask none;
   CubieCube t = stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' "
                                               "R U R' F'"));
-  CubieCube s = labSetup(t, "R U R' U' R' F R2 U' R' U' R U R' F'", none, true,
-                         true, false, rng);
+  CubieCube s = labSetup(t, "R U R' U' R' F R2 U' R' U' R U R' F'", none,
+                         Aufs::Both, LabAuf::Done, rng);
   CHECK(fitAlg(s, parseAlgOrEmpty("R U R' U' R' F R2 U' R' U' R U R' F'"), none,
-               false, false));
+               Aufs::None));
 }
 
 TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {

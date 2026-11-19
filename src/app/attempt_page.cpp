@@ -33,8 +33,9 @@ QString movesText(StatValue v, int decimals = 2) {
 
 // The page's keys as the flow reads them: a key that turns the virtual
 // cube is a Turn whatever else it is, unless it is one of the keys for the
-// last attempt and the scramble.
-AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press, bool turn) {
+// last attempt and the scramble. `turn` is the turn the key makes there.
+AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press,
+                              const std::optional<Move> &turn) {
   using K = AttemptFlow::Key;
   AttemptFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::Attempt);
   const bool action = k.key == K::Dnf || k.key == K::Comment ||
@@ -49,10 +50,10 @@ AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press, bool turn) {
 } // namespace
 
 AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
-                         AlgLibrary &library, const QString &mode,
-                         bool moveCount, QWidget *parent)
+                         AlgLibrary &library, const QString &mode, SolveLog log,
+                         QWidget *parent)
     : ModePage(parent), settings_(settings), store_(store), library_(library),
-      feed_(library), moveCountFlow_(moveCount) {
+      feed_(library), moveCountFlow_(log == SolveLog::MoveCount) {
   // --- left column: sessions, stats, attempts ---
   panel_ = new SessionPanel(this);
   panel_->setStatsClickable(true);
@@ -380,7 +381,8 @@ void AttemptPage::updateControls() {
   }
   controlsEnabled(!busy);
   panel_->setDeleteEnabled(!busy && !session().attempts.empty());
-  panel_->setUndo(deleted_.has(), !busy);
+  panel_->setUndoVisible(deleted_.has());
+  panel_->setUndoEnabled(!busy);
   bool canReview =
       !session().attempts.empty() && reviewable(session().attempts.back());
   reviewButton_->setVisible(canReview);
@@ -398,8 +400,8 @@ bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
     move = settings_.keymap.lookup(e);
   }
   AttemptFlow::Effects fx =
-      flow_.key(flowKey(e, press, move.has_value()), monotonicMs(),
-                feed_.current().has_value());
+      flow_.key(flowKey(e, press, move), monotonicMs(),
+                feed_.current() ? Scramble::Shown : Scramble::Awaited);
   if (fx.toggleAlgs) {
     return toggleAlgs();
   }

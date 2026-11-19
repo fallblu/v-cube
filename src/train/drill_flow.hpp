@@ -100,26 +100,32 @@ public:
   const Config &config() const { return config_; }
 
   // --- events
-  // A key; `scrambleShown` is false while a physical scramble is awaited.
-  Step key(const KeyEvent &k, std::int64_t now, bool scrambleShown = true);
+  // A key; the scramble is one for a physical cube, which may be awaited.
+  Step key(const KeyEvent &k, std::int64_t now,
+           Scramble scramble = Scramble::Shown);
   // A case is set up to solve (again): Waiting, with nothing recorded.
   void setUp(std::int64_t now);
   // No case to drill.
   void noCase();
   // On to another case: whatever was under way stops.
   void leaveCase();
-  // Virtual: a turn of the solve was made (face: not a rotation; offUd: a
-  // face turn off the U-D axis, which ends recognition). Returns the time
-  // if that stopped the timer, i.e. it did the step (`stepDone`, asked
-  // only when the timer stops by itself) after a face turn.
-  std::optional<std::int64_t> turned(bool face, bool offUd, std::int64_t now,
+  // A turn of the solve: a rotation, a face turn on the U-D axis, or a
+  // face turn off it, which ends recognition.
+  enum class Turn : std::uint8_t { Rotation, UdFace, OffUdFace };
+  // Virtual: a turn of the solve was made. Returns the time if that
+  // stopped the timer, i.e. it did the step (`stepDone`, asked only when
+  // the timer stops by itself) after a face turn.
+  std::optional<std::int64_t> turned(Turn turn, std::int64_t now,
                                      const std::function<bool()> &stepDone);
   // Nothing is recorded; the case is set up again to try.
   void cancelSolve();
   // Gives the case up: the time so far, or 0 before the timer started.
   std::int64_t giveUp(std::int64_t now);
+  // How an attempt ended: the case solved, the timer stopped with it
+  // unsolved, or given up.
+  enum class Result : std::uint8_t { Solved, Failed, GaveUp };
   // The attempt was recorded: `bestBefore` is the case's best before it.
-  void finished(std::int64_t timeMs, bool failed, bool gaveUp,
+  void finished(std::int64_t timeMs, Result result,
                 std::optional<std::int64_t> bestBefore, std::int64_t now);
   // Marks the attempt failed or not; false if it can't be (nothing
   // recorded, given up, or no result shown).
@@ -204,7 +210,7 @@ private:
   bool isGiveUp(const KeyEvent &k) const;
   void cancelTimer();
   void start(std::int64_t now);
-  Step waitingKey(const KeyEvent &k, std::int64_t now, bool scrambleShown);
+  Step waitingKey(const KeyEvent &k, std::int64_t now, Scramble scramble);
   Step runningKey(const KeyEvent &k, std::int64_t now);
   Step revealedKey(const KeyEvent &k);
   Step practiceKey(const KeyEvent &k);

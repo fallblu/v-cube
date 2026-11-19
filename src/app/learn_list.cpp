@@ -469,7 +469,7 @@ void LearnPage::learnQueueHead() {
   }
   std::string member = pickMember(queue.front());
   if (eligible(member)) {
-    begin(member, true);
+    begin(member, LearnAttempt::Kind::New);
   }
 }
 

@@ -13,12 +13,12 @@ std::size_t DrillSession::add(const SessionAttempt &a) {
   return attempts_.size() - 1;
 }
 
-void DrillSession::setFailed(std::size_t index, bool failed, bool newBest) {
+void DrillSession::setFailed(std::size_t index, Mark mark) {
   if (index >= attempts_.size()) {
     return;
   }
-  attempts_[index].failed = failed;
-  attempts_[index].newBest = newBest && !failed;
+  attempts_[index].failed = mark == Mark::Failed;
+  attempts_[index].newBest = mark == Mark::NewBest;
 }
 
 void DrillSession::removeLast() {

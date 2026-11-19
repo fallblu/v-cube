@@ -164,7 +164,7 @@ TEST_CASE("pasted algs are matched to their cases") {
                            "(U2) R U R' U' R' F R F'\n"
                            "R U R' U R U2 R'\n"
                            "R U Q\n",
-                           false);
+                           NewCases::Skip);
   CHECK(report.added == 3);
   CHECK(report.duplicates == 1);
   CHECK(report.unmatched.size() == 1);
@@ -172,7 +172,7 @@ TEST_CASE("pasted algs are matched to their cases") {
   CHECK(set.findCase("sune")->algs.size() == 2);
   CHECK(set.findCase("t")->algs.size() == 1);
 
-  report = importAlgs(set, "Line: F R U R' U' F'\n", true);
+  report = importAlgs(set, "Line: F R U R' U' F'\n", NewCases::Create);
   CHECK(report.created == 1);
   CHECK(set.caseCount() == 3);
   CHECK(set.findCase("Line"));
@@ -184,7 +184,7 @@ TEST_CASE("pasted lines may carry comments and copied characters") {
       importAlgs(set,
                  "Sune: R U R\xE2\x80\x99 U R U2 R' // the usual one\n"
                  "R\xC2\xA0U R' U' R' F R F'  // T / chameleon\n",
-                 false);
+                 NewCases::Skip);
   CHECK(report.added == 2);
   CHECK(report.invalid.empty());
   CHECK(report.unmatched.empty());
@@ -215,7 +215,7 @@ TEST_CASE("pasted algs are matched with the set's AUF settings") {
   auto ref = matchCase(set, parseAlgOrEmpty("R U R' U R U2 R'"));
   REQUIRE(ref);
   CHECK(set.groups[ref->group].cases[ref->index].id == "b");
-  auto report = importAlgs(set, "R U R' U R U2 R'\n", false);
+  auto report = importAlgs(set, "R U R' U R U2 R'\n", NewCases::Skip);
   CHECK(report.added == 1);
   CHECK(set.findCase("b")->algs.size() == 1);
   CHECK(set.findCase("a")->algs.empty());
@@ -233,7 +233,7 @@ TEST_CASE("a pasted alg goes to the case its line names") {
                                   "R U R' U R U2 R'\n"
                                   "T: R U R' U R U2 R'\n"
                                   "t: F R U R' U' F'\n"),
-                        true, 0);
+                        NewCases::Create, 0);
   REQUIRE(plan.results.size() == 4);
   CHECK(plan.results[0].outcome == PasteOutcome::Added);
   CHECK(plan.results[0].caseId == "sune-2");
@@ -254,7 +254,7 @@ TEST_CASE("a pasted alg goes to the case its line names") {
   // A chosen case skips the matching.
   auto items = readPaste("R U R' U R U2 R'\n");
   items[0].caseId = "sune";
-  plan = planPaste(set, items, false, 0);
+  plan = planPaste(set, items, NewCases::Skip, 0);
   CHECK(plan.results[0].outcome == PasteOutcome::Added);
   CHECK(plan.set.findCase("sune")->algs.size() == 1);
 }
@@ -263,8 +263,8 @@ TEST_CASE("a pasted alg goes to the named case it solves when names repeat") {
   // Groups for different slots may use the same case names.
   AlgSet set = ollLikeSet();
   set.groups[0].cases[1].name = "Sune";
-  auto plan =
-      planPaste(set, readPaste("Sune: R U R' U' R' F R F'\n"), false, 0);
+  auto plan = planPaste(set, readPaste("Sune: R U R' U' R' F R F'\n"),
+                        NewCases::Skip, 0);
   CHECK(plan.results[0].outcome == PasteOutcome::Added);
   CHECK(plan.results[0].caseId == "t");
 }
@@ -283,7 +283,7 @@ TEST_CASE("pasted spreadsheet rows are name, then algs") {
   CHECK(items[3].name.empty());
   CHECK(items[3].line == 3);
   AlgSet set = ollLikeSet();
-  auto report = importAlgs(set, "Sune\tR U R' U R U2 R'\n", false);
+  auto report = importAlgs(set, "Sune\tR U R' U R U2 R'\n", NewCases::Skip);
   CHECK(report.added == 1);
 }
 
@@ -293,7 +293,7 @@ TEST_CASE("pasted new cases go to the chosen group") {
   auto plan = planPaste(set,
                         readPaste("Line: F R U R' U' F'\n"
                                   "Line: U F R U R' U' F'\n"),
-                        true, 0);
+                        NewCases::Create, 0);
   CHECK(plan.results[0].outcome == PasteOutcome::NewCase);
   CHECK(plan.set.groups[0].cases.size() == 3);
   CHECK(plan.set.groups[1].cases.empty());
@@ -470,35 +470,35 @@ TEST_CASE("alg checks respect the step and the set's AUF settings") {
   PieceMask oll = *parseFree("LL:p");
   const std::string t = "R U R' U' R' F R2 U' R' U' R U R' F'";
   CubieCube tperm = stateSolvedBy(parseAlgOrEmpty(t));
-  AlgCheck c = checkAlg(tperm, t, none, true, true);
+  AlgCheck c = checkAlg(tperm, t, none, Aufs::Both);
   CHECK(c.passes());
   CHECK(describeCheck(c) == "14 moves");
   // PLL algs needing a U turn before and after still pass.
   CubieCube turned = uTurn(1) * tperm * uTurn(3);
-  c = checkAlg(turned, t, none, true, true);
+  c = checkAlg(turned, t, none, Aufs::Both);
   REQUIRE(c.passes());
   CHECK(describeCheck(c) == "(U) … (U'), 14 moves");
   // ... unless the set doesn't turn U around the case.
-  c = checkAlg(turned, t, none, false, true);
+  c = checkAlg(turned, t, none, Aufs::After);
   CHECK_FALSE(c.passes());
   CHECK(describeCheck(c).starts_with("leaves "));
-  c = checkAlg(turned, t, none, true, false);
+  c = checkAlg(turned, t, none, Aufs::Before);
   CHECK_FALSE(c.passes());
   // OLL algs pass whatever permutation they leave in the last layer.
   CubieCube sune = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
   CubieCube sunePermuted = sune * tperm;
   REQUIRE(unsolvedPieces(sunePermuted * sune.inverse(), oll).none());
-  CHECK(checkAlg(sunePermuted, "R U R' U R U2 R'", oll, true, true).passes());
+  CHECK(checkAlg(sunePermuted, "R U R' U R U2 R'", oll, Aufs::Both).passes());
   CHECK(
-      checkAlg(sunePermuted, "y' R' U2 R U R' U R", oll, true, true).passes());
+      checkAlg(sunePermuted, "y' R' U2 R U R' U R", oll, Aufs::Both).passes());
   // Failing algs say what is left.
-  c = checkAlg(sune, "R U R' U' R' F R F'", oll, true, true);
+  c = checkAlg(sune, "R U R' U' R' F R F'", oll, Aufs::Both);
   CHECK_FALSE(c.passes());
   CHECK(describeCheck(c) == describeUnsolved(c.unsolved));
   CHECK(c.unsolved.corners() + c.unsolved.edges() > 0);
-  c = checkAlg(sune, "R U Q", oll, true, true);
+  c = checkAlg(sune, "R U Q", oll, Aufs::Both);
   CHECK(describeCheck(c) == "can't read at character 5");
-  CHECK(describeCheck(checkAlg(sune, "  ", oll, true, true)) == "empty");
+  CHECK(describeCheck(checkAlg(sune, "  ", oll, Aufs::Both)) == "empty");
 }
 
 namespace {
@@ -510,12 +510,12 @@ void checkDisplay(const std::string &prefix, const std::string &base,
   INFO(prefix << " | " << base);
   std::string main = prefix.empty() ? base : prefix + " " + base;
   CubieCube canonical = stateSolvedBy(parseAlgOrEmpty(main));
-  auto d = displayOrientation(canonical, main, free, true, true);
+  auto d = displayOrientation(canonical, main, free, Aufs::Both);
   REQUIRE(d);
   CHECK(d->alg == base);
   // The alg without its prefix solves the case as shown, with no U turn
   // before (or after) it.
-  auto fit = fitAlg(d->state, parseAlgOrEmpty(base), free, false, false);
+  auto fit = fitAlg(d->state, parseAlgOrEmpty(base), free, Aufs::None);
   CHECK(fit);
   if (free.isEmpty()) {
     CHECK(d->state == stateSolvedBy(parseAlgOrEmpty(base)));
@@ -540,24 +540,24 @@ TEST_CASE("cases are shown from the angle their main alg starts from") {
   }
   // Without a prefix the stored case is kept as it is.
   CubieCube tperm = stateSolvedBy(parseAlgOrEmpty(t));
-  auto d = displayOrientation(tperm, t, none, true, true);
+  auto d = displayOrientation(tperm, t, none, Aufs::Both);
   REQUIRE(d);
   CHECK(d->state == tperm);
   CHECK(d->alg == t);
   // A case stored at another angle is turned so the alg needs no U first.
   CubieCube turned = tperm * uTurn(2);
-  d = displayOrientation(turned, t, none, true, true);
+  d = displayOrientation(turned, t, none, Aufs::Both);
   REQUIRE(d);
   CHECK(d->alg == t);
-  CHECK(fitAlg(d->state, parseAlgOrEmpty(t), none, false, true));
+  CHECK(fitAlg(d->state, parseAlgOrEmpty(t), none, Aufs::After));
   // Leading U turns are part of the alg when the set doesn't turn U first.
   CubieCube uSetup = stateSolvedBy(parseAlgOrEmpty("U " + t));
-  d = displayOrientation(uSetup, "U " + t, none, false, true);
+  d = displayOrientation(uSetup, "U " + t, none, Aufs::After);
   REQUIRE(d);
   CHECK(d->alg == "U " + t);
   CHECK(d->state == uSetup);
   // Algs that don't solve the case give no orientation.
-  CHECK_FALSE(displayOrientation(tperm, sune, none, true, true));
+  CHECK_FALSE(displayOrientation(tperm, sune, none, Aufs::Both));
   // Tilting rotations stay in the alg: the case is still shown with its
   // last layer on top, turned only by the leading y.
   for (const char *prefix : {"", "y", "y2 U"}) {
@@ -565,13 +565,13 @@ TEST_CASE("cases are shown from the angle their main alg starts from") {
         std::string(prefix) + (*prefix ? " " : "") + "x R' U R' D2 R U' x'";
     INFO(alg);
     CubieCube s = stateSolvedBy(parseAlgOrEmpty(alg));
-    d = displayOrientation(s, alg, oll, true, true);
+    d = displayOrientation(s, alg, oll, Aufs::Both);
     REQUIRE(d);
     CHECK(d->alg == "x R' U R' D2 R U' x'");
   }
   // Notation is kept as written.
   d = displayOrientation(stateSolvedBy(parseAlgOrEmpty("y (R U R' U')3")),
-                         "y (R U R' U')3", none, true, true);
+                         "y (R U R' U')3", none, Aufs::Both);
   REQUIRE(d);
   CHECK(d->alg == "(R U R' U')3");
 }
@@ -589,8 +589,8 @@ TEST_CASE("case analysis picks the first passing alg as the main alg") {
   CHECK(a.main == 2u);
   CHECK(a.failing() == 2);
   CHECK(a.mainAlg == "R U R' U R U2 R'");
-  CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), set.spec.free, false,
-               true));
+  CHECK(fitAlg(a.display, parseAlgOrEmpty(a.mainAlg), set.spec.free,
+               Aufs::After));
   // No passing alg: the stored case, no main alg.
   sune.algs = {"R U Q"};
   a = analyzeCase(set, set.groups[0], sune);
@@ -616,5 +616,6 @@ TEST_CASE("a step not done says whether a U turn is missing") {
   u2.apply(parseAlgOrEmpty("U2"));
   CHECK(stepMiss(u2, none).auf == 2);
   // The pieces the step leaves free don't count.
-  CHECK(stepMiss(u, PieceMask{}.lastLayer(true, true, true)).pieces == 0);
+  CHECK(stepMiss(u, PieceMask{}.lastLayer(Free::PermAndOri, Free::PermAndOri))
+            .pieces == 0);
 }

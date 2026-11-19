@@ -781,8 +781,7 @@ struct Searcher {
     for (std::size_t mi : path) {
       alg.push_back(model.moves[mi]);
     }
-    auto fit =
-        fitAlg(goal.state, alg, goal.free, goal.aufBefore, goal.aufAfter);
+    auto fit = fitAlg(goal.state, alg, goal.free, aufsOf(goal));
     if (!fit) {
       return;
     }

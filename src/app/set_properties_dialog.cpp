@@ -309,7 +309,7 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
     if (loading_) {
       return;
     }
-    if (!storeScope(set_, true)) {
+    if (!storeScope(set_, Errors::Shown)) {
       // Stay until the tokens can be read.
       QSignalBlocker block(scopeBox_);
       scopeBox_->setCurrentIndex(scope_ + 1);
@@ -324,7 +324,7 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
     }
     if (!on) {
       set_.groups[static_cast<std::size_t>(scope_)].spec.reset();
-    } else if (storeScope(set_, true)) {
+    } else if (storeScope(set_, Errors::Shown)) {
       set_.groups[static_cast<std::size_t>(scope_)].spec = set_.spec;
     }
     loadScope();
@@ -390,7 +390,7 @@ void SetPropertiesDialog::loadScope() {
   updatePreview();
 }
 
-bool SetPropertiesDialog::storeScope(AlgSet &into, bool showErrors) {
+bool SetPropertiesDialog::storeScope(AlgSet &into, Errors errors) {
   StepSpec *spec = nullptr;
   if (scope_ < 0) {
     spec = &into.spec;
@@ -402,7 +402,7 @@ bool SetPropertiesDialog::storeScope(AlgSet &into, bool showErrors) {
   }
   auto free = parseFree(freeEdit_->text().toStdString());
   if (!free) {
-    if (showErrors) {
+    if (errors == Errors::Shown) {
       freeError_->setText(
           tr("Can't read \"%1\"; use tokens like LL:p or FR:po.")
               .arg(freeEdit_->text()));
@@ -423,8 +423,8 @@ bool SetPropertiesDialog::storeScope(AlgSet &into, bool showErrors) {
   return true;
 }
 
-bool SetPropertiesDialog::readWidgets(AlgSet &into, bool showErrors) {
-  if (!storeScope(into, showErrors)) {
+bool SetPropertiesDialog::readWidgets(AlgSet &into, Errors errors) {
+  if (!storeScope(into, errors)) {
     return false;
   }
   QString name = nameEdit_->text().trimmed();
@@ -497,7 +497,7 @@ void SetPropertiesDialog::updatePreview() {
   } else {
     freeNote_->setVisible(false);
   }
-  if (!readWidgets(edited, false)) {
+  if (!readWidgets(edited, Errors::Silent)) {
     impact_->setText(tr("Fix the tokens to see what the settings do."));
     preview_->clear();
     return;
@@ -559,7 +559,7 @@ void SetPropertiesDialog::updatePreview() {
 }
 
 void SetPropertiesDialog::accept() {
-  if (!readWidgets(set_, true)) {
+  if (!readWidgets(set_, Errors::Shown)) {
     return;
   }
   QDialog::accept();

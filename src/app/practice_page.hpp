@@ -64,6 +64,8 @@ class PracticePage : public ModePage {
   Q_OBJECT
 public:
   enum class Tab { Learn, Inspection, Untimed, Timed };
+  // What a state is of: the whole step, or one unit of it.
+  enum class Extent { Whole, Unit };
   // The phases of the tabs that aren't timed (the Timed tab's are
   // DrillFlow's).
   //   Idle     no card is due; Space looks again
@@ -101,6 +103,9 @@ public:
   virtual std::vector<Tab> tabs() const = 0;
   // Timed's cube.
   bool physical() const { return physical_; }
+  CubeKind cubeKind() const {
+    return physical_ ? CubeKind::Physical : CubeKind::Virtual;
+  }
   void setPhysical(bool on);
   const FaceletCube &cube() const { return cube_; }
   // The state the solve started from, as shown.
@@ -171,7 +176,8 @@ protected:
   };
   // A new state: the whole step, or one unit, which is `card`'s case when
   // one is given. nullopt when it can't be set up.
-  virtual std::optional<Setup> setUp(bool whole, const std::string &card) = 0;
+  virtual std::optional<Setup> setUp(Extent extent,
+                                     const std::string &card) = 0;
   // The state is on the cube from the start (again, after Esc): whatever
   // the mode tracks of the solve starts again.
   virtual void restarted() {}
@@ -384,11 +390,11 @@ private:
   DrillFlow::Config flowConfig() const;
 
   // --- items
-  void next(bool early = false);
-  void nextLearn(bool early);
+  void next(LearnAhead ahead = LearnAhead::WhenDue);
+  void nextLearn(LearnAhead ahead);
   void nextTimed();
   // Puts a set-up state on the cube as a new item.
-  void begin(const Setup &setup, bool whole);
+  void begin(const Setup &setup, Extent extent);
   void sameAgain();
   void showIdle(const QString &text);
   void showReady();
@@ -404,9 +410,13 @@ private:
   bool handleLearnKey(QKeyEvent *e);
   bool handleChooseKey(QKeyEvent *e);
   void enterChoice(Phase after);
-  void leaveChoice(bool confirmed);
+  // Leaves the choice of solutions, keeping what was ticked or not.
+  enum class Choice { Confirmed, Cancelled };
+  void leaveChoice(Choice choice);
   void learnTurn(Move m);
-  void finishLearn(bool gaveUp);
+  // How a try on a tab that isn't timed ended.
+  enum class Try { Finished, GaveUp };
+  void finishLearn(Try how);
   void conclude();
   void introduced();
   void regrade(Grade g);
@@ -418,7 +428,7 @@ private:
   DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
   void perform(const DrillFlow::Step &step, std::int64_t now);
   void runningTurn(Move m, std::int64_t now);
-  void finishTimed(std::int64_t ms, bool failed, bool gaveUp = false);
+  void finishTimed(std::int64_t ms, DrillFlow::Result result);
   void cancelTimed(const QString &why);
   void toggleDnf();
   void deleteTry();

@@ -2,6 +2,7 @@
 
 #include "cube/scramble.hpp"
 #include "train/srs.hpp"
+#include "train/stats.hpp"
 
 #include <cstdint>
 #include <map>
@@ -63,7 +64,7 @@ struct PracticeData {
 };
 
 // "virtual/eocross", "physical/zz-1".
-std::string timedKey(bool physical, const std::string &group);
+std::string timedKey(CubeKind cube, const std::string &group);
 
 // How a group's tries went.
 struct PracticeSummary {
@@ -109,6 +110,11 @@ PracticeWaiting practiceWaiting(const std::vector<std::string> &pool,
 
 // The grade of a card's try: Good when the case was solved unaided and
 // well, Again after a hint, giving up or a poor solution.
-Grade practiceGrade(bool solvedWell, bool hinted, bool gaveUp);
+struct CardTry {
+  bool solvedWell = false;
+  bool hinted = false;
+  bool gaveUp = false;
+};
+Grade practiceGrade(const CardTry &t);
 
 } // namespace vcube

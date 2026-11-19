@@ -737,7 +737,7 @@ void GuiTest::f2lLearnAndTimed() {
   // the best ones for its side's own slot.
   QCOMPARE(f2l->tab(), Tab::Learn);
   QCOMPARE(f2l->phase(), Phase::Choose);
-  const std::vector<std::string> pool = pairCardPool(true);
+  const std::vector<std::string> pool = pairCardPool(Edges::Oriented);
   QCOMPARE(f2l->currentCard(), pool.front());
   QVERIFY(f2l->target());
   QVERIFY(sideOf(*f2l->target()) == PairSide::Front);
@@ -887,7 +887,8 @@ void GuiTest::f2lLearnAndTimed() {
 
   // A case picked from the list is practice: not graded, its solutions
   // chosen first when it has none.
-  const std::string wanted = cardKey({PairSide::Back, pairCases(true)[20]});
+  const std::string wanted =
+      cardKey({PairSide::Back, pairCases(Edges::Oriented)[20]});
   f2l->practiseCard(wanted);
   QCOMPARE(f2l->phase(), Phase::Choose);
   QVERIFY(sideOf(*f2l->target()) == PairSide::Back);
@@ -1013,7 +1014,7 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY2(f2l->detailHtml().contains("Where the time went"),
            qPrintable(f2l->detailHtml()));
   QTest::keyClick(window_.get(), Qt::Key_Tab);
-  const std::string timedGroup = timedKey(false, "zz-1");
+  const std::string timedGroup = timedKey(CubeKind::Virtual, "zz-1");
   QCOMPARE(f2l->data().timed.at(timedGroup).size(), std::size_t{1});
   QVERIFY(f2l->data().timed.at(timedGroup).back().ms > 0);
   QVERIFY(f2l->data().timed.at(timedGroup).back().moves > 0);
@@ -1046,7 +1047,7 @@ void GuiTest::f2lLearnAndTimed() {
   QTest::qWait(DrillFlow::kMinPhysicalMs + 100);
   QTest::keyClick(window_.get(), Qt::Key_A);
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Revealed);
-  const std::string physicalGroup = timedKey(true, "zz-1");
+  const std::string physicalGroup = timedKey(CubeKind::Physical, "zz-1");
   QCOMPARE(f2l->data().timed.at(physicalGroup).size(), std::size_t{1});
   QCOMPARE(f2l->data().timed.at(physicalGroup).back().moves, 0);
   QVERIFY(!f2l->cubeHidden()); // back, to play the best way on
@@ -1252,7 +1253,7 @@ void GuiTest::tsleLearnAndTimed() {
   tsle->selectTab(Tab::Timed);
   QCOMPARE(tsle->timedPhase(), DrillFlow::Phase::Waiting);
   const std::string group =
-      timedKey(false, tsleKey(tsleCase(tsle->startState())));
+      timedKey(CubeKind::Virtual, tsleKey(tsleCase(tsle->startState())));
   QTest::keyClick(window_.get(), Qt::Key_Space);
   solveWhole();
   QCOMPARE(tsle->timedPhase(), DrillFlow::Phase::Revealed);
@@ -1426,7 +1427,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QTest::keyClick(window_.get(), Qt::Key_Space);
   optimum = solveOptimally(true);
   QCOMPARE(eo->timedPhase(), DrillFlow::Phase::Revealed);
-  const std::string group = timedKey(false, "eocross");
+  const std::string group = timedKey(CubeKind::Virtual, "eocross");
   QCOMPARE(eo->data().timed.at(group).size(), std::size_t{1});
   QCOMPARE(eo->data().timed.at(group).back().moves, optimum);
   QCOMPARE(eo->data().timed.at(group).back().extra, 0.0);

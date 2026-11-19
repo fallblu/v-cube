@@ -61,8 +61,8 @@ constexpr std::int64_t kNow = 1'800'000'000;
 
 // Starts an attempt at `id` whose alg is `text`, the cube set up for it.
 void start(LearnAttempt &a, const std::string &id, const char *text,
-           bool practice = false) {
-  a.begin(id, false, practice);
+           LearnAttempt::Kind kind = LearnAttempt::Kind::Known) {
+  a.begin(id, kind);
   FaceletCube f = caseFor(text);
   a.startLink({id, false, 0}, f, cubie(f));
   a.setLinkAlgs({{text, {}}});
@@ -78,6 +78,8 @@ void doMoves(LearnAttempt &a, const char *text, std::int64_t atMs = 11'000) {
 using Key = LearnSession::Key;
 using Action = LearnSession::Action;
 using Phase = LearnSession::Phase;
+using LinkEnd = LearnAttempt::LinkEnd;
+using Guide = LearnAttempt::Guide;
 
 LearnSession::KeyEvent press(Key k, bool shift = false) {
   LearnSession::KeyEvent e;
@@ -255,7 +257,8 @@ TEST_CASE("learn: a case solved from memory with its alg is Good") {
   start(a, "a", "R U R' U'");
   doMoves(a, "R U R' U'", 10'800);
   CHECK(a.recognitionMs() == 800);
-  REQUIRE(a.endLink(true, std::nullopt, false, kNow, 12'000, set.grading()));
+  REQUIRE(a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 12'000,
+                    set.grading()));
   CHECK(a.grade() == Grade::Good);
   CHECK(a.graded());
   CHECK(a.why().kept == GradeWhy::Kept::FromMemory);
@@ -276,7 +279,8 @@ TEST_CASE("learn: hints, giving up and leaving the algs") {
     start(a, "a", "R U R' U'");
     a.hint();
     doMoves(a, "R U R' U'");
-    a.endLink(true, std::nullopt, false, kNow, 12'000, set.grading());
+    a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 12'000,
+              set.grading());
     CHECK(a.grade() == Grade::Again);
     CHECK(a.why().hint);
     CHECK(set.progress["a"].attempts.back().recognitionMs == 0);
@@ -286,7 +290,8 @@ TEST_CASE("learn: hints, giving up and leaving the algs") {
     start(a, "a", "R U R' U'");
     a.nextMoveHint();
     doMoves(a, "R U R' U'");
-    a.endLink(true, std::nullopt, false, kNow, 12'000, set.grading());
+    a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 12'000,
+              set.grading());
     CHECK(a.grade() == Grade::Hard);
     CHECK(a.why().nextHint);
   }
@@ -294,7 +299,8 @@ TEST_CASE("learn: hints, giving up and leaving the algs") {
     LearnAttempt a;
     start(a, "a", "R U R' U'");
     a.giveUp();
-    a.endLink(false, std::nullopt, false, kNow, 12'000, set.grading());
+    a.endLink(LinkEnd::Unsolved, std::nullopt, Guide::None, kNow, 12'000,
+              set.grading());
     CHECK(a.grade() == Grade::Again);
     CHECK(a.why().gaveUp);
     CHECK(set.progress["a"].attempts.back().failed);
@@ -303,7 +309,8 @@ TEST_CASE("learn: hints, giving up and leaving the algs") {
     LearnAttempt a;
     start(a, "a", "R U R' U'");
     doMoves(a, "F F' R U R' U'");
-    a.endLink(true, std::nullopt, false, kNow, 12'000, set.grading());
+    a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 12'000,
+              set.grading());
     CHECK(a.grade() == Grade::Again);
     CHECK(a.why().miss == GradeWhy::Miss::LeftAlgs);
     CHECK(a.leftAlgs());
@@ -318,7 +325,8 @@ TEST_CASE("learn: the grade can be changed and taken back") {
   start(a, "a", "R U R' U'");
   a.hint();
   doMoves(a, "R U R' U'");
-  a.endLink(true, std::nullopt, false, kNow, 12'000, set.grading());
+  a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 12'000,
+            set.grading());
   REQUIRE(a.grade() == Grade::Again);
   // Changed by hand: the card is graded again from where it was.
   REQUIRE(a.regrade(Grade::Easy, kNow + 5, set.grading()));
@@ -344,10 +352,10 @@ TEST_CASE("learn: practice of a case not due isn't graded") {
   Setup set;
   set.reviewCard("a");
   LearnAttempt a;
-  start(a, "a", "R U R' U'", true);
+  start(a, "a", "R U R' U'", LearnAttempt::Kind::Practice);
   doMoves(a, "R U R' U'");
-  CHECK_FALSE(
-      a.endLink(true, std::nullopt, false, kNow, 12'000, set.grading()));
+  CHECK_FALSE(a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow,
+                        12'000, set.grading()));
   CHECK_FALSE(a.graded());
   CHECK(set.progress["a"].attempts.empty());
   CHECK_FALSE(a.regrade(Grade::Good, kNow, set.grading()));
@@ -358,7 +366,8 @@ TEST_CASE("learn: a walkthrough introduces a new case without a grade") {
   LearnAttempt a;
   start(a, "a", "R U R' U'");
   doMoves(a, "R U R' U'");
-  REQUIRE(a.endLink(true, std::nullopt, true, kNow, 12'000, set.grading()));
+  REQUIRE(a.endLink(LinkEnd::Solved, std::nullopt, Guide::EveryMove, kNow,
+                    12'000, set.grading()));
   CHECK(a.walkedThrough());
   CHECK(a.graded());
   CHECK(a.why().kept == GradeWhy::Kept::WalkedThrough);
@@ -386,7 +395,8 @@ TEST_CASE("learn: a reduction set grades each case passed on the way") {
   start(a, "a", "R U R' U'");
   doMoves(a, "R U R' U'");
   // The step stopped at b, one step from the end: closer, Good.
-  a.endLink(false, std::string("b"), false, kNow, 12'000, set.grading(true));
+  a.endLink(LinkEnd::Unsolved, std::string("b"), Guide::None, kNow, 12'000,
+            set.grading(true));
   CHECK(a.links().front().closer);
   CHECK(a.links().front().stepsLeft == 1);
   CHECK(a.grade() == Grade::Good);
@@ -396,8 +406,8 @@ TEST_CASE("learn: a reduction set grades each case passed on the way") {
   a.startLink({"b", false, 0}, f, cubie(f));
   a.setLinkAlgs({{"U R U' R'", {}}});
   doMoves(a, "U R U' R'");
-  REQUIRE(
-      a.endLink(true, std::nullopt, false, kNow, 13'000, set.grading(true)));
+  REQUIRE(a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 13'000,
+                    set.grading(true)));
   CHECK(a.links().back().note == LearnLink::Note::Graded);
   CHECK(a.links().back().notedAt == kNow);
   REQUIRE(set.undo.open());
@@ -414,11 +424,13 @@ TEST_CASE("learn: chained cases not started, not due or seen twice") {
   LearnAttempt a;
   start(a, "a", "R U R' U'");
   doMoves(a, "R U R' U'");
-  a.endLink(false, std::string("b"), false, kNow, 12'000, set.grading(true));
+  a.endLink(LinkEnd::Unsolved, std::string("b"), Guide::None, kNow, 12'000,
+            set.grading(true));
   FaceletCube f = caseFor("U R U' R'");
   a.startLink({"b", false, 0}, f, cubie(f));
   SECTION("not started") {
-    a.endLink(true, std::nullopt, false, kNow, 13'000, set.grading(true));
+    a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 13'000,
+              set.grading(true));
     CHECK(a.links().back().note == LearnLink::Note::NotStarted);
   }
   SECTION("not due, and the step done") {
@@ -426,12 +438,14 @@ TEST_CASE("learn: chained cases not started, not due or seen twice") {
     b.card.state = CardState::Review;
     b.card.introduced = 1000;
     b.card.due = kNow + 10 * kSecondsPerDay;
-    a.endLink(true, std::nullopt, false, kNow, 13'000, set.grading(true));
+    a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 13'000,
+              set.grading(true));
     CHECK(a.links().back().note == LearnLink::Note::NotDue);
   }
   SECTION("the same card as the first case") {
     set.cards["b"] = "a";
-    a.endLink(true, std::nullopt, false, kNow, 13'000, set.grading(true));
+    a.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow, 13'000,
+              set.grading(true));
     CHECK(a.links().back().note == LearnLink::Note::AlreadyGraded);
   }
 }
@@ -443,7 +457,8 @@ TEST_CASE("learn: a step that doesn't get closer is Again") {
   LearnAttempt a;
   start(a, "a", "R U R' U'");
   doMoves(a, "R U R' U'");
-  a.endLink(false, std::string("c"), false, kNow, 12'000, set.grading(true));
+  a.endLink(LinkEnd::Unsolved, std::string("c"), Guide::None, kNow, 12'000,
+            set.grading(true));
   CHECK_FALSE(a.links().front().closer);
   CHECK(a.grade() == Grade::Again);
   CHECK(a.why().miss == GradeWhy::Miss::NotCloser);
@@ -454,7 +469,7 @@ TEST_CASE("learn: a recognition review is graded by hand") {
   Setup set;
   set.reviewCard("a");
   LearnAttempt a;
-  a.begin("a", false, false);
+  a.begin("a", LearnAttempt::Kind::Known);
   a.startTiming(10'000);
   a.recalled(true, 11'500, kNow, set.grading());
   CHECK(a.recognitionMs() == 1500);
@@ -472,7 +487,7 @@ TEST_CASE("learn: a recognition review is graded by hand") {
   CHECK(u->recognition);
 
   LearnAttempt b;
-  b.begin("a", false, false);
+  b.begin("a", LearnAttempt::Kind::Known);
   b.recalled(false, 11'500, kNow, set.grading());
   CHECK(b.recognitionMs() == 0);
   CHECK(b.grade() == Grade::Again);

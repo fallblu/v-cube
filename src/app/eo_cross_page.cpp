@@ -127,7 +127,7 @@ std::vector<Hold> EoCrossPage::allowedHolds() const {
 
 // --- states ------------------------------------------------------------------
 
-std::optional<PracticePage::Setup> EoCrossPage::setUp(bool,
+std::optional<PracticePage::Setup> EoCrossPage::setUp(Extent,
                                                       const std::string &) {
   const std::vector<Hold> allowed = allowedHolds();
   solving_ = step_;

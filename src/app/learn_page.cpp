@@ -370,7 +370,7 @@ void LearnPage::deactivated() {
   switch (phase()) {
   case Phase::Solving:
   case Phase::Demo:
-    begin(was.caseId, was.isNew, was.practice);
+    begin(was.caseId, was.kind());
     break;
   case Phase::Recognise:
     beginRecognition(was.caseId);
@@ -495,7 +495,7 @@ void LearnPage::setReloaded() {
     return;
   }
   if (current_ && phase() == Phase::Demo && eligible(current_->caseId)) {
-    begin(current_->caseId, current_->isNew, current_->practice);
+    begin(current_->caseId, current_->kind());
     return;
   }
   if (current_ && !eligible(current_->caseId)) {
@@ -514,7 +514,7 @@ void LearnPage::setReloaded() {
       refreshLink();
       showSolvingStatus();
     } else {
-      begin(current_->caseId, current_->isNew, current_->practice);
+      begin(current_->caseId, current_->kind());
     }
   } else if (!current_) {
     nextCase();
@@ -545,7 +545,8 @@ void LearnPage::startCase(const std::string &caseId) {
       context_.reset();
       contextButton_->setText(tr("Practise in context"));
     }
-    begin(caseId, false, notDue(caseId));
+    begin(caseId, notDue(caseId) ? LearnAttempt::Kind::Practice
+                                 : LearnAttempt::Kind::Known);
   }
 }
 
@@ -629,7 +630,7 @@ void LearnPage::updateCardRows(const std::string &caseId) {
   }
 }
 
-void LearnPage::nextCase(bool early) {
+void LearnPage::nextCase(LearnAhead ahead) {
   pending_ = nullptr; // what comes next is worked out afresh
   idleTimer_.stop();
   reveal_->clear();
@@ -658,7 +659,7 @@ void LearnPage::nextCase(bool early) {
   LearnPickOptions options;
   options.last = last_;
   options.rng = &rng_;
-  options.early = early;
+  options.early = ahead == LearnAhead::Early;
   options.dayEnd = localDayEnd();
   options.newCases = !acrossSets();
   LearnPick pick = pickLearnCase(pool(), progress(), unixNow(), localDayStart(),
@@ -673,7 +674,8 @@ void LearnPage::nextCase(bool early) {
       cp->card.state == CardState::Review) {
     beginRecognition(member);
   } else {
-    begin(member, pick.isNew);
+    begin(member,
+          pick.isNew ? LearnAttempt::Kind::New : LearnAttempt::Kind::Known);
   }
 }
 
@@ -713,7 +715,7 @@ bool LearnPage::nextAcrossSets() {
           cp->card.state == CardState::Review) {
         beginRecognition(member);
       } else {
-        begin(member, false);
+        begin(member, LearnAttempt::Kind::Known);
       }
       return true;
     }
@@ -827,8 +829,8 @@ void LearnPage::showIdle(const LearnPick &pick) {
                                   : tr("check again")}};
     // What can be done instead of waiting.
     if (waiting) {
-      actions.push_back(
-          {tr("Next learning case now"), [this] { nextCase(true); }});
+      actions.push_back({tr("Next learning case now"),
+                         [this] { nextCase(LearnAhead::Early); }});
     }
     if (!acrossSets() && pick.queued == 0 && unstarted) {
       int count = learnCount_->value();

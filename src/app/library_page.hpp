@@ -179,7 +179,9 @@ private:
   void refresh(const LibraryEditor::Change &change);
 
   void buildActions();
-  void fillContextMenu(QMenu *menu, bool forSets);
+  // The context menu of the list of sets, or of the list of cases.
+  enum class MenuOf { Sets, Cases };
+  void fillContextMenu(QMenu *menu, MenuOf list);
   void updateActions();
   void fillRestoreSetMenu();
   void fillMoveToMenu();

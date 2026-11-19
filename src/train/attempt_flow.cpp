@@ -28,8 +28,8 @@ void AttemptFlow::cancelHold(Effects &e) {
   e.showHold = true;
 }
 
-void AttemptFlow::pressStart(std::int64_t now, bool ready, Effects &e) {
-  if (!ready && !retry_) {
+void AttemptFlow::pressStart(std::int64_t now, Scramble scramble, Effects &e) {
+  if (scramble == Scramble::Awaited && !retry_) {
     e.notice = Notice::WaitToStart;
     return;
   }
@@ -39,13 +39,13 @@ void AttemptFlow::pressStart(std::int64_t now, bool ready, Effects &e) {
   e.showHold = true;
 }
 
-void AttemptFlow::releaseStart(bool ready, Effects &e) {
+void AttemptFlow::releaseStart(Scramble scramble, Effects &e) {
   Hold was = hold_;
   cancelHold(e);
   if (was != Hold::Ready) {
     return;
   }
-  if (!ready && !retry_) {
+  if (scramble == Scramble::Awaited && !retry_) {
     e.notice = Notice::WaitToStart;
     return;
   }
@@ -55,7 +55,7 @@ void AttemptFlow::releaseStart(bool ready, Effects &e) {
 }
 
 AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
-                                      bool scrambleReady) {
+                                      Scramble scramble) {
   Effects e;
   if (isActionKey(k.key)) {
     e.used = true;
@@ -65,7 +65,7 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
     switch (k.key) {
     case Key::Dnf:
       if (config_.moveCount && !config_.virtualCube) {
-        recordTyped(true, scrambleReady, e);
+        recordTyped(Typed::Dnf, scramble, e);
       }
       break;
     case Key::Comment:
@@ -101,7 +101,7 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
     }
     if (!k.press) {
       if (k.key == Key::Space) {
-        releaseStart(scrambleReady, e);
+        releaseStart(scramble, e);
       }
       return e;
     }
@@ -122,7 +122,7 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
     case Key::Space:
     case Key::Enter:
       if (phase_ == Phase::Inspect) {
-        pressStart(now, scrambleReady, e);
+        pressStart(now, scramble, e);
       } else if (phase_ == Phase::Solving) {
         e.endSolve = true;
       } else {
@@ -191,7 +191,7 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
     break;
   default: // Enter
     if (!k.autoRepeat) {
-      recordTyped(false, scrambleReady, e);
+      recordTyped(Typed::Count, scramble, e);
     }
     break;
   }
@@ -291,8 +291,9 @@ void AttemptFlow::endRetry(Effects &e) {
   e.retryEnded = true;
 }
 
-void AttemptFlow::recordTyped(bool dnf, bool ready, Effects &e) {
-  if (!ready) {
+void AttemptFlow::recordTyped(Typed typed, Scramble scramble, Effects &e) {
+  const bool dnf = typed == Typed::Dnf;
+  if (scramble == Scramble::Awaited) {
     e.notice = Notice::WaitToRecord;
     return;
   }
@@ -305,9 +306,9 @@ void AttemptFlow::recordTyped(bool dnf, bool ready, Effects &e) {
   next(e);
 }
 
-AttemptFlow::Effects AttemptFlow::recordTyped(bool dnf, bool scrambleReady) {
+AttemptFlow::Effects AttemptFlow::recordTyped(Typed typed, Scramble scramble) {
   Effects e;
-  recordTyped(dnf, scrambleReady, e);
+  recordTyped(typed, scramble, e);
   return e;
 }
 

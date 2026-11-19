@@ -13,13 +13,12 @@ using namespace vcube;
 
 namespace {
 
-SearchGoal goalFor(const char *alg, const char *free, bool before = true,
-                   bool after = true) {
+SearchGoal goalFor(const char *alg, const char *free, Aufs aufs = Aufs::Both) {
   SearchGoal g;
   g.state = stateSolvedBy(parseAlgOrEmpty(alg));
   g.free = *parseFree(free);
-  g.aufBefore = before;
-  g.aufAfter = after;
+  g.aufBefore = allowsAufBefore(aufs);
+  g.aufAfter = allowsAufAfter(aufs);
   return g;
 }
 
@@ -158,7 +157,7 @@ TEST_CASE("the generator follows wide turns and slices", "[search]") {
 TEST_CASE("the generator keeps to the case's AUF settings", "[search]") {
   // Without a U turn allowed before, Antisune from the other side doesn't
   // count.
-  auto rs = run(goalFor("R U R' U R U2 R'", "LL:p", false, false), "R U", 7);
+  auto rs = run(goalFor("R U R' U R U2 R'", "LL:p", Aufs::None), "R U", 7);
   for (const auto &r : rs) {
     CHECK(r.fit.before == 0);
     CHECK(r.fit.after == 0);

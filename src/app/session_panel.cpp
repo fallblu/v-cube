@@ -297,10 +297,9 @@ void SessionPanel::setDeleteRowVisible(bool on) { deleteRow_->setVisible(on); }
 
 void SessionPanel::setDeleteEnabled(bool on) { deleteButton_->setEnabled(on); }
 
-void SessionPanel::setUndo(bool visible, bool enabled) {
-  undoButton_->setVisible(visible);
-  undoButton_->setEnabled(enabled);
-}
+void SessionPanel::setUndoVisible(bool on) { undoButton_->setVisible(on); }
+
+void SessionPanel::setUndoEnabled(bool on) { undoButton_->setEnabled(on); }
 
 // --- shared pieces -----------------------------------------------------------
 
@@ -359,7 +358,8 @@ void openStatLink(QWidget *parent, const QString &link,
   if (!stat) {
     return;
   }
-  std::optional<StatSpan> span = statSpan(solves, *stat, best, view.unit);
+  std::optional<StatSpan> span = statSpan(
+      solves, *stat, best ? StatPick::Best : StatPick::Current, view.unit);
   if (!span) {
     return;
   }
