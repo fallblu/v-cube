@@ -1224,27 +1224,9 @@ void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
   case A::Delete:
     deleteTry();
     break;
-  case A::Hint: {
-    QString text;
-    switch (step.hint) {
-    case DrillFlow::Hint::GiveUpKey:
-      text = tr("Shift+Space gives the solve up.");
-      break;
-    case DrillFlow::Hint::KeepHolding:
-      text = tr("Keep holding Space until the time turns green, then let go "
-                "or start turning.");
-      break;
-    case DrillFlow::Hint::OnlyRotations:
-      text = settings_.drill.tapToArm
-                 ? tr("Only rotations until the timer starts: tap Space first.")
-                 : tr("Only rotations until the timer starts (hold Space).");
-      break;
-    case DrillFlow::Hint::None:
-      break;
-    }
-    hint_->setHint(text, hint_->keys());
+  case A::Hint:
+    hint_->setHint(timedHintText(step.hint, settings_.drill), hint_->keys());
     break;
-  }
   }
 }
 
@@ -1499,135 +1481,31 @@ void PracticePage::showPrompt() {
 void PracticePage::showKeys() {
   requestedHint_->setVisible(item_.hint && phase_ == Phase::Solving &&
                              !requestedHint_->text().isEmpty());
-  QList<KeyHint> keys;
-  QString message;
-  const bool best = item_.outcome && !item_.outcome->best.empty();
-  const KeyHint detailKey{"Tab",
-                          detailOpen_ ? tr("hide the details") : tr("details")};
   if (item_.id == 0) {
     hint_->setHint({}, {});
     return;
   }
-  if (tab_ != Tab::Timed) {
-    switch (phase_) {
-    case Phase::Idle:
-      keys = {{"Space", tr("look again")}};
-      break;
-    case Phase::Ready:
-      keys = {{"Space", tr("start")}};
-      break;
-    case Phase::Choose:
-      keys = {{"1-9", tr("tick or untick")},
-              {"Enter", afterChoice_ == Phase::Done ? tr("keep these")
-                                                    : tr("done choosing")}};
-      if (afterChoice_ == Phase::Done) {
-        keys << KeyHint{"Esc", tr("leave them as they were")};
-      }
-      break;
-    case Phase::Demo:
-      keys = {{"Enter", tr("show it")},
-              {"Space", tr("skip: I know this case")},
-              {"Esc", tr("start again")}};
-      break;
-    case Phase::Solving:
-      if (item_.hidden) {
-        message = tr("The cube is hidden: do what you planned.");
-        keys = {{"Space", tr("show the cube")},
-                {"Backspace", tr("give up")},
-                {"Esc", tr("start again")}};
-        break;
-      }
-      if (item_.inspecting) {
-        message = tr("Plan: the cube hides at your first face turn.");
-      }
-      if (hasHints() && !blind()) {
-        keys << KeyHint{"Tab", tr("hint")};
-      }
-      keys << KeyHint{"Backspace", tr("give up")}
-           << KeyHint{"Esc", tr("start again")};
-      break;
-    case Phase::Done:
-      if (waiting_) {
-        message = tr("Working out the best solutions…");
-        break;
-      }
-      keys << KeyHint{"Space", tr("next")};
-      if (best) {
-        keys << KeyHint{"Enter", tr("play the best")};
-      }
-      keys << detailKey;
-      if (item_.graded && item_.grade) {
-        keys << KeyHint{"1-4", tr("change the grade")};
-      }
-      keys << doneKeys();
-      if (choicePanel() && !item_.card.empty()) {
-        keys << KeyHint{"0", tr("change your solutions")};
-      }
-      keys << KeyHint{"Esc", tr("retry, not recorded")};
-      break;
-    }
-    hint_->setHint(message, keys);
-    return;
-  }
-  const KeyHint giveUp{settings_.drill.shiftSpaceGivesUp ? tr("Shift+Space")
-                                                         : tr("Backspace"),
-                       tr("give up")};
-  switch (flow_.phase()) {
-  case DrillFlow::Phase::NoCase:
-    keys = {{"Space", tr("look again")}};
-    break;
-  case DrillFlow::Phase::Waiting:
-    if (physical_) {
-      message = item_.scramble.isEmpty()
-                    ? QString()
-                    : tr("Scramble, then start the timer.");
-      keys = {{tr("hold Space"), tr("start on letting go")}, giveUp};
-    } else if (flow_.armed()) {
-      message = tr("Ready: the first face turn starts the timer.");
-      keys = {{"Esc", tr("not yet")}, giveUp};
-    } else if (settings_.drill.tapToArm) {
-      message = tr("Turn the cube as a whole to look at it.");
-      keys = {{"Space", tr("ready: the first face turn starts the timer")},
-              giveUp};
-    } else {
-      message = tr("Turn the cube as a whole to look at it.");
-      keys = {{tr("hold Space"), tr("start on letting go or turning")}, giveUp};
-    }
-    break;
-  case DrillFlow::Phase::Running:
-    if (physical_) {
-      keys = {{tr("any key"), tr("stop")}, giveUp, {"Esc", tr("cancel")}};
-    } else if (settings_.drill.autoStop) {
-      message = tr("The timer stops when the step is done.");
-      keys = {{"Space", tr("stop now (a DNF unless done)")},
-              giveUp,
-              {"Esc", tr("cancel")}};
-    } else {
-      keys = {{"Space", tr("stop")}, giveUp, {"Esc", tr("cancel")}};
-    }
-    break;
-  case DrillFlow::Phase::Revealed:
-    keys << KeyHint{"Space", tr("next")};
-    if (best) {
-      keys << KeyHint{"Enter", tr("play the best")};
-    }
-    keys << detailKey;
-    if (item_.recorded && !flow_.gaveUp()) {
-      keys << KeyHint{"Backspace",
-                      flow_.failed() ? tr("not a DNF") : tr("DNF")};
-    }
-    if (item_.recorded) {
-      keys << KeyHint{"Delete", flow_.gaveUp() && flow_.gaveUpBeforeStart()
-                                    ? tr("take it back")
-                                    : tr("delete it")};
-    }
-    keys << KeyHint{"Esc", tr("retry, not recorded")};
-    break;
-  case DrillFlow::Phase::Aided:
-  case DrillFlow::Phase::Unaided:
-    break;
-  }
-  hint_->setHint(message, keys);
+  const bool best = item_.outcome && !item_.outcome->best.empty();
+  const PracticeKeys k =
+      tab_ != Tab::Timed
+          ? untimedKeys({.phase = phase_,
+                         .choosingAgain = afterChoice_ == Phase::Done,
+                         .hidden = item_.hidden,
+                         .inspecting = item_.inspecting,
+                         .hints = hasHints() && !blind(),
+                         .waiting = waiting_,
+                         .best = best,
+                         .detailOpen = detailOpen_,
+                         .graded = item_.graded && item_.grade.has_value(),
+                         .chooser = choicePanel() && !item_.card.empty(),
+                         .modeKeys = doneKeys()})
+          : timedKeys(flow_, settings_.drill,
+                      {.physical = physical_,
+                       .scrambleShown = !item_.scramble.isEmpty(),
+                       .best = best,
+                       .detailOpen = detailOpen_,
+                       .recorded = item_.recorded});
+  hint_->setHint(k.message, k.keys);
 }
 
 QString PracticePage::gradeLine() const {

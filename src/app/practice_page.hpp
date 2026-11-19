@@ -5,6 +5,7 @@
 #include "app/mode_page.hpp"
 #include "app/page_parts.hpp"
 #include "app/practice_html.hpp"
+#include "app/practice_keys.hpp"
 #include "app/practice_list.hpp"
 #include "app/widgets.hpp"
 #include "io/practice_store.hpp"
@@ -67,13 +68,7 @@ public:
   enum class Extent { Whole, Unit };
   // The phases of the tabs that aren't timed (the Timed tab's are
   // DrillFlow's).
-  //   Idle     no card is due; Space looks again
-  //   Ready    Inspection: Space shows a state and starts the clock
-  //   Choose   a new case's solutions are chosen (see choicePanel())
-  //   Demo     a new case: Enter shows its solution, then it is done
-  //   Solving  Tab a hint, Backspace gives up, Esc starts again
-  //   Done     the verdict is up
-  enum class Phase { Idle, Ready, Choose, Demo, Solving, Done };
+  using Phase = PracticePhase;
   // "learn", "inspection", "untimed", "timed".
   static QString tabId(Tab t);
   static QString tabName(Tab t);

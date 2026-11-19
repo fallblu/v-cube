@@ -21,6 +21,7 @@
 #include "app/move_count_page.hpp"
 #include "app/page_parts.hpp"
 #include "app/practice_html.hpp"
+#include "app/practice_keys.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
 #include "app/timer_page.hpp"
@@ -302,6 +303,7 @@ private slots:
   void eoCrossLearnAndTimed();
   void practiceModesComeBackAsLeft();
   void practiceResultsAreWorded();
+  void practiceKeysFollowThePhase();
   void themeColoursAreReadable();
   void pagesTakeTheKeyboard();
   void keysAreReadTheSameForEveryPage();
@@ -1801,6 +1803,81 @@ void GuiTest::practiceResultsAreWorded() {
   QCOMPARE(dueText(now + 3600, now, dayEnd), QString("in 1 h"));
   QCOMPARE(dueText(dayEnd, now, dayEnd), QString("tomorrow"));
   QCOMPARE(dueText(dayEnd + 3 * 86400, now, dayEnd), QString("in 4 d"));
+}
+
+void GuiTest::practiceKeysFollowThePhase() {
+  auto names = [](const PracticeKeys &k) {
+    QStringList all;
+    for (const KeyHint &h : k.keys) {
+      all << h.key;
+    }
+    return all.join(' ');
+  };
+  using P = PracticePhase;
+  auto untimed = [](P phase, auto set) {
+    UntimedKeysState s;
+    s.phase = phase;
+    set(s);
+    return untimedKeys(s);
+  };
+  auto asIs = [](UntimedKeysState &) {};
+  QCOMPARE(names(untimed(P::Idle, asIs)), QString("Space"));
+  QCOMPARE(names(untimed(P::Choose, asIs)), QString("1-9 Enter"));
+  QCOMPARE(names(untimed(P::Choose, [](auto &s) { s.choosingAgain = true; })),
+           QString("1-9 Enter Esc"));
+  QCOMPARE(names(untimed(P::Solving, [](auto &s) { s.hints = true; })),
+           QString("Tab Backspace Esc"));
+  // A hidden cube has no hint to give, and says so.
+  const PracticeKeys hidden =
+      untimed(P::Solving, [](auto &s) { s.hidden = s.hints = true; });
+  QCOMPARE(names(hidden), QString("Space Backspace Esc"));
+  QVERIFY(!hidden.message.isEmpty());
+  // Nothing goes on while the verdict is worked out.
+  const PracticeKeys waiting =
+      untimed(P::Done, [](auto &s) { s.waiting = s.best = true; });
+  QVERIFY(waiting.keys.isEmpty() && !waiting.message.isEmpty());
+  QCOMPARE(names(untimed(P::Done,
+                         [](auto &s) {
+                           s.best = s.graded = s.chooser = true;
+                           s.modeKeys = {{"+", "add"}};
+                         })),
+           QString("Space Enter Tab 1-4 + 0 Esc"));
+  QCOMPARE(names(untimed(P::Done, asIs)), QString("Space Tab Esc"));
+
+  DrillFlow flow;
+  DrillFlow::Config config;
+  DrillSettings drill;
+  drill.tapToArm = true;
+  drill.shiftSpaceGivesUp = true;
+  TimedKeysState timed;
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space"));
+  config.virtualCube = false;
+  flow.setConfig(config);
+  flow.setUp(0);
+  timed.physical = true;
+  const PracticeKeys awaited = timedKeys(flow, drill, timed);
+  QCOMPARE(names(awaited), QString("hold Space Shift+Space"));
+  QVERIFY(awaited.message.isEmpty());
+  timed.scrambleShown = true;
+  QVERIFY(!timedKeys(flow, drill, timed).message.isEmpty());
+  drill.shiftSpaceGivesUp = false;
+  config.virtualCube = true;
+  flow.setConfig(config);
+  flow.setUp(0);
+  timed = {};
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space Backspace"));
+  // The result: only an attempt that is kept can be marked or deleted.
+  flow.finished(1000, DrillFlow::Result::Solved, {}, 0);
+  QCOMPARE(names(timedKeys(flow, drill, timed)), QString("Space Tab Esc"));
+  timed.best = timed.recorded = true;
+  QCOMPARE(names(timedKeys(flow, drill, timed)),
+           QString("Space Enter Tab Backspace Delete Esc"));
+
+  QVERIFY(timedHintText(DrillFlow::Hint::None, drill).isEmpty());
+  DrillSettings held = drill;
+  held.tapToArm = false;
+  QVERIFY(timedHintText(DrillFlow::Hint::OnlyRotations, drill) !=
+          timedHintText(DrillFlow::Hint::OnlyRotations, held));
 }
 
 void GuiTest::themeColoursAreReadable() {
