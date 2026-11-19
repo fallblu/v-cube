@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QWidget>
 
+#include <map>
 #include <optional>
 
 class QCheckBox;
@@ -129,9 +130,15 @@ private:
   void loadSessions();
   void loadSessionOptions();
   void optionsChanged();
-  void fillEntries();
-  void fillCompare();
-  void fillTimes();
+  // The names of the cases a fill has looked up (none for a case that is
+  // gone), so that each is looked up once however many rows show it. Made
+  // anew for every refresh: cases and sets change elsewhere.
+  using CaseNames = std::map<LabCaseKey, std::optional<QString>>;
+  const std::optional<QString> &caseName(CaseNames &names,
+                                         const LabCaseKey &key) const;
+  void fillEntries(CaseNames &names);
+  void fillCompare(CaseNames &names);
+  void fillTimes(CaseNames &names);
   LabWindow window() const;
   WarmupOf warmup() const;
 

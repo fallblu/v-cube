@@ -136,6 +136,8 @@ private:
   GripView *grips_;
   // Scores of the chosen profile, by alg (cleared when it changes).
   std::unordered_map<std::string, double> scoreCache_;
+  // What each alg of the case shown does to it (see CandidateCache).
+  CandidateCache candidateCache_;
 
   void saveStore();
   void fillSources();
@@ -146,7 +148,9 @@ private:
   void fillMoveSetBoxes();
   void filterChosen();
   void genChosen();
-  void fillTable();
+  // `resize` fits the columns to what they hold, which a refill during a
+  // search leaves for the fill at its end.
+  void fillTable(bool resize = true);
   void updateGrips();
   std::vector<std::string> selectedAlgs() const;
   const ErgoProfile &profile() const;
