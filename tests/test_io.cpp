@@ -1,4 +1,5 @@
 #include "cube/solver.hpp"
+#include "io/json_values.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
@@ -984,6 +985,34 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
   CHECK(error.contains("not a cstimer export"));
   CHECK_FALSE(sessionsFromCstimerFile("", &error));
   CHECK_FALSE(sessionsFromCstimer(QJsonObject{}, &error));
+}
+
+TEST_CASE("cstimer move times below zero, going back or huge are checked") {
+  QString error;
+  auto doc = QJsonDocument::fromJson(R"({
+    "session1": [
+      [[0, 1000], "U", "", 1, ["R@-5 U@10", "333"]],
+      [[0, 1000], "U", "", 2, ["R@500 U@10", "333"]],
+      [[0, 1000], "U", "", 3, ["R@0 U@9223372036854775807", "333"]],
+      [[0, 1000], "U", "", 4, ["R@0 U@0 F@20", "333"]]
+    ],
+    "properties": {"sessionData": "{}"}
+  })");
+  auto imported = sessionsFromCstimer(doc.object(), &error);
+  REQUIRE(imported);
+  REQUIRE(imported->sessions.size() == 1);
+  const auto &solves = imported->sessions[0].solves;
+  REQUIRE(solves.size() == 4);
+  // A time below zero or one that goes back leaves the solve without moves.
+  CHECK(solves[0].moves.empty());
+  CHECK(solves[0].moveTimes.empty());
+  CHECK(solves[1].moves.empty());
+  CHECK(solves[1].moveTimes.empty());
+  // A huge one is cut to what a data file keeps.
+  CHECK(solves[2].moves == "R U");
+  CHECK(solves[2].moveTimes == std::vector<std::int64_t>{0, kMaxFileNumber});
+  // Moves at the same time are fine.
+  CHECK(solves[3].moveTimes == std::vector<std::int64_t>{0, 0, 20});
 }
 
 TEST_CASE("cstimer import reports nested JSON that doesn't read") {

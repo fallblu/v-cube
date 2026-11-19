@@ -147,7 +147,9 @@ std::string cstimerMove(Move m) {
   return text;
 }
 
-// "R@120 U'@250" into moves and times, if every token reads.
+// "R@120 U'@250" into moves and times, if every token reads. The times
+// must not go back, and are kept within kMaxFileNumber, so that the gaps
+// between them can be worked out.
 bool readCstimerSolution(const QString &text, std::string *moves,
                          std::vector<std::int64_t> *times) {
   Alg alg;
@@ -160,7 +162,11 @@ bool readCstimerSolution(const QString &text, std::string *moves,
     bool ok = false;
     std::int64_t ms = token.mid(sign + 1).toLongLong(&ok);
     ParseResult parsed = parseAlg(ss(token.left(sign)));
-    if (!ok || !parsed || parsed.alg.size() != 1) {
+    if (!ok || ms < 0 || !parsed || parsed.alg.size() != 1) {
+      return false;
+    }
+    ms = std::min(ms, kMaxFileNumber);
+    if (!at.empty() && ms < at.back()) {
       return false;
     }
     alg.push_back(parsed.alg.front());
