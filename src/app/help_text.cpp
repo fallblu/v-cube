@@ -123,7 +123,8 @@ const std::vector<Section> &sections() {
                         "cube, view, ...), then Enter")},
         {T("F1"), T("show or hide the keyboard controls")},
         {T("F9"), T("show or hide the mode's side panel (the case list, the "
-                    "session or the case browser)")},
+                    "session or the case browser; hidden by itself while the "
+                    "window is narrow)")},
         {T("F11"), T("full screen")},
         {T("F10"),
          T("focus mode (right-click outside the scramble, timer, cube and algs "

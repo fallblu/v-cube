@@ -49,7 +49,8 @@ anyway.
   press Enter.
 - **Side panel** (`F9`): hides or shows the mode's side panel (the case
   list, the session, the case browser), giving the cube the whole page.
-  Each mode remembers it.
+  Each mode remembers it. In a narrow window the panel hides by itself and
+  comes back when the window is wide again; F9 shows it meanwhile.
 - **Sidebar** (`Ctrl+B`), **full screen** (`F11`) and **focus mode**
   (`F10`). Focus mode hides the sidebar, menus, status bar and each mode's
   lists and options, leaving the scramble, timer, cube and algs; messages
@@ -58,7 +59,9 @@ anyway.
 - **The mode's menu**: Learn, Drill and Alg Lab add a menu named after the
   mode, with what a right-click in the mode's list offers.
 - **Keys on the page**: under the cube, each practice mode shows a short
-  message and the keys that do something right now.
+  message and the keys that do something right now. A key whose action is
+  in the link colour can be clicked too, e.g. DNF and delete in Drill, or
+  +2, DNF, delete and review in Timed.
 - The window reopens where you left it, with the same list widths, but
   never in full screen or focus mode. It can be as narrow as half a 1080p
   screen; option rows wrap, and the chart gives up its room before the cube
@@ -565,7 +568,8 @@ The step can be done on any colour and axis.
 - **Virtual cube**: hold Space and release to start; Space ends the solve.
   The count is recorded if the step is done, DNF if not.
 - **Physical cube**: solve the step, type your move count and press Enter.
-  **DNF** (Alt+3) records a scramble that went wrong.
+  Alt+3 records a scramble that went wrong as DNF. Both can be clicked on
+  their keys under the cube.
 - **Opt** is each scramble's optimal count for the step (EO to EO Cross,
   and the cross) in any hold; a setting limits it to your colour
   neutrality's holds. The statistics add your mean moves over optimal and
