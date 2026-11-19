@@ -310,9 +310,19 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       data_.lab, eoCrossPage_->data(), f2lPage_->data(), tslePage_->data(),
       [f2l = f2lPage_] { return f2l->cardPool(); },
       [tsle = tslePage_] { return tsle->cardPool(); }, stack_);
-  pages_ = {learnPage_,   drillPage_,     libraryPage_, timedPage_,
-            untimedPage_, moveCountPage_, eoCrossPage_, algLabPage_,
-            f2lPage_,     tslePage_,      todayPage_};
+  // Indexed by mode, not by the order of a list.
+  const std::pair<AppMode::Id, ModePage *> pages[] = {
+      {AppMode::Learn, learnPage_},     {AppMode::Drill, drillPage_},
+      {AppMode::Library, libraryPage_}, {AppMode::Timed, timedPage_},
+      {AppMode::Untimed, untimedPage_}, {AppMode::MoveCount, moveCountPage_},
+      {AppMode::EoCross, eoCrossPage_}, {AppMode::AlgLab, algLabPage_},
+      {AppMode::F2L, f2lPage_},         {AppMode::Tsle, tslePage_},
+      {AppMode::Today, todayPage_}};
+  for (const auto &[mode, page] : pages) {
+    Q_ASSERT(!pages_[static_cast<std::size_t>(mode)]);
+    pages_[static_cast<std::size_t>(mode)] = page;
+  }
+  Q_ASSERT(std::ranges::none_of(pages_, [](ModePage *p) { return !p; }));
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
