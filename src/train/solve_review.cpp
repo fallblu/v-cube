@@ -372,7 +372,9 @@ bool isPairSet(const AlgSet &set) {
 }
 
 F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
-                          const AlgSet *reference, bool eo, bool simplified) {
+                          const AlgSet *reference, Edges edges,
+                          bool simplified) {
+  const bool eo = edges == Edges::Oriented;
   F2LBreakdown out;
   FaceletCube f = start;
   std::size_t k = 0;
@@ -498,7 +500,9 @@ SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
   std::optional<std::size_t> eoCross = markOf(SolveStep::EOCross);
   std::optional<std::size_t> f2l = markOf(SolveStep::CFOPF2L);
   out.zz = eoCross && (!f2l || *eoCross < *f2l);
-  F2LBreakdown b = f2lBreakdown(start, solution, nullptr, out.zz, simplified);
+  F2LBreakdown b =
+      f2lBreakdown(start, solution, nullptr,
+                   out.zz ? Edges::Oriented : Edges::Any, simplified);
   if (!b.found) {
     return out;
   }

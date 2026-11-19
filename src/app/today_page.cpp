@@ -433,7 +433,8 @@ void TodayPage::refresh() {
     std::vector<std::string> pool;
   };
   for (const Practice &p :
-       {Practice{AppMode::F2L, tr("F2L pairs"), f2l_, pairCardPool(eo)},
+       {Practice{AppMode::F2L, tr("F2L pairs"), f2l_,
+                 pairCardPool(eo ? Edges::Oriented : Edges::Any)},
         Practice{AppMode::Tsle, tr("TSLE cases"), tsle_, tsleCardPool()}}) {
     const PracticeWaiting w =
         practiceWaiting(p.pool, p.data.cards, unixNow(), localDayStart(),

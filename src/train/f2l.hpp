@@ -39,6 +39,7 @@ struct F2LConfig {
   bool wide = true;   // without EO only: r, l, u, d
 
   PairMoves moves() const;
+  Edges edges() const { return eo ? Edges::Oriented : Edges::Any; }
   bool leaves(Slot s) const {
     return lastSlot && lsSlots[static_cast<std::size_t>(s)];
   }
@@ -121,7 +122,7 @@ std::string_view groupName(PairGroup g);
 
 // Every case but the solved one, by group: 83 with EO (no edge is
 // flipped), 167 without.
-const std::vector<PairCase> &pairCases(bool eo);
+const std::vector<PairCase> &pairCases(Edges edges);
 
 // --- cards -------------------------------------------------------------------
 
@@ -154,11 +155,11 @@ PairCard pairCardOf(const CubieCube &state, Slot target);
 
 // The cards in the order they are introduced: each case as listed, its
 // front card then its back one (166 with EO, 334 without).
-std::vector<std::string> pairCardPool(bool eo);
+std::vector<std::string> pairCardPool(Edges edges);
 
 // A card's case for its side's own slot, with the slots its pieces sit in
 // open and the others solved: the state its solutions are chosen for.
-std::optional<CubieCube> cardState(const PairCard &card, bool eo, Rng &rng);
+std::optional<CubieCube> cardState(const PairCard &card, Edges edges, Rng &rng);
 // A card's case to practise: the pair in one of the side's two slots, the
 // slots its pieces sit in open and the others solved, except that the
 // method's last slot may be left open (with `leaveOpen`).
@@ -210,7 +211,7 @@ FaceletCube pairDiagram(const CubieCube &state, Slot slot);
 
 // A random state with the cross (and EO, for `eo`) done, the `open` slots
 // unsolved and the others solved.
-CubieCube randomF2LState(const std::vector<Slot> &open, bool eo, Rng &rng);
+CubieCube randomF2LState(const std::vector<Slot> &open, Edges edges, Rng &rng);
 
 // A state with one pair to solve: `stage` is the pair's place in the solve (1
 // first, with every slot open; 0 any), brought down when the case needs

@@ -163,16 +163,16 @@ TEST_CASE("the card pools are the cases in learning order", "[practice]") {
     steps = tsleStepsLeft(*c);
   }
   // F2L: each case for the front slots, then for the back ones.
-  const std::vector<std::string> pairs = pairCardPool(true);
+  const std::vector<std::string> pairs = pairCardPool(Edges::Oriented);
   CHECK(pairs.size() == 166);
-  CHECK(pairCardPool(false).size() == 334);
+  CHECK(pairCardPool(Edges::Any).size() == 334);
   std::optional<PairCard> first = cardFromKey(pairs[0]);
   std::optional<PairCard> second = cardFromKey(pairs[1]);
   REQUIRE(first);
   REQUIRE(second);
   CHECK(first->side == PairSide::Front);
   CHECK(second->side == PairSide::Back);
-  CHECK(first->pcase == pairCases(true).front());
+  CHECK(first->pcase == pairCases(Edges::Oriented).front());
   CHECK(second->pcase == first->pcase);
   CHECK(pairs[0].starts_with("front/"));
   CHECK_FALSE(cardFromKey(caseKey(first->pcase))); // as keyed before

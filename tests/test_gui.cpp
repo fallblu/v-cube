@@ -703,7 +703,7 @@ void GuiTest::f2lLearnAndTimed() {
   // the best ones for its side's own slot.
   QCOMPARE(f2l->tab(), Tab::Learn);
   QCOMPARE(f2l->phase(), Phase::Choose);
-  const std::vector<std::string> pool = pairCardPool(true);
+  const std::vector<std::string> pool = pairCardPool(Edges::Oriented);
   QCOMPARE(f2l->currentCard(), pool.front());
   QVERIFY(f2l->target());
   QVERIFY(sideOf(*f2l->target()) == PairSide::Front);
@@ -853,7 +853,8 @@ void GuiTest::f2lLearnAndTimed() {
 
   // A case picked from the list is practice: not graded, its solutions
   // chosen first when it has none.
-  const std::string wanted = cardKey({PairSide::Back, pairCases(true)[20]});
+  const std::string wanted =
+      cardKey({PairSide::Back, pairCases(Edges::Oriented)[20]});
   f2l->practiseCard(wanted);
   QCOMPARE(f2l->phase(), Phase::Choose);
   QVERIFY(sideOf(*f2l->target()) == PairSide::Back);

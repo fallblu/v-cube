@@ -333,8 +333,9 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
         play(alg, tr("Optimal solution"));
       }
     } else if (parts[0] == "pairopt" && parts.size() == 2 && pairOptima_) {
-      F2LBreakdown b = f2lBreakdown(start_, solve_.solution, nullptr, true,
-                                    settings_.simplifiedCounts);
+      F2LBreakdown b =
+          f2lBreakdown(start_, solve_.solution, nullptr, Edges::Oriented,
+                       settings_.simplifiedCounts);
       auto n = parts[1].toULongLong();
       if (n < b.segments.size() && n < pairOptima_->size() &&
           (*pairOptima_)[n]) {
@@ -471,7 +472,8 @@ void ReviewDialog::startPairOptima() {
   Alg solution = solve_.solution;
   bool simplified = settings_.simplifiedCounts;
   pairWatcher_.setFuture(QtConcurrent::run([start, solution, simplified] {
-    F2LBreakdown b = f2lBreakdown(start, solution, nullptr, true, simplified);
+    F2LBreakdown b =
+        f2lBreakdown(start, solution, nullptr, Edges::Oriented, simplified);
     PairOptima out;
     FaceletCube f = start;
     std::size_t at = 0;
@@ -754,8 +756,8 @@ void ReviewDialog::showPairs() {
       library_ && pairSetBox_->count() > 0
           ? library_->find(ss(pairSetBox_->currentData().toString()))
           : nullptr;
-  F2LBreakdown b = f2lBreakdown(start_, solve_.solution, reference, true,
-                                settings_.simplifiedCounts);
+  F2LBreakdown b = f2lBreakdown(start_, solve_.solution, reference,
+                                Edges::Oriented, settings_.simplifiedCounts);
   if (!b.found) {
     pairsLabel_->setText(muted(tr("The solve never had EO Cross done.")));
     return;
