@@ -22,10 +22,16 @@ constexpr auto kInstalledFile = "installed-builtins.json";
 // file names stay well within what file systems allow.
 constexpr qsizetype kMaxNewId = 80;
 
-// Why an alg-set file wasn't loaded; one that can't be read is set aside.
+// Why an alg-set file wasn't loaded; one that can't be read is set aside,
+// and one that can't be opened is left where it is.
 QString unreadableSetMessage(const QString &path, const QString &error,
                              FileStatus status) {
   QString file = QFileInfo(path).fileName();
+  if (status == FileStatus::CannotOpen) {
+    return QString("%1 wasn't loaded (%2), so it is left as it is; restart "
+                   "v-cube once it can be opened")
+        .arg(file, error);
+  }
   if (status != FileStatus::Unreadable) {
     return QString("%1: %2").arg(file, error);
   }
@@ -461,6 +467,13 @@ SetProgress &AlgLibrary::loadedProgress(const std::string &setId) const {
     progressKeptOff_.insert(setId);
     errors_ << QString("progress/%1 can't be used (%2), so it is left as it "
                        "is and the set's progress isn't saved")
+                   .arg(file, r.error);
+  } else if (r.status == FileStatus::CannotOpen) {
+    // Maybe passing, so never set aside: left as it is, and not saved over.
+    progressKeptOff_.insert(setId);
+    errors_ << QString("progress/%1 can't be used (%2), so it is left as it "
+                       "is and the set's progress isn't saved; restart "
+                       "v-cube once it can be opened")
                    .arg(file, r.error);
   } else if (r.status == FileStatus::Unreadable) {
     QString kept = setAside(path);

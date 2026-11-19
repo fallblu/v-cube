@@ -25,7 +25,8 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error);
 QJsonObject algSetToJson(const AlgSet &set);
 
 // `status` tells a file that couldn't be read or isn't an alg set
-// (Unreadable) from one with a problem in its contents (Read).
+// (Unreadable), or couldn't be opened (CannotOpen), from one with a
+// problem in its contents (Read).
 std::optional<AlgSet> readAlgSetFile(const QString &path, QString *error,
                                      FileStatus *status = nullptr);
 bool writeAlgSetFile(const AlgSet &set, const QString &path, QString *error);

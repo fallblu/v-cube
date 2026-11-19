@@ -73,14 +73,16 @@ FileRead readDataFile(const QString &path, const FileFormat &format) {
   if (!f.exists()) {
     return r;
   }
-  r.status = FileStatus::Unreadable;
   if (!f.open(QIODevice::ReadOnly)) {
-    r.error = f.errorString();
-    if (r.error.isEmpty()) {
-      r.error = "it can't be opened";
-    }
+    // Not the file's fault, and maybe passing: never taken for unreadable.
+    r.status = FileStatus::CannotOpen;
+    QString why = f.errorString();
+    r.error = why.isEmpty() || why == "Unknown error"
+                  ? QString("it can't be opened")
+                  : QString("it can't be opened: %1").arg(why);
     return r;
   }
+  r.status = FileStatus::Unreadable;
   QJsonParseError pe;
   QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
   if (pe.error != QJsonParseError::NoError) {
@@ -115,6 +117,10 @@ FileStatus DataFile::load(QJsonObject &out, QString *error) {
         QString("%1 was written by a newer version of v-cube, so it isn't "
                 "saved over")
             .arg(QDir::toNativeSeparators(path_));
+  } else if (r.status == FileStatus::CannotOpen) {
+    keptOffReason_ = QString("%1 can't be opened, so it isn't saved over; "
+                             "restart v-cube once it can be")
+                         .arg(QDir::toNativeSeparators(path_));
   } else if (r.status == FileStatus::Unreadable) {
     setAside_ = setAside(path_);
     if (setAside_.isEmpty()) {

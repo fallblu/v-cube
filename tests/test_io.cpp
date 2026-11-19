@@ -300,6 +300,97 @@ TEST_CASE("unreadable progress is set aside and reported") {
         "{\"cases\": {\"T\": ");
 }
 
+namespace {
+
+// Makes a file impossible to open; false where that can't be done (as
+// root, or where permissions don't stop a read).
+bool makeUnopenable(const QString &path) {
+  QFile::setPermissions(path, QFileDevice::Permissions());
+  QFile f(path);
+  return !f.open(QIODevice::ReadOnly);
+}
+
+void makeOpenable(const QString &path) {
+  QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+}
+
+} // namespace
+
+TEST_CASE("a data file that can't be opened stays in place, not saved over") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  {
+    SessionStore store(path);
+    REQUIRE(store.load());
+    store.current().solves.push_back(Solve{});
+    REQUIRE(store.save());
+  }
+  QByteArray text = readText(path);
+  REQUIRE_FALSE(text.isEmpty());
+  if (!makeUnopenable(path)) {
+    makeOpenable(path);
+    SKIP("permissions don't stop this user opening a file");
+  }
+  SessionStore store(path);
+  QString error;
+  CHECK_FALSE(store.load(&error));
+  CHECK(error.contains("can't be opened"));
+  CHECK(store.setAsidePath().isEmpty());
+  CHECK_FALSE(store.save(&error));
+  CHECK(error.contains("can't be opened"));
+  CHECK(filesStarting(tmp.path(), "sessions.json.unreadable-").isEmpty());
+  makeOpenable(path);
+  CHECK(readText(path) == text);
+  SessionStore again(path);
+  CHECK(again.load());
+  CHECK(again.current().solves.size() == 1);
+}
+
+TEST_CASE("progress or a set that can't be opened stays in place") {
+  QTemporaryDir tmp;
+  QString progress = tmp.filePath("progress/pll.json");
+  QString set = tmp.filePath("oll.json");
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    lib.progress("pll")["T"].record({100, 1500, false});
+    REQUIRE(lib.saveProgress("pll"));
+  }
+  QByteArray progressText = readText(progress);
+  QByteArray setText = readText(set);
+  REQUIRE_FALSE(setText.isEmpty());
+  if (!makeUnopenable(progress) || !makeUnopenable(set)) {
+    makeOpenable(progress);
+    makeOpenable(set);
+    SKIP("permissions don't stop this user opening a file");
+  }
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    CHECK(lib.errors().size() == 2);
+    CHECK_FALSE(lib.find("oll"));
+    CHECK(lib.progress("pll").empty());
+    lib.progress("pll")["Y"].record({100, 1500, false});
+    CHECK_FALSE(lib.saveProgress("pll"));
+    AlgSet copy = *lib.find("pll");
+    copy.id = "oll";
+    REQUIRE(lib.add(copy));
+    CHECK(lib.find("oll") == nullptr);
+  }
+  CHECK(filesStarting(tmp.filePath("progress"), "pll.json.unreadable-")
+            .isEmpty());
+  CHECK(filesStarting(tmp.path(), "oll.json.unreadable-").isEmpty());
+  makeOpenable(progress);
+  makeOpenable(set);
+  CHECK(readText(progress) == progressText);
+  CHECK(readText(set) == setText);
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  CHECK(lib.errors().isEmpty());
+  CHECK(lib.find("oll"));
+  CHECK(lib.progress("pll").contains("T"));
+}
+
 TEST_CASE("set ids that share a file name are kept apart") {
   QTemporaryDir tmp;
   AlgLibrary lib(tmp.path(), kBuiltins);

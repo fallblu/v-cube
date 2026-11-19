@@ -36,8 +36,9 @@ struct FileFormat {
 enum class FileStatus {
   Missing,    // there is no file
   Read,       // read, and of this format and a version this build reads
-  Unreadable, // can't be opened or parsed, or isn't of this format
+  Unreadable, // can't be parsed, or isn't of this format
   Newer,      // of this format, but written by a newer version of v-cube
+  CannotOpen, // there, but can't be opened (permissions, a lock, I/O)
 };
 
 // Checks a parsed file's format and version: Read, Unreadable or Newer,
@@ -55,14 +56,15 @@ FileRead readDataFile(const QString &path, const FileFormat &format);
 
 // One data file that is loaded whole and saved whole. A file that can't be
 // read is set aside (see setAside()) so that saving afresh doesn't destroy
-// it; one written by a newer version of v-cube is left as it is. Either
-// way, when the file is still there, save() refuses to write over it.
+// it; one written by a newer version of v-cube, or one that can't be
+// opened (which may be fine once it can), is left as it is. Either way,
+// when the file is still there, save() refuses to write over it.
 class DataFile {
 public:
   DataFile(QString path, FileFormat format);
 
-  // Reads the file. On Read the contents are in `out`; on Unreadable or
-  // Newer the reason is in `error` and the caller starts afresh.
+  // Reads the file. On Read the contents are in `out`; otherwise, but for
+  // Missing, the reason is in `error` and the caller starts afresh.
   FileStatus load(QJsonObject &out, QString *error = nullptr);
   bool save(const QJsonObject &o, QString *error = nullptr) const;
 

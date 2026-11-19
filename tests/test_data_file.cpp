@@ -220,8 +220,8 @@ TEST_CASE("a progress file that can't be opened isn't saved over") {
     AlgLibrary lib(tmp.path(), kBuiltins);
     lib.load();
   }
-  // It is set aside like a file that can't be parsed, and so survives
-  // saving.
+  // It is left where it is (it may be fine once it can be opened), and
+  // saving is refused.
   QString path = tmp.filePath("progress/pll.json");
   writeText(path, R"({"cases": {}})");
   QFile::setPermissions(path, QFileDevice::Permissions{});
@@ -234,14 +234,11 @@ TEST_CASE("a progress file that can't be opened isn't saved over") {
   REQUIRE(lib.errors().size() == 1);
   CHECK(lib.errors().front().contains("pll.json"));
   lib.progress("pll")["T"].record({100, 1500, false});
-  lib.saveProgress("pll");
-  QStringList kept =
-      filesStarting(tmp.filePath("progress"), "pll.json.unreadable-");
-  REQUIRE(kept.size() == 1);
-  QString keptPath = tmp.filePath("progress/" + kept.front());
-  QFile::setPermissions(keptPath,
-                        QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-  CHECK(readText(keptPath) == R"({"cases": {}})");
+  CHECK_FALSE(lib.saveProgress("pll"));
+  CHECK(filesStarting(tmp.filePath("progress"), "pll.json.unreadable-")
+            .isEmpty());
+  QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+  CHECK(readText(path) == R"({"cases": {}})");
 }
 
 TEST_CASE("alg sets from a newer version are reported and left alone") {
