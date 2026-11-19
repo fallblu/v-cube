@@ -2,6 +2,7 @@
 #include "app/ui_text.hpp"
 
 #include "app/colours.hpp"
+#include "app/page_parts.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -67,11 +68,14 @@ PasteDialog::PasteDialog(const AlgSet &set, int group, const QString &text,
                           first);
   create_->setChecked(!set.builtin && !set.reduction);
   create_->setEnabled(!set.reduction);
+  QLabel *whyNoCreate = nullptr;
   if (set.reduction) {
-    create_->setToolTip(
+    // Said under the box, not only in a tooltip: it is why the box is off.
+    whyNoCreate = helpLabel(
         tr("A set solved a step at a time gets no new cases from pasted "
            "algs: a step doesn't finish its case, so it can't tell which "
-           "case it is"));
+           "case it is."),
+        first);
   }
   groupBox_ = new QComboBox(first);
   for (const auto &g : set.groups) {
@@ -88,6 +92,9 @@ PasteDialog::PasteDialog(const AlgSet &set, int group, const QString &text,
   createRow->addWidget(groupBox_);
   createRow->addStretch();
   firstLayout->addLayout(createRow);
+  if (whyNoCreate) {
+    firstLayout->addWidget(whyNoCreate);
+  }
   pages_->addWidget(first);
 
   // --- step 2: the result per alg ---

@@ -125,9 +125,12 @@ protected:
     auto *w = qobject_cast<QWidget *>(o);
     switch (e->type()) {
     case QEvent::ToolTip:
-      if (w) {
-        show(w, tipAt(w, static_cast<QHelpEvent *>(e)->pos()));
+      // The windows in front (dialogs) have no status bar: their tips pop
+      // up as tooltips do.
+      if (!w || !inMainWindow(w)) {
+        return false;
       }
+      show(w, tipAt(w, static_cast<QHelpEvent *>(e)->pos()));
       return true; // never as a tooltip
     case QEvent::Enter:
       if (w && !w->toolTip().isEmpty()) {
@@ -159,11 +162,15 @@ private:
   QPointer<QWidget> shownFor_;
   QString shown_;
 
-  void show(QWidget *w, QString tip) {
+  // Whether w is in the main window or in a popup (a menu) of it.
+  bool inMainWindow(QWidget *w) const {
     QWidget *top = w->window();
-    // The windows in front (dialogs) have no status bar.
-    if (top != window_ && !(top->windowType() == Qt::Popup &&
-                            QApplication::activeWindow() == window_)) {
+    return top == window_ || (top->windowType() == Qt::Popup &&
+                              QApplication::activeWindow() == window_);
+  }
+
+  void show(QWidget *w, QString tip) {
+    if (!inMainWindow(w)) {
       return;
     }
     if (Qt::mightBeRichText(tip)) {

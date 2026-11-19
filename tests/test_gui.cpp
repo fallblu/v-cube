@@ -42,6 +42,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QEnterEvent>
@@ -66,6 +67,7 @@
 #include <QTextBrowser>
 #include <QThreadPool>
 #include <QTimer>
+#include <QToolTip>
 #include <QTreeWidget>
 
 #include <algorithm>
@@ -2319,6 +2321,22 @@ void GuiTest::tipsShowInTheStatusBar() {
   QEvent leave(QEvent::Leave);
   QApplication::sendEvent(tipped, &leave);
   QVERIFY(bar->currentMessage().isEmpty());
+
+  // A dialog has no status bar: its tips pop up as tooltips.
+  QDialog dialog(window_.get());
+  auto *button = new QPushButton("Tipped", &dialog);
+  button->setToolTip("What the button does");
+  dialog.show();
+  QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+  QHelpEvent dialogHelp(QEvent::ToolTip, QPoint(1, 1),
+                        button->mapToGlobal(QPoint(1, 1)));
+  QApplication::sendEvent(button, &dialogHelp);
+  QVERIFY(bar->currentMessage().isEmpty());
+  QTRY_COMPARE(QToolTip::text(), button->toolTip());
+  QToolTip::hideText();
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
 }
 
 void GuiTest::helpPanelShowsTheKeys() {
