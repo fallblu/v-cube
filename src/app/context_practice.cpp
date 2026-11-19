@@ -91,7 +91,7 @@ QString ContextPractice::resultHtml(const AlgSet &set, bool done,
     for (const PairSegment &seg : b.segments) {
       QStringList slotNames;
       for (Slot slot : seg.solved) {
-        slotNames << qs(std::string(slotName(slot)));
+        slotNames << qs(slotName(slot));
       }
       QString line =
           tr("%1: you %2").arg(slotNames.join(" + "), movesText(seg.htm));
@@ -112,12 +112,11 @@ QString ContextPractice::resultHtml(const AlgSet &set, bool done,
     html +=
         "<p>" + tr("The set's cheapest order, %1:").arg(movesText(plan.moves));
     for (const PairOption &o : plan.steps) {
-      html +=
-          "<br>" +
-          tr("%1 (%2): %3")
-              .arg(qs(std::string(slotName(o.slot))),
-                   qs(o.caseName).toHtmlEscaped(), qs(o.alg).toHtmlEscaped()) +
-          " " + grey(movesText(o.moves));
+      html += "<br>" +
+              tr("%1 (%2): %3")
+                  .arg(qs(slotName(o.slot)), qs(o.caseName).toHtmlEscaped(),
+                       qs(o.alg).toHtmlEscaped()) +
+              " " + grey(movesText(o.moves));
     }
     if (!plan.complete) {
       html += "<br>" + grey(tr("Some pairs have no case in the set."));

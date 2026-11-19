@@ -5,10 +5,9 @@ project(vcube
   DESCRIPTION "3x3 alg trainer, scrambler and timer with a virtual cube"
   LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# The standard comes from the targets' compile features (C++23, see
+# cmake/ProjectOptions.cmake); compile_commands.json from the presets.
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
@@ -38,9 +37,19 @@ include(cmake/ProjectOptions.cmake)
 
 # Qt Core is needed for storage; the GUI parts only for the app.
 if(VCUBE_BUILD_APP)
-  find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Concurrent Network)
+  set(vcube_qt_components Core Gui Widgets Concurrent Network)
 else()
-  find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
+  set(vcube_qt_components Core)
+endif()
+find_package(Qt6 6.5 QUIET COMPONENTS ${vcube_qt_components})
+if(NOT Qt6_FOUND)
+  # The windows-* presets find Qt through QTDIR only.
+  if(WIN32)
+    message(FATAL_ERROR "Qt 6.5 or later was not found. Set QTDIR to your "
+      "Qt msvc2022_64 folder (for example "
+      "set QTDIR=C:\\Qt\\6.10.0\\msvc2022_64) and configure again.")
+  endif()
+  find_package(Qt6 6.5 REQUIRED COMPONENTS ${vcube_qt_components})
 endif()
 
 add_subdirectory(src)

@@ -1,5 +1,5 @@
 #include "app/alglab_page.hpp"
-#include "app/alglab_page_private.hpp"
+#include "app/alglab_private.hpp"
 #include "app/ui_state.hpp"
 
 #include "app/alglab_dialogs.hpp"

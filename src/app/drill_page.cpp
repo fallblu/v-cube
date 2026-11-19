@@ -244,7 +244,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
           &DrillPage::scrambleReady);
   connect(cubeBox_, &QComboBox::activated, this, [this] {
     CubeKind cube = currentEnum(cubeBox_, CubeKind::Virtual);
-    saved::drillCube(setId_).set(qs(std::string(cubeKindId(cube))));
+    saved::drillCube(setId_).set(qs(cubeKindId(cube)));
     picker_.setAttemptMode(attemptMode());
     showCubeKind();
     session_.clear(); // the other cube's times
@@ -273,7 +273,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   });
   connect(orderBox_, &QComboBox::activated, this, [this] {
     PickMode order = currentEnum(orderBox_, PickMode::Random);
-    saved::drillOrder(setId_).set(qs(std::string(pickModeId(order))));
+    saved::drillOrder(setId_).set(qs(pickModeId(order)));
     picker_.setMode(order);
     picker_.restartRecap();
     recapFrom_ = session_.size();

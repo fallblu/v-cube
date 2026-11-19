@@ -3,7 +3,6 @@
 #include "app/cube_view.hpp"
 #include "app/flow_layout.hpp"
 #include "app/scramble_source.hpp"
-#include "app/session_panel.hpp"
 #include "app/text_style.hpp"
 #include "app/widgets.hpp"
 
@@ -354,6 +353,12 @@ void HintBar::render() {
   }
   setText(html);
   setVisible(!html.isEmpty());
+}
+
+QPushButton *flatButton(const QString &text, QWidget *parent) {
+  auto *b = new QPushButton(text, parent);
+  b->setFocusPolicy(Qt::NoFocus);
+  return b;
 }
 
 } // namespace vcube

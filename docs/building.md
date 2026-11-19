@@ -37,7 +37,7 @@ preset of the same name.
 | --- | --- | --- |
 | `debug` | Debug | |
 | `release` | Release | |
-| `asan` | Debug | AddressSanitizer and UBSan |
+| `asan` | Debug | AddressSanitizer and UBSan (which stops at the first error) |
 | `windows-debug` | Debug | MSVC, Windows hosts only; installs into `install/windows-debug` |
 | `windows-release` | Release | MSVC, Windows hosts only; installs into `install/windows-release` |
 
@@ -198,18 +198,23 @@ cmake --install build/release --prefix AppDir/usr
 Pushing a tag such as `v0.2.0` runs `.github/workflows/release.yml`, which
 builds and tests the AppImage and the Windows zip (Qt 6.8, warnings as
 errors) and attaches them to a GitHub release. Run by hand, it builds both
-without publishing.
+without publishing. The AppImage has the xcb and Wayland platform plugins,
+and linuxdeploy is pinned to a release (`LINUXDEPLOY_TAG` and
+`LINUXDEPLOY_QT_TAG` in the workflow).
 
 ## CI
 
-`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests.
+`.github/workflows/ci.yml` runs Format and Linux GCC on pushes to `main`
+and on pull requests, and every job on a manual run and weekly when `main`
+has changed. A change to docs only (Markdown, `docs/`, `LICENSE`) skips it,
+except one to `docs/keys.md`, which the GUI test checks.
 
 | Job | What it does |
 | --- | --- |
 | Format | clang-format 21.1.8 |
 | Linux GCC | g++ 14, Qt 6.8.3 with Qt Multimedia, Debug, warnings as errors, tests |
 | Linux Clang | clang++ 18, otherwise the same |
-| Linux ASan + UBSan | g++ 14, Qt 6.8.3 without Qt Multimedia, sanitizers on |
+| Linux ASan + UBSan | g++ 14, Qt 6.8.3 without Qt Multimedia, sanitizers on; undefined behaviour fails the test |
 | Linux Qt 6.5 | g++ 13 and Qt 6.5.3 (the oldest accepted), without Qt Multimedia |
 | Windows MSVC | `windows-release` with warnings as errors, tests and `cpack`; the zip is kept as an artifact |
 
@@ -223,3 +228,19 @@ without publishing.
 | `src/app` | The Qt Widgets UI: `vcube_gui` (everything but `main`) and `main.cpp`. |
 | `tests` | The Catch2 unit tests and the GUI test. |
 | `resources` | Built-in alg sets, icons, the Windows version resource and the Linux desktop entry. |
+
+### Adding a mode
+
+1. Add the enumerator to `AppMode::Id` in `src/app/mode_table.hpp`, before
+   `Today` or after it with `Count` updated.
+2. In `src/app/mode_table.cpp`, add it to `kModes` (settings id and label,
+   in enum order), `kAll` (enum order) and `kSidebarOrder`; `static_assert`s
+   there fail if one is short. Add it to the switch in `sidebarHeader` and,
+   if it needs one, to `menuSeparatorAfter`.
+3. Create the page in `MainWindow`'s constructor and add it to the table
+   that fills `pages_` (`src/app/main_window.cpp`), and to the page list of
+   `GuiTest::modesSwitch` in `tests/test_gui.cpp`.
+4. Give it a section in the key table in `src/app/help_text.cpp`, then
+   regenerate `docs/keys.md` (see [Tests](#tests)).
+5. If it records activity, add a row to Today's mode table
+   (`src/app/today_page.cpp`).

@@ -26,7 +26,7 @@ QStringList offeredTypes() {
   return out;
 }
 
-QString stepText(SolveStep step) { return qs(std::string(stepName(step))); }
+QString stepText(SolveStep step) { return qs(stepName(step)); }
 
 } // namespace
 

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "app/colours.hpp"
-#include "app/ui_text.hpp"
 #include "cube/move.hpp"
+#include "io/qt_text.hpp"
 #include "train/solve_review.hpp"
 
 #include <QDate>
@@ -17,10 +17,6 @@
 namespace vcube {
 
 // Small pieces of text and colour every page words the same way.
-
-inline QString qs(std::string_view s) {
-  return QString::fromUtf8(s.data(), static_cast<qsizetype>(s.size()));
-}
 
 // "1 alg", "3 algs".
 inline QString counted(int n, const QString &one, const QString &many) {

@@ -4,6 +4,7 @@
 #include "train/srs.hpp"
 
 #include "io/data_file.hpp"
+#include "io/qt_text.hpp"
 
 #include <QJsonObject>
 #include <QString>
@@ -13,9 +14,6 @@
 #include <string>
 
 namespace vcube {
-
-inline QString qs(const std::string &s) { return QString::fromStdString(s); }
-inline std::string ss(const QString &s) { return s.toStdString(); }
 
 // Alg-set files ("format": "v-cube.algset", version 1). Case states are
 // 54-character facelet strings (URFDLB order). A set is refused if it

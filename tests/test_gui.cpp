@@ -97,6 +97,21 @@ QTemporaryDir *tempRoot = nullptr;
   return QDir(tempRoot->path()).filePath(name);
 }
 
+// The offscreen platform prints this for every window that is shown, tens
+// of times a run, which buries a real failure.
+QtMessageHandler testMessageHandler = nullptr;
+
+void dropNoise(QtMsgType type, const QMessageLogContext &context,
+               const QString &message) {
+  if (message.contains(
+          QLatin1String("does not support propagateSizeHints()"))) {
+    return;
+  }
+  if (testMessageHandler) {
+    testMessageHandler(type, context, message);
+  }
+}
+
 bool isUnderTemp(const QString &path) {
   if (path.isEmpty()) {
     return false;
@@ -334,6 +349,9 @@ private slots:
 };
 
 void GuiTest::initTestCase() {
+  // After QTest's own handler is in place (qExec installs it), so that the
+  // rest still goes to the test log.
+  testMessageHandler = qInstallMessageHandler(dropNoise);
   // Everything the app could read or write is in the temporary folder.
   QVERIFY(tempRoot && tempRoot->isValid());
   QVERIFY(isUnderTemp(QSettings().fileName()));
@@ -674,12 +692,12 @@ void GuiTest::fingertrickGuidance() {
   // The default score is the grip profile's.
   QComboBox *profiles = nullptr;
   for (QComboBox *b : lab->findChildren<QComboBox *>()) {
-    if (b->findText(qs(std::string(kGripProfileName))) >= 0) {
+    if (b->findText(qs(kGripProfileName)) >= 0) {
       profiles = b;
     }
   }
   QVERIFY(profiles);
-  QCOMPARE(profiles->currentText(), qs(std::string(kGripProfileName)));
+  QCOMPARE(profiles->currentText(), qs(kGripProfileName));
   GripModel model = standardGripModel();
   double best = gripCost(parseAlgOrEmpty(kTPerm), model);
   QCOMPARE(candidates->item(0, 5)->text(), QString::number(best, 'f', 1));
