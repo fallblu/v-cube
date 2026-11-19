@@ -732,37 +732,6 @@ bool LearnPage::nextAcrossSets() {
   return false;
 }
 
-QString LearnPage::intervalText(std::int64_t seconds) {
-  if (seconds < 60) {
-    return tr("<1 min");
-  }
-  if (seconds < 3600) {
-    return tr("%1 min").arg((seconds + 59) / 60);
-  }
-  if (seconds < kSecondsPerDay) {
-    return tr("%1 h").arg((seconds + 1799) / 3600);
-  }
-  return tr("%1 d").arg((seconds + kSecondsPerDay / 2) / kSecondsPerDay);
-}
-
-QString LearnPage::whenText(std::int64_t due) const {
-  std::int64_t now = unixNow();
-  if (due >= localDayEnd()) {
-    // A review is due all day: only the day matters.
-    QDate day = QDateTime::fromSecsSinceEpoch(due).date();
-    qint64 days = QDate::currentDate().daysTo(day);
-    return days == 1 ? tr("tomorrow") : tr("on %1").arg(dateText(day));
-  }
-  std::int64_t d = due - now;
-  if (d <= 0) {
-    return tr("now");
-  }
-  if (d < 3600) {
-    return tr("in %1 min").arg((d + 59) / 60);
-  }
-  return tr("at %1").arg(QDateTime::fromSecsSinceEpoch(due).toString("hh:mm"));
-}
-
 void LearnPage::showIdle(const LearnPick &pick) {
   // Whatever falls due later waits for Space.
   ready_ = false;
@@ -818,7 +787,8 @@ void LearnPage::showIdle(const LearnPick &pick) {
                    .arg(settings_.srs.maxLearning);
     }
     if (pick.nextDue) {
-      lines << tr("Next review %1.").arg(whenText(*pick.nextDue));
+      lines << tr("Next review %1.")
+                   .arg(dueSentence(*pick.nextDue, unixNow(), localDayEnd()));
     }
     bool unstarted = std::any_of(cases.begin(), cases.end(), [this](auto &id) {
       return statusOf(progressOf(id)) == CaseStatus::Unstarted;

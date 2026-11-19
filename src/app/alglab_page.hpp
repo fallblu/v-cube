@@ -61,6 +61,7 @@ public:
   void fillModeMenu(QMenu &menu) override;
   bool isBusy() const override;
   void aboutToClose() override;
+  QString workStoppedOnClose() const override;
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;

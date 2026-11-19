@@ -6,6 +6,7 @@
 #include "app/drill_history_dialog.hpp"
 #include "app/text_style.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "train/alg_follow.hpp"
 
 #include <QActionGroup>

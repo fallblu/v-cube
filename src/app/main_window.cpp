@@ -403,16 +403,15 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   });
   connect(todayPage_, &TodayPage::learnSetRequested, this,
           &MainWindow::learnSet);
-  connect(todayPage_, &TodayPage::practiceRequested, this, [this](int index) {
-    // Today's rows carry the mode as a number.
-    AppMode::Id mode = AppMode::fromIndex(index).value_or(AppMode::Tsle);
-    PracticePage *page = mode == AppMode::F2L
-                             ? static_cast<PracticePage *>(f2lPage_)
-                             : static_cast<PracticePage *>(tslePage_);
-    if (setMode(mode)) {
-      page->showCards();
-    }
-  });
+  connect(todayPage_, &TodayPage::practiceRequested, this,
+          [this](AppMode::Id mode) {
+            PracticePage *page = mode == AppMode::F2L
+                                     ? static_cast<PracticePage *>(f2lPage_)
+                                     : static_cast<PracticePage *>(tslePage_);
+            if (setMode(mode)) {
+              page->showCards();
+            }
+          });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
                          static_cast<CasePage *>(drillPage_)}) {
     connect(page, &CasePage::editCaseRequested, this,
@@ -955,8 +954,12 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   saved::windowGeometry().set(saveGeometry());
   saved::windowState().set(saveState());
   saveLayout();
+  QStringList stopped;
   for (ModePage *page : pages_) {
     if (page) {
+      if (QString work = page->workStoppedOnClose(); !work.isEmpty()) {
+        stopped << work;
+      }
       page->aboutToClose();
     }
   }
@@ -970,10 +973,16 @@ void MainWindow::closeEvent(QCloseEvent *e) {
     for (const auto &[path, error] : failedWrites_) {
       lines << QString("%1: %2").arg(QFileInfo(path).fileName(), error);
     }
+    // Staying doesn't bring back what closing stopped.
+    const QString stoppedNote =
+        stopped.isEmpty()
+            ? QString()
+            : "\n\n" + tr("Stopped: %1. If you stay, start it again.")
+                           .arg(stopped.join(", "));
     auto answer = QMessageBox::warning(
         this, tr("Quit v-cube"),
         tr("Some changes could not be saved:") + "\n\n" + lines.join("\n") +
-            "\n\n" + tr("Quit anyway? They will be lost."),
+            stoppedNote + "\n\n" + tr("Quit anyway? They will be lost."),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) {
       e->ignore();
@@ -1342,7 +1351,7 @@ void MainWindow::applyWindowSettings() {
   double scale = settings_.hintTextPercent / 100.0;
   QFont base = QApplication::font();
   QFont hint = base;
-  hint.setPointSizeF(base.pointSizeF() * scale);
+  scaleSize(hint, base, scale);
   for (ModePage *page : pages_) {
     for (QLabel *label : page->findChildren<QLabel *>()) {
       // Labels given a font of their own keep it.

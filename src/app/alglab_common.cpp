@@ -168,7 +168,19 @@ const ErgoProfile *labGuideProfile(const AlgLabStore &store,
 }
 
 const ErgoProfile *labGuideProfile(const AlgLabStore &store) {
-  return labGuideProfile(store, saved::lab("scoreProfile").get().toString());
+  return labGuideProfile(store, scoreProfileName());
+}
+
+QString scoreProfileName() {
+  return saved::lab("scoreProfile").get().toString();
+}
+
+void setScoreProfileName(const QString &name) {
+  saved::lab("scoreProfile").set(name);
+}
+
+const ErgoProfile &activeScoreProfile(const AlgLabStore &store) {
+  return store.profile(scoreProfileName().toStdString());
 }
 
 QString labTime(std::optional<std::int64_t> ms, int decimals) {

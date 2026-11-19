@@ -31,6 +31,10 @@ void setInterfaceTextPercent(int percent);
 // "13 px": the size of body text at `percent`, for the setting's choices.
 int interfaceTextPixels(int percent);
 
+// Sets `f`'s size to `base`'s times `scale`, in points or in pixels as
+// `base` gives it (an app font from the desktop may be pixel-sized).
+void scaleSize(QFont &f, const QFont &base, double scale);
+
 // `f` with tabular (equal width) figures, for numbers that change in
 // place; as it is where the font has no such feature or Qt is older than
 // 6.7.

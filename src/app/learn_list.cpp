@@ -127,7 +127,7 @@ void LearnPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
   item->setText(1, status);
   item->setForeground(1, colour);
   item->setToolTip(1, tip);
-  item->setText(2, cp && !isQueued(cp->card) ? dueText(cp, now, localDayEnd())
+  item->setText(2, cp && !isQueued(cp->card) ? dueCell(cp, now, localDayEnd())
                                              : QString("-"));
   std::optional<double> recog = recognitionMean(attemptsOf(caseId));
   const bool slow = recog && *recog > settings_.slowRecognitionMs;

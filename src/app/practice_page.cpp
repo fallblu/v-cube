@@ -276,6 +276,8 @@ void PracticePage::showBar() {
 
 DrillFlow::Config PracticePage::flowConfig() const {
   const DrillSettings &d = settings_.drill;
+  // Space never practises after a DNF here: the practice modes have no
+  // practice stage (Esc tries the same state again instead).
   return {!physical_,          d.tapToArm, d.autoStop,
           d.shiftSpaceGivesUp, false,      d.holdMs};
 }
@@ -537,7 +539,7 @@ void PracticePage::nextLearn(LearnAhead ahead) {
     QString why;
     if (pick.nextDue) {
       why = tr("The next card is due %1.")
-                .arg(dueText(*pick.nextDue, now, localDayEnd()));
+                .arg(dueSentence(*pick.nextDue, now, localDayEnd()));
     }
     if (pick.queued > 0) {
       why += " " +
@@ -1045,8 +1047,9 @@ void PracticePage::introduced() {
   refreshList();
   phase_ = Phase::Done;
   item_.outcome = Outcome{};
-  item_.outcome->verdict = tr("Shown. It comes back %1, to do from memory.")
-                               .arg(dueText(p.card.due, now, localDayEnd()));
+  item_.outcome->verdict =
+      tr("Shown. It comes back %1, to do from memory.")
+          .arg(dueSentence(p.card.due, now, localDayEnd()));
   item_.outcome->best = demoAlg();
   showAll();
 }

@@ -1,5 +1,6 @@
 #include "app/f2l_page.hpp"
 
+#include "app/alglab_common.hpp"
 #include "app/cube_painter.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
@@ -438,8 +439,7 @@ void F2LPage::cubeChanged() {
 AnalysisOptions F2LPage::analysisOptions() const {
   AnalysisOptions o;
   o.config = config_;
-  o.profile =
-      lab_.profile(saved::lab("scoreProfile").get().toString().toStdString());
+  o.profile = activeScoreProfile(lab_);
   return o;
 }
 

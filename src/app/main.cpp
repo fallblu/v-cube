@@ -120,13 +120,20 @@ int main(int argc, char **argv) {
   // Build the solver's tables while the window comes up.
   (void)QtConcurrent::run([] { vcube::TwoPhaseSolver::warmUp(); });
 
-  vcube::MainWindow window(settings, dataDir);
-  QObject::connect(&instance, &vcube::SingleInstance::activationRequested,
-                   &window, &vcube::MainWindow::raiseWindow);
-  window.show();
-  window.showStartupProblems();
-  vcube::quitOnTerminationSignals();
-  int result = app.exec();
-  vcube::finishBackgroundWrites(); // saves still being written
+  int result = 0;
+  {
+    vcube::MainWindow window(settings, dataDir);
+    QObject::connect(&instance, &vcube::SingleInstance::activationRequested,
+                     &window, &vcube::MainWindow::raiseWindow);
+    window.show();
+    window.showStartupProblems();
+    vcube::quitOnTerminationSignals();
+    result = app.exec();
+    vcube::finishBackgroundWrites(); // saves still being written
+  }
+  // Again once the window and its pages are gone, while the application
+  // still is: a save queued as they were taken down (none is known) is
+  // written now, not reported to an application being destroyed.
+  vcube::finishBackgroundWrites();
   return result;
 }

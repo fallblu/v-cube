@@ -184,7 +184,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
       saveStore();
       fillProfiles();
       // The box fell back to another profile: that is the one chosen now.
-      saved::lab("scoreProfile").set(profileBox_->currentText());
+      setScoreProfileName(profileBox_->currentText());
       scoreCache_.clear();
       fillTable();
     }
@@ -488,7 +488,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   }
   connect(profileBox_, &QComboBox::currentIndexChanged, this, [this] {
     if (!loading_) {
-      saved::lab("scoreProfile").set(profileBox_->currentText());
+      setScoreProfileName(profileBox_->currentText());
       scoreCache_.clear();
       fillTable();
     }
@@ -668,6 +668,10 @@ void AlgLabPage::aboutToClose() {
   job_->stop = true;
   jobFuture_.waitForFinished();
   QCoreApplication::sendPostedEvents(this, QEvent::MetaCall);
+}
+
+QString AlgLabPage::workStoppedOnClose() const {
+  return job_ ? tr("Alg Lab's search") : QString();
 }
 
 void AlgLabPage::activated() {
@@ -911,9 +915,8 @@ void AlgLabPage::deleteLabCase() {
 // --- candidates -------------------------------------------------------------
 
 void AlgLabPage::fillProfiles() {
-  QString want = profileBox_->count() > 0
-                     ? profileBox_->currentText()
-                     : saved::lab("scoreProfile").get().toString();
+  QString want = profileBox_->count() > 0 ? profileBox_->currentText()
+                                          : scoreProfileName();
   loading_ = true;
   profileBox_->clear();
   for (const auto &p : store_.profiles()) {
@@ -976,7 +979,7 @@ void AlgLabPage::editProfile(ProfileEdit edit) {
   }
   profileBox_->setCurrentText(qs(edited.name));
   loading_ = false;
-  saved::lab("scoreProfile").set(qs(edited.name));
+  setScoreProfileName(qs(edited.name));
   scoreCache_.clear();
   fillTable();
 }

@@ -47,7 +47,7 @@ class CasePage : public ModePage {
 public:
   // The library changed. A hidden page catches up when it is shown.
   void reloadSets();
-  // Picks a set (or kAcrossSetsId) as the set drop-down does; one the
+  // Picks a set (or saved::kAcrossSetsId) as the set drop-down does; one the
   // drop-down doesn't offer is left alone.
   void pickSet(const QString &setId);
   // Shows a set and selects one of its cases in the list.
@@ -59,8 +59,6 @@ public:
   void activated() override;
   void deactivated() override;
 
-  // The set drop-down's entry for reviewing every set at once.
-  static constexpr const char *kAcrossSetsId = "*across*";
   // Where a row keeps a column's value to sort by (see sortableColumns()).
   static constexpr int kSortRole = Qt::UserRole + 30;
 
@@ -278,14 +276,5 @@ private:
   // group, or the selected rows it is one of); false if nothing.
   bool fillCaseMenu(QMenu &menu, QTreeWidgetItem *item);
 };
-
-// When a case is due: "now", "10 min", "3 h" or "4 d", or "today" for a
-// review due before `dayEnd` (reviews are due all day).
-QString dueText(const CaseProgress *p, std::int64_t now,
-                std::int64_t dayEnd = 0);
-// "1 case without a passing alg is skipped." and the plural.
-QString skippedText(int cases);
-// Seconds with two decimals, or "-".
-QString secondsText(std::optional<double> ms);
 
 } // namespace vcube

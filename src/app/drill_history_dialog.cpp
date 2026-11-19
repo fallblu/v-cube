@@ -1,6 +1,5 @@
 #include "app/drill_history_dialog.hpp"
 
-#include "app/case_page.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 

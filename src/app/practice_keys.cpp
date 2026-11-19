@@ -81,7 +81,9 @@ PracticeKeys untimedKeys(const PracticeFlow::State &s,
     if (s.recorded) {
       keys << KeyHint{"Delete", tr("delete it")};
     }
-    keys << KeyHint{"Esc", tr("retry, not recorded")};
+    // The try just made is kept: only the retry goes unrecorded.
+    keys << KeyHint{"Esc", s.recorded ? tr("retry (this one stays)")
+                                      : tr("retry, not recorded")};
     break;
   }
   return {message, keys};
@@ -116,7 +118,9 @@ PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,
                                     ? tr("take it back")
                                     : tr("delete it")};
     }
-    keys << KeyHint{"Esc", tr("retry, not recorded")};
+    // The try just made is kept: only the retry goes unrecorded.
+    keys << KeyHint{"Esc", s.recorded ? tr("retry (this one stays)")
+                                      : tr("retry, not recorded")};
     break;
   case DrillFlow::Phase::Aided:
   case DrillFlow::Phase::Unaided:

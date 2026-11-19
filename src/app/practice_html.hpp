@@ -36,8 +36,6 @@ struct PracticeSplit {
 
 // `text` on a line of its own in small print, or nothing for no text.
 QString smallLine(const QString &text);
-// "in 10 min", "in 4 d", "tomorrow".
-QString dueText(std::int64_t due, std::int64_t now, std::int64_t dayEnd);
 // "12.34", as the timer shows a time with `decimals`.
 QString clockText(std::int64_t ms, int decimals);
 // "9.3 s".
