@@ -540,3 +540,17 @@ TEST_CASE("learn: a change from the case list is taken back whole") {
   LearnUndo none = listChange(set.progress, "set", {"a"});
   CHECK_FALSE(keepChanged(none, set.progress));
 }
+
+TEST_CASE("learn keys: Space just after a recognition review comes up") {
+  LearnSession s;
+  s.startRecognising(5000);
+  CHECK(s.phase() == Phase::Recognise);
+  // The second press of a double tap meant for the case before.
+  auto early = s.key(press(Key::Space), 5000 + LearnSession::kGuardMs - 1);
+  CHECK(early.handled);
+  CHECK(early.action == Action::None);
+  CHECK(s.key(press(Key::Space, true), 5100).action == Action::None);
+  CHECK(s.key(turnKey(kR), 5100).action == Action::Look);
+  CHECK(s.key(press(Key::Space), 5000 + LearnSession::kGuardMs).action ==
+        Action::Recalled);
+}

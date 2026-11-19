@@ -515,7 +515,7 @@ void LearnPage::say(const QString &message, const QList<KeyHint> &keys,
 }
 
 bool LearnPage::handleKey(QKeyEvent *e, bool press) {
-  LearnSession::Step step = session_.key(sessionKey(e, press));
+  LearnSession::Step step = session_.key(sessionKey(e, press), monotonicMs());
   perform(step);
   return step.handled;
 }

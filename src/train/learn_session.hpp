@@ -27,7 +27,8 @@ namespace vcube {
 //   Done        the case is over: Space next, 1-4 change the grade, Esc
 //               resets the cube to practise (free turning)
 //   Recognise   a recognition review: Space once the alg is recalled
-//               (Shift+Space if not); rotations and U and D turns look
+//               (Shift+Space if not), not in its first kGuardMs;
+//               rotations and U and D turns look
 //   Recalled    1-4 grade it, Space/Enter the grade shown
 //   Quiz        "which case is this?": 1-n answer
 //   QuizDone    Space/Enter another one
@@ -93,12 +94,24 @@ public:
     std::size_t choice = 0;
   };
 
+  // Space is ignored this long after a recognition review comes up, so
+  // that the second press of a double tap meant for the case before
+  // doesn't answer it (as Drill's DrillFlow::kGuardMs).
+  static constexpr std::int64_t kGuardMs = 300;
+
   Phase phase() const { return phase_; }
   void setPhase(Phase p) { phase_ = p; }
+  // A recognition review came up at `now` (monotonic ms): Recognise,
+  // with Space held back for kGuardMs.
+  void startRecognising(std::int64_t now) {
+    phase_ = Phase::Recognise;
+    guardUntil_ = now + kGuardMs;
+  }
   // The quiz's choices, for its keys.
   void setQuizChoices(std::size_t n) { quizChoices_ = n; }
 
-  Step key(const KeyEvent &k) const;
+  // A key at `now` (monotonic ms).
+  Step key(const KeyEvent &k, std::int64_t now = 0) const;
 
   // The session's "which case?" score.
   struct QuizScore {
@@ -112,6 +125,7 @@ public:
 private:
   Phase phase_ = Phase::NoCase;
   std::size_t quizChoices_ = 0;
+  std::int64_t guardUntil_ = 0;
   QuizScore quiz_;
 };
 

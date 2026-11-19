@@ -39,7 +39,7 @@ const CaseProgress *findCard(const SetProgress &progress,
 
 } // namespace
 
-Step LearnSession::key(const KeyEvent &k) const {
+Step LearnSession::key(const KeyEvent &k, std::int64_t now) const {
   if (k.key == Key::Undo) {
     return used(k.press ? Action::Undo : Action::None);
   }
@@ -145,6 +145,9 @@ Step LearnSession::key(const KeyEvent &k) const {
     }
     break;
   case Phase::Recognise:
+    if (k.key == Key::Space && now < guardUntil_) {
+      return used(); // a double tap's second press, meant for the case before
+    }
     if (k.key == Key::Space) {
       Step s = used(Action::Recalled);
       s.knew = !k.shift;

@@ -59,7 +59,9 @@ void LearnPage::beginRecognition(const std::string &caseId) {
                 .value_or(CaseView{caseId, false, 0}));
   guide_.reset();
   clearCaseSelection();
-  attempt_.startTiming(monotonicMs());
+  std::int64_t shown = monotonicMs();
+  attempt_.startTiming(shown);
+  session_.startRecognising(shown);
   setPhase(Phase::Recognise);
 }
 
