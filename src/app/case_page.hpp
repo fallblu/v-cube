@@ -47,6 +47,9 @@ class CasePage : public ModePage {
 public:
   // The library changed. A hidden page catches up when it is shown.
   void reloadSets();
+  // Picks a set (or kAcrossSetsId) as the set drop-down does; one the
+  // drop-down doesn't offer is left alone.
+  void pickSet(const QString &setId);
   // Shows a set and selects one of its cases in the list.
   void showCase(const QString &setId, const QString &caseId);
   void applySettings() override;

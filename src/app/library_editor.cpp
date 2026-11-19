@@ -241,9 +241,22 @@ void LibraryEditor::applyEdit(Edit &edit, bool undoing, const QString &text) {
     }
   } else if (to) {
     // The set comes back, with its progress and settings.
-    if (!library_.add(*to, &error)) {
+    AlgSet *added = library_.add(*to, &error);
+    if (!added) {
       message_(tr("Could not add %1 again: %2").arg(qs(to->name), error));
       return;
+    }
+    // Its file name may have been taken since, and the set given another
+    // id: what it had goes with it, and the edit follows so that stepping
+    // over it again finds the set.
+    if (added->id != id) {
+      const std::string newId = added->id;
+      for (std::optional<AlgSet> *s : {&edit.before, &edit.after}) {
+        if (*s) {
+          (*s)->id = newId;
+        }
+      }
+      edit.setId = newId;
     }
     if (!edit.progress.empty()) {
       library_.progress(id) = edit.progress;

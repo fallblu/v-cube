@@ -188,3 +188,36 @@ TEST_CASE("the generator stops at the result cap and when told to",
   CHECK(stopped.end == SearchEnd::Stopped);
   CHECK(stopped.found == 0);
 }
+
+TEST_CASE("a search stopped while its tables are built keeps none of them",
+          "[search]") {
+  // A goal no other test has, so that its tables aren't built yet.
+  SearchGoal g = goalFor("R U R' U'", "", false, false);
+  SearchOptions o;
+  o.moves = *MoveSet::parse("R U");
+  o.maxLength = 8;
+  o.threads = 4;
+  std::atomic<bool> stop{false};
+  int builds = 0;
+  SearchCallbacks cb;
+  cb.progress = [&](const std::string &message) {
+    if (message.starts_with("Building")) {
+      ++builds;
+      stop = true;
+    }
+  };
+  SearchOutcome out = searchAlgs(g, o, stop, cb);
+  CHECK(builds == 1);
+  CHECK(out.end == SearchEnd::Stopped);
+  CHECK(out.found == 0);
+
+  // The next search builds them from the start and finds the algs.
+  stop = false;
+  cb.progress = [&](const std::string &message) {
+    builds += message.starts_with("Building") ? 1 : 0;
+  };
+  out = searchAlgs(g, o, stop, cb);
+  CHECK(builds == 2);
+  CHECK(out.end == SearchEnd::Done);
+  CHECK(out.found > 0);
+}

@@ -16,6 +16,7 @@
 #include <QStyleOption>
 
 #include <algorithm>
+#include <cmath>
 
 namespace vcube {
 
@@ -211,14 +212,18 @@ AppSettings AppSettings::load() {
     }
   }
   SrsConfig &c = s.srs;
-  c.graduatingDays = std::clamp(
-      q.value("srs/graduatingDays", c.graduatingDays).toDouble(), 1.0, 365.0);
-  c.easyDays =
-      std::clamp(q.value("srs/easyDays", c.easyDays).toDouble(), 1.0, 365.0);
-  c.lapseFactor = std::clamp(
-      q.value("srs/lapseFactor", c.lapseFactor).toDouble(), 0.0, 1.0);
-  c.easeRecovery = std::clamp(
-      q.value("srs/easeRecovery", c.easeRecovery).toDouble(), 0.0, 1.0);
+  // "nan" reads as a number, and std::clamp would pass it on.
+  auto clampedReal = [&q](const char *key, double fallback, double lo,
+                          double hi) {
+    bool ok = false;
+    double v = q.value(key, fallback).toDouble(&ok);
+    return std::clamp(ok && !std::isnan(v) ? v : fallback, lo, hi);
+  };
+  c.graduatingDays =
+      clampedReal("srs/graduatingDays", c.graduatingDays, 1.0, 365.0);
+  c.easyDays = clampedReal("srs/easyDays", c.easyDays, 1.0, 365.0);
+  c.lapseFactor = clampedReal("srs/lapseFactor", c.lapseFactor, 0.0, 1.0);
+  c.easeRecovery = clampedReal("srs/easeRecovery", c.easeRecovery, 0.0, 1.0);
   c.creditLateReviews =
       q.value("srs/creditLateReviews", c.creditLateReviews).toBool();
   c.hardAdvancesSteps =

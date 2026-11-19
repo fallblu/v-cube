@@ -284,6 +284,7 @@ class GuiTest : public QObject {
 
 private slots:
   void initTestCase();
+  void oddSettingsAreSetRight();
   void modesSwitch();
   void layoutFitsHalfAScreen();
   void sidePanelHidesInANarrowWindow();
@@ -308,6 +309,8 @@ private slots:
   void tipsShowInTheStatusBar();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
+  void theSameKeyTwiceArrivesTwice();
+  void undoneDeletionKeepsProgressUnderANewId();
   void cleanupTestCase();
 };
 
@@ -356,6 +359,18 @@ void GuiTest::initTestCase() {
     QVERIFY(sessions.save());
   }
 
+  // What an older version or an edit by hand could have left in the
+  // settings (see oddSettingsAreSetRight()).
+  {
+    QSettings q;
+    q.setValue("learn/set", "pll");
+    q.setValue("trainer/sets/pll/top", 9);
+    q.setValue("srs/lapseFactor", "nan");
+    q.setValue("srs/easyDays", "nan");
+    q.setValue("alglab/statsWindow", 99);
+    q.setValue("alglab/lengthMode", -3);
+  }
+
   TwoPhaseSolver::warmUp(); // so that scrambles come quickly
   settings_ = AppSettings::load();
   applyTheme(*qApp, settings_.darkTheme);
@@ -371,6 +386,25 @@ void GuiTest::initTestCase() {
   window_->activateWindow();
   QVERIFY(QTest::qWaitForWindowExposed(window_.get()));
   QVERIFY(shownPage(*window_));
+}
+
+// Values out of range in the settings file fall back to the defaults.
+void GuiTest::oddSettingsAreSetRight() {
+  // A top colour that isn't one, from before the holds were kept as text.
+  QVERIFY(settings_.neutrality.main == kWcaHold);
+  QVERIFY(settings_.neutrality.holds == std::vector<Hold>{kWcaHold});
+  // "nan" is a number to QVariant.
+  QCOMPARE(settings_.srs.lapseFactor, SrsConfig().lapseFactor);
+  QCOMPARE(settings_.srs.easyDays, SrsConfig().easyDays);
+  // A drop-down position that isn't there doesn't leave the box blank.
+  int boxes = 0;
+  for (QComboBox *box : page<AlgLabPage>()->findChildren<QComboBox *>()) {
+    if (box->itemText(0) == "All time" || box->itemText(0) == "Shortest +") {
+      QCOMPARE(box->currentIndex(), 0);
+      ++boxes;
+    }
+  }
+  QCOMPARE(boxes, 2);
 }
 
 void GuiTest::modesSwitch() {
@@ -2069,9 +2103,99 @@ void GuiTest::keysDocMatchesTheKeyTable() {
            "VCUBE_WRITE_DOCS=1");
 }
 
+// Two key events that look alike (the same object sent twice has the same
+// address, key and time) are two key presses.
+void GuiTest::theSameKeyTwiceArrivesTwice() {
+  auto *today = page<TodayPage>();
+  QVERIFY(switchTo(AppMode::Today, today));
+  auto tables = today->findChildren<QTreeWidget *>();
+  QCOMPARE(tables.size(), 2);
+  QVERIFY(tables[0]->topLevelItemCount() >= 3);
+  window_->setFocus();
+  QTest::keyClick(window_.get(), Qt::Key_Home);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 0);
+  QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+  QApplication::sendEvent(window_.get(), &down);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 1);
+  QApplication::sendEvent(window_.get(), &down);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 2);
+}
+
+// A deleted set whose file name was taken before the undo comes back
+// under another id, with its progress.
+void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
+  auto *library = page<LibraryPage>();
+  QVERIFY(switchTo(AppMode::Library, library));
+  library->selectCase("pll", "T");
+  const std::size_t graded = savedProgress("pll").size();
+  QVERIFY(graded > 0);
+  QAction *deleteSet = nullptr;
+  for (QAction *a : library->findChildren<QAction *>()) {
+    if (a->text().remove('&').startsWith("Delete set")) {
+      deleteSet = a;
+    }
+  }
+  QVERIFY(deleteSet);
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *box = qobject_cast<QMessageBox *>(m)) {
+        box->button(QMessageBox::Yes)->click();
+      }
+    });
+    deleteSet->trigger();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  const QString sets = QDir(dataDir_).filePath("algsets");
+  const QString taken = QDir(sets).filePath("pll.json");
+  const QString oldProgress = QDir(sets).filePath("progress/pll.json");
+  finishBackgroundWrites();
+  QVERIFY(!QFile::exists(taken));
+  QVERIFY(!QFile::exists(oldProgress));
+  {
+    QFile other(taken);
+    QVERIFY(other.open(QIODevice::WriteOnly));
+    other.write("{}");
+  }
+
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  window_->setFocus();
+  QTest::keySequence(window_.get(), QKeySequence::Undo);
+  QVERIFY(QFile::remove(taken));
+  QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
+  QCOMPARE(savedProgress("pll-2").size(), graded);
+  QVERIFY(!QFile::exists(oldProgress));
+
+  // Redo deletes the set that came back, and undo brings it back again.
+  QTest::keySequence(window_.get(), QKeySequence::Redo);
+  QVERIFY(!QFile::exists(QDir(sets).filePath("pll-2.json")));
+  QTest::keySequence(window_.get(), QKeySequence::Undo);
+  QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
+  QCOMPARE(savedProgress("pll-2").size(), graded);
+}
+
 void GuiTest::cleanupTestCase() {
   if (window_) {
     window_->close();
+    // The window is destroyed as one that is shown and active, with the
+    // focus in Library: the pages hear that the focus has gone, which must
+    // be before the data they refer to goes (a sanitizer build sees it).
+    auto *library = page<LibraryPage>();
+    window_->show();
+    window_->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+    QVERIFY(switchTo(AppMode::Library, library));
+    {
+      AlgLibrary lib(QDir(dataDir_).filePath("algsets"), ":/algsets");
+      lib.load();
+      QVERIFY(lib.find("oll"));
+      library->selectCase("oll",
+                          qs(lib.find("oll")->groups.front().cases.front().id));
+    }
+    auto *list = library->findChild<AlgListWidget *>();
+    QVERIFY(list);
+    list->setFocus();
+    QCOMPARE(QApplication::focusWidget(), list);
     window_.reset();
   }
   instance_.reset();

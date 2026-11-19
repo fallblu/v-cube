@@ -162,11 +162,13 @@ MoveModel buildModel(const MoveSet &set) {
 // Pattern databases.
 
 // Runs a breadth-first search from `seeds` over `size` states, `next(i,
-// e)` giving state i after effect e, on `threads` threads.
+// e)` giving state i after effect e, on `threads` threads. The big tables
+// take seconds, so `stop` is looked at between chunks: what is returned
+// once it is set is unfinished and must not be used.
 template <typename Next>
-std::vector<std::uint8_t> distances(std::size_t size,
-                                    const std::vector<std::size_t> &seeds,
-                                    int effects, int threads, Next next) {
+std::vector<std::uint8_t>
+distances(std::size_t size, const std::vector<std::size_t> &seeds, int effects,
+          int threads, const std::atomic<bool> &stop, Next next) {
   std::vector<std::uint8_t> dist(size, kUnseen);
   for (std::size_t s : seeds) {
     dist[s] = 0;
@@ -179,7 +181,7 @@ std::vector<std::uint8_t> distances(std::size_t size,
       bool found = false;
       for (;;) {
         std::size_t begin = chunk.fetch_add(kChunk);
-        if (begin >= size) {
+        if (begin >= size || stop.load(std::memory_order_relaxed)) {
           break;
         }
         std::size_t end = std::min(size, begin + kChunk);
@@ -210,7 +212,7 @@ std::vector<std::uint8_t> distances(std::size_t size,
     }
     work();
     pool.clear();
-    if (!any.load()) {
+    if (!any.load() || stop.load()) {
       break;
     }
   }
@@ -370,10 +372,12 @@ std::vector<std::uint8_t> goalAufs(bool aufAfter) {
   return {0, 1, 2, 3};
 }
 
+// The builders give no table when `stop` was set before the end.
 std::shared_ptr<CornerTable> buildCorners(const MoveModel &model,
                                           const std::vector<int> &places,
                                           const PieceMask &free, bool aufAfter,
-                                          int threads) {
+                                          int threads,
+                                          const std::atomic<bool> &stop) {
   auto t = std::make_shared<CornerTable>();
   t->places = places;
   t->local.fill(-1);
@@ -452,7 +456,7 @@ std::shared_ptr<CornerTable> buildCorners(const MoveModel &model,
   }
   const std::size_t size = t->arrangements.size() * t->coSize;
   const auto *tp = t.get();
-  t->dist = distances(size, {seeds.begin(), seeds.end()}, ne, threads,
+  t->dist = distances(size, {seeds.begin(), seeds.end()}, ne, threads, stop,
                       [tp, ne](std::size_t i, int e) {
                         std::size_t r = i / tp->coSize, c = i % tp->coSize;
                         auto ue = static_cast<std::size_t>(e);
@@ -460,14 +464,13 @@ std::shared_ptr<CornerTable> buildCorners(const MoveModel &model,
                         return tp->index(tp->cpMove[r * une + ue],
                                          tp->coMove[c * une + ue]);
                       });
-  return t;
+  return stop.load() ? nullptr : t;
 }
 
-std::shared_ptr<EdgeTable> buildEdges(const MoveModel &model,
-                                      const std::vector<int> &places,
-                                      const std::vector<int> &pieces,
-                                      const PieceMask &free, bool aufAfter,
-                                      int threads) {
+std::shared_ptr<EdgeTable>
+buildEdges(const MoveModel &model, const std::vector<int> &places,
+           const std::vector<int> &pieces, const PieceMask &free, bool aufAfter,
+           int threads, const std::atomic<bool> &stop) {
   auto t = std::make_shared<EdgeTable>();
   t->places = places;
   t->local.fill(-1);
@@ -618,7 +621,7 @@ std::shared_ptr<EdgeTable> buildEdges(const MoveModel &model,
   }
   const int k = t->k;
   const std::uint32_t mask = (1u << k) - 1;
-  t->dist = distances(size, {seeds.begin(), seeds.end()}, ne, threads,
+  t->dist = distances(size, {seeds.begin(), seeds.end()}, ne, threads, stop,
                       [&, k, mask, une](std::size_t i, int e) {
                         std::size_t r = i >> k;
                         auto f = static_cast<std::uint32_t>(i) & mask;
@@ -626,7 +629,7 @@ std::shared_ptr<EdgeTable> buildEdges(const MoveModel &model,
                         return (static_cast<std::size_t>(permMove[at]) << k) |
                                (f ^ flipMove[at]);
                       });
-  return t;
+  return stop.load() ? nullptr : t;
 }
 
 // Tables kept between searches.
@@ -648,6 +651,9 @@ struct TableCache {
       }
     }
     std::shared_ptr<T> t = build();
+    if (!t) {
+      return nullptr; // stopped: nothing to keep
+    }
     std::lock_guard lock(mutex);
     std::size_t total = t->dist.size();
     for (const auto &[k, b] : bytes) {
@@ -992,8 +998,13 @@ struct Searcher {
         }
       }
       corners = cache().get<CornerTable>(key, [&] {
-        return buildCorners(model, cPlaces, goal.free, goal.aufAfter, threads);
+        return buildCorners(model, cPlaces, goal.free, goal.aufAfter, threads,
+                            stop);
       });
+      if (!corners) {
+        out.end = SearchEnd::Stopped;
+        return out;
+      }
     }
     for (const auto &g : groups) {
       std::string key = base + "|e";
@@ -1008,8 +1019,12 @@ struct Searcher {
       }
       edges.push_back(cache().get<EdgeTable>(key, [&] {
         return buildEdges(model, sortedPlaces, g, goal.free, goal.aufAfter,
-                          threads);
+                          threads, stop);
       }));
+      if (!edges.back()) {
+        out.end = SearchEnd::Stopped;
+        return out;
+      }
     }
 
     std::vector<Node> roots;
