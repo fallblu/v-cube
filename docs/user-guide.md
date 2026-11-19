@@ -670,7 +670,8 @@ turn** stops the clock and hides the cube: do your plan from memory, then
 `Space` shows the cube again and the plan is judged, with the time you
 looked. A plan that didn't do the step counts as not done. **Inspection**
 in the bar sets the limit (none, 8, 10, 15 as in the WCA, 20 or 30
-seconds); going over it is marked, but the plan is judged all the same.
+seconds); going over it is marked, but the plan is judged all the same,
+and the sitting's summary counts the tries that went over.
 After the verdict, `Space` brings the next state at once. `Esc` while
 planning gives the same state again, unrecorded.
 
