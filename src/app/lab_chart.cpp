@@ -1,5 +1,6 @@
 #include "app/lab_chart.hpp"
 
+#include "app/colours.hpp"
 #include "app/widgets.hpp"
 #include "train/stats.hpp"
 
@@ -73,8 +74,9 @@ void LabChart::paintEvent(QPaintEvent *) {
   p.setRenderHint(QPainter::Antialiasing);
   const QPalette &pal = palette();
   const QColor ink = pal.color(QPalette::WindowText);
-  QColor muted = ink;
-  muted.setAlphaF(0.55f);
+  // Secondary text in the role tuned for 4.5:1; only the grid line is a
+  // blend of the text colour.
+  const QColor muted = roleColour(Role::Muted);
   QColor grid = ink;
   grid.setAlphaF(0.12f);
   dots_.clear();

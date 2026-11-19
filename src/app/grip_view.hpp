@@ -29,6 +29,9 @@ public:
               const QString &why = {});
   void clear(const QString &why = {});
 
+protected:
+  void changeEvent(QEvent *e) override;
+
 private:
   QLabel *summary_;
   QTableWidget *lanes_;

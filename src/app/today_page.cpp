@@ -529,11 +529,20 @@ void TodayPage::refresh() {
   }
   next_->setEnabled(static_cast<bool>(nextAction_));
   // Set again on each refresh, so that the colours follow the theme.
-  next_->setStyleSheet(
-      nextAction_ ? "#todayNext { background: palette(highlight); color: "
-                    "palette(highlighted-text); border: none; border-radius: "
-                    "4px; padding: 7px 18px; }"
-                  : "#todayNext { padding: 7px 18px; }");
+  if (nextAction_) {
+    // A stylesheet button keeps no hover or pressed look of its own.
+    const QColor accent = palette().color(QPalette::Highlight);
+    next_->setStyleSheet(
+        QString("#todayNext { background: %1; color: "
+                "palette(highlighted-text); border: none; border-radius: "
+                "4px; padding: 7px 18px; }"
+                "#todayNext:hover { background: %2; }"
+                "#todayNext:pressed { background: %3; }")
+            .arg(accent.name(), accent.lighter(110).name(),
+                 accent.darker(110).name()));
+  } else {
+    next_->setStyleSheet("#todayNext { padding: 7px 18px; }");
+  }
   next_->setAccessibleDescription(note);
   nextNote_->setText(note);
   hints_->setHint({}, {{tr("↑ ↓"), tr("pick a row")},

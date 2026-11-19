@@ -66,6 +66,9 @@ void markScrambleLabel(QLabel *label);
 void setDisplayFontSizes(int scramblePt, int timerPt);
 // Runs `call` with 8 or 12 when a timer's inspection passes 8 s or 12 s.
 void setInspectionCallHandler(std::function<void(int seconds)> call);
+// Keeps `widget` at least one line of its font high, now and whenever its
+// font changes (as with the interface text size).
+void keepOneLineHigh(QWidget *widget);
 
 // A state to scramble to, in the solver's frame, and the alg set case it
 // sets up (if any).

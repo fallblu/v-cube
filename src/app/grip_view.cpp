@@ -172,6 +172,22 @@ void GripView::replan() {
   }
 }
 
+void GripView::changeEvent(QEvent *e) {
+  QWidget::changeEvent(e);
+  if (e->type() != QEvent::PaletteChange && e->type() != QEvent::FontChange) {
+    return;
+  }
+  // Heights from the font and lane colours from the theme, again.
+  options_->setFixedHeight(options_->fontMetrics().height() * 5 + 8);
+  if (model_ && !body_->isHidden()) {
+    int col = lanes_->currentColumn();
+    fillLanes();
+    if (col >= 0 && col < lanes_->columnCount()) {
+      lanes_->selectColumn(col);
+    }
+  }
+}
+
 void GripView::fillLanes() {
   QSignalBlocker block(lanes_);
   const GripPlan &p = result_.plan;

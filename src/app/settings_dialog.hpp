@@ -37,6 +37,7 @@ signals:
 
 protected:
   bool eventFilter(QObject *watched, QEvent *event) override;
+  void changeEvent(QEvent *event) override;
 
 private:
   // Reads the controls into the settings; false (with a message) if
@@ -89,6 +90,7 @@ private:
   DrillSettingsTab *drillTab_;
 
   void refreshColours();
+  void styleColourButtons();
   QWidget *buildNeutralityTab(QWidget *parent);
   void fillMainFronts();
   // Shows settings_.neutrality in the controls.

@@ -80,6 +80,27 @@ void setInspectionCallHandler(std::function<void(int seconds)> call) {
   gInspectionCall = std::move(call);
 }
 
+namespace {
+
+class OneLineHigh : public QObject {
+public:
+  using QObject::QObject;
+  bool eventFilter(QObject *watched, QEvent *e) override {
+    if (e->type() == QEvent::FontChange) {
+      auto *w = static_cast<QWidget *>(watched);
+      w->setMinimumHeight(w->fontMetrics().height());
+    }
+    return false;
+  }
+};
+
+} // namespace
+
+void keepOneLineHigh(QWidget *widget) {
+  widget->setMinimumHeight(widget->fontMetrics().height());
+  widget->installEventFilter(new OneLineHigh(widget));
+}
+
 TimeDisplay::TimeDisplay(QWidget *parent) : QLabel(parent) {
   setAlignment(Qt::AlignCenter);
   QFont f = font();

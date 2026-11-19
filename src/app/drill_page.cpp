@@ -164,7 +164,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   statusLabel_->setWordWrap(true);
   // The message line and the result keep their room while hidden, so
   // that the lines under them don't move from one state to the next.
-  statusLabel_->setMinimumHeight(statusLabel_->fontMetrics().height());
+  keepOneLineHigh(statusLabel_);
   QSizePolicy keep = statusLabel_->sizePolicy();
   keep.setRetainSizeWhenHidden(true);
   statusLabel_->setSizePolicy(keep);
@@ -176,7 +176,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   resultLabel_ = new QLabel(resultRow_);
   resultLabel_->setWordWrap(true); // a long DNF reason mustn't widen the page
   resultLabel_->setAlignment(Qt::AlignCenter);
-  resultLabel_->setMinimumHeight(resultLabel_->fontMetrics().height());
+  keepOneLineHigh(resultLabel_);
   resultRows->addWidget(resultLabel_);
   keep = resultRow_->sizePolicy();
   keep.setRetainSizeWhenHidden(true);
