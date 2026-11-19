@@ -28,6 +28,10 @@ namespace vcube {
 namespace {
 
 const char *const kWhole = "whole";
+// Costs closer than this are the same (they are shown to a tenth).
+constexpr double kSameCost = 0.05;
+// A cost this much over the best (a pair's) is far over.
+constexpr double kFarOver = 2.0;
 
 QString costText(double cost) { return QString::number(cost, 'f', 1); }
 
@@ -103,9 +107,10 @@ DiagramView backViewOf(PairCase c) {
 
 // A cost over the best one, coloured by how much it is.
 QString overText(double over, const QString &best) {
-  return over < 0.05
+  return over < kSameCost
              ? coloured(kPassColour, QObject::tr("as good as %1").arg(best))
-             : coloured(over >= 2.0 ? QColor(kFailColour) : QColor(kWarnColour),
+             : coloured(over >= kFarOver ? QColor(kFailColour)
+                                         : QColor(kWarnColour),
                         QObject::tr("+%1 over %2").arg(costText(over), best));
 }
 
@@ -255,7 +260,10 @@ void F2LPage::setConfig(const F2LConfig &config) {
   configChanged();
 }
 
-void F2LPage::reloadSets() { importSheet(); }
+void F2LPage::reloadSets() {
+  sheetLooked_ = false; // it may be there now
+  importSheet();
+}
 
 void F2LPage::activated() {
   importSheet();
@@ -265,7 +273,7 @@ void F2LPage::activated() {
 // --- the sheet's algs --------------------------------------------------------
 
 void F2LPage::importSheet() {
-  if (data().notes.contains("sheet")) {
+  if (sheetLooked_ || data().notes.contains("sheet")) {
     return;
   }
   // The set of pair cases F2L mode used to show beside its solutions: in
@@ -290,6 +298,7 @@ void F2LPage::importSheet() {
     }
   }
   if (!set) {
+    sheetLooked_ = true;
     return;
   }
   for (const std::string &key : pairCardPool(true)) {
@@ -401,16 +410,23 @@ bool F2LPage::turned() {
     return slotSolved(*c, *target_) && initiallySolvedKept(*c);
   }
   std::vector<F2LSegment> segments = f2lSegments(start_, item().moves, config_);
+  const bool done = f2lDone(*c, config_);
   if (segments.size() > segments_.size()) {
     segments_ = std::move(segments);
     // The next pair is begun from here: the way on is worked out now, for
-    // its line once it is in.
-    if (!f2lDone(*c, config_)) {
+    // its line once it is in. Timed has no lines: it waits for the end,
+    // so as not to slow the solve.
+    if (!done && tab() != Tab::Timed) {
       requestRanks(segments_.size(), *c);
     }
     updateProgress();
   }
-  return f2lDone(*c, config_);
+  if (done && tab() == Tab::Timed) {
+    for (std::size_t i = 1; i < segments_.size(); ++i) {
+      requestRanks(i, segments_[i].before);
+    }
+  }
+  return done;
 }
 
 void F2LPage::cubeChanged() {
@@ -567,9 +583,10 @@ QString F2LPage::pairLine(std::size_t i) const {
   }
   const double regret = r->total - ranks->second.front().total;
   const QString pick =
-      regret < 0.05
+      regret < kSameCost
           ? coloured(kPassColour, tr("the best pair"))
-          : coloured(regret >= 2.0 ? QColor(kFailColour) : QColor(kWarnColour),
+          : coloured(regret >= kFarOver ? QColor(kFailColour)
+                                        : QColor(kWarnColour),
                      tr("%1 was better (−%2)")
                          .arg(slotText(ranks->second.front().pair.slot),
                               costText(regret)));
@@ -694,7 +711,7 @@ PracticePage::Outcome F2LPage::judge() {
     const double mine = costOf(tryAsChosen_);
     o.moves = htmCount(simplify(item().moves));
     o.extra = std::max(0.0, mine - cheapest);
-    o.good = match.has_value() || mine <= cheapest + 0.05;
+    o.good = match.has_value() || mine <= cheapest + kSameCost;
     offerAdd_ = !match && o.good && !tryAsChosen_.empty();
     if (match) {
       o.verdict =
@@ -755,16 +772,16 @@ PracticePage::Outcome F2LPage::judge() {
     // chosen and their solutions cost over it together.
     const double over = std::max(0.0, cost - (plan->total - plan->hidden));
     o.extra = over;
-    o.good = over < 0.05;
+    o.good = over < kSameCost;
     const double pairs =
         static_cast<double>(std::max(1, pairsLeft(start_, config_)));
     o.verdict +=
         " · " +
-        (over < 0.05
+        (over < kSameCost
              ? coloured(kPassColour, tr("as good as the cheapest way found"))
              : coloured(
-                   over >= 2.0 * pairs ? QColor(kFailColour)
-                                       : QColor(kWarnColour),
+                   over >= kFarOver * pairs ? QColor(kFailColour)
+                                            : QColor(kWarnColour),
                    tr("+%1 over the cheapest way found").arg(costText(over))));
   }
   return o;
@@ -880,16 +897,16 @@ QString F2LPage::wholeHtml() const {
                         movesText(r->pair.best()->htm),
                         costText(r->pair.best()->cost));
         double d = cost - r->pair.best()->cost;
-        over = d < 0.05 ? tick
-                        : coloured(d >= 2.0 ? QColor(kFailColour)
-                                            : QColor(kWarnColour),
-                                   "+" + costText(d));
+        over = d < kSameCost ? tick
+                             : coloured(d >= kFarOver ? QColor(kFailColour)
+                                                      : QColor(kWarnColour),
+                                        "+" + costText(d));
         double regret = r->total - ranks.front().total;
-        pick = regret < 0.05
+        pick = regret < kSameCost
                    ? tick
                    : slotText(ranks.front().pair.slot) + " " +
-                         coloured(regret >= 2.0 ? QColor(kFailColour)
-                                                : QColor(kWarnColour),
+                         coloured(regret >= kFarOver ? QColor(kFailColour)
+                                                     : QColor(kWarnColour),
                                   "(" + tr("−%1").arg(costText(regret)) + ")");
       }
     }
