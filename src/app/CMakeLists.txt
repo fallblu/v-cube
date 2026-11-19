@@ -58,6 +58,7 @@ add_library(vcube_gui STATIC
   mode_page.hpp
   mode_table.cpp
   platform.cpp
+  quiz_practice.cpp
   review_dialog.cpp
   scramble_source.cpp
   session_panel.cpp

@@ -27,13 +27,6 @@
 
 namespace vcube {
 
-namespace {
-
-// Choices in "which case is this?".
-constexpr std::size_t kQuizChoices = 6;
-
-} // namespace
-
 // --- recognition reviews and the quiz ----------------------------------------
 
 void LearnPage::beginRecognition(const std::string &caseId) {
@@ -105,17 +98,14 @@ void LearnPage::nextQuiz() {
   gradeRow_->setVisible(false);
   stage_->hideFamily();
   const AlgSet *s = set();
-  std::vector<std::string> ticked =
-      s ? tickedEligible() : std::vector<std::string>{};
-  // Cases already started are asked first.
-  std::vector<std::string> started;
-  for (const auto &id : ticked) {
-    if (statusOf(cardOf(id)) != CaseStatus::Unstarted) {
-      started.push_back(id);
-    }
-  }
-  const std::vector<std::string> &from = started.size() >= 2 ? started : ticked;
-  if (from.size() < 2) {
+  quiz_ = s ? QuizPractice::pick(
+                  *s, tickedEligible(),
+                  [this](const std::string &id) {
+                    return statusOf(cardOf(id)) != CaseStatus::Unstarted;
+                  },
+                  last_, rng_)
+            : std::nullopt;
+  if (!quiz_) {
     stage_->hideQuiz();
     cube_ = FaceletCube();
     cubeView_->setState(cube_);
@@ -124,38 +114,7 @@ void LearnPage::nextQuiz() {
     setPhase(Phase::NoCase);
     return;
   }
-  std::vector<std::string> candidates;
-  for (const auto &id : from) {
-    if (id != last_) {
-      candidates.push_back(id);
-    }
-  }
-  std::uniform_int_distribution<std::size_t> pickOne(0, candidates.size() - 1);
-  std::string id = candidates[pickOne(rng_)];
-  // The others from its group, the look-alikes, else from the rest.
-  const CaseGroup *g = s->groupOf(id);
-  std::vector<std::string> others;
-  for (const auto &t : ticked) {
-    if (t != id && s->groupOf(t) == g) {
-      others.push_back(t);
-    }
-  }
-  if (others.empty()) {
-    for (const auto &t : from) {
-      if (t != id) {
-        others.push_back(t);
-      }
-    }
-  }
-  std::shuffle(others.begin(), others.end(), rng_);
-  if (others.size() > kQuizChoices - 1) {
-    others.resize(kQuizChoices - 1);
-  }
-  others.push_back(id);
-  std::shuffle(others.begin(), others.end(), rng_);
-  quizChoices_ = others;
-  quizAnswer_ = static_cast<std::size_t>(
-      std::find(others.begin(), others.end(), id) - others.begin());
+  const std::string id = quiz_->caseId();
 
   Hold hold = pickHold();
   CubieCube start = setUp(id, Mirror{}, FreePieces::Scrambled);
@@ -169,35 +128,27 @@ void LearnPage::nextQuiz() {
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);
 
-  QStringList names;
-  for (const auto &choice : quizChoices_) {
-    const AlgCase *c = s->findCase(choice);
-    names << (c ? qs(c->name) : QString());
-  }
-  stage_->setQuizChoices(names);
+  stage_->setQuizChoices(quiz_->names(*s));
   clearCaseSelection();
-  quizShownAtMs_ = monotonicMs();
-  session_.setQuizChoices(quizChoices_.size());
+  quiz_->shown(monotonicMs());
+  session_.setQuizChoices(quiz_->choices());
   setPhase(Phase::Quiz);
 }
 
 void LearnPage::answerQuiz(std::size_t choice) {
-  if (phase() != Phase::Quiz || !current_ || choice >= quizChoices_.size()) {
+  if (phase() != Phase::Quiz || !current_ || !quiz_ ||
+      choice >= quiz_->choices()) {
     return;
   }
-  std::int64_t ms = monotonicMs() - quizShownAtMs_;
-  bool right = choice == quizAnswer_;
-  session_.answered(right, ms);
-  stage_->showQuizAnswer(quizAnswer_, choice);
+  const QuizPractice::Result result = quiz_->answered(choice, monotonicMs());
+  session_.answered(result.right, result.ms);
+  stage_->showQuizAnswer(quiz_->answer(), choice);
   reveal_->setText(algsHtml(current_->caseId, current_->start));
   selectInTree(current_->caseId);
   setPhase(Phase::QuizDone);
-  const AlgCase *c = set() ? set()->findCase(current_->caseId) : nullptr;
-  say(right ? tr("Right, in %1 s.").arg(secondsText(static_cast<double>(ms)))
-            : tr("It was %1.").arg(c ? qs(c->name) : QString()),
-      {{tr("Space"), tr("another one")}});
-  statusLabel_->setStyleSheet(right ? QString()
-                                    : "color: " + kWarnColour.name());
+  say(quiz_->resultText(set(), result), {{tr("Space"), tr("another one")}});
+  statusLabel_->setStyleSheet(result.right ? QString()
+                                           : "color: " + kWarnColour.name());
   updateHeader();
 }
 

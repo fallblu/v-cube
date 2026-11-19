@@ -5,6 +5,7 @@
 #include "app/context_practice.hpp"
 #include "app/cube_view.hpp"
 #include "app/page_parts.hpp"
+#include "app/quiz_practice.hpp"
 #include "train/alg_follow.hpp"
 #include "train/alg_guide.hpp"
 #include "train/learn_attempt.hpp"
@@ -131,10 +132,8 @@ private:
   FaceletCube cube_;
   std::string last_;
 
-  // "Which case?": the choices, the right one, and when it was shown.
-  std::vector<std::string> quizChoices_;
-  std::size_t quizAnswer_ = 0;
-  std::int64_t quizShownAtMs_ = 0;
+  // "Which case?": the question that is up.
+  std::optional<QuizPractice> quiz_;
 
   QSpinBox *learnCount_;
   bool countTyped_ = false; // a number was typed into the count
