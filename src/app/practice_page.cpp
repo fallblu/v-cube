@@ -2073,6 +2073,9 @@ void PracticePage::showSummary() {
                 tr("looked %1 on average")
                     .arg(seconds(static_cast<std::int64_t>(*s.meanInspectMs)));
       }
+      if (s.overTime > 0) {
+        line += ", " + tr("%1 over the limit").arg(s.overTime);
+      }
       lines << line;
     }
     break;
