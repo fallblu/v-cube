@@ -273,6 +273,23 @@ TEST_CASE("a chosen solution is known done in either slot", "[f2l]") {
   CHECK(checked > 0);
 }
 
+TEST_CASE("solutions compare without their AUF", "[f2l]") {
+  auto same = [](const char *a, const char *b) {
+    return comparableSolution(parseAlgOrEmpty(a)) ==
+           comparableSolution(parseAlgOrEmpty(b));
+  };
+  CHECK(same("U R U' R'", "R U' R'"));
+  CHECK(same("R U' R' U2", "R U' R'"));
+  // A U turn beside a D turn, on either side of it, is still the AUF.
+  CHECK(same("D U R U' R' D'", "D R U' R' D'"));
+  CHECK(same("U D R U' R' D'", "D R U' R' D'"));
+  CHECK(same("D R U' R' D' U", "D R U' R' D'"));
+  CHECK(same("D R U' R' U D'", "D R U' R' D'"));
+  CHECK(same("U' D U2 R U R'", "D R U R'"));
+  CHECK_FALSE(same("D R U' R' D'", "R U' R'"));
+  CHECK_FALSE(same("D2 R U' R'", "R U' R'"));
+}
+
 TEST_CASE("the flat view's blind spots", "[f2l]") {
   CHECK(flatStickers(true, URF) == 3);
   CHECK(flatStickers(true, ULB) == 2);
