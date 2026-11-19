@@ -99,6 +99,12 @@ void showCaseHistory(QWidget *parent, const QString &caseName,
   table->verticalHeader()->setVisible(false);
   table->setEditTriggers(QAbstractItemView::NoEditTriggers);
   table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+  // The date and the mode on one line each, the times aligned.
+  table->setWordWrap(false);
+  for (int col : {0, 1}) {
+    table->horizontalHeader()->setSectionResizeMode(
+        col, QHeaderView::ResizeToContents);
+  }
   table->setRowCount(static_cast<int>(attempts.size()));
   int row = 0;
   for (auto a = attempts.rbegin(); a != attempts.rend(); ++a, ++row) {
@@ -119,7 +125,11 @@ void showCaseHistory(QWidget *parent, const QString &caseName,
                          ms(a->recognitionMs),
                          ms(a->executionMs)};
     for (int col = 0; col < 6; ++col) {
-      table->setItem(row, col, new QTableWidgetItem(cells[col]));
+      auto *item = new QTableWidgetItem(cells[col]);
+      if (col >= 3) {
+        item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+      }
+      table->setItem(row, col, item);
     }
   }
   layout->addWidget(table, 1);

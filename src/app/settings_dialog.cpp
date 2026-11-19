@@ -78,6 +78,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     b->setToolTip(tr("Colour of the %1 face in the WCA orientation")
                       .arg(tr(kFaceNames[i])));
     b->setFixedSize(40, 28);
+    b->setAccessibleName(tr("%1 face colour").arg(tr(kFaceNames[i])));
     colourButtons_[i] = b;
     colourRow->addWidget(b);
     connect(b, &QPushButton::clicked, this, [this, i] {
@@ -420,6 +421,8 @@ void SettingsDialog::refreshColours() {
         QString(
             "background-color: %1; border: 1px solid #222; border-radius: 3px;")
             .arg(settings_.scheme.faces[i].name()));
+    colourButtons_[i]->setAccessibleDescription(
+        settings_.scheme.faces[i].name());
   }
   refreshNeutrality();
 }
