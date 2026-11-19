@@ -282,6 +282,7 @@ class GuiTest : public QObject {
 
 private slots:
   void initTestCase();
+  void oddSettingsAreSetRight();
   void modesSwitch();
   void layoutFitsHalfAScreen();
   void sidePanelHidesInANarrowWindow();
@@ -353,6 +354,18 @@ void GuiTest::initTestCase() {
     QVERIFY(sessions.save());
   }
 
+  // What an older version or an edit by hand could have left in the
+  // settings (see oddSettingsAreSetRight()).
+  {
+    QSettings q;
+    q.setValue("learn/set", "pll");
+    q.setValue("trainer/sets/pll/top", 9);
+    q.setValue("srs/lapseFactor", "nan");
+    q.setValue("srs/easyDays", "nan");
+    q.setValue("alglab/statsWindow", 99);
+    q.setValue("alglab/lengthMode", -3);
+  }
+
   TwoPhaseSolver::warmUp(); // so that scrambles come quickly
   settings_ = AppSettings::load();
   applyTheme(*qApp, settings_.darkTheme);
@@ -368,6 +381,25 @@ void GuiTest::initTestCase() {
   window_->activateWindow();
   QVERIFY(QTest::qWaitForWindowExposed(window_.get()));
   QVERIFY(shownPage(*window_));
+}
+
+// Values out of range in the settings file fall back to the defaults.
+void GuiTest::oddSettingsAreSetRight() {
+  // A top colour that isn't one, from before the holds were kept as text.
+  QVERIFY(settings_.neutrality.main == kWcaHold);
+  QVERIFY(settings_.neutrality.holds == std::vector<Hold>{kWcaHold});
+  // "nan" is a number to QVariant.
+  QCOMPARE(settings_.srs.lapseFactor, SrsConfig().lapseFactor);
+  QCOMPARE(settings_.srs.easyDays, SrsConfig().easyDays);
+  // A drop-down position that isn't there doesn't leave the box blank.
+  int boxes = 0;
+  for (QComboBox *box : page<AlgLabPage>()->findChildren<QComboBox *>()) {
+    if (box->itemText(0) == "All time" || box->itemText(0) == "Shortest +") {
+      QCOMPARE(box->currentIndex(), 0);
+      ++boxes;
+    }
+  }
+  QCOMPARE(boxes, 2);
 }
 
 void GuiTest::modesSwitch() {

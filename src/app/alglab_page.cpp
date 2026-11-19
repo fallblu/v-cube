@@ -428,13 +428,18 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     }
   });
 
-  // Choices kept from last time.
-  lengthMode_->setCurrentIndex(saved::lab("lengthMode", 0).get().toInt());
+  // Choices kept from last time. A position the box doesn't have would
+  // leave it blank.
+  auto restoreIndex = [](QComboBox *box, const char *name) {
+    int i = saved::lab(name, 0).get().toInt();
+    box->setCurrentIndex(i >= 0 && i < box->count() ? i : 0);
+  };
+  restoreIndex(lengthMode_, "lengthMode");
   extra_->setValue(saved::lab("extra", 2).get().toInt());
   maxLength_->setValue(saved::lab("maxLength", 16).get().toInt());
   maxResults_->setValue(saved::lab("maxResults", 200).get().toInt());
-  statsCube_->setCurrentIndex(saved::lab("statsCube", 0).get().toInt());
-  statsWindow_->setCurrentIndex(saved::lab("statsWindow", 0).get().toInt());
+  restoreIndex(statsCube_, "statsCube");
+  restoreIndex(statsWindow_, "statsWindow");
   noRotations_->setChecked(saved::lab("noRotations", false).get().toBool());
   maxHtm_->setValue(saved::lab("maxHtm", 0).get().toInt());
   if (auto s = MoveSet::parse(
