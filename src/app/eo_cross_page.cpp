@@ -52,9 +52,9 @@ QString progressText(const FaceletCube &cube, SolveStep step) {
 
 } // namespace
 
-EoCrossPage::EoCrossPage(AppSettings &settings, const QString &dataDir,
+EoCrossPage::EoCrossPage(AppSettings &settings, PracticeStore &store,
                          QWidget *parent)
-    : PracticePage(settings, dataDir, "eocross.json", parent) {
+    : PracticePage(settings, store, parent) {
   step_ = stepFromId(saved::practice("eocross", "step", "eocross")
                          .get()
                          .toString()

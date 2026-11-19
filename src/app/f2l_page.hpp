@@ -43,7 +43,7 @@ public:
   static constexpr std::size_t kCandidates = 8;
 
   F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
-          const QString &dataDir, QWidget *parent = nullptr);
+          PracticeStore &store, QWidget *parent = nullptr);
   ~F2LPage() override;
 
   // The cards the mode offers, also counted on Today.

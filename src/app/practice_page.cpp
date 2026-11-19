@@ -11,10 +11,8 @@
 
 #include <QApplication>
 #include <QComboBox>
-#include <QDir>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
@@ -62,39 +60,9 @@ int PracticePage::tabIndex(Tab t) const {
   return it == all.end() ? 0 : static_cast<int>(it - all.begin());
 }
 
-PracticePage::PracticePage(AppSettings &settings, const QString &dataDir,
-                           const QString &file, QWidget *parent)
-    : ModePage(parent), settings_(settings),
-      store_(QDir(dataDir).filePath(file)), rng_(makeRng()) {
-  // What the mode kept before it had these tabs is dropped (TSLE's OCLL
-  // algs are carried over).
-  const QJsonObject old = removeOldPracticeFile(store_.path());
-  QString error;
-  if (!store_.load(&error)) {
-    QString kept =
-        store_.setAsidePath().isEmpty()
-            ? tr("It is left where it is, and nothing will be saved over it.")
-            : tr("It was kept as %1.")
-                  .arg(QDir::toNativeSeparators(store_.setAsidePath()));
-    QMessageBox::warning(
-        this, "v-cube",
-        tr("Could not read %1 (%2), so the mode starts afresh.")
-                .arg(file, error) +
-            " " + kept);
-  }
-  bool carried = false;
-  for (const auto &[key, value] : oldOcllNotes(old)) {
-    carried |= store_.data.notes.emplace(key, value).second;
-  }
-  // Saved now: nothing else may save before the app is closed, and the
-  // old file is no longer where the next start would look for it.
-  if (carried && !store_.save(&error)) {
-    QMessageBox::warning(
-        this, "v-cube",
-        tr("Could not save the OCLL algs carried over to %1: %2")
-            .arg(file, error));
-  }
-}
+PracticePage::PracticePage(AppSettings &settings, PracticeStore &store,
+                           QWidget *parent)
+    : ModePage(parent), settings_(settings), store_(store), rng_(makeRng()) {}
 
 PracticePage::~PracticePage() = default;
 

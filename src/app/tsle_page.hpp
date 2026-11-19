@@ -30,7 +30,7 @@ namespace vcube {
 class TslePage : public PracticePage {
   Q_OBJECT
 public:
-  TslePage(AppSettings &settings, const QString &dataDir,
+  TslePage(AppSettings &settings, PracticeStore &store,
            QWidget *parent = nullptr);
   ~TslePage() override;
 

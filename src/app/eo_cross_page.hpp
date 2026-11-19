@@ -34,7 +34,7 @@ public:
     Alg alg;
   };
 
-  EoCrossPage(AppSettings &settings, const QString &dataDir,
+  EoCrossPage(AppSettings &settings, PracticeStore &store,
               QWidget *parent = nullptr);
   ~EoCrossPage() override;
 

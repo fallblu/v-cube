@@ -124,9 +124,8 @@ QString slotsText(const std::vector<Slot> &solved) {
 } // namespace
 
 F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
-                 const QString &dataDir, QWidget *parent)
-    : PracticePage(settings, dataDir, "f2l.json", parent), library_(library),
-      lab_(lab) {
+                 PracticeStore &store, QWidget *parent)
+    : PracticePage(settings, store, parent), library_(library), lab_(lab) {
   loadChoices();
   // Cards of before, by case alone, start afresh as front and back ones.
   const std::size_t before = data().cards.size();

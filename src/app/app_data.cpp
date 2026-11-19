@@ -24,6 +24,30 @@ QString kept(const QString &path) {
              : tr("It was kept as %1.").arg(QDir::toNativeSeparators(path));
 }
 
+// Reads a practice mode's file, `name` in the data folder. What the mode
+// kept before it had its tabs is dropped first (TSLE's OCLL algs are
+// carried over, and saved at once: nothing else may save before the app
+// is closed, and the old file is no longer where the next start would
+// look for it).
+void loadPractice(PracticeStore &store, const QString &name,
+                  QStringList &warnings) {
+  const QJsonObject old = removeOldPracticeFile(store.path());
+  QString error;
+  if (!store.load(&error)) {
+    warnings << tr("Could not read %1 (%2), so the mode starts afresh.")
+                        .arg(name, error) +
+                    " " + kept(store.setAsidePath());
+  }
+  bool carried = false;
+  for (const auto &[key, value] : oldOcllNotes(old)) {
+    carried |= store.data.notes.emplace(key, value).second;
+  }
+  if (carried && !store.save(&error)) {
+    warnings << tr("Could not save the OCLL algs carried over to %1: %2")
+                    .arg(name, error);
+  }
+}
+
 } // namespace
 
 AppData::AppData(QString dataDir)
@@ -31,8 +55,10 @@ AppData::AppData(QString dataDir)
       sessions(QDir(dataDir).filePath("sessions.json")),
       untimed(QDir(dataDir).filePath("untimed.json"), SolveLog::Untimed),
       moveCounts(QDir(dataDir).filePath("movecounts.json")),
-      lab(QDir(dataDir).filePath("alglab.json")), dataDir_(std::move(dataDir)) {
-}
+      lab(QDir(dataDir).filePath("alglab.json")),
+      eoCross(QDir(dataDir).filePath("eocross.json")),
+      f2l(QDir(dataDir).filePath("f2l.json")),
+      tsle(QDir(dataDir).filePath("tsle.json")), dataDir_(std::move(dataDir)) {}
 
 QString AppData::backupsDir() const {
   return QDir(dataDir_).filePath(kBackupsFolder);
@@ -71,6 +97,9 @@ AppData::LoadReport AppData::load() {
                                .arg(error) +
                            " " + kept(lab.setAsidePath());
   }
+  loadPractice(eoCross, "eocross.json", report.warnings);
+  loadPractice(f2l, "f2l.json", report.warnings);
+  loadPractice(tsle, "tsle.json", report.warnings);
   return report;
 }
 

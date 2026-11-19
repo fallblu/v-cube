@@ -3,6 +3,7 @@
 #include "io/alglab_store.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
+#include "io/practice_store.hpp"
 #include "io/sessions.hpp"
 
 #include <QString>
@@ -12,8 +13,8 @@ namespace vcube {
 
 // The data files the modes share, in the data folder: the alg sets and
 // their progress, the timer sessions, the untimed solves and the move
-// counts, and Alg Lab's file. (EO Cross, F2L and TSLE each keep a file of
-// their own, see PracticeStore.)
+// counts, Alg Lab's file, and the files EO Cross, F2L and TSLE each keep
+// (see PracticeStore).
 class AppData {
 public:
   explicit AppData(QString dataDir);
@@ -36,6 +37,9 @@ public:
   MoveCountStore untimed;
   MoveCountStore moveCounts;
   AlgLabStore lab;
+  PracticeStore eoCross;
+  PracticeStore f2l;
+  PracticeStore tsle;
 
 private:
   QString dataDir_;

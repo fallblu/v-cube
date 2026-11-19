@@ -38,9 +38,8 @@ const char *const kWhole = "whole";
 
 } // namespace
 
-TslePage::TslePage(AppSettings &settings, const QString &dataDir,
-                   QWidget *parent)
-    : PracticePage(settings, dataDir, "tsle.json", parent) {
+TslePage::TslePage(AppSettings &settings, PracticeStore &store, QWidget *parent)
+    : PracticePage(settings, store, parent) {
   QStringList chosen = saved::practice("tsle", "slots", QStringList{"FR", "FL"})
                            .get()
                            .toStringList();

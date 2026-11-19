@@ -300,14 +300,14 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       new UntimedPage(settings_, data_.untimed, data_.library, stack_);
   moveCountPage_ =
       new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_);
-  eoCrossPage_ = new EoCrossPage(settings_, data_.dataDir(), stack_);
+  eoCrossPage_ = new EoCrossPage(settings_, data_.eoCross, stack_);
   algLabPage_ = new AlgLabPage(settings_, data_.library, data_.lab, stack_);
   f2lPage_ =
-      new F2LPage(settings_, data_.library, data_.lab, data_.dataDir(), stack_);
-  tslePage_ = new TslePage(settings_, data_.dataDir(), stack_);
+      new F2LPage(settings_, data_.library, data_.lab, data_.f2l, stack_);
+  tslePage_ = new TslePage(settings_, data_.tsle, stack_);
   todayPage_ = new TodayPage(
       settings_, data_.library, data_.sessions, data_.untimed, data_.moveCounts,
-      data_.lab, eoCrossPage_->data(), f2lPage_->data(), tslePage_->data(),
+      data_.lab, data_.eoCross.data, data_.f2l.data, data_.tsle.data,
       [f2l = f2lPage_] { return f2l->cardPool(); },
       [tsle = tslePage_] { return tsle->cardPool(); }, stack_);
   pages_ = {learnPage_,   drillPage_,     libraryPage_, timedPage_,

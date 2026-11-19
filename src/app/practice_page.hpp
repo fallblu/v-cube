@@ -136,10 +136,9 @@ public:
   void practiseCard(const std::string &card);
 
 protected:
-  // `file` is the mode's file in `dataDir` ("f2l.json"). The subclass
-  // calls build() at the end of its constructor.
-  PracticePage(AppSettings &settings, const QString &dataDir,
-               const QString &file, QWidget *parent);
+  // `store` is the mode's file (AppData's). The subclass calls build() at
+  // the end of its constructor.
+  PracticePage(AppSettings &settings, PracticeStore &store, QWidget *parent);
   void build();
   void focusModeChanged() override;
 
@@ -307,7 +306,7 @@ protected:
 
 private:
   AppSettings &settings_;
-  PracticeStore store_;
+  PracticeStore &store_;
   Rng rng_;
   Tab tab_ = Tab::Learn;
   bool physical_ = false;
