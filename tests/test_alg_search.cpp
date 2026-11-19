@@ -191,7 +191,7 @@ TEST_CASE("the generator stops at the result cap and when told to",
 TEST_CASE("a search stopped while its tables are built keeps none of them",
           "[search]") {
   // A goal no other test has, so that its tables aren't built yet.
-  SearchGoal g = goalFor("R U R' U'", "", false, false);
+  SearchGoal g = goalFor("R U R' U'", "", Aufs::None);
   SearchOptions o;
   o.moves = *MoveSet::parse("R U");
   o.maxLength = 8;
