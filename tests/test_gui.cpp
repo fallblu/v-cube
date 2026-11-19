@@ -912,6 +912,70 @@ void GuiTest::f2lLearnAndTimed() {
     rows += tree->topLevelItem(g)->childCount();
   }
   QCOMPARE(rows, 334);
+  // A solution chosen with CFOP that breaks EO isn't one with ZZ: the case
+  // is chosen for again there, and the CFOP one kept for CFOP.
+  {
+    auto quarterFB = [](const Alg &alg) {
+      return std::any_of(alg.begin(), alg.end(), [](Move m) {
+        return (m.type == MoveType::F || m.type == MoveType::B) &&
+               m.amount != 2;
+      });
+    };
+    AnalysisOptions wide;
+    wide.config = f2l->config();
+    wide.profile = builtinErgoProfiles().front();
+    wide.keep = 100;
+    std::string cfopKey;
+    Alg breaking;
+    for (std::size_t i = 40; i < pool.size() && cfopKey.empty(); ++i) {
+      f2l->practiseCard(pool[i]);
+      QCOMPARE(f2l->phase(), Phase::Choose);
+      for (const RankedSolution &s :
+           analysePair(f2l->startState(), *f2l->target(), wide).solutions) {
+        if (quarterFB(s.alg)) {
+          cfopKey = pool[i];
+          breaking = s.alg;
+          break;
+        }
+      }
+    }
+    QVERIFY(!cfopKey.empty());
+    QTRY_VERIFY_WITH_TIMEOUT(f2l->candidates().size() > 1, 30000);
+    for (std::size_t i = 0; i < f2l->candidates().size(); ++i) {
+      if (f2l->candidates()[i].ticked) {
+        QTest::keyClick(window_.get(),
+                        static_cast<Qt::Key>(Qt::Key_1 + static_cast<int>(i)));
+      }
+    }
+    QCOMPARE(f2l->addOwnSolution(qs(toString(breaking))), QString());
+    QTest::keyClick(window_.get(), Qt::Key_Return);
+    QCOMPARE(f2l->phase(), Phase::Solving);
+    QCOMPARE(f2l->chosenSolutions(cfopKey).size(), std::size_t{1});
+    QCOMPARE(f2l->usableSolutions().size(), std::size_t{1});
+
+    F2LConfig zz = cfop;
+    applyMethod(zz, F2LMethod::ZZMinus1);
+    f2l->setConfig(zz);
+    f2l->practiseCard(cfopKey);
+    QCOMPARE(f2l->phase(), Phase::Choose);
+    QVERIFY(f2l->usableSolutions().empty());
+    QTRY_VERIFY_WITH_TIMEOUT(f2l->candidates().size() > 1, 30000);
+    // Searched for again with ZZ's moves, not CFOP's kept.
+    for (const F2LPage::Candidate &c : f2l->candidates()) {
+      QVERIFY(!quarterFB(c.solution.alg));
+      QVERIFY(!c.ticked);
+    }
+    QTest::keyClick(window_.get(), Qt::Key_1);
+    QTest::keyClick(window_.get(), Qt::Key_Return);
+    QCOMPARE(f2l->phase(), Phase::Solving);
+    QCOMPARE(f2l->chosenSolutions(cfopKey).size(), std::size_t{2});
+    QCOMPARE(f2l->usableSolutions().size(), std::size_t{1});
+
+    f2l->setConfig(cfop);
+    f2l->practiseCard(cfopKey);
+    QCOMPARE(f2l->phase(), Phase::Solving);
+    QCOMPARE(f2l->usableSolutions().size(), std::size_t{2});
+  }
   applyMethod(cfop, F2LMethod::ZZMinus1);
   f2l->setConfig(cfop);
 

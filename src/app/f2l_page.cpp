@@ -136,7 +136,7 @@ F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
 }
 
 F2LPage::~F2LPage() {
-  for (const auto &stop : {stop_, laterStop_}) {
+  for (const auto &stop : {stop_, laterStop_, candidateStop_}) {
     if (stop) {
       stop->store(true);
     }
@@ -346,7 +346,7 @@ std::optional<PracticePage::Setup> F2LPage::setUp(bool whole,
     }
     // A case whose solutions are still to be chosen has the other slots
     // solved; afterwards the last slot may be open too, as in a solve.
-    const bool leaveOpen = data().choices.contains(card) &&
+    const bool leaveOpen = !chosenSolutions(card).empty() &&
                            std::uniform_int_distribution<int>(0, 1)(rng()) == 1;
     std::optional<PairSetup> setup = cardSetup(*c, config_, leaveOpen, rng());
     if (!setup) {
@@ -531,6 +531,12 @@ std::vector<Alg> F2LPage::chosenSolutions(const std::string &card) const {
   return out;
 }
 
+std::vector<Alg> F2LPage::usableSolutions() const {
+  std::vector<Alg> out = chosenSolutions(item().card);
+  std::erase_if(out, [this](const Alg &alg) { return !chosenHere(alg); });
+  return out;
+}
+
 std::optional<Alg> F2LPage::chosenHere(const Alg &chosen) const {
   if (!target_) {
     return std::nullopt;
@@ -614,7 +620,7 @@ QString F2LPage::taskNote() const {
 }
 
 QString F2LPage::hint() {
-  const std::vector<Alg> chosen = chosenSolutions(item().card);
+  const std::vector<Alg> chosen = usableSolutions();
   std::optional<Alg> best =
       chosen.empty() ? std::nullopt : chosenHere(chosen.front());
   if (!best && pair_ && pair_->best()) {
@@ -632,7 +638,7 @@ QString F2LPage::hint() {
 }
 
 Alg F2LPage::demoAlg() {
-  const std::vector<Alg> chosen = chosenSolutions(item().card);
+  const std::vector<Alg> chosen = usableSolutions();
   if (!chosen.empty()) {
     if (std::optional<Alg> here = chosenHere(chosen.front())) {
       return *here;
@@ -653,8 +659,9 @@ QString F2LPage::demoText() {
 PracticePage::Outcome F2LPage::judge() {
   Outcome o;
   if (target_) {
-    // One pair, against the solutions chosen for it.
-    const std::vector<Alg> chosen = chosenSolutions(item().card);
+    // One pair, against the solutions chosen for it (that the method
+    // allows).
+    const std::vector<Alg> chosen = usableSolutions();
     offerAdd_ = false;
     if (chosen.empty() || !card_) {
       o.verdict = item().gaveUp ? coloured(kFailColour, tr("Gave up"))
@@ -804,10 +811,12 @@ F2LPage::solutionsHtml(const std::vector<RankedSolution> &solutions) const {
 }
 
 QString F2LPage::chosenHtml() const {
-  const std::vector<Alg> chosen = chosenSolutions(item().card);
+  const std::vector<Alg> chosen = usableSolutions();
   if (chosen.empty() || !card_) {
     return {};
   }
+  const std::size_t unusable =
+      chosenSolutions(item().card).size() - chosen.size();
   const QString muted = mutedColour();
   const std::optional<std::size_t> match =
       item().gaveUp ? std::nullopt
@@ -828,7 +837,14 @@ QString F2LPage::chosenHtml() const {
                  muted, costText(compareCost(chosen[i])),
                  match == i ? tr("yours this time") : QString());
   }
-  return html + "</table>";
+  html += "</table>";
+  if (unusable > 0) {
+    html += "<p style='color:" + muted + "'>" +
+            tr("%n chosen with another method, kept for it.", "",
+               static_cast<int>(unusable)) +
+            "</p>";
+  }
+  return html;
 }
 
 QString F2LPage::wholeHtml() const {
@@ -965,8 +981,7 @@ void F2LPage::buildChooser() {
 QWidget *F2LPage::choicePanel() { return chooser_; }
 
 bool F2LPage::needsChoice() const {
-  return card_.has_value() && !item().card.empty() &&
-         chosenSolutions(item().card).empty();
+  return card_.has_value() && !item().card.empty() && usableSolutions().empty();
 }
 
 QString F2LPage::choosingText() const {
@@ -984,7 +999,7 @@ void F2LPage::startChoosing() {
   candidatesReady_ = false;
   ownField_->clear();
   ownNote_->clear();
-  auto it = searched_.find(item().card);
+  auto it = searched_.find(searchKey());
   if (it != searched_.end()) {
     fillCandidates(it->second);
   } else {
@@ -993,37 +1008,57 @@ void F2LPage::startChoosing() {
   }
 }
 
+std::string F2LPage::searchKey() const {
+  return item().card + (config_.eo ? " eo " : " any ") +
+         analysisOptions().profile.name;
+}
+
 void F2LPage::requestCandidates() {
-  const int request = ++candidateRequest_;
-  const std::string key = item().card;
+  const std::string key = searchKey();
+  if (searching_ == key) {
+    return; // already being searched for
+  }
+  // One for another card, method or profile isn't wanted any more.
+  if (candidateStop_) {
+    candidateStop_->store(true);
+  }
+  auto stop = std::make_shared<std::atomic<bool>>(false);
+  candidateStop_ = stop;
+  searching_ = key;
   auto *watcher = new QFutureWatcher<std::vector<RankedSolution>>(this);
   connect(watcher, &QFutureWatcher<std::vector<RankedSolution>>::finished, this,
-          [this, watcher, request, key] {
+          [this, watcher, stop, key] {
             std::vector<RankedSolution> found = watcher->result();
             watcher->deleteLater();
-            searched_[key] = found;
-            if (request == candidateRequest_ && phase() == Phase::Choose &&
-                item().card == key) {
+            if (stop->load()) {
+              return; // cut short
+            }
+            searching_.clear();
+            if (!found.empty()) {
+              searched_[key] = found;
+            }
+            if (phase() == Phase::Choose && searchKey() == key) {
               fillCandidates(found);
             }
           });
   AnalysisOptions options = analysisOptions();
   options.keep = kCandidates;
   options.extra = 2;
-  watcher->setFuture(QtConcurrent::run([key, options] {
-    std::optional<PairCard> card = cardFromKey(key);
+  watcher->setFuture(QtConcurrent::run([card = item().card, options, stop] {
+    std::optional<PairCard> c = cardFromKey(card);
     Rng rng = makeRng();
     std::optional<CubieCube> state =
-        card ? cardState(*card, options.config.eo, rng) : std::nullopt;
+        c ? cardState(*c, options.config.eo, rng) : std::nullopt;
     if (!state) {
       return std::vector<RankedSolution>{};
     }
-    return analysePair(*state, sideSlot(card->side), options).solutions;
+    return analysePair(*state, sideSlot(c->side), options, stop.get())
+        .solutions;
   }));
 }
 
 void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
-  const std::vector<Alg> chosen = chosenSolutions(item().card);
+  const std::vector<Alg> chosen = usableSolutions();
   const bool first = chosen.empty();
   // Typed in (and ticked) while the search was going: kept.
   const std::vector<Candidate> before = std::move(candidates_);
@@ -1197,6 +1232,13 @@ bool F2LPage::confirmChoice() {
     emit message(candidatesReady_ ? tr("Tick one solution at least (1-9)")
                                   : tr("Still working out the best solutions"));
     return false;
+  }
+  // Those chosen with another method, which aren't offered with this one,
+  // are kept for it.
+  for (const Alg &alg : chosenSolutions(item().card)) {
+    if (!chosenHere(alg)) {
+      chosen.push_back(toString(alg));
+    }
   }
   editData().choices[item().card] = std::move(chosen);
   save();
