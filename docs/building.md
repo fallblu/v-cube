@@ -120,6 +120,30 @@ install\windows-release\bin\v-cube.exe
 DLLs copied next to them; the `v-cube.exe` in `build\` needs Qt's `bin`
 folder on `PATH`.
 
+### Checking the UI on Windows
+
+The GUI tests and the layout checks run offscreen on Linux, which can't
+show Windows' own font (Segoe UI) or its display scaling. Before a release,
+run `install\windows-release\bin\v-cube.exe` on Windows and check, at
+100%, 125% and 150% scaling (Settings > System > Display > Scale; sign out
+and in again if Windows asks):
+
+- The window opens on the screen and fits it, at its default size and
+  maximised; the sidebar's names line up on the left with the due counts
+  on the right.
+- Today, Learn, Drill, Library, Alg Lab (both tabs), Timed and the three
+  practice modes: no text is cut off or overlaps, option rows wrap rather
+  than push the window wider, and the time and cube keep their room.
+- The timer's hold: hold Space in Timed until it turns green and let go;
+  the time shows rings on each side while held and filled dots once
+  ready, and the colours read as red and green.
+- The dialogs: Settings (every tab), the command list (Ctrl+K), the solve
+  review (Alt+R), a case's Learn history and Drill history (Library >
+  History), Alg Lab's grip profile (Profile… > Edit this profile…) and
+  Paste algs.
+- Dark and light theme (Settings > General), and the text size settings
+  at their largest.
+
 ## WSL
 
 Under WSL the app uses Qt's X11 (`xcb`) platform plugin instead of Wayland,
