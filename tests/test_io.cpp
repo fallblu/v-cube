@@ -1,4 +1,5 @@
 #include "cube/solver.hpp"
+#include "io/json_values.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/sessions.hpp"
@@ -300,6 +301,97 @@ TEST_CASE("unreadable progress is set aside and reported") {
         "{\"cases\": {\"T\": ");
 }
 
+namespace {
+
+// Makes a file impossible to open; false where that can't be done (as
+// root, or where permissions don't stop a read).
+bool makeUnopenable(const QString &path) {
+  QFile::setPermissions(path, QFileDevice::Permissions());
+  QFile f(path);
+  return !f.open(QIODevice::ReadOnly);
+}
+
+void makeOpenable(const QString &path) {
+  QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+}
+
+} // namespace
+
+TEST_CASE("a data file that can't be opened stays in place, not saved over") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  {
+    SessionStore store(path);
+    REQUIRE(store.load());
+    store.current().solves.push_back(Solve{});
+    REQUIRE(store.save());
+  }
+  QByteArray text = readText(path);
+  REQUIRE_FALSE(text.isEmpty());
+  if (!makeUnopenable(path)) {
+    makeOpenable(path);
+    SKIP("permissions don't stop this user opening a file");
+  }
+  SessionStore store(path);
+  QString error;
+  CHECK_FALSE(store.load(&error));
+  CHECK(error.contains("can't be opened"));
+  CHECK(store.setAsidePath().isEmpty());
+  CHECK_FALSE(store.save(&error));
+  CHECK(error.contains("can't be opened"));
+  CHECK(filesStarting(tmp.path(), "sessions.json.unreadable-").isEmpty());
+  makeOpenable(path);
+  CHECK(readText(path) == text);
+  SessionStore again(path);
+  CHECK(again.load());
+  CHECK(again.current().solves.size() == 1);
+}
+
+TEST_CASE("progress or a set that can't be opened stays in place") {
+  QTemporaryDir tmp;
+  QString progress = tmp.filePath("progress/pll.json");
+  QString set = tmp.filePath("oll.json");
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    lib.progress("pll")["T"].record({100, 1500, false});
+    REQUIRE(lib.saveProgress("pll"));
+  }
+  QByteArray progressText = readText(progress);
+  QByteArray setText = readText(set);
+  REQUIRE_FALSE(setText.isEmpty());
+  if (!makeUnopenable(progress) || !makeUnopenable(set)) {
+    makeOpenable(progress);
+    makeOpenable(set);
+    SKIP("permissions don't stop this user opening a file");
+  }
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    CHECK(lib.errors().size() == 2);
+    CHECK_FALSE(lib.find("oll"));
+    CHECK(lib.progress("pll").empty());
+    lib.progress("pll")["Y"].record({100, 1500, false});
+    CHECK_FALSE(lib.saveProgress("pll"));
+    AlgSet copy = *lib.find("pll");
+    copy.id = "oll";
+    REQUIRE(lib.add(copy));
+    CHECK(lib.find("oll") == nullptr);
+  }
+  CHECK(filesStarting(tmp.filePath("progress"), "pll.json.unreadable-")
+            .isEmpty());
+  CHECK(filesStarting(tmp.path(), "oll.json.unreadable-").isEmpty());
+  makeOpenable(progress);
+  makeOpenable(set);
+  CHECK(readText(progress) == progressText);
+  CHECK(readText(set) == setText);
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  CHECK(lib.errors().isEmpty());
+  CHECK(lib.find("oll"));
+  CHECK(lib.progress("pll").contains("T"));
+}
+
 TEST_CASE("set ids that share a file name are kept apart") {
   QTemporaryDir tmp;
   AlgLibrary lib(tmp.path(), kBuiltins);
@@ -420,6 +512,58 @@ TEST_CASE("a stray copy of a set file never overwrites the set") {
   CHECK_FALSE(QFile::exists(tmp.filePath("oll.json")));
   REQUIRE(again.remove("oll"));
   CHECK_FALSE(QFile::exists(tmp.filePath("my oll.json")));
+}
+
+TEST_CASE("set ids that differ only in case or punctuation are one set") {
+  QTemporaryDir tmp;
+  AlgSet set;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    set = *lib.find("pll");
+  }
+  set.builtin = false;
+  // "A.json" sorts first, but "zz-f2l.json" is named for both ids.
+  set.id = "ZZ F2L";
+  set.name = "Hand-made";
+  REQUIRE(writeAlgSetFile(set, tmp.filePath("A.json"), nullptr));
+  set.id = "zz-f2l";
+  set.name = "Mine";
+  REQUIRE(writeAlgSetFile(set, tmp.filePath("zz-f2l.json"), nullptr));
+  set.id = "Zz.F2L";
+  set.name = "Another";
+  REQUIRE(writeAlgSetFile(set, tmp.filePath("B.json"), nullptr));
+  QByteArray handMade = readText(tmp.filePath("A.json"));
+  QByteArray another = readText(tmp.filePath("B.json"));
+
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE(lib.errors().size() == 2);
+  // B.json is found to clash with A.json, which then gives way.
+  CHECK(lib.errors()[0].startsWith("B.json"));
+  CHECK(lib.errors()[1].startsWith("A.json"));
+  CHECK(lib.errors()[1].contains("progress file"));
+  CHECK(lib.errors()[1].contains("zz-f2l.json"));
+  CHECK_FALSE(lib.find("ZZ F2L"));
+  CHECK_FALSE(lib.find("Zz.F2L"));
+  REQUIRE(lib.find("zz-f2l"));
+  CHECK(lib.find("zz-f2l")->name == "Mine");
+  CHECK(lib.pathFor("zz-f2l") == tmp.filePath("zz-f2l.json"));
+  CHECK(lib.sets().size() == 5);
+  lib.progress("zz-f2l")["T"].record({100, 1500, false});
+  REQUIRE(lib.saveProgress("zz-f2l"));
+  REQUIRE(lib.save(*lib.find("zz-f2l")));
+  CHECK(readText(tmp.filePath("A.json")) == handMade);
+  CHECK(readText(tmp.filePath("B.json")) == another);
+
+  // Without a file named for the id, the first one loads.
+  QFile::remove(tmp.filePath("zz-f2l.json"));
+  AlgLibrary again(tmp.path(), kBuiltins);
+  again.load();
+  REQUIRE(again.errors().size() == 1);
+  CHECK(again.errors()[0].contains("B.json"));
+  CHECK(again.find("ZZ F2L"));
+  CHECK_FALSE(again.find("Zz.F2L"));
 }
 
 TEST_CASE("of two files with one set id, one loads and the other is named") {
@@ -893,6 +1037,34 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
   CHECK(error.contains("not a cstimer export"));
   CHECK_FALSE(sessionsFromCstimerFile("", &error));
   CHECK_FALSE(sessionsFromCstimer(QJsonObject{}, &error));
+}
+
+TEST_CASE("cstimer move times below zero, going back or huge are checked") {
+  QString error;
+  auto doc = QJsonDocument::fromJson(R"({
+    "session1": [
+      [[0, 1000], "U", "", 1, ["R@-5 U@10", "333"]],
+      [[0, 1000], "U", "", 2, ["R@500 U@10", "333"]],
+      [[0, 1000], "U", "", 3, ["R@0 U@9223372036854775807", "333"]],
+      [[0, 1000], "U", "", 4, ["R@0 U@0 F@20", "333"]]
+    ],
+    "properties": {"sessionData": "{}"}
+  })");
+  auto imported = sessionsFromCstimer(doc.object(), &error);
+  REQUIRE(imported);
+  REQUIRE(imported->sessions.size() == 1);
+  const auto &solves = imported->sessions[0].solves;
+  REQUIRE(solves.size() == 4);
+  // A time below zero or one that goes back leaves the solve without moves.
+  CHECK(solves[0].moves.empty());
+  CHECK(solves[0].moveTimes.empty());
+  CHECK(solves[1].moves.empty());
+  CHECK(solves[1].moveTimes.empty());
+  // A huge one is cut to what a data file keeps.
+  CHECK(solves[2].moves == "R U");
+  CHECK(solves[2].moveTimes == std::vector<std::int64_t>{0, kMaxFileNumber});
+  // Moves at the same time are fine.
+  CHECK(solves[3].moveTimes == std::vector<std::int64_t>{0, 0, 20});
 }
 
 TEST_CASE("cstimer import reports nested JSON that doesn't read") {

@@ -56,7 +56,7 @@ Before a solve starts, the cube only turns as a whole (rotations), so that a sli
 | walkthrough | Home or Esc | back to the start |
 | walkthrough | Space / Enter | do the case, with each next move shown |
 | nothing due | Space / Enter | look again; takes the next learning case early when that is all there is |
-| Recognise | Space | recalled the alg |
+| Recognise | Space | recalled the alg (ignored for about 0.3 s after the case appears) |
 | Recognise | Shift+Space | can't recall it (the algs are shown) |
 | Recognise, afterwards | 1-4 / Space or Enter | grade and go on / go on with the grade shown |
 | Which case? | 1-6 | answer |
@@ -202,18 +202,19 @@ EO Cross, F2L and TSLE share their keys. EO Cross has the Inspection, Untimed an
 | Inspection, blind | Space | show the cube again: only then is the plan judged |
 | Inspection, planning or blind | Esc | the same state again, the clock too; not recorded |
 | solving | turning keys | any turn; the solve ends by itself when it is done |
-| solving | Backspace or Shift+Space | give up |
+| solving | Shift+Space | give up (Backspace instead, if Settings > Drill says so) |
 | solving | Esc | start again |
 | Learn or Untimed, afterwards | Space | next |
 | Learn or Untimed, afterwards | Enter | play the best solution from the start |
 | Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
 | Learn or Untimed, afterwards | turning keys | turn the cube freely |
+| Untimed or Inspection, afterwards | Delete | delete the try |
 | Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
 | Timed, virtual, before the solve | turning keys | rotations only |
-| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Drill says so) |
+| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Timing and solves says so: Drill and practice Timed, timer start) |
 | Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
 | Timed, physical | hold Space, release | start the timer, once the scramble is done |
-| Timed, physical, solving | any key | stop the timer |
+| Timed, physical, solving | any key but Shift, Ctrl or Alt | stop the timer |
 | Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
 | Timed, solving | Esc | cancel: nothing is recorded |
 | Timed, afterwards | Space | next |
@@ -236,23 +237,24 @@ The list beside the cube, on the Inspection tab: your plans by step, with how ma
 | Learn, a new case | turning keys | do it: the case then comes back in a minute, to do from memory |
 | Learn, a new case | Space | skip the showing: the case is known |
 | solving | turning keys | any turn; the solve ends by itself when it is done |
-| solving | Backspace or Shift+Space | give up |
+| solving | Shift+Space | give up (Backspace instead, if Settings > Drill says so) |
 | solving | Esc | start again |
 | Learn, solving | Tab | a hint: a move more of your solution each time (the card is then graded Again) |
 | Learn or Untimed, afterwards | Space | next |
 | Learn or Untimed, afterwards | Enter | play the best solution from the start |
 | Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
 | Learn or Untimed, afterwards | turning keys | turn the cube freely |
+| Untimed or Inspection, afterwards | Delete | delete the try |
 | Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
 | Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
 | Learn, nothing due | Space | look again, taking a card in its learning steps early |
 | Learn, after a card's try | 0 | change the case's solutions |
 | Learn, after a try as cheap as yours | + | add what you did to the case's solutions |
 | Timed, virtual, before the solve | turning keys | rotations only |
-| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Drill says so) |
+| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Timing and solves says so: Drill and practice Timed, timer start) |
 | Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
 | Timed, physical | hold Space, release | start the timer, once the scramble is done |
-| Timed, physical, solving | any key | stop the timer |
+| Timed, physical, solving | any key but Shift, Ctrl or Alt | stop the timer |
 | Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
 | Timed, solving | Esc | cancel: nothing is recorded |
 | Timed, afterwards | Space | next |
@@ -272,21 +274,22 @@ The list beside the cube, on the Learn tab: the pair cases by where the corner a
 | Learn, a new case | turning keys | do it: the case then comes back in a minute, to do from memory |
 | Learn, a new case | Space | skip the showing: the case is known |
 | solving | turning keys | any turn; the solve ends by itself when it is done |
-| solving | Backspace or Shift+Space | give up |
+| solving | Shift+Space | give up (Backspace instead, if Settings > Drill says so) |
 | solving | Esc | start again |
 | solving | Tab | a hint: the best step from here (a card is then graded Again) |
 | Learn or Untimed, afterwards | Space | next |
 | Learn or Untimed, afterwards | Enter | play the best solution from the start |
 | Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
 | Learn or Untimed, afterwards | turning keys | turn the cube freely |
+| Untimed or Inspection, afterwards | Delete | delete the try |
 | Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
 | Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
 | Learn, nothing due | Space | look again, taking a card in its learning steps early |
 | Timed, virtual, before the solve | turning keys | rotations only |
-| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Drill says so) |
+| Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Timing and solves says so: Drill and practice Timed, timer start) |
 | Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
 | Timed, physical | hold Space, release | start the timer, once the scramble is done |
-| Timed, physical, solving | any key | stop the timer |
+| Timed, physical, solving | any key but Shift, Ctrl or Alt | stop the timer |
 | Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
 | Timed, solving | Esc | cancel: nothing is recorded |
 | Timed, afterwards | Space | next |

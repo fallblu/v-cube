@@ -31,6 +31,7 @@
 #include "app/tsle_page.hpp"
 #include "app/ui_state.hpp"
 #include "app/untimed_page.hpp"
+#include "app/widgets.hpp"
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
 #include "io/data_file.hpp"
@@ -42,6 +43,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QEnterEvent>
@@ -66,7 +68,9 @@
 #include <QTextBrowser>
 #include <QThreadPool>
 #include <QTimer>
+#include <QToolTip>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 
 #include <algorithm>
 #include <array>
@@ -313,6 +317,7 @@ private slots:
   void settingsDialogOpensAndCloses();
   void interfaceTextSizeScalesTheText();
   void tipsShowInTheStatusBar();
+  void trendChartNamesWhatItCharts();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
@@ -853,6 +858,22 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY(std::any_of(f2l->candidates().begin(), f2l->candidates().end(),
                       [](const F2LPage::Candidate &c) { return c.ticked; }));
   QVERIFY(!f2l->addOwnSolution("D2").isEmpty()); // doesn't solve it
+  {
+    // A bad alg typed and entered keeps the field; Esc leaves it, and only
+    // then is Esc the page's again.
+    auto *own = f2l->findChild<QLineEdit *>("f2lOwnSolution");
+    QVERIFY(own);
+    QCOMPARE(own->accessibleName(), QString("Your own solution"));
+    own->setFocus();
+    QTRY_VERIFY(own->hasFocus());
+    QTest::keyClicks(own, "D2");
+    QTest::keyClick(own, Qt::Key_Return);
+    QVERIFY(own->hasFocus());
+    QTest::keyClick(own, Qt::Key_Escape);
+    QVERIFY(!own->hasFocus());
+    QCOMPARE(f2l->phase(), Phase::Choose);
+    window_->setFocus();
+  }
   QTest::keyClick(window_.get(), Qt::Key_Escape);
   QCOMPARE(f2l->phase(), Phase::Done);
   QCOMPARE(f2l->chosenSolutions(key).size(), std::size_t{1});
@@ -886,7 +907,7 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY2(hint->text().startsWith("Hint:"), qPrintable(hint->text()));
   QVERIFY(hint->font().pointSizeF() > QApplication::font().pointSizeF());
   QVERIFY(f2l->cube() == f2l->startCube());
-  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
   QCOMPARE(f2l->phase(), Phase::Done);
   QCOMPARE(f2l->data().cards.at(key).attempts.size(), attempts);
   QCOMPARE(card(key).reps, 1);
@@ -1378,9 +1399,36 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(eo->inspecting());
   QVERIFY(!eo->cubeHidden());
   QVERIFY(eo->scrambled() == planned);
+  // Backspace only says which key gives up (Drill's: Shift+Space)...
+  auto *bar = eo->findChild<HintBar *>();
+  QVERIFY(bar);
+  QVERIFY(std::ranges::any_of(
+      bar->keys(), [](const KeyHint &k) { return k.key == "Shift+Space"; }));
   QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  QVERIFY2(bar->message().contains("Shift+Space"), qPrintable(bar->message()));
+  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
   QCOMPARE(eo->phase(), Phase::Done);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
+  QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
+  // ...and Delete takes a try just recorded back (a retry has none).
+  auto hasDelete = [bar] {
+    return std::ranges::any_of(
+        bar->keys(), [](const KeyHint &k) { return k.key == "Delete"; });
+  };
+  QVERIFY(!hasDelete());
+  QTest::keyClick(window_.get(), Qt::Key_Space);
+  QCOMPARE(eo->phase(), Phase::Solving);
+  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
+  QCOMPARE(eo->phase(), Phase::Done);
+  QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
+  QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{3});
+  QVERIFY(eo->data().inspection.at("eocross").back().dnf);
+  QVERIFY(hasDelete());
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
+  QVERIFY(!hasDelete());
+  QTest::keyClick(window_.get(), Qt::Key_Delete); // only the one just made
   QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
   auto *tree = eo->findChild<QTreeWidget *>("practiceList");
   QCOMPARE(tree->columnCount(), 5);
@@ -1414,7 +1462,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(eo->phase(), Phase::Solving);
   QVERIFY(eo->scrambled() == state);
   QVERIFY(eo->cube() == eo->startCube());
-  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
   QCOMPARE(eo->phase(), Phase::Done);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().learn, "eocross"), std::size_t{1});
@@ -1629,6 +1677,38 @@ void GuiTest::learnStartsACase() {
   QVERIFY(!p["T"].attempts.empty());
   QVERIFY(!p["T"].attempts.back().failed);
   QVERIFY(p["T"].attempts.back().mode == AttemptMode::Learn);
+
+  // Resetting it from the case list goes on the undo stack: Ctrl+Z
+  // brings its schedule and Learn attempts back.
+  const SrsCard card = p["T"].card;
+  const std::vector<Attempt> attempts = p["T"].attempts;
+  QTreeWidgetItem *row = nullptr;
+  for (auto *tree : learn->findChildren<QTreeWidget *>()) {
+    for (QTreeWidgetItemIterator it(tree); *it && !row; ++it) {
+      if ((*it)->data(0, Qt::UserRole).toString() == "T") {
+        row = *it;
+        tree->setCurrentItem(row);
+      }
+    }
+  }
+  QVERIFY(row);
+  QMenu menu;
+  learn->fillModeMenu(menu);
+  QAction *reset = nullptr;
+  for (QAction *a : menu.actions()) {
+    if (a->text() == "Reset learning progress") {
+      reset = a;
+    }
+  }
+  QVERIFY(reset);
+  reset->trigger();
+  p = savedProgress("pll");
+  QCOMPARE(p["T"].card.reps, 0);
+  QVERIFY(p["T"].attempts.empty());
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  p = savedProgress("pll");
+  QVERIFY(p["T"].card == card);
+  QVERIFY(p["T"].attempts == attempts);
 }
 
 void GuiTest::quizAsksAmongLookAlikes() {
@@ -1901,11 +1981,15 @@ void GuiTest::practiceKeysFollowThePhase() {
   QCOMPARE(names(untimed(P::Choose, [](auto &s) { s.choosingAgain = true; })),
            QString("1-9 Enter Esc"));
   QCOMPARE(names(untimed(P::Solving, [](auto &s) { s.hints = true; })),
-           QString("Tab Backspace Esc"));
+           QString("Tab Shift+Space Esc"));
+  // Drill's give-up key, whichever it is.
+  QCOMPARE(
+      names(untimed(P::Solving, [](auto &s) { s.giveUpKey = "Backspace"; })),
+      QString("Backspace Esc"));
   // A hidden cube has no hint to give, and says so.
   const PracticeKeys hidden =
       untimed(P::Solving, [](auto &s) { s.hidden = s.hints = true; });
-  QCOMPARE(names(hidden), QString("Space Backspace Esc"));
+  QCOMPARE(names(hidden), QString("Space Shift+Space Esc"));
   QVERIFY(!hidden.message.isEmpty());
   // Nothing goes on while the verdict is worked out.
   const PracticeKeys waiting =
@@ -1918,6 +2002,9 @@ void GuiTest::practiceKeysFollowThePhase() {
                          })),
            QString("Space Enter Tab 1-4 + 0 Esc"));
   QCOMPARE(names(untimed(P::Done, asIs)), QString("Space Tab Esc"));
+  // An Untimed or Inspection try just kept can be deleted.
+  QCOMPARE(names(untimed(P::Done, [](auto &s) { s.recorded = true; })),
+           QString("Space Tab Delete Esc"));
 
   DrillFlow flow;
   DrillFlow::Config config;
@@ -2066,6 +2153,17 @@ void GuiTest::pagesTakeTheKeyboard() {
   QCOMPARE(tables.size(), 2);
   QCOMPARE(tables[0]->visualItemRect(tables[0]->topLevelItem(0)).height(),
            tables[1]->visualItemRect(tables[1]->topLevelItem(0)).height());
+  // A refresh with the same sets writes the rows in place: the items and
+  // their buttons stay (and so the scroll position and the mouse's button).
+  QTreeWidgetItem *firstRow = tables[0]->topLevelItem(0);
+  QWidget *firstButton = tables[0]->itemWidget(firstRow, 5);
+  QTreeWidgetItem *firstMode = tables[1]->topLevelItem(0);
+  QVERIFY(firstButton);
+  today->activated();
+  QCOMPARE(tables[0]->topLevelItem(0), firstRow);
+  QCOMPARE(tables[0]->itemWidget(firstRow, 5), firstButton);
+  QCOMPARE(tables[1]->topLevelItem(0), firstMode);
+  QVERIFY(!firstButton->findChild<QPushButton *>()->text().isEmpty());
   QTest::keyClick(window_.get(), Qt::Key_Down);
   QTreeWidgetItem *picked = tables[0]->currentItem();
   QVERIFY(picked && picked->isSelected());
@@ -2319,6 +2417,47 @@ void GuiTest::tipsShowInTheStatusBar() {
   QEvent leave(QEvent::Leave);
   QApplication::sendEvent(tipped, &leave);
   QVERIFY(bar->currentMessage().isEmpty());
+
+  // A dialog has no status bar: its tips pop up as tooltips.
+  QDialog dialog(window_.get());
+  auto *button = new QPushButton("Tipped", &dialog);
+  button->setToolTip("What the button does");
+  dialog.show();
+  QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+  QHelpEvent dialogHelp(QEvent::ToolTip, QPoint(1, 1),
+                        button->mapToGlobal(QPoint(1, 1)));
+  QApplication::sendEvent(button, &dialogHelp);
+  QVERIFY(bar->currentMessage().isEmpty());
+  QTRY_COMPARE(QToolTip::text(), button->toolTip());
+  QToolTip::hideText();
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
+// A chart of something other than solves (the drill history's days) names
+// its points and lines as it is told, and its text grows with the font.
+void GuiTest::trendChartNamesWhatItCharts() {
+  TrendChart chart;
+  chart.setPointName("day mean");
+  chart.setAverages(false);
+  chart.setPointLabels({"Mon 1", "Tue 2", "Wed 3"});
+  chart.setSeries({{"daily best", Role::Series3, {1000, 1100, 900}}});
+  std::vector<Solve> means(3);
+  means[0].timeMs = 1500;
+  means[1].timeMs = 1600;
+  means[2].timeMs = 1400;
+  chart.setSolves(means);
+  const QString said = chart.accessibleDescription();
+  QVERIFY2(said.contains("Wed 3: 1.40"), qPrintable(said));
+  QVERIFY2(said.contains("daily best: 0.90"), qPrintable(said));
+  QVERIFY2(!said.contains("ao5") && !said.contains("#3"), qPrintable(said));
+  // Paints at a large text size without trouble.
+  QFont big = chart.font();
+  big.setPointSizeF(big.pointSizeF() * 1.33);
+  chart.setFont(big);
+  chart.resize(260, 140);
+  QVERIFY(!chart.grab().isNull());
 }
 
 void GuiTest::helpPanelShowsTheKeys() {

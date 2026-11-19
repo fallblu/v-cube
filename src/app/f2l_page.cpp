@@ -968,9 +968,11 @@ void F2LPage::buildChooser() {
   ownField_ = new QLineEdit(chooser_);
   ownField_->setObjectName("f2lOwnSolution");
   ownField_->setFocusPolicy(Qt::ClickFocus);
+  ownField_->setAccessibleName(tr("Your own solution"));
   ownField_->setPlaceholderText(
       tr("A solution of your own, as done for the slot shown (Enter adds "
-         "it)"));
+         "it, Esc leaves the field)"));
+  ownField_->installEventFilter(this);
   ownNote_ = new QLabel(chooser_);
   ownNote_->setWordWrap(true);
   ownNote_->setAlignment(Qt::AlignHCenter);
@@ -984,9 +986,24 @@ void F2LPage::buildChooser() {
     ownNote_->setText(error);
     if (error.isEmpty()) {
       ownField_->clear();
-      ownField_->clearFocus(); // the keys are the page's again
+      leaveOwnField();
     }
   });
+}
+
+void F2LPage::leaveOwnField() {
+  if (ownField_ && ownField_->hasFocus()) {
+    ownField_->clearFocus();
+  }
+}
+
+bool F2LPage::eventFilter(QObject *obj, QEvent *event) {
+  if (obj == ownField_ && event->type() == QEvent::KeyPress &&
+      static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+    leaveOwnField();
+    return true;
+  }
+  return PracticePage::eventFilter(obj, event);
 }
 
 QWidget *F2LPage::choicePanel() { return chooser_; }
@@ -1009,6 +1026,7 @@ void F2LPage::startChoosing() {
   candidates_.clear();
   candidatesReady_ = false;
   ownField_->clear();
+  leaveOwnField();
   ownNote_->clear();
   auto it = searched_.find(searchKey());
   if (it != searched_.end()) {
@@ -1256,6 +1274,7 @@ bool F2LPage::confirmChoice() {
   }
   editData().choices[item().card] = std::move(chosen);
   save();
+  leaveOwnField();
   return true;
 }
 

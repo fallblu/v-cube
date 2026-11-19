@@ -36,11 +36,15 @@ class HintBar;
 class TodayPage : public ModePage {
   Q_OBJECT
 public:
+  // A practice mode's cards, as its page works them out.
+  using CardPool = std::function<std::vector<std::string>()>;
+
   TodayPage(AppSettings &settings, const AlgLibrary &library,
             const SessionStore &timed, const MoveCountStore &untimed,
             const MoveCountStore &moveCounts, const AlgLabStore &lab,
             const PracticeData &eoCross, const PracticeData &f2l,
-            const PracticeData &tsle, QWidget *parent = nullptr);
+            const PracticeData &tsle, CardPool f2lPool, CardPool tslePool,
+            QWidget *parent = nullptr);
 
   // Learn's due reviews (and learning steps) and the new cases left today,
   // over every set, for the sidebar.
@@ -75,6 +79,8 @@ private:
   const PracticeData &eoCross_;
   const PracticeData &f2l_;
   const PracticeData &tsle_;
+  CardPool f2lPool_;
+  CardPool tslePool_;
   QLabel *streakLabel_ = nullptr;
   QPushButton *next_ = nullptr;
   QLabel *nextNote_ = nullptr;

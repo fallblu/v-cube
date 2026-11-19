@@ -1,4 +1,5 @@
 #include "io/alglab_store.hpp"
+#include "io/json_values.hpp"
 #include "train/alg_lab.hpp"
 #include "train/case_logic.hpp"
 #include "train/ergonomics.hpp"
@@ -348,6 +349,41 @@ TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {
   CHECK(again.candidates({"", "1"}).size() == 1);
   CHECK(again.clearAttempts({"", "1"}, "R U") == 1);
   CHECK(again.newCaseId() == "2");
+}
+
+TEST_CASE("Alg Lab times and timestamps are kept within range",
+          "[alglab][io]") {
+  AlgLabData d;
+  d.candidates = {{{"pll", "T"}, {{"R U R'", CandidateSource::Typed, 1}}}};
+  d.attempts = {attempt({"pll", "T"}, "R U R'", 1000)};
+  QJsonObject o = algLabToJson(d);
+  QJsonArray attempts = o["attempts"].toArray();
+  QJsonObject huge = attempts[0].toObject();
+  huge["time"] = 9e18;
+  huge["timestamp"] = -5;
+  attempts[0] = huge;
+  attempts.append(huge);
+  o["attempts"] = attempts;
+  QJsonArray candidates = o["candidates"].toArray();
+  QJsonObject c = candidates[0].toObject();
+  QJsonArray algs = c["algs"].toArray();
+  QJsonObject alg = algs[0].toObject();
+  alg["added"] = 1e300;
+  algs[0] = alg;
+  c["algs"] = algs;
+  candidates[0] = c;
+  o["candidates"] = candidates;
+
+  AlgLabData back = algLabFromJson(o);
+  REQUIRE(back.attempts.size() == 2);
+  for (const LabAttempt &a : back.attempts) {
+    CHECK(a.timeMs == kMaxFileNumber);
+    CHECK(a.timestamp == 0);
+  }
+  REQUIRE(back.candidates.size() == 1);
+  CHECK(back.candidates[0].candidates[0].added == kMaxFileNumber);
+  // Two of them add up without overflowing.
+  CHECK(back.attempts[0].timeMs + back.attempts[1].timeMs > 0);
 }
 
 TEST_CASE("profiles are told apart by name", "[alglab][io]") {

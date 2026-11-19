@@ -46,7 +46,9 @@ struct Section {
 #define PRACTICE_LEARN_SOLVING                                                 \
   {T("solving"), T("turning keys"),                                            \
    T("any turn; the solve ends by itself when it is done")},                   \
-      {T("solving"), T("Backspace or Shift+Space"), T("give up")}, {           \
+      {T("solving"), T("Shift+Space"),                                         \
+       T("give up (Backspace instead, if Settings > Drill says so)")},         \
+  {                                                                            \
     T("solving"), T("Esc"), T("start again")                                   \
   }
 #define PRACTICE_LEARN_AFTER                                                   \
@@ -57,6 +59,8 @@ struct Section {
        T("show or hide the details (click a solution there to play it)")},     \
       {T("Learn or Untimed, afterwards"), T("turning keys"),                   \
        T("turn the cube freely")},                                             \
+      {T("Untimed or Inspection, afterwards"), T("Delete"),                    \
+       T("delete the try")},                                                   \
   {                                                                            \
     T("Learn or Untimed, afterwards"), T("Esc"),                               \
         T("the same state again, not recorded or graded")                      \
@@ -73,13 +77,15 @@ struct Section {
    T("rotations only")},                                                       \
       {T("Timed, virtual, before the solve"), T("Space"),                      \
        T("arm the timer: the first face turn starts it (or hold Space and "    \
-         "let go, if Settings > Drill says so)")},                             \
+         "let go, if Settings > Timing and solves says so: Drill and "         \
+         "practice Timed, timer start)")},                                     \
       {T("Timed, virtual, solving"), T("Space"),                               \
        T("stop now: a DNF unless the step is done (the timer stops by itself " \
          "when it is)")},                                                      \
       {T("Timed, physical"), T("hold Space, release"),                         \
        T("start the timer, once the scramble is done")},                       \
-      {T("Timed, physical, solving"), T("any key"), T("stop the timer")},      \
+      {T("Timed, physical, solving"), T("any key but Shift, Ctrl or Alt"),     \
+       T("stop the timer")},                                                   \
       {T("Timed, before or during the solve"), T("Shift+Space"),               \
        T("give up: a DNF (Backspace instead, if Settings > Drill says so)")},  \
       {T("Timed, solving"), T("Esc"), T("cancel: nothing is recorded")},       \
@@ -167,7 +173,9 @@ const std::vector<Section> &sections() {
         {T("nothing due"), T("Space / Enter"),
          T("look again; takes the next learning case early when that is all "
            "there is")},
-        {T("Recognise"), T("Space"), T("recalled the alg")},
+        {T("Recognise"), T("Space"),
+         T("recalled the alg (ignored for about 0.3 s after the case "
+           "appears)")},
         {T("Recognise"), T("Shift+Space"),
          T("can't recall it (the algs are shown)")},
         {T("Recognise, afterwards"), T("1-4 / Space or Enter"),

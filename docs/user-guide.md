@@ -672,7 +672,8 @@ time:
    back in a minute to do from memory. `Space` skips the showing for a
    case you know.
 2. A **due case** is set up without its name. Solve it. `Tab` gives a
-   hint, shown large under the cube; `Backspace` gives up, `Esc` starts
+   hint, shown large under the cube; `Shift+Space` gives up (Drill's
+   give-up key: `Backspace` if Settings > Drill says so), `Esc` starts
    again.
 3. The card is graded **Good** when you solved it unaided and well, and
    **Again** after a hint, giving up or a poor solution. `1`–`4` change
@@ -705,8 +706,9 @@ looked. A plan that didn't do the step counts as not done. **Inspection**
 in the bar sets the limit (none, 8, 10, 15 as in the WCA, 20 or 30
 seconds); going over it is marked, but the plan is judged all the same,
 and the sitting's summary counts the tries that went over.
-After the verdict, `Space` brings the next state at once. `Esc` while
-planning gives the same state again, unrecorded.
+After the verdict, `Space` brings the next state at once and `Delete`
+deletes the try. `Esc` while planning gives the same state again,
+unrecorded.
 
 The list shows, per step, your tries, how many did the step, the time you
 looked and how far over the optimum the plans were lately.
@@ -718,23 +720,25 @@ in, a line under the cube says how it went: in F2L whether it was the
 best pair to do then and how its solution compares with the best for it;
 in TSLE whether the trigger was the best from that AUF, good, or not. At
 the end the verdict compares the whole solve with the best way, and `Tab`
-shows it unit by unit. A solve under way is still there when you come
-back to the mode.
+shows it unit by unit. `Shift+Space` gives up, as in Learn, and after
+the verdict `Delete` deletes the try. A solve under way is still there
+when you come back to the mode.
 
 The list shows your solves, their moves lately and how far over the best
 they were.
 
 ### Timed
 
-Timed works exactly as [Drill](#drill) does, with the same settings
-(Settings > Drill):
+Timed works exactly as [Drill](#drill) does, with Drill's settings
+(Settings > Drill and the *Drill and practice Timed* rows of Settings >
+Timing and solves):
 
 - **Virtual cube**: the state is shown and can only be turned as a whole.
   A tap of `Space` arms the timer, the first face turn starts it, and it
   stops by itself when the step is done. `Space` stops it early: a DNF
   unless the step is done.
 - **Physical cube** (**Cube** in the bar): a scramble is shown. Hold
-  `Space` and let go to start; any key stops. Nothing can be checked, so
+  `Space` and let go to start; any key but Shift, Ctrl or Alt stops. Nothing can be checked, so
   mark a DNF yourself.
 
 The result is about speed: the time, then your moves, turns per second

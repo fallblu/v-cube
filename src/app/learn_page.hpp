@@ -67,6 +67,7 @@ public:
   void applySettings() override;
   void activated() override;
   void deactivated() override;
+  void windowDeactivated() override;
   void aboutToClose() override;
 
 signals:

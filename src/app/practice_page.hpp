@@ -403,6 +403,7 @@ private:
   void cancelTimed(const QString &why);
   void toggleDnf();
   void deleteTry();
+  void deleteLearnTry(); // Delete on a finished Untimed or Inspection try
   void onTick();
   std::string timedGroupKey() const;
 

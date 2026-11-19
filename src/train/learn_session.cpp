@@ -1,5 +1,8 @@
 #include "train/learn_session.hpp"
 
+#include <algorithm>
+#include <iterator>
+
 namespace vcube {
 
 namespace {
@@ -17,9 +20,26 @@ Step used(Action a = Action::None) {
 
 bool isNext(Key k) { return k == Key::Space || k == Key::Enter; }
 
+bool isLearn(const Attempt &a) { return a.mode == AttemptMode::Learn; }
+
+std::vector<Attempt> learnAttemptsOf(const CaseProgress *cp) {
+  std::vector<Attempt> out;
+  if (cp) {
+    std::copy_if(cp->attempts.begin(), cp->attempts.end(),
+                 std::back_inserter(out), isLearn);
+  }
+  return out;
+}
+
+const CaseProgress *findCard(const SetProgress &progress,
+                             const std::string &id) {
+  auto it = progress.find(id);
+  return it == progress.end() ? nullptr : &it->second;
+}
+
 } // namespace
 
-Step LearnSession::key(const KeyEvent &k) const {
+Step LearnSession::key(const KeyEvent &k, std::int64_t now) const {
   if (k.key == Key::Undo) {
     return used(k.press ? Action::Undo : Action::None);
   }
@@ -125,6 +145,9 @@ Step LearnSession::key(const KeyEvent &k) const {
     }
     break;
   case Phase::Recognise:
+    if (k.key == Key::Space && now < guardUntil_) {
+      return used(); // a double tap's second press, meant for the case before
+    }
     if (k.key == Key::Space) {
       Step s = used(Action::Recalled);
       s.knew = !k.shift;
@@ -205,6 +228,15 @@ void takeBack(SetProgress &progress, const LearnUndo &undo) {
   for (auto c = undo.cards.rbegin(); c != undo.cards.rend(); ++c) {
     CaseProgress &cp = progress[c->cardId];
     cp.card = c->before;
+    if (c->learnAttempts) {
+      std::erase_if(cp.attempts, isLearn);
+      cp.attempts.insert(cp.attempts.end(), c->learnAttempts->begin(),
+                         c->learnAttempts->end());
+      std::stable_sort(cp.attempts.begin(), cp.attempts.end(),
+                       [](const Attempt &a, const Attempt &b) {
+                         return a.timestamp < b.timestamp;
+                       });
+    }
     if (c->attempt != 0) {
       for (auto a = cp.attempts.rbegin(); a != cp.attempts.rend(); ++a) {
         if (a->mode == AttemptMode::Learn && a->timestamp == c->attempt) {
@@ -214,6 +246,27 @@ void takeBack(SetProgress &progress, const LearnUndo &undo) {
       }
     }
   }
+}
+
+LearnUndo listChange(const SetProgress &progress, const std::string &setId,
+                     const std::vector<std::string> &cardIds) {
+  LearnUndo u;
+  u.setId = setId;
+  u.fromList = true;
+  for (const std::string &id : cardIds) {
+    const CaseProgress *cp = findCard(progress, id);
+    u.cards.push_back({id, cp ? cp->card : SrsCard{}, 0, learnAttemptsOf(cp)});
+  }
+  return u;
+}
+
+bool keepChanged(LearnUndo &undo, const SetProgress &progress) {
+  std::erase_if(undo.cards, [&progress](const LearnUndo::Card &c) {
+    const CaseProgress *cp = findCard(progress, c.cardId);
+    return (cp ? cp->card : SrsCard{}) == c.before &&
+           learnAttemptsOf(cp) == c.learnAttempts;
+  });
+  return !undo.cards.empty();
 }
 
 } // namespace vcube

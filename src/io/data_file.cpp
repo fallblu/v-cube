@@ -10,6 +10,7 @@
 #include <QPointer>
 
 #include <algorithm>
+#include <cmath>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -37,16 +38,16 @@ FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
   }
   QJsonValue v = o.value("version");
   if (!v.isUndefined()) {
+    // Checked as a double: one beyond the range of int can't be cast to it.
     double version = v.toDouble(-1);
-    if (!v.isDouble() || version < 1 ||
-        version != static_cast<double>(static_cast<int>(version))) {
+    if (!v.isDouble() || !(version >= 1) || version != std::floor(version)) {
       return fail(FileStatus::Unreadable, "its version isn't a version number");
     }
     if (version > format.version) {
       return fail(FileStatus::Newer,
                   QString("it was written by a newer version of v-cube: file "
                           "version %1, and this version reads up to %2")
-                      .arg(static_cast<int>(version))
+                      .arg(version, 0, 'f', 0)
                       .arg(format.version));
     }
   }
@@ -73,14 +74,16 @@ FileRead readDataFile(const QString &path, const FileFormat &format) {
   if (!f.exists()) {
     return r;
   }
-  r.status = FileStatus::Unreadable;
   if (!f.open(QIODevice::ReadOnly)) {
-    r.error = f.errorString();
-    if (r.error.isEmpty()) {
-      r.error = "it can't be opened";
-    }
+    // Not the file's fault, and maybe passing: never taken for unreadable.
+    r.status = FileStatus::CannotOpen;
+    QString why = f.errorString();
+    r.error = why.isEmpty() || why == "Unknown error"
+                  ? QString("it can't be opened")
+                  : QString("it can't be opened: %1").arg(why);
     return r;
   }
+  r.status = FileStatus::Unreadable;
   QJsonParseError pe;
   QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
   if (pe.error != QJsonParseError::NoError) {
@@ -115,6 +118,10 @@ FileStatus DataFile::load(QJsonObject &out, QString *error) {
         QString("%1 was written by a newer version of v-cube, so it isn't "
                 "saved over")
             .arg(QDir::toNativeSeparators(path_));
+  } else if (r.status == FileStatus::CannotOpen) {
+    keptOffReason_ = QString("%1 can't be opened, so it isn't saved over; "
+                             "restart v-cube once it can be")
+                         .arg(QDir::toNativeSeparators(path_));
   } else if (r.status == FileStatus::Unreadable) {
     setAside_ = setAside(path_);
     if (setAside_.isEmpty()) {

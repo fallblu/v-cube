@@ -324,3 +324,24 @@ TEST_CASE("drill: with no case, Space looks again") {
   CHECK_FALSE(f.key(press(Key::Tab), 0).handled);
   CHECK(f.key(turn(kR), 0).handled); // turns are swallowed
 }
+
+TEST_CASE("drill: time with the window in the back isn't recognition") {
+  DrillFlow f = flow();
+  f.windowLost();
+  f.key(press(Key::Space), 1100);
+  f.key(turn(kR), 1200);
+  f.turned(Turn::OffUdFace, 1200, done(false));
+  f.finished(800, Result::Solved, std::nullopt, 2000);
+  CHECK_FALSE(f.timing(800, false));
+
+  // After the first turn off U-D, recognition is over: it stays.
+  DrillFlow g = flow();
+  g.key(press(Key::Space), 1100);
+  g.key(turn(kR), 1200);
+  g.turned(Turn::OffUdFace, 1200, done(false));
+  g.windowLost();
+  g.finished(800, Result::Solved, std::nullopt, 2000);
+  auto t = g.timing(800, false);
+  REQUIRE(t);
+  CHECK(t->recognitionMs == 200);
+}

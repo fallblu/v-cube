@@ -27,7 +27,8 @@ namespace vcube {
 //   Done        the case is over: Space next, 1-4 change the grade, Esc
 //               resets the cube to practise (free turning)
 //   Recognise   a recognition review: Space once the alg is recalled
-//               (Shift+Space if not); rotations and U and D turns look
+//               (Shift+Space if not), not in its first kGuardMs;
+//               rotations and U and D turns look
 //   Recalled    1-4 grade it, Space/Enter the grade shown
 //   Quiz        "which case is this?": 1-n answer
 //   QuizDone    Space/Enter another one
@@ -93,12 +94,24 @@ public:
     std::size_t choice = 0;
   };
 
+  // Space is ignored this long after a recognition review comes up, so
+  // that the second press of a double tap meant for the case before
+  // doesn't answer it (as Drill's DrillFlow::kGuardMs).
+  static constexpr std::int64_t kGuardMs = 300;
+
   Phase phase() const { return phase_; }
   void setPhase(Phase p) { phase_ = p; }
+  // A recognition review came up at `now` (monotonic ms): Recognise,
+  // with Space held back for kGuardMs.
+  void startRecognising(std::int64_t now) {
+    phase_ = Phase::Recognise;
+    guardUntil_ = now + kGuardMs;
+  }
   // The quiz's choices, for its keys.
   void setQuizChoices(std::size_t n) { quizChoices_ = n; }
 
-  Step key(const KeyEvent &k) const;
+  // A key at `now` (monotonic ms).
+  Step key(const KeyEvent &k, std::int64_t now = 0) const;
 
   // The session's "which case?" score.
   struct QuizScore {
@@ -112,23 +125,28 @@ public:
 private:
   Phase phase_ = Phase::NoCase;
   std::size_t quizChoices_ = 0;
+  std::int64_t guardUntil_ = 0;
   QuizScore quiz_;
 };
 
-// What a graded attempt changed, so that Ctrl+Z can take it back.
+// What a graded attempt, or a change from the case list, changed, so that
+// Ctrl+Z can take it back.
 struct LearnUndo {
   std::string setId;
-  std::string caseId; // the case that came up
+  std::string caseId; // the case that came up (none for the case list)
   bool isNew = false;
   bool recognition = false; // a recognition review
   // Each card as it was before, and the Learn attempt recorded for it
-  // (its timestamp, or 0).
+  // (its timestamp, or 0). A change from the case list keeps the card's
+  // Learn attempts as they were instead, as resetting drops them.
   struct Card {
     std::string cardId;
     SrsCard before;
     std::int64_t attempt = 0;
+    std::optional<std::vector<Attempt>> learnAttempts;
   };
   std::vector<Card> cards;
+  bool fromList = false; // the case list's right-click menu changed them
 };
 
 // The last grades, latest last; the oldest are dropped past kDepth.
@@ -153,7 +171,15 @@ private:
 
 // Puts the entry's cards back as they were and drops the Learn attempts it
 // recorded, latest first (so that a card graded twice ends up as it was at
-// the start).
+// the start); a card that kept its Learn attempts gets them back.
 void takeBack(SetProgress &progress, const LearnUndo &undo);
+
+// The case list is about to change `cardIds`: an entry that takes the
+// change back (fromList), each card with its Learn attempts.
+LearnUndo listChange(const SetProgress &progress, const std::string &setId,
+                     const std::vector<std::string> &cardIds);
+// Leaves out of the entry the cards the change left as they were; false
+// if none is left.
+bool keepChanged(LearnUndo &undo, const SetProgress &progress);
 
 } // namespace vcube

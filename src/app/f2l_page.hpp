@@ -46,6 +46,8 @@ public:
           const QString &dataDir, QWidget *parent = nullptr);
   ~F2LPage() override;
 
+  // The cards the mode offers, also counted on Today.
+  std::vector<std::string> cardPool() const override;
   void activated() override;
   // The alg sets changed: the sheet's algs may be read from them.
   void reloadSets();
@@ -88,7 +90,6 @@ protected:
   }
   void addOptions(OptionBar *bar) override;
   void showOptions() override;
-  std::vector<std::string> cardPool() const override;
   std::optional<Setup> setUp(Extent extent, const std::string &card) override;
   void restarted() override;
   bool turned() override;
@@ -106,7 +107,7 @@ protected:
   void startChoosing() override;
   void choiceKey(int n) override;
   bool confirmChoice() override;
-  void cancelChoice() override {}
+  void cancelChoice() override { leaveOwnField(); }
   QString choosingText() const override;
   bool doneKey(QKeyEvent *e) override;
   QList<KeyHint> doneKeys() const override;
@@ -117,6 +118,8 @@ protected:
   QString listHelp() const override;
   void groupActivated(const std::string &key) override;
   QString cardName(const std::string &card) const override;
+  // Esc in the own-solution field gives the keys back to the page.
+  bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
   // What a background job worked out, for the request that asked.
@@ -170,6 +173,7 @@ private:
   QWidget *chooser_ = nullptr;
   QLabel *chooserList_ = nullptr;
   QLineEdit *ownField_ = nullptr;
+  void leaveOwnField(); // the keys are the page's again
   QLabel *ownNote_ = nullptr;
 
   void loadChoices();

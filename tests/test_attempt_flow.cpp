@@ -140,6 +140,26 @@ TEST_CASE("OptimalCache works a job out", "[attempt]") {
   CHECK(results[1].second == -1);
 }
 
+TEST_CASE("OptimalCache stops the jobs it invalidates", "[attempt]") {
+  OptimalCache c;
+  std::vector<MoveCountAttempt> list = {attempt(9, false, "R"),
+                                        attempt(8, false, "U")};
+  auto job = c.missing(SolveStep::Cross, false, {kWcaHold}, list);
+  REQUIRE(job);
+  REQUIRE(job->stop);
+  CHECK_FALSE(job->stop->load());
+  c.invalidate();
+  CHECK(job->stop->load());
+  // A stopped job works nothing more out, and its results are stale.
+  CHECK(OptimalCache::run(*job).empty());
+  CHECK_FALSE(c.store(*job, {}));
+  // The next job runs.
+  auto next = c.missing(SolveStep::Cross, false, {kWcaHold}, list);
+  REQUIRE(next);
+  CHECK_FALSE(next->stop->load());
+  CHECK(OptimalCache::run(*next).size() == 2);
+}
+
 TEST_CASE("overOptimal and worstAttempts rank against the optimal",
           "[attempt]") {
   std::vector<MoveCountAttempt> list = {

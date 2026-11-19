@@ -268,9 +268,18 @@ void LearnPage::extendCaseMenu(QMenu &menu,
     menu.addAction(tr("None of these cases has an alg yet"))->setEnabled(false);
     return;
   }
-  auto change = [this, cards, caseIds](auto &&apply) {
+  // Each change goes on Learn's undo stack, so that Ctrl+Z takes it back;
+  // `one` and `many` name it, with %n for the cases it changed.
+  auto change = [this, cards, caseIds](auto &&apply, const QString &one,
+                                       const QString &many) {
+    LearnUndo undo = listChange(progress(), setId_, cards);
     for (const auto &card : cards) {
       apply(progress()[card]);
+    }
+    if (keepChanged(undo, progress())) {
+      int n = static_cast<int>(undo.cards.size());
+      undo_.push(std::move(undo), false);
+      emit message(tr("%1. Ctrl+Z takes it back.").arg(plural(n, one, many)));
     }
     saveProgress();
     if (current_ && phase() == Phase::Done &&
@@ -328,17 +337,23 @@ void LearnPage::extendCaseMenu(QMenu &menu,
       ->setEnabled(anyEligible);
   menu.addAction(single ? tr("Mark as learned") : tr("Mark all as learned"),
                  this, [this, change] {
-                   change([this](CaseProgress &p) {
-                     markLearned(p.card, unixNow(), settings_.srs);
-                   });
+                   change(
+                       [this](CaseProgress &p) {
+                         markLearned(p.card, unixNow(), settings_.srs);
+                       },
+                       tr("Marked %n case as learned"),
+                       tr("Marked %n cases as learned"));
                  });
   menu.addAction(tr("Remove from learn queue"), this,
                  [change] {
-                   change([](CaseProgress &p) {
-                     if (isQueued(p.card)) {
-                       resetCard(p.card);
-                     }
-                   });
+                   change(
+                       [](CaseProgress &p) {
+                         if (isQueued(p.card)) {
+                           resetCard(p.card);
+                         }
+                       },
+                       tr("Removed %n case from the learn queue"),
+                       tr("Removed %n cases from the learn queue"));
                  })
       ->setEnabled(
           any([](const CaseProgress *cp) { return cp && isQueued(cp->card); }));
@@ -352,33 +367,45 @@ void LearnPage::extendCaseMenu(QMenu &menu,
   // Suspending keeps the case ticked, so Drill still has it.
   menu.addAction(allSuspended ? tr("Unsuspend") : tr("Suspend"), this,
                  [change, allSuspended] {
-                   change([allSuspended](CaseProgress &p) {
-                     p.card.suspended = !allSuspended;
-                   });
+                   change(
+                       [allSuspended](CaseProgress &p) {
+                         p.card.suspended = !allSuspended;
+                       },
+                       allSuspended ? tr("Unsuspended %n case")
+                                    : tr("Suspended %n case"),
+                       allSuspended ? tr("Unsuspended %n cases")
+                                    : tr("Suspended %n cases"));
                  })
       ->setToolTip(tr("Leave it out of Learn (Drill still has it)"));
   if (anySuspended && !allSuspended) {
     menu.addAction(tr("Unsuspend"), this, [change] {
-      change([](CaseProgress &p) { p.card.suspended = false; });
+      change([](CaseProgress &p) { p.card.suspended = false; },
+             tr("Unsuspended %n case"), tr("Unsuspended %n cases"));
     });
   }
   bool anyBuried = any([](const CaseProgress *cp) {
     return cp && isBuried(cp->card, unixNow());
   });
   menu.addAction(tr("Bury until tomorrow"), this, [change] {
-    change([](CaseProgress &p) { bury(p.card, localDayEnd()); });
+    change([](CaseProgress &p) { bury(p.card, localDayEnd()); },
+           tr("Buried %n case until tomorrow"),
+           tr("Buried %n cases until tomorrow"));
   });
   if (anyBuried) {
     menu.addAction(tr("Unbury"), this, [change] {
-      change([](CaseProgress &p) { p.card.buriedUntil = 0; });
+      change([](CaseProgress &p) { p.card.buriedUntil = 0; },
+             tr("Unburied %n case"), tr("Unburied %n cases"));
     });
   }
   menu.addSeparator();
   // Its card and Learn attempts; its drill times stay.
-  menu.addAction(
-      single ? tr("Reset learning progress")
-             : tr("Reset learning progress of all"),
-      this, [change] { change([](CaseProgress &p) { resetLearning(p); }); });
+  menu.addAction(single ? tr("Reset learning progress")
+                        : tr("Reset learning progress of all"),
+                 this, [change] {
+                   change([](CaseProgress &p) { resetLearning(p); },
+                          tr("Reset the learning progress of %n case"),
+                          tr("Reset the learning progress of %n cases"));
+                 });
   if (single) {
     std::string id = caseIds.front();
     menu.addAction(tr("History…"), this, [this, id] {

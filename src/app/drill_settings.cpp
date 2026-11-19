@@ -65,14 +65,16 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
   holdSpin_->setSuffix(" ms");
   holdSpin_->setSpecialValueText(tr("None"));
   holdSpin_->setValue(settings_.holdMs);
-  holdSpin_->setToolTip(tr("Drill's own hold time, for a physical cube and "
-                           "for holding Space on the virtual cube"));
+  holdSpin_->setToolTip(tr("Drill's own hold time (also EO Cross, F2L and "
+                           "TSLE Timed), for a physical cube and for holding "
+                           "Space on the virtual cube"));
   form->addRow(tr("Hold Space before starting:"), holdSpin_);
   giveUpBox_ = new QComboBox(this);
   giveUpBox_->addItem(tr("Shift+Space (Backspace then only toggles the DNF)"),
                       true);
   giveUpBox_->addItem(tr("Backspace"), false);
   giveUpBox_->setCurrentIndex(settings_.shiftSpaceGivesUp ? 0 : 1);
+  giveUpBox_->setToolTip(tr("Also in EO Cross, F2L and TSLE, on every tab"));
   form->addRow(tr("Give a case up with:"), giveUpBox_);
   afterDnfBox_ = new QComboBox(this);
   afterDnfBox_->addItem(tr("Space goes on to the next case (Tab practises)"),
@@ -118,9 +120,9 @@ void DrillSettingsTab::moveTimingRows(QFormLayout *to, int row) {
   };
   // In the order they end up under the other modes' hold time.
   const Moved rows[] = {
-      {holdSpin_, tr("Drill hold to start:")},
-      {startBox_, tr("Drill timer start:")},
-      {autoStopBox_, tr("Drill timer stop:")},
+      {holdSpin_, tr("Drill and practice Timed, hold to start:")},
+      {startBox_, tr("Drill and practice Timed, timer start:")},
+      {autoStopBox_, tr("Drill and practice Timed, timer stop:")},
   };
   int at = row + 1;
   for (const Moved &m : rows) {

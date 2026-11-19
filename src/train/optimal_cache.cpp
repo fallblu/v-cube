@@ -19,6 +19,8 @@ std::optional<int> OptimalCache::lookup(SolveStep step,
 void OptimalCache::invalidate() {
   ++round_;
   known_.clear();
+  stop_->store(true);
+  stop_ = std::make_shared<std::atomic<bool>>(false);
 }
 
 std::optional<OptimalCache::Job>
@@ -29,6 +31,7 @@ OptimalCache::missing(SolveStep step, bool anyHold, std::vector<Hold> holds,
   job.anyHold = anyHold;
   job.holds = std::move(holds);
   job.round = round_;
+  job.stop = stop_;
   for (const MoveCountAttempt &a : attempts) {
     if (!a.scramble.empty() && !known_.contains({step, a.scramble, anyHold}) &&
         std::find(job.scrambles.begin(), job.scrambles.end(), a.scramble) ==
@@ -45,6 +48,9 @@ OptimalCache::missing(SolveStep step, bool anyHold, std::vector<Hold> holds,
 OptimalCache::Results OptimalCache::run(const Job &job) {
   Results out;
   for (const std::string &scramble : job.scrambles) {
+    if (job.stop && job.stop->load()) {
+      break;
+    }
     ParseResult parsed = parseAlg(scramble);
     std::optional<int> best =
         parsed ? heldDistance(parsed.alg, job.step, job.holds) : std::nullopt;

@@ -882,7 +882,7 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
     } else if (item_.hidden) {
       showHidden(false);
       finishLearn(item_.done ? Try::Finished : Try::GaveUp);
-    } else if (shift) {
+    } else if (shift && settings_.drill.shiftSpaceGivesUp) {
       finishLearn(Try::GaveUp);
     }
     return true;
@@ -901,9 +901,22 @@ bool PracticePage::handleLearnKey(QKeyEvent *e) {
     }
     return true;
   case Qt::Key_Backspace:
+    // Drill's give-up key, which is Shift+Space unless set otherwise: one
+    // press of Backspace mustn't record a DNF that can't be taken back.
     if (phase_ == Phase::Solving) {
-      showHidden(false);
-      finishLearn(Try::GaveUp);
+      if (settings_.drill.shiftSpaceGivesUp) {
+        hint_->setHint(
+            timedHintText(DrillFlow::Hint::GiveUpKey, settings_.drill),
+            hint_->keys());
+      } else {
+        showHidden(false);
+        finishLearn(Try::GaveUp);
+      }
+    }
+    return true;
+  case Qt::Key_Delete:
+    if (phase_ == Phase::Done && !waiting_) {
+      deleteLearnTry();
     }
     return true;
   case Qt::Key_Escape:
@@ -1324,6 +1337,19 @@ void PracticePage::deleteTry() {
   showAll();
 }
 
+void PracticePage::deleteLearnTry() {
+  // Only an Untimed or Inspection try: a card's grade is changed with 1-4.
+  if (!item_.recorded || !item_.card.empty()) {
+    return;
+  }
+  dropNewestTry(tabTries(store_.data, tab_), item_.group);
+  item_.recorded = false;
+  save();
+  refreshList();
+  note_ = tr("Deleted; nothing is recorded.");
+  showAll();
+}
+
 void PracticePage::showInspection() {
   if (tab_ != Tab::Inspection) {
     return;
@@ -1498,6 +1524,8 @@ void PracticePage::showKeys() {
                          .detailOpen = detailOpen_,
                          .graded = item_.graded && item_.grade.has_value(),
                          .chooser = choicePanel() && !item_.card.empty(),
+                         .recorded = item_.recorded && item_.card.empty(),
+                         .giveUpKey = giveUpKeyName(settings_.drill),
                          .modeKeys = doneKeys()})
           : timedKeys(flow_, settings_.drill,
                       {.physical = physical_,

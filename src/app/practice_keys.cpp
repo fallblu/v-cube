@@ -43,7 +43,7 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     if (s.hidden) {
       message = tr("The cube is hidden: do what you planned.");
       keys = {{"Space", tr("show the cube")},
-              {"Backspace", tr("give up")},
+              {s.giveUpKey, tr("give up")},
               {"Esc", tr("start again")}};
       break;
     }
@@ -53,7 +53,7 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     if (s.hints) {
       keys << KeyHint{"Tab", tr("hint")};
     }
-    keys << KeyHint{"Backspace", tr("give up")}
+    keys << KeyHint{s.giveUpKey, tr("give up")}
          << KeyHint{"Esc", tr("start again")};
     break;
   case PracticePhase::Done:
@@ -73,19 +73,24 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     if (s.chooser) {
       keys << KeyHint{"0", tr("change your solutions")};
     }
+    if (s.recorded) {
+      keys << KeyHint{"Delete", tr("delete it")};
+    }
     keys << KeyHint{"Esc", tr("retry, not recorded")};
     break;
   }
   return {message, keys};
 }
 
+QString giveUpKeyName(const DrillSettings &drill) {
+  return drill.shiftSpaceGivesUp ? tr("Shift+Space") : tr("Backspace");
+}
+
 PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,
                        const TimedKeysState &s) {
   QList<KeyHint> keys;
   QString message;
-  const KeyHint giveUp{drill.shiftSpaceGivesUp ? tr("Shift+Space")
-                                               : tr("Backspace"),
-                       tr("give up")};
+  const KeyHint giveUp{giveUpKeyName(drill), tr("give up")};
   switch (flow.phase()) {
   case DrillFlow::Phase::NoCase:
     keys = {{"Space", tr("look again")}};
@@ -109,7 +114,9 @@ PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,
     break;
   case DrillFlow::Phase::Running:
     if (s.physical) {
-      keys = {{tr("any key"), tr("stop")}, giveUp, {"Esc", tr("cancel")}};
+      keys = {{tr("any key but Shift, Ctrl, Alt"), tr("stop")},
+              giveUp,
+              {"Esc", tr("cancel")}};
     } else if (drill.autoStop) {
       message = tr("The timer stops when the step is done.");
       keys = {{"Space", tr("stop now (a DNF unless done)")},

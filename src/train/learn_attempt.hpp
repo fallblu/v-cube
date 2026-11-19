@@ -93,6 +93,9 @@ public:
   // The case is shown to be recognised from `shownAtMs` (monotonic); with
   // `spoiled` (a walkthrough first) recognition isn't measured.
   void startTiming(std::int64_t shownAtMs, bool spoiled = false);
+  // The window lost focus with the case up: if recognition hadn't ended,
+  // its time would count the time away, so none is kept.
+  void spoilRecognition();
   void clear();
 
   const std::string &caseId() const { return caseId_; }
