@@ -65,6 +65,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <utility>
 
 namespace vcube {
 
@@ -462,7 +463,17 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   updateBanner();
 }
 
-MainWindow::~MainWindow() { setWriteReporter({}); }
+MainWindow::~MainWindow() {
+  setWriteReporter({});
+  // The pages refer to data_, which is destroyed before the widgets the
+  // window owns: they go first. A window still shown is hidden before that,
+  // while everything is whole, as hiding it tells the pages that the focus
+  // has gone.
+  hide();
+  for (ModePage *&page : pages_) {
+    delete std::exchange(page, nullptr);
+  }
+}
 
 void MainWindow::raiseWindow() {
   if (isMinimized()) {

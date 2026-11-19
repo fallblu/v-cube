@@ -1976,6 +1976,25 @@ void GuiTest::keysDocMatchesTheKeyTable() {
 void GuiTest::cleanupTestCase() {
   if (window_) {
     window_->close();
+    // The window is destroyed as one that is shown and active, with the
+    // focus in Library: the pages hear that the focus has gone, which must
+    // be before the data they refer to goes (a sanitizer build sees it).
+    auto *library = page<LibraryPage>();
+    window_->show();
+    window_->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+    QVERIFY(switchTo(AppMode::Library, library));
+    {
+      AlgLibrary lib(QDir(dataDir_).filePath("algsets"), ":/algsets");
+      lib.load();
+      QVERIFY(lib.find("oll"));
+      library->selectCase("oll",
+                          qs(lib.find("oll")->groups.front().cases.front().id));
+    }
+    auto *list = library->findChild<AlgListWidget *>();
+    QVERIFY(list);
+    list->setFocus();
+    QCOMPARE(QApplication::focusWidget(), list);
     window_.reset();
   }
   instance_.reset();
