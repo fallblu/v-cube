@@ -319,6 +319,7 @@ private slots:
   void tipsShowInTheStatusBar();
   void trendChartNamesWhatItCharts();
   void helpPanelShowsTheKeys();
+  void aLockFromAnotherHostCanBeTakenOver();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
   void undoneDeletionKeepsProgressUnderANewId();
@@ -2474,6 +2475,28 @@ void GuiTest::helpPanelShowsTheKeys() {
   QTRY_VERIFY(text->toPlainText() != timed);
   QTest::keyClick(window_.get(), Qt::Key_F1);
   QTRY_VERIFY(!help->isVisible());
+}
+
+// A lock left by a crash under another host name is never stale by
+// itself: it is named, and Start anyway takes it over.
+void GuiTest::aLockFromAnotherHostCanBeTakenOver() {
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  QString lock = dir.filePath("v-cube.lock");
+  {
+    QFile f(lock);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("999999\nv-cube\nsome-other-host\n");
+  }
+  SingleInstance instance(dir.path());
+  QVERIFY(instance.claim() == SingleInstance::Claim::Running);
+  QCOMPARE(instance.lockPath(), lock);
+  QVERIFY2(instance.lockHolder().contains("some-other-host"),
+           qPrintable(instance.lockHolder()));
+  QVERIFY(instance.takeOver());
+  // Now this copy holds it, and another is turned away or signalled.
+  SingleInstance second(dir.path());
+  QVERIFY(second.claim() != SingleInstance::Claim::First);
 }
 
 // docs/keys.md is written from the key table; VCUBE_WRITE_DOCS=1 writes
