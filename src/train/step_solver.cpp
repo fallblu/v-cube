@@ -720,6 +720,12 @@ std::optional<int> heldDistance(const Alg &scramble, SolveStep step,
     }
   }
   std::scoped_lock lock(mutex);
+  // About 150 bytes an entry: a cap keeps a long session's cache bounded,
+  // and starting again costs only the searches of the scrambles in use.
+  constexpr std::size_t kMaxCached = 4096;
+  if (cache.size() >= kMaxCached) {
+    cache.clear();
+  }
   cache[key] = best;
   return best;
 }
