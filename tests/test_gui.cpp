@@ -1298,6 +1298,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(eo->phase(), Phase::Solving);
   QTest::keyClick(window_.get(), Qt::Key_Space);
   QCOMPARE(eo->phase(), Phase::Done);
+  QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QVERIFY(!eo->cubeHidden());
   QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{1});
   QCOMPARE(eo->data().inspection.at("eocross").back().extra, 0.0);
@@ -1316,6 +1317,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(eo->cubeHidden());
   QTest::keyClick(window_.get(), Qt::Key_Space);
   QCOMPARE(eo->phase(), Phase::Done);
+  QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QVERIFY(eo->data().inspection.at("eocross").back().dnf);
   QVERIFY2(eo->verdictHtml().contains("Not done"),
            qPrintable(eo->verdictHtml()));
@@ -1330,6 +1332,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(eo->scrambled() == planned);
   QTest::keyClick(window_.get(), Qt::Key_Backspace);
   QCOMPARE(eo->phase(), Phase::Done);
+  QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
   auto *tree = eo->findChild<QTreeWidget *>("practiceList");
   QCOMPARE(tree->columnCount(), 5);
@@ -1340,6 +1343,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(!eo->inspecting());
   optimum = solveOptimally();
   QCOMPARE(eo->phase(), Phase::Done);
+  QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QVERIFY(eo->analysisReady());
   QCOMPARE(tries(eo->data().learn, "eocross"), std::size_t{1});
   QCOMPARE(eo->data().learn.at("eocross").back().extra, 0.0);
@@ -1364,6 +1368,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(eo->cube() == eo->startCube());
   QTest::keyClick(window_.get(), Qt::Key_Backspace);
   QCOMPARE(eo->phase(), Phase::Done);
+  QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().learn, "eocross"), std::size_t{1});
 
   // Another step is kept apart.
@@ -1371,6 +1376,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(eo->phase(), Phase::Solving);
   solveOptimally();
   QCOMPARE(eo->phase(), Phase::Done);
+  QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().learn, "eo"), std::size_t{1});
   QCOMPARE(tries(eo->data().learn, "eocross"), std::size_t{1});
   eo->setStep(step);

@@ -172,12 +172,11 @@ QString MoveCountPage::notReachedText() const {
 }
 
 QString MoveCountPage::retryNote(const MoveCountAttempt &was) const {
-  if (hasOptimal()) {
-    if (std::optional<int> best =
-            heldDistance(parseAlgOrEmpty(was.scramble), session().step,
-                         optimalHolds(settings_))) {
-      return tr(", optimal %1").arg(*best);
-    }
+  // As worked out in the background for the list; left out while that
+  // isn't known yet, since searching here would hold up the window.
+  if (std::optional<int> best = hasOptimal() ? optimalOf(was) : std::nullopt;
+      best && *best >= 0) {
+    return tr(", optimal %1").arg(*best);
   }
   return {};
 }

@@ -4,11 +4,22 @@
 #include <QString>
 
 #include <functional>
+#include <span>
 #include <utility>
 
 class QObject;
 
 namespace vcube {
+
+// A top-level value a data file holds: its key, whether it is a list (else
+// an object), and whether a file without it can still be read. A file in
+// which one is missing (when it must be there) or of the wrong kind is
+// unreadable: read as if it were empty, it would be saved over as empty.
+struct FileField {
+  const char *key;
+  bool list = false;
+  bool required = true;
+};
 
 // What a JSON data file is: the "format" it is written with and the newest
 // "version" this build reads. Files written before a format had a "format"
@@ -19,6 +30,7 @@ struct FileFormat {
   int version = 1;
   bool formatOptional = false;
   const char *what = "data file"; // for messages, e.g. "sessions file"
+  std::span<const FileField> fields = {};
 };
 
 enum class FileStatus {

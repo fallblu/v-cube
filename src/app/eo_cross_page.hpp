@@ -51,6 +51,7 @@ public:
   // The holds a step may be done in.
   std::vector<Hold> allowedHolds() const;
   bool analysisReady() const override { return analysed_; }
+  bool waitsForAnalysis() const override { return !analysed_; }
   // The optimal solutions listed, best hold first.
   std::vector<Solution> shownSolutions() const;
 
@@ -99,8 +100,6 @@ private:
   QWidget *limitItem_ = nullptr;
 
   void requestAnalysis();
-  // Works the optima out now if they haven't arrived.
-  void ensureAnalysed();
   // Where a step may be done: "with a yellow or white cross, on either EO
   // axis".
   QString whereText(SolveStep step) const;

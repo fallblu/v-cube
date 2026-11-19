@@ -782,7 +782,31 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   saved::windowGeometry().set(saveGeometry());
   saved::windowState().set(saveState());
   saveLayout();
+  for (ModePage *page : pages_) {
+    if (page) {
+      page->aboutToClose();
+    }
+  }
   finishBackgroundWrites();
+  // The last writes report from the writer's thread through the queue:
+  // take those in now, or a save that failed just before quitting would
+  // never be seen.
+  QCoreApplication::sendPostedEvents(qApp, QEvent::MetaCall);
+  if (!failedWrites_.empty()) {
+    QStringList lines;
+    for (const auto &[path, error] : failedWrites_) {
+      lines << QString("%1: %2").arg(QFileInfo(path).fileName(), error);
+    }
+    auto answer = QMessageBox::warning(
+        this, tr("Quit v-cube"),
+        tr("Some changes could not be saved:") + "\n\n" + lines.join("\n") +
+            "\n\n" + tr("Quit anyway? They will be lost."),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+      e->ignore();
+      return;
+    }
+  }
   QMainWindow::closeEvent(e);
 }
 

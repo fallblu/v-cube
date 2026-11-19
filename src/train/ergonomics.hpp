@@ -3,6 +3,7 @@
 #include "cube/move.hpp"
 #include "train/grips.hpp"
 
+#include <cmath>
 #include <map>
 #include <optional>
 #include <string>
@@ -10,6 +11,13 @@
 #include <vector>
 
 namespace vcube {
+
+// A cost a profile may hold: a finite number from 0 up. (nan would make
+// every score using it nan, and can't be written to a file.)
+inline constexpr double kMaxCost = 1000.0;
+inline bool validCost(double v) {
+  return std::isfinite(v) && v >= 0.0 && v <= kMaxCost;
+}
 
 // A guess at how hard an alg is to turn. Lower is better. A grip profile
 // (one with a GripModel) scores the cheapest way to turn the alg with its

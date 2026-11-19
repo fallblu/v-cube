@@ -1,6 +1,7 @@
 #include "io/algset_json.hpp"
 
 #include "io/data_file.hpp"
+#include "io/json_values.hpp"
 
 #include <QDateTime>
 #include <QDir>
@@ -33,7 +34,9 @@ const char *attemptModeId(AttemptMode m) {
 
 constexpr FileFormat kAlgSetFile{"v-cube.algset", 1, false, "alg set"};
 // Progress files were written without a "format" at first.
-constexpr FileFormat kProgressFile{"v-cube.progress", 1, true, "progress file"};
+constexpr FileField kProgressFields[] = {{"cases"}};
+constexpr FileFormat kProgressFile{"v-cube.progress", 1, true, "progress file",
+                                   kProgressFields};
 
 bool fail(QString *error, const QString &why) {
   if (error) {
@@ -404,27 +407,26 @@ SetProgress progressFromJson(const QJsonObject &o) {
     CaseProgress cp;
     cp.card.state =
         static_cast<CardState>(std::clamp(card.value("state").toInt(), 0, 3));
-    cp.card.step = card.value("step").toInt();
-    cp.card.ease = card.value("ease").toDouble(2.5);
-    cp.card.intervalDays = card.value("interval").toDouble();
-    cp.card.due = static_cast<std::int64_t>(card.value("due").toDouble());
-    cp.card.reps = card.value("reps").toInt();
-    cp.card.lapses = card.value("lapses").toInt();
+    cp.card.step = std::clamp(card.value("step").toInt(), 0, 1000);
+    cp.card.ease = std::clamp(card.value("ease").toDouble(2.5), 1.0, 10.0);
+    cp.card.intervalDays =
+        std::clamp(card.value("interval").toDouble(), 0.0, 36500.0);
+    cp.card.due = jsonInt64(card.value("due"));
+    cp.card.reps = std::max(0, card.value("reps").toInt());
+    cp.card.lapses = std::max(0, card.value("lapses").toInt());
     for (const auto &av : co.value("attempts").toArray()) {
       QJsonArray a = av.toArray();
       // Files written before Learn mode existed have no mode, and files
       // written before virtual drills existed have only "drill": their
       // attempts were all timed on a physical cube.
       QString mode = a.at(3).toString();
-      Attempt at{static_cast<std::int64_t>(a.at(0).toDouble()),
-                 static_cast<std::int64_t>(a.at(1).toDouble()),
-                 a.at(2).toInt() != 0,
+      Attempt at{jsonInt64(a.at(0)), jsonInt64(a.at(1)), a.at(2).toInt() != 0,
                  mode == "learn"    ? AttemptMode::Learn
                  : mode == "vdrill" ? AttemptMode::VirtualDrill
                                     : AttemptMode::PhysicalDrill};
       // Older files have no recognition times.
-      at.recognitionMs = static_cast<std::int64_t>(a.at(4).toDouble());
-      at.executionMs = static_cast<std::int64_t>(a.at(5).toDouble());
+      at.recognitionMs = jsonInt64(a.at(4));
+      at.executionMs = jsonInt64(a.at(5));
       at.recognitionOnly = a.at(6).toInt() != 0;
       cp.attempts.push_back(at);
     }
@@ -439,14 +441,12 @@ SetProgress progressFromJson(const QJsonObject &o) {
       }
       QJsonObject ko = mt.value().toObject();
       DrillArchive kept;
-      kept.bestMs = std::max<std::int64_t>(
-          0, static_cast<std::int64_t>(ko.value("best").toDouble()));
+      kept.bestMs = jsonInt64(ko.value("best"));
       for (const auto &dv : ko.value("days").toArray()) {
         QJsonArray d = dv.toArray();
-        DayRollup r{static_cast<std::int64_t>(d.at(0).toDouble()),
-                    std::max(0, d.at(1).toInt()), std::max(0, d.at(2).toInt()),
-                    static_cast<std::int64_t>(d.at(3).toDouble()),
-                    static_cast<std::int64_t>(d.at(4).toDouble())};
+        DayRollup r{jsonInt64(d.at(0)), std::max(0, d.at(1).toInt()),
+                    std::max(0, d.at(2).toInt()), jsonInt64(d.at(3)),
+                    jsonInt64(d.at(4))};
         if (r.count > 0) {
           r.fails = std::min(r.fails, r.count);
           kept.days.push_back(r);
@@ -460,11 +460,9 @@ SetProgress progressFromJson(const QJsonObject &o) {
       }
     }
     cp.card.suspended = card.value("suspended").toBool(false);
-    cp.card.buriedUntil =
-        static_cast<std::int64_t>(card.value("buriedUntil").toDouble());
+    cp.card.buriedUntil = jsonInt64(card.value("buriedUntil"));
     if (card.contains("introduced")) {
-      cp.card.introduced =
-          static_cast<std::int64_t>(card.value("introduced").toDouble());
+      cp.card.introduced = jsonInt64(card.value("introduced"));
       cp.card.marked = card.value("marked").toBool(false);
     } else if (cp.card.reps > 0) {
       // Older files: a reviewed case was introduced at its first Learn

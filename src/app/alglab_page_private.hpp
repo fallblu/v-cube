@@ -35,6 +35,9 @@
 #include <QVBoxLayout>
 #include <QtConcurrent>
 
+#include <algorithm>
+#include <vector>
+
 namespace vcube {
 
 struct AlgLabPage::Job {
@@ -42,6 +45,9 @@ struct AlgLabPage::Job {
   int cases = 0;
   int found = 0;
   bool dirty = false; // candidates added since the last save
+  // Lab cases deleted or edited since the search began: what it still
+  // finds for them belongs to a case that is gone or changed.
+  std::vector<LabCaseKey> dropped;
 };
 
 // What the files of AlgLabPage share (see alglab_page.cpp).

@@ -90,10 +90,16 @@ void AlgLabPage::runSearch(std::vector<ResolvedCase> cases) {
         QMetaObject::invokeMethod(
             this,
             [this, job, k, text] {
+              if (std::ranges::find(job->dropped, k) != job->dropped.end()) {
+                return;
+              }
               if (store_.addCandidate(
                       k, {text, CandidateSource::Generated, unixNow()})) {
                 ++job->found;
                 job->dirty = true;
+                if (!saveTimer_.isActive()) {
+                  saveTimer_.start();
+                }
                 if (case_ && case_->key == k && !refreshTimer_.isActive()) {
                   refreshTimer_.start();
                 }
@@ -193,6 +199,7 @@ void AlgLabPage::searchFinished() {
   bool dirty = job_ && job_->dirty;
   int found = job_ ? job_->found : 0;
   job_.reset();
+  saveTimer_.stop();
   if (dirty) {
     saveStore();
   }

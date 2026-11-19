@@ -355,7 +355,36 @@ WarmupOf LabTestPanel::warmup() const {
   return [this](std::string_view id) { return store_.warmupOf(id); };
 }
 
+void LabTestPanel::rebaseCurrent() {
+  const auto &e = session().entries;
+  if (lastEntry_ && *lastEntry_ >= e.size()) {
+    lastEntry_.reset();
+  }
+  if (!current_) {
+    return;
+  }
+  const LabEntry was{current_->c.key, current_->alg};
+  if (current_->entry < e.size() && e[current_->entry] == was) {
+    return;
+  }
+  if (auto it = std::find(e.begin(), e.end(), was); it != e.end()) {
+    current_->entry = static_cast<std::size_t>(it - e.begin());
+    return;
+  }
+  if (flow_.phase() == Phase::Running) {
+    return; // its time is still taken; the next refresh looks again
+  }
+  // The alg being tested left the session: on to another.
+  timer_.cancel();
+  tick_.stop();
+  current_.reset();
+  next();
+}
+
 void LabTestPanel::refresh() {
+  // The session's entries may have been removed or moved, or another
+  // session chosen, since the current alg was set up.
+  rebaseCurrent();
   // Entries whose case is gone stay listed, marked, until removed.
   fillEntries();
   fillCompare();
@@ -576,11 +605,23 @@ void LabTestPanel::removeEntries() {
     return;
   }
   cancelAttempt();
+  // The alg tested last, to find again by what it is, not where it was.
+  std::optional<LabEntry> last;
+  if (lastEntry_ && *lastEntry_ < session().entries.size()) {
+    last = session().entries[*lastEntry_];
+  }
   std::sort(rows.rbegin(), rows.rend());
   for (int r : rows) {
     auto &e = session().entries;
     if (r < static_cast<int>(e.size())) {
       e.erase(e.begin() + r);
+    }
+  }
+  lastEntry_.reset();
+  if (last) {
+    const auto &e = session().entries;
+    if (auto it = std::find(e.begin(), e.end(), *last); it != e.end()) {
+      lastEntry_ = static_cast<std::size_t>(it - e.begin());
     }
   }
   saveStore();

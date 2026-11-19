@@ -133,8 +133,17 @@ PracticePage::PracticePage(AppSettings &settings, const QString &dataDir,
                 .arg(file, error) +
             " " + kept);
   }
+  bool carried = false;
   for (const auto &[key, value] : oldOcllNotes(old)) {
-    store_.data.notes.emplace(key, value);
+    carried |= store_.data.notes.emplace(key, value).second;
+  }
+  // Saved now: nothing else may save before the app is closed, and the
+  // old file is no longer where the next start would look for it.
+  if (carried && !store_.save(&error)) {
+    QMessageBox::warning(
+        this, "v-cube",
+        tr("Could not save the OCLL algs carried over to %1: %2")
+            .arg(file, error));
   }
 }
 
@@ -1140,14 +1149,17 @@ void PracticePage::playDemo() {
   resetCube();
   cubeView_->animateSequence(alg);
   demoShown_ = true;
+  // Only the latest play ends the demo: one played again part-way must
+  // not be cut short by the first play's timer.
   const int id = item_.id;
-  QTimer::singleShot(static_cast<int>(alg.size()) * settings_.animationMs * 2 +
-                         900,
-                     this, [this, id] {
-                       if (id == item_.id && phase_ == Phase::Demo) {
-                         endDemo();
-                       }
-                     });
+  const int play = ++demoPlays_;
+  QTimer::singleShot(
+      static_cast<int>(alg.size()) * settings_.animationMs * 2 + 900, this,
+      [this, id, play] {
+        if (id == item_.id && play == demoPlays_ && phase_ == Phase::Demo) {
+          endDemo();
+        }
+      });
 }
 
 void PracticePage::endDemo() {

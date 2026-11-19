@@ -1,4 +1,6 @@
+#include "io/algset_json.hpp"
 #include "io/data_file.hpp"
+#include "io/json_values.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
 #include "io/practice_store.hpp"
@@ -62,6 +64,73 @@ TEST_CASE("file formats and versions are checked in one place") {
                         strict) == FileStatus::Unreadable);
   CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1.5}},
                         strict) == FileStatus::Unreadable);
+}
+
+TEST_CASE("a file without its contents is unreadable, not empty") {
+  static constexpr FileField fields[] = {{"sessions", true},
+                                         {"extra", false, false}};
+  FileFormat f{"v-cube.test", 1, false, "test file", fields};
+  QString error;
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"sessions", QJsonArray{}}},
+                        f) == FileStatus::Read);
+  CHECK(checkFileFormat({{"format", "v-cube.test"}}, f, &error) ==
+        FileStatus::Unreadable);
+  CHECK(error.contains("sessions"));
+  CHECK(
+      checkFileFormat({{"format", "v-cube.test"}, {"sessions", QJsonObject{}}},
+                      f) == FileStatus::Unreadable);
+  // One that may be left out must still be of its kind when there.
+  CHECK(
+      checkFileFormat(
+          {{"format", "v-cube.test"}, {"sessions", QJsonArray{}}, {"extra", 3}},
+          f) == FileStatus::Unreadable);
+  // A newer file is still a newer file, whatever it holds.
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 2}}, f) ==
+        FileStatus::Newer);
+
+  // So a sessions file without its sessions is set aside, where it used
+  // to be read as one empty session and saved over.
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  const QByteArray text = R"({"format": "v-cube.sessions", "version": 1})";
+  writeText(path, text);
+  SessionStore store(path);
+  CHECK_FALSE(store.load(&error));
+  REQUIRE_FALSE(store.setAsidePath().isEmpty());
+  CHECK(readText(store.setAsidePath()) == text);
+}
+
+TEST_CASE("numbers in a file are kept within what can be worked with") {
+  CHECK(jsonInt64(QJsonValue(1500)) == 1500);
+  CHECK(jsonInt64(QJsonValue(-5)) == 0);
+  CHECK(jsonInt64(QJsonValue("12")) == 0);
+  CHECK(jsonInt64(QJsonValue()) == 0);
+  CHECK(jsonInt64(QJsonValue(1e300)) == kMaxFileNumber);
+
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  writeText(path, R"({"format": "v-cube.sessions", "version": 1, "sessions":
+    [{"name": "s", "solves": [[1e300, 0, "", "", -7, "", [1e300, -1]]]}]})");
+  SessionStore store(path);
+  REQUIRE(store.load());
+  REQUIRE(store.current().solves.size() == 1);
+  const Solve &solve = store.current().solves.front();
+  CHECK(solve.timeMs == kMaxFileNumber);
+  CHECK(solve.timestamp == 0);
+  CHECK(solve.moveTimes == std::vector<std::int64_t>{kMaxFileNumber, 0});
+
+  // A card's numbers too.
+  SetProgress p = progressFromJson(QJsonDocument::fromJson(R"({"cases": {"a":
+    {"card": {"step": -3, "ease": 1e9, "interval": -2, "reps": -1,
+              "lapses": -1, "due": 1e300}}}})")
+                                       .object());
+  REQUIRE(p.contains("a"));
+  CHECK(p.at("a").card.step == 0);
+  CHECK(p.at("a").card.ease == 10.0);
+  CHECK(p.at("a").card.intervalDays == 0.0);
+  CHECK(p.at("a").card.reps == 0);
+  CHECK(p.at("a").card.lapses == 0);
+  CHECK(p.at("a").card.due == kMaxFileNumber);
 }
 
 TEST_CASE("files from a newer version are kept and not saved over") {

@@ -69,6 +69,10 @@ public:
 
   std::vector<ErgoProfile> &profiles() { return profiles_; }
   const std::vector<ErgoProfile> &profiles() const { return profiles_; }
+  // `name`, or `name` with a number after it, such that no profile but
+  // the one at `except` has it: profiles are chosen by name.
+  std::string uniqueProfileName(std::string name,
+                                std::optional<std::size_t> except = {}) const;
   // The profile with this name, else the first.
   const ErgoProfile &profile(std::string_view name) const;
 

@@ -372,6 +372,7 @@ private:
   QScrollArea *detailScroll_ = nullptr;
   QScrollArea *choiceScroll_ = nullptr;
   QTimer tick_;
+  int demoPlays_ = 0; // how many demos were played, to tell them apart
 
   bool hasCards() const { return !cardPool().empty(); }
   // The tab's solves are of the whole step.
