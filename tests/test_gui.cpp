@@ -2068,6 +2068,17 @@ void GuiTest::pagesTakeTheKeyboard() {
   QCOMPARE(tables.size(), 2);
   QCOMPARE(tables[0]->visualItemRect(tables[0]->topLevelItem(0)).height(),
            tables[1]->visualItemRect(tables[1]->topLevelItem(0)).height());
+  // A refresh with the same sets writes the rows in place: the items and
+  // their buttons stay (and so the scroll position and the mouse's button).
+  QTreeWidgetItem *firstRow = tables[0]->topLevelItem(0);
+  QWidget *firstButton = tables[0]->itemWidget(firstRow, 5);
+  QTreeWidgetItem *firstMode = tables[1]->topLevelItem(0);
+  QVERIFY(firstButton);
+  today->activated();
+  QCOMPARE(tables[0]->topLevelItem(0), firstRow);
+  QCOMPARE(tables[0]->itemWidget(firstRow, 5), firstButton);
+  QCOMPARE(tables[1]->topLevelItem(0), firstMode);
+  QVERIFY(!firstButton->findChild<QPushButton *>()->text().isEmpty());
   QTest::keyClick(window_.get(), Qt::Key_Down);
   QTreeWidgetItem *picked = tables[0]->currentItem();
   QVERIFY(picked && picked->isSelected());

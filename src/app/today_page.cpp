@@ -7,8 +7,6 @@
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
-#include "train/f2l.hpp"
-#include "train/tsle.hpp"
 
 #include <QDate>
 #include <QDateTime>
@@ -110,10 +108,12 @@ TodayPage::TodayPage(AppSettings &settings, const AlgLibrary &library,
                      const SessionStore &timed, const MoveCountStore &untimed,
                      const MoveCountStore &moveCounts, const AlgLabStore &lab,
                      const PracticeData &eoCross, const PracticeData &f2l,
-                     const PracticeData &tsle, QWidget *parent)
+                     const PracticeData &tsle, CardPool f2lPool,
+                     CardPool tslePool, QWidget *parent)
     : ModePage(parent), settings_(settings), library_(library), timed_(timed),
       untimed_(untimed), moveCounts_(moveCounts), lab_(lab), eoCross_(eoCross),
-      f2l_(f2l), tsle_(tsle) {
+      f2l_(f2l), tsle_(tsle), f2lPool_(std::move(f2lPool)),
+      tslePool_(std::move(tslePool)) {
   auto *layout = new QVBoxLayout(this);
   auto *title = new QLabel(tr("Today"), this);
   setTextRole(title, TextRole::Display, true);
@@ -366,101 +366,56 @@ void TodayPage::refresh() {
   // Learn.
   auto due = dueBySet();
   int dueTotal = 0;
-  const int rowH = rowHeight(this);
-  // The row picked stays picked.
-  QString pickedSet;
-  int pickedMode = -2;
-  if (QTreeWidgetItem *item = sets_->currentItem();
-      item && item->isSelected()) {
-    pickedSet = item->data(0, kSetIdRole).toString();
-    pickedMode = item->data(0, kModeRole).toInt();
-  }
+  // The rows of the sets table: each set's, then the cards of F2L and TSLE
+  // mode, which come in by themselves.
+  struct Row {
+    QString setId;
+    int mode = -1; // the practice mode's, or -1 for a set
+    QString name;
+    int due = 0, newLeft = 0, queued = 0, learned = 0;
+    QString go; // what its button says
+  };
+  std::vector<Row> rows;
   // What to do next: the first set or practice mode with new cases, and
   // the practice mode with the most due.
   QString firstNewSet, firstNewName;
   int practiceDue = 0, practiceDueMode = -1, firstNewMode = -1;
   QString practiceDueName, firstNewModeName;
-  sets_->clear();
   for (const AlgSet &set : library_.sets()) {
     const SetWaiting &d = due[set.id];
-    auto *item = new QTreeWidgetItem(sets_, {qs(set.name), count(d.due),
-                                             count(d.newLeft), count(d.queued),
-                                             count(d.learned)});
-    item->setData(0, kSetIdRole, qs(set.id));
-    item->setData(0, kModeRole, -1);
-    for (int c = 1; c < 5; ++c) {
-      item->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
-    }
-    if (d.due > 0) {
-      QFont f = item->font(1);
-      f.setBold(true);
-      item->setFont(1, f);
-    }
-    setRowHeight(item, rowH);
-    // What the set has waiting, as a button.
-    QString go = d.due > 0                       ? tr("Review due")
-                 : d.newLeft > 0 || d.queued > 0 ? tr("Learn new")
-                                                 : tr("Open");
-    auto *button = new QPushButton(go, sets_);
-    button->setFocusPolicy(Qt::NoFocus);
-    button->setAccessibleName(tr("%1: %2").arg(go, qs(set.name)));
-    QString id = qs(set.id);
-    connect(button, &QPushButton::clicked, this,
-            [this, id] { emit learnSetRequested(id); });
-    sets_->setItemWidget(item, 5, spacedButton(button, sets_));
+    rows.push_back({qs(set.id), -1, qs(set.name), d.due, d.newLeft, d.queued,
+                    d.learned,
+                    d.due > 0                       ? tr("Review due")
+                    : d.newLeft > 0 || d.queued > 0 ? tr("Learn new")
+                                                    : tr("Open")});
     dueTotal += d.due;
     if (firstNewSet.isEmpty() && d.newLeft > 0) {
-      firstNewSet = id;
+      firstNewSet = qs(set.id);
       firstNewName = qs(set.name);
     }
-    if (pickedMode == -1 && pickedSet == id) {
-      sets_->setCurrentItem(item);
-    }
   }
-  // The cards of F2L and TSLE mode, which come in by themselves.
-  const bool eo = methodFromId(saved::practice("f2l", "method", "zz-1")
-                                   .get()
-                                   .toString()
-                                   .toStdString())
-                      .transform([](F2LMethod m) {
-                        return m == F2LMethod::ZZMinus1 || m == F2LMethod::ZZ;
-                      })
-                      .value_or(true);
   struct Practice {
     int mode;
     QString name;
     const PracticeData &data;
-    std::vector<std::string> pool;
+    const CardPool &pool;
   };
   for (const Practice &p :
-       {Practice{AppMode::F2L, tr("F2L pairs"), f2l_,
-                 pairCardPool(eo ? Edges::Oriented : Edges::Any)},
-        Practice{AppMode::Tsle, tr("TSLE cases"), tsle_, tsleCardPool()}}) {
-    const PracticeWaiting w =
-        practiceWaiting(p.pool, p.data.cards, unixNow(), localDayStart(),
-                        localDayEnd(), settings_.srs);
-    auto *item = new QTreeWidgetItem(
-        sets_, {p.name, count(w.due), count(w.newLeft),
-                count(w.total - w.started), count(w.learned)});
-    item->setData(0, kModeRole, p.mode);
-    for (int c = 1; c < 5; ++c) {
-      item->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
-    }
-    if (w.due > 0) {
-      QFont f = item->font(1);
-      f.setBold(true);
-      item->setFont(1, f);
-    }
-    setRowHeight(item, rowH);
-    QString go = w.due > 0       ? tr("Review due")
-                 : w.newLeft > 0 ? tr("Learn new")
-                                 : tr("Open");
-    auto *button = new QPushButton(go, sets_);
-    button->setFocusPolicy(Qt::NoFocus);
-    button->setAccessibleName(tr("%1: %2").arg(go, p.name));
-    connect(button, &QPushButton::clicked, this,
-            [this, mode = p.mode] { emit practiceRequested(mode); });
-    sets_->setItemWidget(item, 5, spacedButton(button, sets_));
+       {Practice{AppMode::F2L, tr("F2L pairs"), f2l_, f2lPool_},
+        Practice{AppMode::Tsle, tr("TSLE cases"), tsle_, tslePool_}}) {
+    const PracticeWaiting w = practiceWaiting(
+        p.pool ? p.pool() : std::vector<std::string>{}, p.data.cards, unixNow(),
+        localDayStart(), localDayEnd(), settings_.srs);
+    rows.push_back({{},
+                    p.mode,
+                    p.name,
+                    w.due,
+                    w.newLeft,
+                    w.total - w.started,
+                    w.learned,
+                    w.due > 0       ? tr("Review due")
+                    : w.newLeft > 0 ? tr("Learn new")
+                                    : tr("Open")});
     if (w.due > practiceDue) {
       practiceDue = w.due;
       practiceDueMode = p.mode;
@@ -470,15 +425,77 @@ void TodayPage::refresh() {
       firstNewMode = p.mode;
       firstNewModeName = p.name;
     }
-    if (pickedMode == p.mode) {
-      sets_->setCurrentItem(item);
+  }
+
+  // The table is made again only when its rows changed (a set added,
+  // removed or moved): a refresh otherwise writes the counts in place, so
+  // that the list keeps its scroll position and the buttons stay under
+  // the mouse.
+  bool same = sets_->topLevelItemCount() == static_cast<int>(rows.size());
+  for (int i = 0; same && i < sets_->topLevelItemCount(); ++i) {
+    const QTreeWidgetItem *item = sets_->topLevelItem(i);
+    const Row &r = rows[static_cast<std::size_t>(i)];
+    same = item->data(0, kModeRole).toInt() == r.mode &&
+           item->data(0, kSetIdRole).toString() == r.setId;
+  }
+  if (!same) {
+    // The row picked stays picked.
+    QString pickedSet;
+    int pickedMode = -2;
+    if (QTreeWidgetItem *item = sets_->currentItem();
+        item && item->isSelected()) {
+      pickedSet = item->data(0, kSetIdRole).toString();
+      pickedMode = item->data(0, kModeRole).toInt();
+    }
+    const int rowH = rowHeight(this);
+    sets_->clear();
+    for (const Row &r : rows) {
+      auto *item = new QTreeWidgetItem(sets_);
+      item->setData(0, kSetIdRole, r.setId);
+      item->setData(0, kModeRole, r.mode);
+      for (int c = 1; c < 5; ++c) {
+        item->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
+      }
+      setRowHeight(item, rowH);
+      // What the row has waiting, as a button.
+      auto *button = new QPushButton(sets_);
+      button->setFocusPolicy(Qt::NoFocus);
+      if (r.mode < 0) {
+        connect(button, &QPushButton::clicked, this,
+                [this, id = r.setId] { emit learnSetRequested(id); });
+      } else {
+        connect(button, &QPushButton::clicked, this,
+                [this, mode = r.mode] { emit practiceRequested(mode); });
+      }
+      sets_->setItemWidget(item, 5, spacedButton(button, sets_));
+      if (pickedMode == r.mode && (r.mode >= 0 || pickedSet == r.setId)) {
+        sets_->setCurrentItem(item);
+      }
+    }
+    if (QTreeWidgetItem *item = sets_->currentItem(); item && pickedMode > -2) {
+      item->setSelected(true);
+    } else {
+      sets_->setCurrentItem(nullptr);
+      sets_->clearSelection();
     }
   }
-  if (QTreeWidgetItem *item = sets_->currentItem(); item && pickedMode > -2) {
-    item->setSelected(true);
-  } else {
-    sets_->setCurrentItem(nullptr);
-    sets_->clearSelection();
+  for (int i = 0; i < sets_->topLevelItemCount(); ++i) {
+    QTreeWidgetItem *item = sets_->topLevelItem(i);
+    const Row &r = rows[static_cast<std::size_t>(i)];
+    item->setText(0, r.name);
+    item->setText(1, count(r.due));
+    item->setText(2, count(r.newLeft));
+    item->setText(3, count(r.queued));
+    item->setText(4, count(r.learned));
+    QFont f = item->font(1);
+    f.setBold(r.due > 0);
+    item->setFont(1, f);
+    if (QWidget *cell = sets_->itemWidget(item, 5)) {
+      if (auto *button = cell->findChild<QPushButton *>()) {
+        button->setText(r.go);
+        button->setAccessibleName(tr("%1: %2").arg(r.go, r.name));
+      }
+    }
   }
   dueTotal_ = dueTotal;
 
@@ -532,8 +549,7 @@ void TodayPage::refresh() {
   std::int64_t week =
       QDateTime(date.addDays(-6), QTime(0, 0)).toSecsSinceEpoch();
   auto activity = summarizeActivity(all, AppMode::Count, today, week);
-  modes_->clear();
-  static const std::pair<int, const char *> rows[] = {
+  static const std::pair<int, const char *> modeRows[] = {
       {AppMode::Learn, QT_TR_NOOP("Learn (cases)")},
       {AppMode::Drill, QT_TR_NOOP("Drill (cases)")},
       {AppMode::AlgLab, QT_TR_NOOP("Alg Lab (algs timed)")},
@@ -544,33 +560,44 @@ void TodayPage::refresh() {
       {AppMode::F2L, QT_TR_NOOP("F2L (cards and solves)")},
       {AppMode::Tsle, QT_TR_NOOP("TSLE (cards and solves)")},
   };
-  ActivityTotals dayTotal, weekTotal;
-  for (const auto &[mode, label] : rows) {
-    const ModeActivity &a = activity[static_cast<std::size_t>(mode)];
-    auto *item = new QTreeWidgetItem(
-        modes_, {tr(label), count(a.today.count), duration(a.today.ms),
-                 count(a.week.count), duration(a.week.ms)});
-    for (int c = 1; c < 5; ++c) {
-      item->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
+  constexpr int kModeRows = static_cast<int>(std::size(modeRows));
+  // The rows never change: they are made once, then written in place.
+  if (modes_->topLevelItemCount() != kModeRows + 1) {
+    modes_->clear();
+    const int rowH = rowHeight(this);
+    for (int i = 0; i <= kModeRows; ++i) {
+      auto *item = new QTreeWidgetItem(modes_);
+      for (int c = 1; c < 5; ++c) {
+        item->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
+      }
+      setRowHeight(item, rowH);
     }
-    setRowHeight(item, rowH);
+    QTreeWidgetItem *total = modes_->topLevelItem(kModeRows);
+    for (int c = 0; c < 5; ++c) {
+      QFont f = total->font(c);
+      f.setBold(true);
+      total->setFont(c, f);
+    }
+  }
+  auto fill = [](QTreeWidgetItem *item, const QString &label,
+                 const ActivityTotals &day, const ActivityTotals &days7) {
+    item->setText(0, label);
+    item->setText(1, count(day.count));
+    item->setText(2, duration(day.ms));
+    item->setText(3, count(days7.count));
+    item->setText(4, duration(days7.ms));
+  };
+  ActivityTotals dayTotal, weekTotal;
+  for (int i = 0; i < kModeRows; ++i) {
+    const auto &[mode, label] = modeRows[i];
+    const ModeActivity &a = activity[static_cast<std::size_t>(mode)];
+    fill(modes_->topLevelItem(i), tr(label), a.today, a.week);
     dayTotal.count += a.today.count;
     dayTotal.ms += a.today.ms;
     weekTotal.count += a.week.count;
     weekTotal.ms += a.week.ms;
   }
-  auto *total = new QTreeWidgetItem(
-      modes_, {tr("All modes"), count(dayTotal.count), duration(dayTotal.ms),
-               count(weekTotal.count), duration(weekTotal.ms)});
-  setRowHeight(total, rowH);
-  for (int c = 0; c < 5; ++c) {
-    QFont f = total->font(c);
-    f.setBold(true);
-    total->setFont(c, f);
-    if (c > 0) {
-      total->setTextAlignment(c, Qt::AlignRight | Qt::AlignVCenter);
-    }
-  }
+  fill(modes_->topLevelItem(kModeRows), tr("All modes"), dayTotal, weekTotal);
 
   // Streak.
   std::vector<std::int64_t> times;

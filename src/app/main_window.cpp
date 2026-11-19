@@ -305,10 +305,11 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   f2lPage_ =
       new F2LPage(settings_, data_.library, data_.lab, data_.dataDir(), stack_);
   tslePage_ = new TslePage(settings_, data_.dataDir(), stack_);
-  todayPage_ =
-      new TodayPage(settings_, data_.library, data_.sessions, data_.untimed,
-                    data_.moveCounts, data_.lab, eoCrossPage_->data(),
-                    f2lPage_->data(), tslePage_->data(), stack_);
+  todayPage_ = new TodayPage(
+      settings_, data_.library, data_.sessions, data_.untimed, data_.moveCounts,
+      data_.lab, eoCrossPage_->data(), f2lPage_->data(), tslePage_->data(),
+      [f2l = f2lPage_] { return f2l->cardPool(); },
+      [tsle = tslePage_] { return tsle->cardPool(); }, stack_);
   pages_ = {learnPage_,   drillPage_,     libraryPage_, timedPage_,
             untimedPage_, moveCountPage_, eoCrossPage_, algLabPage_,
             f2lPage_,     tslePage_,      todayPage_};
