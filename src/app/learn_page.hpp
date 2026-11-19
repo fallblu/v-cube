@@ -66,6 +66,7 @@ public:
   void applySettings() override;
   void activated() override;
   void deactivated() override;
+  void aboutToClose() override;
 
 signals:
   // Done for now: drill the set (its weakest cases, when it was drilled).
@@ -145,6 +146,12 @@ private:
   QPushButton *listButton_;
   QSplitter *split_;
   QTimer idleTimer_; // with nothing due: looks again when a card falls due
+  // The splitters moved since their sizes were last saved, and the pause
+  // after which they are.
+  QTimer layoutTimer_;
+  bool splitMoved_ = false;
+  bool rightSplitMoved_ = false;
+  void saveSplitters();
 
   std::optional<AlgGuide> guide_;
   std::optional<ContextPractice> context_;

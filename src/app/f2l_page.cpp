@@ -448,12 +448,8 @@ AnalysisOptions F2LPage::analysisOptions() const {
   return o;
 }
 
-double F2LPage::costOf(const Alg &moves) const {
-  return solutionCost(moves, analysisOptions());
-}
-
-double F2LPage::compareCost(const Alg &moves) const {
-  return costOf(comparableSolution(moves));
+double F2LPage::compareCost(const Alg &moves, const AnalysisOptions &options) {
+  return solutionCost(comparableSolution(moves), options);
 }
 
 bool F2LPage::wholeReady() const {
@@ -561,12 +557,12 @@ std::optional<Alg> F2LPage::chosenHere(const Alg &chosen) const {
 
 // --- the pairs of a whole solve ----------------------------------------------
 
-QString F2LPage::pairLine(std::size_t i) const {
+QString F2LPage::pairLine(std::size_t i, const AnalysisOptions &options) const {
   const F2LSegment &seg = segments_[i];
   const QString name = "<b>" + slotsText(seg.solved) + "</b>";
   Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
             item().moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
-  const double cost = costOf(moves);
+  const double cost = solutionCost(moves, options);
   if (seg.solved.size() != 1) {
     return tr("%1 together, cost %2").arg(name, costText(cost));
   }
@@ -596,9 +592,10 @@ void F2LPage::updateProgress() {
   if (tab() != Tab::Untimed) {
     return;
   }
+  const AnalysisOptions options = analysisOptions();
   QStringList lines;
   for (std::size_t i = 0; i < segments_.size(); ++i) {
-    lines << pairLine(i);
+    lines << pairLine(i, options);
   }
   setProgress(lines);
 }
@@ -673,6 +670,7 @@ QString F2LPage::demoText() {
 
 PracticePage::Outcome F2LPage::judge() {
   Outcome o;
+  const AnalysisOptions options = analysisOptions();
   if (target_) {
     // One pair, against the solutions chosen for it (that the method
     // allows).
@@ -686,16 +684,16 @@ PracticePage::Outcome F2LPage::judge() {
     }
     double cheapest = std::numeric_limits<double>::infinity();
     for (const Alg &c : chosen) {
-      cheapest = std::min(cheapest, compareCost(c));
+      cheapest = std::min(cheapest, compareCost(c, options));
     }
     if (std::optional<Alg> first = chosenHere(chosen.front())) {
       o.best = *first;
       o.bestLabel = chosen.size() > 1 ? tr("Your first") : tr("Yours");
-      o.bestText =
-          algText(*first) +
-          QString(" <span style='font-weight:normal'>(%1, %2)</span>")
-              .arg(movesText(htmCount(*first)),
-                   tr("cost %1").arg(costText(compareCost(chosen.front()))));
+      o.bestText = algText(*first) +
+                   QString(" <span style='font-weight:normal'>(%1, %2)</span>")
+                       .arg(movesText(htmCount(*first)),
+                            tr("cost %1").arg(costText(
+                                compareCost(chosen.front(), options))));
       o.bestMoves = htmCount(*first);
     }
     if (item().gaveUp) {
@@ -706,7 +704,7 @@ PracticePage::Outcome F2LPage::judge() {
         slotToSide(fixedFrame(item().moves), card_->side, *target_));
     const std::optional<std::size_t> match =
         matchChosen(item().moves, card_->side, *target_, chosen);
-    const double mine = costOf(tryAsChosen_);
+    const double mine = solutionCost(tryAsChosen_, options);
     o.moves = htmCount(simplify(item().moves));
     o.extra = std::max(0.0, mine - cheapest);
     o.good = match.has_value() || mine <= cheapest + kSameCost;
@@ -763,7 +761,7 @@ PracticePage::Outcome F2LPage::judge() {
     o.verdict = coloured(kFailColour, tr("Not finished"));
     return o;
   }
-  const double cost = costOf(item().moves);
+  const double cost = solutionCost(item().moves, options);
   o.verdict = tr("F2L in %1, cost %2").arg(movesText(o.moves), costText(cost));
   if (plan) {
     // Against the cheapest way found from the start: what the pairs
@@ -832,6 +830,7 @@ QString F2LPage::chosenHtml() const {
   const std::size_t unusable =
       chosenSolutions(item().card).size() - chosen.size();
   const QString muted = mutedColour();
+  const AnalysisOptions options = analysisOptions();
   const std::optional<std::size_t> match =
       item().gaveUp ? std::nullopt
                     : matchChosen(item().moves, card_->side, *target_, chosen);
@@ -848,7 +847,7 @@ QString F2LPage::chosenHtml() const {
                 "<td align='right' style='color:%3'>%4</td>"
                 "<td style='color:%3'>%5</td></tr>")
             .arg(playLink(shown, algText(shown)), movesText(htmCount(shown)),
-                 muted, costText(compareCost(chosen[i])),
+                 muted, costText(compareCost(chosen[i], options)),
                  match == i ? tr("yours this time") : QString());
   }
   html += "</table>";
@@ -876,12 +875,13 @@ QString F2LPage::wholeHtml() const {
             "</th><th align='left'>" + tr("Best pair then") + "</th></tr>";
   }
   const QString tick = coloured(kPassColour, QStringLiteral("✓"));
+  const AnalysisOptions options = analysisOptions();
   for (std::size_t i = 0; i < segments_.size(); ++i) {
     const F2LSegment &seg = segments_[i];
     Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
               item().moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
     Alg simple = simplify(moves);
-    double cost = costOf(moves);
+    double cost = solutionCost(moves, options);
     QString best, over, pick;
     auto found = ranks_.find(i);
     if (found != ranks_.end() && !found->second.empty()) {
@@ -1081,12 +1081,13 @@ void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
                           return comparableSolution(c.solution.alg) == key;
                         });
   };
-  auto add = [this](const Alg &alg, bool sheet, bool custom) {
+  const AnalysisOptions options = analysisOptions();
+  auto add = [this, &options](const Alg &alg, bool sheet, bool custom) {
     Candidate c;
     c.solution.alg = alg;
     c.solution.text = toString(alg);
     c.solution.htm = htmCount(comparableSolution(alg));
-    c.solution.cost = compareCost(alg);
+    c.solution.cost = compareCost(alg, options);
     c.sheet = sheet;
     c.custom = custom;
     auto at = std::find_if(
@@ -1221,7 +1222,7 @@ QString F2LPage::addOwnSolution(const QString &text) {
     c.solution.alg = asChosen;
     c.solution.text = toString(asChosen);
     c.solution.htm = htmCount(asChosen);
-    c.solution.cost = compareCost(asChosen);
+    c.solution.cost = compareCost(asChosen, analysisOptions());
     c.custom = true;
     candidates_.push_back(std::move(c));
     it = candidates_.end() - 1;

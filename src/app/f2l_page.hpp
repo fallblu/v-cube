@@ -175,17 +175,18 @@ private:
   void loadChoices();
   void saveChoices() const;
   void configChanged();
+  // Reads the score profile from the settings and copies it: asked for
+  // once by whatever compares several costs, not once per cost.
   AnalysisOptions analysisOptions() const;
-  double costOf(const Alg &moves) const;
   // The cost a solution is compared by: without the U turns at its ends.
-  double compareCost(const Alg &moves) const;
+  static double compareCost(const Alg &moves, const AnalysisOptions &options);
   void requestPair();
   void requestRanks(std::size_t segment, const CubieCube &before);
   void arrived(const Analysis &a);
   bool initiallySolvedKept(const CubieCube &c) const;
   bool wholeReady() const;
   void updateProgress();
-  QString pairLine(std::size_t segment) const;
+  QString pairLine(std::size_t segment, const AnalysisOptions &options) const;
   QString solutionsHtml(const std::vector<RankedSolution> &solutions) const;
   QString chosenHtml() const;
   QString wholeHtml() const;
