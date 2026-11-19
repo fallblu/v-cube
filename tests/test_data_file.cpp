@@ -66,6 +66,28 @@ TEST_CASE("file formats and versions are checked in one place") {
                         strict) == FileStatus::Unreadable);
 }
 
+TEST_CASE("a version beyond the range of int is newer, not unreadable") {
+  FileFormat strict{"v-cube.test", 2, false, "test file"};
+  QString error;
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1e10}}, strict,
+                        &error) == FileStatus::Newer);
+  CHECK(error.contains("10000000000"));
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1e300}},
+                        strict) == FileStatus::Newer);
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", -1e10}},
+                        strict) == FileStatus::Unreadable);
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1e10 + 0.5}},
+                        strict) == FileStatus::Unreadable);
+
+  // So such a file is left as it is.
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  QByteArray text = R"({"format": "v-cube.sessions", "version": 1e10,
+                        "sessions": []})";
+  SessionStore store(path);
+  checkNewerKept(path, text, store);
+}
+
 TEST_CASE("a file without its contents is unreadable, not empty") {
   static constexpr FileField fields[] = {{"sessions", true},
                                          {"extra", false, false}};
@@ -220,8 +242,8 @@ TEST_CASE("a progress file that can't be opened isn't saved over") {
     AlgLibrary lib(tmp.path(), kBuiltins);
     lib.load();
   }
-  // It is set aside like a file that can't be parsed, and so survives
-  // saving.
+  // It is left where it is (it may be fine once it can be opened), and
+  // saving is refused.
   QString path = tmp.filePath("progress/pll.json");
   writeText(path, R"({"cases": {}})");
   QFile::setPermissions(path, QFileDevice::Permissions{});
@@ -234,14 +256,11 @@ TEST_CASE("a progress file that can't be opened isn't saved over") {
   REQUIRE(lib.errors().size() == 1);
   CHECK(lib.errors().front().contains("pll.json"));
   lib.progress("pll")["T"].record({100, 1500, false});
-  lib.saveProgress("pll");
-  QStringList kept =
-      filesStarting(tmp.filePath("progress"), "pll.json.unreadable-");
-  REQUIRE(kept.size() == 1);
-  QString keptPath = tmp.filePath("progress/" + kept.front());
-  QFile::setPermissions(keptPath,
-                        QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-  CHECK(readText(keptPath) == R"({"cases": {}})");
+  CHECK_FALSE(lib.saveProgress("pll"));
+  CHECK(filesStarting(tmp.filePath("progress"), "pll.json.unreadable-")
+            .isEmpty());
+  QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+  CHECK(readText(path) == R"({"cases": {}})");
 }
 
 TEST_CASE("alg sets from a newer version are reported and left alone") {

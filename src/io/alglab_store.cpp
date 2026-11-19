@@ -1,5 +1,7 @@
 #include "io/alglab_store.hpp"
 
+#include "io/json_values.hpp"
+
 #include <QJsonArray>
 #include <QRandomGenerator>
 
@@ -288,7 +290,7 @@ AlgLabData algLabFromJson(const QJsonObject &o) {
       cand.alg = str(j["alg"]);
       cand.source = candidateSourceFromId(str(j["source"]))
                         .value_or(CandidateSource::Typed);
-      cand.added = j["added"].toInteger();
+      cand.added = jsonInt64(j["added"]);
       if (!cand.alg.empty()) {
         cc.candidates.push_back(std::move(cand));
       }
@@ -305,12 +307,12 @@ AlgLabData algLabFromJson(const QJsonObject &o) {
     a.key = *key;
     a.alg = str(j["alg"]);
     a.cube = cubeKindFromId(str(j["cube"])).value_or(CubeKind::Physical);
-    a.timeMs = std::max<qint64>(0, j["time"].toInteger());
+    a.timeMs = jsonInt64(j["time"]);
     a.dnf = j["dnf"].toBool(false);
     a.deviated = j["deviated"].toBool(false);
     a.include = j["include"].toBool(false);
     a.session = str(j["session"]);
-    a.timestamp = j["timestamp"].toInteger();
+    a.timestamp = jsonInt64(j["timestamp"]);
     a.scramble = str(j["scramble"]);
     a.moves = str(j["moves"]);
     d.attempts.push_back(std::move(a));

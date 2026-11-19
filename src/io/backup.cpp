@@ -18,9 +18,46 @@ bool fail(QString *error, const QString &why) {
   return false;
 }
 
+// Whether `path` is `dir` or inside it, both canonical: by case where the
+// file system usually ignores it.
+bool isInside(const QString &path, const QString &dir) {
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+  constexpr Qt::CaseSensitivity cs = Qt::CaseInsensitive;
+#else
+  constexpr Qt::CaseSensitivity cs = Qt::CaseSensitive;
+#endif
+  QString prefix = dir.endsWith('/') ? dir : dir + "/";
+  return path.compare(dir, cs) == 0 || path.startsWith(prefix, cs);
+}
+
+// The canonical path `path` has, or will have once made: links and case
+// are resolved in the part of it that exists.
+QString resolvedPath(const QString &path) {
+  QString p = QDir::cleanPath(QDir(path).absolutePath());
+  QStringList rest;
+  for (QFileInfo info(p); !info.exists(); info = QFileInfo(p)) {
+    QString parent = info.absolutePath();
+    if (parent == p) {
+      return p;
+    }
+    rest.prepend(info.fileName());
+    p = parent;
+  }
+  QString base = QFileInfo(p).canonicalFilePath();
+  if (base.isEmpty()) {
+    base = p;
+  }
+  for (const QString &part : rest) {
+    base = QDir(base).filePath(part);
+  }
+  return QDir::cleanPath(base);
+}
+
 // Copies the files under `from` to `to`, keeping the layout and skipping
-// the backup and deleted folders at any depth.
-bool copyTree(const QString &from, const QString &to, QString *error) {
+// the backup and deleted folders at any depth, and anything in `skip` (a
+// canonical path), such as the folder being copied to.
+bool copyTree(const QString &from, const QString &to, QString *error,
+              const QString &skip = {}) {
   QDir source(from);
   QDirIterator it(from, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
                   QDirIterator::Subdirectories);
@@ -31,6 +68,10 @@ bool copyTree(const QString &from, const QString &to, QString *error) {
     parts.removeLast();
     if (parts.contains(kBackupsFolder) || parts.contains(kDeletedFolder) ||
         rel.endsWith(".lock")) {
+      continue;
+    }
+    if (!skip.isEmpty() &&
+        isInside(QFileInfo(path).canonicalFilePath(), skip)) {
       continue;
     }
     QString dest = QDir(to).filePath(rel);
@@ -114,10 +155,10 @@ bool exportAllData(const QString &dataDir, const QString &settingsFile,
         error,
         QString("%1 already exists").arg(QDir::toNativeSeparators(target)));
   }
-  // The copy would find its own files to copy.
-  QString data = QDir::cleanPath(QDir(dataDir).absolutePath());
-  QString to = QDir::cleanPath(QDir(target).absolutePath());
-  if (to == data || to.startsWith(data + "/")) {
+  // The copy would find its own files to copy. Compared once links (and,
+  // where it is ignored, case) are resolved, before anything is made.
+  QString data = resolvedPath(dataDir);
+  if (isInside(resolvedPath(target), data)) {
     return fail(error, QString("%1 is inside the data folder")
                            .arg(QDir::toNativeSeparators(target)));
   }
@@ -126,7 +167,13 @@ bool exportAllData(const QString &dataDir, const QString &settingsFile,
         error,
         QString("%1 couldn't be made").arg(QDir::toNativeSeparators(target)));
   }
-  if (!copyTree(dataDir, QDir(target).filePath("data"), error)) {
+  // And the copy never walks into the folder it is filling.
+  QString to = QFileInfo(target).canonicalFilePath();
+  if (!to.isEmpty() && isInside(to, data)) {
+    return fail(error, QString("%1 is inside the data folder")
+                           .arg(QDir::toNativeSeparators(target)));
+  }
+  if (!copyTree(dataDir, QDir(target).filePath("data"), error, to)) {
     return false;
   }
   if (!settingsFile.isEmpty() && QFile::exists(settingsFile)) {

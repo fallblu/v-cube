@@ -22,10 +22,16 @@ constexpr auto kInstalledFile = "installed-builtins.json";
 // file names stay well within what file systems allow.
 constexpr qsizetype kMaxNewId = 80;
 
-// Why an alg-set file wasn't loaded; one that can't be read is set aside.
+// Why an alg-set file wasn't loaded; one that can't be read is set aside,
+// and one that can't be opened is left where it is.
 QString unreadableSetMessage(const QString &path, const QString &error,
                              FileStatus status) {
   QString file = QFileInfo(path).fileName();
+  if (status == FileStatus::CannotOpen) {
+    return QString("%1 wasn't loaded (%2), so it is left as it is; restart "
+                   "v-cube once it can be opened")
+        .arg(file, error);
+  }
   if (status != FileStatus::Unreadable) {
     return QString("%1: %2").arg(file, error);
   }
@@ -199,23 +205,37 @@ void AlgLibrary::load() {
     // the set is used without the slashes, which the file keeps until the
     // set is next saved. Its progress file is named the same either way.
     std::replace(set->id.begin(), set->id.end(), '/', '-');
-    auto same = std::find_if(sets_.begin(), sets_.end(),
-                             [&](const AlgSet &s) { return s.id == set->id; });
+    // Ids that differ only in case or punctuation ("ZZ F2L", "zz-f2l") would
+    // share one progress file, each saving over the other's: one set too.
+    QString sanitized = sanitizeId(set->id);
+    auto same = std::find_if(sets_.begin(), sets_.end(), [&](const AlgSet &s) {
+      return s.id == set->id || sanitizeId(s.id) == sanitized;
+    });
     if (same != sets_.end()) {
       // Two files of one set, such as a copy made in a file manager: keep
       // the one named for the id, so that edits never go over it from the
       // other, and leave the other alone.
-      QString canonical = sanitizeId(set->id) + ".json";
-      QString kept = QFileInfo(paths_[set->id]).fileName();
+      QString canonical = sanitized + ".json";
+      QString kept = QFileInfo(paths_[same->id]).fileName();
       QString skipped = file;
+      std::string keptId = same->id;
+      std::string skippedId = set->id;
       if (file == canonical && kept != canonical) {
         std::swap(kept, skipped);
+        std::swap(keptId, skippedId);
+        paths_.erase(same->id);
         *same = std::move(*set);
         paths_[same->id] = path;
       }
-      errors_ << QString("%1 has the same set id (\"%2\") as %3, so it was "
-                         "not loaded; give it another id or remove it")
-                     .arg(skipped, qs(same->id), kept);
+      errors_ << (keptId == skippedId
+                      ? QString("%1 has the same set id (\"%2\") as %3, so it "
+                                "was not loaded; give it another id or "
+                                "remove it")
+                            .arg(skipped, qs(keptId), kept)
+                      : QString("%1 has a set id (\"%2\") that shares its "
+                                "progress file with %3's (\"%4\"), so it was "
+                                "not loaded; give it another id or remove it")
+                            .arg(skipped, qs(skippedId), kept, qs(keptId)));
       continue;
     }
     paths_[set->id] = path;
@@ -461,6 +481,13 @@ SetProgress &AlgLibrary::loadedProgress(const std::string &setId) const {
     progressKeptOff_.insert(setId);
     errors_ << QString("progress/%1 can't be used (%2), so it is left as it "
                        "is and the set's progress isn't saved")
+                   .arg(file, r.error);
+  } else if (r.status == FileStatus::CannotOpen) {
+    // Maybe passing, so never set aside: left as it is, and not saved over.
+    progressKeptOff_.insert(setId);
+    errors_ << QString("progress/%1 can't be used (%2), so it is left as it "
+                       "is and the set's progress isn't saved; restart "
+                       "v-cube once it can be opened")
                    .arg(file, r.error);
   } else if (r.status == FileStatus::Unreadable) {
     QString kept = setAside(path);
