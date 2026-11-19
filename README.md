@@ -17,9 +17,9 @@ physical one. The practice modes are built around ZZ.
 | Solves | **Timed** | Timed solves with sessions, statistics, and cstimer import and export |
 | Solves | **Untimed** | Solves with no timer, with their move counts |
 | Solves | **Move Count** | Move efficiency for one step (EO to ZZ F2L, the cross, CFOP F2L) against the optimal |
-| Practice | **EO Cross** | The start of a ZZ solve: counting bad edges, choosing the axis, planning in inspection, and solving EO to EO Cross against the optimal solutions |
-| Practice | **F2L** | Solving a pair well, choosing which pair to do next, and whole F2Ls, against solutions searched for the state on the cube |
-| Practice | **TSLE** | ZZ-CT's last-slot step: every good trigger for each of the 104 cases |
+| Practice | **EO Cross** | The start of a ZZ solve, EO to EO Cross, from real scrambles: untimed against the optimal solutions (in view or planned and done blind), and timed |
+| Practice | **F2L** | Pair cases learned with spaced repetition against solutions searched for the state on the cube, and whole F2Ls untimed and timed |
+| Practice | **TSLE** | ZZ-CT's last-slot step: every good trigger for each case, learned with spaced repetition, and whole TSLEs untimed and timed |
 
 `Ctrl+0` to `Ctrl+9` and `Ctrl+-` switch modes in that order.
 

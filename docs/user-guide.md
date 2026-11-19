@@ -9,7 +9,7 @@ and `F1` in the app shows the current mode's.
 - [Solves](#solves): [Timed](#timed), [Untimed](#untimed),
   [Move Count](#move-count), [Review](#review),
   [scramble types](#scramble-types)
-- [Practice](#practice): [EO Cross](#eo-cross), [F2L](#f2l), [TSLE](#tsle)
+- [Practice](#practice): [Learn](#learn-1) and [Timed](#timed-1) tabs, [EO Cross](#eo-cross), [F2L](#f2l), [TSLE](#tsle)
 - [Colour neutrality](#colour-neutrality),
   [the virtual cube](#the-virtual-cube), [Settings](#settings)
 
@@ -27,18 +27,15 @@ The sidebar has **Today** and ten modes in three groups:
 The **Go** menu has them too. You can't switch modes while a solve or
 inspection is running.
 
-**Nothing timed starts by itself.** A mode that times a case from the
-moment it is shown opens on a ready page and shows nothing until you press
-`Space`. That covers Learn, every EO Cross drill, F2L's Pair solutions, Pair
-choice and Full F2L, and TSLE's Next trigger and Full TSLE. The ready page
-comes back when you return to the mode or pick a drill, set or option with
-the mouse; a case whose clock was running when you left is dropped,
-unrecorded. Timed, Drill and Alg Lab wait for Space or the first turn
-anyway.
+**Nothing timed starts by itself.** Learn times a case from the moment
+it is shown, so it opens on a ready page and shows nothing until you press
+`Space`. Timed, Drill, Alg Lab and the Timed tabs of EO Cross, F2L and
+TSLE wait for Space or the first turn anyway.
 
 - **Today** shows, for each alg set, the reviews due today, the new cases
   Learn can still bring in today, the cases queued and the cases learned.
-  It also shows your practice streak and what you did in each mode, with
+  The cards of F2L and TSLE mode are listed with the sets, with a button
+  that opens the mode's Learn tab. It also shows your practice streak and what you did in each mode, with
   the time spent, today and over the last 7 days. Each set has a button to
   review or learn it, and **Review all sets** reviews every set's due cases
   together. The sidebar's Today and Learn buttons show the number of
@@ -612,49 +609,104 @@ Timed and Untimed offer:
 
 ## Practice
 
-Three modes that take a ZZ solve a part at a time on the virtual cube.
-Each has its drills as tabs at the top, and a list on the left with your
-record per case or kind. In all three, after a result, Space goes on and
-Esc gives the same state again, unrecorded.
+Three modes that take a ZZ solve a step at a time: **EO Cross**, **F2L**
+and **TSLE**. They work the same way. Each has two tabs:
+
+- **Learn** is untimed and on the virtual cube. You solve at your own
+  pace, then see how it compares with the best solution.
+- **Timed** is the whole step against the clock, on the virtual cube or a
+  physical one.
+
+**States are what a solve gives you.** EO Cross starts from a random-state
+scramble, F2L from a random state with the cross (and EO) done, TSLE from
+a random last-slot state. Nothing is picked by how your last tries went.
+
+### Learn
+
+**Scope** (F2L and TSLE) picks what comes up:
+
+- **One pair** / **One trigger**: one case at a time. Each case is a
+  **card**, scheduled with spaced repetition exactly as an alg set's cases
+  are in the [Learn mode](#learn), with the same settings.
+- **Whole F2L** / **Whole TSLE**: the whole step, as practice. These
+  solves are kept, not graded.
+
+EO Cross has no finite list of cases, so it has no cards and no Scope:
+every solve is of the step chosen in **Step**.
+
+**Cards come in by themselves**, a few a day (*New cases per day* and
+*New cases learning at once* in Settings > Learn), easiest first. Each time:
+
+1. A **new case** is shown before you try it. `Enter` plays its best
+   solution on the cube, which is then put back; do it yourself and the
+   case is in. It comes back in a minute to do from memory. `Space` skips
+   the showing for a case you know.
+2. A **due case** is set up without its name. Solve it. `Tab` gives a
+   hint, `Backspace` gives up, `Esc` starts again.
+3. The card is graded **Good** when you solved it unaided and well, and
+   **Again** after a hint, giving up or a poor solution. `1`–`4` change
+   the grade to Again, Hard, Good or Easy.
+
+When nothing is due the page says when the next card is. `Space` takes a
+card in its learning steps early, and Scope's whole step is always there
+to practise.
+
+**After a solve** there is one line, the verdict, and the best solution
+under it. `Tab` opens the details; click a solution there to play it.
+`Enter` plays the best solution from the start, `Space` goes on, and `Esc`
+gives the same state again, unrecorded and ungraded.
+
+**The list** on the left shows the cards with when they are due (new, due,
+or in how long), their reviews and lapses. Double-click a case
+to practise it at once, ungraded. Above the list are the counts due, new
+left today and learned, and how your whole-step solves have gone lately.
+F2L and TSLE cards also appear in [Today](#the-window).
+
+### Timed
+
+Timed works exactly as [Drill](#drill) does, with the same settings
+(Settings > Drill):
+
+- **Virtual cube**: the state is shown and can only be turned as a whole.
+  A tap of `Space` arms the timer, the first face turn starts it, and it
+  stops by itself when the step is done. `Space` stops it early: a DNF
+  unless the step is done.
+- **Physical cube** (**Cube** in the bar): a scramble is shown. Hold
+  `Space` and let go to start; any key stops. Nothing can be checked, so
+  mark a DNF yourself.
+
+`Shift+Space` gives up. Afterwards `Backspace` toggles the DNF, `Delete`
+deletes the attempt, `Tab` opens the details, `Enter` plays the best
+solution, `Space` goes on and `Esc` gives the same state again,
+unrecorded.
+
+**The list** shows your solves, mean (of the last 12) and best per group,
+kept apart for the two cubes: per step in EO Cross, per method in F2L, per
+starting case in TSLE.
 
 ### EO Cross
 
-**What counts.** **Step** picks EO, EOLine, EO+1, EO+2 or EO Cross. A step
-may be done in any hold your [colour neutrality](#colour-neutrality)
-allows, on either EO axis. The cube is shown in your main hold; turn it as
-a whole to solve from another. Your moves (HTM) are compared with the
-**optimum**: the shortest solution over all those holds for the state on
-the cube.
+**Step** picks EO, EOLine, EO+1, EO+2 or EO Cross. A step may be done in
+any hold your [colour neutrality](#colour-neutrality) allows, on either EO
+axis. The cube is shown in your main hold; turn it as a whole to solve
+from another. Your moves (HTM) are compared with the **optimum**: the
+shortest solution over all those holds for the state on the cube.
 
-**The states** are random, grouped by **kind**: the number of edges bad
-for the front-back axis as first shown (0, 2, … 12). Kinds come up about
-as often as scrambles give them, and those that have gone badly more
-often. **Bad edges** in the bar pins one kind.
+**Solve** (Learn) is *In view*, or *Plan, then blind*: look at the cube
+(rotations only) and plan the step; the cube hides at your first face
+turn and you do the plan unseen. `Space` shows the cube again, and only
+then is the solve judged: not done if the step isn't.
 
-| Drill | What you do |
-| --- | --- |
-| **Bad edges** | Type how many edges are bad for the F/B axis, then Enter; with **Axes** set to *F/B and R/L*, the R/L count follows. The bad edges are then ringed (Tab rings the other axis's). |
-| **Axis choice** | Turn the cube to the hold you would solve from and press Space, within the inspection time. Every hold is listed with its optimum; the try records what your pick costs over the best. |
-| **Plan blind** | Look at the cube (rotations only) and plan the step. Space hides the cube, as does the inspection time running out, and you do the plan unseen. Space shows the cube: a DNF if the step isn't done, else your moves against the optimum. Esc while hidden starts the moves again. |
-| **Step solutions** | Solve the step in view. Tab gives a hint: the hold nearest the step, or the next move of an optimal solution. Esc puts the cube back; Backspace gives up. |
-| **Full EO Cross** | Solve a whole EO Cross, then see **where the moves went**: the solve is cut where EO, EO+1, EO+2 and EO Cross were first done, and each part shows its moves and what it **lost** (its moves less how much nearer EO Cross it brought the cube). |
-
-**Inspection** (Axis choice and Plan blind) is WCA (15 s, with the 8 s and
-12 s calls if Settings has them on), 5 to 30 s, or unlimited.
-
-**Afterwards** every hold is listed with its optimum and a few optimal
-solutions that aren't reorderings of each other. Click one or press its
-number (Enter for the first) to play it.
-
-**The list** shows each drill's kinds for the current step: tries,
-**Extra** (your moves over the optimum lately; a hint counts 2 more, giving
-up or a DNF 4) and mean time. Double-click a kind to practise only it.
+**The details** list every hold with its optimum and a few optimal
+solutions that aren't reorderings of each other. For an EO Cross they
+also show **where the moves went**: the solve is cut where EO, EO+1, EO+2
+and EO Cross were first done, and each part shows its moves and what it
+**lost** (its moves less how much nearer EO Cross it brought the cube).
 
 ### F2L
 
-Every state has the cross done, and your moves are compared with
-solutions searched for that exact state, so open slots get used and
-nothing depends on a case list.
+Your moves are compared with solutions searched for the exact state on
+the cube, so open slots get used and nothing depends on a case list.
 
 **The bar** sets the F2L of your method:
 
@@ -676,20 +728,17 @@ alg of your ZZ F2L set is listed with them and marked.
 The cube is in the **flat view** by default, which hides what a real cube
 hides: the back slots and the back of the top layer.
 
-| Drill | What you do |
-| --- | --- |
-| **Pair solutions** | Solve the pair ringed on the cube. Afterwards your moves and cost stand beside the best solutions; press a number to pick one, Enter to play it, ← → to step through. Tab while solving shows the best solution's next move (counted as hinted). **Pair** picks where in the solve the pair comes. |
-| **Pair choice** | Several pairs are open; solve the one you would do first. Pairs are ranked by **total**: the pair's best solution, plus the cheapest way through the rest, plus a penalty for pieces the flat view hides (2.0 unseen, 1.0 too little to identify). Your pick and your solution are judged separately. |
-| **Full F2L** | The whole F2L. Afterwards each pair is listed with your moves, the best solution from where you were, and the pair that would have been best to do then. |
-| **Case explorer** | The pair cases with their ranked solutions, set up in a slot of your choice. ↑ ↓ change case, Space gives another example. Nothing is recorded. |
-
-**The case list** has the 83 pair cases of a ZZ F2L (167 without EO), by
-where the corner and edge are, seen for the front-right slot. For each:
-how often you solved it, how far over the best solution you were lately (a
-hint counts 2.0, giving up 4.0) and your time. A case that is costly or
-slow against your others is marked **weak**, and Pair solutions brings it
-up more often. Double-click a case to explore it. Above the list are your
-Pair choice record and Full F2L averages.
+- **One pair** (Learn): the pair to solve is ringed, at some point of a
+  solve: other slots may be done already. There are 83 cards for a ZZ F2L
+  (167 without EO), by where the corner and edge are, seen for the
+  front-right slot. A try is **Good** when its cost is within 1.0 of the
+  best solution's. `Tab` shows a move more of the best solution each
+  time.
+- **Whole F2L** (Learn and Timed): the verdict gives your moves and cost,
+  and how far that was over the cheapest way found from the start (the
+  order of pairs and their solutions together). The details list each
+  pair with your moves, the best solution from where you were, and the
+  pair that would have been best to do then.
 
 ### TSLE
 
@@ -706,32 +755,24 @@ trigger per case; from every state it knows **every good trigger**:
   steps (triggers plus the closing OCLL). No case needs more than three.
 - The **best** is the good trigger with the fewest moves to the end from
   the current AUF.
-- Where a way with one more step has fewer moves in all, the list says so,
-  but it doesn't count as good.
+- Where a way with one more step has fewer moves in all, the details say
+  so, but it doesn't count as good.
 
 **Last slot** picks the slots practised (FR and FL by default). Each
-attempt uses one at random, with that slot's triggers (`L' U L` for
+state uses one at random, with that slot's triggers (`L' U L` for
 front-left); a case is tracked once whatever the slot. OCLL algs are shown
 as written, never mirrored, and **OCLL algs…** changes them.
 
-| Drill | What you do |
-| --- | --- |
-| **Guided intro** | Brings the cases in one at a time, fewest steps first. Each good trigger is shown with the cube turned so it needs no AUF: Enter shows it, then you do it. Then you pick the best trigger from two random AUFs. Space skips a case you know. |
-| **Next trigger** | A state at a random AUF: do the next step. It is judged the best trigger, a good one that costs more moves, or not good, and every good trigger is listed with what it leaves. Tab shows the best step; Backspace gives up. |
-| **Full TSLE** | The whole step, timed. Afterwards each trigger is listed with its verdict and the best one at that point. |
-| **Case explorer** | Pick a case; Space turns it to its next AUF. The list of good triggers follows the cube as you do triggers, down to the end. Nothing is recorded. |
+- **One trigger** (Learn): a case at a random AUF; do the next step. There
+  are 97 cards, the cases with fewest steps left first (the OCLLs are
+  known algs and have none). Any good trigger is **Good**; the verdict
+  says whether it was the best from that AUF. `Tab` shows the best step.
+- **Whole TSLE** (Learn and Timed): the whole step, through the closing
+  OCLL. The details compare it trigger by trigger.
 
-**Cases** (Next trigger and Full TSLE) is *Introduced* by default: only
-cases Guided intro has covered come up, weak ones more often. *All* opens
-every case. Guided intro opens the two-step cases once the one-step cases
-are solid (all introduced, three quarters tried and not weak), and the
-three-step ones likewise.
-
-**The case list** groups cases by steps left, drawn for the front-right
-slot with the edge at UF. A name such as `UF CW 0120` gives the edge (UF,
-or FR for in the slot), the slot corner's place (N oriented, CW, CCW) and
-the twists at URF, UFL, ULB and UBR. **Extra** is your moves over the best
-way lately; a trigger that isn't good counts 3, a hint 2 more, giving up 4.
+A name such as `UF CW 0120` gives the edge (UF, or FR for in the slot),
+the slot corner's place (N oriented, CW, CCW) and the twists at URF, UFL,
+ULB and UBR.
 
 ## Colour neutrality
 
