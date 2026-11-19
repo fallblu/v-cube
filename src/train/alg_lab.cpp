@@ -287,6 +287,30 @@ LabStats labStats(std::span<const LabAttempt> attempts, const LabCaseKey &key,
   return statsOf(timed, trimPercent, inWindow, deviated);
 }
 
+LabAttemptGroups::LabAttemptGroups(std::span<const LabAttempt> attempts) {
+  for (const auto &a : attempts) {
+    groups_[{a.key, a.alg}].push_back(a);
+  }
+}
+
+LabAttemptGroups::LabAttemptGroups(std::span<const LabAttempt> attempts,
+                                   const LabCaseKey &key) {
+  for (const auto &a : attempts) {
+    if (a.key == key) {
+      groups_[{a.key, a.alg}].push_back(a);
+    }
+  }
+}
+
+std::span<const LabAttempt> LabAttemptGroups::of(const LabCaseKey &key,
+                                                 const std::string &alg) const {
+  auto it = groups_.find({key, alg});
+  if (it == groups_.end()) {
+    return {};
+  }
+  return it->second;
+}
+
 CubieCube labSetup(const CubieCube &state, const std::string &alg,
                    const PieceMask &free, bool aufBefore, bool aufAfter,
                    bool randomAuf, Rng &rng) {

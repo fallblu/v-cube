@@ -4,6 +4,7 @@
 #include "io/library.hpp"
 #include "train/algset.hpp"
 #include "train/case_logic.hpp"
+#include "train/move_set.hpp"
 
 #include <QColor>
 #include <QPixmap>
@@ -12,6 +13,7 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace vcube {
@@ -42,18 +44,49 @@ std::optional<ResolvedCase> resolveLabCase(const AlgLibrary &library,
 QPixmap labDiagram(const ResolvedCase &c, const AppSettings &settings, int size,
                    qreal dpr);
 
+// What a candidate's row shows that only its moves and its case decide.
+struct CandidateFacts {
+  std::string key; // labAlgKey() form
+  Alg moves;       // empty when it can't be read
+  MoveCounts counts;
+  bool rotations = false;
+  std::optional<AufFit> fit; // when it solves the case
+  QString shown;             // the alg with its AUFs, or why it fails
+};
+
+// The facts of the algs of one case, kept from one fill of the table to
+// the next: fitting an alg to its case is most of the work of a row. They
+// are of the case last asked about, and forgotten once another case, or
+// that case changed, is asked about.
+class CandidateCache {
+public:
+  // `alg` as it is written in the set or kept as a candidate.
+  const CandidateFacts &of(const ResolvedCase &c, const std::string &alg);
+
+private:
+  CubieCube state_;
+  PieceMask free_;
+  bool aufBefore_ = true;
+  bool aufAfter_ = true;
+  std::unordered_map<std::string, CandidateFacts> facts_;
+};
+
 // One candidate as the page lists it.
 struct CandidateRow {
   std::string alg; // labAlgKey() form
   CandidateSource source = CandidateSource::Typed;
-  bool inSet = false;        // the case's set has it
+  bool inSet = false; // the case's set has it
+  Alg moves;
+  MoveCounts counts;
+  bool rotations = false;
   std::optional<AufFit> fit; // when it solves the case
   QString shown;             // the alg with its AUFs, or why it fails
 };
 
 // The set's algs, then the kept candidates the set doesn't have.
 std::vector<CandidateRow> candidateRows(const ResolvedCase &c,
-                                        const AlgLabStore &store);
+                                        const AlgLabStore &store,
+                                        CandidateCache &cache);
 
 // A table cell that sorts by a number (missing values last) rather than
 // its text.
