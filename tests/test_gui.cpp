@@ -307,6 +307,7 @@ private slots:
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
+  void undoneDeletionKeepsProgressUnderANewId();
   void cleanupTestCase();
 };
 
@@ -2022,6 +2023,59 @@ void GuiTest::theSameKeyTwiceArrivesTwice() {
   QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 1);
   QApplication::sendEvent(window_.get(), &down);
   QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 2);
+}
+
+// A deleted set whose file name was taken before the undo comes back
+// under another id, with its progress.
+void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
+  auto *library = page<LibraryPage>();
+  QVERIFY(switchTo(AppMode::Library, library));
+  library->selectCase("pll", "T");
+  const std::size_t graded = savedProgress("pll").size();
+  QVERIFY(graded > 0);
+  QAction *deleteSet = nullptr;
+  for (QAction *a : library->findChildren<QAction *>()) {
+    if (a->text().remove('&').startsWith("Delete set")) {
+      deleteSet = a;
+    }
+  }
+  QVERIFY(deleteSet);
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *box = qobject_cast<QMessageBox *>(m)) {
+        box->button(QMessageBox::Yes)->click();
+      }
+    });
+    deleteSet->trigger();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  const QString sets = QDir(dataDir_).filePath("algsets");
+  const QString taken = QDir(sets).filePath("pll.json");
+  const QString oldProgress = QDir(sets).filePath("progress/pll.json");
+  finishBackgroundWrites();
+  QVERIFY(!QFile::exists(taken));
+  QVERIFY(!QFile::exists(oldProgress));
+  {
+    QFile other(taken);
+    QVERIFY(other.open(QIODevice::WriteOnly));
+    other.write("{}");
+  }
+
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  window_->setFocus();
+  QTest::keySequence(window_.get(), QKeySequence::Undo);
+  QVERIFY(QFile::remove(taken));
+  QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
+  QCOMPARE(savedProgress("pll-2").size(), graded);
+  QVERIFY(!QFile::exists(oldProgress));
+
+  // Redo deletes the set that came back, and undo brings it back again.
+  QTest::keySequence(window_.get(), QKeySequence::Redo);
+  QVERIFY(!QFile::exists(QDir(sets).filePath("pll-2.json")));
+  QTest::keySequence(window_.get(), QKeySequence::Undo);
+  QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
+  QCOMPARE(savedProgress("pll-2").size(), graded);
 }
 
 void GuiTest::cleanupTestCase() {
