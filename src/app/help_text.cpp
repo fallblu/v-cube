@@ -173,7 +173,9 @@ const std::vector<Section> &sections() {
         {T("nothing due"), T("Space / Enter"),
          T("look again; takes the next learning case early when that is all "
            "there is")},
-        {T("Recognise"), T("Space"), T("recalled the alg")},
+        {T("Recognise"), T("Space"),
+         T("recalled the alg (ignored for about 0.3 s after the case "
+           "appears)")},
         {T("Recognise"), T("Shift+Space"),
          T("can't recall it (the algs are shown)")},
         {T("Recognise, afterwards"), T("1-4 / Space or Enter"),

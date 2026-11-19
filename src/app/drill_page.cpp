@@ -526,7 +526,9 @@ void DrillPage::showStatus() {
     break;
   case Phase::Running:
     if (!virt) {
-      keys = {{tr("any key"), tr("stop")}, giveUp, {tr("Esc"), tr("cancel")}};
+      keys = {{tr("any key but Shift, Ctrl, Alt"), tr("stop")},
+              giveUp,
+              {tr("Esc"), tr("cancel")}};
     } else if (settings_.drill.autoStop) {
       message = tr("The timer stops when the step is done.");
       keys = {{tr("Space"), tr("stop now (a DNF unless done)")},

@@ -114,7 +114,9 @@ PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,
     break;
   case DrillFlow::Phase::Running:
     if (s.physical) {
-      keys = {{tr("any key"), tr("stop")}, giveUp, {"Esc", tr("cancel")}};
+      keys = {{tr("any key but Shift, Ctrl, Alt"), tr("stop")},
+              giveUp,
+              {"Esc", tr("cancel")}};
     } else if (drill.autoStop) {
       message = tr("The timer stops when the step is done.");
       keys = {{"Space", tr("stop now (a DNF unless done)")},

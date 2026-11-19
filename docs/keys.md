@@ -56,7 +56,7 @@ Before a solve starts, the cube only turns as a whole (rotations), so that a sli
 | walkthrough | Home or Esc | back to the start |
 | walkthrough | Space / Enter | do the case, with each next move shown |
 | nothing due | Space / Enter | look again; takes the next learning case early when that is all there is |
-| Recognise | Space | recalled the alg |
+| Recognise | Space | recalled the alg (ignored for about 0.3 s after the case appears) |
 | Recognise | Shift+Space | can't recall it (the algs are shown) |
 | Recognise, afterwards | 1-4 / Space or Enter | grade and go on / go on with the grade shown |
 | Which case? | 1-6 | answer |
