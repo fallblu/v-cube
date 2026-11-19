@@ -65,8 +65,8 @@ public:
 private:
   QString mode_;
   QStringList defaultHidden_;
-  QPushButton *tickAllButton_;
-  QPushButton *tickNoneButton_;
+  QPushButton *tickAllButton_ = nullptr;
+  QPushButton *tickNoneButton_ = nullptr;
   bool sortable_ = false;
   int sortColumn_ = -1; // -1: list order
   Qt::SortOrder sortOrder_ = Qt::DescendingOrder;

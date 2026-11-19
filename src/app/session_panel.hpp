@@ -138,15 +138,15 @@ signals:
   void undoClicked();
 
 private:
-  QToolButton *sessionButton_;
-  QMenu *menu_;
-  QLabel *stats_;
-  QTableView *table_;
-  AttemptTableModel *model_;
-  QWidget *deleteRow_;
-  QPushButton *deleteButton_;
-  QPushButton *undoButton_;
-  TrendChart *chart_;
+  QToolButton *sessionButton_ = nullptr;
+  QMenu *menu_ = nullptr;
+  QLabel *stats_ = nullptr;
+  QTableView *table_ = nullptr;
+  AttemptTableModel *model_ = nullptr;
+  QWidget *deleteRow_ = nullptr;
+  QPushButton *deleteButton_ = nullptr;
+  QPushButton *undoButton_ = nullptr;
+  TrendChart *chart_ = nullptr;
   QString hiddenKey_;
   bool statsClickable_ = false;
 
