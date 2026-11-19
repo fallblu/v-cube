@@ -212,10 +212,28 @@ TEST_CASE("drill: giving up a running solve keeps it deleted") {
   CHECK(f.giveUp(1700) == 500);
   CHECK_FALSE(f.gaveUpBeforeStart());
   f.finished(500, Result::GaveUp, std::nullopt, 1700);
-  CHECK(f.key(press(Key::Undo), 2100).action == Action::Delete);
+  // Ctrl+Z doesn't delete: it puts a deleted attempt back.
+  CHECK(f.key(press(Key::Undo), 2100).action == Action::Restore);
+  CHECK_FALSE(f.restored()); // nothing was deleted
+  CHECK(f.key(press(Key::Delete), 2100).action == Action::Delete);
   CHECK_FALSE(f.deleted()); // only the attempt goes
   CHECK(f.phase() == Phase::Revealed);
   CHECK_FALSE(f.recorded());
+  CHECK(f.key(press(Key::Undo), 2200).action == Action::Restore);
+  CHECK(f.restored());
+  CHECK(f.recorded());
+  CHECK(f.gaveUp());
+  // In practice too.
+  f.startPractice(true);
+  CHECK(f.key(press(Key::Delete), 2300).action == Action::Delete);
+  f.deleted();
+  CHECK(f.key(press(Key::Undo), 2300).action == Action::Restore);
+  CHECK(f.restored());
+  // Not once the next case is up.
+  f.key(press(Key::Delete), 2300);
+  f.deleted();
+  f.setUp(2400);
+  CHECK_FALSE(f.restored());
 }
 
 TEST_CASE("drill: Backspace gives up when Settings say so") {

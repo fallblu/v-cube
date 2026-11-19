@@ -1,4 +1,6 @@
 #include "app/timer_page.hpp"
+
+#include "app/key_router.hpp"
 #include "app/page_parts.hpp"
 #include "app/timer_private.hpp"
 
@@ -237,6 +239,7 @@ void TimerPage::showLastResult() {
 }
 
 void TimerPage::deactivated() {
+  justSolved_ = false;
   cubeView_->finishAnimations();
   tick_.stop();
   if (flow_.leave()) {
@@ -402,9 +405,15 @@ bool TimerPage::handleActionKey(QKeyEvent *e) {
   Qt::KeyboardModifiers mods = e->modifiers() & ~Qt::KeypadModifier;
   int key = e->key();
   int last = static_cast<int>(session().solves.size()) - 1;
-  // Backspace toggles the DNF, as in Drill and Alg Lab.
+  // Backspace toggles the DNF, as in Drill and Alg Lab: only on the solve
+  // just finished, so that it can't mark an older one unseen.
   if (mods == Qt::NoModifier && key == Qt::Key_Backspace && last >= 0) {
-    setLastPenalty(Penalty::Dnf);
+    if (justSolved_) {
+      setLastPenalty(Penalty::Dnf);
+    } else {
+      statusLabel_->setText(tr("Backspace marks a solve DNF right after it; "
+                               "Alt+3 toggles the DNF on the last solve."));
+    }
     return true;
   }
   if (mods == Qt::AltModifier) {
@@ -460,6 +469,11 @@ bool TimerPage::handleKey(QKeyEvent *e, bool press) {
       virt ? settings_.keymap.lookup(e) : std::optional<Move>();
   int key = e->key();
   std::int64_t now = monotonicMs();
+  // Any key but Backspace (and Shift, Ctrl, Alt alone) moves on from the
+  // solve just finished.
+  if (press && key != Qt::Key_Backspace && !isModifierKey(key)) {
+    justSolved_ = false;
+  }
 
   if (flow_.isRunning()) {
     if (press && key == Qt::Key_Escape) {
@@ -617,6 +631,7 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
   s.scramble = feed_.current() ? ss(feed_.current()->text) : std::string();
   s.timestamp = unixNow();
   session().solves.push_back(s);
+  justSolved_ = true;
   deleted_.forget();
   display_->showTime(timeMs, penalty);
   statusLabel_->clear();

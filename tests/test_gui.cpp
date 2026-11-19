@@ -1236,6 +1236,7 @@ void GuiTest::tsleLearnAndTimed() {
   }
   QCOMPARE(tsle->phase(), Phase::Solving);
   key = tsle->currentCard();
+  const CaseProgress before = tsle->data().cards.at(key);
   for (const TsleOption &o : options()) {
     if (!o.good) {
       typeMoves(o.alg);
@@ -1246,6 +1247,20 @@ void GuiTest::tsleLearnAndTimed() {
   QVERIFY(tsle->grade() == Grade::Again);
   QVERIFY(tsle->verdictHtml().contains("Not a good trigger"));
   QVERIFY(tsle->data().cards.at(key).attempts.back().failed);
+  // Ctrl+Z takes the grade back, as in Learn mode, and the case comes up
+  // again to be done over.
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  QVERIFY(tsle->data().cards.at(key) == before);
+  QCOMPARE(tsle->currentCard(), key);
+  QCOMPARE(tsle->phase(), Phase::Solving);
+  QVERIFY(tsle->graded());
+  for (const TsleOption &o : options()) {
+    if (!o.good) {
+      typeMoves(o.alg);
+      break;
+    }
+  }
+  QVERIFY(tsle->grade() == Grade::Again);
 
   // Untimed: the whole step, a line on each trigger; the best way to the
   // end is as short as it, typed a step at a time.
@@ -1609,6 +1624,22 @@ void GuiTest::timedPhysicalSolve() {
   QVERIFY(s.solves[0].penalty == Penalty::None);
   QVERIFY(!s.solves[0].scramble.empty());
   QVERIFY(s.solves[0].moves.empty());
+
+  // Backspace toggles the DNF on the solve just finished, and not once
+  // another key has been pressed.
+  auto penalty = [this] {
+    finishBackgroundWrites();
+    SessionStore store(QDir(dataDir_).filePath("sessions.json"));
+    return store.load() ? store.sessions().front().solves.back().penalty
+                        : Penalty::Plus2;
+  };
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QVERIFY(penalty() == Penalty::Dnf);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QVERIFY(penalty() == Penalty::None);
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QVERIFY(penalty() == Penalty::None);
 }
 
 void GuiTest::untimedVirtualSolve() {
@@ -1822,6 +1853,24 @@ void GuiTest::drillArmsAndStopsItself() {
   SetProgress p = savedProgress("pll");
   QCOMPARE(p["T"].drillCount(AttemptMode::VirtualDrill), std::size_t{1});
   QCOMPARE(p["T"].failRate(AttemptMode::VirtualDrill), 0.0);
+  // Delete deletes the attempt and Ctrl+Z (only by itself) puts it back,
+  // as in Timed.
+  QTest::qWait(DrillFlow::kGuardMs + 50);
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(savedProgress("pll")["T"].drillCount(AttemptMode::VirtualDrill),
+           std::size_t{0});
+  QTest::keyClick(window_.get(), Qt::Key_Z,
+                  Qt::ControlModifier | Qt::ShiftModifier);
+  QCOMPARE(savedProgress("pll")["T"].drillCount(AttemptMode::VirtualDrill),
+           std::size_t{0});
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  p = savedProgress("pll");
+  QCOMPARE(p["T"].drillCount(AttemptMode::VirtualDrill), std::size_t{1});
+  QCOMPARE(p["T"].failRate(AttemptMode::VirtualDrill), 0.0);
+  // Once more does nothing: it is back.
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  QCOMPARE(savedProgress("pll")["T"].drillCount(AttemptMode::VirtualDrill),
+           std::size_t{1});
 }
 
 void GuiTest::libraryAddsAnAlgAndUndoes() {
@@ -2008,7 +2057,7 @@ void GuiTest::practiceKeysFollowThePhase() {
   QCOMPARE(names(untimed(P::Done,
                          [](auto &s) { s.best = s.graded = s.chooser = true; },
                          {{"+", "add"}})),
-           QString("Space Enter Tab 1-4 + 0 Esc"));
+           QString("Space Enter Tab 1-4 Ctrl+Z + 0 Esc"));
   QCOMPARE(names(untimed(P::Done, asIs)), QString("Space Tab Esc"));
   // An Untimed or Inspection try just kept can be deleted.
   QCOMPARE(names(untimed(P::Done, [](auto &s) { s.recorded = true; })),
@@ -2031,6 +2080,8 @@ void GuiTest::practiceKeysFollowThePhase() {
       k.key = TrainKey::Escape;
     } else if (name == "Delete") {
       k.key = TrainKey::Delete;
+    } else if (name == "Ctrl+Z") {
+      k.key = TrainKey::Undo;
     } else if (name == "1-9" || name == "1-4" || name == "0") {
       k.key = TrainKey::Digit;
       k.digit = name == "0" ? 0 : 1;
@@ -2311,14 +2362,13 @@ void GuiTest::keysAreReadTheSameForEveryPage() {
   QVERIFY(trainKeyEvent(&repeat, true, KeyChords::Attempt).autoRepeat);
   QVERIFY(!trainKeyEvent(&repeat, false, KeyChords::Attempt).press);
 
-  // Ctrl+Z: nothing to the practice modes and Alg Lab, Undo in Drill and
-  // Learn whatever else is held, Undo in Untimed and Move Count only by
-  // itself.
+  // Ctrl+Z: nothing to Alg Lab, Undo in the rest only by itself
+  // (Ctrl+Shift+Z is Library's redo).
   const Qt::KeyboardModifiers ctrlShift =
       Qt::ControlModifier | Qt::ShiftModifier;
   QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::None).key, K::Other);
   QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::Undo).key, K::Undo);
-  QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Undo).key, K::Undo);
+  QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Undo).key, K::Other);
   QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::Attempt).key,
            K::Undo);
   QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Attempt).key, K::Other);

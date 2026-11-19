@@ -11,6 +11,7 @@
 #include "app/widgets.hpp"
 #include "io/practice_store.hpp"
 #include "train/drill_flow.hpp"
+#include "train/learn_session.hpp"
 #include "train/practice.hpp"
 #include "train/practice_flow.hpp"
 
@@ -328,6 +329,7 @@ private:
   bool demoShown_ = false; // the picture is ahead of the cube
   FaceletCube cube_;
   std::string lastCard_;
+  LearnUndoStack undo_;
   QString idleText_;
   QString note_; // said once under the verdict (a cancelled solve, ...)
   QFutureWatcher<GeneratedScramble> scrambles_;
@@ -367,6 +369,12 @@ private:
   // --- items
   void next(LearnAhead ahead = LearnAhead::WhenDue);
   void nextLearn(LearnAhead ahead);
+  // Puts a card's case on the cube to try (a new one is shown first);
+  // false if it can't be set up.
+  bool startCard(const std::string &card, bool isNew, bool graded);
+  // Ctrl+Z: takes back the last grade (or a new card shown), and the card
+  // comes up again.
+  void undoLast();
   void nextTimed();
   // Puts a set-up state on the cube as a new item.
   void begin(const Setup &setup, Extent extent);

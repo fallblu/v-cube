@@ -151,6 +151,14 @@ bool DrillFlow::setWrong(bool wrong) {
   return true;
 }
 
+bool DrillFlow::restored() {
+  if (recorded_ || !resultShown()) {
+    return false;
+  }
+  recorded_ = true;
+  return true;
+}
+
 bool DrillFlow::deleted() {
   recorded_ = false;
   if (!(gaveUp_ && gaveUpBeforeStart_)) {
@@ -368,8 +376,11 @@ Step DrillFlow::revealedKey(const KeyEvent &k) {
             0,
             {}};
   }
-  if (k.key == Key::Delete || k.key == Key::Undo) {
+  if (k.key == Key::Delete) {
     return used(Action::Delete);
+  }
+  if (k.key == Key::Undo) {
+    return used(Action::Restore);
   }
   if (k.key == Key::Space && k.shift) {
     // With Shift+Space giving up, Shift is still held from that: the
@@ -421,8 +432,11 @@ Step DrillFlow::practiceKey(const KeyEvent &k) {
     // The DNF stays open to change.
     return used(gaveUp_ ? Action::None : Action::ToggleWrong);
   }
-  if (k.key == Key::Delete || k.key == Key::Undo) {
+  if (k.key == Key::Delete) {
     return used(Action::Delete);
+  }
+  if (k.key == Key::Undo) {
+    return used(Action::Restore);
   }
   if (k.key == Key::Escape) {
     Step s = used(config_.virtualCube ? Action::PracticeReset : Action::None);

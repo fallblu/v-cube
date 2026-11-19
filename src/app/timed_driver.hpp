@@ -44,6 +44,8 @@ public:
   virtual void timedPracticeTurn(Move m) { (void)m; }
   virtual void timedToggleWrong() = 0;
   virtual void timedDelete() = 0;
+  // Ctrl+Z after the result: the attempt deleted put back.
+  virtual void timedRestore() {}
   // Animations under way are done with.
   virtual void timedFinishAnimations() = 0;
   // The keys of the phase the flow is in.

@@ -68,6 +68,8 @@ struct Section {
 #define PRACTICE_LEARN_CARDS                                                   \
   {T("Learn, after a card's try"), T("1-4"),                                   \
    T("change the grade: Again, Hard, Good, Easy")},                            \
+      {T("Learn"), T("Ctrl+Z"),                                                \
+       T("take back the last grade (up to 10) and do the case again")},        \
   {                                                                            \
     T("Learn, nothing due"), T("Space"),                                       \
         T("look again, taking a card in its learning steps early")             \
@@ -232,9 +234,11 @@ const std::vector<Section> &sections() {
         {T("after a case"), T("Backspace"),
          T("toggle DNF (virtual) or \"wrong alg\" (physical); not for a case "
            "given up")},
-        {T("after a case"), T("Delete or Ctrl+Z"),
+        {T("after a case"), T("Delete"),
          T("delete the attempt; one given up before the timer started is taken "
            "back and the case set up again")},
+        {T("after a case, practice"), T("Ctrl+Z"),
+         T("put the attempt just deleted back (until the next case)")},
         {T("after a case"), T("Esc"), T("try the case again")},
         {T("practice"), T("Space / Enter"), T("next case")},
         {T("practice"), T("Tab"),
@@ -246,7 +250,7 @@ const std::vector<Section> &sections() {
          T("virtual: set the case up again for this stage")},
         {T("practice"), T("Backspace"),
          T("toggle DNF or \"wrong alg\" on the attempt")},
-        {T("practice"), T("Delete or Ctrl+Z"), T("delete the attempt")}},
+        {T("practice"), T("Delete"), T("delete the attempt")}},
        {T("For about 0.3 s after the timer stops, keys are ignored, so that a "
           "second press doesn't skip the result.")}},
       {T("Library"),
@@ -305,7 +309,8 @@ const std::vector<Section> &sections() {
         {T("after a solve"), T("Alt+1 / Alt+2 / Alt+3"),
          T("no penalty / toggle +2 / toggle DNF on the last solve")},
         {T("after a solve"), T("Backspace"),
-         T("toggle DNF on the last solve, as in Drill")},
+         T("toggle DNF on the solve just finished, as in Drill (only before "
+           "any other key)")},
         {T("after a solve"), T("Alt+C / Alt+R"),
          T("comment on / review the last solve")},
         {T("after a solve"), T("Delete / Ctrl+Z"),

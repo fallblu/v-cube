@@ -70,6 +70,9 @@ PracticeKeys untimedKeys(const PracticeFlow::State &s,
     keys << detailKey(s.detailOpen);
     if (s.graded) {
       keys << KeyHint{"1-4", tr("change the grade")};
+      if (s.tab == PracticeTab::Learn) {
+        keys << KeyHint{"Ctrl+Z", tr("take the grade back")};
+      }
     }
     keys << modeKeys;
     if (s.chooser) {

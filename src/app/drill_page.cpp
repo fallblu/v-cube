@@ -534,6 +534,9 @@ void DrillPage::showStatus() {
                       gaveUp && flow_.gaveUpBeforeStart() ? tr("take it back")
                                                           : tr("delete it"),
                       [this] { deleteAttempt(); }};
+    } else if (deleted_) {
+      keys << KeyHint{tr("Ctrl+Z"), tr("put it back"),
+                      [this] { restoreAttempt(); }};
     }
     keys << KeyHint{tr("Esc"), tr("try it again")};
     break;
@@ -626,6 +629,7 @@ void DrillPage::refreshSession() {
 
 void DrillPage::nextCase() {
   flow_.leaveCase();
+  deleted_.reset();
   reveal_->clear();
   setDiagram({});
   resultRow_->setVisible(false);
@@ -698,6 +702,7 @@ void DrillPage::nextCase() {
 
 void DrillPage::retryCase() {
   flow_.leaveCase();
+  deleted_.reset();
   const AlgSet *s = set();
   if (!current_ || !drillable(current_->caseId)) {
     // E.g. deleted in the Library: on to another case, which nextCase()

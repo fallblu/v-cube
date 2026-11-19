@@ -89,14 +89,15 @@ Before a solve starts, the cube only turns as a whole (rotations), so that a sli
 | after a case | Space / Enter | next case. With "Space practises the case" after a DNF (Settings > Drill), Space practises and Enter goes on. |
 | after a case | Tab | practise the case, with the algs shown |
 | after a case | Backspace | toggle DNF (virtual) or "wrong alg" (physical); not for a case given up |
-| after a case | Delete or Ctrl+Z | delete the attempt; one given up before the timer started is taken back and the case set up again |
+| after a case | Delete | delete the attempt; one given up before the timer started is taken back and the case set up again |
+| after a case, practice | Ctrl+Z | put the attempt just deleted back (until the next case) |
 | after a case | Esc | try the case again |
 | practice | Space / Enter | next case |
 | practice | Tab | switch between with the algs and without them |
 | practice | turning keys | virtual: solve the case; each stage goes on by itself once solved (Settings > Drill) |
 | practice | Esc | virtual: set the case up again for this stage |
 | practice | Backspace | toggle DNF or "wrong alg" on the attempt |
-| practice | Delete or Ctrl+Z | delete the attempt |
+| practice | Delete | delete the attempt |
 
 For about 0.3 s after the timer stops, keys are ignored, so that a second press doesn't skip the result.
 
@@ -140,7 +141,7 @@ In Learn and Drill, the mode's menu in the menu bar has the selected cases' acti
 | virtual, running | Space | stop (a DNF if the cube isn't solved) |
 | after a virtual DNF | Space, Enter or Esc | next scramble |
 | after a solve | Alt+1 / Alt+2 / Alt+3 | no penalty / toggle +2 / toggle DNF on the last solve |
-| after a solve | Backspace | toggle DNF on the last solve, as in Drill |
+| after a solve | Backspace | toggle DNF on the solve just finished, as in Drill (only before any other key) |
 | after a solve | Alt+C / Alt+R | comment on / review the last solve |
 | after a solve | Delete / Ctrl+Z | delete the last solve / put the last deleted solve back |
 | after a solve | Ctrl+→ | skip the scramble |
@@ -247,6 +248,7 @@ The list beside the cube, on the Inspection tab: your plans by step, with how ma
 | Untimed or Inspection, afterwards | Delete | delete the try |
 | Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
 | Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
+| Learn | Ctrl+Z | take back the last grade (up to 10) and do the case again |
 | Learn, nothing due | Space | look again, taking a card in its learning steps early |
 | Learn, after a card's try | 0 | change the case's solutions |
 | Learn, after a try as cheap as yours | + | add what you did to the case's solutions |
@@ -284,6 +286,7 @@ The list beside the cube, on the Learn tab: the pair cases by where the corner a
 | Untimed or Inspection, afterwards | Delete | delete the try |
 | Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
 | Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
+| Learn | Ctrl+Z | take back the last grade (up to 10) and do the case again |
 | Learn, nothing due | Space | look again, taking a card in its learning steps early |
 | Timed, virtual, before the solve | turning keys | rotations only |
 | Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Timing and solves says so: Drill and practice Timed, timer start) |

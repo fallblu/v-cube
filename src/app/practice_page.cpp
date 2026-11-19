@@ -19,6 +19,7 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTabBar>
+#include <QTextDocumentFragment>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -228,6 +229,7 @@ void PracticePage::buildSide() {
             }
           });
   connect(list_, &PracticeList::cleared, this, [this] {
+    undo_ = {}; // the grades to take back are gone
     save();
     showSummary();
     if (active_ && tab_ == Tab::Learn) {
@@ -551,24 +553,48 @@ void PracticePage::nextLearn(LearnAhead ahead) {
     refreshList();
     return;
   }
-  std::optional<Setup> s = setUp(Extent::Unit, *pick.caseId);
-  if (!s) {
+  if (!startCard(*pick.caseId, pick.isNew, !pick.isNew)) {
     showIdle(tr("%1 can't be set up with these options")
                  .arg(cardName(*pick.caseId)));
-    return;
+  }
+}
+
+bool PracticePage::startCard(const std::string &card, bool isNew, bool graded) {
+  std::optional<Setup> s = setUp(Extent::Unit, card);
+  if (!s) {
+    return false;
   }
   begin(*s, Extent::Unit);
-  item_.card = *pick.caseId;
-  item_.isNew = pick.isNew;
-  item_.graded = !pick.isNew;
-  lastCard_ = item_.card;
-  phase_ = pick.isNew ? Phase::Demo : Phase::Solving;
+  item_.card = card;
+  item_.isNew = isNew;
+  item_.graded = graded;
+  lastCard_ = card;
+  phase_ = isNew ? Phase::Demo : Phase::Solving;
   cubeChanged();
   if (needsChoice()) {
     enterChoice(phase_);
-    return;
+    return true;
   }
   showAll();
+  return true;
+}
+
+void PracticePage::undoLast() {
+  std::optional<LearnUndo> u = undo_.pop();
+  if (!u || u->cards.empty()) {
+    emit message(tr("Nothing to take back"));
+    return;
+  }
+  takeBack(store_.data.cards, *u);
+  save();
+  refreshList();
+  emit message(tr("Took back the grade of %1")
+                   .arg(QTextDocumentFragment::fromHtml(cardName(u->caseId))
+                            .toPlainText()));
+  // The card comes up again, to be done over.
+  if (!startCard(u->caseId, u->isNew, !u->isNew)) {
+    next();
+  }
 }
 
 void PracticePage::enterChoice(Phase after) {
@@ -763,21 +789,24 @@ void PracticePage::scrambleReady() {
 // --- keys --------------------------------------------------------------------
 
 bool PracticePage::handleKey(QKeyEvent *e, bool press) {
-  if (!built_ || (e->modifiers() &
-                  (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+  if (!built_) {
     return false;
   }
   struct Update {
     PracticePage *page;
     ~Update() { page->updateTick(); }
   } update{this};
+  TrainKeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
+  // Of the keys held with Ctrl, Alt or Meta only Ctrl+Z, on the Learn tab.
+  if (k.modified && k.key != TrainKey::Undo) {
+    return false;
+  }
   if (tab_ == Tab::Timed) {
-    return handleTimedKey(e, press);
+    return !k.modified && handleTimedKey(e, press);
   }
   if (!press || item_.id == 0) {
     return false;
   }
-  TrainKeyEvent k = trainKeyEvent(e, press, KeyChords::None);
   k.move = settings_.keymap.lookup(e);
   return perform(PracticeFlow::key(k, flowState()), e);
 }
@@ -803,7 +832,9 @@ bool PracticePage::perform(const PracticeFlow::Step &step, QKeyEvent *e) {
   using A = PracticeFlow::Action;
   switch (step.action) {
   case A::None:
+    break;
   case A::Undo:
+    undoLast();
     break;
   case A::NextEarly:
     next(LearnAhead::Early);
@@ -968,6 +999,10 @@ void PracticePage::conclude() {
                                      .gaveUp = item_.gaveUp});
       review(p.card, g, now, settings_.srs, &rng_);
       p.record({now, 0, g == Grade::Again, AttemptMode::Learn});
+      undo_.push({.setId = modeId().toStdString(),
+                  .caseId = item_.card,
+                  .cards = {{item_.card, item_.cardBefore, now, {}}}},
+                 false);
       item_.grade = g;
       item_.recorded = true;
     } else if (item_.card.empty()) {
@@ -1000,6 +1035,11 @@ void PracticePage::introduced() {
   endDemo();
   CaseProgress &p = store_.data.cards[item_.card];
   const std::int64_t now = unixNow();
+  undo_.push({.setId = modeId().toStdString(),
+              .caseId = item_.card,
+              .isNew = true,
+              .cards = {{item_.card, p.card, 0, {}}}},
+             false);
   introduce(p.card, now, settings_.srs);
   save();
   refreshList();

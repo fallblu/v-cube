@@ -144,6 +144,13 @@ private:
   QString missText_; // why a virtual attempt was a DNF
   DrillSession session_;
   std::optional<std::size_t> sessionIndex_; // the current attempt's
+  // The attempt just deleted, and its session row if that went too.
+  struct Deleted {
+    std::string caseId;
+    Attempt attempt;
+    std::optional<SessionAttempt> row;
+  };
+  std::optional<Deleted> deleted_;
   std::size_t recapFrom_ = 0; // the session's first attempt of the recap
   int retryDepth_ = 0;
 
@@ -211,6 +218,7 @@ private:
   void timedPracticeTurn(Move m) override { practiceTurn(m); }
   void timedToggleWrong() override { setWrong(!flow_.failed()); }
   void timedDelete() override { deleteAttempt(); }
+  void timedRestore() override { restoreAttempt(); }
   void timedFinishAnimations() override;
   void timedShowKeys() override { showStatus(); }
   void timedSay(const QString &text) override;
@@ -227,8 +235,10 @@ private:
   void practiceTurn(Move m);
   void setWrong(bool wrong);
   // Deletes the attempt just recorded; one given up before the timer
-  // started is taken back, and the case set up as before.
+  // started is taken back, and the case set up as before. Anything else
+  // is kept until the next case, for Ctrl+Z to put back.
   void deleteAttempt();
+  void restoreAttempt();
   // Clears the drill times of the cases in this cube's drill mode.
   void clearTimes(const std::vector<std::string> &caseIds);
   QString caseName(const std::string &caseId) const;

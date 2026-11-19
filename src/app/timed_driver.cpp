@@ -95,6 +95,9 @@ void TimedDriver::perform(const DrillFlow::Step &step, std::int64_t now) {
   case A::Delete:
     host_.timedDelete();
     break;
+  case A::Restore:
+    host_.timedRestore();
+    break;
   case A::Hint:
     host_.timedSay(timedHintText(step.hint, drill_));
     break;

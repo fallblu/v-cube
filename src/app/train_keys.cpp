@@ -65,7 +65,7 @@ TrainKeyEvent trainKeyEvent(const QKeyEvent *e, bool press, KeyChords chords) {
       return k;
     }
   } else if (chords == KeyChords::Undo && key == Qt::Key_Z &&
-             mods.testFlag(Qt::ControlModifier)) {
+             mods == Qt::ControlModifier) {
     k.key = K::Undo;
     return k;
   }

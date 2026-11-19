@@ -267,7 +267,8 @@ ignored for a moment so a second press doesn't skip it.
 | --- | --- |
 | Space | next case |
 | Backspace | toggle DNF (virtual) or mark a wrong alg (physical) |
-| Delete, Ctrl+Z | delete the attempt |
+| Delete | delete the attempt |
+| Ctrl+Z | put the attempt just deleted back (until the next case) |
 | Esc | try the case again |
 | Tab | practise the case |
 
@@ -556,7 +557,8 @@ Hold Space to start; the hold time is in Settings > Timing and solves.
   virtual cube can stay hidden until inspection starts.
 - **Sessions** show ao5, ao12, ao100, mo3, best and mean, with a trend
   chart. Alt+1, Alt+2 and Alt+3 set no penalty, +2 and DNF on the last
-  solve; Alt+C comments on it.
+  solve; Alt+C comments on it. Backspace toggles the DNF too, but only
+  right after the solve, before any other key.
 - **cstimer**: the session menu imports and exports cstimer sessions.
   Imports come in as physical sessions, with any solutions and move times;
   other puzzles and empty sessions are skipped. To load an export in
@@ -677,7 +679,8 @@ time:
    again.
 3. The card is graded **Good** when you solved it unaided and well, and
    **Again** after a hint, giving up or a poor solution. `1`–`4` change
-   the grade to Again, Hard, Good or Easy.
+   the grade to Again, Hard, Good or Easy, and `Ctrl+Z` takes the last
+   grade back (up to 10) and brings the case up again.
 
 When nothing is due the page says when the next card is. `Space` takes a
 card in its learning steps early, and the Untimed tab is always there to

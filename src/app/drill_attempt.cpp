@@ -24,6 +24,7 @@
 #include <QVBoxLayout>
 
 #include <cmath>
+#include <utility>
 
 namespace vcube {
 
@@ -254,17 +255,31 @@ void DrillPage::deleteAttempt() {
   if (!current_ || !flow_.recorded()) {
     return;
   }
+  deleted_.reset();
+  std::optional<Attempt> attempt;
   auto &p = progress();
   if (auto it = p.find(current_->caseId); it != p.end()) {
+    const std::vector<Attempt> &all = it->second.attempts;
+    for (auto a = all.rbegin(); a != all.rend(); ++a) {
+      if (a->mode == attemptMode()) {
+        attempt = *a;
+        break;
+      }
+    }
     it->second.removeLast(attemptMode());
   }
   saveProgress();
+  std::optional<SessionAttempt> row;
   if (sessionIndex_ && *sessionIndex_ + 1 == session_.size()) {
+    row = session_.attempts().back();
     session_.removeLast();
   }
   sessionIndex_.reset();
   picker_.requeue(current_->caseId, 0);
   const bool takenBack = flow_.deleted();
+  if (!takenBack && attempt) {
+    deleted_ = Deleted{current_->caseId, *attempt, row};
+  }
   updateRow(current_->caseId);
   refreshSession();
   if (takenBack) {
@@ -285,6 +300,25 @@ void DrillPage::deleteAttempt() {
     statusLabel_->show();
     return;
   }
+  showStatus();
+  showResult();
+}
+
+void DrillPage::restoreAttempt() {
+  if (!current_ || !deleted_ || deleted_->caseId != current_->caseId ||
+      deleted_->attempt.mode != attemptMode() || !flow_.restored()) {
+    return;
+  }
+  const Deleted d = *std::exchange(deleted_, std::nullopt);
+  progress()[d.caseId].record(d.attempt);
+  saveProgress();
+  if (d.row) {
+    sessionIndex_ = session_.add(*d.row);
+  }
+  picker_.requeue(d.caseId,
+                  d.attempt.failed ? settings_.drill.requeueAfter : 0);
+  updateRow(d.caseId);
+  refreshSession();
   showStatus();
   showResult();
 }
