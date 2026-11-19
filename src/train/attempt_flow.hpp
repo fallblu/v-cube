@@ -1,5 +1,6 @@
 #pragma once
 
+#include "train/keys.hpp"
 #include "train/move_count.hpp"
 #include "train/typed_count.hpp"
 
@@ -30,9 +31,7 @@ namespace vcube {
 class AttemptFlow {
 public:
   enum class Phase : std::uint8_t { Inspect, Solving, Done };
-  // Space held to start a solve: it must be held for the hold time (Ready)
-  // before releasing it starts.
-  enum class Hold : std::uint8_t { None, Holding, Ready };
+  using Hold = HoldCue;
 
   struct Config {
     bool moveCount = false; // Move Count, not Untimed
@@ -41,33 +40,11 @@ public:
     bool autoStop = false; // Untimed: the solve ends when the cube is solved
   };
 
-  // A key as the page reads it.
-  enum class Key : std::uint8_t {
-    Turn, // a turning key, on the virtual cube
-    Space,
-    Enter,
-    Escape,
-    Tab,
-    Backspace,
-    Left,
-    Right,
-    Digit,
-    // The keys for the last attempt and the scramble.
-    Dnf,     // Alt+3
-    Comment, // Alt+C
-    Review,  // Alt+R
-    Undo,    // Ctrl+Z
-    Skip,    // Ctrl+Right
-    Delete,  // Delete
-    Other,
-  };
-  struct KeyEvent {
-    Key key = Key::Other;
-    bool press = true;
-    bool autoRepeat = false;
-    int digit = 0;         // for Key::Digit
-    bool modified = false; // Ctrl, Alt or Meta held
-  };
+  // Of the shared keys the flow reads Turn (a turning key, on the virtual
+  // cube), the chords for the last attempt and the scramble, and a Delete
+  // with nothing held.
+  using Key = TrainKey;
+  using KeyEvent = TrainKeyEvent;
 
   // A recorded attempt solved again from its review: not recorded, and
   // compared with the attempt it repeats.

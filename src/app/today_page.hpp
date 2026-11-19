@@ -75,12 +75,12 @@ private:
   const PracticeData &eoCross_;
   const PracticeData &f2l_;
   const PracticeData &tsle_;
-  QLabel *streakLabel_;
-  QPushButton *next_;
-  QLabel *nextNote_;
-  QTreeWidget *sets_;
-  QTreeWidget *modes_;
-  HintBar *hints_;
+  QLabel *streakLabel_ = nullptr;
+  QPushButton *next_ = nullptr;
+  QLabel *nextNote_ = nullptr;
+  QTreeWidget *sets_ = nullptr;
+  QTreeWidget *modes_ = nullptr;
+  HintBar *hints_ = nullptr;
   QTimer refresh_;
   // What next_ does, and Review all when anything is due.
   std::function<void()> nextAction_;

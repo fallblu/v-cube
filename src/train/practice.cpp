@@ -1,6 +1,6 @@
 #include "train/practice.hpp"
 
-#include "train/today.hpp"
+#include <algorithm>
 
 namespace vcube {
 
@@ -116,16 +116,39 @@ PracticeWaiting practiceWaiting(const std::vector<std::string> &pool,
                                 const SetProgress &cards, std::int64_t now,
                                 std::int64_t dayStart, std::int64_t dayEnd,
                                 const SrsConfig &config) {
-  // A case never started is as good as queued.
-  SetProgress queued = cards;
-  queueUnstarted(pool, queued, now, config);
-  SetWaiting w = setWaiting(pool, queued, now, dayStart, dayEnd, config);
+  // A case never started is as good as queued: the cards are counted as
+  // queueUnstarted() would leave them, without a copy of them all (and
+  // their attempts) being made to queue them in.
   PracticeWaiting out;
-  out.due = w.due;
-  out.newLeft = w.newLeft;
-  out.learned = w.learned;
   out.total = static_cast<int>(pool.size());
-  out.started = out.total - w.queued - w.unstarted;
+  int queued = 0;
+  int introduced = newCasesIntroducedSince(cards, dayStart);
+  for (const std::string &id : pool) {
+    auto it = cards.find(id);
+    if (it == cards.end()) {
+      ++queued;
+      continue;
+    }
+    const SrsCard &card = it->second.card;
+    if (card.state == CardState::New) {
+      ++queued;
+      // Queueing starts the card afresh: it is none of the day's new ones.
+      if (card.introduced != 0 && !card.marked && card.introduced >= dayStart) {
+        --introduced;
+      }
+    } else if (isQueued(card)) {
+      ++queued;
+    } else {
+      if (card.state == CardState::Review) {
+        ++out.learned;
+      }
+      if (isDueNow(card, now, dayEnd, config)) {
+        ++out.due;
+      }
+    }
+  }
+  out.newLeft = std::clamp(config.newPerDay - introduced, 0, queued);
+  out.started = out.total - queued;
   return out;
 }
 

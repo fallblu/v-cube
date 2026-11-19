@@ -753,7 +753,6 @@ void DrillPage::retryCase() {
   clearCaseSelection();
   flow_.setUp(monotonicMs());
   if (onVirtualCube()) {
-    ++scrambleRequest_; // a physical scramble still on its way is dropped
     scrambleLabel_->clear();
     cubeView_->setColourMap(colourMapOf(current_->hold));
     resetCube();
@@ -802,10 +801,8 @@ void DrillPage::requestScramble() {
   if (!current_) {
     return;
   }
-  int request = ++scrambleRequest_;
   CubieCube state = current_->state;
-  // Results of superseded requests are dropped in scrambleReady().
-  watcher_.setProperty("request", request);
+  // setFuture() drops the result of a request still on its way.
   ColourNeutrality hold;
   hold.main = current_->hold;
   hold.holds = {current_->hold};
@@ -817,10 +814,7 @@ void DrillPage::scrambleReady() {
   if (onVirtualCube()) {
     return; // the case is set up on the cube instead
   }
-  if (watcher_.property("request").toInt() != scrambleRequest_ || !current_) {
-    if (current_ && current_->scramble.isEmpty()) {
-      requestScramble();
-    }
+  if (!current_) {
     return;
   }
   current_->scramble = watcher_.result().text;

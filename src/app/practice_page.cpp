@@ -1,8 +1,8 @@
 #include "app/practice_page.hpp"
 
-#include "app/key_router.hpp"
 #include "app/session_panel.hpp"
 #include "app/text_style.hpp"
+#include "app/train_keys.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "io/session_store.hpp"
@@ -445,6 +445,7 @@ void PracticePage::activated() {
     next();
   } else {
     refreshList();
+    showSummary();
   }
   if (tab_ == Tab::Timed || tab_ == Tab::Inspection) {
     tick_.start();
@@ -844,8 +845,7 @@ void PracticePage::showCubeKind() {
 }
 
 void PracticePage::requestScramble() {
-  const int request = ++scrambleRequest_;
-  scrambles_.setProperty("request", request);
+  // setFuture() drops the result of a request still on its way.
   ColourNeutrality hold;
   hold.main = item_.scrambleHold;
   hold.holds = {item_.scrambleHold};
@@ -857,12 +857,6 @@ void PracticePage::requestScramble() {
 
 void PracticePage::scrambleReady() {
   if (tab_ != Tab::Timed || !physical_ || item_.id == 0) {
-    return;
-  }
-  if (scrambles_.property("request").toInt() != scrambleRequest_) {
-    if (item_.scramble.isEmpty()) {
-      requestScramble();
-    }
     return;
   }
   item_.scramble = scrambles_.result().text;
@@ -1137,6 +1131,7 @@ void PracticePage::regrade(Grade g) {
   save();
   refreshList();
   showVerdict();
+  showSummary();
 }
 
 void PracticePage::playDemo() {
@@ -1179,34 +1174,7 @@ std::string PracticePage::timedGroupKey() const {
 
 DrillFlow::KeyEvent PracticePage::flowKey(const QKeyEvent *e,
                                           bool press) const {
-  using Key = DrillFlow::Key;
-  DrillFlow::KeyEvent k;
-  k.press = press;
-  k.shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  switch (e->key()) {
-  case Qt::Key_Space:
-    k.key = Key::Space;
-    break;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    k.key = Key::Enter;
-    break;
-  case Qt::Key_Tab:
-    k.key = Key::Tab;
-    break;
-  case Qt::Key_Backspace:
-    k.key = Key::Backspace;
-    break;
-  case Qt::Key_Delete:
-    k.key = Key::Delete;
-    break;
-  case Qt::Key_Escape:
-    k.key = Key::Escape;
-    break;
-  default:
-    k.key = isModifierKey(e->key()) ? Key::Modifier : Key::Other;
-    break;
-  }
+  DrillFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::None);
   if (!physical_) {
     k.move = settings_.keymap.lookup(e);
   }
@@ -2014,6 +1982,7 @@ void PracticePage::fillList() {
   listHelp_->setText(listHelp());
   listHelp_->setVisible(!listHelp().isEmpty());
   refreshList();
+  showSummary();
 }
 
 void PracticePage::refreshList() {
@@ -2086,7 +2055,6 @@ void PracticePage::refreshList() {
       fill(top->child(j));
     }
   }
-  showSummary();
 }
 
 void PracticePage::showSummary() {
@@ -2247,6 +2215,7 @@ void PracticePage::clearProgress() {
   }
   save();
   refreshList();
+  showSummary();
   if (active_ && tab_ == Tab::Learn) {
     next();
   }

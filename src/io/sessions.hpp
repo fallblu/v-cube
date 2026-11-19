@@ -56,7 +56,8 @@ struct CstimerImport {
   int emptySkipped = 0;            // sessions without solves
   std::vector<std::string> others; // names of sessions for other puzzles
 };
-// nullopt (with `error` set) when the object has no cstimer sessions.
+// nullopt (with `error` set) when the object has no cstimer sessions, or
+// when a session or sessionData is stored as a string that doesn't read.
 std::optional<CstimerImport> sessionsFromCstimer(const QJsonObject &o,
                                                  QString *error);
 // The same from a file's contents; a file that isn't whole JSON (cut off,

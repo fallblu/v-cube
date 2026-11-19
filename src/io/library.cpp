@@ -41,7 +41,7 @@ QString sanitizeId(const std::string &id) {
   QString s = qs(id).toLower();
   QString out;
   for (QChar c : s) {
-    out += (c.isLetterOrNumber() || c == '-' || c == '_') ? c : QChar('-');
+    out += (c.isLetterOrNumber() || c == u'-' || c == u'_') ? c : u'-';
   }
   return out.isEmpty() ? QString("set") : out;
 }

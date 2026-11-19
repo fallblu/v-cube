@@ -55,7 +55,7 @@ public:
   explicit CaseTreeWidget(QWidget *parent = nullptr);
 
   // Where on an item a drop lands.
-  enum Drop { DropOn, DropAbove, DropBelow, DropElsewhere };
+  enum Drop : int { DropOn, DropAbove, DropBelow, DropElsewhere };
 
 signals:
   // The selected items were dropped on `target` (nullptr: below the last

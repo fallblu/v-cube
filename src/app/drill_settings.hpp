@@ -55,15 +55,15 @@ public:
 
 private:
   DrillSettings settings_;
-  QFormLayout *form_;
-  QCheckBox *autoStopBox_;
-  QComboBox *startBox_;
-  QSpinBox *holdSpin_;
-  QComboBox *giveUpBox_;
-  QComboBox *afterDnfBox_;
-  QCheckBox *autoAdvanceBox_;
-  QSpinBox *requeueSpin_;
-  QSpinBox *weakestSpin_;
+  QFormLayout *form_ = nullptr;
+  QCheckBox *autoStopBox_ = nullptr;
+  QComboBox *startBox_ = nullptr;
+  QSpinBox *holdSpin_ = nullptr;
+  QComboBox *giveUpBox_ = nullptr;
+  QComboBox *afterDnfBox_ = nullptr;
+  QCheckBox *autoAdvanceBox_ = nullptr;
+  QSpinBox *requeueSpin_ = nullptr;
+  QSpinBox *weakestSpin_ = nullptr;
 };
 
 } // namespace vcube

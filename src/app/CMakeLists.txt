@@ -34,6 +34,7 @@ add_library(vcube_gui STATIC
   f2l_page.cpp
   practice_page.cpp
   tsle_page.cpp
+  train_keys.cpp
   key_router.cpp
   lab_chart.cpp
   lab_test_panel.cpp

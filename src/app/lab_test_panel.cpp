@@ -1,6 +1,6 @@
 #include "app/lab_test_panel.hpp"
-#include "app/key_router.hpp"
 #include "app/page_parts.hpp"
+#include "app/train_keys.hpp"
 
 #include "app/app_settings.hpp"
 #include "app/colours.hpp"
@@ -763,8 +763,7 @@ void LabTestPanel::requestScramble() {
   if (!current_) {
     return;
   }
-  int request = ++scrambleRequest_;
-  watcher_.setProperty("request", request);
+  // setFuture() drops the result of a request still on its way.
   CubieCube state = current_->setup;
   ColourNeutrality hold;
   watcher_.setFuture(generateScramble(
@@ -772,8 +771,7 @@ void LabTestPanel::requestScramble() {
 }
 
 void LabTestPanel::scrambleReady() {
-  if (watcher_.property("request").toInt() != scrambleRequest_ || !current_ ||
-      onVirtual()) {
+  if (!current_ || onVirtual()) {
     return;
   }
   current_->scramble = watcher_.result().text;
@@ -956,24 +954,17 @@ void LabTestPanel::deleteLast() {
 
 bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
   const std::int64_t now = monotonicMs();
-  const int key = e->key();
   std::optional<Move> move =
       onVirtual() ? settings_.keymap.lookup(e) : std::optional<Move>();
   using K = LabFlow::Key;
-  LabFlow::Input in;
-  in.key = key == Qt::Key_Space       ? K::Space
-           : key == Qt::Key_Escape    ? K::Escape
-           : key == Qt::Key_Backspace ? K::Backspace
-           : key == Qt::Key_Delete    ? K::Delete
-           : isModifierKey(key)       ? K::Modifier
-           : move                     ? K::Move
-                                      : K::Other;
-  in.press = press;
-  in.plain = !(e->modifiers() &
-               (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
-  in.now = now;
+  LabFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::None);
+  // The flow's own keys and the modifiers never turn the cube.
+  if (move && k.key != K::Space && k.key != K::Escape &&
+      k.key != K::Backspace && k.key != K::Delete && k.key != K::Modifier) {
+    k.key = K::Turn;
+  }
   flow_.setVirtualCube(onVirtual());
-  const LabFlow::Step step = flow_.key(in);
+  const LabFlow::Step step = flow_.key(k, now);
   using A = LabFlow::Action;
   switch (step.action) {
   case A::None:

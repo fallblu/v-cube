@@ -245,7 +245,6 @@ struct RankedSolution {
   int htm = 0;
   double cost = 0.0;   // the profile's cost (and the wide-turn penalty)
   std::string setCase; // the reference set's case it is the alg of
-  bool fromSet() const { return !setCase.empty(); }
 };
 
 struct AnalysisOptions {

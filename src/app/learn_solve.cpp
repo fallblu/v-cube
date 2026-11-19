@@ -1,6 +1,7 @@
 #include "app/learn_page.hpp"
 
 #include "app/case_history_dialog.hpp"
+#include "app/train_keys.hpp"
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
@@ -505,48 +506,7 @@ bool LearnPage::handleKey(QKeyEvent *e, bool press) {
 
 LearnSession::KeyEvent LearnPage::sessionKey(const QKeyEvent *e,
                                              bool press) const {
-  using Key = LearnSession::Key;
-  LearnSession::KeyEvent k;
-  k.press = press;
-  k.shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  const bool ctrl = e->modifiers().testFlag(Qt::ControlModifier);
-  const int key = e->key();
-  switch (key) {
-  case Qt::Key_Space:
-    k.key = Key::Space;
-    break;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    k.key = Key::Enter;
-    break;
-  case Qt::Key_Tab:
-    k.key = Key::Tab;
-    break;
-  case Qt::Key_Backspace:
-    k.key = Key::Backspace;
-    break;
-  case Qt::Key_Escape:
-    k.key = Key::Escape;
-    break;
-  case Qt::Key_Left:
-    k.key = Key::Left;
-    break;
-  case Qt::Key_Right:
-    k.key = Key::Right;
-    break;
-  case Qt::Key_Home:
-    k.key = Key::Home;
-    break;
-  case Qt::Key_Z:
-    k.key = ctrl ? Key::Undo : Key::Other;
-    break;
-  default:
-    if (key >= Qt::Key_1 && key <= Qt::Key_9) {
-      k.key = Key::Digit;
-      k.digit = key - Qt::Key_0;
-    }
-    break;
-  }
+  LearnSession::KeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
   k.move = settings_.keymap.lookup(e);
   return k;
 }

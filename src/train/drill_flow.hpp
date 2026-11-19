@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cube/move.hpp"
+#include "train/keys.hpp"
 #include "train/timer.hpp"
 
 #include <cstdint>
@@ -47,24 +48,8 @@ public:
     std::int64_t holdMs = 300;
   };
 
-  // A key as the drill sees it; Undo is Ctrl+Z.
-  enum class Key {
-    Space,
-    Enter,
-    Tab,
-    Backspace,
-    Delete,
-    Undo,
-    Escape,
-    Modifier,
-    Other
-  };
-  struct KeyEvent {
-    Key key = Key::Other;
-    bool press = true;
-    bool shift = false;
-    std::optional<Move> move; // the turn the key makes (virtual cube)
-  };
+  using Key = TrainKey;
+  using KeyEvent = TrainKeyEvent;
 
   // What the page is to do after a key.
   enum class Action {

@@ -827,7 +827,7 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
       [[4000, 1000], "U", "", 6]
     ],
     "session2": [[[0]]],
-    "properties": {"sessionData": "not json"}
+    "properties": {"sessionData": "{}"}
   })");
   imported = sessionsFromCstimer(doc.object(), &error);
   REQUIRE(imported);
@@ -856,6 +856,46 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
   CHECK(error.contains("not a cstimer export"));
   CHECK_FALSE(sessionsFromCstimerFile("", &error));
   CHECK_FALSE(sessionsFromCstimer(QJsonObject{}, &error));
+}
+
+TEST_CASE("cstimer import reports nested JSON that doesn't read") {
+  QString error;
+  // Sessions and sessionData stored as strings are read.
+  QJsonDocument doc = QJsonDocument::fromJson(R"({
+    "session1": "[[[0, 1000], \"R\", \"\", 1]]",
+    "properties": {"sessionData": "{\"1\": {\"name\": \"Mine\"}}"}
+  })");
+  auto imported = sessionsFromCstimer(doc.object(), &error);
+  REQUIRE(imported);
+  REQUIRE(imported->sessions.size() == 1);
+  CHECK(imported->sessions[0].name == "Mine");
+  CHECK(imported->sessions[0].solves.size() == 1);
+
+  // sessionData cut short: the names and types are not made up.
+  doc = QJsonDocument::fromJson(R"({
+    "session1": [[[0, 1000], "R", "", 1]],
+    "properties": {"sessionData": "{\"1\": {\"name\": \"Pyra\", "}
+  })");
+  error.clear();
+  CHECK_FALSE(sessionsFromCstimer(doc.object(), &error));
+  CHECK(error.contains("session names"));
+  doc = QJsonDocument::fromJson(R"({
+    "session1": [[[0, 1000], "R", "", 1]],
+    "properties": {"sessionData": "[1, 2]"}
+  })");
+  error.clear();
+  CHECK_FALSE(sessionsFromCstimer(doc.object(), &error));
+  CHECK(error.contains("session names"));
+
+  // A session cut short is not an empty session.
+  doc = QJsonDocument::fromJson(R"({
+    "session1": [[[0, 1000], "R", "", 1]],
+    "session2": "[[[0, 1000], \"R\", ",
+    "properties": {"sessionData": {"1": {"name": "A"}, "2": {"name": "B"}}}
+  })");
+  error.clear();
+  CHECK_FALSE(sessionsFromCstimer(doc.object(), &error));
+  CHECK(error.contains("session 2"));
 }
 
 TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {
