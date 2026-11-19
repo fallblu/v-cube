@@ -191,6 +191,16 @@ TEST_CASE("practice data survives the file", "[practice][io]") {
   startLearning(d.cards["UF-N-0120"].card, 1794000000, config);
   review(d.cards["UF-N-0120"].card, Grade::Good, 1794000100, config);
   d.cards["UF-N-0120"].record({1794000100, 0, false, AttemptMode::Learn});
+  Attempt timed{1794000150, 2100, false, AttemptMode::VirtualDrill};
+  timed.recognitionMs = 600;
+  timed.executionMs = 1500;
+  d.cards["UF-N-0120"].record(timed);
+  Attempt recognised{1794000160, 700, false, AttemptMode::Learn};
+  recognised.recognitionMs = 700;
+  recognised.recognitionOnly = true;
+  d.cards["UF-N-0120"].record(recognised);
+  d.cards["UF-N-0120"].archive[AttemptMode::VirtualDrill] = {
+      1900, {{20764, 3, 1, 4100, 1900}}};
   PracticeTry learn;
   learn.timestamp = 1794000200;
   learn.moves = 31;

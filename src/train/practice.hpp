@@ -59,7 +59,7 @@ struct PracticeData {
   void addLearn(const std::string &group, const PracticeTry &t);
   void addInspection(const std::string &group, const PracticeTry &t);
   void addTimed(const std::string &key, const PracticeTry &t);
-  friend bool operator==(const PracticeData &, const PracticeData &);
+  friend bool operator==(const PracticeData &, const PracticeData &) = default;
 };
 
 // "virtual/eocross", "physical/zz-1".
