@@ -306,6 +306,7 @@ private slots:
   void tipsShowInTheStatusBar();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
+  void theSameKeyTwiceArrivesTwice();
   void cleanupTestCase();
 };
 
@@ -2003,6 +2004,24 @@ void GuiTest::keysDocMatchesTheKeyTable() {
   QVERIFY2(actual == expected,
            "docs/keys.md is out of date: run the GUI tests once with "
            "VCUBE_WRITE_DOCS=1");
+}
+
+// Two key events that look alike (the same object sent twice has the same
+// address, key and time) are two key presses.
+void GuiTest::theSameKeyTwiceArrivesTwice() {
+  auto *today = page<TodayPage>();
+  QVERIFY(switchTo(AppMode::Today, today));
+  auto tables = today->findChildren<QTreeWidget *>();
+  QCOMPARE(tables.size(), 2);
+  QVERIFY(tables[0]->topLevelItemCount() >= 3);
+  window_->setFocus();
+  QTest::keyClick(window_.get(), Qt::Key_Home);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 0);
+  QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+  QApplication::sendEvent(window_.get(), &down);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 1);
+  QApplication::sendEvent(window_.get(), &down);
+  QCOMPARE(tables[0]->indexOfTopLevelItem(tables[0]->currentItem()), 2);
 }
 
 void GuiTest::cleanupTestCase() {
