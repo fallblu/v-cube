@@ -91,9 +91,7 @@ QString LibraryPage::historyHtml(const AlgCase &c) const {
   }
   html += row(tr("Status"), status);
   if (card.due > 0) {
-    html += row(tr("Due"),
-                QLocale().toString(QDateTime::fromSecsSinceEpoch(card.due),
-                                   QLocale::ShortFormat));
+    html += row(tr("Due"), dateTimeText(card.due));
   }
   if (card.reps > 0) {
     html += row(tr("Reviews"), QString::number(card.reps));

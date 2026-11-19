@@ -690,8 +690,7 @@ QString LearnPage::whenText(std::int64_t due) {
     // A review is due all day: only the day matters.
     QDate day = QDateTime::fromSecsSinceEpoch(due).date();
     qint64 days = QDate::currentDate().daysTo(day);
-    return days == 1 ? tr("tomorrow")
-                     : tr("on %1").arg(QLocale().toString(day, "ddd d MMM"));
+    return days == 1 ? tr("tomorrow") : tr("on %1").arg(dateText(day));
   }
   std::int64_t d = due - now;
   if (d <= 0) {

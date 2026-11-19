@@ -6,6 +6,7 @@
 #include "app/app_settings.hpp"
 #include "app/grip_view.hpp"
 #include "app/lab_test_panel.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
 #include "train/ergonomics.hpp"
@@ -159,8 +160,8 @@ void AlgLabPage::fillTable() {
     table_->resizeColumnToContents(c);
   }
   if (hidden > 0 && !job_) {
-    genStatus_->setText(
-        tr("%n alg(s) hidden by the filters.", nullptr, hidden));
+    genStatus_->setText(plural(hidden, tr("%n alg hidden by the filters."),
+                               tr("%n algs hidden by the filters.")));
   }
 }
 
@@ -246,11 +247,10 @@ void AlgLabPage::pasteCandidates() {
   }
   saveStore();
   fillTable();
-  emit message(tr("Added %1 alg(s); %2 didn't solve the case, %3 were there "
-                  "already.")
-                   .arg(added)
+  emit message(tr("Added %1; %2 didn't solve the case, %3 there already.")
+                   .arg(counted(added, tr("alg"), tr("algs")))
                    .arg(failed)
-                   .arg(have));
+                   .arg(plural(have, tr("%n was"), tr("%n were"))));
 }
 
 void AlgLabPage::addToSet(bool makeMain) {
@@ -311,9 +311,10 @@ void AlgLabPage::addToSet(bool makeMain) {
     emit message(tr("Could not save the set."));
     return;
   }
-  emit message(
-      makeMain ? tr("Made it the main alg of %1.").arg(case_->name)
-               : tr("Added %n alg(s) to %1.", nullptr, added).arg(case_->name));
+  emit message(makeMain ? tr("Made it the main alg of %1.").arg(case_->name)
+                        : plural(added, tr("Added %n alg to %1."),
+                                 tr("Added %n algs to %1."))
+                              .arg(case_->name));
   if (!algEditor_) {
     emit setsChanged(qs(set->id));
   }
@@ -337,8 +338,8 @@ void AlgLabPage::addToSession() {
     return;
   }
   int added = test_->addEntries(entries);
-  emit message(tr("Added %1 alg(s) to the session %2 (Test tab).")
-                   .arg(added)
+  emit message(tr("Added %1 to the session %2 (Test tab).")
+                   .arg(counted(added, tr("alg"), tr("algs")))
                    .arg(test_->sessionName()));
 }
 
@@ -370,9 +371,11 @@ void AlgLabPage::clearTimes() {
   }
   if (QMessageBox::question(
           this, tr("Clear times"),
-          tr("Forget every time of the %n selected alg(s), on both cubes and "
-             "in every session?",
-             nullptr, static_cast<int>(algs.size()))) != QMessageBox::Yes) {
+          plural(static_cast<int>(algs.size()),
+                 tr("Forget every time of the selected alg, on both cubes "
+                    "and in every session?"),
+                 tr("Forget every time of the %n selected algs, on both "
+                    "cubes and in every session?"))) != QMessageBox::Yes) {
     return;
   }
   for (const std::string &a : algs) {

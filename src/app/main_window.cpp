@@ -574,10 +574,12 @@ void MainWindow::updateBadges() {
     auto *b = modeButtons_->button(m);
     b->setText(label(m));
     b->setToolTip(
-        tr("%1 (%2): %n review(s) due", "", t.due)
+        plural(t.due, tr("%1 (%2): %n review due"),
+               tr("%1 (%2): %n reviews due"))
             .arg(AppMode::label(m),
                  AppMode::shortcut(m).toString(QKeySequence::NativeText)) +
-        (t.newLeft > 0 ? tr(", %n new case(s) left today", "", t.newLeft)
+        (t.newLeft > 0 ? plural(t.newLeft, tr(", %n new case left today"),
+                                tr(", %n new cases left today"))
                        : QString()));
   }
 }

@@ -6,6 +6,7 @@
 #include "app/app_settings.hpp"
 #include "app/grip_view.hpp"
 #include "app/lab_test_panel.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
 #include "train/ergonomics.hpp"
@@ -739,8 +740,8 @@ void AlgLabPage::deleteLabCase() {
   }
   if (QMessageBox::question(
           this, tr("Delete lab case"),
-          tr("Delete \"%1\" with its candidates and %n time(s)?", nullptr,
-             times)
+          plural(times, tr("Delete \"%1\" with its candidates and %n time?"),
+                 tr("Delete \"%1\" with its candidates and %n times?"))
               .arg(case_->name)) != QMessageBox::Yes) {
     return;
   }

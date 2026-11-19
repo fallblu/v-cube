@@ -471,7 +471,7 @@ void LibraryPage::buildActions() {
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V));
   renameAction_ = action(tr("&Rename…"), &LibraryPage::renameSelected,
                          QKeySequence(Qt::Key_F2));
-  deleteAction_ = action(tr("&Delete…"), &LibraryPage::deleteSelected,
+  deleteAction_ = action(tr("&Delete"), &LibraryPage::deleteSelected,
                          QKeySequence(QKeySequence::Delete));
   moveUpAction_ = action(
       tr("Move &up"), [this] { moveSelected(-1); },
@@ -547,8 +547,8 @@ void LibraryPage::updateActions() {
   moveDownAction_->setEnabled(s && (alg || cases || groups));
   moveToMenu_->setEnabled(s && cases && s->groups.size() > 1);
   deleteAction_->setText(alg      ? tr("&Remove alg")
-                         : groups ? tr("&Delete group…")
-                                  : tr("&Delete…"));
+                         : groups ? tr("&Delete group")
+                                  : tr("&Delete"));
   renameAction_->setText(alg ? tr("&Edit alg") : tr("&Rename…"));
 }
 

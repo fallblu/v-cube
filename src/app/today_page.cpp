@@ -379,11 +379,14 @@ void TodayPage::refresh() {
                              "starts one."));
   } else if (streak.doneToday) {
     streakLabel_->setText(
-        tr("Practice streak: %n day(s), today included.", "", streak.days));
+        plural(streak.days, tr("Practice streak: %n day, today included."),
+               tr("Practice streak: %n days, today included.")));
   } else {
-    streakLabel_->setText(tr("Practice streak: %n day(s). Practise today to "
-                             "keep it going.",
-                             "", streak.days));
+    streakLabel_->setText(plural(streak.days,
+                                 tr("Practice streak: %n day. Practise today "
+                                    "to keep it going."),
+                                 tr("Practice streak: %n days. Practise today "
+                                    "to keep it going.")));
   }
 }
 

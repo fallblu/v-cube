@@ -316,7 +316,8 @@ void LibraryPage::checkAlgs() {
                 .arg(failing)
                 .arg(total)
                 .arg(noPassing
-                         ? tr("; %1 cases have no passing alg").arg(noPassing)
+                         ? plural(noPassing, tr("; %n case has no passing alg"),
+                                  tr("; %n cases have no passing alg"))
                          : QString());
   auto *label = new QLabel(summary, &dialog);
   label->setWordWrap(true);

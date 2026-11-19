@@ -2,6 +2,7 @@
 #include "app/page_parts.hpp"
 
 #include "app/review_dialog.hpp"
+#include "app/ui_text.hpp"
 #include "train/solve_review.hpp"
 #include "train/step_solver.hpp"
 
@@ -107,7 +108,7 @@ void UntimedPage::addCells(std::vector<AttemptCell> &cells,
   };
   if (scramblesOnly()) {
     add(qs(a.scramble), false);
-    add(dateText(a.timestamp));
+    add(dateTimeText(a.timestamp));
     return;
   }
   add(qs(formatAttempt(a)));
