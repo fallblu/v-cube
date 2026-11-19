@@ -333,6 +333,7 @@ void TimerPage::applySettings() {
   feed_.setNeutrality(settings_.neutrality);
   algs_->refresh();
   splits_.clear(); // the move counts may be counted another way
+  solveRows_.clear();
   if (!isBusy()) {
     showCube();
   }

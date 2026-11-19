@@ -52,6 +52,54 @@ std::int64_t roundedMean(std::int64_t sum, std::int64_t count,
 
 std::size_t trimOf(std::size_t n) { return n == 3 ? 0 : (n + 19) / 20; }
 
+// The average of n times in ascending order, already truncated to the
+// unit (n at least 3).
+StatValue averageOfSorted(const std::vector<std::int64_t> &t,
+                          std::int64_t unit) {
+  std::size_t n = t.size();
+  std::size_t trim = trimOf(n);
+  // Anything DNF beyond the trimmed worst makes the average DNF.
+  if (t[n - trim - 1] == kDnfTime) {
+    return kDnfTime;
+  }
+  std::int64_t sum = 0;
+  for (std::size_t i = trim; i < n - trim; ++i) {
+    sum += t[i];
+  }
+  return roundedMean(sum, static_cast<std::int64_t>(n - 2 * trim), unit);
+}
+
+// Calls visit(start, average) with averageOf() of every n solves in a
+// row, in order. The window's times are kept sorted from one window to
+// the next (one time leaves, one comes in), where sorting each window
+// afresh is what makes a long session slow. Nothing is visited for n
+// under 3, which has no average.
+template <typename F>
+void rollingAverageOf(std::span<const Solve> all, std::size_t n,
+                      std::int64_t unit, F visit) {
+  if (n < 3 || all.size() < n) {
+    return;
+  }
+  unit = std::max<std::int64_t>(unit, 1);
+  auto time = [&](std::size_t i) {
+    return truncated(effectiveTime(all[i]), unit);
+  };
+  std::vector<std::int64_t> window;
+  window.reserve(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    window.push_back(time(i));
+  }
+  std::sort(window.begin(), window.end());
+  visit(std::size_t{0}, averageOfSorted(window, unit));
+  for (std::size_t end = n + 1; end <= all.size(); ++end) {
+    window.erase(
+        std::lower_bound(window.begin(), window.end(), time(end - n - 1)));
+    std::int64_t in = time(end - 1);
+    window.insert(std::upper_bound(window.begin(), window.end(), in), in);
+    visit(end - n, averageOfSorted(window, unit));
+  }
+}
+
 } // namespace
 
 StatValue averageOf(std::span<const Solve> solves, std::int64_t unit) {
@@ -66,16 +114,7 @@ StatValue averageOf(std::span<const Solve> solves, std::int64_t unit) {
     t.push_back(truncated(effectiveTime(s), unit));
   }
   std::sort(t.begin(), t.end());
-  std::size_t trim = trimOf(n);
-  // Anything DNF beyond the trimmed worst makes the average DNF.
-  if (t[n - trim - 1] == kDnfTime) {
-    return kDnfTime;
-  }
-  std::int64_t sum = 0;
-  for (std::size_t i = trim; i < n - trim; ++i) {
-    sum += t[i];
-  }
-  return roundedMean(sum, static_cast<std::int64_t>(n - 2 * trim), unit);
+  return averageOfSorted(t, unit);
 }
 
 std::vector<std::size_t> trimmedIndices(std::span<const Solve> solves) {
@@ -156,13 +195,20 @@ std::optional<std::size_t> bestRollingStart(std::span<const Solve> all,
 std::optional<std::size_t> bestAverageStart(std::span<const Solve> all,
                                             std::size_t n, bool mean,
                                             std::int64_t unit) {
-  return mean ? bestRollingStart(all, n,
-                                 [unit](std::span<const Solve> s) {
-                                   return meanOf(s, unit);
-                                 })
-              : bestRollingStart(all, n, [unit](std::span<const Solve> s) {
-                  return averageOf(s, unit);
-                });
+  if (mean) {
+    return bestRollingStart(
+        all, n, [unit](std::span<const Solve> s) { return meanOf(s, unit); });
+  }
+  // The first of the best, as bestRollingStart() picks.
+  StatValue best;
+  std::optional<std::size_t> at;
+  rollingAverageOf(all, n, unit, [&](std::size_t start, StatValue v) {
+    if (v && (!best || *v < *best)) {
+      best = v;
+      at = start;
+    }
+  });
+  return at;
 }
 
 StatValue bestAverage(std::span<const Solve> all, std::size_t n,
@@ -180,10 +226,9 @@ StatValue bestMean(std::span<const Solve> all, std::size_t n,
 std::vector<StatValue> rollingAverages(std::span<const Solve> all,
                                        std::size_t n, std::int64_t unit) {
   std::vector<StatValue> out(all.size());
-  for (std::size_t end = std::max<std::size_t>(n, 1); end <= all.size();
-       ++end) {
-    out[end - 1] = averageOf(all.subspan(end - n, n), unit);
-  }
+  rollingAverageOf(all, n, unit, [&](std::size_t start, StatValue v) {
+    out[start + n - 1] = v;
+  });
   return out;
 }
 
