@@ -353,11 +353,11 @@ PracticePage::Outcome TslePage::judge() {
     if (start_.ocll()) {
       if (auto f = s.finish(start_)) {
         o.best = f->alg;
-        o.bestMoves = f->moves;
+        o.result.bestMoves = f->moves;
       }
     } else if (auto options = s.options(start_); !options.empty()) {
       o.best = options.front().alg;
-      o.bestMoves = options.front().moves;
+      o.result.bestMoves = options.front().moves;
     }
     if (item().gaveUp || steps_.empty()) {
       o.verdict = coloured(kFailColour, tr("Gave up"));
@@ -366,48 +366,48 @@ PracticePage::Outcome TslePage::judge() {
     const Step &step = steps_.front();
     o.verdict = stepVerdict(step) +
                 (item().hint ? " · " + tr("with a hint") : QString());
-    o.moves = step.moves;
-    o.extra = step.good ? step.extra : kWrongTrigger;
-    o.good = step.good;
+    o.result.moves = step.moves;
+    o.result.extra = step.good ? step.extra : kWrongTrigger;
+    o.result.good = step.good;
     return o;
   }
   // The whole step.
-  o.bestMoves = s.movesLeft(start_);
+  o.result.bestMoves = s.movesLeft(start_);
   for (const Alg &step : s.bestPath(start_)) {
     o.best.insert(o.best.end(), step.begin(), step.end());
   }
   if (item().moves.empty()) {
     // A physical cube: only the best way is known.
-    o.verdict =
-        tr("%1, best way %2").arg(caseText(start_), movesText(o.bestMoves));
+    o.verdict = tr("%1, best way %2")
+                    .arg(caseText(start_), movesText(o.result.bestMoves));
     return o;
   }
   // Step by step, as done: a trigger undone by the next one still counts,
   // but an OCLL alg joined on to the trigger before it (R' R cancelling)
   // is counted joined, as the best way is.
   for (std::size_t i = 0; i < steps_.size(); ++i) {
-    o.moves += steps_[i].moves;
+    o.result.moves += steps_[i].moves;
     if (i > 0 && steps_[i].before.ocll()) {
       const Step &prev = steps_[i - 1];
       const Alg &moves = item().moves;
       Alg both(moves.begin() + static_cast<std::ptrdiff_t>(prev.begin),
                moves.begin() + static_cast<std::ptrdiff_t>(steps_[i].end));
-      o.moves -= prev.moves + steps_[i].moves - htmCount(simplify(both));
+      o.result.moves -= prev.moves + steps_[i].moves - htmCount(simplify(both));
     }
   }
   if (item().gaveUp) {
     o.verdict = coloured(kFailColour, tr("Not finished")) + " · " +
-                tr("best way %1").arg(movesText(o.bestMoves));
+                tr("best way %1").arg(movesText(o.result.bestMoves));
     return o;
   }
-  o.extra = std::max(0, o.moves - o.bestMoves);
-  o.good = o.extra == 0;
-  o.verdict =
-      tr("TSLE in %1").arg(movesText(o.moves)) + " · " +
-      (o.moves <= o.bestMoves
-           ? coloured(kPassColour, tr("as short as the best way"))
-           : overMarked(tr("+%1 over the best way").arg(o.moves - o.bestMoves),
-                        o.moves - o.bestMoves >= 3));
+  o.result.extra = std::max(0, o.result.moves - o.result.bestMoves);
+  o.result.good = o.result.extra == 0;
+  o.verdict = tr("TSLE in %1").arg(movesText(o.result.moves)) + " · " +
+              (o.result.moves <= o.result.bestMoves
+                   ? coloured(kPassColour, tr("as short as the best way"))
+                   : overMarked(tr("+%1 over the best way")
+                                    .arg(o.result.moves - o.result.bestMoves),
+                                o.result.moves - o.result.bestMoves >= 3));
   return o;
 }
 

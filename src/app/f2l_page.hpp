@@ -182,8 +182,6 @@ private:
   // Reads the score profile from the settings and copies it: asked for
   // once by whatever compares several costs, not once per cost.
   AnalysisOptions analysisOptions() const;
-  // The cost a solution is compared by: without the U turns at its ends.
-  static double compareCost(const Alg &moves, const AnalysisOptions &options);
   void requestPair();
   void requestRanks(std::size_t segment, const CubieCube &before);
   void arrived(const Analysis &a);

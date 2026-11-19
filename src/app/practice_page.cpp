@@ -618,7 +618,7 @@ void PracticePage::leaveChoice(Choice choice) {
     // The grade follows the verdict, unless you gave it yourself.
     if (item_.graded && item_.recorded && item_.grade && item_.outcome &&
         !item_.gradedByHand) {
-      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->result.good,
                                      .hinted = item_.hint,
                                      .gaveUp = item_.gaveUp});
       if (g != *item_.grade) {
@@ -974,7 +974,7 @@ void PracticePage::conclude() {
     if (item_.graded) {
       CaseProgress &p = store_.data.cards[item_.card];
       item_.cardBefore = p.card;
-      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->result.good,
                                      .hinted = item_.hint,
                                      .gaveUp = item_.gaveUp});
       review(p.card, g, now, settings_.srs, &rng_);
@@ -984,9 +984,9 @@ void PracticePage::conclude() {
     } else if (item_.card.empty()) {
       PracticeTry t;
       t.timestamp = now;
-      t.moves = item_.outcome->moves;
-      t.best = item_.outcome->bestMoves;
-      t.extra = item_.outcome->extra;
+      t.moves = item_.outcome->result.moves;
+      t.best = item_.outcome->result.bestMoves;
+      t.extra = item_.outcome->result.extra;
       t.dnf = item_.gaveUp;
       t.hint = item_.hint;
       if (tab_ == Tab::Inspection) {
@@ -1231,9 +1231,9 @@ void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
     PracticeTry t;
     t.timestamp = unixNow();
     t.ms = ms;
-    t.moves = item_.outcome->moves;
-    t.best = item_.outcome->bestMoves;
-    t.extra = item_.outcome->extra;
+    t.moves = item_.outcome->result.moves;
+    t.best = item_.outcome->result.bestMoves;
+    t.extra = item_.outcome->result.extra;
     t.dnf = failed;
     store_.data.addTimed(key, t);
     item_.recorded = true;
@@ -1353,10 +1353,10 @@ void PracticePage::analysisArrived(int id) {
     PracticeTry *t =
         newestTry(tabTries(store_.data, tab_),
                   tab_ == Tab::Timed ? timedGroupKey() : item_.group);
-    if (t && (before.extra != item_.outcome->extra ||
-              before.bestMoves != item_.outcome->bestMoves)) {
-      t->best = item_.outcome->bestMoves;
-      t->extra = item_.outcome->extra;
+    if (t && (before.result.extra != item_.outcome->result.extra ||
+              before.result.bestMoves != item_.outcome->result.bestMoves)) {
+      t->best = item_.outcome->result.bestMoves;
+      t->extra = item_.outcome->result.extra;
       save();
       refreshList();
     }
@@ -1481,11 +1481,12 @@ QString PracticePage::gradeLine() const {
 }
 
 QString PracticePage::timedLine() const {
-  return vcube::timedLine({.moves = item_.outcome ? item_.outcome->moves : 0,
-                           .ms = item_.ms,
-                           .dnf = item_.gaveUp,
-                           .meanBefore = item_.meanBefore},
-                          settings_.decimals);
+  return vcube::timedLine(
+      {.moves = item_.outcome ? item_.outcome->result.moves : 0,
+       .ms = item_.ms,
+       .dnf = item_.gaveUp,
+       .meanBefore = item_.meanBefore},
+      settings_.decimals);
 }
 
 QString PracticePage::inspectionLine() const {
