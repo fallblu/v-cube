@@ -66,6 +66,28 @@ TEST_CASE("file formats and versions are checked in one place") {
                         strict) == FileStatus::Unreadable);
 }
 
+TEST_CASE("a version beyond the range of int is newer, not unreadable") {
+  FileFormat strict{"v-cube.test", 2, false, "test file"};
+  QString error;
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1e10}}, strict,
+                        &error) == FileStatus::Newer);
+  CHECK(error.contains("10000000000"));
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1e300}},
+                        strict) == FileStatus::Newer);
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", -1e10}},
+                        strict) == FileStatus::Unreadable);
+  CHECK(checkFileFormat({{"format", "v-cube.test"}, {"version", 1e10 + 0.5}},
+                        strict) == FileStatus::Unreadable);
+
+  // So such a file is left as it is.
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("sessions.json");
+  QByteArray text = R"({"format": "v-cube.sessions", "version": 1e10,
+                        "sessions": []})";
+  SessionStore store(path);
+  checkNewerKept(path, text, store);
+}
+
 TEST_CASE("a file without its contents is unreadable, not empty") {
   static constexpr FileField fields[] = {{"sessions", true},
                                          {"extra", false, false}};

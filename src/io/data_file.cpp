@@ -10,6 +10,7 @@
 #include <QPointer>
 
 #include <algorithm>
+#include <cmath>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -37,16 +38,16 @@ FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
   }
   QJsonValue v = o.value("version");
   if (!v.isUndefined()) {
+    // Checked as a double: one beyond the range of int can't be cast to it.
     double version = v.toDouble(-1);
-    if (!v.isDouble() || version < 1 ||
-        version != static_cast<double>(static_cast<int>(version))) {
+    if (!v.isDouble() || !(version >= 1) || version != std::floor(version)) {
       return fail(FileStatus::Unreadable, "its version isn't a version number");
     }
     if (version > format.version) {
       return fail(FileStatus::Newer,
                   QString("it was written by a newer version of v-cube: file "
                           "version %1, and this version reads up to %2")
-                      .arg(static_cast<int>(version))
+                      .arg(version, 0, 'f', 0)
                       .arg(format.version));
     }
   }
