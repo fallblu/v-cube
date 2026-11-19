@@ -373,9 +373,18 @@ PracticePage::Outcome TslePage::judge() {
         tr("%1, best way %2").arg(caseText(start_), movesText(o.bestMoves));
     return o;
   }
-  // Step by step, as done: a trigger undone by the next one still counts.
-  for (const Step &step : steps_) {
-    o.moves += step.moves;
+  // Step by step, as done: a trigger undone by the next one still counts,
+  // but an OCLL alg joined on to the trigger before it (R' R cancelling)
+  // is counted joined, as the best way is.
+  for (std::size_t i = 0; i < steps_.size(); ++i) {
+    o.moves += steps_[i].moves;
+    if (i > 0 && steps_[i].before.ocll()) {
+      const Step &prev = steps_[i - 1];
+      const Alg &moves = item().moves;
+      Alg both(moves.begin() + static_cast<std::ptrdiff_t>(prev.begin),
+               moves.begin() + static_cast<std::ptrdiff_t>(steps_[i].end));
+      o.moves -= prev.moves + steps_[i].moves - htmCount(simplify(both));
+    }
   }
   if (item().gaveUp) {
     o.verdict = coloured(kFailColour, tr("Not finished")) + " · " +
