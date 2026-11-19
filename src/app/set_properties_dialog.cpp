@@ -240,9 +240,11 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   auto *previous = new QToolButton(step);
   previous->setArrowType(Qt::LeftArrow);
   previous->setToolTip(tr("Show the case before"));
+  previous->setAccessibleName(tr("Show the case before"));
   auto *next = new QToolButton(step);
   next->setArrowType(Qt::RightArrow);
   next->setToolTip(tr("Show the next case"));
+  next->setAccessibleName(tr("Show the next case"));
   previewButtons->addStretch();
   previewButtons->addWidget(previous);
   previewButtons->addWidget(next);

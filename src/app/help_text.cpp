@@ -265,7 +265,11 @@ const std::vector<Section> &sections() {
        {T("Where"), T("Key"), T("Action")},
        {{T("search box"), T("Enter"), T("give the keys back to the cube")},
         {T("search box"), T("Esc"), T("clear the search")}},
-       {}},
+       {T("In Learn and Drill, the mode's menu in the menu bar has the "
+          "selected cases' actions, Tick all, Tick none and the list's "
+          "columns (and Drill's Reset tally), so the command list (Ctrl+K) "
+          "finds them. In Timed, Untimed and Move Count, it has the session "
+          "table's columns and each statistic's solves.")}},
       {T("Timed"),
        AppMode::Timed,
        {},
@@ -353,7 +357,8 @@ const std::vector<Section> &sections() {
        {T("In the solve review (Alt+R, or double-click a solve):")},
        {T("Key"), T("Action")},
        {{T("← / →"), T("step the replay back / forward")},
-        {T("Home / End"), T("to the scramble / to the end")}},
+        {T("Home / End"), T("to the scramble / to the end")},
+        {T("Space"), T("play the replay a move at a time, or pause it")}},
        {}},
       {T("EO Cross"),
        AppMode::EoCross,
@@ -411,10 +416,17 @@ const std::vector<Section> &sections() {
        {}},
       {T("Alg Lab"),
        AppMode::AlgLab,
-       {T("The Search tab is used with the mouse: Enter in the field under the "
-          "list adds the alg typed. These keys are for the Test tab.")},
+       {T("In the Search tab the list of algs takes the arrow keys while the "
+          "case list doesn't have the keyboard. The other keys are for the "
+          "Test tab.")},
        {T("When"), T("Key"), T("Action")},
-       {{T("Before the session or after its last rep"), T("Space"),
+       {{T("Search tab"), T("↑ / ↓, Page Up / Page Down, Home / End"),
+         T("select an alg (with Shift, several)")},
+        {T("Search tab"), T("Enter"),
+         T("add the selected algs to the session")},
+        {T("Search tab"), T("Delete"), T("remove the selected algs")},
+        {T("Search tab, alg field"), T("Enter"), T("add the alg typed")},
+        {T("Before the session or after its last rep"), T("Space"),
          T("start: the next alg is set up")},
         {T("Physical, case set up"), T("Space held, then let go"),
          T("start the timer (hold until the time turns green)")},
@@ -436,12 +448,15 @@ const std::vector<Section> &sections() {
           "an alg in the session's list to time it next.")}},
       {T("Today"),
        AppMode::Today,
-       {T("Each set has a button to review or learn it; Review all sets "
-          "reviews every set's due cases together.")},
-       {},
-       {
-
-       },
+       {T("The button at the top does what is next: review what is due, "
+          "else learn new cases. Each set has a button to review or learn "
+          "it.")},
+       {T("Key"), T("Action")},
+       {{T("↑ / ↓, Home / End"), T("pick a set (or F2L or TSLE's cards)")},
+        {T("Enter"), T("open the set picked in Learn (with none picked, the "
+                       "button at the top)")},
+        {T("R"), T("review every set's due cases together")},
+        {T("Space"), T("the button at the top")}},
        {}},
   };
   return all;

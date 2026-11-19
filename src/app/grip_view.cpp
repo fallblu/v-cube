@@ -39,6 +39,7 @@ QString cost(double c) { return QString::number(c, 'f', 2); }
 } // namespace
 
 GripView::GripView(QWidget *parent) : QWidget(parent) {
+  setAccessibleName(tr("Fingertricks"));
   auto *layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
   summary_ = new QLabel(this);

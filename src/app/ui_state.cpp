@@ -135,6 +135,8 @@ Stored<bool> showAlgs(const QString &key) { return {key, false}; }
 
 Stored<QString> reviewPairSet() { return {"review/pairSet", "zz-f2l"}; }
 
+Stored<QStringList> recentCommands() { return {"commandList/recent"}; }
+
 Stored<QStringList> timedHiddenColumns() { return {"timed/hiddenColumns"}; }
 Stored<QStringList> hiddenSessionColumns(const QString &key) { return {key}; }
 

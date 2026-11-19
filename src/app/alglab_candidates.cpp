@@ -72,6 +72,9 @@ void AlgLabPage::fillTable() {
   table_->setSortingEnabled(false);
   table_->setRowCount(0);
   if (!case_) {
+    for (int c = ColCount; c < ColumnCount; ++c) {
+      table_->setColumnHidden(c, true);
+    }
     return;
   }
   rows_ = candidateRows(*case_, store_);
@@ -90,6 +93,7 @@ void AlgLabPage::fillTable() {
   const int trim = store_.current().trimPercent;
   const int d = settings_.decimals;
   int hidden = 0;
+  bool anyTimes = false; // an alg listed has times: the time columns show
   for (const CandidateRow &r : rows_) {
     Alg alg = parseAlgOrEmpty(r.alg);
     MoveCounts mc = moveCounts(alg);
@@ -140,6 +144,7 @@ void AlgLabPage::fillTable() {
       }
       return static_cast<double>(*v);
     };
+    anyTimes = anyTimes || st.used + st.dnfs > 0;
     num(ColCount, QString::number(st.used), st.used);
     num(ColMean, labTime(st.mean, d), ms(st.mean));
     num(ColMedian, labTime(st.median, d), ms(st.median));
@@ -157,6 +162,10 @@ void AlgLabPage::fillTable() {
   table_->setSortingEnabled(true);
   for (int c = ColHtm; c < ColumnCount; ++c) {
     table_->resizeColumnToContents(c);
+  }
+  // The eight time columns only once there are times to show.
+  for (int c = ColCount; c < ColumnCount; ++c) {
+    table_->setColumnHidden(c, !anyTimes);
   }
   if (hidden > 0 && !job_) {
     genStatus_->setText(

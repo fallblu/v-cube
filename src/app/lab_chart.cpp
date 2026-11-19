@@ -28,11 +28,27 @@ double quantile(std::vector<std::int64_t> v, double q) {
 LabChart::LabChart(QWidget *parent) : QWidget(parent) {
   setMouseTracking(true);
   setMinimumHeight(140);
+  setAccessibleName(tr("Comparison chart"));
 }
 
 void LabChart::setSeries(std::vector<Series> series) {
   series_ = std::move(series);
   hover_ = -1;
+  // Each alg's times in words, for assistive technology.
+  QStringList parts;
+  for (const Series &s : series_) {
+    if (s.times.empty()) {
+      continue;
+    }
+    std::vector<std::int64_t> sorted = s.times;
+    std::sort(sorted.begin(), sorted.end());
+    parts << tr("%1: %2 times, median %3")
+                 .arg(s.name)
+                 .arg(s.times.size())
+                 .arg(QString::fromStdString(
+                     formatTime(sorted[sorted.size() / 2], decimals_)));
+  }
+  setAccessibleDescription(parts.join("; "));
   update();
 }
 

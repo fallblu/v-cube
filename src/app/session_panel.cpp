@@ -16,6 +16,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QTableView>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -192,6 +193,7 @@ void SessionPanel::setMenuEnabled(bool on) {
 }
 
 void SessionPanel::setStatsClickable(bool on) {
+  statsClickable_ = on;
   stats_->setWordWrap(!on);
   stats_->setTextInteractionFlags(on ? Qt::TextSelectableByMouse |
                                            Qt::LinksAccessibleByMouse
@@ -245,6 +247,32 @@ void SessionPanel::showColumnMenu(const QPoint &pos) {
     return;
   }
   QMenu menu(this);
+  fillColumnMenu(menu);
+  menu.exec(table_->horizontalHeader()->mapToGlobal(pos));
+}
+
+void SessionPanel::fillMenu(QMenu &menu) {
+  if (statsClickable_) {
+    // The links of the statistics, as "Current ao5", "Best mo3" ...
+    QMenu *stats = menu.addMenu(tr("See the solves of"));
+    static const QRegularExpression link("href='([a-z]+):([^']+)'");
+    for (auto it = link.globalMatch(stats_->text()); it.hasNext();) {
+      auto m = it.next();
+      QString kind = m.captured(1), id = m.captured(2);
+      QString text = kind == "best"  ? tr("Best %1").arg(id)
+                     : kind == "cur" ? tr("Current %1").arg(id)
+                                     : tr("Session mean");
+      QString href = kind + ":" + id;
+      stats->addAction(text, this, [this, href] { emit statActivated(href); });
+    }
+    stats->setEnabled(!stats->isEmpty());
+  }
+  if (!hiddenKey_.isEmpty()) {
+    fillColumnMenu(*menu.addMenu(tr("Columns")));
+  }
+}
+
+void SessionPanel::fillColumnMenu(QMenu &menu) {
   QStringList hidden = saved::hiddenSessionColumns(hiddenKey_).get();
   for (const AttemptColumn &c : model_->columns()) {
     if (!c.hideable) {
@@ -264,7 +292,6 @@ void SessionPanel::showColumnMenu(const QPoint &pos) {
       applyColumns();
     });
   }
-  menu.exec(table_->horizontalHeader()->mapToGlobal(pos));
 }
 
 void SessionPanel::setDeleteRowVisible(bool on) { deleteRow_->setVisible(on); }

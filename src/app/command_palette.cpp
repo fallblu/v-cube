@@ -1,6 +1,9 @@
 #include "app/command_palette.hpp"
 
+#include "app/ui_state.hpp"
+
 #include <QAbstractButton>
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QKeyEvent>
@@ -10,10 +13,12 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPainter>
 #include <QPointer>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStyledItemDelegate>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -26,6 +31,66 @@ namespace vcube {
 namespace {
 
 constexpr int kCommandRole = Qt::UserRole;
+constexpr int kShortcutRole = Qt::UserRole + 1;
+
+// A command with its keys on the right of the row; a heading in bold
+// muted text.
+class CommandDelegate : public QStyledItemDelegate {
+public:
+  using QStyledItemDelegate::QStyledItemDelegate;
+
+  void paint(QPainter *p, const QStyleOptionViewItem &option,
+             const QModelIndex &index) const override {
+    QStyleOptionViewItem opt = option;
+    initStyleOption(&opt, index);
+    if (!(index.flags() & Qt::ItemIsSelectable)) {
+      opt.font.setBold(true);
+      opt.palette.setColor(QPalette::Text,
+                           opt.palette.color(QPalette::PlaceholderText));
+    }
+    const QString keys = index.data(kShortcutRole).toString();
+    const QWidget *w = opt.widget;
+    QStyle *style = w ? w->style() : QApplication::style();
+    if (keys.isEmpty()) {
+      style->drawControl(QStyle::CE_ItemViewItem, &opt, p, w);
+      return;
+    }
+    // The row without its text, then the name and the keys.
+    const QString text = opt.text;
+    opt.text.clear();
+    style->drawControl(QStyle::CE_ItemViewItem, &opt, p, w);
+    QRect r = style->subElementRect(QStyle::SE_ItemViewItemText, &opt, w)
+                  .adjusted(2, 0, -6, 0);
+    const bool selected = opt.state & QStyle::State_Selected;
+    const int keysWidth = opt.fontMetrics.horizontalAdvance(keys) + 16;
+    p->save();
+    p->setFont(opt.font);
+    p->setPen(opt.palette.color(selected ? QPalette::HighlightedText
+                                         : QPalette::Text));
+    QRect name = r.adjusted(0, 0, -keysWidth, 0);
+    p->drawText(name, Qt::AlignLeft | Qt::AlignVCenter,
+                opt.fontMetrics.elidedText(text, Qt::ElideRight, name.width()));
+    if (!selected) {
+      p->setPen(opt.palette.color(QPalette::PlaceholderText));
+    }
+    p->drawText(r, Qt::AlignRight | Qt::AlignVCenter, keys);
+    p->restore();
+  }
+};
+
+// A command's text without the state a checkable one or a choice shows,
+// so that it is remembered as the same command whatever its state.
+QString baseText(QString text) {
+  for (const QString &suffix :
+       {CommandPalette::tr(" (on)"), CommandPalette::tr(" (off)"),
+        CommandPalette::tr(" (current)")}) {
+    if (text.endsWith(suffix)) {
+      text.chop(suffix.size());
+      break;
+    }
+  }
+  return text;
+}
 
 QString plain(QString text) {
   text.remove('&');
@@ -103,6 +168,9 @@ CommandPalette::CommandPalette(std::vector<Command> commands, QWidget *parent)
   list_ = new QListWidget(this);
   list_->setFocusPolicy(Qt::NoFocus);
   list_->setUniformItemSizes(true);
+  list_->setItemDelegate(new CommandDelegate(list_));
+  list_->setAccessibleName(tr("Commands"));
+  search_->setAccessibleName(tr("Search commands"));
   layout->addWidget(search_);
   layout->addWidget(list_);
   connect(search_, &QLineEdit::textChanged, this, &CommandPalette::filter);
@@ -123,31 +191,87 @@ CommandPalette::CommandPalette(std::vector<Command> commands, QWidget *parent)
 void CommandPalette::filter() {
   QStringList terms = search_->text().toLower().split(' ', Qt::SkipEmptyParts);
   list_->clear();
+  // The groups in the order they first come, each with its commands.
+  QStringList groups;
+  std::vector<std::vector<std::size_t>> members;
+  auto addTo = [&](const QString &group, std::size_t i) {
+    qsizetype g = groups.indexOf(group);
+    if (g < 0) {
+      groups << group;
+      members.emplace_back();
+      g = groups.size() - 1;
+    }
+    members[static_cast<std::size_t>(g)].push_back(i);
+  };
+  if (terms.isEmpty()) {
+    // The commands last run that can be run now, newest first.
+    for (const QString &recent : saved::recentCommands().get()) {
+      for (std::size_t i = 0; i < commands_.size(); ++i) {
+        if (baseText(commands_[i].text) == recent) {
+          addTo(tr("Recent"), i);
+          break;
+        }
+      }
+    }
+  }
   for (std::size_t i = 0; i < commands_.size(); ++i) {
     const Command &c = commands_[i];
     QString hay = c.text.toLower();
     bool match = std::all_of(terms.begin(), terms.end(),
                              [&](const QString &t) { return hay.contains(t); });
-    if (!match) {
-      continue;
+    if (match) {
+      addTo(c.group, i);
     }
-    QString text = c.text;
-    if (!c.shortcut.isEmpty()) {
-      text += "    " + c.shortcut;
-    }
-    auto *item = new QListWidgetItem(text, list_);
-    item->setData(kCommandRole, static_cast<int>(i));
   }
-  list_->setCurrentRow(0);
+  for (qsizetype g = 0; g < groups.size(); ++g) {
+    if (!groups[g].isEmpty()) {
+      auto *heading = new QListWidgetItem(groups[g], list_);
+      heading->setFlags(Qt::NoItemFlags);
+    }
+    for (std::size_t i : members[static_cast<std::size_t>(g)]) {
+      const Command &c = commands_[i];
+      // "Go: Today" under the heading "Go" reads as "Today".
+      QString text = c.text;
+      if (text.startsWith(groups[g] + ": ")) {
+        text = text.mid(groups[g].size() + 2);
+      }
+      auto *item = new QListWidgetItem(text, list_);
+      item->setData(kCommandRole, static_cast<int>(i));
+      item->setData(kShortcutRole, c.shortcut);
+      if (!c.shortcut.isEmpty()) {
+        item->setData(Qt::AccessibleTextRole,
+                      QString("%1, %2").arg(text, c.shortcut));
+      }
+    }
+  }
+  list_->setCurrentRow(nextRow(-1, 1));
+}
+
+int CommandPalette::nextRow(int row, int step) const {
+  for (int r = row + step; r >= 0 && r < list_->count(); r += step) {
+    if (list_->item(r)->flags() & Qt::ItemIsSelectable) {
+      return r;
+    }
+  }
+  return row;
 }
 
 void CommandPalette::runSelected() {
   QListWidgetItem *item = list_->currentItem();
-  if (!item) {
+  if (!item || !(item->flags() & Qt::ItemIsSelectable)) {
     return;
   }
-  auto run =
-      commands_[static_cast<std::size_t>(item->data(kCommandRole).toInt())].run;
+  const Command &c =
+      commands_[static_cast<std::size_t>(item->data(kCommandRole).toInt())];
+  QStringList recent = saved::recentCommands().get();
+  const QString text = baseText(c.text);
+  recent.removeAll(text);
+  recent.prepend(text);
+  while (recent.size() > kRecent) {
+    recent.removeLast();
+  }
+  saved::recentCommands().set(recent);
+  auto run = c.run;
   accept();
   // After the palette has closed and the keyboard is back with the window.
   QTimer::singleShot(0, parentWidget(), run);
@@ -159,17 +283,19 @@ bool CommandPalette::eventFilter(QObject *watched, QEvent *event) {
     int row = list_->currentRow();
     switch (key->key()) {
     case Qt::Key_Down:
-      list_->setCurrentRow(std::min(row + 1, list_->count() - 1));
-      return true;
     case Qt::Key_Up:
-      list_->setCurrentRow(std::max(row - 1, 0));
-      return true;
     case Qt::Key_PageDown:
-      list_->setCurrentRow(std::min(row + 8, list_->count() - 1));
+    case Qt::Key_PageUp: {
+      const int step =
+          key->key() == Qt::Key_Down || key->key() == Qt::Key_PageDown ? 1 : -1;
+      const int times =
+          key->key() == Qt::Key_Down || key->key() == Qt::Key_Up ? 1 : 8;
+      for (int i = 0; i < times; ++i) {
+        row = nextRow(row, step);
+      }
+      list_->setCurrentRow(row);
       return true;
-    case Qt::Key_PageUp:
-      list_->setCurrentRow(std::max(row - 8, 0));
-      return true;
+    }
     case Qt::Key_Return:
     case Qt::Key_Enter:
       runSelected();
@@ -184,6 +310,7 @@ bool CommandPalette::eventFilter(QObject *watched, QEvent *event) {
 std::vector<CommandPalette::Command> CommandPalette::fromMenus(QMenuBar *bar) {
   std::vector<Command> out;
   QSet<QAction *> seen; // an action in two menus is listed once
+  QString group;        // the menu bar's menu being walked
   std::function<void(QMenu *, const QString &)> walk =
       [&](QMenu *menu, const QString &path) {
         for (QAction *a : menu->actions()) {
@@ -206,12 +333,14 @@ std::vector<CommandPalette::Command> CommandPalette::fromMenus(QMenuBar *bar) {
                            if (action) {
                              action->trigger();
                            }
-                         }});
+                         },
+                         group});
         }
       };
   for (QAction *a : bar->actions()) {
-    if (QMenu *menu = a->menu()) {
-      walk(menu, plain(a->text()) + ": ");
+    if (QMenu *menu = a->menu(); menu && a->isVisible()) {
+      group = plain(a->text());
+      walk(menu, group + ": ");
     }
   }
   return out;

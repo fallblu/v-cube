@@ -117,6 +117,9 @@ Stored<bool> showAlgs(const QString &key);
 // --- the solve review
 Stored<QString> reviewPairSet();
 
+// --- the command list: the commands last run, newest first
+Stored<QStringList> recentCommands();
+
 // --- Timed
 Stored<QStringList> timedHiddenColumns();
 // A session table's hidden columns, under the key its page gives.

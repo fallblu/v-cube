@@ -63,6 +63,10 @@ public:
 
 signals:
   void editCaseRequested(const QString &setId, const QString &caseId);
+  // An empty state's way out: Library's Paste algs for the set, or the
+  // set in Learn.
+  void pasteAlgsRequested(const QString &setId);
+  void learnSetRequested(const QString &setId);
 
 protected:
   void focusModeChanged() override;
@@ -223,6 +227,9 @@ protected:
     (void)menu;
     (void)caseIds;
   }
+  // More of the mode's menu after the case list's own (e.g. Drill's
+  // Reset tally).
+  virtual void extendModeMenu(QMenu &menu) { (void)menu; }
   virtual void ticksChanged() {}
   // The colour neutrality changed in Settings.
   virtual void neutralityChanged() {}

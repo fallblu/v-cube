@@ -65,6 +65,8 @@ public:
   QWidget *sidePanel() const override;
   // Space held to start counts, as in Timed.
   bool isBusy() const override { return flow_.isBusy() || flow_.isHolding(); }
+  bool hasModeMenu() const override { return true; }
+  void fillModeMenu(QMenu &menu) override;
   void deactivated() override;
   void windowDeactivated() override;
   // The alg sets changed (Untimed offers alg set scrambles); an alg set

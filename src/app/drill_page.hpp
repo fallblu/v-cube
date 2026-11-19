@@ -68,6 +68,9 @@ public:
   DrillPage(AppSettings &settings, AlgLibrary &library,
             QWidget *parent = nullptr);
 
+  // Drills the set: its weakest cases (as the Weak column has them), or
+  // the cases learned in Learn.
+  void drillSet(const QString &setId, bool weakest);
   bool handleKey(QKeyEvent *e, bool press) override;
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
@@ -95,10 +98,18 @@ protected:
   QString startCaseLabel(const std::string &caseId) override;
   void extendCaseMenu(QMenu &menu,
                       const std::vector<std::string> &caseIds) override;
+  void extendModeMenu(QMenu &menu) override;
   void ticksChanged() override;
   void neutralityChanged() override;
 
 private:
+  // Starts counting the session's attempts afresh.
+  void resetTally();
+  // A button under the status for an empty state that names another
+  // mode (none hides it).
+  void offer(const QString &text, std::function<void()> run);
+  QPushButton *offerButton_ = nullptr;
+  std::function<void()> offerRun_;
   using Phase = DrillFlow::Phase;
   enum class Pool { Learned, All, Learning, Queue, Weakest };
   // The scope drop-down's values: the ticked cases, those shown, a group.

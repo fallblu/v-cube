@@ -22,7 +22,10 @@
 
 namespace vcube {
 
-// The big timer readout, coloured by timer state as in cstimer.
+// The big timer readout, coloured by timer state as in cstimer. While
+// Space is held the colour isn't the only sign: a ring on each side of the
+// time while it must still be held, a filled dot once letting go starts
+// the timer, and the accessible description says the same in words.
 class TimeDisplay : public QLabel {
   Q_OBJECT
 public:
@@ -34,14 +37,20 @@ public:
   void showTime(std::int64_t ms, Penalty penalty = Penalty::None);
   void showText(const QString &text, const QColor &colour = {});
 
+protected:
+  void paintEvent(QPaintEvent *e) override;
+
 private:
   struct Shown {
     QString text;
     QColor colour;
   };
+  enum class HoldCue { None, Holding, Ready };
 
   int decimals_ = 2;
   QColor colour_;
+  HoldCue cue_ = HoldCue::None;
+  void setCue(HoldCue cue);
   std::int64_t lastInspection_ = -1; // for the 8 s and 12 s calls
   std::optional<Shown> beforeHold_;  // during a hold: what it replaced
   void show(const QString &text, const QColor &colour);
@@ -82,9 +91,10 @@ generateScramble(std::function<ScrambleSetup(Rng &)> makeState,
 
 // Times and rolling averages of a session, drawn with QPainter. Values
 // are charted in thousandths (seconds for times, moves for move counts).
-// Hovering shows a solve's value; the context menu picks how many of the
-// last solves are charted and, when the chart has extra series (such as
-// step splits), whether those are drawn instead of the averages.
+// Pointing at it shows a solve's values on the read-out line under the
+// plot; the context menu picks how many of the last solves are charted
+// and, when the chart has extra series (such as step splits), whether
+// those are drawn instead of the averages.
 class TrendChart : public QWidget {
   Q_OBJECT
 public:

@@ -175,7 +175,19 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   middleLayout->addWidget(caseTree_, 1);
   // --- the case ---
   caseBox_ = new QGroupBox(tr("Case"), this);
-  auto *caseLayout = new QVBoxLayout(caseBox_);
+  // Until a case is selected the box says only that; the editor is shown
+  // with a case.
+  auto *caseOuter = new QVBoxLayout(caseBox_);
+  caseEmpty_ =
+      new QLabel(tr("Select a case to see and edit its algs"), caseBox_);
+  caseEmpty_->setAlignment(Qt::AlignCenter);
+  caseEmpty_->setWordWrap(true);
+  caseEmpty_->setForegroundRole(QPalette::PlaceholderText);
+  caseContent_ = new QWidget(caseBox_);
+  caseOuter->addWidget(caseEmpty_, 1);
+  caseOuter->addWidget(caseContent_, 1);
+  auto *caseLayout = new QVBoxLayout(caseContent_);
+  caseLayout->setContentsMargins(0, 0, 0, 0);
   auto *caseTop = new QHBoxLayout;
   caseDiagram_ = new QLabel(caseBox_);
   caseDiagram_->setFixedSize(kDiagramSize, kDiagramSize);
@@ -804,6 +816,13 @@ void LibraryPage::selectCase(const QString &setId, const QString &caseId) {
   buildCaseTree();
   loadCase();
   newAlgEdit_->setFocus();
+}
+
+void LibraryPage::pasteAlgsInto(const QString &setId) {
+  selectCase(setId, {});
+  if (editor_.setId == ss(setId)) {
+    pasteAlgs();
+  }
 }
 
 bool LibraryPage::undoLast() {

@@ -5,6 +5,7 @@
 #include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
 #include "app/colours.hpp"
+#include "app/command_palette.hpp"
 #include "app/cube_painter.hpp"
 #include "app/cube_view.hpp"
 #include "app/drill_page.hpp"
@@ -41,6 +42,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPushButton>
@@ -48,6 +50,7 @@
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -290,6 +293,8 @@ private slots:
   void eoCrossLearnAndTimed();
   void practiceModesComeBackAsLeft();
   void themeColoursAreReadable();
+  void pagesTakeTheKeyboard();
+  void commandListGroupsAndRemembers();
   void settingsDialogOpensAndCloses();
   void helpPanelShowsTheKeys();
   void keysDocMatchesTheKeyTable();
@@ -1626,6 +1631,119 @@ void GuiTest::themeColoursAreReadable() {
   // Between the first two U stickers (cells of 40 px, U's block at x 120).
   QImage image = net.toImage();
   QCOMPARE(image.pixelColor(160, 20).rgb(), look.scheme.body.rgb());
+}
+
+// Today, Alg Lab's Search tab and the mode menus work from the keyboard
+// (and the command list), and a page's message goes with it.
+void GuiTest::pagesTakeTheKeyboard() {
+  // Alg Lab's candidates: the arrows select, Enter adds to the session.
+  auto *lab = page<AlgLabPage>();
+  QVERIFY(switchTo(AppMode::AlgLab, lab));
+  lab->selectCase("pll", "T");
+  QTabWidget *tabs = lab->findChild<QTabWidget *>();
+  QVERIFY(tabs);
+  tabs->setCurrentIndex(0);
+  QTableWidget *candidates = nullptr;
+  for (QTableWidget *t : lab->findChildren<QTableWidget *>()) {
+    if (t->columnCount() > 10 && t->horizontalHeaderItem(1) &&
+        t->horizontalHeaderItem(1)->text() == "HTM") {
+      candidates = t;
+    }
+  }
+  QVERIFY(candidates);
+  QVERIFY(candidates->rowCount() >= 1);
+  candidates->clearSelection();
+  window_->setFocus();
+  QTest::keyClick(window_.get(), Qt::Key_Down);
+  QVERIFY(!candidates->selectedItems().isEmpty());
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QVERIFY2(window_->statusBar()->currentMessage().startsWith("Added"),
+           qPrintable(window_->statusBar()->currentMessage()));
+  // The times kept (by algLabTimesEachAlg): the time columns show.
+  QVERIFY(!candidates->isColumnHidden(candidates->columnCount() - 1));
+
+  // The message doesn't follow to another mode.
+  auto *today = page<TodayPage>();
+  QVERIFY(switchTo(AppMode::Today, today));
+  QCOMPARE(window_->statusBar()->currentMessage(), QString());
+
+  // Today: one button for what is next, rows as tall in both tables, and
+  // the keys pick and open a set.
+  QPushButton *next = today->findChild<QPushButton *>("todayNext");
+  QVERIFY(next);
+  QVERIFY(!next->text().isEmpty());
+  auto tables = today->findChildren<QTreeWidget *>();
+  QCOMPARE(tables.size(), 2);
+  QCOMPARE(tables[0]->visualItemRect(tables[0]->topLevelItem(0)).height(),
+           tables[1]->visualItemRect(tables[1]->topLevelItem(0)).height());
+  QTest::keyClick(window_.get(), Qt::Key_Down);
+  QTreeWidgetItem *picked = tables[0]->currentItem();
+  QVERIFY(picked && picked->isSelected());
+  QCOMPARE(picked->text(0), QString("PLL"));
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QTRY_COMPARE(shownPage(*window_), page<LearnPage>());
+
+  // Drill's mode menu has what its buttons and the list's header offer.
+  auto *drill = page<DrillPage>();
+  QVERIFY(switchTo(AppMode::Drill, drill));
+  QMenu menu;
+  drill->fillModeMenu(menu);
+  QStringList texts;
+  for (QAction *a : menu.actions()) {
+    texts << a->text();
+  }
+  QVERIFY2(texts.contains("Reset tally"), qPrintable(texts.join(", ")));
+  QVERIFY(texts.contains("Tick all"));
+  QVERIFY(texts.contains("Columns"));
+
+  // Library shows only a line until a case is selected.
+  auto *library = page<LibraryPage>();
+  QVERIFY(switchTo(AppMode::Library, library));
+  library->selectCase("pll", {});
+  QLabel *empty = nullptr;
+  for (QLabel *l : library->findChildren<QLabel *>()) {
+    if (l->text() == "Select a case to see and edit its algs") {
+      empty = l;
+    }
+  }
+  QVERIFY(empty);
+  QVERIFY(empty->isVisible());
+  library->selectCase("pll", "T");
+  QVERIFY(!empty->isVisible());
+}
+
+// The command list: headings that can't be selected, keys on the right,
+// and the commands last run first when nothing is typed.
+void GuiTest::commandListGroupsAndRemembers() {
+  int ran = 0;
+  auto commands = [&ran] {
+    return std::vector<CommandPalette::Command>{
+        {"Go: Learn", "Ctrl+1", [] {}, "Go"},
+        {"Tick all", {}, [&ran] { ++ran; }, "This page"},
+        {"View: Sidebar (on)", "Ctrl+B", [] {}, "Menus"}};
+  };
+  {
+    CommandPalette palette(commands(), window_.get());
+    auto *list = palette.findChild<QListWidget *>();
+    QVERIFY(list);
+    QCOMPARE(list->count(), 6); // three headings
+    QCOMPARE(list->item(0)->text(), QString("Go"));
+    QVERIFY(!(list->item(0)->flags() & Qt::ItemIsSelectable));
+    QCOMPARE(list->item(1)->text(), QString("Learn")); // under "Go"
+    QCOMPARE(list->currentRow(), 1);
+    auto *search = palette.findChild<QLineEdit *>();
+    QVERIFY(search);
+    QTest::keyClick(search, Qt::Key_Down); // over the heading
+    QCOMPARE(list->currentItem()->text(), QString("Tick all"));
+    QTest::keyClick(search, Qt::Key_Return);
+  }
+  QTRY_COMPARE(ran, 1);
+  CommandPalette palette(commands(), window_.get());
+  auto *list = palette.findChild<QListWidget *>();
+  QVERIFY(list);
+  QCOMPARE(list->item(0)->text(), QString("Recent"));
+  QCOMPARE(list->item(1)->text(), QString("Tick all"));
+  window_->activateWindow();
 }
 
 void GuiTest::settingsDialogOpensAndCloses() {

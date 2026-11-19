@@ -11,6 +11,7 @@
 
 #include <QTimer>
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -18,13 +19,19 @@
 class QLabel;
 class QPushButton;
 class QTreeWidget;
+class QTreeWidgetItem;
 
 namespace vcube {
+
+class HintBar;
 
 // What is waiting and what was done, across the modes: each alg set's
 // reviews due and new cases left in Learn, the same for the cards of F2L
 // and TSLE mode, the practice streak, and the
-// solves and time per mode today and over the last 7 days.
+// solves and time per mode today and over the last 7 days. One button says
+// what to do next (review what is due, else learn new cases); Up and Down
+// pick a row, Enter opens it, R reviews every set and Space does the next
+// thing.
 class TodayPage : public ModePage {
   Q_OBJECT
 public:
@@ -41,6 +48,7 @@ public:
   };
   Totals totals();
 
+  bool handleKey(QKeyEvent *e, bool press) override;
   void activated() override;
   void deactivated() override;
   SettingsParts settingsUsed() const override { return SettingsPart::Srs; }
@@ -62,14 +70,23 @@ private:
   const AlgLabStore &lab_;
   QString dataDir_;
   QLabel *streakLabel_;
+  QPushButton *next_;
+  QLabel *nextNote_;
   QTreeWidget *sets_;
-  QPushButton *reviewAll_;
   QTreeWidget *modes_;
+  HintBar *hints_;
   QTimer refresh_;
+  // What next_ does, and Review all when anything is due.
+  std::function<void()> nextAction_;
+  int dueTotal_ = 0;
 
   std::map<std::string, SetWaiting> dueBySet();
   std::vector<ActivityEvent> events();
   void refresh();
+  // Opens a row of the sets table: its set in Learn, or its practice
+  // mode's cards.
+  void open(QTreeWidgetItem *item);
+  void reviewAll();
 };
 
 // The cases Learn can offer in a set: ticked ones with an alg.
