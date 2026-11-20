@@ -51,7 +51,6 @@ public:
              QWidget *parent = nullptr);
   ~AlgLabPage() override;
 
-  bool handleKey(QKeyEvent *e, bool press) override;
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Timer |
            SettingsPart::Theme;
@@ -80,6 +79,9 @@ public:
   // Undoes the last change made to a set (as Library's Undo does); false
   // if there was nothing to undo.
   void setSetUndo(std::function<bool()> undo) { setUndo_ = std::move(undo); }
+
+protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
 
 private:
   AppSettings &settings_;

@@ -27,15 +27,10 @@ public:
     connect(&tick_, &QTimer::timeout, this, [this] { tick(); });
   }
 
-  // A key press or release meant for the page; true if it was used. A key
-  // held down reaches the page once: its repeats go to the page only if
-  // acceptsAutoRepeat() says so, and are swallowed if its press was used.
-  virtual bool handleKey(QKeyEvent *e, bool press) {
-    (void)e;
-    (void)press;
-    return false;
-  }
-  // How the window sends the page a key: handleKey(), then keyDone().
+  // How the window (and the page itself) sends the page a key: handleKey(),
+  // then keyDone(). A key held down reaches the page once: its repeats go
+  // to the page only if acceptsAutoRepeat() says so, and are swallowed if
+  // its press was used.
   bool routeKey(QKeyEvent *e, bool press) {
     const bool used = handleKey(e, press);
     keyDone();
@@ -179,6 +174,13 @@ signals:
   void sideShownChanged(bool shown);
 
 protected:
+  // A key press or release meant for the page; true if it was used. Keys
+  // come through routeKey() only.
+  virtual bool handleKey(QKeyEvent *e, bool press) {
+    (void)e;
+    (void)press;
+    return false;
+  }
   // After each key the page was sent, used or not.
   virtual void keyDone() {}
   // The clock of a page whose display changes only while something runs

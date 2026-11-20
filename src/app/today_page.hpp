@@ -47,7 +47,6 @@ public:
   };
   Totals totals() const;
 
-  bool handleKey(QKeyEvent *e, bool press) override;
   void activated() override;
   void deactivated() override;
   SettingsParts settingsUsed() const override { return SettingsPart::Srs; }
@@ -59,6 +58,9 @@ signals:
   // The cards of a practice mode (F2L, TSLE) were asked for: its Learn
   // tab, one unit at a time.
   void practiceRequested(AppMode::Id mode);
+
+protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
 
 private:
   AppSettings &settings_;

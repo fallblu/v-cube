@@ -59,7 +59,6 @@ public:
   LearnPage(AppSettings &settings, AlgLibrary &library,
             QWidget *parent = nullptr);
 
-  bool handleKey(QKeyEvent *e, bool press) override;
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
            SettingsPart::Thumbnails | SettingsPart::Srs;
@@ -75,6 +74,7 @@ signals:
   void drillSetRequested(const QString &setId, bool weakest);
 
 protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
   // Enter in the "Start learning" count starts learning when a number was
   // typed, and any other key leaves the field, so that the keys go back to
   // the cube either way.

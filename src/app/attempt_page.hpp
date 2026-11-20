@@ -45,7 +45,6 @@ class AttemptPage : public SessionSolvePage {
 public:
   ~AttemptPage() override;
 
-  bool handleKey(QKeyEvent *e, bool press) override;
   // A typed move count: Backspace and Esc go on as they are held.
   bool acceptsAutoRepeat(const QKeyEvent *e) const override;
   // Space held to start counts, as in Timed.
@@ -57,6 +56,7 @@ public:
   static constexpr std::size_t kWorst = 5;
 
 protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
   // The clock runs while Space is held, to let go of the hold when a
   // popup or dialog takes the release; holdTimer_ says when it is Ready.
   bool clockNeeded() const override { return flow_.isHolding(); }

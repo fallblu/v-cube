@@ -34,7 +34,6 @@ public:
             QWidget *parent = nullptr);
   ~TimerPage() override;
 
-  bool handleKey(QKeyEvent *e, bool press) override;
   bool isBusy() const override; // a solve or inspection is in progress
   void activated() override;
   void deactivated() override;
@@ -44,6 +43,7 @@ public:
   }
 
 protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
   void focusModeChanged() override;
 
 private:
