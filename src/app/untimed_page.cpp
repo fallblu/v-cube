@@ -44,6 +44,14 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
     if (isBusy() || flow_.retry()) {
       return;
     }
+    // The solve may have been deleted or another session chosen while the
+    // check ran: the label is of another solve then.
+    const auto &attempts = session().attempts;
+    if (attempts.empty() || attempts.back().scramble != eoScramble_ ||
+        attempts.back().solution != eoSolution_ ||
+        attempts.back().timestamp != eoTimestamp_) {
+      return;
+    }
     QString was = lastLabel_->text();
     lastLabel_->setText(was.isEmpty() ? line : was + " · " + line);
   });
@@ -168,6 +176,9 @@ void UntimedPage::pageFocusChanged(bool on) {
 }
 
 void UntimedPage::solveRecorded(const MoveCountAttempt &a) {
+  eoScramble_ = a.scramble;
+  eoSolution_ = a.solution;
+  eoTimestamp_ = a.timestamp;
   eoCheck_.start(a.scramble, a.solution);
 }
 

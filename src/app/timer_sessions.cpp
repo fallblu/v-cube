@@ -83,6 +83,7 @@ void TimerPage::selectSession(std::size_t index) {
     showScramble(); // onto the session's cube
   }
   showLastResult();
+  eoCheck_.cancel(); // its result would be of a solve no longer shown
   hintLabel_->clear();
   refreshAttempts();
   save();
