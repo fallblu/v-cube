@@ -27,7 +27,12 @@ void LearnPage::beginRecognition(const std::string &caseId) {
   Hold hold = pickHold();
   Mirror world = pickWorld(caseId);
   CubieCube start = setUp(caseId, world, FreePieces::Scrambled);
-  current_ = Current{caseId, start, hold, false, false, world};
+  current_ = Current{.caseId = caseId,
+                     .start = start,
+                     .hold = hold,
+                     .isNew = false,
+                     .practice = false,
+                     .world = world};
   last_ = cardId(caseId);
   undo_.close();
   attempt_.begin(caseId, LearnAttempt::Kind::Known);
@@ -100,7 +105,12 @@ void LearnPage::nextQuiz() {
 
   Hold hold = pickHold();
   CubieCube start = setUp(id, Mirror{}, FreePieces::Scrambled);
-  current_ = Current{id, start, hold, false, true, Mirror{}};
+  current_ = Current{.caseId = id,
+                     .start = start,
+                     .hold = hold,
+                     .isNew = false,
+                     .practice = true,
+                     .world = Mirror{}};
   last_ = id;
   cubeView_->setColourMap(colourMapOf(hold));
   CubeLook look = cubeView_->look();

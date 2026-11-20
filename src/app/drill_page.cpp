@@ -290,6 +290,11 @@ bool DrillPage::onVirtualCube() const {
   return currentEnum(cubeBox_, CubeKind::Virtual) == CubeKind::Virtual;
 }
 
+TimedDriver::AfterDnf DrillPage::afterDnf() const {
+  return settings_.drill.practiseAfterDnf ? TimedDriver::AfterDnf::Practise
+                                          : TimedDriver::AfterDnf::NextCase;
+}
+
 AttemptMode DrillPage::attemptMode() const {
   return onVirtualCube() ? AttemptMode::VirtualDrill
                          : AttemptMode::PhysicalDrill;
@@ -297,7 +302,7 @@ AttemptMode DrillPage::attemptMode() const {
 
 void DrillPage::showCubeKind() {
   bool virt = onVirtualCube();
-  driver_.configure(virt, settings_.drill.practiseAfterDnf);
+  driver_.configure(virt ? CubeKind::Virtual : CubeKind::Physical, afterDnf());
   cubeView_->setVisible(virt);
   viewRow_->setVisible(virt);
   scrambleLabel_->setVisible(!virt);
@@ -310,7 +315,8 @@ bool DrillPage::isBusy() const {
 }
 
 void DrillPage::applySettings() {
-  driver_.configure(onVirtualCube(), settings_.drill.practiseAfterDnf);
+  driver_.configure(onVirtualCube() ? CubeKind::Virtual : CubeKind::Physical,
+                    afterDnf());
   display_->setDecimals(settings_.decimals);
   cubeView_->applySettings(settings_);
   poolBox_->setItemText(

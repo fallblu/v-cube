@@ -267,7 +267,7 @@ void PracticePage::optionChanged() {
   flow_.noCase();
   // Space never practises after a DNF here: the practice modes have no
   // practice stage (Esc tries the same state again instead).
-  driver_.configure(!physical_, false);
+  driver_.configure(cubeKind(), TimedDriver::AfterDnf::NextCase);
   item_ = {};
   progress_.clear();
   readyPending_ = true;
@@ -281,7 +281,7 @@ void PracticePage::optionChanged() {
 }
 
 void PracticePage::applySettings() {
-  driver_.configure(!physical_, false);
+  driver_.configure(cubeKind(), TimedDriver::AfterDnf::NextCase);
   display_->setDecimals(settings_.decimals);
   cubeView_->applySettings(settings_);
   fillList();
@@ -540,13 +540,14 @@ void PracticePage::nextLearn(LearnAhead ahead) {
     refreshList();
     return;
   }
-  if (!startCard(*pick.caseId, pick.isNew, !pick.isNew)) {
+  if (!startCard(*pick.caseId, pick.isNew ? CardTry::New : CardTry::Graded)) {
     showIdle(tr("%1 can't be set up with these options")
                  .arg(cardName(*pick.caseId)));
   }
 }
 
-bool PracticePage::startCard(const std::string &card, bool isNew, bool graded) {
+bool PracticePage::startCard(const std::string &card, CardTry how) {
+  const bool isNew = how == CardTry::New;
   std::optional<Setup> s = setUp(card);
   if (!s) {
     return false;
@@ -554,7 +555,7 @@ bool PracticePage::startCard(const std::string &card, bool isNew, bool graded) {
   begin(*s);
   item_.card = card;
   item_.isNew = isNew;
-  item_.graded = graded;
+  item_.graded = how == CardTry::Graded;
   lastCard_ = card;
   phase_ = isNew ? Phase::Demo : Phase::Solving;
   cubeChanged();
@@ -579,7 +580,7 @@ void PracticePage::undoLast() {
                    .arg(QTextDocumentFragment::fromHtml(cardName(u->caseId))
                             .toPlainText()));
   // The card comes up again, to be done over.
-  if (!startCard(u->caseId, u->isNew, !u->isNew)) {
+  if (!startCard(u->caseId, u->isNew ? CardTry::New : CardTry::Graded)) {
     next();
   }
 }
@@ -644,7 +645,7 @@ void PracticePage::practiseCard(const std::string &card) {
   }
   // Practice isn't the card last picked.
   const std::string last = lastCard_;
-  if (!startCard(card, false, false)) {
+  if (!startCard(card, CardTry::Practice)) {
     emit message(
         tr("%1 can't be set up with these options").arg(cardName(card)));
   }
@@ -652,7 +653,7 @@ void PracticePage::practiseCard(const std::string &card) {
 }
 
 void PracticePage::nextTimed() {
-  driver_.configure(!physical_, false);
+  driver_.configure(cubeKind(), TimedDriver::AfterDnf::NextCase);
   std::optional<Setup> s = setUp({});
   if (!s) {
     flow_.noCase();

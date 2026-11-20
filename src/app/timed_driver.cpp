@@ -16,9 +16,10 @@ constexpr auto tr = trIn<kTrContext>;
 
 } // namespace
 
-void TimedDriver::configure(bool virtualCube, bool practiseAfterDnf) {
-  flow_.setConfig({virtualCube, drill_.tapToArm, drill_.autoStop,
-                   drill_.shiftSpaceGivesUp, practiseAfterDnf, drill_.holdMs});
+void TimedDriver::configure(CubeKind cube, AfterDnf afterDnf) {
+  flow_.setConfig({cube == CubeKind::Virtual, drill_.tapToArm, drill_.autoStop,
+                   drill_.shiftSpaceGivesUp, afterDnf == AfterDnf::Practise,
+                   drill_.holdMs});
 }
 
 bool TimedDriver::key(const QKeyEvent *e, bool press, const Keymap &keymap,

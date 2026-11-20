@@ -147,7 +147,7 @@ TEST_CASE("numbers in a file are kept within what can be worked with") {
   CHECK(solve.moveTimes == std::vector<std::int64_t>{kMaxFileNumber, 0});
 
   // A card's numbers too.
-  SetProgress p = progressFromJson(QJsonDocument::fromJson(R"({"cases": {"a":
+  SetProgress p = progressFromJson(parsedJson(R"({"cases": {"a":
     {"card": {"step": -3, "ease": 1e9, "interval": -2, "reps": -1,
               "lapses": -1, "due": 1e300}}}})")
                                        .object());
@@ -210,8 +210,7 @@ TEST_CASE("sessions and progress are written with their format") {
   QTemporaryDir tmp;
   SessionStore store(tmp.filePath("sessions.json"));
   REQUIRE(store.save());
-  auto o =
-      QJsonDocument::fromJson(readText(tmp.filePath("sessions.json"))).object();
+  auto o = parsedJson(readText(tmp.filePath("sessions.json"))).object();
   CHECK(o.value("format").toString() == "v-cube.sessions");
   CHECK(o.value("version").toInt() == 1);
   CHECK(store.load());
@@ -335,7 +334,7 @@ TEST_CASE("alg sets with bad cases or settings are refused") {
                       extra + R"(, "groups": [{"name": "G", "cases": [)" +
                       groups + "]}]}";
     QString error;
-    auto set = algSetFromJson(QJsonDocument::fromJson(text).object(), &error);
+    auto set = algSetFromJson(parsedJson(text).object(), &error);
     return set ? QString() : error;
   };
   const char *solved = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB";
@@ -838,8 +837,8 @@ TEST_CASE("progress is written right however it changes between saves") {
   lib.forgetProgress("pll", {"Y"});
   check();
   REQUIRE(job(nullptr));
-  SetProgress was = progressFromJson(
-      QJsonDocument::fromJson(readText(lib.progressPath("pll"))).object());
+  SetProgress was =
+      progressFromJson(parsedJson(readText(lib.progressPath("pll"))).object());
   CHECK(was.size() == 2);
   CHECK(was["T"].attempts.size() == 1);
 }

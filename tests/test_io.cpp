@@ -857,7 +857,7 @@ TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   CHECK(back["T"].card.state == CardState::Review);
 
   // A file written before attempts had a mode.
-  auto old = QJsonDocument::fromJson(R"({"version": 1, "cases": {"Ua": {
+  auto old = parsedJson(R"({"version": 1, "cases": {"Ua": {
     "card": {"state": 2, "step": 0, "ease": 2.5, "interval": 4, "due": 5000,
              "reps": 3, "lapses": 0},
     "attempts": [[100, 2100, 0], [200, 1900, 1]]}}})");
@@ -875,7 +875,7 @@ TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   // Before cards knew when they were introduced: a reviewed card was at
   // its first Learn attempt, a card in review that never was reviewed had
   // been marked learned, and a queued one wasn't yet.
-  auto noIntro = QJsonDocument::fromJson(R"({"version": 1, "cases": {
+  auto noIntro = parsedJson(R"({"version": 1, "cases": {
     "learned": {"card": {"state": 1, "reps": 1, "due": 900},
                 "attempts": [[50, 900, 0, "drill"], [700, 0, 0, "learn"]]},
     "marked": {"card": {"state": 2, "reps": 0, "due": 5000}, "attempts": []},
@@ -897,7 +897,7 @@ TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
 TEST_CASE("old progress in review is marked learned only when never reviewed") {
   // Both in review with no Learn attempt: one reviewed (its Learn attempts
   // read as drill, from before attempts had a mode), one never reviewed.
-  auto old = QJsonDocument::fromJson(R"({"version": 1, "cases": {
+  auto old = parsedJson(R"({"version": 1, "cases": {
     "reviewed": {"card": {"state": 2, "reps": 3, "due": 5000},
                  "attempts": [[700, 0, 0]]},
     "marked": {"card": {"state": 2, "reps": 0, "due": 5000},
@@ -983,7 +983,7 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
   s.cube = CubeKind::Physical;
   CHECK(sessionsFromJson(sessionsToJson({s}, 0))[0].cube == CubeKind::Physical);
   // Saved before sessions had a cube: the timer was for physical cubes.
-  auto old = QJsonDocument::fromJson(
+  auto old = parsedJson(
       R"({"version": 1, "sessions": [{"name": "A", "solves": []}]})");
   CHECK(sessionsFromJson(old.object())[0].cube == CubeKind::Physical);
 
@@ -998,7 +998,7 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
   QByteArray cs = sessionsToCstimer({s});
   // cstimer tells its own format from other timers' by this start.
   CHECK(cs.startsWith("{\"session1\":"));
-  QJsonObject csObject = QJsonDocument::fromJson(cs).object();
+  QJsonObject csObject = parsedJson(cs).object();
   QString sessionData =
       csObject.value("properties").toObject().value("sessionData").toString();
   CHECK(sessionData.contains("\"scrType\":\"lsll2\""));
@@ -1025,7 +1025,7 @@ TEST_CASE("sessions round-trip and convert to and from cstimer") {
   CHECK(error.contains("no cstimer sessions"));
 
   // A cstimer export as it is written by cstimer itself.
-  auto doc = QJsonDocument::fromJson(R"({
+  auto doc = parsedJson(R"({
     "session1": [[[0, 10500], "R U F", "", 1700000000], [[2000, 9000], "U", "c", 1700000001]],
     "session2": [[[-1, 30000], "D2", "", 1700000002, ["R@10 U@500", "333"]]],
     "session3": [],
@@ -1058,7 +1058,7 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
   QString error;
   // Sessions stored as JSON text, sessionData as an object, the type under
   // the older "scr", and no names or ranks.
-  auto doc = QJsonDocument::fromJson(R"({
+  auto doc = parsedJson(R"({
     "session2": "[[[0, 5000], \"R\", \"\", 1700000000]]",
     "session1": [[[0, 7000], "U", "", 1700000001]],
     "session10": [[[0, 8000], "F", "", 1700000002]],
@@ -1082,7 +1082,7 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
   // Solves that can't be read are left out; a session of only those is
   // skipped as empty. Solutions that don't read, or are for another puzzle,
   // leave the solve without moves.
-  doc = QJsonDocument::fromJson(R"({
+  doc = parsedJson(R"({
     "session1": [
       [[0], "R", "", 1],
       "not a solve",
@@ -1108,7 +1108,7 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
   CHECK(solves.back().penalty == Penalty::Plus2); // any positive penalty
 
   // Only sessions of other puzzles: none to import, but not an error.
-  doc = QJsonDocument::fromJson(R"({
+  doc = parsedJson(R"({
     "session1": [[[0, 1000], "R", "", 1]],
     "properties": {"sessionData": {"1": {"name": "Pyra", "opt": {"scrType": "pyrso"}}}}
   })");
@@ -1126,7 +1126,7 @@ TEST_CASE("cstimer files in older and odd shapes still import") {
 
 TEST_CASE("cstimer move times below zero, going back or huge are checked") {
   QString error;
-  auto doc = QJsonDocument::fromJson(R"({
+  auto doc = parsedJson(R"({
     "session1": [
       [[0, 1000], "U", "", 1, ["R@-5 U@10", "333"]],
       [[0, 1000], "U", "", 2, ["R@500 U@10", "333"]],
@@ -1155,7 +1155,7 @@ TEST_CASE("cstimer move times below zero, going back or huge are checked") {
 TEST_CASE("cstimer import reports nested JSON that doesn't read") {
   QString error;
   // Sessions and sessionData stored as strings are read.
-  QJsonDocument doc = QJsonDocument::fromJson(R"({
+  QJsonDocument doc = parsedJson(R"({
     "session1": "[[[0, 1000], \"R\", \"\", 1]]",
     "properties": {"sessionData": "{\"1\": {\"name\": \"Mine\"}}"}
   })");
@@ -1166,14 +1166,14 @@ TEST_CASE("cstimer import reports nested JSON that doesn't read") {
   CHECK(imported->sessions[0].solves.size() == 1);
 
   // sessionData cut short: the names and types are not made up.
-  doc = QJsonDocument::fromJson(R"({
+  doc = parsedJson(R"({
     "session1": [[[0, 1000], "R", "", 1]],
     "properties": {"sessionData": "{\"1\": {\"name\": \"Pyra\", "}
   })");
   error.clear();
   CHECK_FALSE(sessionsFromCstimer(doc.object(), &error));
   CHECK(error.contains("session names"));
-  doc = QJsonDocument::fromJson(R"({
+  doc = parsedJson(R"({
     "session1": [[[0, 1000], "R", "", 1]],
     "properties": {"sessionData": "[1, 2]"}
   })");
@@ -1182,7 +1182,7 @@ TEST_CASE("cstimer import reports nested JSON that doesn't read") {
   CHECK(error.contains("session names"));
 
   // A session cut short is not an empty session.
-  doc = QJsonDocument::fromJson(R"({
+  doc = parsedJson(R"({
     "session1": [[[0, 1000], "R", "", 1]],
     "session2": "[[[0, 1000], \"R\", ",
     "properties": {"sessionData": {"1": {"name": "A"}, "2": {"name": "B"}}}
@@ -1201,7 +1201,7 @@ TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {
   Session empty;
   empty.name = "Empty";
   QByteArray cs = sessionsToCstimer({a, empty});
-  QJsonObject o = QJsonDocument::fromJson(cs).object();
+  QJsonObject o = parsedJson(cs).object();
   QJsonArray one = o.value("session1").toArray();
   REQUIRE(one.size() == 3);
   CHECK(one.at(0).toArray().at(0).toArray().at(0).toInt() == -1);
@@ -1213,11 +1213,11 @@ TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {
   CHECK(one.at(1).toArray().at(4).toArray().at(0).toString() == "Rw@0 U@0");
   CHECK(one.at(2).toArray().size() == 4); // no moves, no solution
   CHECK(o.value("session2").toArray().isEmpty());
-  QJsonObject data = QJsonDocument::fromJson(o.value("properties")
-                                                 .toObject()
-                                                 .value("sessionData")
-                                                 .toString()
-                                                 .toUtf8())
+  QJsonObject data = parsedJson(o.value("properties")
+                                    .toObject()
+                                    .value("sessionData")
+                                    .toString()
+                                    .toUtf8())
                          .object();
   CHECK(data.value("1")
             .toObject()

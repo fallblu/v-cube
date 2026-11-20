@@ -18,8 +18,12 @@ const Move kY{MoveType::Y, 1};
 DrillFlow::KeyEvent press(Key k, bool shift = false) {
   return {k, true, shift, {}};
 }
-DrillFlow::KeyEvent release(Key k) { return {k, false, false, {}}; }
-DrillFlow::KeyEvent turn(Move m) { return {Key::Other, true, false, m}; }
+DrillFlow::KeyEvent release(Key k) {
+  return {.key = k, .press = false, .shift = false, .move = {}};
+}
+DrillFlow::KeyEvent turn(Move m) {
+  return {.key = Key::Other, .press = true, .shift = false, .move = m};
+}
 
 DrillFlow flow(DrillFlow::Config c = {}) {
   DrillFlow f;

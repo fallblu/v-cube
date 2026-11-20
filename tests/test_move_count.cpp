@@ -2,6 +2,7 @@
 #include "io/move_counts.hpp"
 #include "train/move_count.hpp"
 
+#include "test_files.hpp"
 #include "test_support.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -326,7 +327,7 @@ TEST_CASE("move count sessions keep their cube, step and solutions") {
 }
 
 TEST_CASE("move count files from before cubes and steps read as physical") {
-  QJsonObject old = QJsonDocument::fromJson(R"({
+  QJsonObject old = parsedJson(R"({
     "format": "v-cube.movecount", "version": 1, "current": 0,
     "sessions": [
       {"name": "EO Cross", "scrambleType": "333", "attempts": [
@@ -358,7 +359,7 @@ TEST_CASE("untimed sessions take any scramble type and uncounted solves") {
   REQUIRE(store.save());
   QFile f(path);
   REQUIRE(f.open(QIODevice::ReadOnly));
-  QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+  QJsonObject o = parsedJson(f.readAll()).object();
   CHECK(o.value("format").toString() == "v-cube.untimed");
   MoveCountStore again(path, SolveLog::Untimed);
   REQUIRE(again.load());
@@ -370,7 +371,7 @@ TEST_CASE("untimed sessions take any scramble type and uncounted solves") {
 }
 
 TEST_CASE("move counts and scramble types from a file are checked") {
-  QJsonObject o = QJsonDocument::fromJson(R"({
+  QJsonObject o = parsedJson(R"({
     "format": "v-cube.movecount", "version": 1, "current": 0,
     "sessions": [
       {"name": "Mine", "scrambleType": "set:pll", "attempts": [

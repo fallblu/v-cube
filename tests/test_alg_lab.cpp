@@ -6,6 +6,8 @@
 #include "train/ergonomics.hpp"
 #include "train/f2l.hpp"
 
+#include "test_files.hpp"
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
@@ -360,7 +362,7 @@ TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {
 
 TEST_CASE("an Alg Lab file edited by hand reads what can be used",
           "[alglab][io]") {
-  QJsonObject o = QJsonDocument::fromJson(R"({
+  QJsonObject o = testing::parsedJson(R"({
     "format": "v-cube.alglab", "version": 2, "current": 0,
     "sessions": [
       {"name": "High", "reps": 5000, "warmup": -1, "trim": 99,
