@@ -81,8 +81,10 @@ private:
   QString type_ = "333";
   ColourNeutrality neutrality_;
   QFutureWatcher<GeneratedScramble> watcher_;
-  QString pendingType_;
-  ColourNeutrality pendingNeutrality_;
+  // Counts the calls of regenerate(): a scramble asked for before the
+  // last one was made from what the alg sets held then, and is dropped.
+  unsigned generation_ = 0;
+  unsigned pendingGeneration_ = 0;
   std::optional<GeneratedScramble> current_;
   std::optional<GeneratedScramble> prefetched_;
   bool wantMore_ = false;

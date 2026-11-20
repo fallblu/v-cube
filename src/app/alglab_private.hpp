@@ -47,6 +47,8 @@ struct AlgLabPage::Job {
   // Lab cases deleted or edited since the search began: what it still
   // finds for them belongs to a case that is gone or changed.
   std::vector<LabCaseKey> dropped;
+  // The cases being searched, as they were when the search began.
+  std::vector<ResolvedCase> searched;
 };
 
 // What the files of AlgLabPage share (see alglab_page.cpp).

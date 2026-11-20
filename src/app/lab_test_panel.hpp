@@ -89,6 +89,11 @@ private:
   // Points current_ at its entry again, or moves on if that is gone.
   void rebaseCurrent();
   std::optional<std::size_t> lastAttempt_; // index into the store
+  // The time lastAttempt_ is of, as it was made: times can be erased
+  // elsewhere (Clear times, a lab case deleted), which moves the others.
+  LabAttempt lastMade_;
+  // Points lastAttempt_ at its time again, or at none if that is gone.
+  void rebaseLastAttempt();
   SolveTimer timer_;
   QTimer tick_;
   LabFlow flow_;

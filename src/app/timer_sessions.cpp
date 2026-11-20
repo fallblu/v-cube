@@ -83,6 +83,7 @@ void TimerPage::selectSession(std::size_t index) {
     showScramble(); // onto the session's cube
   }
   showLastResult();
+  eoCheck_.cancel(); // its result would be of a solve no longer shown
   hintLabel_->clear();
   refreshAttempts();
   save();
@@ -453,6 +454,11 @@ void TimerPage::deleteSession() {
     return;
   }
   deleted_.forget();
+  // Another session now has the deleted one's place in the list: what was
+  // known of the last solve and of the rows shown was the deleted one's.
+  justSolved_ = false;
+  solveRows_.clear();
+  rowsShown_ = 0;
   selectSession(store_.currentIndex());
 }
 
