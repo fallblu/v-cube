@@ -177,7 +177,7 @@ const CaseProgress *CasePage::progressOf(const std::string &caseId) const {
 }
 
 std::string CasePage::cardId(const std::string &caseId) const {
-  return byFamily() ? families_.representative(caseId) : caseId;
+  return byFamily() ? families().representative(caseId) : caseId;
 }
 
 const CaseProgress *CasePage::cardOf(const std::string &caseId) const {
@@ -185,18 +185,18 @@ const CaseProgress *CasePage::cardOf(const std::string &caseId) const {
 }
 
 const CasePage::CaseInfo *CasePage::infoOf(const std::string &caseId) const {
-  auto it = info_.find(caseId);
-  return it == info_.end() ? nullptr : &it->second;
+  auto it = info_->cases.find(caseId);
+  return it == info_->cases.end() ? nullptr : &it->second;
 }
 
 bool CasePage::eligible(const std::string &caseId) const {
   const CaseInfo *i = infoOf(caseId);
-  return i && !i->passing.empty() && steps_.contains(caseId);
+  return i && !i->passing.empty() && info_->steps.contains(caseId);
 }
 
 int CasePage::stepsFrom(const std::string &caseId) const {
-  auto it = steps_.find(caseId);
-  return it == steps_.end() ? 0 : it->second;
+  auto it = info_->steps.find(caseId);
+  return it == info_->steps.end() ? 0 : it->second;
 }
 
 Mirror CasePage::pickWorld(const std::string &caseId) {
@@ -256,7 +256,7 @@ int CasePage::tickedCount() const {
 
 int CasePage::excludedCount() const {
   int n = 0;
-  for (const auto &[id, i] : info_) {
+  for (const auto &[id, i] : info_->cases) {
     n += eligible(id) ? 0 : 1;
   }
   return n;
@@ -320,11 +320,11 @@ void CasePage::refreshSetLabels() {
 }
 
 void CasePage::reloadSets() {
+  infoCache_.clear();
   if (!isVisible()) {
     reloadPending_ = true;
     return;
   }
-  infoCache_.clear();
   populateSets();
   std::string id = setId_;
   if (!library_.find(id)) {
@@ -410,41 +410,41 @@ void CasePage::startCaseFromList(const std::string &id) {
   startCase(id);
 }
 
-void CasePage::computeInfo(Info info) {
-  if (info == Info::Cached) {
-    if (auto it = infoCache_.find(setId_); it != infoCache_.end()) {
-      info_ = it->second.info;
-      families_ = it->second.families;
-      steps_ = it->second.steps;
+void CasePage::computeInfo(Info how) {
+  AlgSet *s = set();
+  if (auto it = infoCache_.find(setId_); it != infoCache_.end()) {
+    info_ = it->second;
+    if (how == Info::Cached) {
       return;
     }
-  }
-  info_.clear();
-  families_ = {};
-  steps_.clear();
-  AlgSet *s = set();
-  if (!s) {
+  } else if (!s) {
+    info_ = std::make_shared<SetInfo>();
     return;
-  }
-  if (s->families) {
-    families_ = findFamilies(*s);
-    if (adoptFamilyCards(families_, progress())) {
-      saveProgress();
+  } else {
+    auto info = std::make_shared<SetInfo>();
+    if (s->families) {
+      info->families = findFamilies(*s);
     }
-  }
-  for (const auto &g : s->groups) {
-    for (const auto &c : g.cases) {
-      CaseAnalysis a = analyzeCase(*s, g, c);
-      if (!s->reduction && !a.passing.empty()) {
-        steps_[c.id] = 1;
+    for (const auto &g : s->groups) {
+      for (const auto &c : g.cases) {
+        CaseAnalysis a = analyzeCase(*s, g, c);
+        if (!s->reduction && !a.passing.empty()) {
+          info->steps[c.id] = 1;
+        }
+        CubieCube display = a.display;
+        info->cases[c.id] = CaseInfo{std::move(a), display};
       }
-      info_[c.id] = CaseInfo{a.passing, a.display, a.mainAlg, std::move(a)};
     }
+    if (s->reduction) {
+      info->steps = stepsLeft(*s, [&](const CaseGroup &, const AlgCase &c) {
+        return CaseAnalysis(info->cases.at(c.id));
+      });
+    }
+    info_ = infoCache_[setId_] = info;
   }
-  if (s->reduction) {
-    steps_ = stepsLeft(*s);
+  if (s && s->families && adoptFamilyCards(info_->families, progress())) {
+    saveProgress();
   }
-  infoCache_[setId_] = InfoCache{info_, families_, steps_};
 }
 
 void CasePage::buildTree() {

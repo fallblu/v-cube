@@ -262,8 +262,7 @@ void LearnPage::refreshLink() {
   const CaseInfo *info = infoOf(link->view.caseId);
   std::vector<ViewAlg> algs;
   if (c && g && info) {
-    algs = algsFor(*s, *g, *c, info->analysis, link->view, link->state,
-                   current_->world);
+    algs = algsFor(*s, *g, *c, *info, link->view, link->state, current_->world);
   }
   attempt_.setLinkAlgs(std::move(algs));
   bool follow = guide_ && guide_->follow;
@@ -739,7 +738,7 @@ void LearnPage::regrade(Grade grade) {
 
 void LearnPage::showFamily() {
   const std::vector<std::string> *members =
-      current_ ? families_.familyFor(current_->caseId) : nullptr;
+      current_ ? families().familyFor(current_->caseId) : nullptr;
   bool shown = byFamily() &&
                (phase() == Phase::Done || phase() == Phase::Recalled) &&
                members && members->size() > 1;

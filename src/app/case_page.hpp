@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -75,13 +76,10 @@ protected:
   // derived constructor.
   void init();
 
-  // What the page knows about a case.
-  struct CaseInfo {
-    std::vector<std::size_t> passing; // indices of passing algs; [0] = main
-    CubieCube state;     // the case as it is set up and drawn (oriented for
-                         // the main alg)
-    std::string mainAlg; // the main alg as done from `state`
-    CaseAnalysis analysis;
+  // What the page knows about a case: its algs checked, and `state`, the
+  // case as it is set up and drawn (oriented for the main alg).
+  struct CaseInfo : CaseAnalysis {
+    CubieCube state;
   };
 
   AppSettings &settings_;
@@ -89,11 +87,6 @@ protected:
   const QString mode_;
   std::string setId_;
   Rng rng_;
-  std::map<std::string, CaseInfo> info_;
-  // The set's mirror families, when it learns by family (else empty).
-  CaseFamilies families_;
-  // Steps left from each case by the set's algs (see stepsLeft()).
-  std::map<std::string, int> steps_;
 
   // The case list on the left; the pointers below are its parts.
   CaseListPanel *panel_;
@@ -110,7 +103,9 @@ protected:
   const SetProgress &progress() const;
   const CaseProgress *progressOf(const std::string &caseId) const;
   // The set learns each case with its mirror images as one family.
-  bool byFamily() const { return !families_.families.empty(); }
+  bool byFamily() const { return !families().families.empty(); }
+  // The set's mirror families, when it learns by family (else none).
+  const CaseFamilies &families() const { return info_->families; }
   // The case whose card is this case's: the first case of its family when
   // learning by family, else the case itself.
   std::string cardId(const std::string &caseId) const;
@@ -228,14 +223,16 @@ private:
   bool ticksPending_ = false;   // a tick change waits to be saved
   bool acrossSets_ = false;
 
-  struct InfoCache {
-    std::map<std::string, CaseInfo> info;
+  // What computeInfo() works out for a set: its cases, its families and
+  // the steps left from each case by the set's algs (see stepsLeft()).
+  struct SetInfo {
+    std::map<std::string, CaseInfo> cases;
     CaseFamilies families;
     std::map<std::string, int> steps;
   };
-  // What computeInfo() worked out for each set, for reviews across sets;
-  // emptied whenever the library changes.
-  std::map<std::string, InfoCache> infoCache_;
+  std::shared_ptr<const SetInfo> info_ = std::make_shared<SetInfo>();
+  // What was worked out for each set, kept until the library changes.
+  std::map<std::string, std::shared_ptr<const SetInfo>> infoCache_;
 
   void populateSets();
   // The cases that can be offered of the rows that pass `test`, in list
@@ -244,8 +241,10 @@ private:
   eligibleRows(const std::function<bool(const QTreeWidgetItem *)> &test) const;
   // Starts the case chosen in the list, giving the keys back first.
   void startCaseFromList(const std::string &id);
-  // Works the set's cases out afresh, or reuses what was worked out for
-  // the set before.
+  // Works the set's cases out, or reuses what was worked out for it since
+  // the library last changed. A family's card kept under one of its cases
+  // moves to the family (see adoptFamilyCards()) unless it is Cached and
+  // reused, as reviews across sets go from set to set.
   enum class Info { Fresh, Cached };
   void computeInfo(Info info = Info::Fresh);
   // Builds the case list, keeping its scroll position and collapsed groups.

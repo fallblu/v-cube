@@ -451,7 +451,7 @@ void LearnPage::updateQueue() {
   auto nameOf = [this, s](const std::string &card) {
     const AlgCase *c = s->findCase(card);
     if (!c) {
-      if (const auto *members = families_.familyFor(card);
+      if (const auto *members = families().familyFor(card);
           members && !members->empty()) {
         c = s->findCase(members->front());
       }

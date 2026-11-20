@@ -580,7 +580,7 @@ std::vector<std::string> LearnPage::pool() const {
   cases.reserve(cards.size());
   for (const auto &card : cards) {
     std::string member = card;
-    if (const auto *members = families_.familyFor(card);
+    if (const auto *members = families().familyFor(card);
         members && !members->empty() && (!s || !s->findCase(card))) {
       member = members->front();
     }
@@ -608,7 +608,7 @@ std::vector<std::string> LearnPage::pool() const {
 }
 
 std::string LearnPage::pickMember(const std::string &card) {
-  const std::vector<std::string> *members = families_.familyFor(card);
+  const std::vector<std::string> *members = families().familyFor(card);
   if (!byFamily() || !members) {
     return card;
   }
@@ -627,7 +627,7 @@ std::string LearnPage::pickMember(const std::string &card) {
 }
 
 void LearnPage::updateCardRows(const std::string &caseId) {
-  const std::vector<std::string> *members = families_.familyFor(caseId);
+  const std::vector<std::string> *members = families().familyFor(caseId);
   if (!byFamily() || !members) {
     updateRow(caseId);
     return;
