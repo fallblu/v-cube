@@ -3,6 +3,7 @@
 #include "app/drill_settings.hpp"
 #include "app/page_parts.hpp"
 #include "train/drill_flow.hpp"
+#include "train/stats.hpp"
 
 #include <QList>
 #include <QString>
@@ -76,9 +77,15 @@ public:
 
   DrillFlow &flow() { return flow_; }
   const DrillFlow &flow() const { return flow_; }
-  // The flow's settings: Drill's, with the cube and whether Space after a
-  // DNF practises the case.
-  void configure(bool virtualCube, bool practiseAfterDnf);
+  // What Space does after a DNF: on to the next case, or the case is
+  // practised.
+  enum class AfterDnf : std::uint8_t {
+    NextCase,
+    Practise,
+  };
+  // The flow's settings: Drill's, with the cube and what Space after a DNF
+  // does.
+  void configure(CubeKind cube, AfterDnf afterDnf);
 
   // A key at `now`, done as the flow asks: whether it was used.
   bool key(const TrainKeyEvent &k, std::int64_t now, Scramble scramble);

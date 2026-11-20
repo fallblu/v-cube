@@ -171,6 +171,8 @@ private:
   QLabel *sessionLabel_;
 
   bool onVirtualCube() const;
+  // What Space does after a DNF, from the settings.
+  TimedDriver::AfterDnf afterDnf() const;
   // The attempt mode whose drill data is recorded and shown.
   AttemptMode attemptMode() const;
   // Shows the cube or the scramble, as the drill's cube needs.
