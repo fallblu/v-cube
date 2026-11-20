@@ -338,39 +338,34 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   startupProblems_ = loaded.warnings;
 
   stack_ = new QStackedWidget(this);
-  learnPage_ = new LearnPage(settings_, data_.library, stack_);
-  auto *drill = new DrillPage(settings_, data_.library, stack_);
-  libraryPage_ = new LibraryPage(settings_, data_.library, stack_);
-  auto *timed = new TimerPage(settings_, data_.sessions, data_.library, stack_);
-  auto *untimed =
-      new UntimedPage(settings_, data_.untimed, data_.library, stack_);
-  auto *moveCount =
-      new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_);
-  auto *eoCross = new EoCrossPage(settings_, data_.eoCross, stack_);
-  auto *algLab = new AlgLabPage(settings_, data_.library, data_.lab, stack_);
-  auto *f2l =
-      new F2LPage(settings_, data_.library, data_.lab, data_.f2l, stack_);
-  auto *tsle = new TslePage(settings_, data_.tsle, stack_);
-  todayPage_ = new TodayPage(
-      settings_, data_, [f2l] { return f2l->cardPool(); },
-      [tsle] { return tsle->cardPool(); }, stack_);
   // Indexed by mode, not by the order of a list.
-  const std::pair<AppMode::Id, ModePage *> pages[] = {
-      {AppMode::Learn, learnPage_},
-      {AppMode::Drill, drill},
-      {AppMode::Library, libraryPage_},
-      {AppMode::Timed, timed},
-      {AppMode::Untimed, untimed},
-      {AppMode::MoveCount, moveCount},
-      {AppMode::EoCross, eoCross},
-      {AppMode::AlgLab, algLab},
-      {AppMode::F2L, f2l},
-      {AppMode::Tsle, tsle},
-      {AppMode::Today, todayPage_}};
-  for (const auto &[mode, page] : pages) {
+  auto add = [this](AppMode::Id mode, auto *page) {
     Q_ASSERT(!pages_[static_cast<std::size_t>(mode)]);
     pages_[static_cast<std::size_t>(mode)] = page;
-  }
+    return page;
+  };
+  learnPage_ =
+      add(AppMode::Learn, new LearnPage(settings_, data_.library, stack_));
+  auto *drill =
+      add(AppMode::Drill, new DrillPage(settings_, data_.library, stack_));
+  libraryPage_ =
+      add(AppMode::Library, new LibraryPage(settings_, data_.library, stack_));
+  add(AppMode::Timed,
+      new TimerPage(settings_, data_.sessions, data_.library, stack_));
+  add(AppMode::Untimed,
+      new UntimedPage(settings_, data_.untimed, data_.library, stack_));
+  add(AppMode::MoveCount,
+      new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_));
+  add(AppMode::EoCross, new EoCrossPage(settings_, data_.eoCross, stack_));
+  auto *algLab = add(AppMode::AlgLab, new AlgLabPage(settings_, data_.library,
+                                                     data_.lab, stack_));
+  auto *f2l = add(AppMode::F2L, new F2LPage(settings_, data_.library, data_.lab,
+                                            data_.f2l, stack_));
+  auto *tsle = add(AppMode::Tsle, new TslePage(settings_, data_.tsle, stack_));
+  todayPage_ = add(AppMode::Today,
+                   new TodayPage(
+                       settings_, data_, [f2l] { return f2l->cardPool(); },
+                       [tsle] { return tsle->cardPool(); }, stack_));
   Q_ASSERT(std::ranges::none_of(pages_, [](ModePage *p) { return !p; }));
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
