@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace vcube {
@@ -111,22 +112,34 @@ QColor shade(const QColor &c, float factor) {
                           std::clamp(c.blueF() * factor, 0.0f, 1.0f));
 }
 
-void drawSticker(QPainter &p, const QPolygonF &poly, const QColor &colour,
-                 double scale) {
+QPointF centroid(const QPolygonF &poly) {
   QPointF centre;
   for (const auto &pt : poly) {
     centre += pt;
   }
-  centre /= static_cast<qreal>(poly.size());
-  QPolygonF inner;
+  return centre / static_cast<qreal>(poly.size());
+}
+
+// `poly` shrunk towards its centre to `factor` of its size.
+QPolygonF shrunk(const QPolygonF &poly, double factor) {
+  const QPointF centre = centroid(poly);
+  QPolygonF out;
   for (const auto &pt : poly) {
-    inner << centre + (pt - centre) * 0.82;
+    out << centre + (pt - centre) * factor;
   }
+  return out;
+}
+
+// Draws the sticker on the face `poly` and returns its outline.
+QPolygonF drawSticker(QPainter &p, const QPolygonF &poly, const QColor &colour,
+                      double scale) {
+  QPolygonF inner = shrunk(poly, 0.82);
   QPen pen(colour, std::max(1.0, scale * 0.09), Qt::SolidLine, Qt::RoundCap,
            Qt::RoundJoin);
   p.setPen(pen);
   p.setBrush(colour);
   p.drawPolygon(inner);
+  return inner;
 }
 
 // Black or white, whichever reads better on `background`.
@@ -143,11 +156,7 @@ void drawMarks(QPainter &p, const QPolygonF &shape, const QColor &sticker,
   if (facelet < 0) {
     return;
   }
-  QPointF centre;
-  for (const auto &pt : shape) {
-    centre += pt;
-  }
-  centre /= static_cast<qreal>(shape.size());
+  const QPointF centre = centroid(shape);
   const QString &label = marks.labels[static_cast<std::size_t>(facelet)];
   if (!label.isEmpty()) {
     QFont font = p.font();
@@ -159,10 +168,7 @@ void drawMarks(QPainter &p, const QPolygonF &shape, const QColor &sticker,
     p.drawText(box, Qt::AlignCenter, label);
   }
   if (marks.ringed(facelet)) {
-    QPolygonF ring;
-    for (const auto &pt : shape) {
-      ring << centre + (pt - centre) * 0.9;
-    }
+    const QPolygonF ring = shrunk(shape, 0.9);
     p.setBrush(Qt::NoBrush);
     p.setPen(QPen(QColor(0x10, 0x10, 0x10), std::max(2.0, size * 0.2),
                   Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
@@ -237,6 +243,53 @@ struct NetGeometry {
   }
 };
 
+// Last-layer diagram: the U face from above with the side stickers of the
+// top layer around it.
+void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,
+                   const CubeLook &look) {
+  p.save();
+  p.setRenderHint(QPainter::Antialiasing, true);
+  // 3 cells plus a thin side strip on each side.
+  constexpr double kStrip = 0.32;
+  constexpr double kSpacing = 0.10;
+  double units = 3.0 + 2.0 * (kStrip + kSpacing);
+  double cell = std::min(area.width(), area.height()) / units;
+  double gap = std::max(1.0, cell * 0.07);
+  QPointF topLeft(area.center().x() - 1.5 * cell,
+                  area.center().y() - 1.5 * cell);
+  std::vector<FlatSticker> stickers;
+  auto fill = [&](const QRectF &r, std::uint8_t v) {
+    stickers.push_back({r.adjusted(gap / 2, gap / 2, -gap / 2, -gap / 2),
+                        look.stickerColour(v)});
+  };
+  for (int i = 0; i < 9; ++i) {
+    fill(QRectF(topLeft.x() + (i % 3) * cell, topLeft.y() + (i / 3) * cell,
+                cell, cell),
+         cube[i]);
+  }
+  double strip = kStrip * cell;
+  double off = kSpacing * cell;
+  for (int k = 0; k < 3; ++k) {
+    // Back (above): B's top row runs right to left as seen from above.
+    fill(QRectF(topLeft.x() + k * cell, topLeft.y() - off - strip, cell, strip),
+         cube[47 - k]);
+    // Front (below): F's top row, left to right.
+    fill(QRectF(topLeft.x() + k * cell, topLeft.y() + 3 * cell + off, cell,
+                strip),
+         cube[18 + k]);
+    // Left: L's top row runs back to front.
+    fill(QRectF(topLeft.x() - off - strip, topLeft.y() + k * cell, strip, cell),
+         cube[36 + k]);
+    // Right: R's top row runs front to back.
+    fill(QRectF(topLeft.x() + 3 * cell + off, topLeft.y() + k * cell, strip,
+                cell),
+         cube[11 - k]);
+  }
+  drawFlatStickers(p, stickers, cell * 0.1, std::max(1.0, gap / 2),
+                   look.scheme.body, nullptr);
+  p.restore();
+}
+
 } // namespace
 
 void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
@@ -262,19 +315,14 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
   // Fit the cube's outline as seen (its eight corners, projected), not a
   // sphere around it, so that it fills the area. A layer mid-turn may
   // reach a little past it.
-  double left = 0, right = 0, top = 0, bottom = 0;
-  bool firstCorner = true;
+  double left = std::numeric_limits<double>::max(), right = -left, top = left,
+         bottom = -left;
   for (float cx : {-1.5f, 1.5f}) {
     for (float cy : {-1.5f, 1.5f}) {
       for (float cz : {-1.5f, 1.5f}) {
         QVector3D v = view.map(QVector3D(cx, cy, cz));
         double k = kEyeDistance / (kEyeDistance - v.z());
         double px = v.x() * k, py = -v.y() * k;
-        if (firstCorner) {
-          left = right = px;
-          top = bottom = py;
-          firstCorner = false;
-        }
         left = std::min(left, px);
         right = std::max(right, px);
         top = std::min(top, py);
@@ -358,13 +406,8 @@ void paint3D(QPainter &p, const QRectF &area, const FaceletCube &cube,
               0.70f +
               0.30f * std::max(0.0f, QVector3D::dotProduct(normal, light));
           QColor colour = shade(look.stickerColour(cube[f]), lit);
-          drawSticker(p, poly, colour, scale);
+          QPolygonF inner = drawSticker(p, poly, colour, scale);
           if (marks) {
-            QPolygonF inner;
-            QPointF mid = (poly[0] + poly[1] + poly[2] + poly[3]) / 4.0;
-            for (const auto &pt : poly) {
-              inner << mid + (pt - mid) * 0.82;
-            }
             drawMarks(p, inner, colour, scale * 0.85, *marks, f);
           }
         }
@@ -429,51 +472,6 @@ void paintFlat(QPainter &p, const QRectF &area, const FaceletCube &cube,
   }
   drawFlatStickers(p, stickers, cell * 0.1, std::max(1.0, gap / 2),
                    look.scheme.body, marks);
-  p.restore();
-}
-
-void paintTopLayer(QPainter &p, const QRectF &area, const FaceletCube &cube,
-                   const CubeLook &look) {
-  p.save();
-  p.setRenderHint(QPainter::Antialiasing, true);
-  // 3 cells plus a thin side strip on each side.
-  constexpr double kStrip = 0.32;
-  constexpr double kSpacing = 0.10;
-  double units = 3.0 + 2.0 * (kStrip + kSpacing);
-  double cell = std::min(area.width(), area.height()) / units;
-  double gap = std::max(1.0, cell * 0.07);
-  QPointF topLeft(area.center().x() - 1.5 * cell,
-                  area.center().y() - 1.5 * cell);
-  std::vector<FlatSticker> stickers;
-  auto fill = [&](const QRectF &r, std::uint8_t v) {
-    stickers.push_back({r.adjusted(gap / 2, gap / 2, -gap / 2, -gap / 2),
-                        look.stickerColour(v)});
-  };
-  for (int i = 0; i < 9; ++i) {
-    fill(QRectF(topLeft.x() + (i % 3) * cell, topLeft.y() + (i / 3) * cell,
-                cell, cell),
-         cube[i]);
-  }
-  double strip = kStrip * cell;
-  double off = kSpacing * cell;
-  for (int k = 0; k < 3; ++k) {
-    // Back (above): B's top row runs right to left as seen from above.
-    fill(QRectF(topLeft.x() + k * cell, topLeft.y() - off - strip, cell, strip),
-         cube[47 - k]);
-    // Front (below): F's top row, left to right.
-    fill(QRectF(topLeft.x() + k * cell, topLeft.y() + 3 * cell + off, cell,
-                strip),
-         cube[18 + k]);
-    // Left: L's top row runs back to front.
-    fill(QRectF(topLeft.x() - off - strip, topLeft.y() + k * cell, strip, cell),
-         cube[36 + k]);
-    // Right: R's top row runs front to back.
-    fill(QRectF(topLeft.x() + 3 * cell + off, topLeft.y() + k * cell, strip,
-                cell),
-         cube[11 - k]);
-  }
-  drawFlatStickers(p, stickers, cell * 0.1, std::max(1.0, gap / 2),
-                   look.scheme.body, nullptr);
   p.restore();
 }
 
