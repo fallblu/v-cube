@@ -343,7 +343,7 @@ QString EoCrossPage::holdsHtml() const {
                                                  : algText(solutions[at].alg));
     }
     if (r.optimum.more) {
-      algs << QString("<span style='color:%1'>…</span>").arg(muted);
+      algs << coloured(QColor(muted), "…");
     }
     QString hold = stepHoldHtml(r.hold, eoOnly, settings().scheme);
     QString length = r.optimum.length == best
