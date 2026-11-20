@@ -14,8 +14,8 @@ void LibraryPage::fillRestoreSetMenu() {
   for (const AlgSet &s : missing) {
     std::string id = s.id;
     restoreSetMenu_->addAction(
-        tr("%1 (%2 cases)").arg(qs(s.name)).arg(s.caseCount()), this,
-        [this, id] { restoreBuiltinSet(id); });
+        tr("%1 (%2 cases)").arg(qs(s.name), QString::number(s.caseCount())),
+        this, [this, id] { restoreBuiltinSet(id); });
   }
 }
 

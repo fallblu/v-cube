@@ -42,6 +42,7 @@
 #include "app/widgets.hpp"
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
+#include "io/algset_json.hpp"
 #include "io/data_file.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
@@ -61,6 +62,7 @@
 #include <QEnterEvent>
 #include <QFile>
 #include <QInputDialog>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -462,6 +464,7 @@ private slots:
   void timedDriverLeavesAndLosesTheKeyboard();
   void onlyTheShownPageIsActive();
   // Last: a second window takes over the process's write reporter.
+  void aSetNameKeepsItsPercentSigns();
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
 };
@@ -3501,6 +3504,37 @@ void GuiTest::algLabLengthLimitAppliesDuringASearch() {
 
 // Everything that couldn't be read at start-up is listed in one window
 // after the window is shown, not in a message box each.
+// A set's name is shown as typed where a number follows it: a "%2" in the
+// name isn't taken for the place of the number.
+void GuiTest::aSetNameKeepsItsPercentSigns() {
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  AlgSet set;
+  set.id = "odd";
+  set.name = "Top %2 of %1";
+  set.spec.free = *parseFree("LL:p");
+  CaseGroup g{"Group", std::nullopt, {}};
+  g.cases.push_back(
+      {"a", "Sune", stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")), {}});
+  set.groups.push_back(g);
+  QVERIFY(writeFile(dir.filePath("algsets/odd.json"),
+                    QJsonDocument(algSetToJson(set)).toJson()));
+  ModalWatcher watcher;
+  MainWindow second(settings_, dir.path());
+  int shown = 0;
+  for (QComboBox *box : second.findChildren<QComboBox *>()) {
+    int at = box->findData("odd");
+    // Other boxes list the set by its name alone.
+    if (at >= 0 && box->itemText(at) != qs(set.name)) {
+      VERIFY_CONTAINS(box->itemText(at), "Top %2 of %1 (1)");
+      ++shown;
+    }
+  }
+  QVERIFY(shown > 0);
+  QCOMPARE(watcher.seen, QStringList{});
+  window_->activateWindow();
+}
+
 void GuiTest::startupProblemsShowInOneWindow() {
   QTemporaryDir dir;
   QVERIFY(dir.isValid());
