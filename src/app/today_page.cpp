@@ -17,6 +17,8 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace vcube {
 
 namespace {
@@ -109,16 +111,10 @@ std::vector<std::string> learnPool(const AlgSet &set) {
   return pool;
 }
 
-TodayPage::TodayPage(AppSettings &settings, const AlgLibrary &library,
-                     const SessionStore &timed, const MoveCountStore &untimed,
-                     const MoveCountStore &moveCounts, const AlgLabStore &lab,
-                     const PracticeData &eoCross, const PracticeData &f2l,
-                     const PracticeData &tsle, CardPool f2lPool,
-                     CardPool tslePool, QWidget *parent)
-    : ModePage(parent), settings_(settings), library_(library), timed_(timed),
-      untimed_(untimed), moveCounts_(moveCounts), lab_(lab), eoCross_(eoCross),
-      f2l_(f2l), tsle_(tsle), f2lPool_(std::move(f2lPool)),
-      tslePool_(std::move(tslePool)) {
+TodayPage::TodayPage(AppSettings &settings, const AppData &appData,
+                     CardPool f2lPool, CardPool tslePool, QWidget *parent)
+    : ModePage(parent), settings_(settings), data_(appData),
+      f2lPool_(std::move(f2lPool)), tslePool_(std::move(tslePool)) {
   auto *layout = new QVBoxLayout(this);
   auto *title = new QLabel(tr("Today"), this);
   setTextRole(title, TextRole::Display, true);
@@ -151,7 +147,8 @@ TodayPage::TodayPage(AppSettings &settings, const AlgLibrary &library,
                  tr("Learned"), QString()},
                 this);
   sets_->setAccessibleName(tr("What's waiting in Learn"));
-  connect(sets_, &QTreeWidget::itemDoubleClicked, this, &TodayPage::open);
+  connect(sets_, &QTreeWidget::itemDoubleClicked, this,
+          qOverload<QTreeWidgetItem *>(&TodayPage::open));
 
   auto *modesTitle = new QLabel(tr("<b>Activity</b>"), this);
   modes_ = table({tr("Mode"), tr("Today"), tr("Time today"), tr("Last 7 days"),
@@ -208,13 +205,16 @@ void TodayPage::activated() {
 }
 
 void TodayPage::open(QTreeWidgetItem *item) {
-  if (!item) {
-    return;
+  if (item) {
+    open(item->data(0, kSetIdRole).toString(), rowMode(item));
   }
-  if (std::optional<AppMode::Id> mode = rowMode(item)) {
+}
+
+void TodayPage::open(const QString &setId, std::optional<AppMode::Id> mode) {
+  if (mode) {
     emit practiceRequested(*mode);
   } else {
-    emit learnSetRequested(item->data(0, kSetIdRole).toString());
+    emit learnSetRequested(setId);
   }
 }
 
@@ -294,9 +294,10 @@ void TodayPage::applySettings() {
 std::map<std::string, SetWaiting> TodayPage::dueBySet() const {
   std::map<std::string, SetWaiting> out;
   std::int64_t now = unixNow();
-  for (const AlgSet &set : library_.sets()) {
-    out[set.id] = setWaiting(learnPool(set), library_.progress(set.id), now,
-                             localDayStart(), localDayEnd(), settings_.srs);
+  for (const AlgSet &set : data_.library.sets()) {
+    out[set.id] =
+        setWaiting(learnPool(set), data_.library.progress(set.id), now,
+                   localDayStart(), localDayEnd(), settings_.srs);
   }
   return out;
 }
@@ -318,8 +319,8 @@ std::vector<ActivityEvent> TodayPage::events() {
       out.push_back({mode, t, ms});
     }
   };
-  for (const AlgSet &set : library_.sets()) {
-    for (const auto &[id, p] : library_.progress(set.id)) {
+  for (const AlgSet &set : data_.library.sets()) {
+    for (const auto &[id, p] : data_.library.progress(set.id)) {
       for (const Attempt &a : p.attempts) {
         bool learn = a.mode == AttemptMode::Learn;
         add(learn ? AppMode::Learn : AppMode::Drill, a.timestamp,
@@ -327,28 +328,28 @@ std::vector<ActivityEvent> TodayPage::events() {
       }
     }
   }
-  for (const Session &s : timed_.sessions()) {
+  for (const Session &s : data_.sessions.sessions()) {
     for (const Solve &solve : s.solves) {
       add(AppMode::Timed, solve.timestamp, solve.timeMs);
     }
   }
   for (const auto &[store, mode] :
-       {std::pair{&untimed_, int(AppMode::Untimed)},
-        std::pair{&moveCounts_, int(AppMode::MoveCount)}}) {
+       {std::pair{&data_.untimed, int(AppMode::Untimed)},
+        std::pair{&data_.moveCounts, int(AppMode::MoveCount)}}) {
     for (const MoveCountSession &s : store->sessions()) {
       for (const MoveCountAttempt &a : s.attempts) {
         add(mode, a.timestamp, 0);
       }
     }
   }
-  for (const LabAttempt &a : lab_.attempts()) {
+  for (const LabAttempt &a : data_.lab.attempts()) {
     add(AppMode::AlgLab, a.timestamp, a.timeMs);
   }
   // The practice modes: every card's try and every solve kept.
   for (const auto &[practised, mode] :
-       {std::pair{&eoCross_, int(AppMode::EoCross)},
-        std::pair{&f2l_, int(AppMode::F2L)},
-        std::pair{&tsle_, int(AppMode::Tsle)}}) {
+       {std::pair{&data_.eoCross.data, int(AppMode::EoCross)},
+        std::pair{&data_.f2l.data, int(AppMode::F2L)},
+        std::pair{&data_.tsle.data, int(AppMode::Tsle)}}) {
     const PracticeData &kept = *practised;
     for (const auto &[id, p] : kept.cards) {
       for (const Attempt &a : p.attempts) {
@@ -381,14 +382,7 @@ void TodayPage::refresh() {
     QString go; // what its button says
   };
   std::vector<Row> rows;
-  // What to do next: the first set or practice mode with new cases, and
-  // the practice mode with the most due.
-  QString firstNewSet, firstNewName;
-  int practiceDue = 0;
-  AppMode::Id practiceDueMode = AppMode::F2L;
-  std::optional<AppMode::Id> firstNewMode;
-  QString practiceDueName, firstNewModeName;
-  for (const AlgSet &set : library_.sets()) {
+  for (const AlgSet &set : data_.library.sets()) {
     const SetWaiting &d = due[set.id];
     rows.push_back({qs(set.id), std::nullopt, qs(set.name), d.due, d.newLeft,
                     d.queued, d.learned,
@@ -396,10 +390,6 @@ void TodayPage::refresh() {
                     : d.newLeft > 0 || d.queued > 0 ? tr("Learn new")
                                                     : tr("Open")});
     dueTotal += d.due;
-    if (firstNewSet.isEmpty() && d.newLeft > 0) {
-      firstNewSet = qs(set.id);
-      firstNewName = qs(set.name);
-    }
   }
   struct Practice {
     AppMode::Id mode;
@@ -408,8 +398,9 @@ void TodayPage::refresh() {
     const CardPool &pool;
   };
   for (const Practice &p :
-       {Practice{AppMode::F2L, tr("F2L pairs"), f2l_, f2lPool_},
-        Practice{AppMode::Tsle, tr("TSLE cases"), tsle_, tslePool_}}) {
+       {Practice{AppMode::F2L, tr("F2L pairs"), data_.f2l.data, f2lPool_},
+        Practice{AppMode::Tsle, tr("TSLE cases"), data_.tsle.data,
+                 tslePool_}}) {
     const PracticeWaiting w = practiceWaiting(
         p.pool ? p.pool() : std::vector<std::string>{}, p.data.cards, unixNow(),
         localDayStart(), localDayEnd(), settings_.srs);
@@ -423,16 +414,17 @@ void TodayPage::refresh() {
                     w.due > 0       ? tr("Review due")
                     : w.newLeft > 0 ? tr("Learn new")
                                     : tr("Open")});
-    if (w.due > practiceDue) {
-      practiceDue = w.due;
-      practiceDueMode = p.mode;
-      practiceDueName = p.name;
-    }
-    if (!firstNewMode && w.newLeft > 0) {
-      firstNewMode = p.mode;
-      firstNewModeName = p.name;
+  }
+  // What to do next: the practice mode with the most due, and the first
+  // set or practice mode with new cases.
+  const Row *mostDue = nullptr;
+  for (const Row &r : rows) {
+    if (r.mode && r.due > (mostDue ? mostDue->due : 0)) {
+      mostDue = &r;
     }
   }
+  auto firstNew =
+      std::ranges::find_if(rows, [](const Row &r) { return r.newLeft > 0; });
 
   // The table is made again only when its rows changed (a set added,
   // removed or moved): a refresh otherwise writes the counts in place, so
@@ -471,13 +463,8 @@ void TodayPage::refresh() {
       // What the row has waiting, as a button.
       auto *button = new QPushButton(sets_);
       button->setFocusPolicy(Qt::NoFocus);
-      if (r.mode) {
-        connect(button, &QPushButton::clicked, this,
-                [this, mode = *r.mode] { emit practiceRequested(mode); });
-      } else {
-        connect(button, &QPushButton::clicked, this,
-                [this, id = r.setId] { emit learnSetRequested(id); });
-      }
+      connect(button, &QPushButton::clicked, this,
+              [this, id = r.setId, mode = r.mode] { open(id, mode); });
       sets_->setItemWidget(item, 5, spacedButton(button, sets_));
       if (picked && pickedMode == r.mode && (r.mode || pickedSet == r.setId)) {
         sets_->setCurrentItem(item);
@@ -517,24 +504,19 @@ void TodayPage::refresh() {
                                  : tr("Review %1 due cases").arg(dueTotal));
     nextAction_ = [this] { reviewAll(); };
     note = tr("Every set's due cases, together.");
-  } else if (practiceDue > 0) {
-    next_->setText(practiceDue == 1
+  } else if (mostDue) {
+    next_->setText(mostDue->due == 1
                        ? tr("Review 1 due card")
-                       : tr("Review %1 due cards").arg(practiceDue));
-    nextAction_ = [this, mode = practiceDueMode] {
-      emit practiceRequested(mode);
+                       : tr("Review %1 due cards").arg(mostDue->due));
+    nextAction_ = [this, mode = mostDue->mode] { open({}, mode); };
+    note = tr("Due in %1.").arg(mostDue->name);
+  } else if (firstNew != rows.end()) {
+    next_->setText(firstNew->mode ? tr("Learn new cards")
+                                  : tr("Learn new cases"));
+    nextAction_ = [this, id = firstNew->setId, mode = firstNew->mode] {
+      open(id, mode);
     };
-    note = tr("Due in %1.").arg(practiceDueName);
-  } else if (!firstNewSet.isEmpty()) {
-    next_->setText(tr("Learn new cases"));
-    nextAction_ = [this, id = firstNewSet] { emit learnSetRequested(id); };
-    note = tr("Nothing is due. Next in line: %1.").arg(firstNewName);
-  } else if (firstNewMode) {
-    next_->setText(tr("Learn new cards"));
-    nextAction_ = [this, mode = *firstNewMode] {
-      emit practiceRequested(mode);
-    };
-    note = tr("Nothing is due. Next in line: %1.").arg(firstNewModeName);
+    note = tr("Nothing is due. Next in line: %1.").arg(firstNew->name);
   } else {
     next_->setText(tr("Nothing due"));
     nextAction_ = {};
