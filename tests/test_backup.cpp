@@ -5,10 +5,27 @@
 #include <QFile>
 #include <QTemporaryDir>
 
+#include <filesystem>
+#include <system_error>
+
 #include <catch2/catch_test_macros.hpp>
 
 using namespace vcube;
 using namespace vcube::testing;
+
+namespace {
+
+// A real directory link at `link` to `target`. Not QFile::link, which on
+// Windows makes a .lnk shortcut that paths don't go through.
+bool linkFolder(const QString &target, const QString &link) {
+  std::error_code ec;
+  std::filesystem::create_directory_symlink(
+      std::filesystem::path(target.toStdU16String()),
+      std::filesystem::path(link.toStdU16String()), ec);
+  return !ec;
+}
+
+} // namespace
 
 TEST_CASE("a daily backup copies the data files once a day") {
   QTemporaryDir tmp;
@@ -167,7 +184,7 @@ TEST_CASE("export copies the data and the settings to a new folder") {
 TEST_CASE("an export reaching the data folder through a link is refused") {
   QTemporaryDir tmp;
   writeText(tmp.filePath("data/sessions.json"), "s");
-  if (!QFile::link(tmp.filePath("data"), tmp.filePath("link"))) {
+  if (!linkFolder(tmp.filePath("data"), tmp.filePath("link"))) {
     SKIP("links can't be made here");
   }
   QString error;
@@ -187,7 +204,7 @@ TEST_CASE("an export reaching the data folder through a link is refused") {
 
   // A link to elsewhere is fine.
   QDir().mkpath(tmp.filePath("elsewhere"));
-  REQUIRE(QFile::link(tmp.filePath("elsewhere"), tmp.filePath("away")));
+  REQUIRE(linkFolder(tmp.filePath("elsewhere"), tmp.filePath("away")));
   REQUIRE(exportAllData(tmp.filePath("data"), {}, tmp.filePath("away/out"),
                         &error));
   CHECK(readText(tmp.filePath("elsewhere/out/data/sessions.json")) == "s");
