@@ -227,6 +227,15 @@ W *lastChild(const QObject *parent, Pred pred) {
   return found;
 }
 
+// The rows under the headings of a practice page's list.
+int caseRows(const QTreeWidget *tree) {
+  int n = 0;
+  for (int g = 0; g < tree->topLevelItemCount(); ++g) {
+    n += tree->topLevelItem(g)->childCount();
+  }
+  return n;
+}
+
 // Writes a file, making its folder if needed; false if it can't be opened.
 bool writeFile(const QString &path, const QByteArray &text) {
   QFile f(path);
@@ -1126,11 +1135,7 @@ void GuiTest::f2lLearnAndTimed() {
   f2l->setConfig(cfop);
   auto *tree = f2l->findChild<QTreeWidget *>("practiceList");
   QVERIFY(tree);
-  int rows = 0;
-  for (int g = 0; g < tree->topLevelItemCount(); ++g) {
-    rows += tree->topLevelItem(g)->childCount();
-  }
-  QCOMPARE(rows, 334);
+  QCOMPARE(caseRows(tree), 334);
   // A solution chosen with CFOP that breaks EO isn't one with ZZ: the case
   // is chosen for again there, and the CFOP one kept for CFOP.
   {
@@ -1332,17 +1337,10 @@ void GuiTest::tsleLearnAndTimed() {
   // The lists: 97 cards in Learn, the 104 starting cases in Timed.
   auto *tree = tsle->findChild<QTreeWidget *>("practiceList");
   QVERIFY(tree);
-  auto rows = [tree] {
-    int n = 0;
-    for (int g = 0; g < tree->topLevelItemCount(); ++g) {
-      n += tree->topLevelItem(g)->childCount();
-    }
-    return n;
-  };
-  QCOMPARE(rows(), 104);
+  QCOMPARE(caseRows(tree), 104);
   QCOMPARE(tree->columnCount(), 5); // with TPS
   tsle->selectTab(Tab::Learn);
-  QCOMPARE(rows(), 97);
+  QCOMPARE(caseRows(tree), 97);
 
   finishBackgroundWrites();
   PracticeStore saved(QDir(dataDir_).filePath("tsle.json"));
