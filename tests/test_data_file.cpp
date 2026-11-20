@@ -507,6 +507,23 @@ TEST_CASE("a file that isn't JSON says where it stops being") {
   CHECK(why.contains("line 1, column"));
 }
 
+TEST_CASE("a file too big to read is unreadable, and not read") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("huge.json");
+  FileFormat format{"v-cube.test", 1, false, "test file"};
+  writeText(path, R"({"format": "v-cube.test"})");
+  CHECK(readDataFile(path, format).status == FileStatus::Read);
+  {
+    // Sparse where the file system allows, so it costs no disk space.
+    QFile f(path);
+    REQUIRE(f.resize(kMaxDataFileSize + 1));
+  }
+  FileRead r = readDataFile(path, format);
+  CHECK(r.status == FileStatus::Unreadable);
+  CHECK(r.error.contains("too big"));
+  QFile::remove(path);
+}
+
 TEST_CASE("a file of the wrong kind is named as users know it") {
   QTemporaryDir tmp;
   QString path = tmp.filePath("set.json");

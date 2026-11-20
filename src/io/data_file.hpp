@@ -52,6 +52,10 @@ FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
 // line 214, column 3".
 QString parseErrorText(const QByteArray &bytes, const QJsonParseError &pe);
 
+// The largest data file read: a bigger one is taken for unreadable rather
+// than read whole into memory. Far beyond what v-cube itself writes.
+inline constexpr qint64 kMaxDataFileSize = qint64{256} * 1024 * 1024;
+
 // Reads and checks a JSON data file, without changing it.
 struct FileRead {
   FileStatus status = FileStatus::Missing;

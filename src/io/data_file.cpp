@@ -134,6 +134,12 @@ FileRead readDataFile(const QString &path, const FileFormat &format) {
     return r;
   }
   r.status = FileStatus::Unreadable;
+  if (f.size() > kMaxDataFileSize) {
+    r.error = QString("it is too big to be %1 (over %2 MB)")
+                  .arg(withArticle(format.what))
+                  .arg(kMaxDataFileSize / (1024 * 1024));
+    return r;
+  }
   QJsonParseError pe;
   QByteArray bytes = f.readAll();
   QJsonDocument doc = QJsonDocument::fromJson(bytes, &pe);
