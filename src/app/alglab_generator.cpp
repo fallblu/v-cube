@@ -24,11 +24,31 @@ void AlgLabPage::updateGenControls() {
   genBox_->setEnabled(!running);
 }
 
+void AlgLabPage::librarySetsChanged(const QString &) {
+  // A set's case deleted or changed (in Library, say) while it is being
+  // searched: what the search still finds is for the case as it was.
+  if (job_) {
+    for (const ResolvedCase &c : job_->searched) {
+      if (c.key.isLab() ||
+          std::ranges::find(job_->dropped, c.key) != job_->dropped.end()) {
+        continue;
+      }
+      auto now = resolveLabCase(library_, store_, c.key);
+      if (!now || now->state != c.state || now->free != c.free ||
+          now->aufBefore != c.aufBefore || now->aufAfter != c.aufAfter) {
+        job_->dropped.push_back(c.key);
+      }
+    }
+  }
+  reloadSets();
+}
+
 void AlgLabPage::runSearch(std::vector<ResolvedCase> cases) {
   if (job_ || cases.empty()) {
     return;
   }
   auto job = std::make_shared<Job>();
+  job->searched = cases;
   job_ = job;
   updateGenControls();
   SearchOptions options = searchOptions();
