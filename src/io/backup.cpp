@@ -207,14 +207,16 @@ QString moveToDeleted(const QString &file, const QString &folder,
   if (!info.exists()) {
     return {};
   }
+  // Not while the data folder is being copied: the copy would fail on a
+  // file it had listed, or (on Windows) the move on a file the copy has open.
+  auto copying = lockDataFolder();
   QDir().mkpath(folder);
   QString base =
       info.completeBaseName() + "." + when.toString("yyyyMMdd-hhmmss");
   QString suffix = info.suffix().isEmpty() ? QString() : "." + info.suffix();
   QString dest = QDir(folder).filePath(base + suffix);
   for (int n = 2; QFile::exists(dest); ++n) {
-    dest =
-        QDir(folder).filePath(QString("%1-%2%3").arg(base).arg(n).arg(suffix));
+    dest = QDir(folder).filePath(base + "-" + QString::number(n) + suffix);
   }
   if (!QFile::rename(file, dest)) {
     fail(error, QString("%1 couldn't be moved to %2")
