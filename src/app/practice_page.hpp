@@ -18,7 +18,6 @@
 
 #include <QFutureWatcher>
 #include <QIcon>
-#include <QTimer>
 
 #include <array>
 #include <functional>

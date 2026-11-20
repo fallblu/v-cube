@@ -13,7 +13,6 @@
 
 #include <QFutureWatcher>
 #include <QStringList>
-#include <QTimer>
 
 #include <cstdint>
 #include <optional>

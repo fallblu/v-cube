@@ -7,7 +7,6 @@
 #include "train/timed_flow.hpp"
 
 #include <QFutureWatcher>
-#include <QTimer>
 
 #include <cstdint>
 #include <map>
