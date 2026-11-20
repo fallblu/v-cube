@@ -1,4 +1,5 @@
 #include "app/timed_driver.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/keymap.hpp"
 #include "app/train_keys.hpp"
@@ -10,9 +11,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::TimedDriver", text);
-}
+constexpr char kTrContext[] = "vcube::TimedDriver";
+constexpr auto tr = trIn<kTrContext>;
 
 } // namespace
 

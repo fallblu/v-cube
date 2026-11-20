@@ -6,7 +6,6 @@
 #include "train/move_count.hpp"
 #include "train/solve_review.hpp"
 
-#include <QCoreApplication>
 #include <QStringList>
 
 #include <algorithm>
@@ -16,9 +15,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::LearnPage", text);
-}
+constexpr char kTrContext[] = "vcube::LearnPage";
+constexpr auto tr = trIn<kTrContext>;
 
 constexpr Slot kAllSlots[] = {Slot::FR, Slot::FL, Slot::BL, Slot::BR};
 

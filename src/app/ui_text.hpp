@@ -7,6 +7,7 @@
 #include "train/srs.hpp"
 #include "train/stats.hpp"
 
+#include <QCoreApplication>
 #include <QDate>
 #include <QDateTime>
 #include <QLocale>
@@ -22,6 +23,15 @@
 namespace vcube {
 
 // Small pieces of text and colour every page words the same way.
+
+// tr() for a file that isn't a QObject's: its text is translated in one
+// context, "vcube::" and the class or part of the app it belongs to. The
+// file names it once:
+//   constexpr char kTrContext[] = "vcube::LearnPage";
+//   constexpr auto tr = trIn<kTrContext>;
+template <const char *Context> QString trIn(const char *text) {
+  return QCoreApplication::translate(Context, text);
+}
 
 // "1 alg", "3 algs".
 inline QString counted(int n, const QString &one, const QString &many) {

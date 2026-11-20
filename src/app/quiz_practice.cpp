@@ -3,8 +3,6 @@
 #include "app/ui_text.hpp"
 #include "train/algset.hpp"
 
-#include <QCoreApplication>
-
 #include <algorithm>
 #include <random>
 
@@ -12,9 +10,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::LearnPage", text);
-}
+constexpr char kTrContext[] = "vcube::LearnPage";
+constexpr auto tr = trIn<kTrContext>;
 
 // Choices in "which case is this?".
 constexpr std::size_t kQuizChoices = 6;

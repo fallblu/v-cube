@@ -1,8 +1,8 @@
 #include "app/help_text.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/mode_table.hpp"
 
-#include <QCoreApplication>
 #include <QRegularExpression>
 #include <QStringList>
 
@@ -12,9 +12,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::HelpText", text);
-}
+constexpr char kTrContext[] = "vcube::HelpText";
+constexpr auto tr = trIn<kTrContext>;
 
 #define T(text) QT_TRANSLATE_NOOP("vcube::HelpText", text)
 

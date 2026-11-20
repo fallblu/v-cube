@@ -1,14 +1,12 @@
 #include "app/practice_keys.hpp"
-
-#include <QCoreApplication>
+#include "app/ui_text.hpp"
 
 namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::PracticePage", text);
-}
+constexpr char kTrContext[] = "vcube::PracticePage";
+constexpr auto tr = trIn<kTrContext>;
 
 KeyHint detailKey(bool open) {
   return {"Tab", open ? tr("hide the details") : tr("details")};
