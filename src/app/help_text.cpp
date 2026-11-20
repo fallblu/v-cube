@@ -26,10 +26,10 @@ constexpr int kTurningKeys = -2; // the section written from the keymap
 struct Section {
   const char *title; // empty: the preamble
   int mode;          // an AppMode, kNoMode or kTurningKeys
-  std::vector<const char *> intro;
-  std::vector<const char *> columns;
-  std::vector<std::vector<const char *>> rows;
-  std::vector<const char *> outro;
+  std::vector<const char *> intro = {};
+  std::vector<const char *> columns = {};
+  std::vector<std::vector<const char *>> rows = {};
+  std::vector<const char *> outro = {};
 };
 
 // The rows EO Cross, F2L and TSLE mode share: their tabs work the same
@@ -118,12 +118,7 @@ const std::vector<Section> &sections() {
           "more about what each mode does."),
         T("A key only reaches the mode's page when no text field or dialog has "
           "the keyboard. A search box or count field gives the keys back with "
-          "Enter (or Esc).")},
-       {},
-       {
-
-       },
-       {}},
+          "Enter (or Esc).")}},
       {T("Window"),
        kNoMode,
        {},
@@ -151,9 +146,8 @@ const std::vector<Section> &sections() {
         {T("Ctrl+B"), T("show or hide the sidebar")},
         {T("Ctrl+,"), T("settings")},
         {T("Ctrl+Shift+N"), T("colour neutrality settings")},
-        {T("Ctrl+Q"), T("quit (asks first during a solve)")}},
-       {}},
-      {T("Turning keys"), kTurningKeys, {}, {}, {}, {}},
+        {T("Ctrl+Q"), T("quit (asks first during a solve)")}}},
+      {T("Turning keys"), kTurningKeys},
       {T("Learn"),
        AppMode::Learn,
        {},
@@ -206,8 +200,7 @@ const std::vector<Section> &sections() {
         {T("in context, afterwards"), T("Esc"), T("the same one again")},
         {T("in context"), T("Backspace"), T("back to learning")},
         {T("count field (next to Add new cases)"), T("digits, then Enter"),
-         T("start learning that many cases")}},
-       {}},
+         T("start learning that many cases")}}},
       {T("Drill"),
        AppMode::Drill,
        {},
@@ -328,8 +321,7 @@ const std::vector<Section> &sections() {
          T("delete the last solve / put the last deleted solve back")},
         {T("after a solve"), T("Ctrl+→"), T("skip the scramble")},
         {T("alg set scramble"), T("Tab"),
-         T("show or hide the algs for the case the scramble sets up")}},
-       {}},
+         T("show or hide the algs for the case the scramble sets up")}}},
       {T("Untimed"),
        AppMode::Untimed,
        {},
@@ -357,8 +349,7 @@ const std::vector<Section> &sections() {
         {T("any"), T("Alt+C / Alt+R"), T("comment on / review the last solve")},
         {T("any"), T("Ctrl+→"), T("skip the scramble")},
         {T("alg set scramble"), T("Tab"),
-         T("show or hide the algs for the case the scramble sets up")}},
-       {}},
+         T("show or hide the algs for the case the scramble sets up")}}},
       {T("Move Count"),
        AppMode::MoveCount,
        {},
@@ -379,8 +370,7 @@ const std::vector<Section> &sections() {
         {T("any"), T("Delete / Ctrl+Z"),
          T("delete the last solve / put the last deleted solve back")},
         {T("any"), T("Alt+C / Alt+R"), T("comment on / review the last solve")},
-        {T("any"), T("Ctrl+→"), T("skip the scramble")}},
-       {}},
+        {T("any"), T("Ctrl+→"), T("skip the scramble")}}},
       {T("Review"),
        kNoMode,
        {T("In the solve review (Alt+R, or double-click a solve):")},
@@ -390,8 +380,7 @@ const std::vector<Section> &sections() {
         {T("Space"), T("play the replay a move at a time, or pause it")},
         {T("C"), T("copy the reconstruction")},
         {T("W"), T("open the solve on alg.cubing.net")},
-        {T("R"), T("retry the scramble (when the review offers it)")}},
-       {}},
+        {T("R"), T("retry the scramble (when the review offers it)")}}},
       {T("EO Cross"),
        AppMode::EoCross,
        {T("EO Cross, F2L and TSLE share their keys. EO Cross has the "
@@ -506,8 +495,7 @@ const std::vector<Section> &sections() {
         {T("Enter"), T("open the set picked in Learn (with none picked, the "
                        "button at the top)")},
         {T("R"), T("review every set's due cases together")},
-        {T("Space"), T("the button at the top")}},
-       {}},
+        {T("Space"), T("the button at the top")}}},
   };
   return all;
 }
