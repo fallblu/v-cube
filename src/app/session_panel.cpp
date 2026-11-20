@@ -182,15 +182,19 @@ void SessionPanel::setSessionName(const QString &name) {
 
 void SessionPanel::fillSessionMenu(const std::vector<MenuSession> &sessions,
                                    std::size_t current) {
+  // clear() deletes the actions, which leave the group as they go: the
+  // one group serves every filling.
   menu_->clear();
-  auto *group = new QActionGroup(menu_);
+  if (!sessionGroup_) {
+    sessionGroup_ = new QActionGroup(menu_);
+  }
   for (std::size_t i = 0; i < sessions.size(); ++i) {
     QAction *a = menu_->addAction(
         tr("%1 (%2)").arg(sessions[i].name).arg(sessions[i].count), this,
         [this, i] { emit sessionChosen(i); });
     a->setCheckable(true);
     a->setChecked(i == current);
-    group->addAction(a);
+    sessionGroup_->addAction(a);
   }
   menu_->addSeparator();
   menu_->addAction(tr("New session…"), this,
