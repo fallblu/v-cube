@@ -215,7 +215,11 @@ void TimerPage::refreshAttempts() {
       solves, unit, tr("time"),
       [d](const std::string &, StatValue v) { return statText(v, d); },
       solves.size());
-  chart_->setSolves(solves);
+  if (unit != kWcaUnit) { // the chart's averages are in WCA units
+    ao5 = rollingAverages(solves, 5);
+    ao12 = rollingAverages(solves, 12);
+  }
+  chart_->setSolves(solves, std::move(ao5), std::move(ao12));
   if (virt) {
     chart_->setSeries({{tr("cross"), Role::Series3, crossSeries},
                        {tr("F2L"), Role::Series1, f2lSeries},

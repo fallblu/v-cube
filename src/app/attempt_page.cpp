@@ -662,7 +662,7 @@ void AttemptPage::refreshAttempts() {
         return movesText(v, id == "single" ? 0 : 2);
       },
       attempts.size());
-  chart_->setSolves(solves);
+  chart_->setSolves(solves, std::move(ao5), std::move(ao12));
   updateControls();
   if (flow_.retry()) {
     return; // the label is the retry's

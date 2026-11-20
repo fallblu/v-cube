@@ -339,16 +339,6 @@ void TrendChart::invalidate() {
   update();
 }
 
-void TrendChart::setEmptyText(const QString &text) {
-  emptyText_ = text;
-  invalidate();
-}
-
-void TrendChart::setMoveCounts(bool on) {
-  moves_ = on;
-  invalidate();
-}
-
 void TrendChart::setSettingsKey(const QString &key) {
   settingsKey_ = key;
   last_ = std::max(0, saved::chartLast(key).get());
@@ -356,14 +346,16 @@ void TrendChart::setSettingsKey(const QString &key) {
   invalidate();
 }
 
-void TrendChart::setSolves(std::span<const Solve> solves) {
+void TrendChart::setSolves(std::span<const Solve> solves,
+                           std::vector<StatValue> ao5,
+                           std::vector<StatValue> ao12) {
   solves_.clear();
   solves_.reserve(solves.size());
   for (const Solve &s : solves) {
     solves_.push_back({s.timeMs, s.penalty});
   }
-  ao5_ = rollingAverages(solves, 5);
-  ao12_ = rollingAverages(solves, 12);
+  ao5_ = std::move(ao5);
+  ao12_ = std::move(ao12);
   hover_ = -1;
   // The last solve and its averages in words, for assistive technology.
   setAccessibleDescription(
@@ -375,40 +367,8 @@ void TrendChart::setSolves(std::span<const Solve> solves) {
   invalidate();
 }
 
-void TrendChart::setSeries(std::vector<Series> series) {
-  series_ = std::move(series);
-  invalidate();
-}
-
-void TrendChart::setPointName(const QString &name) {
-  pointName_ = name;
-  invalidate();
-}
-
-void TrendChart::setAverages(bool on) {
-  averages_ = on;
-  invalidate();
-}
-
-void TrendChart::setPointLabels(std::vector<QString> labels) {
-  pointLabels_ = std::move(labels);
-  invalidate();
-}
-
 bool TrendChart::showsSeries() const {
   return !series_.empty() && (showSeries_ || !averages_);
-}
-
-QStringList TrendChart::lineNames() const {
-  QStringList names;
-  if (showsSeries()) {
-    for (const Series &s : series_) {
-      names << s.name;
-    }
-  } else if (averages_) {
-    names << QStringLiteral("ao5") << QStringLiteral("ao12");
-  }
-  return names;
 }
 
 std::size_t TrendChart::first() const {
@@ -424,9 +384,12 @@ QRectF TrendChart::area() const {
   // larger text isn't cut.
   const QFontMetrics fm = fontMetrics();
   const int lineH = fm.height();
+  // ao12 is the wider name of the averages.
   int right = fm.horizontalAdvance(QStringLiteral("ao12"));
-  for (const QString &name : lineNames()) {
-    right = std::max(right, fm.horizontalAdvance(name));
+  if (showsSeries()) {
+    for (const Series &s : series_) {
+      right = std::max(right, fm.horizontalAdvance(s.name));
+    }
   }
   return QRectF(rect()).adjusted(fm.horizontalAdvance(QStringLiteral("000.0")) +
                                      8,
