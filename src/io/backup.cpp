@@ -169,6 +169,7 @@ bool makeDailyBackup(const QString &dataDir, const QString &settingsFile,
   QDir backups(QDir(dataDir).filePath(kBackupsFolder));
   QString name = today.toString(Qt::ISODate);
   bool ok = true;
+  auto folder = lockDataFolder();
   if (!backups.exists(name)) {
     // Written under a temporary name first, so that a copy cut short is
     // never taken for today's.

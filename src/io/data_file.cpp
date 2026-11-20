@@ -351,6 +351,11 @@ void finishBackgroundWrites(const QString &path) {
   Writer::instance().wait(path);
 }
 
+std::unique_lock<std::mutex> lockDataFolder() {
+  static std::mutex folder;
+  return std::unique_lock(folder);
+}
+
 void setWriteReporter(WriteReporter reporter) {
   std::lock_guard lock(gReporterMutex);
   gReporter = std::move(reporter);

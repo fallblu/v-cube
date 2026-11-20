@@ -308,6 +308,7 @@ std::optional<AlgSet> readAlgSetFile(const QString &path, QString *error,
 bool writeFileAtomically(const QString &path, const QByteArray &data,
                          QString *error) {
   finishBackgroundWrites(path); // so that an older write can't land after
+  auto folder = lockDataFolder();
   QSaveFile f(path);
   auto fail = [&] {
     if (error) {

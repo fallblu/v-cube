@@ -6,6 +6,7 @@
 #include <QString>
 
 #include <functional>
+#include <mutex>
 #include <span>
 #include <utility>
 
@@ -110,6 +111,12 @@ void writeInBackground(const QString &path,
 // is empty) are done. Reading or writing a file directly waits for this
 // first, so that a background write never lands on top of a newer file.
 void finishBackgroundWrites(const QString &path = {});
+
+// Held while the data folder is copied (the daily backup, which runs on the
+// background writer) and by every direct write of a data file, so that a
+// copy never meets a file half replaced, or a save fails because the copy
+// has the file open.
+std::unique_lock<std::mutex> lockDataFolder();
 
 // --- write reports ----------------------------------------------------------
 
