@@ -623,6 +623,13 @@ void LabTestPanel::moveEntry(int direction) {
   } else if (current_ && current_->entry == static_cast<std::size_t>(to)) {
     current_->entry = static_cast<std::size_t>(row);
   }
+  // The alg timed last moves with its entry, so it doesn't come up again
+  // straight away.
+  if (lastEntry_ == static_cast<std::size_t>(row)) {
+    lastEntry_ = static_cast<std::size_t>(to);
+  } else if (lastEntry_ == static_cast<std::size_t>(to)) {
+    lastEntry_ = static_cast<std::size_t>(row);
+  }
   saveStore();
   refresh();
   entries_->selectRow(to);

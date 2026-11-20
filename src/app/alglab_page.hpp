@@ -8,6 +8,7 @@
 #include <QTimer>
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -50,7 +51,6 @@ public:
              QWidget *parent = nullptr);
   ~AlgLabPage() override;
 
-  bool handleKey(QKeyEvent *e, bool press) override;
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Timer |
            SettingsPart::Theme;
@@ -80,6 +80,9 @@ public:
   // if there was nothing to undo.
   void setSetUndo(std::function<bool()> undo) { setUndo_ = std::move(undo); }
 
+protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
+
 private:
   AppSettings &settings_;
   AlgLibrary &library_;
@@ -96,8 +99,12 @@ private:
   std::shared_ptr<Job> job_;
   QFuture<void> jobFuture_;
   QTimer refreshTimer_;
+  // A filter or the times changed: the next refresh fills the whole table,
+  // even while a search runs.
+  bool tableStale_ = false;
   QTimer saveTimer_;     // saves what a long search found so far
   QTimer spinSaveTimer_; // saves the spin boxes once they have paused
+  QTimer filterTimer_;   // fills the case list once the filter has paused
   MoveSet genSet_ = MoveSet::allFaces();
   MoveSet filterSet_;
   bool filterOn_ = false;
@@ -133,10 +140,18 @@ private:
   std::unordered_map<std::string, double> scoreCache_;
   // What each alg of the case shown does to it (see CandidateCache).
   CandidateCache candidateCache_;
+  // The case the table is of, and how many of its candidateRows() it has
+  // (shown or hidden).
+  std::optional<LabCaseKey> tableCase_;
+  std::size_t tableRows_ = 0;
 
   void saveStore();
   void fillSources();
-  void fillCases();
+  // Fills the case list and shows the case selected in it. With
+  // Reshow::IfChanged a case already shown isn't shown again, which
+  // Reshow::Always does (after it was edited, say).
+  enum class Reshow : std::uint8_t { Always, IfChanged };
+  void fillCases(Reshow reshow = Reshow::Always);
   void caseChosen();
   void showCase(const std::optional<LabCaseKey> &key);
   void fillProfiles();
@@ -149,6 +164,21 @@ private:
   // `resize` fits the columns to what they hold, which a refill during a
   // search leaves for the fill at its end.
   void fillTable(bool resize = true);
+  // Adds the rows of the candidates found since the table was filled
+  // (during a search, which only ever adds them), or fills it afresh if it
+  // is of another case.
+  void appendToTable();
+  // What a fill of the table counts: the rows shown and hidden by the
+  // filters, and whether an alg shown has times.
+  struct TableFill {
+    int shown = 0;
+    int hidden = 0;
+    bool anyTimes = false;
+  };
+  // Puts rows[from...] in the table after the rows it shows (sorting off),
+  // selecting the one for the alg `selected` if it is given.
+  void addTableRows(const std::vector<CandidateRow> &rows, std::size_t from,
+                    TableFill &fill, const QString *selected);
   void updateGrips();
   std::vector<std::string> selectedAlgs() const;
   const ErgoProfile &profile() const;

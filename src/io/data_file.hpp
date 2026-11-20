@@ -6,6 +6,7 @@
 #include <QString>
 
 #include <functional>
+#include <mutex>
 #include <span>
 #include <utility>
 
@@ -51,6 +52,10 @@ FileStatus checkFileFormat(const QJsonObject &o, const FileFormat &format,
 // A JSON parse error with where it is in `bytes`: "unterminated object at
 // line 214, column 3".
 QString parseErrorText(const QByteArray &bytes, const QJsonParseError &pe);
+
+// The largest data file read: a bigger one is taken for unreadable rather
+// than read whole into memory. Far beyond what v-cube itself writes.
+inline constexpr qint64 kMaxDataFileSize = qint64{256} * 1024 * 1024;
 
 // Reads and checks a JSON data file, without changing it.
 struct FileRead {
@@ -107,6 +112,12 @@ void writeInBackground(const QString &path,
 // first, so that a background write never lands on top of a newer file.
 void finishBackgroundWrites(const QString &path = {});
 
+// Held while the data folder is copied (the daily backup, which runs on the
+// background writer) and by every direct write of a data file, so that a
+// copy never meets a file half replaced, or a save fails because the copy
+// has the file open.
+std::unique_lock<std::mutex> lockDataFolder();
+
 // --- write reports ----------------------------------------------------------
 
 // Receives the result of every write to a data file, background or direct
@@ -145,6 +156,15 @@ public:
   }
   bool save(QString *error = nullptr) const {
     return file_.save(toJson(), error);
+  }
+  // A save of the file as it is now that can run on another thread: the
+  // JSON is made here, and the write and the rest of the work there. Worth
+  // it over copying the store when toJson() keeps what it built (see
+  // ItemJsonCache and KeyedJsonCache).
+  std::function<bool(QString *)> saveJob() const {
+    return [file = file_, o = toJson()](QString *error) {
+      return file.save(o, error);
+    };
   }
   // Where load() moved an unreadable file, if it did.
   const QString &setAsidePath() const { return file_.setAsidePath(); }

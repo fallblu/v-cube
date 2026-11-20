@@ -72,7 +72,6 @@ public:
   // Drills the set: its weakest cases (as the Weak column has them), or
   // the cases learned in Learn.
   void drillSet(const QString &setId, bool weakest);
-  bool handleKey(QKeyEvent *e, bool press) override;
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
            SettingsPart::Thumbnails | SettingsPart::Timer | SettingsPart::Srs |
@@ -85,6 +84,7 @@ public:
   void windowDeactivated() override;
 
 protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
   QStringList columns() const override;
   std::vector<CaseStatusFilter> statusFilters() override;
   void fillRow(QTreeWidgetItem *item, const std::string &caseId) override;

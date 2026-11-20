@@ -1,6 +1,7 @@
 #pragma once
 
-#include "app/app_data.hpp"
+#include "io/app_data.hpp"
+
 #include "app/app_settings.hpp"
 #include "app/mode_page.hpp"
 #include "app/mode_table.hpp"
@@ -46,7 +47,6 @@ public:
   };
   Totals totals() const;
 
-  bool handleKey(QKeyEvent *e, bool press) override;
   void activated() override;
   void deactivated() override;
   SettingsParts settingsUsed() const override { return SettingsPart::Srs; }
@@ -58,6 +58,9 @@ signals:
   // The cards of a practice mode (F2L, TSLE) were asked for: its Learn
   // tab, one unit at a time.
   void practiceRequested(AppMode::Id mode);
+
+protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
 
 private:
   AppSettings &settings_;
@@ -78,7 +81,6 @@ private:
   int dueTotal_ = 0;
 
   std::map<std::string, SetWaiting> dueBySet() const;
-  std::vector<ActivityEvent> events();
   void refresh();
   // Opens a row of the sets table: its set in Learn, or its practice
   // mode's cards.

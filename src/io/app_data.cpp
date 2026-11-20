@@ -1,6 +1,7 @@
-#include "app/app_data.hpp"
+#include "io/app_data.hpp"
 
 #include "io/backup.hpp"
+#include "io/data_file.hpp"
 
 #include <QCoreApplication>
 #include <QDate>
@@ -15,7 +16,18 @@ namespace {
 constexpr int kBackupDays = 14;
 
 QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::MainWindow", text);
+  return QCoreApplication::translate("vcube::AppData", text);
+}
+
+// Makes today's backup. false, with why in `error`, when it fails.
+bool backUp(const QString &dataDir, const QString &settingsFile,
+            const QDate &today, QString *error) {
+  QString why;
+  if (makeDailyBackup(dataDir, settingsFile, today, kBackupDays, &why)) {
+    return true;
+  }
+  *error = tr("Today's backup failed: %1").arg(why);
+  return false;
 }
 
 // An unreadable file is kept, under another name if it could be moved.
@@ -73,25 +85,28 @@ QString AppData::backupsDir() const {
   return QDir(dataDir_).filePath(kBackupsFolder);
 }
 
-std::optional<QString> AppData::backUpIfNewDay() {
+bool AppData::backUpIfNewDay() {
   QDate today = QDate::currentDate();
   if (today == lastBackup_) {
-    return std::nullopt;
+    return false;
   }
   lastBackup_ = today;
-  QString error;
-  if (!makeDailyBackup(dataDir_, QSettings().fileName(), today, kBackupDays,
-                       &error)) {
-    return tr("Today's backup failed: %1").arg(error);
-  }
-  return QString();
+  // Queued behind the writes waiting, so that the copy has them, and
+  // reported as they are: under the backups folder.
+  writeInBackground(backupsDir(),
+                    [dataDir = dataDir_, settingsFile = QSettings().fileName(),
+                     today](QString *error) {
+                      return backUp(dataDir, settingsFile, today, error);
+                    });
+  return true;
 }
 
 AppData::LoadReport AppData::load() {
   LoadReport report;
   // Left by saves cut short (a crash): out of the way before the backup.
   moveSaveTemporaries(dataDir_, QDateTime::currentDateTime());
-  report.backupError = backUpIfNewDay().value_or(QString());
+  lastBackup_ = QDate::currentDate();
+  backUp(dataDir_, QSettings().fileName(), lastBackup_, &report.backupError);
   library.load();
   loadStore(sessions,
             tr("Could not read your timer sessions (%1), so the timer starts "
@@ -113,6 +128,63 @@ AppData::LoadReport AppData::load() {
   loadPractice(f2l, "f2l.json", report.warnings);
   loadPractice(tsle, "tsle.json", report.warnings);
   return report;
+}
+
+std::vector<ActivityEvent> activityEvents(const AppData &data,
+                                          std::int64_t since) {
+  std::vector<ActivityEvent> out;
+  auto add = [&](int mode, std::int64_t t, std::int64_t ms) {
+    if (t >= since) {
+      out.push_back({mode, t, ms});
+    }
+  };
+  for (const AlgSet &set : data.library.sets()) {
+    for (const auto &[id, p] : data.library.progress(set.id)) {
+      for (const Attempt &a : p.attempts) {
+        bool learn = a.mode == AttemptMode::Learn;
+        add(learn ? ActivityMode::Learn : ActivityMode::Drill, a.timestamp,
+            learn ? 0 : a.timeMs);
+      }
+    }
+  }
+  for (const Session &s : data.sessions.sessions()) {
+    for (const Solve &solve : s.solves) {
+      add(ActivityMode::Timed, solve.timestamp, solve.timeMs);
+    }
+  }
+  for (const auto &[store, mode] :
+       {std::pair{&data.untimed, int(ActivityMode::Untimed)},
+        std::pair{&data.moveCounts, int(ActivityMode::MoveCount)}}) {
+    for (const MoveCountSession &s : store->sessions()) {
+      for (const MoveCountAttempt &a : s.attempts) {
+        add(mode, a.timestamp, 0);
+      }
+    }
+  }
+  for (const LabAttempt &a : data.lab.attempts()) {
+    add(ActivityMode::AlgLab, a.timestamp, a.timeMs);
+  }
+  // The practice modes: every card's try and every solve kept.
+  for (const auto &[practised, mode] :
+       {std::pair{&data.eoCross.data, int(ActivityMode::EoCross)},
+        std::pair{&data.f2l.data, int(ActivityMode::F2L)},
+        std::pair{&data.tsle.data, int(ActivityMode::Tsle)}}) {
+    const PracticeData &kept = *practised;
+    for (const auto &[id, p] : kept.cards) {
+      for (const Attempt &a : p.attempts) {
+        add(mode, a.timestamp, 0);
+      }
+    }
+    for (const PracticeTries *tries :
+         {&kept.learn, &kept.inspection, &kept.timed}) {
+      for (const auto &[key, list] : *tries) {
+        for (const PracticeTry &t : list) {
+          add(mode, t.timestamp, t.ms + t.inspectMs);
+        }
+      }
+    }
+  }
+  return out;
 }
 
 } // namespace vcube

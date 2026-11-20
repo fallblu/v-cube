@@ -50,6 +50,8 @@ if(VCUBE_SANITIZE AND NOT MSVC)
     -fno-omit-frame-pointer)
   target_link_options(vcube_warnings INTERFACE
     -fsanitize=address,undefined -fno-sanitize-recover=undefined)
+elseif(VCUBE_SANITIZE)
+  message(WARNING "VCUBE_SANITIZE has no effect with MSVC: the build is not sanitized")
 endif()
 
 # Adds sources to target, optimised in debug builds too (the solvers' tables

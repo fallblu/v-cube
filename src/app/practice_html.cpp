@@ -6,7 +6,6 @@
 #include "train/move_count.hpp"
 #include "train/stats.hpp"
 
-#include <QCoreApplication>
 #include <QObject>
 #include <QStringList>
 
@@ -17,9 +16,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::PracticePage", text);
-}
+constexpr char kTrContext[] = "vcube::PracticePage";
+constexpr auto tr = trIn<kTrContext>;
 
 } // namespace
 

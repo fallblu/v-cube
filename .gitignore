@@ -9,6 +9,9 @@ compile_commands.json
 *.user
 .vscode/
 .idea/
+.claude/*
+!.claude/settings.json
+!.claude/skills/
 
 # Test output
 Testing/

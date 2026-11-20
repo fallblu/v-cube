@@ -161,6 +161,9 @@ QScrollArea *scrollArea(QWidget *content, QWidget *parent);
 
 // A button that doesn't take the keyboard focus.
 QPushButton *flatButton(const QString &text, QWidget *parent);
+// A warning whose text is shown as typed, never as rich text: for messages
+// that quote what a file said (an import's error), which could hold markup.
+void warnPlain(QWidget *parent, const QString &title, const QString &text);
 // Writes the tooltip of each field of the form under it as a helpLabel.
 void showTipsAsHelp(QFormLayout *form);
 

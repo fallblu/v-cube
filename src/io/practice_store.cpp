@@ -45,17 +45,25 @@ PracticeTry tryFromJson(const QJsonObject &o) {
   return t;
 }
 
-QJsonObject triesToJson(const PracticeTries &tries) {
+QJsonArray tryListToJson(const std::vector<PracticeTry> &list) {
+  return jsonArray(list, tryToJson);
+}
+
+QJsonObject triesToJson(const PracticeTries &tries,
+                        KeyedJsonCache<std::vector<PracticeTry>> *cache) {
+  if (cache) {
+    return cache->object(tries, tryListToJson);
+  }
   QJsonObject out;
   for (const auto &[key, list] : tries) {
-    out[qs(key)] = jsonArray(list, tryToJson);
+    out[qs(key)] = tryListToJson(list);
   }
   return out;
 }
 
 } // namespace
 
-QJsonObject practiceToJson(const PracticeData &data) {
+QJsonObject practiceToJson(const PracticeData &data, PracticeJsonCache *cache) {
   QJsonObject notes;
   for (const auto &[key, value] : data.notes) {
     notes[qs(key)] = qs(value);
@@ -65,11 +73,14 @@ QJsonObject practiceToJson(const PracticeData &data) {
     choices[qs(key)] = jsonArray(algs, qs);
   }
   QJsonObject o = {
-      {"format", kPracticeFile.format},      {"version", kPracticeFile.version},
-      {"cards", progressToJson(data.cards)}, {"learn", triesToJson(data.learn)},
-      {"timed", triesToJson(data.timed)},    {"notes", notes}};
+      {"format", kPracticeFile.format},
+      {"version", kPracticeFile.version},
+      {"cards", progressToJson(data.cards, cache ? &cache->cards : nullptr)},
+      {"learn", triesToJson(data.learn, cache ? &cache->learn : nullptr)},
+      {"timed", triesToJson(data.timed, cache ? &cache->timed : nullptr)},
+      {"notes", notes}};
   setIf(o, "inspection", !data.inspection.empty(),
-        triesToJson(data.inspection));
+        triesToJson(data.inspection, cache ? &cache->inspection : nullptr));
   setIf(o, "choices", !choices.isEmpty(), choices);
   return o;
 }
@@ -126,7 +137,7 @@ QJsonObject removeOldPracticeFile(const QString &path) {
   // Kept beside the data rather than removed, so that what the mode held
   // can still be brought back by hand. If it can't be moved it stays, and
   // loading sets it aside as a file of the wrong format.
-  moveToDeleted(path, QFileInfo(path).dir().filePath("deleted"),
+  moveToDeleted(path, QFileInfo(path).dir().filePath(kDeletedFolder),
                 QDateTime::currentDateTime());
   return o;
 }

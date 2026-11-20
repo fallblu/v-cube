@@ -6,6 +6,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace vcube;
@@ -196,6 +197,35 @@ TEST_CASE("cubie moves other than face turns turn the pieces as cubieOf") {
     CHECK(c == expected);
     CHECK(c.isValid());
   }
+}
+
+TEST_CASE("algs apply to cubie cubes the way the solver sees them") {
+  const Alg sexy = parseAlgOrEmpty("R U R' U'");
+  const CubieCube c = cubieOf(parseAlgOrEmpty("F R U"));
+  // The U turns before the alg count round the face, either way.
+  CHECK(applyAlg(c, sexy, -1) == applyAlg(c, sexy, 3));
+  CHECK(applyAlg(c, sexy, 5) == applyAlg(c, sexy, 1));
+  CHECK(applyAlg(c, sexy, -4) == applyAlg(c, sexy, 0));
+  CHECK(applyAlg(c, sexy, 2) == applyAlg(c * uTurn(2), sexy));
+  // Rotations in the alg are taken out again.
+  const Alg rotated = parseAlgOrEmpty("x R U R' U' x'");
+  CHECK(applyAlg(CubieCube{}, rotated) == cubieOf(rotated));
+  CHECK(applyAlg(CubieCube{}, parseAlgOrEmpty("y2 R")) ==
+        cubieOf(parseAlgOrEmpty("L")));
+
+  // A cube held any way round is read with its centres in their places.
+  FaceletCube turned;
+  turned.apply(parseAlgOrEmpty("y2 R"));
+  CHECK(centredCubie(turned) == cubieOf(parseAlgOrEmpty("L")));
+  turned = FaceletCube();
+  turned.apply(parseAlgOrEmpty("x y R U"));
+  CHECK(centredCubie(turned) == cubieOf(parseAlgOrEmpty("x y R U")));
+  // Stickers no real cube has, held either way round, give nothing.
+  FaceletCube swapped;
+  std::swap(swapped[1], swapped[19]); // UB's U sticker and UF's F sticker
+  CHECK_FALSE(centredCubie(swapped));
+  swapped.apply(parseAlgOrEmpty("x y"));
+  CHECK_FALSE(centredCubie(swapped));
 }
 
 TEST_CASE("conversions that can't fail say so when they do") {

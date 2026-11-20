@@ -135,17 +135,6 @@ private:
 // defaults(), the store's own sessions for a new file.
 template <typename Session>
 class SessionFileStore : public SessionList<Session>, public FileStore {
-public:
-  // A save of the file as it is now that can run on another thread: the
-  // JSON is made here, and the write and the rest of the work there. Worth
-  // it over copying the store when toJson() keeps what it built (see
-  // ItemJsonCache).
-  std::function<bool(QString *)> saveJob() const {
-    return [file = file_, o = toJson()](QString *error) {
-      return file.save(o, error);
-    };
-  }
-
 protected:
   SessionFileStore(QString path, FileFormat format,
                    std::vector<Session> defaults = {Session{}})

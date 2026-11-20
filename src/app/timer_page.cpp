@@ -5,7 +5,6 @@
 #include "app/page_parts.hpp"
 #include "app/ui_state.hpp"
 
-#include <QApplication>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QPushButton>
@@ -32,7 +31,7 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
             for (auto &[key, s] : splitsWatcher_.result()) {
               splits_[key] = std::move(s);
             }
-            refreshAttempts();
+            showAttempts(Refresh::Splits);
           });
   connect(&eoCheck_, &EoCrossCheck::found, this, [this](const QString &line) {
     if (isBusy()) {
@@ -217,8 +216,7 @@ void TimerPage::tick() {
   std::int64_t now = monotonicMs();
   bool wasHidden = flow_.cubeHidden();
   // A popup or dialog took the Space release: the hold can't be let go of.
-  flow_.tick(now, QApplication::activePopupWidget() ||
-                      QApplication::activeModalWidget());
+  flow_.tick(now, keyboardTaken());
   // Also after a cancelled hold, to bring back what it replaced.
   display_->showTimer(flow_.timer(), now);
   if (wasHidden != flow_.cubeHidden()) {
@@ -471,9 +469,8 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
   display_->showTime(timeMs, penalty);
   hintLabel_->clear();
   // A new best, as cstimer marks it.
-  std::int64_t unit = statUnit(settings_.decimals);
   QStringList bests;
-  for (const NewBest &b : newBests(session().solves, unit)) {
+  for (const NewBest &b : updateStats(true)) {
     bests << tr("%1 %2")
                  .arg(qs(b.name))
                  .arg(qs(formatTime(b.value, settings_.decimals)));
@@ -483,7 +480,8 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
     hintLabel_->setText(text);
     emit message(text);
   }
-  saveAndRefresh();
+  save();
+  showAttempts(Refresh::Appended);
   bool keep = onVirtualCube() && penalty == Penalty::Dnf && !solution.empty();
   if (!keep) {
     feed_.advance(); // on to the next scramble

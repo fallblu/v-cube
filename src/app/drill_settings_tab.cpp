@@ -1,4 +1,4 @@
-#include "app/drill_settings.hpp"
+#include "app/drill_settings_tab.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>

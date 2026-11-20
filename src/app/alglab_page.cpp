@@ -196,17 +196,21 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   filters->addWidget(new QLabel(tr("Score:"), search));
   filters->addWidget(profileBox_);
   filters->addWidget(profileMenu);
-  filters->addStretch();
-  sl->addWidget(filters);
-  auto *shown = new OptionBar(search);
+  filters->addSpacing(12);
+  // One bar, so that the page still fits half a 1080p screen; the second
+  // group is one item, which wraps onto its own row when narrow.
+  auto *shown = new QWidget(search);
+  auto *shownLayout = new QHBoxLayout(shown);
+  shownLayout->setContentsMargins(0, 0, 0, 0);
   auto *algsLabel = groupLabel(tr("Algs shown:"));
   algsLabel->setBuddy(filterBox_);
-  shown->addWidget(algsLabel);
-  shown->addWidget(filterBox_);
-  shown->addWidget(noRotations_);
-  shown->addWidget(maxHtm_);
-  shown->addStretch();
-  sl->addWidget(shown);
+  shownLayout->addWidget(algsLabel);
+  shownLayout->addWidget(filterBox_);
+  shownLayout->addWidget(noRotations_);
+  shownLayout->addWidget(maxHtm_);
+  filters->addWidget(shown);
+  filters->addStretch();
+  sl->addWidget(filters);
   statsCube_->setAccessibleName(tr("Times of the physical or virtual cube"));
   statsWindow_->setAccessibleName(tr("Times from"));
   profileBox_->setAccessibleName(tr("Score profile"));
@@ -366,8 +370,14 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   refreshTimer_.setSingleShot(true);
   refreshTimer_.setInterval(250);
   connect(&refreshTimer_, &QTimer::timeout, this, [this] {
-    // While a search runs, the fill at its end fits the columns.
-    fillTable(!job_);
+    // While a search runs, only what it found is added; the fill at its
+    // end fits the columns.
+    if (job_ && !tableStale_) {
+      appendToTable();
+    } else {
+      fillTable(!job_);
+    }
+    tableStale_ = false;
     if (job_ && job_->dirty) {
       job_->dirty = false;
       saveStore();
@@ -420,7 +430,14 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
       fillCases();
     }
   });
-  connect(caseFilter_, &QLineEdit::textChanged, this, &AlgLabPage::fillCases);
+  // The case list is filled again once the typing pauses, and only shows
+  // the case again when another one is left selected.
+  filterTimer_.setSingleShot(true);
+  filterTimer_.setInterval(150);
+  connect(&filterTimer_, &QTimer::timeout, this,
+          [this] { fillCases(Reshow::IfChanged); });
+  connect(caseFilter_, &QLineEdit::textChanged, &filterTimer_,
+          qOverload<>(&QTimer::start));
   connect(caseTree_, &QTreeWidget::currentItemChanged, this,
           &AlgLabPage::caseChosen);
   connect(newCase, &QPushButton::clicked, this, &AlgLabPage::newLabCase);
@@ -461,6 +478,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   connect(&spinSaveTimer_, &QTimer::timeout, this, &AlgLabPage::saveSpinBoxes);
   connect(maxHtm_, &QSpinBox::valueChanged, this, [this] {
     spinSaveTimer_.start();
+    tableStale_ = true;
     refreshTimer_.start();
   });
   auto keepGen = [this] {
@@ -502,6 +520,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     if (tabs_->currentWidget() != test_) {
       fillTable();
     } else {
+      tableStale_ = true;
       refreshTimer_.start();
     }
   });
@@ -651,7 +670,11 @@ void AlgLabPage::selectCase(const QString &setId, const QString &caseId) {
   if (i < 0) {
     return;
   }
-  caseFilter_->clear();
+  if (!caseFilter_->text().isEmpty()) {
+    caseFilter_->clear();
+    filterTimer_.stop();
+    fillCases();
+  }
   sourceBox_->setCurrentIndex(i);
   QString k = qs(LabCaseKey{setId.toStdString(), caseId.toStdString()}.text());
   for (QTreeWidgetItemIterator it(caseTree_); *it; ++it) {
@@ -680,7 +703,7 @@ void AlgLabPage::fillSources() {
   fillCases();
 }
 
-void AlgLabPage::fillCases() {
+void AlgLabPage::fillCases(Reshow reshow) {
   QString source = sourceBox_->currentData().toString();
   QString want =
       case_ ? qs(case_->key.text()) : saved::lab("case").get().toString();
@@ -739,6 +762,10 @@ void AlgLabPage::fillCases() {
     caseTree_->setCurrentItem(select);
   }
   block.unblock();
+  if (reshow == Reshow::IfChanged && case_ && select &&
+      select->data(0, Qt::UserRole).toString() == qs(case_->key.text())) {
+    return; // the case shown stays
+  }
   caseChosen();
 }
 

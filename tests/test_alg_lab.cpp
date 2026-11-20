@@ -2,21 +2,28 @@
 #include "io/json_values.hpp"
 #include "train/alg_lab.hpp"
 #include "train/case_logic.hpp"
+#include "train/case_picker.hpp"
 #include "train/ergonomics.hpp"
+#include "train/f2l.hpp"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <QDir>
+#include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <limits>
 #include <map>
+#include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace vcube;
@@ -351,6 +358,130 @@ TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {
   CHECK(again.newCaseId() == "2");
 }
 
+TEST_CASE("an Alg Lab file edited by hand reads what can be used",
+          "[alglab][io]") {
+  QJsonObject o = QJsonDocument::fromJson(R"({
+    "format": "v-cube.alglab", "version": 2, "current": 0,
+    "sessions": [
+      {"name": "High", "reps": 5000, "warmup": -1, "trim": 99,
+       "cube": "x", "order": "zigzag", "entries": [
+         {"case": "", "alg": "R U"},
+         {"case": "set:pll/T", "alg": ""},
+         {"case": "set:pll/T", "alg": "R U R'"}]},
+      {"id": "keep", "name": "Low", "reps": 0, "warmup": 500, "trim": -5}],
+    "cases": [{"id": "", "name": "No id"}, {"id": "1", "name": "Kept"}],
+    "candidates": [
+      {"case": "nonsense", "algs": [{"alg": "R", "source": "typed"}]},
+      {"case": "lab:1", "algs": [{"alg": "", "source": "typed"},
+                                 {"alg": "R U", "source": "x"}]}],
+    "attempts": [
+      {"case": "set:/T", "alg": "R", "time": 1000},
+      {"case": "lab:1", "alg": "R U", "cube": "x", "time": 900}],
+    "moveSets": [{"name": "Bad", "moves": "Q"},
+                 {"name": "Good", "moves": "R U"}]})")
+                      .object();
+  REQUIRE_FALSE(o.isEmpty());
+  AlgLabData d = algLabFromJson(o);
+
+  REQUIRE(d.sessions.size() == 2);
+  const LabSession &high = d.sessions[0];
+  // A session without an id gets a fresh one.
+  CHECK(high.id.size() == 12);
+  CHECK(high.reps == 1000);
+  CHECK(high.warmup == 0);
+  CHECK(high.trimPercent == 40);
+  CHECK(high.cube == CubeKind::Physical);
+  CHECK(high.order == LabOrder::Interleaved);
+  // Entries without a readable case or an alg are dropped.
+  REQUIRE(high.entries.size() == 1);
+  CHECK(high.entries[0].key == LabCaseKey{"pll", "T"});
+  CHECK(high.entries[0].alg == "R U R'");
+  const LabSession &low = d.sessions[1];
+  CHECK(low.id == "keep");
+  CHECK(low.reps == 1);
+  CHECK(low.warmup == 100);
+  CHECK(low.trimPercent == 0);
+
+  // A case without an id is dropped.
+  REQUIRE(d.cases.size() == 1);
+  CHECK(d.cases[0].id == "1");
+
+  // Candidates of a case key that can't be read are dropped, and so are
+  // candidates without an alg; an unknown source reads as typed.
+  REQUIRE(d.candidates.size() == 1);
+  CHECK(d.candidates[0].key == LabCaseKey{"", "1"});
+  REQUIRE(d.candidates[0].candidates.size() == 1);
+  CHECK(d.candidates[0].candidates[0].alg == "R U");
+  CHECK(d.candidates[0].candidates[0].source == CandidateSource::Typed);
+
+  // So are attempts of a case key that can't be read; an unknown cube
+  // reads as physical.
+  REQUIRE(d.attempts.size() == 1);
+  CHECK(d.attempts[0].key == LabCaseKey{"", "1"});
+  CHECK(d.attempts[0].timeMs == 900);
+  CHECK(d.attempts[0].cube == CubeKind::Physical);
+
+  // A move set whose moves can't be read is dropped.
+  REQUIRE(d.moveSets.size() == 1);
+  CHECK(d.moveSets[0].name == "Good");
+  CHECK(d.moveSets[0].set == *MoveSet::parse("R U"));
+}
+
+TEST_CASE("Alg Lab candidates and attempts can be removed", "[alglab][io]") {
+  QTemporaryDir dir;
+  REQUIRE(dir.isValid());
+  const QString path = QDir(dir.path()).filePath("alglab.json");
+  AlgLabStore store(path);
+  REQUIRE(store.load());
+  const LabCaseKey t{"pll", "T"};
+  const LabCaseKey mine{"", "1"};
+  CHECK(store.addCandidate(t, {"R U R'", CandidateSource::Typed, 0}));
+  CHECK(store.addCandidate(t, {"R U2 R'", CandidateSource::Pasted, 0}));
+  CHECK(store.addCandidate(mine, {"F R F'", CandidateSource::Typed, 0}));
+  CHECK(store.removeCandidate(t, "R U R'"));
+  CHECK_FALSE(store.removeCandidate(t, "R U R'"));
+  CHECK_FALSE(store.removeCandidate(t, "U"));
+  CHECK_FALSE(store.removeCandidate({"pll", "Y"}, "R U2 R'"));
+  REQUIRE(store.candidates(t).size() == 1);
+  CHECK(store.candidates(t)[0].alg == "R U2 R'");
+  store.removeCandidates(mine);
+  CHECK(store.candidates(mine).empty());
+  CHECK(store.candidates(t).size() == 1);
+
+  store.addAttempt(attempt(t, "R U2 R'", 1000));
+  store.addAttempt(attempt(t, "R U2 R'", 2000));
+  store.addAttempt(attempt(t, "R U2 R'", 3000));
+  const std::size_t n = store.attempts().size();
+  CHECK(store.attempt(n) == nullptr);
+  store.removeAttempt(n);
+  CHECK(store.attempts().size() == n);
+  store.removeAttempt(0);
+  REQUIRE(store.attempts().size() == 2);
+  REQUIRE(store.attempt(0) != nullptr);
+  CHECK(store.attempt(0)->timeMs == 2000);
+  CHECK(store.attempt(1)->timeMs == 3000);
+  CHECK(store.attempt(2) == nullptr);
+
+  store.current().warmup = 3;
+  const std::string id = store.current().id;
+  REQUIRE(store.sessionById(id) != nullptr);
+  CHECK(store.sessionById(id) == &store.current());
+  CHECK(store.warmupOf(id) == 3);
+  CHECK(store.sessionById("gone") == nullptr);
+  CHECK(store.warmupOf("gone") == 0);
+
+  REQUIRE(store.save());
+  AlgLabStore again(path);
+  REQUIRE(again.load());
+  CHECK(again.data() == store.data());
+  CHECK(again.candidates(mine).empty());
+  REQUIRE(again.candidates(t).size() == 1);
+  CHECK(again.candidates(t)[0].source == CandidateSource::Pasted);
+  REQUIRE(again.attempts().size() == 2);
+  CHECK(again.attempts()[0].timeMs == 2000);
+  CHECK(again.warmupOf(id) == 3);
+}
+
 TEST_CASE("Alg Lab times and timestamps are kept within range",
           "[alglab][io]") {
   AlgLabData d;
@@ -412,4 +543,137 @@ TEST_CASE("profiles are told apart by name", "[alglab][io]") {
   CHECK(std::adjacent_find(names.begin(), names.end()) == names.end());
   CHECK(std::find(names.begin(), names.end(), first + " 2") != names.end());
   CHECK(std::find(names.begin(), names.end(), first + " 3") != names.end());
+}
+
+namespace {
+
+// Each value's id reads back as that value, and no two share an id.
+template <typename E, typename Id, typename FromId>
+void checkIds(std::initializer_list<E> values, Id id, FromId fromId) {
+  std::set<std::string_view> seen;
+  for (E v : values) {
+    INFO(id(v));
+    CHECK(fromId(id(v)) == v);
+    CHECK(seen.insert(id(v)).second);
+  }
+  CHECK_FALSE(fromId("nonsense"));
+}
+
+} // namespace
+
+TEST_CASE("the ids kept in files read back as their values", "[io]") {
+  using S = CandidateSource;
+  checkIds({S::Set, S::Generated, S::Pasted, S::Typed}, candidateSourceId,
+           candidateSourceFromId);
+  checkIds({LabOrder::Interleaved, LabOrder::Blocked}, labOrderId,
+           labOrderFromId);
+  checkIds({CubeKind::Virtual, CubeKind::Physical}, cubeKindId, cubeKindFromId);
+  checkIds({PickMode::Random, PickMode::Weighted, PickMode::InOrder,
+            PickMode::Recap},
+           pickModeId, pickModeFromId);
+  using M = F2LMethod;
+  checkIds({M::ZZMinus1, M::ZZ, M::CFOP, M::CFOPMinus1}, methodId,
+           methodFromId);
+
+  // Every source is written and read back in a file.
+  AlgLabData d;
+  CaseCandidates cc{{"pll", "T"}, {}};
+  for (S s : {S::Set, S::Generated, S::Pasted, S::Typed}) {
+    cc.candidates.push_back({std::string(candidateSourceId(s)), s, 1});
+  }
+  d.candidates = {cc};
+  d.profiles = builtinErgoProfiles();
+  CHECK(algLabFromJson(algLabToJson(d)) == d);
+}
+
+TEST_CASE("Alg Lab candidates are kept by case, each alg once",
+          "[alglab][io]") {
+  QTemporaryDir dir;
+  AlgLabStore store(QDir(dir.path()).filePath("alglab.json"));
+  LabCaseKey t{"pll", "T"}, y{"pll", "Y"}, lab{"", "1"};
+  CHECK(store.addCandidate(t, {"R U", CandidateSource::Generated, 0}));
+  CHECK(store.addCandidate(y, {"R U", CandidateSource::Generated, 0}));
+  CHECK(store.addCandidate(t, {"R U'", CandidateSource::Typed, 0}));
+  CHECK_FALSE(store.addCandidate(t, {"R U", CandidateSource::Typed, 1}));
+  CHECK(store.addCandidate(lab, {"F", CandidateSource::Pasted, 0}));
+  REQUIRE(store.candidates(t).size() == 2);
+  CHECK(store.candidates(t)[1].alg == "R U'");
+  CHECK(store.candidates(y).size() == 1);
+  CHECK(store.candidates({"pll", "Z"}).empty());
+
+  CHECK(store.removeCandidate(t, "R U"));
+  CHECK_FALSE(store.removeCandidate(t, "R U"));
+  CHECK_FALSE(store.removeCandidate({"pll", "Z"}, "R U"));
+  CHECK(store.addCandidate(t, {"R U", CandidateSource::Typed, 2}));
+  CHECK(store.candidates(t).back().alg == "R U");
+
+  // The cases after one that is forgotten are still found.
+  store.removeCandidates(t);
+  CHECK(store.candidates(t).empty());
+  CHECK(store.candidates(lab).size() == 1);
+  CHECK_FALSE(store.addCandidate(lab, {"F", CandidateSource::Typed, 3}));
+  CHECK(store.addCandidate(t, {"R2", CandidateSource::Typed, 4}));
+  AlgLabData d = store.data();
+  REQUIRE(d.candidates.size() == 3);
+  CHECK(d.candidates[0].key == y);
+  CHECK(d.candidates[1].key == lab);
+  CHECK(d.candidates[2].key == t);
+
+  // A case listed twice (a file edited by hand) is read as one.
+  QJsonObject o = algLabToJson(d);
+  QJsonArray list = o["candidates"].toArray();
+  list.append(QJsonObject{{"case", "set:pll/Y"},
+                          {"algs", QJsonArray{QJsonObject{{"alg", "R U"}},
+                                              QJsonObject{{"alg", "U2"}}}}});
+  o["candidates"] = list;
+  AlgLabData read = algLabFromJson(o);
+  REQUIRE(read.candidates.size() == 4);
+  REQUIRE(store.save());
+  QFile f(store.path());
+  REQUIRE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  f.write(QJsonDocument(o).toJson());
+  f.close();
+  AlgLabStore again(store.path());
+  REQUIRE(again.load());
+  REQUIRE(again.candidates(y).size() == 2);
+  CHECK(again.candidates(y)[1].alg == "U2");
+  CHECK(again.data().candidates.size() == 3);
+}
+
+namespace {
+
+void checkWritesAfresh(AlgLabStore &store) {
+  REQUIRE(store.save());
+  QFile f(store.path());
+  REQUIRE(f.open(QIODevice::ReadOnly));
+  CHECK(
+      f.readAll() ==
+      QJsonDocument(algLabToJson(store.data())).toJson(QJsonDocument::Compact));
+}
+
+} // namespace
+
+TEST_CASE("Alg Lab is written right however it changes between saves",
+          "[alglab][io]") {
+  QTemporaryDir dir;
+  AlgLabStore store(QDir(dir.path()).filePath("alglab.json"));
+  LabCaseKey t{"pll", "T"}, y{"pll", "Y"};
+  store.addCandidate(t, {"R U", CandidateSource::Generated, 0});
+  store.addCandidate(y, {"R U'", CandidateSource::Generated, 0});
+  store.addAttempt(attempt(t, "R U", 1000));
+  store.addAttempt(attempt(y, "R U'", 1100));
+  checkWritesAfresh(store);
+  store.addCandidate(t, {"R2", CandidateSource::Typed, 1});
+  store.addAttempt(attempt(t, "R2", 900));
+  checkWritesAfresh(store);
+  store.attempt(0)->dnf = true;
+  checkWritesAfresh(store);
+  store.removeAttempt(1);
+  store.removeCandidate(t, "R U");
+  checkWritesAfresh(store);
+  store.removeCandidates(t);
+  checkWritesAfresh(store);
+  store.cases().push_back({store.newCaseId(), "x", "R", "", true, true});
+  store.addLabSession("Two");
+  checkWritesAfresh(store);
 }

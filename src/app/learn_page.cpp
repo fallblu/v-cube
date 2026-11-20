@@ -280,7 +280,7 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
       if (typed) {
         learnNext();
       } else if (!ke->isAutoRepeat()) {
-        handleKey(ke, true);
+        routeKey(ke, true);
       }
       return true;
     }
@@ -297,7 +297,7 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
     // Any other key is meant for the cube (once, if held down).
     learnCount_->clearFocus();
     if (!ke->isAutoRepeat()) {
-      handleKey(ke, true);
+      routeKey(ke, true);
     }
     return true;
   }

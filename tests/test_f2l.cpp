@@ -243,6 +243,27 @@ TEST_CASE("a chosen solution is known done in either slot", "[f2l]") {
   CHECK(checked > 0);
 }
 
+TEST_CASE("a pair is known solved with the U turn it needs", "[f2l]") {
+  F2LConfig config;
+  const Alg insert = parseAlgOrEmpty("R U R'");
+  const CubieCube state = cubieOf(parseAlgOrEmpty("R U' R'"));
+  CHECK(solvesPairWithAuf(state, Slot::FR, insert, config) == 0);
+  // U turns the alg starts with are left out: the one found replaces them.
+  CHECK(solvesPairWithAuf(state, Slot::FR, parseAlgOrEmpty("U R U R'"),
+                          config) == 0);
+  CHECK(solvesPairWithAuf(state, Slot::FR, parseAlgOrEmpty("U2 R U R'"),
+                          config) == 0);
+  // The pair a U turn away needs a U' first, written or not.
+  const CubieCube turned = cubieOf(parseAlgOrEmpty("R U' R' U"));
+  CHECK(solvesPairWithAuf(turned, Slot::FR, insert, config) == 3);
+  CHECK(solvesPairWithAuf(turned, Slot::FR, parseAlgOrEmpty("U2 R U R'"),
+                          config) == 3);
+  // An alg that doesn't solve the pair, and no alg at all.
+  CHECK_FALSE(
+      solvesPairWithAuf(state, Slot::FR, parseAlgOrEmpty("F R F'"), config));
+  CHECK_FALSE(solvesPairWithAuf(state, Slot::FR, Alg{}, config));
+}
+
 TEST_CASE("solutions compare without their AUF", "[f2l]") {
   auto same = [](const char *a, const char *b) {
     return comparableSolution(parseAlgOrEmpty(a)) ==

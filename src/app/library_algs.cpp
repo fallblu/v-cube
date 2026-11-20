@@ -203,27 +203,23 @@ void LibraryPage::refreshAlgList() {
         item->setToolTip(1, qs(check.parseError->message));
       }
     }
-    if (lab_) {
-      // Each alg's times from Alg Lab, on each cube it was timed on.
-      LabCaseKey key{editor_.setId, c->id};
-      WarmupOf warm = [this](std::string_view id) {
-        return lab_->warmupOf(id);
-      };
-      for (int i = 0; i < algList_->topLevelItemCount(); ++i) {
-        std::string alg = labAlgKey(c->algs[static_cast<std::size_t>(i)]);
-        QStringList parts;
-        for (CubeKind cube : {CubeKind::Physical, CubeKind::Virtual}) {
-          LabStats st = labStats(lab_->attempts(), key, alg, cube, {}, 0, warm);
-          if (st.mean) {
-            parts << tr("%1 mean of %2%3")
-                         .arg(qs(formatTime(*st.mean, settings_.decimals)))
-                         .arg(st.used)
-                         .arg(cube == CubeKind::Virtual ? tr(" (virtual)")
-                                                        : QString());
-          }
+    // Each alg's times from Alg Lab, on each cube it was timed on.
+    LabCaseKey key{editor_.setId, c->id};
+    WarmupOf warm = [this](std::string_view id) { return lab_.warmupOf(id); };
+    for (int i = 0; i < algList_->topLevelItemCount(); ++i) {
+      std::string alg = labAlgKey(c->algs[static_cast<std::size_t>(i)]);
+      QStringList parts;
+      for (CubeKind cube : {CubeKind::Physical, CubeKind::Virtual}) {
+        LabStats st = labStats(lab_.attempts(), key, alg, cube, {}, 0, warm);
+        if (st.mean) {
+          parts << tr("%1 mean of %2%3")
+                       .arg(qs(formatTime(*st.mean, settings_.decimals)))
+                       .arg(st.used)
+                       .arg(cube == CubeKind::Virtual ? tr(" (virtual)")
+                                                      : QString());
         }
-        algList_->topLevelItem(i)->setText(2, parts.join(" · "));
       }
+      algList_->topLevelItem(i)->setText(2, parts.join(" · "));
     }
   }
   if (row >= 0 && row < algList_->topLevelItemCount()) {
@@ -234,10 +230,7 @@ void LibraryPage::refreshAlgList() {
 }
 
 void LibraryPage::updateGrips() {
-  const ErgoProfile *g =
-      lab_ ? labGuideProfile(*lab_, scoreProfileName()) : nullptr;
-  gripTitle_->setVisible(lab_ != nullptr);
-  grips_->setVisible(lab_ != nullptr);
+  const ErgoProfile *g = labGuideProfile(lab_, scoreProfileName());
   QTreeWidgetItem *item = algList_->currentItem();
   if (!item) {
     grips_->clear(currentCase() && !currentCase()->algs.empty()

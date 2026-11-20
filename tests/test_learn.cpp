@@ -1,10 +1,15 @@
 #include "train/alg_guide.hpp"
+#include "train/context_practice.hpp"
 #include "train/learn_attempt.hpp"
+#include "train/learn_quiz.hpp"
 #include "train/learn_session.hpp"
+#include "train/solve_review.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <map>
+#include <set>
 
 using namespace vcube;
 
@@ -581,4 +586,117 @@ TEST_CASE("learn: time with the window in the back isn't recognition") {
   b.endLink(LinkEnd::Solved, std::nullopt, Guide::None, kNow + 2, 12'000,
             set.grading());
   CHECK(set.progress["a"].attempts.back().recognitionMs == 1000);
+}
+
+namespace {
+
+// Two groups of look-alikes, "a1".."a8" and "b1", "b2", all ticked.
+struct QuizSet {
+  AlgSet set;
+  std::vector<std::string> ticked;
+  QuizSet() {
+    for (const auto &[prefix, cases] : {std::pair{"a", 8}, std::pair{"b", 2}}) {
+      CaseGroup g;
+      g.name = prefix;
+      for (int i = 1; i <= cases; ++i) {
+        AlgCase c;
+        c.id = prefix + std::to_string(i);
+        c.name = "Case " + c.id;
+        ticked.push_back(c.id);
+        g.cases.push_back(c);
+      }
+      set.groups.push_back(g);
+    }
+  }
+};
+
+} // namespace
+
+TEST_CASE("quiz: a case is named among its look-alikes") {
+  QuizSet q;
+  Rng rng(1);
+  auto none = [](const std::string &) { return false; };
+
+  // One case is nothing to choose from.
+  CHECK(!LearnQuiz::pick(q.set, {"a1"}, none, {}, rng));
+  CHECK(!LearnQuiz::pick(q.set, {}, none, {}, rng));
+
+  for (int i = 0; i < 60; ++i) {
+    auto quiz = LearnQuiz::pick(q.set, q.ticked, none, "a1", rng);
+    REQUIRE(quiz);
+    const std::string id = quiz->caseId();
+    CHECK(id != "a1"); // not the last one again
+    const std::vector<std::string> &ids = quiz->choiceIds();
+    REQUIRE(ids.size() == quiz->choices());
+    REQUIRE(quiz->answer() < quiz->choices());
+    CHECK(ids[quiz->answer()] == id);
+    CHECK(std::set<std::string>(ids.begin(), ids.end()).size() == ids.size());
+    // The choices are the case's look-alikes: its own group, six at most.
+    CHECK(quiz->choices() == (id.front() == 'a' ? 6u : 2u));
+    for (const std::string &choice : ids) {
+      CHECK(choice.front() == id.front());
+    }
+  }
+}
+
+TEST_CASE("quiz: cases already started are asked first, once there are two") {
+  QuizSet q;
+  Rng rng(2);
+  auto started = [](const std::string &id) { return id.front() == 'b'; };
+  for (int i = 0; i < 20; ++i) {
+    auto quiz = LearnQuiz::pick(q.set, q.ticked, started, "b1", rng);
+    REQUIRE(quiz);
+    CHECK(quiz->caseId() == "b2");
+    CHECK(quiz->choices() == 2u);
+  }
+  auto one = [](const std::string &id) { return id == "b1"; };
+  bool other = false;
+  for (int i = 0; i < 60 && !other; ++i) {
+    other = LearnQuiz::pick(q.set, q.ticked, one, {}, rng)->caseId() != "b1";
+  }
+  CHECK(other);
+}
+
+TEST_CASE("quiz: the answer is timed from the case being shown") {
+  QuizSet q;
+  Rng rng(3);
+  auto started = [](const std::string &id) { return id.front() == 'b'; };
+  auto quiz = LearnQuiz::pick(q.set, q.ticked, started, "b1", rng);
+  REQUIRE(quiz);
+  quiz->shown(100);
+  const LearnQuiz::Result right = quiz->answered(quiz->answer(), 350);
+  CHECK(right.right);
+  CHECK(right.ms == 250);
+  CHECK(!quiz->answered(1 - quiz->answer(), 350).right);
+}
+
+TEST_CASE("context practice: open pairs, turns, starting again") {
+  AlgSet set;
+  Rng rng(4);
+  auto none = [](const std::string &) { return false; };
+  for (int open : {1, 2, 4}) {
+    ContextPractice p(set, open, rng, none);
+    CHECK(p.openPairs() == open);
+    CHECK(eoCrossSolved(p.start()));
+  }
+
+  ContextPractice p(set, 2, rng, none);
+  FaceletCube cube = p.start().toFacelets();
+  const Move r = parseAlgOrEmpty("R").front();
+  cube.apply(Alg{r});
+  CHECK(!p.turned(r, cube));
+  CHECK(p.moves() == Alg{r});
+  // Every pair solved, in whatever hold the cube is seen.
+  FaceletCube solved;
+  solved.apply(parseAlgOrEmpty("y"));
+  CHECK(p.turned(r, solved));
+  CHECK(p.moves().size() == 2);
+
+  p.finish(ContextPractice::End::GaveUp);
+  CHECK(p.gaveUp());
+  p.reset();
+  CHECK(p.moves().empty());
+  CHECK(!p.gaveUp());
+  p.finish(ContextPractice::End::Solved);
+  CHECK(!p.gaveUp());
 }

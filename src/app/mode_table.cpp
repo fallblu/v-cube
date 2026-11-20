@@ -1,10 +1,13 @@
 #include "app/mode_table.hpp"
-
-#include <QCoreApplication>
+#include "app/ui_text.hpp"
 
 namespace vcube {
 
 namespace {
+
+// The window's own context, which MainWindow::tr() uses too.
+constexpr char kTrContext[] = "vcube::MainWindow";
+constexpr auto tr = trIn<kTrContext>;
 
 struct ModeInfo {
   const char *id; // settings value, e.g. "learn"
@@ -12,17 +15,17 @@ struct ModeInfo {
 };
 
 constexpr std::array<ModeInfo, AppMode::Count> kModes = {{
-    {"learn", QT_TRANSLATE_NOOP("MainWindow", "Learn")},
-    {"drill", QT_TRANSLATE_NOOP("MainWindow", "Drill")},
-    {"library", QT_TRANSLATE_NOOP("MainWindow", "Library")},
-    {"timed", QT_TRANSLATE_NOOP("MainWindow", "Timed")},
-    {"untimed", QT_TRANSLATE_NOOP("MainWindow", "Untimed")},
-    {"movecount", QT_TRANSLATE_NOOP("MainWindow", "Move Count")},
-    {"eocross", QT_TRANSLATE_NOOP("MainWindow", "EO Cross")},
-    {"alglab", QT_TRANSLATE_NOOP("MainWindow", "Alg Lab")},
-    {"f2l", QT_TRANSLATE_NOOP("MainWindow", "F2L")},
-    {"tsle", QT_TRANSLATE_NOOP("MainWindow", "TSLE")},
-    {"today", QT_TRANSLATE_NOOP("MainWindow", "Today")},
+    {"learn", QT_TRANSLATE_NOOP("vcube::MainWindow", "Learn")},
+    {"drill", QT_TRANSLATE_NOOP("vcube::MainWindow", "Drill")},
+    {"library", QT_TRANSLATE_NOOP("vcube::MainWindow", "Library")},
+    {"timed", QT_TRANSLATE_NOOP("vcube::MainWindow", "Timed")},
+    {"untimed", QT_TRANSLATE_NOOP("vcube::MainWindow", "Untimed")},
+    {"movecount", QT_TRANSLATE_NOOP("vcube::MainWindow", "Move Count")},
+    {"eocross", QT_TRANSLATE_NOOP("vcube::MainWindow", "EO Cross")},
+    {"alglab", QT_TRANSLATE_NOOP("vcube::MainWindow", "Alg Lab")},
+    {"f2l", QT_TRANSLATE_NOOP("vcube::MainWindow", "F2L")},
+    {"tsle", QT_TRANSLATE_NOOP("vcube::MainWindow", "TSLE")},
+    {"today", QT_TRANSLATE_NOOP("vcube::MainWindow", "Today")},
 }};
 
 constexpr std::array<AppMode::Id, AppMode::Count> kAll = {
@@ -94,11 +97,11 @@ const std::array<AppMode::Id, AppMode::Count> &AppMode::sidebarOrder() {
 QString AppMode::sidebarHeader(Id mode) {
   switch (mode) {
   case Learn:
-    return QCoreApplication::translate("vcube::MainWindow", "ALGS");
+    return tr("ALGS");
   case Timed:
-    return QCoreApplication::translate("vcube::MainWindow", "SOLVES");
+    return tr("SOLVES");
   case EoCross:
-    return QCoreApplication::translate("vcube::MainWindow", "PRACTICE");
+    return tr("PRACTICE");
   case Drill:
   case Library:
   case Untimed:
@@ -116,9 +119,7 @@ bool AppMode::menuSeparatorAfter(Id mode) {
   return mode == Today || mode == AlgLab || mode == MoveCount;
 }
 
-QString AppMode::label(Id mode) {
-  return QCoreApplication::translate("MainWindow", info(mode).label);
-}
+QString AppMode::label(Id mode) { return tr(info(mode).label); }
 
 QString AppMode::settingsId(Id mode) { return info(mode).id; }
 

@@ -21,6 +21,7 @@ add_executable(vcube_tests
   test_cube.cpp
   test_solver.cpp
   test_scramble.cpp
+  test_set_scramble.cpp
   test_hold.cpp
   test_case_logic.cpp
   test_alg_follow.cpp
@@ -47,6 +48,7 @@ add_executable(vcube_tests
   test_f2l.cpp
   test_practice.cpp
   test_tsle.cpp
+  test_app_data.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)
@@ -61,9 +63,11 @@ if(WIN32)
     COMMAND_EXPAND_LISTS)
 endif()
 if(VCUBE_SANITIZE AND NOT MSVC)
-  # Leaks inside Qt that LeakSanitizer can't tell from ours.
+  # Leaks inside Qt that LeakSanitizer can't tell from ours, and more time
+  # for the checks of how long something takes (see test_time.hpp).
   catch_discover_tests(vcube_tests PROPERTIES ENVIRONMENT
-    "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp")
+    "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp"
+    ENVIRONMENT_MODIFICATION "VCUBE_TEST_TIME_SCALE=set:10")
 else()
   catch_discover_tests(vcube_tests)
 endif()
@@ -99,3 +103,13 @@ if(TARGET vcube_gui)
   set_tests_properties(gui PROPERTIES ENVIRONMENT "${gui_test_env}"
     TIMEOUT 120)
 endif()
+
+# Each layer includes nothing from the layers above it, and src/io only
+# QtCore from Qt (cmake/CheckLayering.cmake).
+get_target_property(qt_core_includes Qt6::Core INTERFACE_INCLUDE_DIRECTORIES)
+list(FILTER qt_core_includes INCLUDE REGEX "QtCore(\\.framework/Headers)?$")
+list(SUBLIST qt_core_includes 0 1 qt_core_includes)
+add_test(NAME layering COMMAND ${CMAKE_COMMAND}
+  -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/src
+  "-DQTCORE_INCLUDE_DIR=${qt_core_includes}"
+  -P ${PROJECT_SOURCE_DIR}/cmake/CheckLayering.cmake)

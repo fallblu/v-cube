@@ -27,15 +27,10 @@ public:
     connect(&tick_, &QTimer::timeout, this, [this] { tick(); });
   }
 
-  // A key press or release meant for the page; true if it was used. A key
-  // held down reaches the page once: its repeats go to the page only if
-  // acceptsAutoRepeat() says so, and are swallowed if its press was used.
-  virtual bool handleKey(QKeyEvent *e, bool press) {
-    (void)e;
-    (void)press;
-    return false;
-  }
-  // How the window sends the page a key: handleKey(), then keyDone().
+  // How the window (and the page itself) sends the page a key: handleKey(),
+  // then keyDone(). A key held down reaches the page once: its repeats go
+  // to the page only if acceptsAutoRepeat() says so, and are swallowed if
+  // its press was used.
   bool routeKey(QKeyEvent *e, bool press) {
     const bool used = handleKey(e, press);
     keyDone();
@@ -75,8 +70,20 @@ public:
   // the user is told that it was stopped.
   virtual QString workStoppedOnClose() const { return {}; }
 
+  // The window shows or hides the page: isActivePage() then says so, and
+  // activated() or deactivated() is called.
+  void activate() {
+    active_ = true;
+    activated();
+  }
+  void deactivate() {
+    active_ = false;
+    deactivated();
+  }
+  // The page is the one shown.
+  bool isActivePage() const { return active_; }
   // The page was shown or hidden, e.g. to refresh shared state, start or
-  // stop timers, and finish animations.
+  // stop timers, and finish animations (see activate()).
   virtual void activated() {}
   virtual void deactivated() {}
   // The window lost the keyboard: a key held down now won't be released.
@@ -167,6 +174,13 @@ signals:
   void sideShownChanged(bool shown);
 
 protected:
+  // A key press or release meant for the page; true if it was used. Keys
+  // come through routeKey() only.
+  virtual bool handleKey(QKeyEvent *e, bool press) {
+    (void)e;
+    (void)press;
+    return false;
+  }
   // After each key the page was sent, used or not.
   virtual void keyDone() {}
   // The clock of a page whose display changes only while something runs
@@ -174,6 +188,9 @@ protected:
   // then: tick() every 16 ms while clockNeeded(), as updateTick() last saw.
   virtual bool clockNeeded() const { return isBusy(); }
   virtual void tick() {}
+  // A popup or dialog took the keyboard: a key held down (Space) will be
+  // released there, not on the page.
+  static bool keyboardTaken();
   void updateTick() {
     if (!clockNeeded()) {
       tick_.stop();
@@ -197,6 +214,7 @@ protected:
 
 private:
   QTimer tick_;
+  bool active_ = false;
   bool focusMode_ = false;
   std::vector<QWidget *> focusHidden_;
   bool sideHidden_ = false;

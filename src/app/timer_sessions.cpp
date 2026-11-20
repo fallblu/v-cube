@@ -1,5 +1,6 @@
 #include "app/timer_page.hpp"
 
+#include "app/page_parts.hpp"
 #include "app/review_dialog.hpp"
 #include "app/ui_text.hpp"
 
@@ -27,6 +28,9 @@ enum Column : int {
   kLl,
   kColumns
 };
+
+// No cstimer export comes near this; a bigger file isn't read into memory.
+constexpr qint64 kMaxImportBytes = qint64{256} * 1024 * 1024;
 
 SolveSplits computeSplits(const Solve &s, bool simplified) {
   ParseResult scramble = parseAlg(s.scramble);
@@ -65,6 +69,7 @@ void TimerPage::selectSession(std::size_t index) {
     deleted_.forget(); // undo is for the session it was deleted from
     justSolved_ = false;
     solveRows_.clear();
+    rowsShown_ = 0;
   }
   bool wasFinished = flow_.finished();
   flow_.nextScramble();
@@ -129,100 +134,131 @@ void TimerPage::requestSplits() {
   }));
 }
 
-void TimerPage::refreshAttempts() {
+AttemptRow TimerPage::solveRow(std::size_t i, bool &missing) {
+  const Solve &s = session().solves[i];
+  int d = settings_.decimals;
+  AttemptRow row;
+  row.index = static_cast<int>(i);
+  row.cells.resize(kColumns);
+  auto set = [&](int col, const QString &text) {
+    AttemptCell &cell = row.cells[static_cast<std::size_t>(col)];
+    cell.text = text;
+    cell.alignRight = col > 0;
+  };
+  // A solve with a comment is marked.
+  set(kNumber,
+      s.comment.empty() ? QString::number(i + 1) : QString("%1 *").arg(i + 1));
+  set(kTime, qs(formatSolve(s, d)));
+  set(kAo5, timeText(stats_.ao5()[i], d));
+  set(kAo12, timeText(stats_.ao12()[i], d));
+  QString moves, rate, cross, f2l, ll;
+  if (onVirtualCube() && !s.moves.empty()) {
+    SolveRow &kept = solveRows_[i];
+    if (!kept.isOf(s)) {
+      kept = {s.scramble,
+              s.moves,
+              s.timeMs,
+              s.moveTimes.size(),
+              solutionHtm(parseAlgOrEmpty(s.moves), settings_.simplifiedCounts),
+              nullptr};
+    }
+    if (!kept.splits) {
+      kept.splits = splitsOf(s);
+    }
+    const int htm = kept.htm;
+    moves = QString::number(htm);
+    if (s.penalty != Penalty::Dnf && s.timeMs > 0) {
+      rate = QString::number(tps(htm, s.timeMs), 'f', 2);
+    }
+    if (const SolveSplits *sp = kept.splits) {
+      auto text = [&](const std::optional<std::int64_t> &ms) {
+        return ms ? timeText(*ms, d) : QString();
+      };
+      cross = text(sp->crossMs);
+      f2l = text(sp->f2lMs);
+      ll = text(sp->llMs);
+      if (sp->crossMs) {
+        crossSeries_[i] = *sp->crossMs;
+      }
+      if (sp->f2lMs) {
+        f2lSeries_[i] = *sp->f2lMs;
+      }
+      if (sp->llMs) {
+        llSeries_[i] = *sp->llMs;
+      }
+    } else {
+      missing = true;
+      cross = "…";
+    }
+  }
+  set(kMoves, moves);
+  set(kTps, rate);
+  set(kCross, cross);
+  set(kF2l, f2l);
+  set(kLl, ll);
+  return row;
+}
+
+std::vector<NewBest> TimerPage::updateStats(bool appended) {
+  const auto &solves = session().solves;
+  std::int64_t unit = statUnit(settings_.decimals);
+  // The chart's averages are in WCA units.
+  const bool chart = unit != kWcaUnit;
+  if (appended && stats_.unit() == unit && stats_.size() + 1 == solves.size() &&
+      (!chart || chartStats_.size() + 1 == solves.size())) {
+    if (chart) {
+      chartStats_.add(solves);
+    }
+    return stats_.add(solves);
+  }
+  stats_.reset(solves, unit);
+  if (chart) {
+    chartStats_.reset(solves);
+  }
+  return appended ? newBests(solves, unit) : std::vector<NewBest>{};
+}
+
+void TimerPage::showAttempts(Refresh what) {
   const auto &solves = session().solves;
   int d = settings_.decimals;
   std::int64_t unit = statUnit(d);
-  auto ao5 = rollingAverages(solves, 5, unit);
-  auto ao12 = rollingAverages(solves, 12, unit);
-  bool virt = onVirtualCube();
-  bool missing = false;
-  std::vector<StatValue> crossSeries(solves.size()), f2lSeries(solves.size()),
-      llSeries(solves.size());
-  std::vector<AttemptRow> rows;
-  rows.reserve(solves.size());
-  solveRows_.resize(solves.size());
-  for (std::size_t i = solves.size(); i-- > 0;) {
-    const Solve &s = solves[i];
-    AttemptRow row;
-    row.index = static_cast<int>(i);
-    row.cells.resize(kColumns);
-    auto set = [&](int col, const QString &text) {
-      AttemptCell &cell = row.cells[static_cast<std::size_t>(col)];
-      cell.text = text;
-      cell.alignRight = col > 0;
-    };
-    // A solve with a comment is marked.
-    set(kNumber, s.comment.empty() ? QString::number(i + 1)
-                                   : QString("%1 *").arg(i + 1));
-    set(kTime, qs(formatSolve(s, d)));
-    set(kAo5, timeText(ao5[i], d));
-    set(kAo12, timeText(ao12[i], d));
-    QString moves, rate, cross, f2l, ll;
-    if (virt && !s.moves.empty()) {
-      SolveRow &kept = solveRows_[i];
-      if (!kept.isOf(s)) {
-        kept = {
-            s.scramble,
-            s.moves,
-            s.timeMs,
-            s.moveTimes.size(),
-            solutionHtm(parseAlgOrEmpty(s.moves), settings_.simplifiedCounts),
-            nullptr};
-      }
-      if (!kept.splits) {
-        kept.splits = splitsOf(s);
-      }
-      const int htm = kept.htm;
-      moves = QString::number(htm);
-      if (s.penalty != Penalty::Dnf && s.timeMs > 0) {
-        rate = QString::number(tps(htm, s.timeMs), 'f', 2);
-      }
-      if (const SolveSplits *sp = kept.splits) {
-        auto text = [&](const std::optional<std::int64_t> &ms) {
-          return ms ? timeText(*ms, d) : QString();
-        };
-        cross = text(sp->crossMs);
-        f2l = text(sp->f2lMs);
-        ll = text(sp->llMs);
-        if (sp->crossMs) {
-          crossSeries[i] = *sp->crossMs;
-        }
-        if (sp->f2lMs) {
-          f2lSeries[i] = *sp->f2lMs;
-        }
-        if (sp->llMs) {
-          llSeries[i] = *sp->llMs;
-        }
-      } else {
-        missing = true;
-        cross = "…";
-      }
-    }
-    set(kMoves, moves);
-    set(kTps, rate);
-    set(kCross, cross);
-    set(kF2l, f2l);
-    set(kLl, ll);
-    rows.push_back(std::move(row));
+  if (what == Refresh::All || stats_.size() != solves.size() ||
+      stats_.unit() != unit) {
+    updateStats(false);
   }
-  panel_->setRows(std::move(rows));
+  bool missing = false;
+  solveRows_.resize(solves.size());
+  if (what == Refresh::Appended && rowsShown_ + 1 == solves.size()) {
+    // Only the new solve's row: the others stay as they are.
+    for (auto *series : {&crossSeries_, &f2lSeries_, &llSeries_}) {
+      series->resize(solves.size());
+    }
+    panel_->prependRow(solveRow(solves.size() - 1, missing));
+  } else {
+    for (auto *series : {&crossSeries_, &f2lSeries_, &llSeries_}) {
+      series->assign(solves.size(), StatValue{});
+    }
+    std::vector<AttemptRow> rows;
+    rows.reserve(solves.size());
+    for (std::size_t i = solves.size(); i-- > 0;) {
+      rows.push_back(solveRow(i, missing));
+    }
+    panel_->setRows(std::move(rows));
+  }
+  rowsShown_ = solves.size();
   if (missing) {
     requestSplits();
   }
   showStats(
-      solves, unit, tr("time"),
+      stats_.stats(), solves, unit, tr("time"),
       [d](const std::string &, StatValue v) { return timeText(v, d); },
       solves.size());
-  if (unit != kWcaUnit) { // the chart's averages are in WCA units
-    ao5 = rollingAverages(solves, 5);
-    ao12 = rollingAverages(solves, 12);
-  }
-  chart_->setSolves(solves, std::move(ao5), std::move(ao12));
-  if (virt) {
-    chart_->setSeries({{tr("cross"), Role::Series3, crossSeries},
-                       {tr("F2L"), Role::Series1, f2lSeries},
-                       {tr("LL"), Role::Series2, llSeries}});
+  const RunningStats &chart = unit != kWcaUnit ? chartStats_ : stats_;
+  chart_->setSolves(solves, chart.ao5(), chart.ao12());
+  if (onVirtualCube()) {
+    chart_->setSeries({{tr("cross"), Role::Series3, crossSeries_},
+                       {tr("F2L"), Role::Series1, f2lSeries_},
+                       {tr("LL"), Role::Series2, llSeries_}});
   } else {
     chart_->setSeries({});
   }
@@ -435,11 +471,19 @@ void TimerPage::importCstimer() {
             .arg(QDir::toNativeSeparators(path), f.errorString()));
     return;
   }
+  if (f.size() > kMaxImportBytes) {
+    warnPlain(this, tr("Import"),
+              tr("Couldn't import %1: it is larger than %2 MB, too large for "
+                 "a cstimer export.")
+                  .arg(path)
+                  .arg(kMaxImportBytes / (1024 * 1024)));
+    return;
+  }
   QString error;
   auto imported = sessionsFromCstimerFile(f.readAll(), &error);
   if (!imported) {
-    QMessageBox::warning(this, tr("Import"),
-                         tr("Couldn't import %1: %2").arg(path, error));
+    warnPlain(this, tr("Import"),
+              tr("Couldn't import %1: %2").arg(path, error));
     return;
   }
   std::size_t solves = 0;

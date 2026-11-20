@@ -77,8 +77,9 @@ class CaseFilter;
 class LibraryPage : public ModePage {
   Q_OBJECT
 public:
+  // `lab` is Alg Lab's file, for its times beside each alg.
   LibraryPage(AppSettings &settings, AlgLibrary &library,
-              QWidget *parent = nullptr);
+              const AlgLabStore &lab, QWidget *parent = nullptr);
 
   void selectCase(const QString &setId, const QString &caseId);
   // Undoes the last change, as Edit > Undo does; false if there is none.
@@ -87,8 +88,6 @@ public:
   // named `text`, the case selected; false if it couldn't be saved.
   bool setCaseAlgs(const QString &setId, const QString &caseId,
                    std::vector<std::string> algs, const QString &text);
-  // Alg Lab's times, shown beside each alg (none until set).
-  void setLab(const AlgLabStore *lab) { lab_ = lab; }
   SettingsParts settingsUsed() const override {
     return SettingsPart::Cube | SettingsPart::Neutrality;
   }
@@ -120,13 +119,12 @@ private:
 
   AppSettings &settings_;
   AlgLibrary &library_;
-  const AlgLabStore *lab_ = nullptr;
+  const AlgLabStore &lab_;
   QUndoStack *undo_;
   // The selected set and case, the edits and the checks of each set.
   LibraryEditor editor_;
   std::string caseTreeSet_; // the set the case tree was last built for
   bool loading_ = false;
-  bool active_ = false;
   // Pasted algs that weren't filed, offered again by the next paste.
   std::map<std::string, QString> pasteLeftOver_;
 

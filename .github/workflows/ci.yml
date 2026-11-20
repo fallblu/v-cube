@@ -1,9 +1,9 @@
 name: CI
 
-# A push or pull request runs only the format check and the GCC build, to
-# save Actions minutes. The other compilers, the oldest Qt, the sanitizers
-# and Windows run on a manual run (workflow_dispatch) and weekly, when main
-# has changed that week. Release tags build Windows too (release.yml).
+# A pull request runs the format check, the GCC build, the ASan + UBSan
+# build and Windows, so that neither platform nor the sanitizers break
+# main. A push to main adds Clang and the oldest Qt, as do a manual run
+# (workflow_dispatch) and the weekly run, when main has changed that week.
 # Docs-only changes skip CI, except docs/keys.md, which the GUI test checks
 # against the key table (the last matching pattern wins).
 on:
@@ -36,6 +36,8 @@ jobs:
       changed: ${{ steps.check.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - id: check
         run: |
           age=$(( $(date +%s) - $(git log -1 --format=%ct) ))
@@ -47,6 +49,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install clang-format
         # Pinned: other versions format some constructs differently.
         run: pipx install clang-format==21.1.8
@@ -54,22 +58,30 @@ jobs:
         run: git ls-files -z '*.cpp' '*.hpp' | xargs -0 clang-format --dry-run --Werror
 
   linux:
-    name: Linux GCC
+    name: Linux ${{ matrix.name }}
     needs: recent
     if: >-
       !cancelled() &&
       (github.event_name != 'schedule' || needs.recent.outputs.changed == 'true')
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - cxx: g++-14
+          - name: GCC
+            cxx: g++-14
             qt: 6.8.3
             qt-modules: qtmultimedia
             sanitize: OFF
+          - name: ASan + UBSan
+            cxx: g++-14
+            qt: 6.8.3
+            qt-modules: ""
+            sanitize: ON
     steps: &linux-steps
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Install build tools
         run: |
@@ -93,14 +105,14 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-  # Only on a manual run, or weekly when main has changed.
+  # Not on pull requests: on a push to main, a manual run, or weekly when
+  # main has changed.
   linux-full:
     name: Linux ${{ matrix.name }}
     needs: recent
     if: >-
-      !cancelled() &&
-      (github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'schedule' && needs.recent.outputs.changed == 'true'))
+      !cancelled() && github.event_name != 'pull_request' &&
+      (github.event_name != 'schedule' || needs.recent.outputs.changed == 'true')
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -111,11 +123,6 @@ jobs:
             qt: 6.8.3
             qt-modules: qtmultimedia
             sanitize: OFF
-          - name: ASan + UBSan
-            cxx: g++-14
-            qt: 6.8.3
-            qt-modules: ""
-            sanitize: ON
           # The oldest Qt that CMakeLists.txt accepts, without the optional
           # Qt Multimedia.
           - name: Qt 6.5
@@ -130,12 +137,12 @@ jobs:
     needs: recent
     if: >-
       !cancelled() &&
-      (github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'schedule' && needs.recent.outputs.changed == 'true'))
+      (github.event_name != 'schedule' || needs.recent.outputs.changed == 'true')
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Set up the MSVC environment
         uses: ilammy/msvc-dev-cmd@v1

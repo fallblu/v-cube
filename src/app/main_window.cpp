@@ -348,8 +348,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       add(AppMode::Learn, new LearnPage(settings_, data_.library, stack_));
   auto *drill =
       add(AppMode::Drill, new DrillPage(settings_, data_.library, stack_));
-  libraryPage_ =
-      add(AppMode::Library, new LibraryPage(settings_, data_.library, stack_));
+  libraryPage_ = add(AppMode::Library, new LibraryPage(settings_, data_.library,
+                                                       data_.lab, stack_));
   add(AppMode::Timed,
       new TimerPage(settings_, data_.sessions, data_.library, stack_));
   add(AppMode::Untimed,
@@ -373,7 +373,6 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   }
   connect(libraryPage_, &LibraryPage::setsChanged, this,
           &MainWindow::librarySetsChanged);
-  libraryPage_->setLab(&data_.lab);
   connect(libraryPage_, &LibraryPage::practiceRequested, this,
           [this, drill](AppMode::Id mode, const QString &setId,
                         const QString &caseId) {
@@ -484,11 +483,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   badgeTimer->setInterval(60 * 1000);
   connect(badgeTimer, &QTimer::timeout, this, &MainWindow::updateBadges);
   // A copy left open for days still makes each day's backup.
-  connect(badgeTimer, &QTimer::timeout, this, [this] {
-    if (std::optional<QString> error = data_.backUpIfNewDay()) {
-      writeReported(data_.backupsDir(), *error);
-    }
-  });
+  connect(badgeTimer, &QTimer::timeout, this,
+          [this] { data_.backUpIfNewDay(); });
   badgeTimer->start();
 
   help_ = new HelpPanel(this);
@@ -675,7 +671,7 @@ QWidget *MainWindow::buildBanner() {
 }
 
 void MainWindow::dismissBanner() {
-  failedWrites_.clear();
+  bannerDismissed_ = true;
   updateBanner();
 }
 
@@ -687,6 +683,7 @@ void MainWindow::writeReported(const QString &path, const QString &error) {
     return;
   }
   failedWrites_[path] = error;
+  bannerDismissed_ = false;
   updateBanner();
 }
 
@@ -695,9 +692,10 @@ void MainWindow::updateBanner() {
     return;
   }
   if (dismissBannerAction_) {
-    dismissBannerAction_->setVisible(!failedWrites_.empty());
+    dismissBannerAction_->setVisible(!failedWrites_.empty() &&
+                                     !bannerDismissed_);
   }
-  if (failedWrites_.empty()) {
+  if (failedWrites_.empty() || bannerDismissed_) {
     banner_->hide();
     return;
   }
@@ -745,7 +743,7 @@ bool MainWindow::setMode(AppMode::Id mode) {
         focus && old->isAncestorOf(focus)) {
       focus->clearFocus();
     }
-    old->deactivated();
+    old->deactivate();
   }
   bool switching = mode_.has_value();
   // What the last page said is about that page, not this one.
@@ -765,7 +763,7 @@ bool MainWindow::setMode(AppMode::Id mode) {
     page->setSizePolicy(policy, policy);
   }
   stack_->setCurrentWidget(currentPage());
-  currentPage()->activated();
+  currentPage()->activate();
   saved::windowMode().set(AppMode::settingsId(mode));
   if (switching && !sidebar_->isVisible()) {
     // Nothing else shows which mode this is.
@@ -948,11 +946,14 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   // take those in now, or a save that failed just before quitting would
   // never be seen.
   QCoreApplication::sendPostedEvents(qApp, QEvent::MetaCall);
-  if (!failedWrites_.empty()) {
-    QStringList lines;
-    for (const auto &[path, error] : failedWrites_) {
+  // A failed backup loses no changes, so it doesn't hold up quitting.
+  QStringList lines;
+  for (const auto &[path, error] : failedWrites_) {
+    if (path != data_.backupsDir()) {
       lines << QString("%1: %2").arg(QFileInfo(path).fileName(), error);
     }
+  }
+  if (!lines.isEmpty()) {
     // Staying doesn't bring back what closing stopped.
     const QString stoppedNote =
         stopped.isEmpty()
@@ -1057,7 +1058,7 @@ void MainWindow::buildMenus() {
   dismissBannerAction_->setToolTip(
       tr("Hide the warning that changes aren't being saved, until a file "
          "can't be saved again"));
-  dismissBannerAction_->setVisible(!failedWrites_.empty());
+  dismissBannerAction_->setVisible(!failedWrites_.empty() && !bannerDismissed_);
   file->addSeparator();
   file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
 

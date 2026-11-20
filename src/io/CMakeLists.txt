@@ -1,6 +1,7 @@
-add_library(vcube_io
+add_library(vcube_io STATIC
   algset_json.cpp
   alglab_store.cpp
+  app_data.cpp
   backup.cpp
   data_file.cpp
   library.cpp

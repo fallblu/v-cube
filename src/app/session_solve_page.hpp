@@ -83,6 +83,13 @@ protected:
       std::span<const Solve> solves, std::int64_t unit, const QString &single,
       const std::function<QString(const std::string &, StatValue)> &format,
       std::size_t count);
+  // The same with `stats` already worked out: sessionStats() of "single",
+  // "mo3", "ao5", "ao12" and "ao100".
+  void showStats(
+      const SessionStats &stats, std::span<const Solve> solves,
+      std::int64_t unit, const QString &single,
+      const std::function<QString(const std::string &, StatValue)> &format,
+      std::size_t count);
 
   // --- what the subclass has: the sessions and its own flow ---
   virtual bool onVirtualCube() const = 0;

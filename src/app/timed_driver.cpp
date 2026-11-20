@@ -1,18 +1,18 @@
 #include "app/timed_driver.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/keymap.hpp"
 #include "app/train_keys.hpp"
 #include "app/widgets.hpp"
 
-#include <QApplication>
+#include <QCoreApplication>
 
 namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::TimedDriver", text);
-}
+constexpr char kTrContext[] = "vcube::TimedDriver";
+constexpr auto tr = trIn<kTrContext>;
 
 } // namespace
 
@@ -139,10 +139,30 @@ void TimedDriver::cancel(const QString &why) {
   host_.timedCancelled(why);
 }
 
-bool TimedDriver::tick(std::int64_t now) {
+bool TimedDriver::leave(OnLeave on, const QString &why) {
+  if (!flow_.leave()) {
+    return false;
+  }
+  if (on == OnLeave::Cancel) {
+    cancel(why);
+  } else {
+    flow_.cancelSolve();
+  }
+  return true;
+}
+
+bool TimedDriver::windowLost() {
+  flow_.windowLost();
+  if (!flow_.loseKeyboard()) { // Space's release would never arrive
+    return false;
+  }
+  display_->showTimer(flow_.timer(), monotonicMs()); // as shown before
+  return true;
+}
+
+bool TimedDriver::tick(std::int64_t now, bool keyboardTaken) {
   // A popup or dialog took the keyboard: Space's release won't come.
-  if (flow_.holding() && (QApplication::activePopupWidget() ||
-                          QApplication::activeModalWidget())) {
+  if (flow_.holding() && keyboardTaken) {
     flow_.loseKeyboard();
     display_->showTimer(flow_.timer(), now);
     return true;

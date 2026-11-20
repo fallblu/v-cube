@@ -211,6 +211,7 @@ void AlgLibrary::load() {
   sets_.clear();
   progress_.clear();
   progressKeptOff_.clear();
+  progressJson_.clear();
   paths_.clear();
   QDir().mkpath(dir_);
   QDir().mkpath(QDir(dir_).filePath("progress"));
@@ -410,6 +411,7 @@ bool AlgLibrary::remove(const std::string &id, QString *error) {
   }
   progress_.erase(id);
   progressKeptOff_.erase(id);
+  progressJson_.erase(id);
   paths_.erase(id);
   sets_.erase(it);
   return true;
@@ -443,6 +445,7 @@ bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
     // hand) goes where a deleted set's does, so the restored set starts
     // afresh without losing it.
     progress_.erase(id);
+    progressJson_.erase(id);
     if (QFile::exists(progressPathFor(id))) {
       finishBackgroundWrites(progressPathFor(id));
       QString why;
@@ -580,13 +583,11 @@ AlgLibrary::progressWriter(const std::string &setId) {
       return false;
     };
   }
-  return [path, progress = progress(setId),
+  return [path, o = progressToJson(progress(setId), &progressJson_[setId]),
           dir = QDir(dir_).filePath("progress")](QString *error) {
     QDir().mkpath(dir);
     return writeFileAtomically(
-        path,
-        QJsonDocument(progressToJson(progress)).toJson(QJsonDocument::Compact),
-        error);
+        path, QJsonDocument(o).toJson(QJsonDocument::Compact), error);
   };
 }
 

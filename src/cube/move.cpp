@@ -23,7 +23,7 @@ std::uint8_t negate(std::uint8_t amount) {
 
 // Limits that keep a typo such as "((R U)1000)1000" from using up memory or
 // the stack.
-constexpr std::size_t kMaxMoves = 10000;
+constexpr std::size_t kMaxMoves = kMaxAlgMoves;
 constexpr int kMaxDepth = 64;
 constexpr int kMaxCount = 1000;
 

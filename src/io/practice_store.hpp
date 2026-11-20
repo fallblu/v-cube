@@ -1,6 +1,7 @@
 #pragma once
 
 #include "io/data_file.hpp"
+#include "io/json_values.hpp"
 #include "train/practice.hpp"
 
 #include <QJsonObject>
@@ -8,6 +9,8 @@
 
 #include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace vcube {
 
@@ -27,7 +30,14 @@ namespace vcube {
 // Untimed tab's solves. Of a try, "ms", "moves", "best" and "inspect" are
 // left out when 0, "extra" when it isn't known, and "dnf", "hint" and
 // "over" when false. "inspection" and "choices" are left out when empty.
-QJsonObject practiceToJson(const PracticeData &data);
+// With a `cache`, only the cards and lists of tries that changed since its
+// last use are made again.
+struct PracticeJsonCache {
+  KeyedJsonCache<CaseProgress> cards;
+  KeyedJsonCache<std::vector<PracticeTry>> learn, timed, inspection;
+};
+QJsonObject practiceToJson(const PracticeData &data,
+                           PracticeJsonCache *cache = nullptr);
 PracticeData practiceFromJson(const QJsonObject &o);
 
 inline constexpr FileField kPracticeFields[] = {{"cards"},
@@ -39,8 +49,26 @@ inline constexpr FileField kPracticeFields[] = {{"cards"},
 inline constexpr FileFormat kPracticeFile{"v-cube.practice", 1, false,
                                           "practice file", kPracticeFields};
 
-using PracticeStore =
-    JsonStore<PracticeData, kPracticeFile, practiceToJson, practiceFromJson>;
+// A mode's file. Its JSON is kept between saves (see PracticeJsonCache),
+// so a save after each attempt makes only what changed again and hands
+// that to the background writer, rather than a copy of the whole store.
+class PracticeStore : public FileStore {
+public:
+  static constexpr bool kCachesJson = true;
+
+  explicit PracticeStore(QString path)
+      : FileStore(std::move(path), kPracticeFile) {}
+
+  PracticeData data;
+
+protected:
+  void reset() override { data = {}; }
+  QJsonObject toJson() const override { return practiceToJson(data, &cache_); }
+  void fromJson(const QJsonObject &o) override { data = practiceFromJson(o); }
+
+private:
+  mutable PracticeJsonCache cache_;
+};
 
 // The three modes kept other files under the same names before they had
 // Learn and Timed tabs ("v-cube.eocross", "v-cube.f2l", "v-cube.tsle").

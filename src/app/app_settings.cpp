@@ -6,6 +6,7 @@
 #include "app/ui_state.hpp"
 #include "train/algset.hpp"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QFile>
 #include <QPainter>
@@ -446,12 +447,19 @@ std::vector<std::int64_t> stepsFromText(const QString &text) {
     if (!m.hasMatch()) {
       return {};
     }
-    std::int64_t n = m.captured(1).toLongLong();
+    bool ok = false;
+    std::int64_t n = m.captured(1).toLongLong(&ok);
     QString unit = m.captured(2);
     std::int64_t mult = unit == "s"   ? 1
                         : unit == "h" ? 3600
                         : unit == "d" ? 86400
                                       : 60;
+    // At most ten years a step: longer is a typo, and the product of a long
+    // run of digits would overflow.
+    constexpr std::int64_t kMaxStep = std::int64_t{3650} * 86400;
+    if (!ok || n > kMaxStep / mult) {
+      return {};
+    }
     out.push_back(n * mult);
   }
   return out;

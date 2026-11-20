@@ -86,6 +86,8 @@ struct ParseResult {
   std::optional<ParseError> error;
   explicit operator bool() const { return !error.has_value(); }
 };
+// The longest alg parseAlg reads, in moves.
+inline constexpr std::size_t kMaxAlgMoves = 10000;
 ParseResult parseAlg(std::string_view text);
 
 // Parses or returns an empty alg on error.

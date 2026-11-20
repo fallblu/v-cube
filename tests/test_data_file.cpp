@@ -507,6 +507,23 @@ TEST_CASE("a file that isn't JSON says where it stops being") {
   CHECK(why.contains("line 1, column"));
 }
 
+TEST_CASE("a file too big to read is unreadable, and not read") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("huge.json");
+  FileFormat format{"v-cube.test", 1, false, "test file"};
+  writeText(path, R"({"format": "v-cube.test"})");
+  CHECK(readDataFile(path, format).status == FileStatus::Read);
+  {
+    // Sparse where the file system allows, so it costs no disk space.
+    QFile f(path);
+    REQUIRE(f.resize(kMaxDataFileSize + 1));
+  }
+  FileRead r = readDataFile(path, format);
+  CHECK(r.status == FileStatus::Unreadable);
+  CHECK(r.error.contains("too big"));
+  QFile::remove(path);
+}
+
 TEST_CASE("a file of the wrong kind is named as users know it") {
   QTemporaryDir tmp;
   QString path = tmp.filePath("set.json");
@@ -677,4 +694,84 @@ TEST_CASE("move counts are written right however they change between saves") {
     store.removeSession(store.currentIndex());
     checkWritesAfresh(store, mode);
   }
+}
+
+namespace {
+
+void checkWritesAfresh(PracticeStore &store) {
+  REQUIRE(store.save());
+  CHECK(
+      readText(store.path()) ==
+      QJsonDocument(practiceToJson(store.data)).toJson(QJsonDocument::Compact));
+}
+
+} // namespace
+
+TEST_CASE("practice is written right however it changes between saves") {
+  QTemporaryDir tmp;
+  PracticeStore store(tmp.filePath("f2l.json"));
+  store.data.cards["a"].record({100, 1500, false});
+  store.data.cards["b"].record({101, 1600, true});
+  store.data.addLearn("whole", {.timestamp = 1, .moves = 30});
+  store.data.addTimed("virtual/f2l", {.timestamp = 2, .ms = 9000});
+  checkWritesAfresh(store);
+  store.data.cards["a"].record({102, 1400, false}); // one card changed
+  checkWritesAfresh(store);
+  store.data.cards["c"].record({103, 1300, false}); // a new card
+  checkWritesAfresh(store);
+  store.data.cards.erase("b"); // a card gone
+  checkWritesAfresh(store);
+  store.data.addLearn("whole", {.timestamp = 3, .moves = 28});
+  store.data.addLearn("cross", {.timestamp = 4, .moves = 8});
+  checkWritesAfresh(store);
+  store.data.addInspection("eocross", {.timestamp = 5, .inspectMs = 9000});
+  checkWritesAfresh(store);
+  store.data.timed.clear();
+  store.data.inspection.clear();
+  checkWritesAfresh(store);
+  store.data = {};
+  checkWritesAfresh(store);
+}
+
+TEST_CASE("a background save writes practice as it was when asked") {
+  QTemporaryDir tmp;
+  PracticeStore store(tmp.filePath("f2l.json"));
+  store.data.cards["a"].record({100, 1500, false});
+  std::function<bool(QString *)> job = store.saveJob();
+  store.data.cards["a"].record({101, 1400, false});
+  store.data.cards["b"].record({102, 1300, false});
+  store.save(); // fills the cache with the later data
+  QString error;
+  REQUIRE(job(&error));
+  PracticeStore read(store.path());
+  REQUIRE(read.load());
+  REQUIRE(read.data.cards.size() == 1);
+  CHECK(read.data.cards["a"].attempts.size() == 1);
+}
+
+TEST_CASE("progress is written right however it changes between saves") {
+  QTemporaryDir tmp;
+  AlgLibrary lib = loadedLibrary(tmp.path());
+  auto check = [&] {
+    REQUIRE(lib.saveProgress("pll"));
+    CHECK(readText(lib.progressPath("pll")) ==
+          QJsonDocument(progressToJson(lib.progress("pll")))
+              .toJson(QJsonDocument::Compact));
+  };
+  lib.progress("pll")["T"].record({100, 1500, false});
+  lib.progress("pll")["Y"].record({101, 1600, false});
+  check();
+  // Asked for before the next changes, written after them.
+  std::function<bool(QString *)> job = lib.progressWriter("pll");
+  lib.progress("pll")["T"].record({102, 1400, true});
+  check();
+  lib.progress("pll")["Aa"].record({103, 1700, false});
+  check();
+  lib.forgetProgress("pll", {"Y"});
+  check();
+  REQUIRE(job(nullptr));
+  SetProgress was = progressFromJson(
+      QJsonDocument::fromJson(readText(lib.progressPath("pll"))).object());
+  CHECK(was.size() == 2);
+  CHECK(was["T"].attempts.size() == 1);
 }

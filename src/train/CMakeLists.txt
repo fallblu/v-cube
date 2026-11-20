@@ -1,4 +1,4 @@
-add_library(vcube_train
+add_library(vcube_train STATIC
   alg_follow.cpp
   alg_guide.cpp
   alg_lab.cpp
@@ -6,6 +6,7 @@ add_library(vcube_train
   attempt_flow.cpp
   case_logic.cpp
   case_picker.cpp
+  context_practice.cpp
   drill_flow.cpp
   drill_session.cpp
   eo_cross.cpp
@@ -15,6 +16,7 @@ add_library(vcube_train
   grips.cpp
   lab_flow.cpp
   learn_attempt.cpp
+  learn_quiz.cpp
   learn_session.cpp
   move_count.cpp
   move_set.cpp
@@ -24,6 +26,7 @@ add_library(vcube_train
   reduction.cpp
   solve_review.cpp
   srs.cpp
+  set_scramble.cpp
   stats.cpp
   timed_flow.cpp
   timer.cpp

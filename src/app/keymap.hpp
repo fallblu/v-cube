@@ -43,6 +43,8 @@ public:
   // Why a key can't turn the cube (the modes or the window use it), or an
   // empty string if it can.
   static QString reservedReason(int key);
+  // The key and Shift of keyText()'s text; nullopt for anything else,
+  // such as a second key or another modifier.
   static std::optional<std::pair<int, bool>> parseKeyText(const QString &text);
 
   friend bool operator==(const Keymap &, const Keymap &) = default;

@@ -3,18 +3,20 @@
 // folder. The settings and data folders are temporary ones, set before the
 // QApplication exists, so the user's own data is never read or written.
 #include "app/alglab_page.hpp"
-#include "app/app_data.hpp"
 #include "app/app_settings.hpp"
+#include "app/case_filter.hpp"
 #include "app/colours.hpp"
 #include "app/command_palette.hpp"
 #include "app/cube_painter.hpp"
 #include "app/cube_view.hpp"
 #include "app/drill_page.hpp"
+#include "app/eo_cross_check.hpp"
 #include "app/eo_cross_page.hpp"
 #include "app/f2l_page.hpp"
 #include "app/grip_view.hpp"
 #include "app/help_panel.hpp"
 #include "app/help_text.hpp"
+#include "app/keymap.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/main_window.hpp"
@@ -44,6 +46,7 @@
 #include "io/move_counts.hpp"
 #include "io/practice_store.hpp"
 #include "io/sessions.hpp"
+#include "train/step_solver.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -74,6 +77,7 @@
 #include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QTableView>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
@@ -436,13 +440,23 @@ private slots:
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
   void undoneDeletionKeepsProgressUnderANewId();
-  void appDataLoadsThePracticeFiles();
   void timedDriverDoesWhatTheFlowAsks();
   void mouseOnlyControlsHaveAKey();
   void reviewButtonsHaveKeys();
   void saveWarningCanBeDismissedFromTheMenu();
   void timerSaysItsResult();
   void bareAltReachesTheMenuBar();
+  void keymapIsSavedAndReadBack();
+  void srsStepsAreWrittenAndRead();
+  void caseFilterHidesWhatDoesntMatch();
+  void optimalCountsUseTheChosenHolds();
+  void timerTableAndStatsFollowEachSolve();
+  void algLabFilterKeepsTheCaseShown();
+  void algLabSearchAddsRowsAsItFindsThem();
+  void algLabLengthLimitAppliesDuringASearch();
+  void untimedSpaceHoldRunsOnThePageClock();
+  void timedDriverLeavesAndLosesTheKeyboard();
+  void onlyTheShownPageIsActive();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -1757,6 +1771,8 @@ void GuiTest::learnStartsACase() {
   QVERIFY(p["T"].attempts == attempts);
 }
 
+// The quiz's choices and answers as they are worded (the picking is
+// tested in test_learn.cpp).
 void GuiTest::quizAsksAmongLookAlikes() {
   AlgSet set;
   std::vector<std::string> ticked;
@@ -1776,55 +1792,23 @@ void GuiTest::quizAsksAmongLookAlikes() {
   addGroup("b", 2);
   Rng rng = makeRng();
   auto none = [](const std::string &) { return false; };
-  auto nameOf = [](const std::string &id) { return qs("Case " + id); };
-
-  // One case is nothing to choose from.
-  QVERIFY(!QuizPractice::pick(set, {"a1"}, none, {}, rng));
-  QVERIFY(!QuizPractice::pick(set, {}, none, {}, rng));
-
-  for (int i = 0; i < 60; ++i) {
-    auto quiz = QuizPractice::pick(set, ticked, none, "a1", rng);
-    QVERIFY(quiz);
-    const std::string id = quiz->caseId();
-    QVERIFY(id != "a1"); // not the last one again
-    QStringList names = quiz->names(set);
-    QCOMPARE(static_cast<std::size_t>(names.size()), quiz->choices());
-    QVERIFY(quiz->answer() < quiz->choices());
-    QCOMPARE(names[static_cast<qsizetype>(quiz->answer())], nameOf(id));
-    QCOMPARE(names.removeDuplicates(), qsizetype{0});
-    // The choices are the case's look-alikes: its own group, six at most.
-    QCOMPARE(quiz->choices(), id.front() == 'a' ? std::size_t{6} : 2u);
-    for (const QString &name : names) {
-      QVERIFY(name.startsWith(qs("Case ") + QChar(id.front())));
-    }
+  auto quiz = LearnQuiz::pick(set, ticked, none, {}, rng);
+  QVERIFY(quiz);
+  const QStringList names = quizChoiceNames(*quiz, set);
+  QCOMPARE(static_cast<std::size_t>(names.size()), quiz->choices());
+  for (std::size_t i = 0; i < quiz->choices(); ++i) {
+    QCOMPARE(names[static_cast<qsizetype>(i)],
+             qs("Case " + quiz->choiceIds()[i]));
   }
 
-  // Cases already started are asked first, once there are two.
   auto started = [](const std::string &id) { return id.front() == 'b'; };
-  for (int i = 0; i < 20; ++i) {
-    auto quiz = QuizPractice::pick(set, ticked, started, "b1", rng);
-    QVERIFY(quiz);
-    QCOMPARE(quiz->caseId(), std::string("b2"));
-    QCOMPARE(quiz->choices(), std::size_t{2});
-  }
-  auto one = [](const std::string &id) { return id == "b1"; };
-  bool other = false;
-  for (int i = 0; i < 60 && !other; ++i) {
-    other = QuizPractice::pick(set, ticked, one, {}, rng)->caseId() != "b1";
-  }
-  QVERIFY(other);
-
-  // The answer is timed from the case being shown.
-  auto quiz = QuizPractice::pick(set, ticked, started, "b1", rng);
+  quiz = LearnQuiz::pick(set, ticked, started, "b1", rng);
   QVERIFY(quiz);
   quiz->shown(100);
-  const QuizPractice::Result right = quiz->answered(quiz->answer(), 350);
-  QVERIFY(right.right);
-  QCOMPARE(right.ms, std::int64_t{250});
-  QVERIFY(!quiz->resultText(&set, right).contains("Case b2"));
-  const QuizPractice::Result wrong = quiz->answered(1 - quiz->answer(), 350);
-  QVERIFY(!wrong.right);
-  QCOMPARE(quiz->resultText(&set, wrong), QString("It was Case b2."));
+  const LearnQuiz::Result right = quiz->answered(quiz->answer(), 350);
+  QCOMPARE(quizResultText(*quiz, &set, right), QString("Right, in 0.25 s."));
+  const LearnQuiz::Result wrong = quiz->answered(1 - quiz->answer(), 350);
+  QCOMPARE(quizResultText(*quiz, &set, wrong), QString("It was Case b2."));
 }
 
 void GuiTest::drillArmsAndStopsItself() {
@@ -2267,7 +2251,7 @@ void GuiTest::pagesTakeTheKeyboard() {
   QWidget *firstButton = tables[0]->itemWidget(firstRow, 5);
   QTreeWidgetItem *firstMode = tables[1]->topLevelItem(0);
   QVERIFY(firstButton);
-  today->activated();
+  today->activate();
   QCOMPARE(tables[0]->topLevelItem(0), firstRow);
   QCOMPARE(tables[0]->itemWidget(firstRow, 5), firstButton);
   QCOMPARE(tables[1]->topLevelItem(0), firstMode);
@@ -2781,29 +2765,6 @@ void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
   QCOMPARE(savedProgress("pll-2").size(), graded);
 }
 
-void GuiTest::appDataLoadsThePracticeFiles() {
-  // The practice modes' files are read with the others, without a page:
-  // an old TSLE file's OCLL algs are carried over and saved, and a file
-  // that can't be read is reported with the rest.
-  QTemporaryDir dir;
-  QVERIFY(dir.isValid());
-  QVERIFY(writeFile(dir.filePath("tsle.json"),
-                    R"({"format": "v-cube.tsle", "version": 1,
-    "ocll": {"antisune": "L' U' L U' L' U2 L"}})"));
-  QVERIFY(writeFile(dir.filePath("f2l.json"), "not json"));
-  AppData data(dir.path());
-  const AppData::LoadReport report = data.load();
-  QCOMPARE(data.tsle.data.notes.at("ocll/antisune"),
-           std::string("L' U' L U' L' U2 L"));
-  QVERIFY(data.eoCross.data.cards.empty());
-  QCOMPARE(report.warnings.size(), 1);
-  QVERIFY(report.warnings.front().contains("f2l.json"));
-  finishBackgroundWrites(data.tsle.path());
-  PracticeStore again(QDir(dir.path()).filePath("tsle.json"));
-  QVERIFY(again.load());
-  QCOMPARE(again.data.notes, data.tsle.data.notes);
-}
-
 void GuiTest::timedDriverDoesWhatTheFlowAsks() {
   // The host Drill and the practice Timed tabs give the driver: what it
   // was asked to do, in order.
@@ -2909,7 +2870,8 @@ void GuiTest::timedDriverDoesWhatTheFlowAsks() {
 // a key of its own or one its tip names.
 void GuiTest::mouseOnlyControlsHaveAKey() {
   static const QRegularExpression namedKey(
-      R"(\((?:[^()]*\b)?(?:Ctrl|Alt|Shift|F\d+|Space|Enter|Esc|Tab|Home|End|Delete|Backspace|[←→↑↓]|[A-Z0-9])\b?[^()]*\)\s*$)");
+      R"(\((?:[^()]*\b)?(?:Ctrl|Alt|Shift|F\d+|Space|Enter|Esc|Tab|Home|End|Delete|Backspace|[←→↑↓]|[A-Z0-9])(?![A-Za-z0-9])[^()]*\)\s*$)");
+  QVERIFY2(namedKey.isValid(), qPrintable(namedKey.errorString()));
   for (AppMode::Id mode : AppMode::all()) {
     // The pages are stacked in the order of the modes.
     ModePage *expected = nullptr;
@@ -3018,6 +2980,13 @@ void GuiTest::saveWarningCanBeDismissedFromTheMenu() {
   dismiss->trigger();
   QVERIFY(!banner->isVisible());
   QVERIFY(!dismiss->isVisible());
+  // Another failure brings it back.
+  reportWrite(QDir(dataDir_).filePath("other.json"), false, "disk full");
+  QTRY_VERIFY(banner->isVisible());
+  // Saved after all: nothing is left for the check when quitting.
+  reportWrite(QDir(dataDir_).filePath("nowhere.json"), true, QString());
+  reportWrite(QDir(dataDir_).filePath("other.json"), true, QString());
+  QTRY_VERIFY(!banner->isVisible());
 }
 
 // The timer is named "Timer"; what it shows is said in its description,
@@ -3047,6 +3016,426 @@ void GuiTest::bareAltReachesTheMenuBar() {
   QTest::keyClick(window_->menuBar(), Qt::Key_Escape);
   QTRY_VERIFY(window_->menuBar()->activeAction() == nullptr);
   window_->setFocus();
+}
+
+// The key bindings as they are kept in the settings: lines that can't be
+// read, or bind a key the modes use, are left out and counted.
+void GuiTest::keymapIsSavedAndReadBack() {
+  const Keymap defaults = Keymap::defaultLayout();
+  int dropped = -1;
+  QCOMPARE(Keymap::fromStrings(defaults.toStrings(), &dropped), defaults);
+  QCOMPARE(dropped, 0);
+
+  // Shift turns the wide layer, and the = key is split at the last '='.
+  Keymap read = Keymap::fromStrings({"Shift+I=r", "==M"}, &dropped);
+  QCOMPARE(dropped, 0);
+  const std::vector<KeyBinding> expected = {
+      {Qt::Key_I, true, parseAlgOrEmpty("r").front()},
+      {Qt::Key_Equal, false, parseAlgOrEmpty("M").front()}};
+  QVERIFY(read.bindings == expected);
+  QCOMPARE(read.toStrings(), (QStringList{"Shift+I=r", "==M"}));
+
+  // A key turns its layer once: R3 is R'.
+  read = Keymap::fromStrings({"I=R3"}, &dropped);
+  QCOMPARE(dropped, 0);
+  QCOMPARE(read.bindings.size(), std::size_t{1});
+  QVERIFY(read.bindings.front().move == parseAlgOrEmpty("R'").front());
+
+  // Reserved keys, lines that aren't a binding, and keys the cube never
+  // sees: Ctrl and Alt are left to the shortcuts, and a sequence of keys
+  // can't be pressed at once.
+  const QStringList bad = {"Space=R", "F1=U",     "5=U",     "Left=U",
+                           "garbage", "=R",       "I=R U",   "I=Q",
+                           "I=",      "Ctrl+I=R", "Alt+J=U", "I, J=R"};
+  for (const QString &line : bad) {
+    read = Keymap::fromStrings({line}, &dropped);
+    QVERIFY2(read.bindings.empty(), qPrintable(line));
+    QVERIFY2(dropped == 1, qPrintable(line));
+  }
+  read = Keymap::fromStrings(bad + QStringList{"J=U"}, &dropped);
+  QCOMPARE(dropped, static_cast<int>(bad.size()));
+  QCOMPARE(read.toStrings(), QStringList{"J=U"});
+
+  QVERIFY(!Keymap::reservedReason(Qt::Key_Space).isEmpty());
+  QVERIFY(!Keymap::reservedReason(Qt::Key_Home).isEmpty());
+  QVERIFY(!Keymap::reservedReason(Qt::Key_9).isEmpty());
+  QVERIFY(!Keymap::reservedReason(Qt::Key_F12).isEmpty());
+  QVERIFY(Keymap::reservedReason(Qt::Key_I).isEmpty());
+  QVERIFY(Keymap::reservedReason(Qt::Key_Equal).isEmpty());
+}
+
+// The SRS learning and relearning steps as they are kept in the settings
+// and typed in Settings: a list of lengths, each with its unit.
+void GuiTest::srsStepsAreWrittenAndRead() {
+  using Steps = std::vector<std::int64_t>;
+  const Steps steps = {60, 600, 3600, 86400, 90};
+  QCOMPARE(stepsToText(steps), QString("1m 10m 1h 1d 90s"));
+  QVERIFY(stepsFromText(stepsToText(steps)) == steps);
+  // A bare number is minutes, and spaces around the steps don't count.
+  QVERIFY(stepsFromText("5") == Steps{300});
+  QVERIFY(stepsFromText("  1m   10m ") == (Steps{60, 600}));
+  QVERIFY(stepsFromText("").empty());
+
+  // Anything that isn't a whole number with a unit spoils the list.
+  for (const char *text : {"abc", "1.5m", "1M", "-1m", "1m abc", "m", "1 m"}) {
+    QVERIFY2(stepsFromText(text).empty(), text);
+  }
+
+  // At most ten years a step: a longer one, or one of so many digits that
+  // it can't be read, spoils the list too.
+  QVERIFY(stepsFromText("3650d") == Steps{std::int64_t{3650} * 86400});
+  QVERIFY(stepsFromText("3651d").empty());
+  QVERIFY(stepsFromText("999999999999999d").empty());
+  QVERIFY(stepsFromText("99999999999999999999").empty());
+
+  // As it is now, a step of no time is read (and written as days).
+  QVERIFY(stepsFromText("0") == Steps{0});
+  QVERIFY(stepsFromText("0m") == Steps{0});
+  QCOMPARE(stepsToText({0}), QString("0d"));
+}
+
+// The case search and status choice of Learn, Drill and Library, on a
+// list of its own.
+void GuiTest::caseFilterHidesWhatDoesntMatch() {
+  QWidget host;
+  auto *tree = new QTreeWidget(&host);
+  auto addGroup = [&](const QString &name, const QStringList &cases,
+                      const QStringList &algs) {
+    auto *group = new QTreeWidgetItem(tree, {name});
+    for (qsizetype i = 0; i < cases.size(); ++i) {
+      auto *item = new QTreeWidgetItem(group, {cases[i]});
+      item->setData(0, CaseFilter::kSearchRole, algs[i]);
+    }
+    return group;
+  };
+  QTreeWidgetItem *bl =
+      addGroup("BL", {"Case 1", "Case 2"}, {"R U R'", "L' U' L"});
+  QTreeWidgetItem *fr =
+      addGroup("FR", {"Case 3", "Started 4"}, {"F R U R' U' F'", "R U2 R'"});
+  auto *filter = new CaseFilter(tree, &host);
+  // The status: the cases whose name says they are started.
+  filter->setStatuses({{"Started", [](const QTreeWidgetItem *item) {
+                          return item->text(0).startsWith("Started");
+                        }}});
+  auto *search = filter->findChild<QLineEdit *>();
+  auto *status = filter->findChild<QComboBox *>();
+  QVERIFY(search && status);
+  QSignalSpy changed(filter, &CaseFilter::changed);
+  auto hidden = [&] {
+    QStringList out;
+    for (QTreeWidgetItem *group : {bl, fr}) {
+      if (group->isHidden()) {
+        out << group->text(0);
+      }
+      for (int i = 0; i < group->childCount(); ++i) {
+        if (group->child(i)->isHidden()) {
+          out << group->child(i)->text(0);
+        }
+      }
+    }
+    return out;
+  };
+  filter->apply();
+  QVERIFY(!filter->isActive());
+  QCOMPARE(hidden(), QStringList{});
+
+  // A group's name finds all its cases, whatever the case.
+  search->setText("bl");
+  QVERIFY(filter->isActive());
+  QCOMPARE(changed.count(), 1);
+  QCOMPARE(hidden(), (QStringList{"FR", "Case 3", "Started 4"}));
+  // So does an alg kept with a case, for that case alone.
+  search->setText("u2");
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "Case 3"}));
+  search->setText("case 2");
+  QCOMPARE(hidden(), (QStringList{"Case 1", "FR", "Case 3", "Started 4"}));
+  search->setText("nothing");
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "FR", "Case 3",
+                                  "Started 4"}));
+
+  // The status alone, and with a search.
+  search->clear();
+  status->setCurrentIndex(1);
+  QVERIFY(filter->isActive());
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "Case 3"}));
+  search->setText("bl");
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "FR", "Case 3",
+                                  "Started 4"}));
+  // Clearing the search keeps the status.
+  filter->clearSearch();
+  QCOMPARE(search->text(), QString());
+  QCOMPARE(status->currentIndex(), 1);
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "Case 3"}));
+  status->setCurrentIndex(0);
+  QVERIFY(!filter->isActive());
+  QCOMPARE(hidden(), QStringList{});
+}
+
+// The holds the optimal EO Cross and step counts are taken over: all of
+// them, or the colour neutrality's with either EO axis.
+void GuiTest::optimalCountsUseTheChosenHolds() {
+  AppSettings s;
+  s.optimalAnyHold = true;
+  std::vector<Hold> holds = optimalHolds(s);
+  QVERIFY(std::ranges::equal(holds, allHolds()));
+
+  s.optimalAnyHold = false;
+  s.neutrality.holds = {kWcaHold};
+  holds = optimalHolds(s);
+  QCOMPARE(holds.size(), std::size_t{2});
+  QVERIFY(std::ranges::find(holds, kWcaHold) != holds.end());
+  QVERIFY(holds == withBothEoAxes({kWcaHold}));
+  // The hold and the hold turned a quarter (y): white on top in both.
+  for (const Hold &h : holds) {
+    QCOMPARE(h.top, kWcaHold.top);
+  }
+}
+
+// Each solve adds its row above the others, and the table and the
+// statistics keep showing what the whole session gives, through penalties
+// (which work everything out again) too.
+void GuiTest::timerTableAndStatsFollowEachSolve() {
+  OPEN_PAGE(timed, TimerPage, Timed);
+  auto *table = lastChild<QTableView>(timed->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  auto *statsLabel = lastChild<QLabel>(timed->sidePanel(), [](QLabel *l) {
+    return l->text().contains("Solves:");
+  });
+  QVERIFY(statsLabel);
+  auto solve = [&] {
+    QVERIFY(holdSpaceUntilBusy(timed));
+    QTest::keyClick(window_.get(), Qt::Key_A); // any key stops it
+    QVERIFY(!timed->isBusy());
+  };
+  // What the table and statistics show that the saved session doesn't
+  // give; empty when they match.
+  auto mismatch = [&]() -> QString {
+    finishBackgroundWrites();
+    SessionStore saved(QDir(dataDir_).filePath("sessions.json"));
+    if (!saved.load()) {
+      return "the sessions weren't saved";
+    }
+    const std::vector<Solve> &solves = saved.current().solves;
+    const int d = settings_.decimals;
+    const std::int64_t unit = statUnit(d);
+    const QAbstractItemModel *model = table->model();
+    if (model->rowCount() != static_cast<int>(solves.size())) {
+      return QString("%1 rows for %2 solves")
+          .arg(model->rowCount())
+          .arg(solves.size());
+    }
+    std::vector<StatValue> ao5 = rollingAverages(solves, 5, unit);
+    std::vector<StatValue> ao12 = rollingAverages(solves, 12, unit);
+    for (int row = 0; row < model->rowCount(); ++row) {
+      // The newest solve first.
+      std::size_t i = solves.size() - 1 - static_cast<std::size_t>(row);
+      auto cell = [&](int col) {
+        return model->index(row, col).data().toString();
+      };
+      if (cell(1) != qs(formatSolve(solves[i], d)) ||
+          cell(2) != timeText(ao5[i], d) || cell(3) != timeText(ao12[i], d)) {
+        return QString("row %1: %2 %3 %4")
+            .arg(row)
+            .arg(cell(1), cell(2), cell(3));
+      }
+    }
+    QString html = statsLabel->text();
+    for (std::size_t n : {5u, 12u}) {
+      StatValue best = bestAverage(solves, n, unit);
+      if (best && !html.contains(timeText(best, d))) {
+        return QString("the best ao%1, %2, isn't in the statistics")
+            .arg(n)
+            .arg(timeText(best, d));
+      }
+    }
+    if (!html.contains(QString("Solves: %1").arg(solves.size()))) {
+      return "the statistics count other solves";
+    }
+    return {};
+  };
+  for (int i = 0; i < 6; ++i) {
+    solve();
+  }
+  QString m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  QTest::keyClick(window_.get(), Qt::Key_2, Qt::AltModifier); // +2
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  for (int i = 0; i < 3; ++i) {
+    solve();
+  }
+  QTest::keyClick(window_.get(), Qt::Key_3, Qt::AltModifier); // DNF
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  for (int i = 0; i < 4; ++i) {
+    solve();
+    m = mismatch();
+    QVERIFY2(m.isEmpty(), qPrintable(m));
+  }
+}
+
+// Typing in Alg Lab's case filter shows the case again only when another
+// one is left selected.
+void GuiTest::algLabFilterKeepsTheCaseShown() {
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
+  lab->selectCase("oll", "oll21");
+  lab->findChild<QTabWidget *>()->setCurrentIndex(0);
+  QTableWidget *candidates = candidateTable(lab);
+  QVERIFY(candidates);
+  // An alg of the case, typed in.
+  const std::string h = "R U2 R' U' R U R' U' R U' R'";
+  auto *add = lastChild<QLineEdit>(lab, [](QLineEdit *e) {
+    return e->placeholderText().startsWith("Type an alg");
+  });
+  QVERIFY(add);
+  add->setText(qs(h));
+  QMetaObject::invokeMethod(add, "returnPressed");
+  QCOMPARE(candidates->rowCount(), 1);
+  auto *filter = lastChild<QLineEdit>(
+      lab, [](QLineEdit *e) { return e->placeholderText() == "Search cases"; });
+  QVERIFY(filter);
+  // A mark that a fill of the table wouldn't keep.
+  candidates->item(0, 0)->setData(Qt::UserRole + 7, "kept");
+  QTest::keyClicks(filter, "OLL 21");
+  QTest::qWait(400);
+  QVERIFY(candidates->item(0, 0));
+  QCOMPARE(candidates->item(0, 0)->data(Qt::UserRole + 7).toString(),
+           QString("kept"));
+  // No case left: none is shown. Cleared, the case is shown again.
+  QTest::keyClicks(filter, "zzz");
+  QTRY_COMPARE(candidates->rowCount(), 0);
+  filter->clear();
+  QTRY_COMPARE(candidates->rowCount(), 1);
+  QCOMPARE(candidates->item(0, 0)->data(Qt::UserRole).toString(),
+           qs(labAlgKey(h)));
+  QVERIFY(!candidates->item(0, 0)->data(Qt::UserRole + 7).isValid());
+}
+
+// While the generator runs, what it finds is added to the table, which
+// keeps its rows and the selection.
+void GuiTest::algLabSearchAddsRowsAsItFindsThem() {
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
+  lab->selectCase("oll", "oll1");
+  lab->findChild<QTabWidget *>()->setCurrentIndex(0);
+  QTableWidget *candidates = candidateTable(lab);
+  QVERIFY(candidates);
+  auto *lengthMode = lastChild<QComboBox>(
+      lab, [](QComboBox *b) { return b->findText("Every length") >= 0; });
+  auto *maxLength = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->prefix() == "up to "; });
+  auto *maxResults = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->prefix() == "at most "; });
+  auto *find = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Find algs"; });
+  auto *stop = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Stop"; });
+  QVERIFY(lengthMode && maxLength && maxResults && find && stop);
+  const int wasMode = lengthMode->currentIndex();
+  const int wasLength = maxLength->value();
+  const int wasResults = maxResults->value();
+  lengthMode->setCurrentIndex(lengthMode->findText("Every length"));
+  // Long enough that it is still finding algs when it is stopped.
+  maxLength->setValue(20);
+  maxResults->setValue(5000);
+  find->click();
+  QVERIFY(stop->isEnabled());
+  // Rows while it runs: one selected stays selected as more come.
+  QTRY_VERIFY_WITH_TIMEOUT(candidates->rowCount() > 0 || !stop->isEnabled(),
+                           20000);
+  QVERIFY2(stop->isEnabled(), "the search ended before a refresh");
+  candidates->selectRow(0);
+  const QString picked = candidates->item(0, 0)->data(Qt::UserRole).toString();
+  const int first = candidates->rowCount();
+  QTRY_VERIFY_WITH_TIMEOUT(candidates->rowCount() > first || !stop->isEnabled(),
+                           20000);
+  auto selected = [&] {
+    QStringList keys;
+    for (const QModelIndex &i : candidates->selectionModel()->selectedRows(0)) {
+      keys << i.data(Qt::UserRole).toString();
+    }
+    return keys;
+  };
+  QCOMPARE(selected(), QStringList{picked});
+  stop->click();
+  QTRY_VERIFY_WITH_TIMEOUT(!stop->isEnabled(), 20000);
+  QCOMPARE(selected(), QStringList{picked});
+  // Each alg found once, and every one of them.
+  finishBackgroundWrites();
+  AlgLabStore saved(QDir(dataDir_).filePath("alglab.json"));
+  QVERIFY(saved.load());
+  std::size_t found = saved.candidates({"oll", "oll1"}).size();
+  QVERIFY(found > static_cast<std::size_t>(first));
+  QCOMPARE(candidates->rowCount(), static_cast<int>(found));
+  QSet<QString> keys;
+  for (int row = 0; row < candidates->rowCount(); ++row) {
+    keys.insert(candidates->item(row, 0)->data(Qt::UserRole).toString());
+  }
+  QCOMPARE(keys.size(), candidates->rowCount());
+  lengthMode->setCurrentIndex(wasMode);
+  maxLength->setValue(wasLength);
+  maxResults->setValue(wasResults);
+}
+
+// A shorter "longest alg shown" set while a search runs hides the rows over
+// it at once, not only the rows found after it.
+void GuiTest::algLabLengthLimitAppliesDuringASearch() {
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
+  lab->selectCase("oll", "oll1");
+  lab->findChild<QTabWidget *>()->setCurrentIndex(0);
+  QTableWidget *candidates = candidateTable(lab);
+  QVERIFY(candidates);
+  auto *lengthMode = lastChild<QComboBox>(
+      lab, [](QComboBox *b) { return b->findText("Every length") >= 0; });
+  auto *maxLength = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->prefix() == "up to "; });
+  auto *maxResults = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->prefix() == "at most "; });
+  auto *maxHtm = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->suffix() == " HTM"; });
+  auto *find = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Find algs"; });
+  auto *stop = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Stop"; });
+  QVERIFY(lengthMode && maxLength && maxResults && maxHtm && find && stop);
+  int htmColumn = -1;
+  for (int c = 0; c < candidates->columnCount(); ++c) {
+    if (candidates->horizontalHeaderItem(c)->text() == "HTM") {
+      htmColumn = c;
+    }
+  }
+  QVERIFY(htmColumn >= 0);
+  const int wasMode = lengthMode->currentIndex();
+  const int wasLength = maxLength->value();
+  const int wasResults = maxResults->value();
+  const int wasHtm = maxHtm->value();
+  lengthMode->setCurrentIndex(lengthMode->findText("Every length"));
+  maxLength->setValue(20); // still finding algs when it is stopped
+  maxResults->setValue(5000);
+  maxHtm->setValue(0); // any length
+  find->click();
+  QVERIFY(stop->isEnabled());
+  auto longest = [&] {
+    int most = 0;
+    for (int row = 0; row < candidates->rowCount(); ++row) {
+      most = std::max(most, candidates->item(row, htmColumn)->text().toInt());
+    }
+    return most;
+  };
+  // Algs longer than the limit are shown, then the limit is set.
+  const int limit = 13;
+  QTRY_VERIFY_WITH_TIMEOUT(longest() > limit || !stop->isEnabled(), 20000);
+  QVERIFY2(stop->isEnabled(), "the search ended before a longer alg");
+  maxHtm->setValue(limit);
+  QTRY_VERIFY_WITH_TIMEOUT(longest() <= limit, 5000);
+  QVERIFY2(stop->isEnabled(), "the search ended before the limit applied");
+  stop->click();
+  QTRY_VERIFY_WITH_TIMEOUT(!stop->isEnabled(), 20000);
+  QVERIFY(longest() <= limit);
+  lengthMode->setCurrentIndex(wasMode);
+  maxLength->setValue(wasLength);
+  maxResults->setValue(wasResults);
+  maxHtm->setValue(wasHtm);
 }
 
 // Everything that couldn't be read at start-up is listed in one window
@@ -3082,6 +3471,163 @@ void GuiTest::startupProblemsShowInOneWindow() {
   }));
   list->window()->close();
   window_->activateWindow();
+}
+
+// Untimed's hold of Space runs on the page's clock: it ticks only while
+// Space is held, turns Ready after the hold time, and is let go of by a
+// release too early, by Esc and by a popup taking the release.
+void GuiTest::untimedSpaceHoldRunsOnThePageClock() {
+  OPEN_PAGE(untimed, UntimedPage, Untimed);
+  // Enter asks for the next scramble after a solve.
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QVERIFY(waitForCase(untimed));
+  auto hint = [untimed](const QString &text) {
+    return lastChild<QLabel>(untimed, [&](QLabel *l) {
+             return l->text() == text && l->isVisible();
+           }) != nullptr;
+  };
+  const QString holding = "Keep holding Space…";
+  const QString ready = "Release Space to start";
+  QVERIFY(!untimed->ticking());
+
+  // Let go too early: nothing starts, and the clock stops.
+  QTest::keyPress(window_.get(), Qt::Key_Space);
+  QVERIFY(untimed->isBusy());
+  QVERIFY(untimed->ticking());
+  QVERIFY(hint(holding));
+  QTest::qWait(settings_.holdMs / 4);
+  QVERIFY(hint(holding));
+  QTest::keyRelease(window_.get(), Qt::Key_Space);
+  QVERIFY(!untimed->isBusy());
+  QVERIFY(!untimed->ticking());
+
+  // Esc lets go of a hold.
+  QTest::keyPress(window_.get(), Qt::Key_Space);
+  QVERIFY(untimed->ticking());
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QVERIFY(!untimed->isBusy());
+  QVERIFY(!untimed->ticking());
+  QTest::keyRelease(window_.get(), Qt::Key_Space);
+  QVERIFY(!untimed->isBusy());
+
+  // Held long enough it is Ready; a popup then takes the release.
+  QTest::keyPress(window_.get(), Qt::Key_Space);
+  QTRY_VERIFY_WITH_TIMEOUT(hint(ready), settings_.holdMs + 1000);
+  QVERIFY(untimed->ticking());
+  QMenu menu;
+  menu.addAction("Popup");
+  menu.popup(window_->geometry().center());
+  QTRY_VERIFY(QApplication::activePopupWidget());
+  QTRY_VERIFY(!untimed->isBusy());
+  QVERIFY(!untimed->ticking());
+  menu.close();
+  QTRY_VERIFY(!QApplication::activePopupWidget());
+  QTest::keyRelease(window_.get(), Qt::Key_Space);
+  QVERIFY(!untimed->isBusy());
+
+  // A solve started runs without the clock; Esc calls it off.
+  QVERIFY(holdSpaceUntilBusy(untimed));
+  QVERIFY(!untimed->ticking());
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QVERIFY(!untimed->isBusy());
+}
+
+// Leaving the page calls a running solve off through the host (Drill) or
+// silently (the practice Timed tabs); the window losing the keyboard lets
+// go of a hold of Space.
+void GuiTest::timedDriverLeavesAndLosesTheKeyboard() {
+  struct Host : TimedHost {
+    QStringList calls;
+    void timedNext(bool) override {}
+    void timedRetry() override {}
+    void timedResetCube() override { calls << "reset"; }
+    void timedRotate(Move) override {}
+    void timedStarted(std::int64_t) override {}
+    std::optional<DrillFlow::Turn> timedTurn(Move, std::int64_t) override {
+      return DrillFlow::Turn::OffUdFace;
+    }
+    bool timedStepDone() override { return false; }
+    void timedFinish(std::int64_t, DrillFlow::Result) override {}
+    void timedPractise(bool) override {}
+    void timedToggleWrong() override {}
+    void timedDelete() override {}
+    void timedFinishAnimations() override {}
+    void timedShowKeys() override {}
+    void timedSay(const QString &) override {}
+    void timedCancelled(const QString &why) override {
+      calls << "cancelled " + why;
+    }
+  } host;
+  DrillSettings drill;
+  TimeDisplay display;
+  TimedDriver driver(host, drill);
+  driver.setDisplay(&display);
+  DrillFlow::Config config;
+  config.virtualCube = true;
+  config.tapToArm = true;
+  driver.flow().setConfig(config);
+  auto key = [](TrainKey k, bool press = true) {
+    TrainKeyEvent e;
+    e.key = k;
+    e.press = press;
+    return e;
+  };
+  auto faceTurn = [] {
+    TrainKeyEvent e;
+    e.move = Move{MoveType::R, 1};
+    return e;
+  };
+  std::int64_t now = 1000;
+  auto run = [&] {
+    driver.flow().setUp(now);
+    driver.key(key(TrainKey::Space), now, Scramble::Shown);
+    driver.key(key(TrainKey::Space, false), now, Scramble::Shown);
+    driver.key(faceTurn(), now += 100, Scramble::Shown);
+    host.calls.clear();
+    return driver.flow().phase() == DrillFlow::Phase::Running;
+  };
+
+  // Through the host: the cube set up again, and why.
+  QVERIFY(run());
+  QVERIFY(driver.leave(TimedDriver::OnLeave::Cancel, "left"));
+  QCOMPARE(host.calls, QStringList({"reset", "cancelled left"}));
+  QVERIFY(driver.flow().phase() == DrillFlow::Phase::Waiting);
+  // Silently: nothing asked of the host.
+  QVERIFY(run());
+  QVERIFY(driver.leave(TimedDriver::OnLeave::Silently));
+  QCOMPARE(host.calls, QStringList{});
+  QVERIFY(driver.flow().phase() == DrillFlow::Phase::Waiting);
+  // No solve running: nothing to call off.
+  QVERIFY(!driver.leave(TimedDriver::OnLeave::Cancel, "left"));
+  QCOMPARE(host.calls, QStringList{});
+
+  // A hold of Space let go of when the window loses the keyboard.
+  config.tapToArm = false;
+  driver.flow().setConfig(config);
+  driver.flow().setUp(now);
+  driver.key(key(TrainKey::Space), now, Scramble::Shown);
+  QVERIFY(driver.flow().holding());
+  QVERIFY(driver.windowLost());
+  QVERIFY(!driver.flow().holding());
+  QVERIFY(!driver.windowLost());
+  QCOMPARE(host.calls, QStringList{});
+}
+
+// Each page knows whether it is the one shown, as the window switches.
+void GuiTest::onlyTheShownPageIsActive() {
+  const std::array<ModePage *, AppMode::Count> pages = {
+      page<LearnPage>(),   page<DrillPage>(),   page<LibraryPage>(),
+      page<TimerPage>(),   page<UntimedPage>(), page<MoveCountPage>(),
+      page<EoCrossPage>(), page<AlgLabPage>(),  page<F2LPage>(),
+      page<TslePage>(),    page<TodayPage>()};
+  for (AppMode::Id m : AppMode::sidebarOrder()) {
+    ModePage *shown = pages[static_cast<std::size_t>(m)];
+    QVERIFY2(switchTo(m, shown), qPrintable(AppMode::label(m)));
+    for (ModePage *p : pages) {
+      QCOMPARE(p->isActivePage(), p == shown);
+    }
+  }
+  QVERIFY(switchTo(AppMode::Learn, pages[AppMode::Learn]));
 }
 
 void GuiTest::cleanupTestCase() {
@@ -3138,6 +3684,15 @@ int main(int argc, char **argv) {
   // Where the platform plugins are when Qt's libraries were copied next
   // to the test (Windows).
   QCoreApplication::addLibraryPath(QStringLiteral(VCUBE_QT_PLUGIN_DIR));
+#endif
+#ifdef Q_OS_WIN
+  // The offscreen platform looks for fonts next to Qt's libraries, where
+  // Qt ships none; without any, text is measured far wider than it is
+  // drawn and the layout checks fail. The system's fonts it is.
+  if (qEnvironmentVariableIsEmpty("QT_QPA_FONTDIR")) {
+    const QString windows = qEnvironmentVariable("WINDIR", "C:/Windows");
+    qputenv("QT_QPA_FONTDIR", QDir(windows).filePath("Fonts").toLocal8Bit());
+  }
 #endif
 
   QApplication app(argc, argv);

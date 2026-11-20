@@ -5,12 +5,14 @@
 #include "io/move_counts.hpp"
 #include "io/practice_store.hpp"
 #include "io/sessions.hpp"
+#include "train/today.hpp"
 
 #include <QDate>
 #include <QString>
 #include <QStringList>
 
-#include <optional>
+#include <cstdint>
+#include <vector>
 
 namespace vcube {
 
@@ -36,9 +38,10 @@ public:
   QString backupsDir() const;
   // Makes today's backup (of the data folder and the settings file) if this
   // copy hasn't made it yet, e.g. when the app is left open past midnight.
-  // Returns nullopt when it had been made, else why it failed (empty when
-  // it didn't).
-  std::optional<QString> backUpIfNewDay();
+  // It is made on the background writer, after the writes waiting, and its
+  // result is reported as theirs are (see setWriteReporter()), for the
+  // backups folder. Returns whether one was started.
+  bool backUpIfNewDay();
 
   AlgLibrary library;
   SessionStore sessions;
@@ -53,5 +56,28 @@ private:
   QString dataDir_;
   QDate lastBackup_;
 };
+
+// The modes an event from activityEvents() is of (its `mode`).
+struct ActivityMode {
+  enum Id : int {
+    Learn,
+    Drill,
+    AlgLab,
+    Timed,
+    Untimed,
+    MoveCount,
+    EoCross,
+    F2L,
+    Tsle
+  };
+  static constexpr int Count = Tsle + 1;
+};
+
+// Everything done in the modes at or after `since` (Unix seconds), as the
+// stores have it in memory: each alg set's case attempts (Learn, else
+// Drill), the timer's solves, the untimed solves and move counts, Alg Lab's
+// timed algs, and the practice modes' card attempts and solves.
+std::vector<ActivityEvent> activityEvents(const AppData &data,
+                                          std::int64_t since);
 
 } // namespace vcube

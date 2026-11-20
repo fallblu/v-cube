@@ -15,6 +15,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string_view>
+#include <unordered_set>
 
 namespace vcube {
 
@@ -203,7 +205,21 @@ std::vector<std::string> DrillPage::scopeCases() const {
   } else {
     ids = tickedEligible();
   }
-  std::erase_if(ids, [this](const std::string &id) { return !drillable(id); });
+  // The rows' cases are eligible already; a list not yet rebuilt may still
+  // show cases the set no longer has. Looked up by id, not one findCase()
+  // per case, which would go through the whole set each time.
+  const AlgSet *s = set();
+  if (!s) {
+    return {};
+  }
+  std::unordered_set<std::string_view> inSet;
+  for (const auto &g : s->groups) {
+    for (const auto &c : g.cases) {
+      inSet.insert(c.id);
+    }
+  }
+  std::erase_if(ids,
+                [&](const std::string &id) { return !inSet.contains(id); });
   return ids;
 }
 

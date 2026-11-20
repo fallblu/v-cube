@@ -4,7 +4,6 @@
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
-#include <QCoreApplication>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -20,9 +19,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::CaseHistory", text);
-}
+constexpr char kTrContext[] = "vcube::CaseHistory";
+constexpr auto tr = trIn<kTrContext>;
 
 QString whenText(std::int64_t t) { return t <= 1 ? kNoValue : dateTimeText(t); }
 

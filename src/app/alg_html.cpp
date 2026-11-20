@@ -6,7 +6,6 @@
 #include "train/case_logic.hpp"
 #include "train/enum_ids.hpp"
 
-#include <QCoreApplication>
 #include <QObject>
 #include <QStringList>
 
@@ -16,9 +15,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::LearnPage", text);
-}
+constexpr char kTrContext[] = "vcube::LearnPage";
+constexpr auto tr = trIn<kTrContext>;
 
 } // namespace
 

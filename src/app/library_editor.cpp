@@ -1,9 +1,9 @@
 #include "app/library_editor.hpp"
+#include "app/ui_text.hpp"
 
 #include "app/ui_state.hpp"
 #include "io/algset_json.hpp"
 
-#include <QCoreApplication>
 #include <QUndoCommand>
 #include <QUndoStack>
 
@@ -13,9 +13,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::LibraryPage", text);
-}
+constexpr char kTrContext[] = "vcube::LibraryPage";
+constexpr auto tr = trIn<kTrContext>;
 
 // An undoable change of the library, made by LibraryEditor::applyEdit.
 // The change is already done when the command is pushed.

@@ -4,7 +4,6 @@
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
-#include <QCoreApplication>
 #include <QDate>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -19,9 +18,8 @@ namespace vcube {
 
 namespace {
 
-QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::DrillHistory", text);
-}
+constexpr char kTrContext[] = "vcube::DrillHistory";
+constexpr auto tr = trIn<kTrContext>;
 
 QString dayText(std::int64_t day) {
   return dateText(QDate(1970, 1, 1).addDays(day));

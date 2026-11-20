@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <functional>
 #include <set>
+#include <string>
+#include <vector>
 
 using namespace vcube;
 
@@ -218,4 +220,40 @@ TEST_CASE("a search stopped while its tables are built keeps none of them",
   CHECK(builds == 2);
   CHECK(out.end == SearchEnd::Done);
   CHECK(out.found > 0);
+}
+
+TEST_CASE("the generator finds the same algs in the same order", "[search]") {
+  // Found with one thread before the search skipped moves on the corners'
+  // distance alone: pruning sooner must leave the results as they were.
+  auto inOrder = [](const SearchGoal &g, const char *moves, int maxLength,
+                    int extra) {
+    SearchOptions o;
+    o.moves = *MoveSet::parse(moves);
+    std::atomic<bool> stop{false};
+    // The tables first, built on more threads (a search on one builds
+    // them on one).
+    o.maxLength = 1;
+    o.threads = 4;
+    searchAlgs(g, o, stop);
+    o.maxLength = maxLength;
+    o.extra = extra;
+    o.threads = 1;
+    std::vector<std::string> out;
+    SearchCallbacks cb;
+    cb.result = [&](const SearchResult &r) { out.push_back(r.text); };
+    searchAlgs(g, o, stop, cb);
+    return out;
+  };
+  CHECK(inOrder(goalFor("R U R' U R U2 R'", "LL:p"), "R U F L D B", 10, 1) ==
+        std::vector<std::string>{
+            "R U R' U R U2 R'", "R U' L' U R' U' L", "F' U2 F U F' U F",
+            "F U F' U F U2 F'", "F U' B' U F' U' B", "L' U2 L U L' U L",
+            "R' U2 R U R' U R", "B U B' U B U2 B'", "B U' F' U B' U' F",
+            "L U L' U L U2 L'", "L U' R' U L' U' R", "B' U2 B U B' U B"});
+  CHECK(inOrder(goalFor("R U' R U R U R U' R' U' R2", ""), "R U L F", 13, 1) ==
+        std::vector<std::string>{
+            "F2 U' R' L F2 R L' U' F2", "F2 U R U2 R' L F2 L' U' F2",
+            "F2 U R L' U2 R' L F2 U' F2", "F2 U L' U2 R' L F2 R U' F2",
+            "F2 U' R' F2 R L' U2 L U F2", "F2 U' F2 R L' U2 R' L U F2",
+            "F2 U' L F2 R L' U2 R' U F2"});
 }

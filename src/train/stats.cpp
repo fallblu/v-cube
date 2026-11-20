@@ -68,11 +68,34 @@ StatValue averageOfSorted(const std::vector<std::int64_t> &t,
   return roundedMean(sum, static_cast<std::int64_t>(n - 2 * trim), unit);
 }
 
+// A sum of times, with DNFs counted rather than summed.
+struct TimeSum {
+  std::int64_t sum = 0;
+  std::size_t dnfs = 0;
+
+  void add(std::int64_t t) {
+    if (t == kDnfTime) {
+      ++dnfs;
+    } else {
+      sum += t;
+    }
+  }
+  void remove(std::int64_t t) {
+    if (t == kDnfTime) {
+      --dnfs;
+    } else {
+      sum -= t;
+    }
+  }
+};
+
 // Calls visit(start, average) with averageOf() of every n solves in a
 // row, in order. The window's times are kept sorted from one window to
 // the next (one time leaves, one comes in), where sorting each window
-// afresh is what makes a long session slow. Nothing is visited for n
-// under 3, which has no average.
+// afresh is what makes a long session slow, and so is the sum of its
+// middle (all but the trimmed best and worst): a time that leaves or comes in
+// moves at most one time into or out of the middle at each end. Nothing is
+// visited for n under 3, which has no average.
 template <typename F>
 void rollingAverageOf(std::span<const Solve> all, std::size_t n,
                       std::int64_t unit, F visit) {
@@ -83,19 +106,51 @@ void rollingAverageOf(std::span<const Solve> all, std::size_t n,
   auto time = [&](std::size_t i) {
     return truncated(effectiveTime(all[i]), unit);
   };
+  const std::size_t trim = trimOf(n);
+  const std::size_t a = trim;     // the first time of the middle
+  const std::size_t b = n - trim; // just after its last
   std::vector<std::int64_t> window;
   window.reserve(n);
   for (std::size_t i = 0; i < n; ++i) {
     window.push_back(time(i));
   }
   std::sort(window.begin(), window.end());
-  visit(std::size_t{0}, averageOfSorted(window, unit));
+  TimeSum middle;
+  for (std::size_t i = a; i < b; ++i) {
+    middle.add(window[i]);
+  }
+  // Anything DNF beyond the trimmed worst makes the average DNF.
+  auto average = [&]() -> StatValue {
+    if (middle.dnfs > 0) {
+      return kDnfTime;
+    }
+    return roundedMean(middle.sum, static_cast<std::int64_t>(b - a), unit);
+  };
+  visit(std::size_t{0}, average());
   for (std::size_t end = n + 1; end <= all.size(); ++end) {
-    window.erase(
-        std::lower_bound(window.begin(), window.end(), time(end - n - 1)));
+    std::int64_t out = time(end - n - 1);
+    auto outAt = std::lower_bound(window.begin(), window.end(), out);
+    auto p = static_cast<std::size_t>(outAt - window.begin());
+    if (trim == 0) {
+      middle.remove(out);
+    } else if (p < b) {
+      // The time after the middle moves into it.
+      middle.remove(p < a ? window[a] : out);
+      middle.add(window[b]);
+    }
+    window.erase(outAt);
     std::int64_t in = time(end - 1);
-    window.insert(std::upper_bound(window.begin(), window.end(), in), in);
-    visit(end - n, averageOfSorted(window, unit));
+    auto inAt = std::upper_bound(window.begin(), window.end(), in);
+    auto q = static_cast<std::size_t>(inAt - window.begin());
+    if (trim == 0) {
+      middle.add(in);
+    } else if (q < b) {
+      // The middle's last time moves out of it.
+      middle.remove(window[b - 1]);
+      middle.add(q < a ? window[a - 1] : in);
+    }
+    window.insert(inAt, in);
+    visit(end - n, average());
   }
 }
 
@@ -174,16 +229,37 @@ StatValue currentMean(std::span<const Solve> all, std::size_t n,
 
 namespace {
 
-template <typename F>
-std::optional<std::size_t> bestRollingStart(std::span<const Solve> all,
-                                            std::size_t n, F stat) {
+// The start of the first best mean of n solves in a row. The window
+// slides: one time leaves its sum and one comes in, and DNFs are counted
+// rather than summed.
+std::optional<std::size_t> bestRollingMeanStart(std::span<const Solve> all,
+                                                std::size_t n,
+                                                std::int64_t unit) {
+  if (n == 0 || all.size() < n) {
+    return std::nullopt;
+  }
+  unit = std::max<std::int64_t>(unit, 1);
+  auto time = [&](std::size_t i) {
+    return truncated(effectiveTime(all[i]), unit);
+  };
+  TimeSum window;
   StatValue best;
   std::optional<std::size_t> at;
-  for (std::size_t end = n; end <= all.size() && n > 0; ++end) {
-    StatValue v = stat(all.subspan(end - n, n));
-    if (v && (!best || *v < *best)) {
+  for (std::size_t i = 0; i < all.size(); ++i) {
+    window.add(time(i));
+    if (i >= n) {
+      window.remove(time(i - n));
+    }
+    if (i + 1 < n) {
+      continue;
+    }
+    std::int64_t v =
+        window.dnfs > 0
+            ? kDnfTime
+            : roundedMean(window.sum, static_cast<std::int64_t>(n), unit);
+    if (!best || v < *best) {
       best = v;
-      at = end - n;
+      at = i + 1 - n;
     }
   }
   return at;
@@ -195,10 +271,9 @@ std::optional<std::size_t> bestAverageStart(std::span<const Solve> all,
                                             std::size_t n, Rolling rolling,
                                             std::int64_t unit) {
   if (rolling == Rolling::Mean) {
-    return bestRollingStart(
-        all, n, [unit](std::span<const Solve> s) { return meanOf(s, unit); });
+    return bestRollingMeanStart(all, n, unit);
   }
-  // The first of the best, as bestRollingStart() picks.
+  // The first of the best, as bestRollingMeanStart() picks.
   StatValue best;
   std::optional<std::size_t> at;
   rollingAverageOf(all, n, unit, [&](std::size_t start, StatValue v) {
@@ -285,6 +360,82 @@ SessionSummary summarize(std::span<const Solve> all, std::int64_t unit) {
     s.mean = roundedMean(sum, valid, unit);
   }
   return s;
+}
+
+void RunningStats::reset(std::span<const Solve> all, std::int64_t unit) {
+  unit_ = unit;
+  size_ = all.size();
+  stats_ = sessionStats(all, kIds, unit);
+  ao5_ = rollingAverages(all, 5, unit);
+  ao12_ = rollingAverages(all, 12, unit);
+  unit = std::max<std::int64_t>(unit, 1);
+  validSum_ = 0;
+  valid_ = 0;
+  for (const Solve &s : all) {
+    std::int64_t t = effectiveTime(s);
+    if (t != kDnfTime) {
+      validSum_ += truncated(t, unit);
+      ++valid_;
+    }
+  }
+}
+
+std::vector<NewBest> RunningStats::add(std::span<const Solve> all) {
+  std::vector<NewBest> out;
+  if (all.empty()) {
+    return out;
+  }
+  size_ = all.size();
+  const std::int64_t unit = std::max<std::int64_t>(unit_, 1);
+  const std::int64_t last = effectiveTime(all.back());
+  // As newBests(): better than every earlier value, and not DNF.
+  auto check = [&](const std::string &name, StatValue now, StatValue was) {
+    if (all.size() >= 2 && now && *now != kDnfTime && was && *now < *was) {
+      out.push_back({name, *now});
+    }
+  };
+  SessionSummary &sum = stats_.summary;
+  ++sum.count;
+  if (last == kDnfTime) {
+    ++sum.dnfs;
+  } else {
+    check("single", last, sum.best);
+    validSum_ += truncated(last, unit);
+    ++valid_;
+    if (!sum.best || last < *sum.best) {
+      sum.best = last;
+    }
+    if (!sum.worst || last > *sum.worst) {
+      sum.worst = last;
+    }
+    sum.mean = roundedMean(validSum_, valid_, unit);
+  }
+  for (StatLine &line : stats_.lines) {
+    std::optional<StatId> id = parseStatId(line.id);
+    if (!id) {
+      continue;
+    }
+    switch (id->kind) {
+    case StatId::Kind::Single:
+      line.current = last;
+      line.best = sum.best;
+      continue;
+    case StatId::Kind::Mean:
+      line.current = currentMean(all, id->n, unit_);
+      break;
+    case StatId::Kind::Average:
+      line.current = currentAverage(all, id->n, unit_);
+      break;
+    }
+    check(line.id, line.current, line.best);
+    // The first best stays: a later one must be better.
+    if (line.current && (!line.best || *line.current < *line.best)) {
+      line.best = line.current;
+    }
+  }
+  ao5_.push_back(currentAverage(all, 5, unit_));
+  ao12_.push_back(currentAverage(all, 12, unit_));
+  return out;
 }
 
 std::string formatTime(StatValue ms, int decimals) {

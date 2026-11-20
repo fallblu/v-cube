@@ -12,6 +12,7 @@
 #include <QEvent>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSplitter>
@@ -348,6 +349,12 @@ QScrollArea *scrollArea(QWidget *content, QWidget *parent) {
   scroll->setFrameShape(QFrame::NoFrame);
   scroll->setFocusPolicy(Qt::NoFocus);
   return scroll;
+}
+
+void warnPlain(QWidget *parent, const QString &title, const QString &text) {
+  QMessageBox box(QMessageBox::Warning, title, text, QMessageBox::Ok, parent);
+  box.setTextFormat(Qt::PlainText);
+  box.exec();
 }
 
 QPushButton *flatButton(const QString &text, QWidget *parent) {

@@ -6,7 +6,6 @@ add_library(vcube_gui STATIC
   alglab_dialogs.cpp
   alglab_generator.cpp
   alglab_page.cpp
-  app_data.cpp
   app_settings.cpp
   app_style.cpp
   attempt_page.cpp
@@ -24,7 +23,7 @@ add_library(vcube_gui STATIC
   drill_history_dialog.cpp
   drill_list.cpp
   drill_page.cpp
-  drill_settings.cpp
+  drill_settings_tab.cpp
   eo_cross_check.cpp
   eo_cross_page.cpp
   f2l_page.cpp
@@ -46,6 +45,7 @@ add_library(vcube_gui STATIC
   library_page.cpp
   library_sets.cpp
   main_window.cpp
+  mode_page.cpp
   mode_table.cpp
   move_count_page.cpp
   page_parts.cpp
@@ -75,9 +75,6 @@ add_library(vcube_gui STATIC
   untimed_page.cpp
   widgets.cpp
 )
-# The one header without a .cpp of its own that has a Q_OBJECT: AUTOMOC
-# finds it only when it is a source.
-target_sources(vcube_gui PRIVATE mode_page.hpp)
 target_include_directories(vcube_gui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(vcube_gui
   PUBLIC vcube_io Qt6::Widgets Qt6::Concurrent Qt6::Network

@@ -45,7 +45,6 @@ class AttemptPage : public SessionSolvePage {
 public:
   ~AttemptPage() override;
 
-  bool handleKey(QKeyEvent *e, bool press) override;
   // A typed move count: Backspace and Esc go on as they are held.
   bool acceptsAutoRepeat(const QKeyEvent *e) const override;
   // Space held to start counts, as in Timed.
@@ -57,6 +56,12 @@ public:
   static constexpr std::size_t kWorst = 5;
 
 protected:
+  bool handleKey(QKeyEvent *e, bool press) override;
+  // The clock runs while Space is held, to let go of the hold when a
+  // popup or dialog takes the release; holdTimer_ says when it is Ready.
+  bool clockNeeded() const override { return flow_.isHolding(); }
+  void tick() override;
+  void keyDone() override { updateTick(); }
   void focusModeChanged() override;
   // `moveCount`: the flow is Move Count's (see AttemptFlow::Config);
   // `mode` names the page's settings ("untimed", "movecount"). The
@@ -149,9 +154,8 @@ protected:
 
 private:
   const bool moveCountFlow_; // the flow's configuration only
+  // Fires when the hold of Space has lasted long enough.
   QTimer holdTimer_;
-  // While Space is held: a popup or dialog taking the release lets go.
-  QTimer holdWatch_;
   // The scramble of the attempt being retried.
   GeneratedScramble retryScramble_;
   DeletedAttempt<MoveCountAttempt> deleted_;
@@ -171,7 +175,6 @@ private:
   void showPhase();
   // Shows how far the hold is: red until it may be released, then green.
   void showHold();
-  void onHoldTimer();
   void turn(Move m);
   // Judges the cube at the end of a solve.
   void endSolve();

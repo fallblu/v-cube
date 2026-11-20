@@ -80,7 +80,7 @@ void LearnPage::nextQuiz() {
   gradeRow_->setVisible(false);
   stage_->hideFamily();
   const AlgSet *s = set();
-  quiz_ = s ? QuizPractice::pick(
+  quiz_ = s ? LearnQuiz::pick(
                   *s, tickedEligible(),
                   [this](const std::string &id) {
                     return statusOf(cardOf(id)) != CaseStatus::Unstarted;
@@ -110,7 +110,7 @@ void LearnPage::nextQuiz() {
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);
 
-  stage_->setQuizChoices(quiz_->names(*s));
+  stage_->setQuizChoices(quizChoiceNames(*quiz_, *s));
   clearCaseSelection();
   quiz_->shown(monotonicMs());
   session_.setQuizChoices(quiz_->choices());
@@ -122,13 +122,14 @@ void LearnPage::answerQuiz(std::size_t choice) {
       choice >= quiz_->choices()) {
     return;
   }
-  const QuizPractice::Result result = quiz_->answered(choice, monotonicMs());
+  const LearnQuiz::Result result = quiz_->answered(choice, monotonicMs());
   session_.answered(result.right, result.ms);
   stage_->showQuizAnswer(quiz_->answer(), choice);
   reveal_->setText(algsHtml(current_->caseId, current_->start));
   selectInTree(current_->caseId);
   setPhase(Phase::QuizDone);
-  say(quiz_->resultText(set(), result), {{tr("Space"), tr("another one")}});
+  say(quizResultText(*quiz_, set(), result),
+      {{tr("Space"), tr("another one")}});
   statusLabel_->setStyleSheet(result.right ? QString()
                                            : "color: " + kWarnColour.name());
   updateHeader();
@@ -207,7 +208,7 @@ void LearnPage::showContextStatus() {
             {tr("Shift+Space"), tr("give up")},
             {tr("Backspace"), tr("back to learning")}};
   }
-  say(context_->statusText(done), keys);
+  say(contextStatusText(*context_, done), keys);
 }
 
 void LearnPage::showContextResult() {
@@ -216,8 +217,8 @@ void LearnPage::showContextResult() {
     return;
   }
   reveal_->setText(
-      context_->resultHtml(*s, phase() == Phase::ContextDone,
-                           palette().color(QPalette::PlaceholderText).name()));
+      contextResultHtml(*context_, *s, phase() == Phase::ContextDone,
+                        palette().color(QPalette::PlaceholderText).name()));
 }
 
 } // namespace vcube

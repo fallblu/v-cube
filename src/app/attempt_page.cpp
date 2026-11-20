@@ -7,7 +7,6 @@
 #include "app/ui_text.hpp"
 #include "train/optimal_cache.hpp"
 
-#include <QApplication>
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
@@ -50,9 +49,7 @@ AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
 
   holdTimer_.setSingleShot(true);
   holdTimer_.setTimerType(Qt::PreciseTimer);
-  connect(&holdTimer_, &QTimer::timeout, this, &AttemptPage::onHoldTimer);
-  holdWatch_.setInterval(50);
-  connect(&holdWatch_, &QTimer::timeout, this, &AttemptPage::onHoldTimer);
+  connect(&holdTimer_, &QTimer::timeout, this, &AttemptPage::tick);
   connect(reviewButton_, &QPushButton::clicked, this,
           [this] { review(static_cast<int>(session().attempts.size()) - 1); });
 }
@@ -99,10 +96,14 @@ void AttemptPage::typeChosen(const QString &type) {
 
 void AttemptPage::deactivated() {
   apply(flow_.dropHold());
+  updateTick();
   cubeView_->finishAnimations();
 }
 
-void AttemptPage::windowDeactivated() { apply(flow_.dropHold()); }
+void AttemptPage::windowDeactivated() {
+  apply(flow_.dropHold());
+  updateTick();
+}
 
 void AttemptPage::focusModeChanged() {
   const bool on = focusMode();
@@ -270,7 +271,6 @@ void AttemptPage::apply(const AttemptFlow::Effects &e) {
   }
   if (e.holdStarted) {
     holdTimer_.start(static_cast<int>(settings_.holdMs));
-    holdWatch_.start();
   }
   if (e.showHold) {
     showHold();
@@ -359,13 +359,13 @@ void AttemptPage::apply(const AttemptFlow::Effects &e) {
   }
 }
 
-void AttemptPage::onHoldTimer() {
+void AttemptPage::tick() {
   std::int64_t now = monotonicMs();
-  apply(flow_.tick(now, QApplication::activePopupWidget() ||
-                            QApplication::activeModalWidget()));
+  apply(flow_.tick(now, keyboardTaken()));
   if (flow_.hold() == HoldCue::Holding && !holdTimer_.isActive()) {
     holdTimer_.start(static_cast<int>(flow_.holdLeft(now)));
   }
+  updateTick();
 }
 
 void AttemptPage::showHold() {
@@ -373,7 +373,6 @@ void AttemptPage::showHold() {
   H hold = flow_.hold();
   if (hold == H::None) {
     holdTimer_.stop();
-    holdWatch_.stop();
   }
   if (focusMode()) {
     hintLabel_->setVisible(hold != H::None);
