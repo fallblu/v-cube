@@ -424,7 +424,14 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
       fillCases();
     }
   });
-  connect(caseFilter_, &QLineEdit::textChanged, this, &AlgLabPage::fillCases);
+  // The case list is filled again once the typing pauses, and only shows
+  // the case again when another one is left selected.
+  filterTimer_.setSingleShot(true);
+  filterTimer_.setInterval(150);
+  connect(&filterTimer_, &QTimer::timeout, this,
+          [this] { fillCases(Reshow::IfChanged); });
+  connect(caseFilter_, &QLineEdit::textChanged, &filterTimer_,
+          qOverload<>(&QTimer::start));
   connect(caseTree_, &QTreeWidget::currentItemChanged, this,
           &AlgLabPage::caseChosen);
   connect(newCase, &QPushButton::clicked, this, &AlgLabPage::newLabCase);
@@ -655,7 +662,11 @@ void AlgLabPage::selectCase(const QString &setId, const QString &caseId) {
   if (i < 0) {
     return;
   }
-  caseFilter_->clear();
+  if (!caseFilter_->text().isEmpty()) {
+    caseFilter_->clear();
+    filterTimer_.stop();
+    fillCases();
+  }
   sourceBox_->setCurrentIndex(i);
   QString k = qs(LabCaseKey{setId.toStdString(), caseId.toStdString()}.text());
   for (QTreeWidgetItemIterator it(caseTree_); *it; ++it) {
@@ -684,7 +695,7 @@ void AlgLabPage::fillSources() {
   fillCases();
 }
 
-void AlgLabPage::fillCases() {
+void AlgLabPage::fillCases(Reshow reshow) {
   QString source = sourceBox_->currentData().toString();
   QString want =
       case_ ? qs(case_->key.text()) : saved::lab("case").get().toString();
@@ -743,6 +754,10 @@ void AlgLabPage::fillCases() {
     caseTree_->setCurrentItem(select);
   }
   block.unblock();
+  if (reshow == Reshow::IfChanged && case_ && select &&
+      select->data(0, Qt::UserRole).toString() == qs(case_->key.text())) {
+    return; // the case shown stays
+  }
   caseChosen();
 }
 

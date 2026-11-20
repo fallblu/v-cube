@@ -8,6 +8,7 @@
 #include <QTimer>
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -98,6 +99,7 @@ private:
   QTimer refreshTimer_;
   QTimer saveTimer_;     // saves what a long search found so far
   QTimer spinSaveTimer_; // saves the spin boxes once they have paused
+  QTimer filterTimer_;   // fills the case list once the filter has paused
   MoveSet genSet_ = MoveSet::allFaces();
   MoveSet filterSet_;
   bool filterOn_ = false;
@@ -136,7 +138,11 @@ private:
 
   void saveStore();
   void fillSources();
-  void fillCases();
+  // Fills the case list and shows the case selected in it. With
+  // Reshow::IfChanged a case already shown isn't shown again, which
+  // Reshow::Always does (after it was edited, say).
+  enum class Reshow : std::uint8_t { Always, IfChanged };
+  void fillCases(Reshow reshow = Reshow::Always);
   void caseChosen();
   void showCase(const std::optional<LabCaseKey> &key);
   void fillProfiles();

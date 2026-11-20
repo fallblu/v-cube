@@ -451,6 +451,7 @@ private slots:
   void caseFilterHidesWhatDoesntMatch();
   void optimalCountsUseTheChosenHolds();
   void timerTableAndStatsFollowEachSolve();
+  void algLabFilterKeepsTheCaseShown();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3267,6 +3268,43 @@ void GuiTest::timerTableAndStatsFollowEachSolve() {
     m = mismatch();
     QVERIFY2(m.isEmpty(), qPrintable(m));
   }
+}
+
+// Typing in Alg Lab's case filter shows the case again only when another
+// one is left selected.
+void GuiTest::algLabFilterKeepsTheCaseShown() {
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
+  lab->selectCase("oll", "oll21");
+  lab->findChild<QTabWidget *>()->setCurrentIndex(0);
+  QTableWidget *candidates = candidateTable(lab);
+  QVERIFY(candidates);
+  // An alg of the case, typed in.
+  const std::string h = "R U2 R' U' R U R' U' R U' R'";
+  auto *add = lastChild<QLineEdit>(lab, [](QLineEdit *e) {
+    return e->placeholderText().startsWith("Type an alg");
+  });
+  QVERIFY(add);
+  add->setText(qs(h));
+  QMetaObject::invokeMethod(add, "returnPressed");
+  QCOMPARE(candidates->rowCount(), 1);
+  auto *filter = lastChild<QLineEdit>(
+      lab, [](QLineEdit *e) { return e->placeholderText() == "Search cases"; });
+  QVERIFY(filter);
+  // A mark that a fill of the table wouldn't keep.
+  candidates->item(0, 0)->setData(Qt::UserRole + 7, "kept");
+  QTest::keyClicks(filter, "OLL 21");
+  QTest::qWait(400);
+  QVERIFY(candidates->item(0, 0));
+  QCOMPARE(candidates->item(0, 0)->data(Qt::UserRole + 7).toString(),
+           QString("kept"));
+  // No case left: none is shown. Cleared, the case is shown again.
+  QTest::keyClicks(filter, "zzz");
+  QTRY_COMPARE(candidates->rowCount(), 0);
+  filter->clear();
+  QTRY_COMPARE(candidates->rowCount(), 1);
+  QCOMPARE(candidates->item(0, 0)->data(Qt::UserRole).toString(),
+           qs(labAlgKey(h)));
+  QVERIFY(!candidates->item(0, 0)->data(Qt::UserRole + 7).isValid());
 }
 
 // Everything that couldn't be read at start-up is listed in one window
