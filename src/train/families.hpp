@@ -25,7 +25,7 @@ CubieCube mirrorState(const CubieCube &c, Mirror m);
 // The mask of the mirrored positions.
 PieceMask mirrorMask(const PieceMask &mask, Mirror m);
 // An alg's text with every move mirrored (R U R' is L' U' L left-right and
-// L U L' both ways), keeping its brackets and spacing.
+// L U L' both ways), keeping its brackets, spacing and comments.
 std::string mirrorAlgText(std::string_view text, Mirror m);
 
 // The pieces a case leaves to solve: those not solved in its state whose

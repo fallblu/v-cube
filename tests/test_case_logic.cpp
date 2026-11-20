@@ -102,6 +102,38 @@ TEST_CASE("written U turns join the AUFs they sit next to") {
   CHECK(withAufs("U [R, U] U", {1, 1}) == "(U2) [R, U] U (U)");
 }
 
+TEST_CASE("AUFs are written outside an alg's comments") {
+  // After the moves, not after the comment, where it would be part of it.
+  CHECK(withAufs("R U R' // sexy", {0, 1}) == "R U R' (U) // sexy");
+  CHECK(withAufs("R U R' // sexy", {3, 2}) == "(U') R U R' (U2) // sexy");
+  CHECK(withAufs("R U R' // sexy", {0, 0}) == "R U R' // sexy");
+  // A comment's words are no moves: its U isn't a U turn to join.
+  CHECK(withAufs("R U R' // then U", {0, 1}) == "R U R' (U) // then U");
+  CHECK(withAufs("R U R' U // then U", {0, 1}) == "R U R' (U2) // then U");
+  CHECK(withAufs("U // U first\nR U R'", {1, 0}) == "(U2) // U first\nR U R'");
+  // Moves on the lines after a comment are still the alg's.
+  CHECK(withAufs("R U // one\nR' U' // two", {0, 2}) ==
+        "R U // one\nR' (U) // two");
+  CHECK(withAufs("(R U // (in\nR') U2", {0, 1}) == "(R U // (in\nR') (U')");
+  CHECK(withAufs("R U R'//sexy", {0, 1}) == "R U R' (U) //sexy");
+  for (const std::string alg :
+       {"R U R' // sexy", "R U // one\nR' U' // then U", "U R U' R' // U"}) {
+    for (int before = 0; before < 4; ++before) {
+      for (int after = 0; after < 4; ++after) {
+        INFO(alg << " " << before << " " << after);
+        Alg expected = parseAlgOrEmpty(aufText(before));
+        Alg moves = parseAlgOrEmpty(alg);
+        expected.insert(expected.end(), moves.begin(), moves.end());
+        Alg last = parseAlgOrEmpty(aufText(after));
+        expected.insert(expected.end(), last.begin(), last.end());
+        ParseResult shown = parseAlg(withAufs(alg, {before, after}));
+        REQUIRE(shown);
+        CHECK(simplify(shown.alg) == simplify(expected));
+      }
+    }
+  }
+}
+
 TEST_CASE("the joined AUFs still solve the case") {
   PieceMask ll = *parseFree("LL:p LLC:o");
   CubieCube s = stateSolvedBy(parseAlgOrEmpty("(U2) L U2 L'"));

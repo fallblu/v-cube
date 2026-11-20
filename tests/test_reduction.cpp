@@ -112,6 +112,22 @@ TEST_CASE("alg text is mirrored move by move", "[reduction]") {
       }
     }
   }
+  // A comment is kept as written, and the moves after its line are
+  // mirrored too.
+  CHECK(mirrorAlgText("R U R' // R then U", {true, false}) ==
+        "L' U' L // R then U");
+  CHECK(mirrorAlgText("R U // insert\nR' U' // R out", {true, false}) ==
+        "L' U' // insert\nL U // R out");
+  CHECK(mirrorAlgText("R U R' (U) // sexy", {false, true}) ==
+        "R' U' R (U') // sexy");
+  for (Mirror m : kMirrors) {
+    const std::string a = "R U2 // first line: R U\nF' r // second\nL";
+    Alg alg = parseAlgOrEmpty(a);
+    REQUIRE(alg.size() == 5);
+    Alg mirrored = parseAlgOrEmpty(mirrorAlgText(a, m));
+    REQUIRE(mirrored.size() == alg.size());
+    CHECK(stateSolvedBy(mirrored) == mirrorState(stateSolvedBy(alg), m));
+  }
   // What it does is the mirror image of what the alg does.
   for (Mirror m : kMirrors) {
     Alg alg = parseAlgOrEmpty(kSune);
@@ -128,6 +144,13 @@ TEST_CASE("a step's U turns join the U turn before it", "[reduction]") {
   CHECK(withAufBefore("(U) R U R'", 2) == "(U') R U R'");
   CHECK(withAufBefore("R U R'", 0) == "R U R'");
   CHECK(withAufBefore("U2", 1) == "(U) U2");
+  // A comment is no part of the step: its U isn't a turn, and it stays
+  // at the end.
+  CHECK(withAufBefore("U (R U' R') // U first", 1) ==
+        "U2 (R U' R') // U first");
+  CHECK(withAufBefore("U (R U' R') // U first", 3) == "(R U' R') // U first");
+  CHECK(withAufBefore("R U R' // sexy", 2) == "(U2) R U R' // sexy");
+  CHECK(withAufBefore("U2 // only", 1) == "(U) U2 // only");
 }
 
 TEST_CASE("a step passes by stopping at another case", "[reduction]") {

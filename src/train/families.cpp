@@ -121,7 +121,11 @@ std::string mirrorAlgText(std::string_view text, Mirror m) {
   std::size_t i = 0;
   while (i < text.size()) {
     if (text.substr(i).starts_with("//")) {
-      break; // a comment
+      // A comment, kept as it is: the moves go on after its line.
+      std::size_t end = std::min(text.find('\n', i), text.size());
+      out += text.substr(i, end - i);
+      i = end;
+      continue;
     }
     // An x straight after a bracket and before a count repeats the group
     // ("(R U R' U')x3"): it isn't a rotation.
