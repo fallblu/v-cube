@@ -198,7 +198,7 @@ void F2LPage::setConfig(const F2LConfig &config) {
   configChanged();
 }
 
-void F2LPage::reloadSets() {
+void F2LPage::librarySetsChanged(const QString &) {
   sheetLooked_ = false; // it may be there now
   importSheet();
 }

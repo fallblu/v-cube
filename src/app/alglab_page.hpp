@@ -67,6 +67,7 @@ public:
   void windowDeactivated() override;
   // The library's sets changed (in Library, say).
   void reloadSets();
+  void librarySetsChanged(const QString &) override { reloadSets(); }
   // Shows a set's case.
   void selectCase(const QString &setId, const QString &caseId);
   // Changes a set case's algs (as Library's undoable edit, which the window

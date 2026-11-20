@@ -25,6 +25,9 @@ public:
   UntimedPage(AppSettings &settings, MoveCountStore &store, AlgLibrary &library,
               QWidget *parent = nullptr);
   ~UntimedPage() override;
+  void librarySetsChanged(const QString &setId) override {
+    refreshScrambleTypes(setId);
+  }
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;

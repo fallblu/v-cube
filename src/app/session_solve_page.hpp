@@ -42,7 +42,7 @@ public:
   void fillModeMenu(QMenu &menu) override { panel_->fillMenu(menu); }
   // The alg sets changed; an alg set scramble is made again only when its
   // own set (`changedSet`) changed.
-  void refreshScrambleTypes(const QString &changedSet = {});
+  void refreshScrambleTypes(const QString &changedSet);
 
 protected:
   // `mode` names the page's settings ("timed", "untimed", "movecount");

@@ -49,8 +49,8 @@ public:
   // The cards the mode offers, also counted on Today.
   std::vector<std::string> cardPool() const override;
   void activated() override;
-  // The alg sets changed: the sheet's algs may be read from them.
-  void reloadSets();
+  // The sheet's algs may be read from the alg sets now.
+  void librarySetsChanged(const QString &) override;
 
   // What the page shows, for tests and scripts.
   const F2LConfig &config() const { return config_; }

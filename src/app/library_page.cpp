@@ -375,7 +375,6 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
     setList_->setCurrentRow(0);
   }
   updateActions();
-  setMenusShown(false);
 }
 
 // --- actions and menus -----------------------------------------------------
@@ -466,7 +465,7 @@ void LibraryPage::buildActions() {
   connect(caseMenu_, &QMenu::aboutToShow, this, &LibraryPage::updateActions);
 }
 
-QList<QMenu *> LibraryPage::menus() const { return {setMenu_, caseMenu_}; }
+QList<QMenu *> LibraryPage::pageMenus() const { return {setMenu_, caseMenu_}; }
 
 QList<QAction *> LibraryPage::editActions() const {
   return {undoAction_, redoAction_, editSeparator_};
@@ -509,23 +508,12 @@ void LibraryPage::updateActions() {
 void LibraryPage::activated() {
   active_ = true;
   refreshAlgList(); // Alg Lab's times may have changed
-  setMenusShown(true);
   updateActions();
 }
 
 void LibraryPage::deactivated() {
   active_ = false;
   caseFilter_->release();
-  setMenusShown(false); // hidden, their keys don't reach the other modes
-}
-
-void LibraryPage::setMenusShown(bool shown) {
-  for (QAction *a : editActions()) {
-    a->setVisible(shown);
-  }
-  for (QMenu *m : menus()) {
-    m->menuAction()->setVisible(shown);
-  }
 }
 
 // --- helpers ---------------------------------------------------------------

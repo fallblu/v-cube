@@ -5,6 +5,7 @@
 #include <QResizeEvent>
 #include <QWidget>
 
+class QAction;
 class QKeyEvent;
 class QMenu;
 
@@ -87,6 +88,13 @@ public:
   // lists otherwise offer only on a right-click, for what is selected.
   virtual bool hasModeMenu() const { return false; }
   virtual void fillModeMenu(QMenu &menu) { (void)menu; }
+  // Menus and Edit menu items of the page's own, in the menu bar only
+  // while the page is shown.
+  virtual QList<QMenu *> pageMenus() const { return {}; }
+  virtual QList<QAction *> editActions() const { return {}; }
+  // The alg sets changed (or `setId`'s did), wherever the change was made:
+  // a page that shows them reads them again.
+  virtual void librarySetsChanged(const QString &setId) { (void)setId; }
   // The choice the user made (and the window remembers), whatever the
   // page's width.
   bool sideHidden() const { return sideHidden_; }

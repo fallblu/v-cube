@@ -40,6 +40,9 @@ public:
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;
+  void librarySetsChanged(const QString &setId) override {
+    refreshScrambleTypes(setId);
+  }
 
 protected:
   void focusModeChanged() override;

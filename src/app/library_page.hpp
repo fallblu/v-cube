@@ -101,10 +101,9 @@ public:
   void activated() override;
   void deactivated() override;
 
-  // The Set and Cases menus for the menu bar, and Undo and Redo for the
-  // Edit menu; they are shown only while the page is.
-  QList<QMenu *> menus() const;
-  QList<QAction *> editActions() const;
+  // The Set and Cases menus, and Undo and Redo for the Edit menu.
+  QList<QMenu *> pageMenus() const override;
+  QList<QAction *> editActions() const override;
 
 signals:
   // The library changed: `setId` names the set whose contents changed, or
@@ -182,8 +181,7 @@ private:
   void buildActions();
   // Shows the actions of the Set or Cases menu as a context menu at `at`.
   void execContextMenu(const QMenu &from, const QPoint &at);
-  // Shows or hides the menus and the edit actions.
-  void setMenusShown(bool shown);
+
   void updateActions();
   void fillRestoreSetMenu();
   void fillMoveToMenu();
