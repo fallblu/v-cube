@@ -28,11 +28,7 @@ DrillFlow flow(DrillFlow::Config c = {}) {
   return f;
 }
 
-DrillFlow::Config physical() {
-  DrillFlow::Config c;
-  c.virtualCube = false;
-  return c;
-}
+DrillFlow::Config physical() { return {.virtualCube = false}; }
 
 auto done(bool d) {
   return [d] { return d; };
@@ -93,8 +89,7 @@ TEST_CASE("drill: keys just after the stop are ignored") {
 }
 
 TEST_CASE("drill: auto-stop off, Space stops; a DNF unless done") {
-  DrillFlow::Config c;
-  c.autoStop = false;
+  const DrillFlow::Config c{.autoStop = false};
   DrillFlow f = flow(c);
   f.key(press(Key::Space), 1100);
   // Armed by Space, the first face turn starts the solve.
@@ -116,9 +111,7 @@ TEST_CASE("drill: auto-stop off, Space stops; a DNF unless done") {
 }
 
 TEST_CASE("drill: Space before any face turn cancels the solve") {
-  DrillFlow::Config c;
-  c.tapToArm = false;
-  DrillFlow f = flow(c);
+  DrillFlow f = flow({.tapToArm = false});
   f.key(press(Key::Space), 1000);
   f.tick(1400);
   CHECK(f.holding());
@@ -138,9 +131,7 @@ TEST_CASE("drill: Space before any face turn cancels the solve") {
 }
 
 TEST_CASE("drill: holding Space, a face turn starts once ready") {
-  DrillFlow::Config c;
-  c.tapToArm = false;
-  DrillFlow f = flow(c);
+  DrillFlow f = flow({.tapToArm = false});
   f.key(press(Key::Space), 1000);
   auto early = f.key(turn(kR), 1100);
   CHECK(early.hint == DrillFlow::Hint::KeepHolding);
@@ -152,9 +143,7 @@ TEST_CASE("drill: holding Space, a face turn starts once ready") {
 }
 
 TEST_CASE("drill: a hold the window loses is called off") {
-  DrillFlow::Config c;
-  c.tapToArm = false;
-  DrillFlow f = flow(c);
+  DrillFlow f = flow({.tapToArm = false});
   f.key(press(Key::Space), 1000);
   CHECK(f.loseKeyboard());
   CHECK_FALSE(f.holding());
@@ -236,9 +225,7 @@ TEST_CASE("drill: giving up a running solve keeps it deleted") {
 }
 
 TEST_CASE("drill: Backspace gives up when Settings say so") {
-  DrillFlow::Config c;
-  c.shiftSpaceGivesUp = false;
-  DrillFlow f = flow(c);
+  DrillFlow f = flow({.shiftSpaceGivesUp = false});
   CHECK(f.key(press(Key::Backspace), 1100).action == Action::GiveUp);
   CHECK(f.key(press(Key::Space, true), 1100).action == Action::Armed);
 
@@ -300,8 +287,7 @@ TEST_CASE("drill: practice with the algs, then without, then on") {
 }
 
 TEST_CASE("drill: Space practises after a DNF when Settings say so") {
-  DrillFlow::Config c;
-  c.practiseAfterDnf = true;
+  DrillFlow::Config c{.practiseAfterDnf = true};
   DrillFlow f = flow(c);
   f.key(press(Key::Space), 1100);
   f.key(turn(kR), 1200);

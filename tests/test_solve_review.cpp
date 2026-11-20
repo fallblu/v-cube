@@ -2,56 +2,17 @@
 #include "train/case_logic.hpp"
 #include "train/solve_review.hpp"
 
+#include "test_support.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <chrono>
 
 using namespace vcube;
+using namespace vcube::testing;
 
 namespace {
-
-// Pair cases for each slot: the FR algs and their mirrors.
-const std::vector<std::string> kFrAlgs = {"R U' R'", "R U' R' U R U R'",
-                                          "R U2 R' U R U' R'"};
-
-Alg slotAlg(const std::string &frAlg, Slot slot) {
-  Alg alg = parseAlgOrEmpty(frAlg);
-  if (slot == Slot::FL || slot == Slot::BL) {
-    alg = mirrorM(alg);
-  }
-  if (slot == Slot::BR || slot == Slot::BL) {
-    alg = mirrorS(alg);
-  }
-  return alg;
-}
-
-AlgSet pairSet() {
-  AlgSet set;
-  set.id = "review-pairs";
-  set.spec.free = *parseFree("LL:p LLC:o");
-  for (Slot s : {Slot::FR, Slot::FL, Slot::BR, Slot::BL}) {
-    std::string name(slotName(s));
-    CaseGroup g{name, std::nullopt, {}};
-    for (std::size_t i = 0; i < kFrAlgs.size(); ++i) {
-      Alg alg = slotAlg(kFrAlgs[i], s);
-      AlgCase c;
-      c.id = name + "-" + std::to_string(i + 1);
-      c.name = name + " " + std::to_string(i + 1);
-      c.state = stateSolvedBy(alg);
-      c.algs.push_back(toString(alg));
-      g.cases.push_back(c);
-    }
-    set.groups.push_back(g);
-  }
-  return set;
-}
-
-FaceletCube after(const std::string &alg) {
-  FaceletCube f;
-  f.apply(parseAlgOrEmpty(alg));
-  return f;
-}
 
 CubieCube cubieAfter(const Alg &alg) {
   CubieCube c;

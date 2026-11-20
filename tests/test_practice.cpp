@@ -17,11 +17,7 @@ using namespace vcube::testing;
 namespace {
 
 PracticeTry timedTry(std::int64_t at, std::int64_t ms, bool dnf = false) {
-  PracticeTry t;
-  t.timestamp = at;
-  t.ms = ms;
-  t.dnf = dnf;
-  return t;
+  return {.timestamp = at, .ms = ms, .dnf = dnf};
 }
 
 } // namespace
@@ -56,15 +52,9 @@ TEST_CASE("a group's tries are summed up", "[practice]") {
 
 TEST_CASE("inspection and turning speed are summed up", "[practice]") {
   std::vector<PracticeTry> tries;
-  PracticeTry a;
-  a.inspectMs = 9000;
-  a.moves = 7;
-  tries.push_back(a);
-  PracticeTry b;
-  b.inspectMs = 17000;
-  b.over = true;
-  b.dnf = true; // not done: its inspection counts all the same
-  tries.push_back(b);
+  tries.push_back({.moves = 7, .inspectMs = 9000});
+  // Not done: its inspection counts all the same.
+  tries.push_back({.dnf = true, .inspectMs = 17000, .over = true});
   PracticeSummary s = summarize(tries);
   CHECK(*s.meanInspectMs == 13000.0);
   CHECK(s.overTime == 1);
@@ -78,20 +68,12 @@ TEST_CASE("inspection and turning speed are summed up", "[practice]") {
 }
 
 TEST_CASE("untimed tries are summed up by moves", "[practice]") {
-  std::vector<PracticeTry> tries;
-  PracticeTry a;
-  a.moves = 9;
-  a.best = 7;
-  a.extra = 2;
-  PracticeTry b;
-  b.moves = 7;
-  b.best = 7;
-  b.extra = 0;
-  PracticeTry unknown; // the best not worked out
-  unknown.moves = 8;
-  PracticeTry gaveUp;
-  gaveUp.dnf = true;
-  tries = {a, b, unknown, gaveUp};
+  std::vector<PracticeTry> tries = {
+      {.moves = 9, .best = 7, .extra = 2},
+      {.moves = 7, .best = 7, .extra = 0},
+      {.moves = 8}, // the best not worked out
+      {.dnf = true},
+  };
   PracticeSummary s = summarize(tries);
   CHECK(s.tries == 4);
   CHECK(s.solved == 3);
@@ -239,26 +221,19 @@ TEST_CASE("practice data survives the file", "[practice][io]") {
   d.cards["UF-N-0120"].record(recognised);
   d.cards["UF-N-0120"].archive[AttemptMode::VirtualDrill] = {
       1900, {{20764, 3, 1, 4100, 1900}}};
-  PracticeTry learn;
-  learn.timestamp = 1794000200;
-  learn.moves = 31;
-  learn.best = 24;
-  learn.extra = 4.5;
-  learn.hint = true;
-  d.addLearn("whole", learn);
-  PracticeTry dnf;
-  dnf.timestamp = 1794000300;
-  dnf.dnf = true;
-  d.addLearn("whole", dnf);
+  d.addLearn("whole", {.timestamp = 1794000200,
+                       .moves = 31,
+                       .best = 24,
+                       .extra = 4.5,
+                       .hint = true});
+  d.addLearn("whole", {.timestamp = 1794000300, .dnf = true});
   d.addTimed(timedKey(CubeKind::Physical, "zz-1"), timedTry(1794000400, 14200));
-  PracticeTry planned;
-  planned.timestamp = 1794000500;
-  planned.inspectMs = 16200;
-  planned.over = true;
-  planned.moves = 8;
-  planned.best = 7;
-  planned.extra = 1.0;
-  d.addInspection("eocross", planned);
+  d.addInspection("eocross", {.timestamp = 1794000500,
+                              .moves = 8,
+                              .best = 7,
+                              .extra = 1.0,
+                              .inspectMs = 16200,
+                              .over = true});
   d.choices["front/URF1-UB0"] = {"U R U' R'", "R' F R F'"};
   d.notes["ocll/antisune"] = "L' U' L U' L' U2 L";
   CHECK(practiceFromJson(practiceToJson(d)) == d);

@@ -1,6 +1,8 @@
 #include "train/algset.hpp"
 #include "train/case_logic.hpp"
 
+#include "test_support.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <set>
@@ -14,16 +16,10 @@ AlgSet ollLikeSet() {
   set.id = "test";
   set.spec.free = *parseFree("LL:p");
   CaseGroup g{"Group", std::nullopt, {}};
-  AlgCase sune;
-  sune.id = "sune";
-  sune.name = "Sune";
-  sune.state = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
-  g.cases.push_back(sune);
-  AlgCase t;
-  t.id = "t";
-  t.name = "T";
-  t.state = stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R F'"));
-  g.cases.push_back(t);
+  g.cases.push_back(
+      {"sune", "Sune", stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")), {}});
+  g.cases.push_back(
+      {"t", "T", stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R F'")), {}});
   set.groups.push_back(g);
   return set;
 }
@@ -116,12 +112,7 @@ TEST_CASE("the joined AUFs still solve the case") {
   REQUIRE(fit);
   std::string shown = withAufs(alg, *fit);
   CHECK(shown == "(U) L U2 L'");
-  FaceletCube f = later.toFacelets();
-  f.apply(parseAlgOrEmpty(shown));
-  f.normalizeOrientation();
-  auto after = CubieCube::fromFacelets(f);
-  REQUIRE(after);
-  CHECK(withinMask(*after, ll));
+  CHECK(withinMask(testing::after(later, parseAlgOrEmpty(shown)), ll));
 }
 
 TEST_CASE("the case an alg solves allows for the alg's cube rotations") {
@@ -201,16 +192,10 @@ TEST_CASE("pasted algs are matched with the set's AUF settings") {
   set.aufBefore = false;
   set.aufAfter = false;
   CaseGroup g{"Group", std::nullopt, {}};
-  AlgCase a;
-  a.id = "a";
-  a.name = "A";
-  a.state = stateSolvedBy(parseAlgOrEmpty("U R U R' U R U2 R'"));
-  g.cases.push_back(a);
-  AlgCase b;
-  b.id = "b";
-  b.name = "B";
-  b.state = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
-  g.cases.push_back(b);
+  g.cases.push_back(
+      {"a", "A", stateSolvedBy(parseAlgOrEmpty("U R U R' U R U2 R'")), {}});
+  g.cases.push_back(
+      {"b", "B", stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")), {}});
   set.groups.push_back(g);
   auto ref = matchCase(set, parseAlgOrEmpty("R U R' U R U2 R'"));
   REQUIRE(ref);

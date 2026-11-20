@@ -1,6 +1,8 @@
 #include "train/f2l.hpp"
 #include "train/tsle.hpp"
 
+#include "test_support.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -9,18 +11,7 @@
 #include <set>
 
 using namespace vcube;
-
-namespace {
-
-CubieCube after(const CubieCube &c, const Alg &alg) {
-  FaceletCube f = c.toFacelets();
-  f.apply(alg);
-  auto out = centredCubie(f);
-  REQUIRE(out);
-  return *out;
-}
-
-} // namespace
+using namespace vcube::testing;
 
 TEST_CASE("TSLE has the sheet's cases", "[tsle]") {
   const std::vector<TsleState> &cases = tsleCases();
