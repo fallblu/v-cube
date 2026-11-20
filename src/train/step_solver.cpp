@@ -6,12 +6,8 @@
 
 #include <algorithm>
 #include <climits>
-#include <map>
-#include <mutex>
 #include <numeric>
 #include <span>
-#include <string>
-#include <tuple>
 
 namespace vcube {
 
@@ -396,16 +392,6 @@ std::optional<int> heldDistance(const Alg &scramble, SolveStep step,
   if (!hasOptimalSolver(step) || holds.empty()) {
     return std::nullopt;
   }
-  using Key = std::tuple<std::string, int, std::vector<Hold>>;
-  static std::mutex mutex;
-  static std::map<Key, std::optional<int>> cache;
-  Key key{toString(scramble), static_cast<int>(step), holds};
-  {
-    std::scoped_lock lock(mutex);
-    if (auto it = cache.find(key); it != cache.end()) {
-      return it->second;
-    }
-  }
   CubieCube scrambled = cubieOf(scramble);
   std::optional<int> best;
   for (Hold h : distinctHolds(holds, step)) {
@@ -419,14 +405,6 @@ std::optional<int> heldDistance(const Alg &scramble, SolveStep step,
       best = d;
     }
   }
-  std::scoped_lock lock(mutex);
-  // About 150 bytes an entry: a cap keeps a long session's cache bounded,
-  // and starting again costs only the searches of the scrambles in use.
-  constexpr std::size_t kMaxCached = 4096;
-  if (cache.size() >= kMaxCached) {
-    cache.clear();
-  }
-  cache[key] = best;
   return best;
 }
 

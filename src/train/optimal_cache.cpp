@@ -3,6 +3,8 @@
 #include "train/step_solver.hpp"
 
 #include <algorithm>
+#include <set>
+#include <string_view>
 
 namespace vcube {
 
@@ -32,10 +34,10 @@ OptimalCache::missing(SolveStep step, bool anyHold, std::vector<Hold> holds,
   job.holds = std::move(holds);
   job.round = round_;
   job.stop = stop_;
+  std::set<std::string_view> added;
   for (const MoveCountAttempt &a : attempts) {
     if (!a.scramble.empty() && !known_.contains({step, a.scramble, anyHold}) &&
-        std::find(job.scrambles.begin(), job.scrambles.end(), a.scramble) ==
-            job.scrambles.end()) {
+        added.insert(a.scramble).second) {
       job.scrambles.push_back(a.scramble);
     }
   }

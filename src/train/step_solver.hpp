@@ -5,7 +5,6 @@
 #include "cube/move.hpp"
 #include "train/move_count.hpp"
 
-#include <array>
 #include <optional>
 #include <vector>
 
@@ -79,8 +78,7 @@ bool sameStepProblem(Hold a, Hold b, SolveStep step);
 
 // The optimal length for a scramble over `holds` (the best of
 // solveStepHeld's lengths), stopping at first solutions; nullopt for ZZ
-// F2L or no holds. Results are cached by scramble, step and holds, so the
-// Move Count list can ask for every attempt.
+// F2L or no holds. (Move Count keeps the lengths in an OptimalCache.)
 std::optional<int> heldDistance(const Alg &scramble, SolveStep step,
                                 const std::vector<Hold> &holds);
 
