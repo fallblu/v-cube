@@ -24,6 +24,7 @@ add_library(vcube_train STATIC
   reduction.cpp
   solve_review.cpp
   srs.cpp
+  set_scramble.cpp
   stats.cpp
   timed_flow.cpp
   timer.cpp

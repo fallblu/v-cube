@@ -8,6 +8,7 @@
 #include "app/cube_painter.hpp"
 #include "app/text_style.hpp"
 #include "train/case_logic.hpp"
+#include "train/set_scramble.hpp"
 
 #include <QPainter>
 #include <QPushButton>
@@ -23,51 +24,16 @@ scrambleStateMaker(const AlgLibrary &library, const QString &type) {
     const AlgSet *set = library.find(id);
     if (set && set->caseCount() > 0) {
       // The cases ticked in Learn and Drill (or all of them).
-      QStringList unticked = untickedCases(*set);
-      struct Entry {
-        CubieCube state;
-        PieceMask free;
-        std::string caseId;
-      };
-      std::vector<Entry> pool;
-      auto fill = [&](bool tickedOnly) {
-        for (const auto &g : set->groups) {
-          for (const auto &c : g.cases) {
-            if (!tickedOnly || !unticked.contains(qs(c.id))) {
-              // The case as Drill sets it up: oriented for its main alg.
-              pool.push_back({analyzeCase(*set, g, c).display,
-                              set->specFor(g).free, c.id});
-            }
-          }
-        }
-      };
-      fill(true);
-      if (pool.empty()) {
-        fill(false);
+      std::vector<std::string> unticked;
+      for (const QString &c : untickedCases(*set)) {
+        unticked.push_back(ss(c));
       }
-      bool before = set->aufBefore, after = set->aufAfter;
-      std::vector<Mirror> worlds = set->worlds();
       // Shared, so that copies of the maker don't copy the pool.
-      auto shared = std::make_shared<const std::vector<Entry>>(std::move(pool));
-      return [shared, before, after, id, worlds](Rng &rng) {
-        const std::vector<Entry> &cases = *shared;
-        std::uniform_int_distribution<std::size_t> pick(0, cases.size() - 1);
-        std::uniform_int_distribution<std::size_t> world(0, worlds.size() - 1);
-        std::uniform_int_distribution<int> quarter(0, 3);
-        const Entry &e = cases[pick(rng)];
-        // As Drill sets a case up: in one of the set's mirror images.
-        CubieCube s = setUpCase(e.state, e.free, worlds[world(rng)],
-                                FreePieces::Scrambled, rng);
-        if (before) {
-          s = s * uTurn(quarter(rng));
-        }
-        if (after) {
-          s = uTurn(quarter(rng)) * s;
-        }
-        if (s.isSolved()) {
-          return ScrambleSetup{randomState(PieceMask::all(), rng), {}, {}};
-        }
-        return ScrambleSetup{s, id, e.caseId};
+      auto pool = std::make_shared<const SetScramblePool>(*set, unticked);
+      return [pool, id](Rng &rng) {
+        SetScramble s = pool->draw(rng);
+        std::string setId = s.caseId.empty() ? std::string() : id;
+        return ScrambleSetup{s.state, std::move(setId), std::move(s.caseId)};
       };
     }
   }
