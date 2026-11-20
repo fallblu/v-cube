@@ -196,17 +196,21 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   filters->addWidget(new QLabel(tr("Score:"), search));
   filters->addWidget(profileBox_);
   filters->addWidget(profileMenu);
-  filters->addStretch();
-  sl->addWidget(filters);
-  auto *shown = new OptionBar(search);
+  filters->addSpacing(12);
+  // One bar, so that the page still fits half a 1080p screen; the second
+  // group is one item, which wraps onto its own row when narrow.
+  auto *shown = new QWidget(search);
+  auto *shownLayout = new QHBoxLayout(shown);
+  shownLayout->setContentsMargins(0, 0, 0, 0);
   auto *algsLabel = groupLabel(tr("Algs shown:"));
   algsLabel->setBuddy(filterBox_);
-  shown->addWidget(algsLabel);
-  shown->addWidget(filterBox_);
-  shown->addWidget(noRotations_);
-  shown->addWidget(maxHtm_);
-  shown->addStretch();
-  sl->addWidget(shown);
+  shownLayout->addWidget(algsLabel);
+  shownLayout->addWidget(filterBox_);
+  shownLayout->addWidget(noRotations_);
+  shownLayout->addWidget(maxHtm_);
+  filters->addWidget(shown);
+  filters->addStretch();
+  sl->addWidget(filters);
   statsCube_->setAccessibleName(tr("Times of the physical or virtual cube"));
   statsWindow_->setAccessibleName(tr("Times from"));
   profileBox_->setAccessibleName(tr("Score profile"));
