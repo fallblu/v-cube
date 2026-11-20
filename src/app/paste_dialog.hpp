@@ -3,7 +3,10 @@
 #include "train/case_logic.hpp"
 
 #include <QDialog>
+#include <QStringList>
 
+#include <cstddef>
+#include <string>
 #include <vector>
 
 class QCheckBox;
@@ -15,6 +18,21 @@ class QStackedWidget;
 class QTableWidget;
 
 namespace vcube {
+
+// The most algs one paste may hold. Every alg is tried on every case of the
+// set, on the window's own thread and again after each correction, and an
+// alg that solves none may add a case for the next ones to be tried on: the
+// work grows with the square of the count.
+inline constexpr std::size_t kMaxPastedAlgs = 1000;
+
+// A set's cases as the choices of "Other case…": a label for each, no two
+// alike, and the case ids in the same order. Cases may share a name, so one
+// whose label is there already gets a number after it.
+struct CaseChoices {
+  QStringList labels;
+  std::vector<std::string> ids;
+};
+CaseChoices caseChoices(const AlgSet &set);
 
 // Pastes a list of algs into a set in two steps: the text, then a table of
 // what each alg would do (the case it goes to, or why it isn't filed),

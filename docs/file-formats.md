@@ -55,11 +55,18 @@ with buttons to copy them.
   until you update.
 - **An alg set with a problem** is left out, and the app names the problem
   at startup. Problems are: no `id`, a `free` or `targetSeconds` that can't
-  be read, a case state no real cube has, a missing or repeated case id, or
-  an alg that isn't text. If two files hold the same set id, the one named
-  after the id is loaded and the other is left alone.
+  be read, a case state no real cube has, a missing or repeated case id, an
+  alg that isn't text, or a key holding the wrong kind of value (`algs` as
+  text instead of a list, say). The file is left as it is. If two files
+  hold the same set id, the one named after the id is loaded and the other
+  is left alone.
 - **A save that fails** (a full disk, say) shows a red banner naming the
-  file until a later save works or you dismiss it.
+  file until a later save works or you dismiss it. The settings file is
+  checked when you apply the Settings dialog and when you quit.
+- **A settings file with lines that can't be read** is used for what can
+  be read. The app says so at startup and keeps the file as it was beside
+  it, as `v-cube.ini.unreadable-<yyyyMMdd>-<HHmmss>`, since the next
+  change to a setting writes the file without those lines.
 - **Daily backups**: the first start of each day, and a copy left open
   past midnight, copies the data folder into `backups/<yyyy-MM-dd>/`,
   without the backups, the deleted sets, the lock file and partial saves,

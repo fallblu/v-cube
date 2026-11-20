@@ -16,7 +16,6 @@
 #include <QLabel>
 #include <QLocale>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QTableView>
@@ -193,15 +192,20 @@ void SessionPanel::setSessionName(const QString &name) {
 
 void SessionPanel::fillSessionMenu(const std::vector<MenuSession> &sessions,
                                    std::size_t current) {
+  // clear() deletes the actions, which leave the group as they go: the
+  // one group serves every filling.
   menu_->clear();
-  auto *group = new QActionGroup(menu_);
+  if (!sessionGroup_) {
+    sessionGroup_ = new QActionGroup(menu_);
+  }
   for (std::size_t i = 0; i < sessions.size(); ++i) {
+    // In one pass, so that a "%1" in a session's name stays as it is.
     QAction *a = menu_->addAction(
-        tr("%1 (%2)").arg(sessions[i].name).arg(sessions[i].count), this,
-        [this, i] { emit sessionChosen(i); });
+        tr("%1 (%2)").arg(sessions[i].name, QString::number(sessions[i].count)),
+        this, [this, i] { emit sessionChosen(i); });
     a->setCheckable(true);
     a->setChecked(i == current);
-    group->addAction(a);
+    sessionGroup_->addAction(a);
   }
   menu_->addSeparator();
   menu_->addAction(tr("New session…"), this,
@@ -423,12 +427,10 @@ std::optional<QString> askSessionName(QWidget *parent, const QString &title,
 
 bool confirmDeleteSession(QWidget *parent, const QString &name,
                           std::size_t count, const QString &noun) {
-  return QMessageBox::question(
-             parent, QObject::tr("Delete session"),
-             QObject::tr("Delete session \"%1\" and its %2 %3?")
-                 .arg(name)
-                 .arg(count)
-                 .arg(noun)) == QMessageBox::Yes;
+  // The three at once, so that a "%2" in the name stays the name's.
+  return askPlain(parent, QObject::tr("Delete session"),
+                  QObject::tr("Delete session \"%1\" and its %2 %3?")
+                      .arg(name, QString::number(count), noun));
 }
 
 std::optional<QString> askComment(QWidget *parent, const QString &label,

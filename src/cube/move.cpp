@@ -122,11 +122,10 @@ private:
 
   // Reads a prime mark (ASCII or Unicode) if present.
   bool readPrime() {
-    if (peek() == '\'' || peek() == '`') {
-      ++pos_;
-      return true;
-    }
-    return skipAny(kPrimes);
+    std::size_t length =
+        primeLength(text_.substr(std::min(pos_, text_.size())));
+    pos_ += length;
+    return length > 0;
   }
 
   // Optional repetition count and prime after a move or group, as the
@@ -346,6 +345,31 @@ std::string toString(const Alg &alg) {
 
 ParseResult parseAlg(std::string_view text) { return Parser(text).run(); }
 
+std::size_t primeLength(std::string_view text) {
+  if (text.starts_with('\'') || text.starts_with('`')) {
+    return 1;
+  }
+  for (std::string_view prime : kPrimes) {
+    if (text.starts_with(prime)) {
+      return prime.size();
+    }
+  }
+  return 0;
+}
+
+std::size_t amountLength(std::string_view text) {
+  std::size_t end = primeLength(text);
+  bool prime = end > 0;
+  while (end < text.size() &&
+         std::isdigit(static_cast<unsigned char>(text[end]))) {
+    ++end;
+  }
+  if (!prime) {
+    end += primeLength(text.substr(end));
+  }
+  return end;
+}
+
 std::string cleanAlgText(std::string_view text) {
   std::string out;
   for (std::size_t i = 0; i < text.size();) {
@@ -353,13 +377,12 @@ std::string cleanAlgText(std::string_view text) {
       return text.substr(i, token.size()) == token;
     };
     auto space = std::find_if(kSpaces.begin(), kSpaces.end(), at);
-    auto prime = std::find_if(kPrimes.begin(), kPrimes.end(), at);
     if (space != kSpaces.end()) {
       out += ' ';
       i += space->size();
-    } else if (prime != kPrimes.end()) {
+    } else if (std::size_t prime = primeLength(text.substr(i))) {
       out += '\'';
-      i += prime->size();
+      i += prime;
     } else {
       out += text[i++];
     }

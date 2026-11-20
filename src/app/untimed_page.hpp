@@ -3,7 +3,9 @@
 #include "app/attempt_page.hpp"
 #include "train/scramble_history.hpp"
 
+#include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 class QLabel;
@@ -63,6 +65,11 @@ private:
   QWidget *algPanel_;
   QLineEdit *algEdit_;
   QLabel *algError_;
+  // The solve the EO Cross check was last started for: its result is for
+  // the label only while that is still the session's last solve.
+  std::string eoScramble_;
+  std::string eoSolution_;
+  std::int64_t eoTimestamp_ = 0;
 
   void applyAlg();
 };

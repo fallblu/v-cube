@@ -8,6 +8,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 
 class QBoxLayout;
@@ -162,8 +163,25 @@ QScrollArea *scrollArea(QWidget *content, QWidget *parent);
 // A button that doesn't take the keyboard focus.
 QPushButton *flatButton(const QString &text, QWidget *parent);
 // A warning whose text is shown as typed, never as rich text: for messages
-// that quote what a file said (an import's error), which could hold markup.
+// that quote what a file said (an import's error), a name that was typed or
+// read from a file, or a path, any of which could hold markup. A message
+// box otherwise takes a text that looks like HTML for HTML.
 void warnPlain(QWidget *parent, const QString &title, const QString &text);
+// The same for a piece of news.
+void informPlain(QWidget *parent, const QString &title, const QString &text);
+// How askPlain asks: a plain question, or one that warns of a loss, where
+// No is what Return gives.
+enum class AskAs : std::uint8_t {
+  Question,
+  Warning,
+};
+// The same for a question with Yes and No: true for Yes.
+bool askPlain(QWidget *parent, const QString &title, const QString &text,
+              AskAs as = AskAs::Question);
+// `text` as a tooltip that shows it as written. A tooltip has no text
+// format to set, and takes a text that looks like HTML for HTML: such a
+// text is escaped, and any other is left as it is.
+QString plainTip(const QString &text);
 // Writes the tooltip of each field of the form under it as a helpLabel.
 void showTipsAsHelp(QFormLayout *form);
 

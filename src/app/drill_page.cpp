@@ -80,11 +80,14 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   casesButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
   auto *casesMenu = new QMenu(casesButton_);
   casesButton_->setMenu(casesMenu);
-  connect(casesMenu, &QMenu::aboutToShow, this, [this, casesMenu] {
+  // One group for each box's choices, whatever the times the menu is
+  // filled: clear() deletes the actions, and they leave their group.
+  auto *scopeGroup = new QActionGroup(casesMenu);
+  auto *poolGroup = new QActionGroup(casesMenu);
+  connect(casesMenu, &QMenu::aboutToShow, this, [=, this] {
     casesMenu->clear();
-    auto fill = [&](QComboBox *box, const QString &title) {
+    auto fill = [&](QComboBox *box, QActionGroup *group, const QString &title) {
       casesMenu->addSection(title);
-      auto *group = new QActionGroup(casesMenu);
       for (int i = 0; i < box->count(); ++i) {
         if (box->itemText(i).isEmpty()) {
           continue; // a separator
@@ -99,8 +102,8 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
         });
       }
     };
-    fill(scopeBox_, tr("From"));
-    fill(poolBox_, tr("Which of them"));
+    fill(scopeBox_, scopeGroup, tr("From"));
+    fill(poolBox_, poolGroup, tr("Which of them"));
   });
 
   auto *sessionRow = new QHBoxLayout;

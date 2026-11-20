@@ -183,9 +183,10 @@ CommandPalette::CommandPalette(std::vector<Command> commands, QWidget *parent)
   layout->addWidget(search_);
   layout->addWidget(list_);
   connect(search_, &QLineEdit::textChanged, this, &CommandPalette::filter);
-  connect(list_, &QListWidget::itemActivated, this,
-          &CommandPalette::runSelected);
-  connect(list_, &QListWidget::itemClicked, this, &CommandPalette::runSelected);
+  // The row clicked, which a heading's isn't the highlighted one. Where
+  // one click activates an item, both signals come for it.
+  connect(list_, &QListWidget::itemActivated, this, &CommandPalette::run);
+  connect(list_, &QListWidget::itemClicked, this, &CommandPalette::run);
   filter();
   if (parent) {
     int w = std::min(560, parent->width() - 40);
@@ -265,11 +266,13 @@ int CommandPalette::nextRow(int row, int step) const {
   return row;
 }
 
-void CommandPalette::runSelected() {
-  QListWidgetItem *item = list_->currentItem();
-  if (!item || !(item->flags() & Qt::ItemIsSelectable)) {
+void CommandPalette::runSelected() { run(list_->currentItem()); }
+
+void CommandPalette::run(QListWidgetItem *item) {
+  if (ran_ || !item || !(item->flags() & Qt::ItemIsSelectable)) {
     return;
   }
+  ran_ = true; // the palette closes: one command for each time it is shown
   const Command &c =
       commands_[static_cast<std::size_t>(item->data(kCommandRole).toInt())];
   QStringList recent = saved::recentCommands().get();
@@ -280,10 +283,10 @@ void CommandPalette::runSelected() {
     recent.removeLast();
   }
   saved::recentCommands().set(recent);
-  auto run = c.run;
+  auto command = c.run;
   accept();
   // After the palette has closed and the keyboard is back with the window.
-  QTimer::singleShot(0, parentWidget(), run);
+  QTimer::singleShot(0, parentWidget(), command);
 }
 
 bool CommandPalette::eventFilter(QObject *watched, QEvent *event) {

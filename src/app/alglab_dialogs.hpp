@@ -8,6 +8,7 @@
 #include <QDialog>
 
 #include <array>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -21,6 +22,13 @@ class QTableWidget;
 namespace vcube {
 
 struct AppSettings;
+
+// A cost as a cell of a profile's table shows it: with the decimal
+// separator of the locale, as the spin boxes beside the table show theirs.
+QString costText(double cost);
+// The cost typed into such a cell, with the locale's decimal separator or
+// a point; nullopt for what isn't a number.
+std::optional<double> costFromText(const QString &text);
 
 // Picks the turns a move set allows, layer by layer (quarter and half
 // turns), or as text ("R, U, F2"), and optionally names it to keep as a
@@ -59,8 +67,11 @@ private:
   QDoubleSpinBox *other_;
   QDoubleSpinBox *axis_;
   QTableWidget *rules_;
+  QLabel *problems_;
   QLineEdit *tryAlg_;
   QLabel *tryScore_;
+  // How many rows profile() leaves out because they can't be read.
+  int unreadRows() const;
   void updateTry();
 };
 

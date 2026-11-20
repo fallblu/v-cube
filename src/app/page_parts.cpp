@@ -16,6 +16,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSplitter>
+#include <QTextDocument>
 #include <QVBoxLayout>
 
 namespace vcube {
@@ -355,6 +356,34 @@ void warnPlain(QWidget *parent, const QString &title, const QString &text) {
   QMessageBox box(QMessageBox::Warning, title, text, QMessageBox::Ok, parent);
   box.setTextFormat(Qt::PlainText);
   box.exec();
+}
+
+void informPlain(QWidget *parent, const QString &title, const QString &text) {
+  QMessageBox box(QMessageBox::Information, title, text, QMessageBox::Ok,
+                  parent);
+  box.setTextFormat(Qt::PlainText);
+  box.exec();
+}
+
+bool askPlain(QWidget *parent, const QString &title, const QString &text,
+              AskAs as) {
+  const bool warning = as == AskAs::Warning;
+  QMessageBox box(warning ? QMessageBox::Warning : QMessageBox::Question, title,
+                  text, QMessageBox::Yes | QMessageBox::No, parent);
+  box.setTextFormat(Qt::PlainText);
+  if (warning) {
+    box.setDefaultButton(QMessageBox::No);
+  }
+  return box.exec() == QMessageBox::Yes;
+}
+
+QString plainTip(const QString &text) {
+  if (!Qt::mightBeRichText(text)) {
+    return text;
+  }
+  QString html = text.toHtmlEscaped();
+  html.replace('\n', "<br>");
+  return "<qt>" + html + "</qt>";
 }
 
 QPushButton *flatButton(const QString &text, QWidget *parent) {

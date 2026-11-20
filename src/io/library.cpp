@@ -59,6 +59,19 @@ QString sanitizeId(const std::string &id) {
   return out.isEmpty() ? QString("set") : out;
 }
 
+// Whether Windows keeps the file name `name` (lower case, as sanitizeId()
+// gives it) for a device, with any extension: no file can be called
+// con.json or lpt1.json there.
+bool isDeviceName(const QString &name) {
+  static const QStringList kDevices = {"con", "prn", "aux", "nul"};
+  if (kDevices.contains(name)) {
+    return true;
+  }
+  return name.size() == 4 &&
+         (name.startsWith(u"com") || name.startsWith(u"lpt")) &&
+         name[3] >= u'1' && name[3] <= u'9';
+}
+
 } // namespace
 
 AlgLibrary::AlgLibrary(QString dir, QString builtinDir)
@@ -345,7 +358,11 @@ bool AlgLibrary::idTaken(const std::string &id) const {
 }
 
 std::string AlgLibrary::uniqueId(const std::string &base) const {
-  std::string b = ss(sanitizeId(base).left(kMaxNewId));
+  QString name = sanitizeId(base).left(kMaxNewId);
+  if (isDeviceName(name)) {
+    name += "-set";
+  }
+  std::string b = ss(name);
   if (!idTaken(b)) {
     return b;
   }
@@ -359,10 +376,12 @@ std::string AlgLibrary::uniqueId(const std::string &base) const {
 
 AlgSet *AlgLibrary::add(AlgSet set, QString *error) {
   // A slash would split the id in two wherever it is written before a case
-  // id or as part of a settings key.
+  // id or as part of a settings key, and a device's name can't name the
+  // set's file on Windows.
   if (set.id.empty() || idTaken(set.id) ||
       set.id.find('/') != std::string::npos ||
-      sanitizeId(set.id).size() > kMaxNewId) {
+      sanitizeId(set.id).size() > kMaxNewId ||
+      isDeviceName(sanitizeId(set.id))) {
     set.id = uniqueId(set.id.empty() ? set.name : set.id);
   }
   if (!save(set, error)) {
@@ -403,8 +422,9 @@ bool AlgLibrary::remove(const std::string &id, QString *error) {
                     QDir(deletedDirectory()).filePath("progress"), now, &why)
           .isEmpty()) {
     // The set is gone; its progress stays where it was, and would come
-    // back with a set of the same id.
-    reportWrite(progressPathFor(id), false, why);
+    // back with a set of the same id. The caller says so from `error`. It
+    // isn't reported as a failed write: nothing is left unsaved, and no
+    // later write to that file would take the report back.
     if (error) {
       *error = why;
     }
