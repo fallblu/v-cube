@@ -675,6 +675,11 @@ void MainWindow::dismissBanner() {
   updateBanner();
 }
 
+void MainWindow::checkSettingsSaved() {
+  const QString error = saved::settingsWriteError();
+  writeReported(saved::settingsFile(), error);
+}
+
 void MainWindow::writeReported(const QString &path, const QString &error) {
   if (error.isEmpty()) {
     if (failedWrites_.erase(path) > 0) {
@@ -946,6 +951,7 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   // take those in now, or a save that failed just before quitting would
   // never be seen.
   QCoreApplication::sendPostedEvents(qApp, QEvent::MetaCall);
+  checkSettingsSaved(); // the layout just kept, and every choice before
   // A failed backup loses no changes, so it doesn't hold up quitting.
   QStringList lines;
   for (const auto &[path, error] : failedWrites_) {
@@ -1307,6 +1313,7 @@ void MainWindow::openSettings(bool neutrality) {
     SettingsParts changed = changedParts(settings_, now);
     settings_ = now;
     settings_.save();
+    checkSettingsSaved();
     if (changed.testFlag(SettingsPart::Theme)) {
       applyTheme(*qApp, settings_.darkTheme);
     }

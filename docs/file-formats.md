@@ -61,7 +61,12 @@ with buttons to copy them.
   hold the same set id, the one named after the id is loaded and the other
   is left alone.
 - **A save that fails** (a full disk, say) shows a red banner naming the
-  file until a later save works or you dismiss it.
+  file until a later save works or you dismiss it. The settings file is
+  checked when you apply the Settings dialog and when you quit.
+- **A settings file with lines that can't be read** is used for what can
+  be read. The app says so at startup and keeps the file as it was beside
+  it, as `v-cube.ini.unreadable-<yyyyMMdd>-<HHmmss>`, since the next
+  change to a setting writes the file without those lines.
 - **Daily backups**: the first start of each day, and a copy left open
   past midnight, copies the data folder into `backups/<yyyy-MM-dd>/`,
   without the backups, the deleted sets, the lock file and partial saves,

@@ -459,6 +459,7 @@ private slots:
   void onlyTheShownPageIsActive();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
+  void settingsFileProblemsAreReported();
   void cleanupTestCase();
 };
 
@@ -3471,6 +3472,76 @@ void GuiTest::startupProblemsShowInOneWindow() {
   }));
   list->window()->close();
   window_->activateWindow();
+}
+
+// The settings file is looked after as the data files are: lines that
+// can't be read are named at start-up with the file kept, and a file that
+// can't be written puts up the banner.
+void GuiTest::settingsFileProblemsAreReported() {
+  const QString ini = QSettings().fileName();
+  const QString folder = QFileInfo(ini).absolutePath();
+  QSettings().sync();
+  QFile file(ini);
+  QVERIFY(file.open(QIODevice::ReadOnly));
+  const QByteArray was = file.readAll();
+  file.close();
+  QCOMPARE(initSettingsStorage(false), QString());
+  const QString learnSet = QSettings().value("learn/set").toString();
+  QVERIFY(!learnSet.isEmpty());
+
+  const QByteArray broken = was + "\n[broken\nno equals sign here\n";
+  QVERIFY(writeFile(ini, broken));
+  const QString problem = initSettingsStorage(false);
+  QVERIFY2(problem.contains(QFileInfo(ini).fileName()), qPrintable(problem));
+  const QStringList kept = QDir(folder).entryList(
+      {QFileInfo(ini).fileName() + ".unreadable-*"}, QDir::Files);
+  QCOMPARE(kept.size(), 1);
+  QVERIFY2(problem.contains(kept.front()), qPrintable(problem));
+  QFile copy(QDir(folder).filePath(kept.front()));
+  QVERIFY(copy.open(QIODevice::ReadOnly));
+  QCOMPARE(copy.readAll(), broken);
+  copy.close();
+  QVERIFY(copy.remove());
+  // What could be read still is.
+  QCOMPARE(QSettings().value("learn/set").toString(), learnSet);
+  QVERIFY(writeFile(ini, was));
+
+#ifdef Q_OS_UNIX
+  // A folder and a file that can't be written to (not so for root).
+  const auto folderWas = QFile::permissions(folder);
+  const auto fileWas = QFile::permissions(ini);
+  QFile::setPermissions(ini, QFileDevice::ReadOwner);
+  QFile::setPermissions(folder, QFileDevice::ReadOwner | QFileDevice::ExeOwner);
+  QFile probe(QDir(folder).filePath("probe"));
+  if (probe.open(QIODevice::WriteOnly)) {
+    probe.close();
+    probe.remove();
+    QFile::setPermissions(folder, folderWas);
+    QFile::setPermissions(ini, fileWas);
+    QSKIP("the folder stays writable (running as root?)");
+  }
+  QWidget *banner = window_->findChild<QWidget *>("saveBanner");
+  QVERIFY(banner);
+  QVERIFY(!banner->isVisible());
+  const QString exportTo = saved::exportFolder().get();
+  saved::exportFolder().set(exportTo + "/elsewhere");
+  const QString error = saved::settingsWriteError();
+  window_->checkSettingsSaved();
+  const bool shown = banner->isVisible();
+  QFile::setPermissions(folder, folderWas);
+  QFile::setPermissions(ini, fileWas);
+  QVERIFY2(error.contains(QFileInfo(ini).fileName()), qPrintable(error));
+  QVERIFY(shown);
+  // Once it can be written, the change that was waiting is, and the
+  // banner goes.
+  window_->checkSettingsSaved();
+  QVERIFY(!banner->isVisible());
+  QVERIFY(file.open(QIODevice::ReadOnly));
+  QVERIFY(file.readAll().contains("elsewhere"));
+  file.close();
+  saved::exportFolder().set(exportTo);
+  QCOMPARE(saved::settingsWriteError(), QString());
+#endif
 }
 
 // Untimed's hold of Space runs on the page's clock: it ticks only while

@@ -8,7 +8,10 @@
 
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QPainter>
 #include <QPalette>
 #include <QProxyStyle>
@@ -106,11 +109,32 @@ private:
 
 } // namespace
 
-void initSettingsStorage(bool migrate) {
+QString initSettingsStorage(bool migrate) {
   QSettings::setDefaultFormat(QSettings::IniFormat);
-  QSettings ini;
+  QSettings ini; // the first, so the one that reads the file
+  if (ini.status() == QSettings::FormatError) {
+    // What could be read is used, and the next change writes only that:
+    // a copy of the whole file is kept first.
+    QString file = QDir::toNativeSeparators(ini.fileName());
+    QString base = ini.fileName() + ".unreadable-" +
+                   QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
+    QString copy = base;
+    for (int i = 2; QFile::exists(copy); ++i) {
+      copy = base + "-" + QString::number(i);
+    }
+    return QFile::copy(ini.fileName(), copy)
+               ? QString("%1 has lines that can't be read. The settings "
+                         "that can are used, and the rest is dropped the "
+                         "next time a setting changes; the file as it was "
+                         "is kept as %2")
+                     .arg(file, QFileInfo(copy).fileName())
+               : QString("%1 has lines that can't be read. The settings "
+                         "that can are used, and the rest is dropped the "
+                         "next time a setting changes")
+                     .arg(file);
+  }
   if (!migrate || QFile::exists(ini.fileName())) {
-    return;
+    return {};
   }
   // Earlier versions used the native format: v-cube.conf on Linux, the
   // registry on Windows.
@@ -121,6 +145,7 @@ void initSettingsStorage(bool migrate) {
   for (const QString &key : keys) {
     ini.setValue(key, native.value(key));
   }
+  return {};
 }
 
 namespace {
