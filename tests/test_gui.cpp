@@ -3685,6 +3685,15 @@ int main(int argc, char **argv) {
   // to the test (Windows).
   QCoreApplication::addLibraryPath(QStringLiteral(VCUBE_QT_PLUGIN_DIR));
 #endif
+#ifdef Q_OS_WIN
+  // The offscreen platform looks for fonts next to Qt's libraries, where
+  // Qt ships none; without any, text is measured far wider than it is
+  // drawn and the layout checks fail. The system's fonts it is.
+  if (qEnvironmentVariableIsEmpty("QT_QPA_FONTDIR")) {
+    const QString windows = qEnvironmentVariable("WINDIR", "C:/Windows");
+    qputenv("QT_QPA_FONTDIR", QDir(windows).filePath("Fonts").toLocal8Bit());
+  }
+#endif
 
   QApplication app(argc, argv);
   QApplication::setOrganizationName("v-cube");
