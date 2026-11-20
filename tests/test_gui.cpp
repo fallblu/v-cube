@@ -410,6 +410,7 @@ private slots:
   void sidePanelHidesInANarrowWindow();
   void keyChipsAreClickable();
   void timedPhysicalSolve();
+  void backspaceAfterDeletingTheSession();
   void untimedVirtualSolve();
   void learnStartsACase();
   void quizAsksAmongLookAlikes();
@@ -1665,6 +1666,65 @@ void GuiTest::timedPhysicalSolve() {
   QTest::keyClick(window_.get(), Qt::Key_Escape);
   QTest::keyClick(window_.get(), Qt::Key_Backspace);
   QVERIFY(penalty() == Penalty::None);
+}
+
+// Deleting the current session puts another in its place in the list:
+// Backspace then doesn't mark that one's last solve.
+void GuiTest::backspaceAfterDeletingTheSession() {
+  OPEN_PAGE(timed, TimerPage, Timed);
+  auto *panel = timed->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  auto solve = [&] {
+    QVERIFY(holdSpaceUntilBusy(timed));
+    QTest::qWait(50);
+    QTest::keyClick(window_.get(), Qt::Key_A);
+    QVERIFY(!timed->isBusy());
+  };
+  auto answer = [](QWidget *m) {
+    if (auto *box = qobject_cast<QMessageBox *>(m)) {
+      box->button(QMessageBox::Yes)->click();
+    } else if (auto *dialog = qobject_cast<QDialog *>(m)) {
+      dialog->accept();
+    }
+  };
+  auto savedSessions = [this] {
+    finishBackgroundWrites();
+    SessionStore store(QDir(dataDir_).filePath("sessions.json"));
+    return store.load() ? store.sessions() : std::vector<Session>{};
+  };
+  const std::size_t before = savedSessions().size();
+  QVERIFY(before >= 1);
+  // Two new sessions after those there: a solve in the last, then one in
+  // the one before it, which is deleted.
+  for (int i = 0; i < 2; ++i) {
+    ModalWatcher watcher(answer);
+    emit panel->newSessionRequested();
+    QCOMPARE(watcher.seen.size(), 1);
+  }
+  solve();
+  emit panel->sessionChosen(before);
+  solve();
+  {
+    ModalWatcher watcher(answer);
+    emit panel->deleteSessionRequested();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  std::vector<Session> saved = savedSessions();
+  QCOMPARE(saved.size(), before + 1);
+  QCOMPARE(saved.back().solves.size(), std::size_t{1});
+  QVERIFY(saved.back().solves.back().penalty == Penalty::None);
+
+  // The sessions as they were, for the tests that follow.
+  {
+    ModalWatcher watcher(answer);
+    emit panel->deleteSessionRequested();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  emit panel->sessionChosen(0);
+  QCOMPARE(savedSessions().size(), before);
+  window_->activateWindow(); // the dialogs took it
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
 }
 
 void GuiTest::untimedVirtualSolve() {

@@ -453,6 +453,11 @@ void TimerPage::deleteSession() {
     return;
   }
   deleted_.forget();
+  // Another session now has the deleted one's place in the list: what was
+  // known of the last solve and of the rows shown was the deleted one's.
+  justSolved_ = false;
+  solveRows_.clear();
+  rowsShown_ = 0;
   selectSession(store_.currentIndex());
 }
 
