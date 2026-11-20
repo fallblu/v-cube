@@ -1,5 +1,6 @@
 #include "app/library_page.hpp"
 #include "app/library_private.hpp"
+#include "app/session_panel.hpp"
 
 namespace vcube {
 
@@ -93,14 +94,13 @@ void LibraryPage::newGroup() {
   if (!s) {
     return;
   }
-  bool ok = false;
-  QString name = QInputDialog::getText(this, tr("New group"), tr("Group name:"),
-                                       QLineEdit::Normal, QString(), &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name =
+      askSessionName(this, tr("New group"), tr("Group name:"), QString());
+  if (!name) {
     return;
   }
   auto pending = editor_.begin();
-  s->groups.push_back({ss(name.trimmed()), std::nullopt, {}});
+  s->groups.push_back({ss(*name), std::nullopt, {}});
   std::size_t added = s->groups.size() - 1;
   if (editor_.commit(tr("New group"), *pending)) {
     selectItems({}, {added});
@@ -126,16 +126,13 @@ void LibraryPage::renameSelected() {
   if (gi >= s->groups.size()) {
     return;
   }
-  bool ok = false;
-  QString name =
-      QInputDialog::getText(this, tr("Rename group"), tr("Group name:"),
-                            QLineEdit::Normal, qs(s->groups[gi].name), &ok);
-  if (!ok || name.trimmed().isEmpty() ||
-      ss(name.trimmed()) == s->groups[gi].name) {
+  std::optional<QString> name = askSessionName(
+      this, tr("Rename group"), tr("Group name:"), qs(s->groups[gi].name));
+  if (!name || ss(*name) == s->groups[gi].name) {
     return;
   }
   auto pending = editor_.begin();
-  s->groups[gi].name = ss(name.trimmed());
+  s->groups[gi].name = ss(*name);
   editor_.commit(tr("Rename group"), *pending);
 }
 

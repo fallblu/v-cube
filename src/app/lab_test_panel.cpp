@@ -1,5 +1,6 @@
 #include "app/lab_test_panel.hpp"
 #include "app/page_parts.hpp"
+#include "app/session_panel.hpp"
 #include "app/train_keys.hpp"
 
 #include "app/app_settings.hpp"
@@ -16,7 +17,6 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
-#include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
@@ -528,15 +528,14 @@ int LabTestPanel::addEntries(const std::vector<LabEntry> &entries) {
 
 void LabTestPanel::newSession() {
   cancelAttempt();
-  bool ok = false;
-  QString name = QInputDialog::getText(
-      this, tr("New test session"), tr("Name:"), QLineEdit::Normal,
-      tr("Session %1").arg(store_.sessions().size() + 1), &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name =
+      askSessionName(this, tr("New test session"), tr("Name:"),
+                     tr("Session %1").arg(store_.sessions().size() + 1));
+  if (!name) {
     return;
   }
   LabSession old = session();
-  LabSession &s = store_.addLabSession(name.trimmed().toStdString());
+  LabSession &s = store_.addLabSession(name->toStdString());
   // A new session keeps the last one's options.
   s.cube = old.cube;
   s.order = old.order;
@@ -550,16 +549,10 @@ void LabTestPanel::newSession() {
 }
 
 void LabTestPanel::renameSession() {
-  bool ok = false;
-  QString name =
-      QInputDialog::getText(this, tr("Rename session"), tr("Name:"),
-                            QLineEdit::Normal, qs(session().name), &ok);
-  if (!ok || name.trimmed().isEmpty()) {
-    return;
+  if (renameSessionAsked(this, session())) {
+    saveStore();
+    loadSessions();
   }
-  session().name = name.trimmed().toStdString();
-  saveStore();
-  loadSessions();
 }
 
 void LabTestPanel::deleteSession() {
