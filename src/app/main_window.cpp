@@ -569,12 +569,10 @@ void MainWindow::showStartupProblems() {
       dialog);
   more->setWordWrap(true);
   layout->addWidget(more);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
   QPushButton *folder =
-      buttons->addButton(tr("Open data folder"), QDialogButtonBox::ActionRole);
+      addButtonBox(dialog, layout, QDialogButtonBox::Close)
+          ->addButton(tr("Open data folder"), QDialogButtonBox::ActionRole);
   connect(folder, &QPushButton::clicked, this, &MainWindow::openDataFolder);
-  connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
-  layout->addWidget(buttons);
   dialog->resize(640, 360);
   dialog->show();
   dialog->raise();
@@ -1246,9 +1244,7 @@ void MainWindow::openDataFolder() {
     ++row;
   }
   layout->addLayout(grid);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  layout->addWidget(buttons);
+  addButtonBox(&dialog, layout, QDialogButtonBox::Close);
   dialog.exec();
 }
 

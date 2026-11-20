@@ -75,11 +75,8 @@ MoveSetDialog::MoveSetDialog(const MoveSet &set, QWidget *parent)
   layout->addLayout(form);
   error_ = new QLabel(this);
   layout->addWidget(error_);
-  auto *buttons =
-      new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-  connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-  layout->addWidget(buttons);
+  auto *buttons = addButtonBox(this, layout,
+                               QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
   connect(text_, &QLineEdit::textEdited, this, &MoveSetDialog::fromText);
   auto check = [this, buttons] {
     buttons->button(QDialogButtonBox::Ok)->setEnabled(!moveSet().empty());
@@ -215,11 +212,7 @@ ProfileDialog::ProfileDialog(const ErgoProfile &profile, QWidget *parent)
   tryRow->addWidget(tryAlg_, 1);
   tryRow->addWidget(tryScore_);
   layout->addLayout(tryRow);
-  auto *buttons =
-      new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-  connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-  layout->addWidget(buttons);
+  addButtonBox(this, layout, QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
   connect(tryAlg_, &QLineEdit::textChanged, this, &ProfileDialog::updateTry);
   connect(moves_, &QTableWidget::itemChanged, this, &ProfileDialog::updateTry);
   connect(rules_, &QTableWidget::itemChanged, this, &ProfileDialog::updateTry);
@@ -414,11 +407,7 @@ GripProfileDialog::GripProfileDialog(const ErgoProfile &profile,
   tryView_ = new GripView(this);
   layout->addWidget(tryView_);
 
-  auto *buttons =
-      new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-  connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-  layout->addWidget(buttons);
+  addButtonBox(this, layout, QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
   connect(tryAlg_, &QLineEdit::textChanged, this,
           &GripProfileDialog::updateTry);
@@ -555,12 +544,9 @@ LabCaseDialog::LabCaseDialog(const LabCase &c, const AlgLibrary &library,
   error_->setWordWrap(true);
   left->addWidget(error_);
   left->addStretch();
-  auto *buttons =
-      new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-  ok_ = buttons->button(QDialogButtonBox::Ok);
-  connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-  left->addWidget(buttons);
+  ok_ =
+      addButtonBox(this, left, QDialogButtonBox::Ok | QDialogButtonBox::Cancel)
+          ->button(QDialogButtonBox::Ok);
   layout->addLayout(left, 1);
   diagram_ = new QLabel(this);
   diagram_->setFixedSize(scaledToText(kLargeDiagram),

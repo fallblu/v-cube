@@ -138,18 +138,8 @@ void PracticePage::build() {
   detail_->setTextInteractionFlags(Qt::TextBrowserInteraction);
   detail_->setFocusPolicy(Qt::NoFocus);
   detail_->setOpenExternalLinks(false);
-  detailScroll_ = new QScrollArea(right);
-  detailScroll_->setFrameShape(QFrame::NoFrame);
-  detailScroll_->setWidgetResizable(true);
-  detailScroll_->setFocusPolicy(Qt::NoFocus);
-  detailScroll_->setWidget(detail_);
-  choiceScroll_ = new QScrollArea(right);
-  choiceScroll_->setFrameShape(QFrame::NoFrame);
-  choiceScroll_->setWidgetResizable(true);
-  choiceScroll_->setFocusPolicy(Qt::NoFocus);
-  if (QWidget *panel = choicePanel()) {
-    choiceScroll_->setWidget(panel);
-  }
+  detailScroll_ = scrollArea(detail_, right);
+  choiceScroll_ = scrollArea(choicePanel(), right); // none: stays empty
   choiceScroll_->hide();
 
   // One block centred in the height: the prompt, the cube, and right

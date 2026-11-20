@@ -437,20 +437,18 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     showTipsAsHelp(form);
   }
 
-  auto *buttons = new QDialogButtonBox(
-      QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel,
-      this);
-  connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &SettingsDialog::reject);
+  auto *layout = new QVBoxLayout(this);
+  layout->addWidget(tabs);
+  QDialogButtonBox *buttons =
+      addButtonBox(this, layout,
+                   QDialogButtonBox::Ok | QDialogButtonBox::Apply |
+                       QDialogButtonBox::Cancel);
   connect(buttons->button(QDialogButtonBox::Apply), &QPushButton::clicked, this,
           [this] {
             if (collect()) {
               emit applied(settings_);
             }
           });
-  auto *layout = new QVBoxLayout(this);
-  layout->addWidget(tabs);
-  layout->addWidget(buttons);
   resize(720, 640);
 }
 

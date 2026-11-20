@@ -8,10 +8,12 @@
 
 #include <QButtonGroup>
 #include <QComboBox>
+#include <QDialog>
 #include <QEvent>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSplitter>
 #include <QVBoxLayout>
 
@@ -267,68 +269,28 @@ QString keyHintsHtml(const QList<KeyHint> &keys, const QPalette &palette) {
   return parts.join(QStringLiteral(" &nbsp;&nbsp; "));
 }
 
-namespace {
-
-// Lets the chips of `label` that keyHintsHtml made links be clicked: the
-// click runs the action of that key of those `keys` returns.
-void makeChipsClickable(QLabel *label,
-                        std::function<const QList<KeyHint> &()> keys) {
-  label->setTextInteractionFlags(Qt::LinksAccessibleByMouse);
-  label->setFocusPolicy(Qt::NoFocus); // the keys stay with the page
-  label->setOpenExternalLinks(false);
-  QObject::connect(
-      label, &QLabel::linkActivated, label, [label, keys](const QString &link) {
-        if (!link.startsWith(QStringLiteral("chip:"))) {
-          return;
-        }
-        qsizetype i = link.mid(5).toLongLong();
-        const QList<KeyHint> &all = keys();
-        if (i < 0 || i >= all.size() || !all[i].click) {
-          return;
-        }
-        // Later: the action may change the chips.
-        QMetaObject::invokeMethod(label, all[i].click, Qt::QueuedConnection);
-      });
-}
-
-} // namespace
-
-KeyStrip::KeyStrip(QWidget *parent) : QLabel(parent) {
-  setAlignment(Qt::AlignCenter);
-  setWordWrap(true);
-  setTextFormat(Qt::RichText);
-  setForegroundRole(QPalette::PlaceholderText);
-  setProperty("vcubeHint", true);
-  makeChipsClickable(this,
-                     [this]() -> const QList<KeyHint> & { return keys_; });
-  setVisible(false);
-}
-
-void KeyStrip::setKeys(const QList<KeyHint> &keys) {
-  keys_ = keys;
-  render();
-}
-
-void KeyStrip::changeEvent(QEvent *e) {
-  QLabel::changeEvent(e);
-  if (e->type() == QEvent::PaletteChange) {
-    render();
-  }
-}
-
-void KeyStrip::render() {
-  setText(keyHintsHtml(keys_, palette()));
-  setVisible(!keys_.isEmpty());
-}
-
 HintBar::HintBar(QWidget *parent) : QLabel(parent) {
   setAlignment(Qt::AlignCenter);
   setWordWrap(true);
   setTextFormat(Qt::RichText);
   setForegroundRole(QPalette::PlaceholderText);
   setProperty("vcubeHint", true);
-  makeChipsClickable(this,
-                     [this]() -> const QList<KeyHint> & { return keys_; });
+  // The chips that keyHintsHtml made links can be clicked: the click runs
+  // the action of that key.
+  setTextInteractionFlags(Qt::LinksAccessibleByMouse);
+  setFocusPolicy(Qt::NoFocus); // the keys stay with the page
+  setOpenExternalLinks(false);
+  connect(this, &QLabel::linkActivated, this, [this](const QString &link) {
+    if (!link.startsWith(QStringLiteral("chip:"))) {
+      return;
+    }
+    qsizetype i = link.mid(5).toLongLong();
+    if (i < 0 || i >= keys_.size() || !keys_[i].click) {
+      return;
+    }
+    // Later: the action may change the chips.
+    QMetaObject::invokeMethod(this, keys_[i].click, Qt::QueuedConnection);
+  });
 }
 
 void HintBar::setHint(const QString &message, const QList<KeyHint> &keys) {
@@ -368,6 +330,24 @@ QSplitter *mainSplitter(QWidget *page, const QList<QWidget *> &widgets,
   }
   split->setSizes(sizes);
   return split;
+}
+
+QDialogButtonBox *addButtonBox(QDialog *dialog, QBoxLayout *layout,
+                               QDialogButtonBox::StandardButtons buttons) {
+  auto *box = new QDialogButtonBox(buttons, dialog);
+  QObject::connect(box, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
+  QObject::connect(box, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+  layout->addWidget(box);
+  return box;
+}
+
+QScrollArea *scrollArea(QWidget *content, QWidget *parent) {
+  auto *scroll = new QScrollArea(parent);
+  scroll->setWidget(content);
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  scroll->setFocusPolicy(Qt::NoFocus);
+  return scroll;
 }
 
 QPushButton *flatButton(const QString &text, QWidget *parent) {

@@ -237,13 +237,8 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   auto *gripBox = new QGroupBox(tr("Fingertricks"), tableSplit);
   auto *gripLayout = new QVBoxLayout(gripBox);
   // The fingertricks scroll in a low window rather than holding it high.
-  auto *gripScroll = new QScrollArea(gripBox);
-  gripScroll->setFrameShape(QFrame::NoFrame);
-  gripScroll->setWidgetResizable(true);
-  gripScroll->setFocusPolicy(Qt::NoFocus);
-  grips_ = new GripView(gripScroll);
-  gripScroll->setWidget(grips_);
-  gripLayout->addWidget(gripScroll);
+  grips_ = new GripView(gripBox);
+  gripLayout->addWidget(scrollArea(grips_, gripBox));
   tableSplit->addWidget(gripBox);
   tableSplit->setStretchFactor(0, 1);
   tableSplit->setStretchFactor(1, 0);
