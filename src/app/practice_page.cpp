@@ -94,15 +94,19 @@ void PracticePage::build() {
   addButtons(options_);
   rightLayout->addWidget(options_);
 
-  prompt_ = new QLabel(right);
-  prompt_->setAlignment(Qt::AlignCenter);
-  prompt_->setWordWrap(true);
+  // The lines of the block under the options: centred, and wrapped.
+  auto line = [right](const char *name) {
+    auto *label = new QLabel(right);
+    label->setObjectName(name);
+    label->setAlignment(Qt::AlignCenter);
+    label->setWordWrap(true);
+    return label;
+  };
+  prompt_ = line("");
   prompt_->setTextFormat(Qt::RichText);
   setTextRole(prompt_, TextRole::Title);
 
-  scrambleLabel_ = new QLabel(right);
-  scrambleLabel_->setAlignment(Qt::AlignCenter);
-  scrambleLabel_->setWordWrap(true);
+  scrambleLabel_ = line("");
   scrambleLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   markScrambleLabel(scrambleLabel_);
 
@@ -118,29 +122,18 @@ void PracticePage::build() {
   driver_.setDisplay(display_);
   // A hint asked for is what is being looked for: under the cube, as large
   // as an alg being done.
-  requestedHint_ = new QLabel(right);
-  requestedHint_->setObjectName("practiceHint");
-  requestedHint_->setAlignment(Qt::AlignCenter);
-  requestedHint_->setWordWrap(true);
+  requestedHint_ = line("practiceHint");
   requestedHint_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   setTextRole(requestedHint_, TextRole::Title, true);
   requestedHint_->hide();
   hint_ = new HintBar(right);
-  verdict_ = new QLabel(right);
-  verdict_->setObjectName("practiceVerdict");
-  verdict_->setAlignment(Qt::AlignCenter);
-  verdict_->setWordWrap(true);
+  verdict_ = line("practiceVerdict");
   verdict_->setTextFormat(Qt::RichText);
   setTextRole(verdict_, TextRole::Heading);
-  progressLabel_ = new QLabel(right);
-  progressLabel_->setObjectName("practiceProgress");
-  progressLabel_->setAlignment(Qt::AlignCenter);
-  progressLabel_->setWordWrap(true);
+  progressLabel_ = line("practiceProgress");
   progressLabel_->setTextFormat(Qt::RichText);
-  detail_ = new QLabel(right);
-  detail_->setObjectName("practiceDetail");
+  detail_ = line("practiceDetail");
   detail_->setTextFormat(Qt::RichText);
-  detail_->setWordWrap(true);
   detail_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
   detail_->setTextInteractionFlags(Qt::TextBrowserInteraction);
   detail_->setFocusPolicy(Qt::NoFocus);
