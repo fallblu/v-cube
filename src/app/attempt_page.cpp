@@ -1,26 +1,18 @@
 #include "app/attempt_page.hpp"
-#include "app/page_parts.hpp"
 
 #include "app/colours.hpp"
 #include "app/cube_view.hpp"
-#include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
 #include "app/train_keys.hpp"
 #include "app/ui_text.hpp"
-#include "io/data_file.hpp"
 #include "train/optimal_cache.hpp"
 
 #include <QApplication>
-#include <QComboBox>
-#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
-#include <QSplitter>
-#include <QToolButton>
-#include <QVBoxLayout>
 
 #include <algorithm>
 

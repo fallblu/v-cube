@@ -1,30 +1,14 @@
 #include "app/timer_page.hpp"
 
+#include "app/cube_view.hpp"
 #include "app/key_router.hpp"
 #include "app/page_parts.hpp"
-#include "app/timer_private.hpp"
-
-#include "app/cube_view.hpp"
-#include "app/review_dialog.hpp"
 #include "app/ui_state.hpp"
-#include "io/data_file.hpp"
-#include "train/step_solver.hpp"
 
 #include <QApplication>
-#include <QClipboard>
-#include <QComboBox>
-#include <QFile>
-#include <QFileDialog>
-#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QMenu>
-#include <QMessageBox>
 #include <QPushButton>
-#include <QSplitter>
-#include <QToolButton>
-#include <QVBoxLayout>
-#include <QtConcurrent/QtConcurrentRun>
 
 namespace vcube {
 
@@ -502,7 +486,7 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
   for (const NewBest &b : newBests(session().solves, unit)) {
     bests << tr("%1 %2")
                  .arg(qs(b.name))
-                 .arg(statText(b.value, settings_.decimals));
+                 .arg(qs(formatTime(b.value, settings_.decimals)));
   }
   if (!bests.isEmpty()) {
     QString text = tr("New best: %1!").arg(bests.join(", "));

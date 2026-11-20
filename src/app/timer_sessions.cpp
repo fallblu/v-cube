@@ -1,33 +1,36 @@
-#include "app/page_parts.hpp"
 #include "app/timer_page.hpp"
-#include "app/timer_private.hpp"
 
 #include "app/review_dialog.hpp"
-#include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
-#include "io/data_file.hpp"
-#include "train/step_solver.hpp"
 
-#include <QApplication>
-#include <QClipboard>
-#include <QComboBox>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
-#include <QHBoxLayout>
-#include <QKeyEvent>
-#include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
-#include <QPushButton>
-#include <QSplitter>
-#include <QToolButton>
-#include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace vcube {
 
 namespace {
+
+QString statText(StatValue v, int decimals) {
+  return QString::fromStdString(formatTime(v, decimals));
+}
+
+// The table's columns. Those after ao12 are for virtual sessions.
+enum Column : int {
+  kNumber,
+  kTime,
+  kAo5,
+  kAo12,
+  kMoves,
+  kTps,
+  kCross,
+  kF2l,
+  kLl,
+  kColumns
+};
 
 SolveSplits computeSplits(const Solve &s, bool simplified) {
   ParseResult scramble = parseAlg(s.scramble);

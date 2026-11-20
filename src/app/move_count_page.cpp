@@ -2,16 +2,12 @@
 #include "app/eo_cross_check.hpp"
 #include "app/page_parts.hpp"
 
-#include "app/flow_layout.hpp"
 #include "app/review_dialog.hpp"
 #include "app/text_style.hpp"
 #include "train/step_solver.hpp"
 
 #include <QComboBox>
-#include <QHBoxLayout>
 #include <QLabel>
-#include <QPushButton>
-#include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace vcube {

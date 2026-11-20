@@ -4,8 +4,6 @@
 #include "app/cube_view.hpp"
 #include "app/review_dialog.hpp"
 #include "app/ui_text.hpp"
-#include "train/solve_review.hpp"
-#include "train/step_solver.hpp"
 
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -13,7 +11,6 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
-#include <QtConcurrent/QtConcurrentRun>
 
 namespace vcube {
 
