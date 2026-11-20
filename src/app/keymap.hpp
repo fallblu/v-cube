@@ -36,7 +36,8 @@ public:
 
   // "I=R", "Shift+H=S", ... for settings storage and the editor.
   QStringList toStrings() const;
-  static Keymap fromStrings(const QStringList &lines);
+  // Lines that can't be read are left out, and counted in `dropped`.
+  static Keymap fromStrings(const QStringList &lines, int *dropped = nullptr);
 
   static QString keyText(int key, bool shift);
   // Why a key can't turn the cube (the modes or the window use it), or an

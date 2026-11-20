@@ -3,6 +3,7 @@
 #include "app/case_page.hpp"
 #include "app/cube_view.hpp"
 #include "app/page_parts.hpp"
+#include "app/timed_driver.hpp"
 #include "app/widgets.hpp"
 #include "train/case_picker.hpp"
 #include "train/drill_flow.hpp"
@@ -63,7 +64,7 @@ namespace vcube {
 // unrecorded: once with the algs shown, then without them (going on by
 // itself as each is solved). Backspace toggles the DNF, and Delete deletes
 // the attempt, until the next case.
-class DrillPage : public CasePage {
+class DrillPage : public CasePage, private TimedHost {
   Q_OBJECT
 public:
   DrillPage(AppSettings &settings, AlgLibrary &library,
@@ -134,7 +135,8 @@ private:
 
   CasePicker picker_;
   // The attempt's state: the timer, the phase and how the case went.
-  DrillFlow flow_;
+  TimedDriver driver_{*this, settings_.drill};
+  DrillFlow &flow_ = driver_.flow();
   QTimer tick_;
   std::optional<Current> current_;
   QFutureWatcher<GeneratedScramble> watcher_;
@@ -142,6 +144,13 @@ private:
   QString missText_; // why a virtual attempt was a DNF
   DrillSession session_;
   std::optional<std::size_t> sessionIndex_; // the current attempt's
+  // The attempt just deleted, and its session row if that went too.
+  struct Deleted {
+    std::string caseId;
+    Attempt attempt;
+    std::optional<SessionAttempt> row;
+  };
+  std::optional<Deleted> deleted_;
   std::size_t recapFrom_ = 0; // the session's first attempt of the recap
   int retryDepth_ = 0;
 
@@ -171,9 +180,6 @@ private:
   void showCubeKind();
   DrillFlow::Config flowConfig() const;
   DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
-  // Does what the flow asked after a key.
-  void perform(const DrillFlow::Step &step, std::int64_t now);
-  QString hintText(DrillFlow::Hint hint) const;
   // The status line and, under it, the keys that do something now.
   void say(const QString &message, const QList<KeyHint> &keys = {});
   Pool poolChoice() const;
@@ -197,19 +203,31 @@ private:
   void onTick();
   // Locks the set, cube, case and order choices while a solve runs.
   void updateControls();
-  // Nothing is recorded; the same case is set up to try again.
-  void cancelSolve(const QString &why);
-  // Virtual, while the timer runs: turns the cube, and stops the timer if
-  // that did the step and the timer stops by itself.
-  void runningTurn(Move m, std::int64_t now);
+  // What the flow asks for (see TimedHost).
+  void timedNext(bool fromIdle) override;
+  void timedRetry() override { retryCase(); }
+  void timedResetCube() override { resetCube(); }
+  void timedRotate(Move m) override;
+  void timedStarted(std::int64_t now) override;
+  std::optional<DrillFlow::Turn> timedTurn(Move m, std::int64_t now) override;
+  bool timedStepDone() override { return stepDone(); }
+  void timedFinish(std::int64_t ms, DrillFlow::Result result) override {
+    finish(ms, result);
+  }
+  void timedPractise(bool aided) override { startPractice(aided); }
+  void timedPracticeTurn(Move m) override { practiceTurn(m); }
+  void timedToggleWrong() override { setWrong(!flow_.failed()); }
+  void timedDelete() override { deleteAttempt(); }
+  void timedRestore() override { restoreAttempt(); }
+  void timedFinishAnimations() override;
+  void timedShowKeys() override { showStatus(); }
+  void timedSay(const QString &text) override;
+  void timedCancelled(const QString &why) override;
   // The virtual cube as the solver sees it.
   std::optional<CubieCube> cubeState() const;
   // Whether the virtual cube shows the current case's step done.
   bool stepDone() const;
   void finish(std::int64_t timeMs, DrillFlow::Result result);
-  // Gives the case up before or during the solve: a DNF.
-  void giveUp(std::int64_t now);
-  QString giveUpKeyText() const;
   // Sets the same case up again to solve with no timer and nothing
   // recorded, with the algs shown (aided) or hidden.
   void startPractice(bool aided);
@@ -217,8 +235,10 @@ private:
   void practiceTurn(Move m);
   void setWrong(bool wrong);
   // Deletes the attempt just recorded; one given up before the timer
-  // started is taken back, and the case set up as before.
+  // started is taken back, and the case set up as before. Anything else
+  // is kept until the next case, for Ctrl+Z to put back.
   void deleteAttempt();
+  void restoreAttempt();
   // Clears the drill times of the cases in this cube's drill mode.
   void clearTimes(const std::vector<std::string> &caseIds);
   QString caseName(const std::string &caseId) const;

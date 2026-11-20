@@ -41,7 +41,6 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
   algRow->addWidget(applyButton);
   algLayout->addLayout(algRow);
   algError_ = new QLabel(algPanel_);
-  algError_->setStyleSheet("color: " + kFailColour.name());
   algError_->setVisible(false);
   algLayout->addWidget(algError_);
   addBelowCentre(algPanel_);
@@ -168,7 +167,11 @@ QString UntimedPage::scrambleText(const GeneratedScramble &s) const {
   return tr("%1\n(done %2 back)").arg(s.text).arg(history_.stepsBack());
 }
 
-void UntimedPage::settingsApplied() { algs_->refresh(); }
+void UntimedPage::settingsApplied() {
+  algs_->refresh();
+  // An error shown across a change of theme takes the new theme's red.
+  algError_->setStyleSheet("color: " + kFailColour.name());
+}
 
 void UntimedPage::typesRefreshed() { algs_->refresh(); }
 
@@ -229,6 +232,8 @@ void UntimedPage::applyAlg() {
   }
   ParseResult parsed = parseAlg(ss(text));
   if (!parsed) {
+    // Coloured when shown, so that it follows a change of theme.
+    algError_->setStyleSheet("color: " + kFailColour.name());
     algError_->setText(tr("Can't read this alg at character %1: %2")
                            .arg(parsed.error->position + 1)
                            .arg(qs(parsed.error->message)));

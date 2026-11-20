@@ -1,5 +1,5 @@
 #include "app/alglab_page.hpp"
-#include "app/alglab_page_private.hpp"
+#include "app/alglab_private.hpp"
 #include "app/ui_state.hpp"
 
 #include "app/alglab_dialogs.hpp"
@@ -7,6 +7,7 @@
 #include "app/grip_view.hpp"
 #include "app/lab_test_panel.hpp"
 #include "app/page_parts.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 #include "io/algset_json.hpp"
@@ -42,7 +43,7 @@ namespace vcube {
 
 namespace {
 
-constexpr int kDiagramSize = 110;
+int diagramSize() { return scaledToText(kSmallDiagram); }
 
 // The move-set drop-downs: each item holds its move set's text, "custom"
 // opens the dialog.
@@ -126,7 +127,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   auto *sl = new QVBoxLayout(search);
   auto *head = new QHBoxLayout;
   diagram_ = new QLabel(search);
-  diagram_->setFixedSize(kDiagramSize, kDiagramSize);
+  diagram_->setFixedSize(diagramSize(), diagramSize());
   diagram_->setAlignment(Qt::AlignCenter);
   caseTitle_ = new QLabel(search);
   caseTitle_->setWordWrap(true);
@@ -183,7 +184,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
       saveStore();
       fillProfiles();
       // The box fell back to another profile: that is the one chosen now.
-      saved::lab("scoreProfile").set(profileBox_->currentText());
+      setScoreProfileName(profileBox_->currentText());
       scoreCache_.clear();
       fillTable();
     }
@@ -487,7 +488,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   }
   connect(profileBox_, &QComboBox::currentIndexChanged, this, [this] {
     if (!loading_) {
-      saved::lab("scoreProfile").set(profileBox_->currentText());
+      setScoreProfileName(profileBox_->currentText());
       scoreCache_.clear();
       fillTable();
     }
@@ -500,15 +501,18 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     saved::lab("noRotations").set(on);
     fillTable();
   });
-  connect(maxHtm_, &QSpinBox::valueChanged, this, [this](int v) {
-    saved::lab("maxHtm").set(v);
-    fillTable();
+  // Holding a spin box's arrow steps it many times a second, and each save
+  // rewrites the settings file: the values are saved once it has paused,
+  // and the table is filled again then too.
+  spinSaveTimer_.setSingleShot(true);
+  spinSaveTimer_.setInterval(400);
+  connect(&spinSaveTimer_, &QTimer::timeout, this, &AlgLabPage::saveSpinBoxes);
+  connect(maxHtm_, &QSpinBox::valueChanged, this, [this] {
+    spinSaveTimer_.start();
+    refreshTimer_.start();
   });
   auto keepGen = [this] {
-    saved::lab("lengthMode").set(lengthMode_->currentIndex());
-    saved::lab("extra").set(extra_->value());
-    saved::lab("maxLength").set(maxLength_->value());
-    saved::lab("maxResults").set(maxResults_->value());
+    spinSaveTimer_.start();
     updateGenControls();
   };
   connect(lengthMode_, &QComboBox::currentIndexChanged, this, keepGen);
@@ -553,10 +557,22 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
 }
 
 AlgLabPage::~AlgLabPage() {
+  if (spinSaveTimer_.isActive()) {
+    saveSpinBoxes();
+  }
   if (job_) {
     job_->stop = true;
   }
   jobFuture_.waitForFinished();
+}
+
+void AlgLabPage::saveSpinBoxes() {
+  spinSaveTimer_.stop();
+  saved::lab("maxHtm").set(maxHtm_->value());
+  saved::lab("lengthMode").set(lengthMode_->currentIndex());
+  saved::lab("extra").set(extra_->value());
+  saved::lab("maxLength").set(maxLength_->value());
+  saved::lab("maxResults").set(maxResults_->value());
 }
 
 void AlgLabPage::saveStore() {
@@ -641,6 +657,9 @@ void AlgLabPage::applySettings() {
 bool AlgLabPage::isBusy() const { return test_->isBusy(); }
 
 void AlgLabPage::aboutToClose() {
+  if (spinSaveTimer_.isActive()) {
+    saveSpinBoxes();
+  }
   if (!job_) {
     return;
   }
@@ -649,6 +668,10 @@ void AlgLabPage::aboutToClose() {
   job_->stop = true;
   jobFuture_.waitForFinished();
   QCoreApplication::sendPostedEvents(this, QEvent::MetaCall);
+}
+
+QString AlgLabPage::workStoppedOnClose() const {
+  return job_ ? tr("Alg Lab's search") : QString();
 }
 
 void AlgLabPage::activated() {
@@ -796,7 +819,7 @@ void AlgLabPage::showCase(const std::optional<LabCaseKey> &k) {
     return;
   }
   diagram_->setPixmap(
-      labDiagram(*case_, settings_, kDiagramSize, devicePixelRatioF()));
+      labDiagram(*case_, settings_, diagramSize(), devicePixelRatioF()));
   QString free = qs(freeToString(case_->free));
   QStringList aufs;
   if (case_->aufBefore) {
@@ -892,9 +915,8 @@ void AlgLabPage::deleteLabCase() {
 // --- candidates -------------------------------------------------------------
 
 void AlgLabPage::fillProfiles() {
-  QString want = profileBox_->count() > 0
-                     ? profileBox_->currentText()
-                     : saved::lab("scoreProfile").get().toString();
+  QString want = profileBox_->count() > 0 ? profileBox_->currentText()
+                                          : scoreProfileName();
   loading_ = true;
   profileBox_->clear();
   for (const auto &p : store_.profiles()) {
@@ -957,7 +979,7 @@ void AlgLabPage::editProfile(ProfileEdit edit) {
   }
   profileBox_->setCurrentText(qs(edited.name));
   loading_ = false;
-  saved::lab("scoreProfile").set(qs(edited.name));
+  setScoreProfileName(qs(edited.name));
   scoreCache_.clear();
   fillTable();
 }

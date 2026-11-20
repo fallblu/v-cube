@@ -3,7 +3,6 @@
 #include "app/cube_view.hpp"
 #include "app/flow_layout.hpp"
 #include "app/scramble_source.hpp"
-#include "app/session_panel.hpp"
 #include "app/text_style.hpp"
 #include "app/widgets.hpp"
 
@@ -240,8 +239,11 @@ int SegmentedPicker::findData(const QVariant &value) const {
 }
 
 QString keyHintsHtml(const QList<KeyHint> &keys, const QPalette &palette) {
-  // A chip: the key on a slightly raised background, in the text colour.
+  // A chip: the key on a raised background, in the text colour. The
+  // button colour is a step further from the window, which it is close to.
   QColor chip = palette.color(QPalette::Button);
+  chip = palette.color(QPalette::Window).lightness() >= 128 ? chip.darker(108)
+                                                            : chip.lighter(120);
   QColor key = palette.color(QPalette::ButtonText);
   QStringList parts;
   for (qsizetype i = 0; i < keys.size(); ++i) {
@@ -351,6 +353,12 @@ void HintBar::render() {
   }
   setText(html);
   setVisible(!html.isEmpty());
+}
+
+QPushButton *flatButton(const QString &text, QWidget *parent) {
+  auto *b = new QPushButton(text, parent);
+  b->setFocusPolicy(Qt::NoFocus);
+  return b;
 }
 
 } // namespace vcube

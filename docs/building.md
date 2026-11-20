@@ -25,6 +25,13 @@ cmake --build --preset release
 ./build/release/src/app/v-cube
 ```
 
+The apt line needs Ubuntu 25.04+ or Debian 13+: Ubuntu 24.04 LTS (the
+default WSL distro) ships Qt 6.4, and configure then stops with "Could not
+find a configuration file for package Qt6". There, install Qt 6.5+ with
+[aqtinstall](https://github.com/miurahr/aqtinstall) or the Qt installer and
+pass its folder, e.g. `cmake --preset release
+-DCMAKE_PREFIX_PATH=$HOME/Qt/6.8.3/gcc_64`.
+
 `cmake --install build/release --prefix ~/.local` installs the app with its
 desktop entry, icons and docs.
 
@@ -37,9 +44,25 @@ preset of the same name.
 | --- | --- | --- |
 | `debug` | Debug | |
 | `release` | Release | |
-| `asan` | Debug | AddressSanitizer and UBSan |
+| `asan` | Debug | AddressSanitizer and UBSan (which stops at the first error) |
 | `windows-debug` | Debug | MSVC, Windows hosts only; installs into `install/windows-debug` |
 | `windows-release` | Release | MSVC, Windows hosts only; installs into `install/windows-release` |
+
+## Running a dev build
+
+A build you are testing should never touch your real data. Give it a
+folder of its own:
+
+```bash
+./build/debug/src/app/v-cube --data-dir /tmp/vc
+```
+
+The data files go in that folder and the settings in
+`settings/v-cube/v-cube.ini` inside it, so the single-instance lock is
+there too and the build starts even while the installed app is open. A
+relative folder is taken from the current one. Setting `VCUBE_HOME` does
+the same (`--data-dir` wins over it), and works on Windows as well.
+`--help` lists the options and `--version` prints the version.
 
 ## Tests
 
@@ -60,6 +83,17 @@ There are two test programs:
   also checks that `docs/keys.md` matches the key table in
   `src/app/help_text.cpp`; run it once with `VCUBE_WRITE_DOCS=1` to rewrite
   the file after changing the table.
+
+The GUI test is one ctest entry (`gui`). To run the unit tests alone, or
+one GUI test function (the program sets the offscreen platform and its
+temporary folders itself):
+
+```bash
+ctest --preset debug -E gui
+build/debug/tests/vcube_gui_tests modesSwitch
+```
+
+`vcube_gui_tests -functions` lists the functions.
 
 Under `asan`, LeakSanitizer uses `tests/lsan.supp` for a leak inside Qt.
 
@@ -88,7 +122,20 @@ CI checks every `.cpp` and `.hpp` against `.clang-format` with clang-format
 
 ```bash
 pipx install clang-format==21.1.8
+# Check, as CI does:
 git ls-files -z '*.cpp' '*.hpp' | xargs -0 clang-format --dry-run --Werror
+# Fix:
+git ls-files -z '*.cpp' '*.hpp' | xargs -0 clang-format -i
+```
+
+## Editor setup
+
+Every preset writes `compile_commands.json` into `build/<preset>/`. For
+clangd, link the one you build from to the source root (the link is
+ignored by git):
+
+```bash
+ln -s build/debug/compile_commands.json
 ```
 
 ## Windows
@@ -182,20 +229,37 @@ cmake --install build/release --prefix AppDir/usr
 Pushing a tag such as `v0.2.0` runs `.github/workflows/release.yml`, which
 builds and tests the AppImage and the Windows zip (Qt 6.8, warnings as
 errors) and attaches them to a GitHub release. Run by hand, it builds both
-without publishing.
+without publishing. The AppImage has the xcb and Wayland platform plugins,
+and linuxdeploy is pinned to a release (`LINUXDEPLOY_TAG` and
+`LINUXDEPLOY_QT_TAG` in the workflow).
 
 ## CI
 
-`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests.
+`.github/workflows/ci.yml` runs only Format and Linux GCC on pushes to
+`main` and on pull requests; the other jobs run on a manual run and weekly
+when `main` has changed that week. A green push is therefore not a pass
+of Clang, the sanitizers, Qt 6.5 or MSVC. A change to docs only
+(Markdown, `docs/`, `LICENSE`) skips CI, except one to `docs/keys.md`,
+which the GUI test checks.
+
+On push and pull request, and on a manual run (Linux GCC weekly as well):
 
 | Job | What it does |
 | --- | --- |
 | Format | clang-format 21.1.8 |
 | Linux GCC | g++ 14, Qt 6.8.3 with Qt Multimedia, Debug, warnings as errors, tests |
-| Linux Clang | clang++ 18, otherwise the same |
-| Linux ASan + UBSan | g++ 14, Qt 6.8.3 without Qt Multimedia, sanitizers on |
+
+On a manual run, and weekly when `main` changed:
+
+| Job | What it does |
+| --- | --- |
+| Linux Clang | clang++ 18, otherwise as Linux GCC |
+| Linux ASan + UBSan | g++ 14, Qt 6.8.3 without Qt Multimedia, sanitizers on; undefined behaviour fails the test |
 | Linux Qt 6.5 | g++ 13 and Qt 6.5.3 (the oldest accepted), without Qt Multimedia |
 | Windows MSVC | `windows-release` with warnings as errors, tests and `cpack`; the zip is kept as an artifact |
+
+Start a full run with `gh workflow run ci.yml` (add `--ref <branch>` for
+another branch) or from the Actions tab.
 
 ## Source layout
 
@@ -207,3 +271,19 @@ without publishing.
 | `src/app` | The Qt Widgets UI: `vcube_gui` (everything but `main`) and `main.cpp`. |
 | `tests` | The Catch2 unit tests and the GUI test. |
 | `resources` | Built-in alg sets, icons, the Windows version resource and the Linux desktop entry. |
+
+### Adding a mode
+
+1. Add the enumerator to `AppMode::Id` in `src/app/mode_table.hpp`, before
+   `Today` or after it with `Count` updated.
+2. In `src/app/mode_table.cpp`, add it to `kModes` (settings id and label,
+   in enum order), `kAll` (enum order) and `kSidebarOrder`; `static_assert`s
+   there fail if one is short. Add it to the switch in `sidebarHeader` and,
+   if it needs one, to `menuSeparatorAfter`.
+3. Create the page in `MainWindow`'s constructor and add it to the table
+   that fills `pages_` (`src/app/main_window.cpp`), and to the page list of
+   `GuiTest::modesSwitch` in `tests/test_gui.cpp`.
+4. Give it a section in the key table in `src/app/help_text.cpp`, then
+   regenerate `docs/keys.md` (see [Tests](#tests)).
+5. If it records activity, add a row to Today's mode table
+   (`src/app/today_page.cpp`).

@@ -1,5 +1,6 @@
 #include "app/set_properties_dialog.hpp"
 #include "app/page_parts.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_text.hpp"
 
 #include "train/case_logic.hpp"
@@ -38,7 +39,7 @@ const std::array<Preset, 5> kPresets = {{
     {"Whole last layer free (F2L, last slot)", "LL:po"},
 }};
 
-constexpr int kPreviewSize = 150;
+int previewSize() { return scaledToText(kLargeDiagram); }
 
 QComboBox *maskCombo(QWidget *parent) {
   auto *c = new QComboBox(parent);
@@ -231,7 +232,7 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   // The diagram of a case of the scope, as these settings draw it.
   auto *previewBox = new QVBoxLayout;
   preview_ = new QLabel(step);
-  preview_->setFixedSize(kPreviewSize, kPreviewSize);
+  preview_->setFixedSize(previewSize(), previewSize());
   preview_->setAlignment(Qt::AlignCenter);
   previewName_ = new QLabel(step);
   previewName_->setAlignment(Qt::AlignCenter);
@@ -509,7 +510,7 @@ void SetPropertiesDialog::updatePreview() {
     CaseAnalysis a = analyzeCase(edited, *g, *c);
     preview_->setPixmap(cube_painter::diagram(
         maskedFacelets(a.display, spec.mask, spec.free), spec.view,
-        kPreviewSize, look_, devicePixelRatioF()));
+        previewSize(), look_, devicePixelRatioF()));
     previewName_->setText(previewCases_.size() > 1
                               ? tr("%1 (%2 of %3)")
                                     .arg(qs(c->name))

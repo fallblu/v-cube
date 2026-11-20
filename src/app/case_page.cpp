@@ -56,38 +56,6 @@ public:
 
 } // namespace
 
-QString dueText(const CaseProgress *p, std::int64_t now, std::int64_t dayEnd) {
-  if (!p || p->card.state == CardState::New) {
-    return "-";
-  }
-  std::int64_t d = p->card.due - now;
-  if (d <= 0) {
-    return QObject::tr("now");
-  }
-  if (p->card.state == CardState::Review && p->card.due < dayEnd) {
-    return QObject::tr("today");
-  }
-  if (d < 3600) {
-    return QObject::tr("%1 min").arg((d + 59) / 60);
-  }
-  if (d < 86400) {
-    return QObject::tr("%1 h").arg((d + 1799) / 3600);
-  }
-  return QObject::tr("%1 d").arg((d + 43199) / 86400);
-}
-
-QString skippedText(int cases) {
-  return cases == 1 ? QObject::tr("1 case without a passing alg is skipped.")
-                    : QObject::tr("%1 cases without a passing alg are skipped.")
-                          .arg(cases);
-}
-
-QString secondsText(std::optional<double> ms) {
-  // Truncated to hundredths, as the timer shows times.
-  return ms ? QString::number(std::floor(*ms / 10.0) / 100.0, 'f', 2)
-            : QString("-");
-}
-
 CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
                    QWidget *parent)
     : ModePage(parent), settings_(settings), library_(library),
@@ -147,7 +115,7 @@ void CasePage::init() {
   applySettings();
   populateSets();
   QString last = saved::caseSet(mode_);
-  if (last == kAcrossSetsId && offersAcrossSets()) {
+  if (last == saved::kAcrossSetsId && offersAcrossSets()) {
     setId_ = ss(saved::shownSet(mode_).get());
     selectAcrossSets();
     return;
@@ -338,7 +306,7 @@ void CasePage::populateSets() {
   QSignalBlocker block(setBox_);
   setBox_->clear();
   if (offersAcrossSets()) {
-    setBox_->addItem(acrossItemText(), QString(kAcrossSetsId));
+    setBox_->addItem(acrossItemText(), QString(saved::kAcrossSetsId));
     setBox_->insertSeparator(1);
   }
   for (const auto &s : library_.sets()) {
@@ -349,7 +317,7 @@ void CasePage::populateSets() {
 void CasePage::refreshSetLabels() {
   for (int i = 0; i < setBox_->count(); ++i) {
     std::string id = ss(setBox_->itemData(i).toString());
-    if (id == kAcrossSetsId) {
+    if (id == saved::kAcrossSetsId) {
       setBox_->setItemText(i, acrossItemText());
     } else if (const AlgSet *s = library_.find(id)) {
       setBox_->setItemText(i, setItemText(*s));
@@ -369,7 +337,7 @@ void CasePage::reloadSets() {
     id = library_.sets().empty() ? std::string() : library_.sets().front().id;
   }
   if (acrossSets_) {
-    setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
+    setBox_->setCurrentIndex(setBox_->findData(QString(saved::kAcrossSetsId)));
     setId_ = id;
     computeInfo();
     buildTree();
@@ -388,7 +356,7 @@ void CasePage::pickSet(const QString &setId) {
   if (setBox_->findData(setId) < 0) {
     return;
   }
-  if (setId == kAcrossSetsId) {
+  if (setId == saved::kAcrossSetsId) {
     selectAcrossSets();
   } else {
     selectSet(ss(setId));
@@ -417,8 +385,8 @@ void CasePage::selectAcrossSets() {
     setId_ =
         library_.sets().empty() ? std::string() : library_.sets().front().id;
   }
-  saved::setCaseSet(mode_, QString(kAcrossSetsId));
-  setBox_->setCurrentIndex(setBox_->findData(QString(kAcrossSetsId)));
+  saved::setCaseSet(mode_, QString(saved::kAcrossSetsId));
+  setBox_->setCurrentIndex(setBox_->findData(QString(saved::kAcrossSetsId)));
   computeInfo(Info::Cached);
   buildTree();
   startSet();

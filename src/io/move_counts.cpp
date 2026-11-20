@@ -41,43 +41,37 @@ std::vector<MoveCountSession> MoveCountStore::defaults() const {
   return defaultMoveCountSessions(mode_);
 }
 
-QJsonObject MoveCountStore::toJson() const {
-  return moveCountsToJson(sessions_, current_, mode_);
+namespace {
+
+QJsonObject attemptToJson(const MoveCountAttempt &a) {
+  QJsonObject o{{"scramble", qs(a.scramble)},
+                {"timestamp", static_cast<double>(a.timestamp)}};
+  if (a.counted) {
+    o["moves"] = a.moves;
+  }
+  if (a.dnf) {
+    o["dnf"] = true;
+  }
+  if (!a.comment.empty()) {
+    o["comment"] = qs(a.comment);
+  }
+  if (!a.solution.empty()) {
+    o["solution"] = qs(a.solution);
+  }
+  return o;
 }
 
-void MoveCountStore::fromJson(const QJsonObject &o) {
-  std::size_t current = 0;
-  std::vector<MoveCountSession> sessions =
-      moveCountsFromJson(o, &current, mode_);
-  assign(std::move(sessions), current);
-}
-
-QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,
-                             std::size_t current, SolveLog mode) {
+// The file, with each session's attempts from `attemptsJson`.
+template <typename AttemptsJson>
+QJsonObject moveCountsJson(const std::vector<MoveCountSession> &sessions,
+                           std::size_t current, SolveLog mode,
+                           AttemptsJson attemptsJson) {
   QJsonArray arr;
   for (const auto &s : sessions) {
-    QJsonArray attempts;
-    for (const auto &a : s.attempts) {
-      QJsonObject o{{"scramble", qs(a.scramble)},
-                    {"timestamp", static_cast<double>(a.timestamp)}};
-      if (a.counted) {
-        o["moves"] = a.moves;
-      }
-      if (a.dnf) {
-        o["dnf"] = true;
-      }
-      if (!a.comment.empty()) {
-        o["comment"] = qs(a.comment);
-      }
-      if (!a.solution.empty()) {
-        o["solution"] = qs(a.solution);
-      }
-      attempts.append(o);
-    }
     QJsonObject so{{"name", qs(s.name)},
                    {"scrambleType", qs(s.scrambleType)},
                    {"cube", qs(std::string(cubeKindId(s.cube)))},
-                   {"attempts", attempts}};
+                   {"attempts", attemptsJson(s)}};
     if (mode == SolveLog::MoveCount) {
       so["step"] = qs(std::string(stepId(s.step)));
     }
@@ -87,6 +81,19 @@ QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,
                      {"version", 1},
                      {"current", static_cast<int>(current)},
                      {"sessions", arr}};
+}
+
+} // namespace
+
+QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,
+                             std::size_t current, SolveLog mode) {
+  return moveCountsJson(sessions, current, mode, [](const MoveCountSession &s) {
+    QJsonArray attempts;
+    for (const auto &a : s.attempts) {
+      attempts.append(attemptToJson(a));
+    }
+    return attempts;
+  });
 }
 
 std::vector<MoveCountSession>
@@ -130,6 +137,22 @@ moveCountsFromJson(const QJsonObject &o, std::size_t *current, SolveLog mode) {
         static_cast<std::size_t>(std::max(0, o.value("current").toInt()));
   }
   return out;
+}
+
+QJsonObject MoveCountStore::toJson() const {
+  cache_.trim(sessions_.size());
+  std::size_t i = 0;
+  return moveCountsJson(sessions_, current_, mode_,
+                        [&](const MoveCountSession &s) {
+                          return cache_.array(i++, s.attempts, attemptToJson);
+                        });
+}
+
+void MoveCountStore::fromJson(const QJsonObject &o) {
+  std::size_t current = 0;
+  std::vector<MoveCountSession> sessions =
+      moveCountsFromJson(o, &current, mode_);
+  assign(std::move(sessions), current);
 }
 
 } // namespace vcube

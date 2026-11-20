@@ -30,7 +30,7 @@ namespace vcube {
 class TslePage : public PracticePage {
   Q_OBJECT
 public:
-  TslePage(AppSettings &settings, const QString &dataDir,
+  TslePage(AppSettings &settings, PracticeStore &store,
            QWidget *parent = nullptr);
   ~TslePage() override;
 
@@ -43,6 +43,7 @@ public:
   TsleState startState() const { return start_; }
   std::optional<TsleState> currentState() const;
   const TsleSolver &solver(Slot slot) const;
+  // The slots chosen; read by the tests only (a seam, kept on purpose).
   std::array<bool, kSlots> lastSlots() const { return slots_; }
   void setLastSlots(const std::array<bool, kSlots> &chosen);
 

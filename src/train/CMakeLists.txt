@@ -1,33 +1,34 @@
 add_library(vcube_train
   alg_follow.cpp
   alg_guide.cpp
-  attempt_flow.cpp
-  algset.cpp
   alg_lab.cpp
+  algset.cpp
+  attempt_flow.cpp
   case_logic.cpp
-  drill_flow.cpp
-  lab_flow.cpp
   case_picker.cpp
+  drill_flow.cpp
   drill_session.cpp
-  ergonomics.cpp
-  grips.cpp
-  families.cpp
   eo_cross.cpp
+  ergonomics.cpp
   f2l.cpp
-  tsle.cpp
+  families.cpp
+  grips.cpp
+  lab_flow.cpp
   learn_attempt.cpp
   learn_session.cpp
   move_count.cpp
   move_set.cpp
-  practice.cpp
   optimal_cache.cpp
+  practice.cpp
+  practice_flow.cpp
   reduction.cpp
   solve_review.cpp
+  srs.cpp
   stats.cpp
   timed_flow.cpp
   timer.cpp
-  srs.cpp
   today.cpp
+  tsle.cpp
 )
 target_include_directories(vcube_train PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(vcube_train PUBLIC vcube_cube PRIVATE vcube_strict)

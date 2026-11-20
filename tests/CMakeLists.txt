@@ -7,7 +7,11 @@ if(NOT Catch2_FOUND)
     GIT_REPOSITORY https://github.com/catchorg/Catch2.git
     GIT_TAG v3.7.1
     GIT_SHALLOW TRUE)
+  # Catch2 is built with the tests' standard: it chooses what it supports
+  # (std::string_view, for one) from the standard it is compiled with.
+  set(CMAKE_CXX_STANDARD 23)
   FetchContent_MakeAvailable(Catch2)
+  unset(CMAKE_CXX_STANDARD)
   list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 endif()
 include(Catch)

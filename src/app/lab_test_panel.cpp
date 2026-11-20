@@ -34,7 +34,7 @@ namespace vcube {
 
 namespace {
 
-constexpr int kDiagramSize = 120;
+int diagramSize() { return scaledToText(kSmallDiagram); }
 
 enum class Cell { Text, Number }; // numbers are set to the right
 QTableWidgetItem *item(const QString &text, Cell cell = Cell::Text) {
@@ -54,6 +54,7 @@ QTableWidget *table(const QStringList &headers, QWidget *parent) {
   t->setEditTriggers(QAbstractItemView::NoEditTriggers);
   t->horizontalHeader()->setStretchLastSection(false);
   t->setFocusPolicy(Qt::ClickFocus);
+  useTabularFigures(t); // the times line up as they change
   return t;
 }
 
@@ -141,7 +142,7 @@ LabTestPanel::LabTestPanel(AppSettings &settings, AlgLibrary &library,
   algLabel_->setTextInteractionFlags(Qt::NoTextInteraction);
   diagram_ = new QLabel(top);
   diagram_->setAlignment(Qt::AlignCenter);
-  diagram_->setFixedHeight(kDiagramSize);
+  diagram_->setFixedHeight(diagramSize());
   scrambleLabel_ = new QLabel(top);
   scrambleLabel_->setAlignment(Qt::AlignCenter);
   scrambleLabel_->setWordWrap(true);
@@ -754,7 +755,7 @@ void LabTestPanel::showCurrent() {
   ResolvedCase shown = current_->c;
   shown.state = current_->setup;
   diagram_->setPixmap(
-      labDiagram(shown, settings_, kDiagramSize, devicePixelRatioF()));
+      labDiagram(shown, settings_, diagramSize(), devicePixelRatioF()));
   scrambleLabel_->setText(current_->scramble.isEmpty() ? tr("Scrambling…")
                                                        : current_->scramble);
 }

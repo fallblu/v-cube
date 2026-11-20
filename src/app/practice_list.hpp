@@ -19,9 +19,6 @@ class QTreeWidgetItem;
 
 namespace vcube {
 
-// The tabs of a practice mode (see PracticePage).
-enum class PracticeTab { Learn, Inspection, Untimed, Timed };
-
 // The tries a tab keeps (Learn's cards aside).
 PracticeTries &tabTries(PracticeData &data, PracticeTab tab);
 const PracticeTries &tabTries(const PracticeData &data, PracticeTab tab);

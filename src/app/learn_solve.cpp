@@ -811,7 +811,7 @@ QString LearnPage::chainHtml() const {
     case LearnLink::Note::Graded:
       return tr("%1 (%2) → next %3")
           .arg(tr(gradeName(link.grade)), reasonsText(link.why),
-               dueText(cardOf(link.view.caseId), link.notedAt, localDayEnd()));
+               dueCell(cardOf(link.view.caseId), link.notedAt, localDayEnd()));
     }
     return QString();
   });
@@ -888,7 +888,7 @@ void LearnPage::showGrade() {
     b->setText(QString("%1 %2 · %3")
                    .arg(g + 1)
                    .arg(tr(gradeName(grade)))
-                   .arg(intervalText(nextInterval(attempt_.cardBefore(), grade,
+                   .arg(durationText(nextInterval(attempt_.cardBefore(), grade,
                                                   when, settings_.srs))));
     b->setChecked(!attempt_.walkedThrough() && chosen == grade);
   }
@@ -901,7 +901,7 @@ void LearnPage::showGrade() {
   const CaseProgress *card =
       progressOf(attempt_.gradedCard().empty() ? cardId(current_->caseId)
                                                : attempt_.gradedCard());
-  QString next = dueText(card, unixNow(), localDayEnd());
+  QString next = dueCell(card, unixNow(), localDayEnd());
   if (recalled) {
     outcome(tr(gradeName(chosen)), gradeColour(chosen),
             tr("%1. Grade yourself:").arg(why));

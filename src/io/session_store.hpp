@@ -2,6 +2,7 @@
 
 #include "io/data_file.hpp"
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QObject>
 #include <QString>
@@ -78,6 +79,56 @@ protected:
   std::size_t current_ = 0;
 };
 
+// Each session's list of items (solves, attempts) as JSON, built again
+// only from the first item that changed since the last time: recording a
+// solve adds one item to the JSON, rather than making the whole file's
+// again. The JSON it returns shares its data with what it keeps (Qt's
+// implicit sharing), so handing it to the writer's thread copies nothing;
+// changing the kept JSON later makes a copy first. Items are compared
+// whole, so what it returns is always what building afresh would give.
+template <typename Item> class ItemJsonCache {
+public:
+  template <typename ToJson>
+  QJsonArray array(std::size_t list, const std::vector<Item> &items,
+                   ToJson toJson) {
+    if (lists_.size() <= list) {
+      lists_.resize(list + 1);
+    }
+    List &kept = lists_[list];
+    auto same = static_cast<std::size_t>(
+        std::mismatch(kept.items.begin(), kept.items.end(), items.begin(),
+                      items.end())
+            .first -
+        kept.items.begin());
+    kept.items.erase(kept.items.begin() + static_cast<std::ptrdiff_t>(same),
+                     kept.items.end());
+    if (same == 0) {
+      kept.json = QJsonArray();
+    }
+    while (static_cast<std::size_t>(kept.json.size()) > same) {
+      kept.json.removeLast();
+    }
+    for (std::size_t i = same; i < items.size(); ++i) {
+      kept.items.push_back(items[i]);
+      kept.json.append(toJson(items[i]));
+    }
+    return kept.json;
+  }
+  // Forgets the lists from `lists` on (sessions that are gone).
+  void trim(std::size_t lists) {
+    if (lists_.size() > lists) {
+      lists_.resize(lists);
+    }
+  }
+
+private:
+  struct List {
+    std::vector<Item> items;
+    QJsonArray json;
+  };
+  std::vector<List> lists_;
+};
+
 // A mode's sessions saved as one JSON data file (see DataFile). The store
 // for a mode says what a new file starts with and how the file is written
 // and read:
@@ -109,6 +160,15 @@ public:
   // Where load() moved an unreadable file, if it did.
   const QString &setAsidePath() const { return file_.setAsidePath(); }
   QString path() const { return file_.path(); }
+  // A save of the file as it is now that can run on another thread: the
+  // JSON is made here, and the write and the rest of the work there. Worth
+  // it over copying the store when toJson() keeps what it built (see
+  // ItemJsonCache).
+  std::function<bool(QString *)> saveJob() const {
+    return [file = file_, o = toJson()](QString *error) {
+      return file.save(o, error);
+    };
+  }
 
   virtual ~SessionFileStore() = default;
 
@@ -131,13 +191,20 @@ private:
 
 // Writes `store` on the background writer from a copy of it, so that
 // saving never holds up the next attempt; `onError` gets the reason a
-// write failed, while `context` lives.
+// write failed, while `context` lives. A store with a JSON cache (it says
+// so with kCachesJson) hands over its JSON instead of a copy of itself.
 template <typename Store>
 void saveInBackground(const Store &store, QObject *context,
                       std::function<void(const QString &)> onError) {
-  writeInBackground(
-      store.path(), [copy = store](QString *error) { return copy.save(error); },
-      context, std::move(onError));
+  if constexpr (requires { requires Store::kCachesJson; }) {
+    writeInBackground(store.path(), store.saveJob(), context,
+                      std::move(onError));
+  } else {
+    writeInBackground(
+        store.path(),
+        [copy = store](QString *error) { return copy.save(error); }, context,
+        std::move(onError));
+  }
 }
 
 } // namespace vcube

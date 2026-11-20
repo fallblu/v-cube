@@ -14,9 +14,11 @@ A key only reaches the mode's page when no text field or dialog has the keyboard
 | Ctrl+0 | Today |
 | Ctrl+K | command list: type part of any menu command or of a choice on the page (alg set, session, scramble type, cube, view, ...), then Enter |
 | F1 | show or hide the keyboard controls |
+| Alt+Page Up / Alt+Page Down | scroll the keyboard controls while they are shown |
 | F9 | show or hide the mode's side panel (the case list, the session or the case browser; hidden by itself while the window is narrow) |
 | F11 | full screen |
 | F10 | focus mode (right-click outside the scramble, timer, cube and algs to switch it, full screen or the sidebar with the mouse) |
+| Alt (alone) | to the menu bar (F10 being focus mode); Esc goes back |
 | Ctrl+B | show or hide the sidebar |
 | Ctrl+, | settings |
 | Ctrl+Shift+N | colour neutrality settings |
@@ -89,14 +91,15 @@ Before a solve starts, the cube only turns as a whole (rotations), so that a sli
 | after a case | Space / Enter | next case. With "Space practises the case" after a DNF (Settings > Drill), Space practises and Enter goes on. |
 | after a case | Tab | practise the case, with the algs shown |
 | after a case | Backspace | toggle DNF (virtual) or "wrong alg" (physical); not for a case given up |
-| after a case | Delete or Ctrl+Z | delete the attempt; one given up before the timer started is taken back and the case set up again |
+| after a case | Delete | delete the attempt; one given up before the timer started is taken back and the case set up again |
+| after a case, practice | Ctrl+Z | put the attempt just deleted back (until the next case) |
 | after a case | Esc | try the case again |
 | practice | Space / Enter | next case |
 | practice | Tab | switch between with the algs and without them |
 | practice | turning keys | virtual: solve the case; each stage goes on by itself once solved (Settings > Drill) |
 | practice | Esc | virtual: set the case up again for this stage |
 | practice | Backspace | toggle DNF or "wrong alg" on the attempt |
-| practice | Delete or Ctrl+Z | delete the attempt |
+| practice | Delete | delete the attempt |
 
 For about 0.3 s after the timer stops, keys are ignored, so that a second press doesn't skip the result.
 
@@ -140,7 +143,7 @@ In Learn and Drill, the mode's menu in the menu bar has the selected cases' acti
 | virtual, running | Space | stop (a DNF if the cube isn't solved) |
 | after a virtual DNF | Space, Enter or Esc | next scramble |
 | after a solve | Alt+1 / Alt+2 / Alt+3 | no penalty / toggle +2 / toggle DNF on the last solve |
-| after a solve | Backspace | toggle DNF on the last solve, as in Drill |
+| after a solve | Backspace | toggle DNF on the solve just finished, as in Drill (only before any other key) |
 | after a solve | Alt+C / Alt+R | comment on / review the last solve |
 | after a solve | Delete / Ctrl+Z | delete the last solve / put the last deleted solve back |
 | after a solve | Ctrl+→ | skip the scramble |
@@ -190,6 +193,9 @@ In the solve review (Alt+R, or double-click a solve):
 | ← / → | step the replay back / forward |
 | Home / End | to the scramble / to the end |
 | Space | play the replay a move at a time, or pause it |
+| C | copy the reconstruction |
+| W | open the solve on alg.cubing.net |
+| R | retry the scramble (when the review offers it) |
 
 ## EO Cross
 
@@ -209,7 +215,7 @@ EO Cross, F2L and TSLE share their keys. EO Cross has the Inspection, Untimed an
 | Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
 | Learn or Untimed, afterwards | turning keys | turn the cube freely |
 | Untimed or Inspection, afterwards | Delete | delete the try |
-| Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
+| Learn or Untimed, afterwards | Esc | the same state again; the try just made stays, the retry isn't recorded or graded |
 | Timed, virtual, before the solve | turning keys | rotations only |
 | Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Timing and solves says so: Drill and practice Timed, timer start) |
 | Timed, virtual, solving | Space | stop now: a DNF unless the step is done (the timer stops by itself when it is) |
@@ -217,12 +223,12 @@ EO Cross, F2L and TSLE share their keys. EO Cross has the Inspection, Untimed an
 | Timed, physical, solving | any key but Shift, Ctrl or Alt | stop the timer |
 | Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
 | Timed, solving | Esc | cancel: nothing is recorded |
-| Timed, afterwards | Space | next |
+| Timed, afterwards | Space | next, after a DNF too (Drill's "Space practises the case" doesn't apply: Esc tries the same state again) |
 | Timed, afterwards | Enter | play the best solution from the start |
 | Timed, afterwards | Tab | show or hide where the time went and the details |
 | Timed, afterwards | Backspace | make it a DNF, or not |
 | Timed, afterwards | Delete | delete the attempt |
-| Timed, afterwards | Esc | the same state again, not recorded |
+| Timed, afterwards | Esc | the same state again; the attempt just made stays, the retry isn't recorded |
 
 The list beside the cube, on the Inspection tab: your plans by step, with how many, how many did the step, the time you looked and how far over the optimum of your holds they were lately. On the Untimed tab: your untimed solves by step, with how many, their moves lately and how far over the optimum of your holds they were. Double-click a step to practise it.
 
@@ -245,8 +251,9 @@ The list beside the cube, on the Inspection tab: your plans by step, with how ma
 | Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
 | Learn or Untimed, afterwards | turning keys | turn the cube freely |
 | Untimed or Inspection, afterwards | Delete | delete the try |
-| Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
+| Learn or Untimed, afterwards | Esc | the same state again; the try just made stays, the retry isn't recorded or graded |
 | Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
+| Learn | Ctrl+Z | take back the last grade (up to 10) and do the case again |
 | Learn, nothing due | Space | look again, taking a card in its learning steps early |
 | Learn, after a card's try | 0 | change the case's solutions |
 | Learn, after a try as cheap as yours | + | add what you did to the case's solutions |
@@ -257,12 +264,12 @@ The list beside the cube, on the Inspection tab: your plans by step, with how ma
 | Timed, physical, solving | any key but Shift, Ctrl or Alt | stop the timer |
 | Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
 | Timed, solving | Esc | cancel: nothing is recorded |
-| Timed, afterwards | Space | next |
+| Timed, afterwards | Space | next, after a DNF too (Drill's "Space practises the case" doesn't apply: Esc tries the same state again) |
 | Timed, afterwards | Enter | play the best solution from the start |
 | Timed, afterwards | Tab | show or hide where the time went and the details |
 | Timed, afterwards | Backspace | make it a DNF, or not |
 | Timed, afterwards | Delete | delete the attempt |
-| Timed, afterwards | Esc | the same state again, not recorded |
+| Timed, afterwards | Esc | the same state again; the attempt just made stays, the retry isn't recorded |
 
 The list beside the cube, on the Learn tab: the pair cases by where the corner and edge are, seen for the front-right slot, each for the front slots and for the back ones. Each is a card: new ones come in a few a day, and you choose the solutions you'll use when one does. A try is Good when it is one of them or as cheap. Double-click a case to practise it, ungraded. On the Untimed tab: your untimed F2L solves, with how many, their moves lately and how much they cost over the cheapest way found.
 
@@ -282,8 +289,9 @@ The list beside the cube, on the Learn tab: the pair cases by where the corner a
 | Learn or Untimed, afterwards | Tab | show or hide the details (click a solution there to play it) |
 | Learn or Untimed, afterwards | turning keys | turn the cube freely |
 | Untimed or Inspection, afterwards | Delete | delete the try |
-| Learn or Untimed, afterwards | Esc | the same state again, not recorded or graded |
+| Learn or Untimed, afterwards | Esc | the same state again; the try just made stays, the retry isn't recorded or graded |
 | Learn, after a card's try | 1-4 | change the grade: Again, Hard, Good, Easy |
+| Learn | Ctrl+Z | take back the last grade (up to 10) and do the case again |
 | Learn, nothing due | Space | look again, taking a card in its learning steps early |
 | Timed, virtual, before the solve | turning keys | rotations only |
 | Timed, virtual, before the solve | Space | arm the timer: the first face turn starts it (or hold Space and let go, if Settings > Timing and solves says so: Drill and practice Timed, timer start) |
@@ -292,12 +300,12 @@ The list beside the cube, on the Learn tab: the pair cases by where the corner a
 | Timed, physical, solving | any key but Shift, Ctrl or Alt | stop the timer |
 | Timed, before or during the solve | Shift+Space | give up: a DNF (Backspace instead, if Settings > Drill says so) |
 | Timed, solving | Esc | cancel: nothing is recorded |
-| Timed, afterwards | Space | next |
+| Timed, afterwards | Space | next, after a DNF too (Drill's "Space practises the case" doesn't apply: Esc tries the same state again) |
 | Timed, afterwards | Enter | play the best solution from the start |
 | Timed, afterwards | Tab | show or hide where the time went and the details |
 | Timed, afterwards | Backspace | make it a DNF, or not |
 | Timed, afterwards | Delete | delete the attempt |
-| Timed, afterwards | Esc | the same state again, not recorded |
+| Timed, afterwards | Esc | the same state again; the attempt just made stays, the retry isn't recorded |
 
 The list beside the cube, on the Learn tab: the cases by steps left (a step is a trigger, or the OCLL that ends a chain), drawn for the front-right slot with the edge at UF. A name gives the edge, the slot's corner place (N oriented, CW, CCW) and the twists at URF, UFL, ULB, UBR. Double-click a case to practise it, ungraded. On the Untimed tab: your untimed solves, with how many, their moves lately and how far over the best way they were.
 

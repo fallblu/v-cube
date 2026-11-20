@@ -691,6 +691,26 @@ TEST_CASE("a lost install marker doesn't bring deleted built-ins back") {
   CHECK(first.sets().size() == 4);
 }
 
+TEST_CASE("a new built-in never goes beside the user's set of its id") {
+  QTemporaryDir tmp;
+  QDir d(tmp.path());
+  // The user's own OLL, in a file of another name, from before OLL was a
+  // built-in (the marker lists the others).
+  QByteArray mine = readText(kBuiltins + "/oll.json");
+  mine.replace("\"name\": \"OLL\"", "\"name\": \"My OLL\"");
+  REQUIRE(mine.contains("My OLL"));
+  writeText(d.filePath("my-oll.json"), mine);
+  writeText(d.filePath("installed-builtins.json"),
+            R"(["pll", "2look-oll", "2look-pll"])");
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  CHECK_FALSE(QFile::exists(d.filePath("oll.json")));
+  REQUIRE(lib.find("oll"));
+  CHECK(lib.find("oll")->name == "My OLL");
+  CHECK(readText(d.filePath("my-oll.json")) == mine);
+  CHECK(readText(d.filePath("installed-builtins.json")).contains("oll"));
+}
+
 TEST_CASE("restoring doesn't overwrite a user case that shares an id") {
   QTemporaryDir tmp;
   AlgLibrary lib(tmp.path(), kBuiltins);
@@ -1158,4 +1178,36 @@ TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {
   CHECK(solves[1].penalty == Penalty::Plus2);
   CHECK(solves[1].moves == "r U");
   CHECK(solves[2].moves.empty());
+}
+
+TEST_CASE("a built-in set's file from a newer version is not restored over") {
+  QTemporaryDir tmp;
+  {
+    AlgLibrary lib(tmp.path(), kBuiltins);
+    lib.load();
+    lib.progress("pll")["T"].record({100, 1500, false});
+    REQUIRE(lib.saveProgress("pll"));
+  }
+  finishBackgroundWrites();
+  // pll.json as a later version writes it (after a downgrade).
+  const QString path = QDir(tmp.path()).filePath("pll.json");
+  QFile f(path);
+  REQUIRE(f.open(QIODevice::ReadOnly));
+  QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+  f.close();
+  o["version"] = 99;
+  REQUIRE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  f.write(QJsonDocument(o).toJson());
+  f.close();
+
+  AlgLibrary lib(tmp.path(), kBuiltins);
+  lib.load();
+  REQUIRE_FALSE(lib.find("pll"));
+  QString error;
+  CHECK_FALSE(lib.restoreBuiltin("pll", &error));
+  CHECK(error.contains("pll.json"));
+  // Nothing moved or made: the file, its progress and no pll-2.
+  CHECK_FALSE(lib.find("pll-2"));
+  CHECK(QFile::exists(path));
+  CHECK(QFile::exists(QDir(tmp.path()).filePath("progress/pll.json")));
 }

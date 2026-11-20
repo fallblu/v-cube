@@ -258,7 +258,4 @@ struct AttemptMenuActions {
 };
 void addAttemptActions(ActionMenu &menu, const AttemptMenuActions &actions);
 
-// A button that doesn't take the keyboard focus.
-QPushButton *flatButton(const QString &text, QWidget *parent);
-
 } // namespace vcube

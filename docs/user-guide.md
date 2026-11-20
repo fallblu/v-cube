@@ -46,13 +46,14 @@ anyway.
   Learn buttons show the number of reviews due on their right.
 - **Keyboard controls** (`F1`): the keys, in a panel beside the page, with
   the current mode's first and your own turning keys. The panel can be
-  undocked.
+  undocked; `Alt+Page Up` and `Alt+Page Down` scroll it.
 - **Command list** (`Ctrl+K`): type part of any menu command, or of a
   choice on the page (alg set, session, scramble type, cube, view), and
   press Enter. Commands are grouped under **Go** (the modes), **This
   page** (the page's choices and its menu) and **Menus**, with their keys
   on the right; with nothing typed, the last few commands you ran come
-  first. Each mode's own menu (named after it) has what its lists offer
+  first. Settings and the command list don't open during a solve or
+  inspection; the status bar says so. Each mode's own menu (named after it) has what its lists offer
   on a right-click: in Learn and Drill also Tick all, Tick none and the
   list's columns (and Drill's Reset tally), in Timed, Untimed and Move
   Count the session table's columns and each statistic's solves.
@@ -64,7 +65,8 @@ anyway.
   (`F10`). Focus mode hides the sidebar, menus, status bar and each mode's
   lists and options, leaving the scramble, timer, cube and algs; messages
   show at the top of the window instead. Right-click outside those to
-  switch any of the three with the mouse.
+  switch any of the three with the mouse. With F10 taken, `Alt` pressed
+  and let go by itself goes to the menu bar (`Esc` comes back).
 - **The mode's menu**: Learn, Drill and Alg Lab add a menu named after the
   mode, with what a right-click in the mode's list offers.
 - **Keys on the page**: under the cube, each practice mode shows a short
@@ -73,7 +75,8 @@ anyway.
   +2, DNF, delete and review in Timed.
 - **Tips in the status bar**: nothing pops up beside the mouse; pointing
   at a control, a list column or a statistic writes what it does in the
-  status bar instead.
+  status bar instead, and so does moving to a list or table with the
+  keyboard (for the item selected).
 - The window reopens where you left it, with the same list widths, but
   never in full screen or focus mode. It can be as narrow as half a 1080p
   screen; option rows wrap, and the chart gives up its room before the cube
@@ -82,6 +85,13 @@ anyway.
   front.
 - **File** imports and exports alg sets, exports all your data and opens
   the data folder. See [file-formats.md](file-formats.md).
+- **A file that can't be saved** puts a red banner over the page, naming
+  it; **Dismiss** or File > Dismiss save warning hides it until a save
+  fails again.
+- **Problems reading your data** at start-up (a data file, an alg set or
+  a key binding that couldn't be read) are listed together in one window
+  once the main window is up, each saying what became of it, with a
+  button to open the data folder (where `backups/` holds dated copies).
 
 ## Alg sets
 
@@ -260,14 +270,15 @@ list order, or a recap: every case once, then a summary. A failed case
 comes back three cases later.
 
 **After a case** you see your time (green at or under the set's target
-time), the diagram and the algs with the AUFs this case needed. Keys are
+time; marked ▲ and "Over target" when over it), the diagram and the algs with the AUFs this case needed. Keys are
 ignored for a moment so a second press doesn't skip it.
 
 | Key | Does |
 | --- | --- |
 | Space | next case |
 | Backspace | toggle DNF (virtual) or mark a wrong alg (physical) |
-| Delete, Ctrl+Z | delete the attempt |
+| Delete | delete the attempt |
+| Ctrl+Z | put the attempt just deleted back (until the next case) |
 | Esc | try the case again |
 | Tab | practise the case |
 
@@ -556,7 +567,8 @@ Hold Space to start; the hold time is in Settings > Timing and solves.
   virtual cube can stay hidden until inspection starts.
 - **Sessions** show ao5, ao12, ao100, mo3, best and mean, with a trend
   chart. Alt+1, Alt+2 and Alt+3 set no penalty, +2 and DNF on the last
-  solve; Alt+C comments on it.
+  solve; Alt+C comments on it. Backspace toggles the DNF too, but only
+  right after the solve, before any other key.
 - **cstimer**: the session menu imports and exports cstimer sessions.
   Imports come in as physical sessions, with any solutions and move times;
   other puzzles and empty sessions are skipped. To load an export in
@@ -622,10 +634,10 @@ with your set of F2L pair cases: which case the pair was, your moves
 against your alg and against the optimal <R, U, L> pair, the cheapest pair
 at that point, and the set's cheapest order overall. A whole solve also
 gets its splits (cross, each pair, last layer), with time and TPS if it
-was timed. **Copy reconstruction** copies the solve a step per line, and
-**alg.cubing.net** opens it there.
+was timed. **Copy reconstruction** (`C`) copies the solve a step per
+line, and **alg.cubing.net** (`W`) opens it there.
 
-**Retry this scramble** (virtual cube) puts the scramble back to solve
+**Retry this scramble** (`R`, virtual cube) puts the scramble back to solve
 again, unrecorded, and shows the count against the original and the
 optimal.
 
@@ -677,7 +689,8 @@ time:
    again.
 3. The card is graded **Good** when you solved it unaided and well, and
    **Again** after a hint, giving up or a poor solution. `1`–`4` change
-   the grade to Again, Hard, Good or Easy.
+   the grade to Again, Hard, Good or Easy, and `Ctrl+Z` takes the last
+   grade back (up to 10) and brings the case up again.
 
 When nothing is due the page says when the next card is. `Space` takes a
 card in its learning steps early, and the Untimed tab is always there to
@@ -889,10 +902,10 @@ Edit > Settings… (`Ctrl+,`). Each option is explained under it.
 
 | Tab | What is there |
 | --- | --- |
-| **Appearance** | theme, the interface text size (all the text, up to about 16 px), sticker colours, the scramble, timer and hint text sizes, the size of case pictures, decimal places |
+| **Appearance** | theme, the interface text size (all the text, up to about 16 px; case pictures and colour swatches follow it from the next start), sticker colours, the scramble, timer and hint text sizes, the size of case pictures, decimal places |
 | **Colour neutrality** | see [above](#colour-neutrality) |
 | **Timing and solves** | hold times for the solve modes and Drill (up to 2 s), how Drill's virtual timer starts and stops, WCA inspection and its beeps, auto-stop when solved, hiding the cube until inspection, simplified move counts, Move Count's Opt holds |
-| **Cube and keys** | turn speed and the turning keys |
+| **Cube and keys** | turn speed (off at first when Windows' animation effects or GNOME's animations are turned off) and the turning keys |
 | **Learn** | the scheduler (see [Learn](#learn)) |
 | **Drill** | the give-up key, what Space does after a DNF, whether practice goes on by itself, when a failed case comes back, how many cases "Weakest" drills |
 

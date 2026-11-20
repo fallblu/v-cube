@@ -165,11 +165,9 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   positionLabel_->setAlignment(Qt::AlignCenter);
   leftLayout->addWidget(positionLabel_);
   // The keys, as on the stages.
-  auto *keys = new HintBar(left);
-  keys->setHint({}, {{tr("← →"), tr("step")},
-                     {tr("Home / End"), tr("start / end")},
-                     {tr("Space"), tr("play or pause")}});
-  leftLayout->addWidget(keys);
+  keys_ = new HintBar(left);
+  leftLayout->addWidget(keys_);
+  showKeys();
   // A move at a time, a little slower than a turn is animated.
   playTimer_.setInterval(std::max(300, settings_.animationMs + 200));
   connect(&playTimer_, &QTimer::timeout, this, [this] {
@@ -248,14 +246,14 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
                                        QDialogButtonBox::ActionRole);
   copyButton->setToolTip(
       tr("Copy the scramble and solution, a step per line with its moves "
-         "and time, e.g. to post it"));
+         "and time, e.g. to post it (C)"));
   auto *webButton =
       bottom->addButton(tr("alg.cubing.net"), QDialogButtonBox::ActionRole);
-  webButton->setToolTip(tr("Open the solve on alg.cubing.net"));
+  webButton->setToolTip(tr("Open the solve on alg.cubing.net (W)"));
   retryButton_ = bottom->addButton(tr("Retry this scramble"),
                                    QDialogButtonBox::ActionRole);
   retryButton_->setToolTip(
-      tr("Solve the scramble again; the retry isn't recorded"));
+      tr("Solve the scramble again; the retry isn't recorded (R)"));
   retryButton_->setVisible(false);
   QPushButton *close = bottom->addButton(QDialogButtonBox::Close);
   // The buttons take no keys, so that the arrow keys step the replay.
@@ -308,6 +306,14 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
     showPosition(replay_.size());
   });
   shortcut(Qt::Key_Space, [this] { setPlaying(!playTimer_.isActive()); });
+  // The buttons take no focus: each has a key of its own.
+  shortcut(Qt::Key_C, [copyButton] { copyButton->click(); });
+  shortcut(Qt::Key_W, [webButton] { webButton->click(); });
+  shortcut(Qt::Key_R, [this] {
+    if (retryButton_->isVisibleTo(this)) {
+      retryButton_->click();
+    }
+  });
   connect(slider_, &QSlider::sliderPressed, this,
           [this] { setPlaying(false); });
 
@@ -370,8 +376,9 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
         alg.insert(alg.end(), turn.begin(), turn.end());
         Alg pair = parseAlgOrEmpty(seg.options[o].alg);
         alg.insert(alg.end(), pair.begin(), pair.end());
-        play(alg, tr("%1 with the set's alg")
-                      .arg(qs(std::string(slotName(seg.options[o].slot)))));
+        play(
+            alg,
+            tr("%1 with the set's alg").arg(qs(slotName(seg.options[o].slot))));
         showPosition(seg.begin + turn.size());
       }
     }
@@ -408,7 +415,22 @@ ReviewDialog::~ReviewDialog() {
   pairWatcher_.waitForFinished();
 }
 
-void ReviewDialog::setRetryEnabled(bool on) { retryButton_->setVisible(on); }
+void ReviewDialog::setRetryEnabled(bool on) {
+  retryButton_->setVisible(on);
+  showKeys();
+}
+
+void ReviewDialog::showKeys() {
+  QList<KeyHint> keys = {{tr("← →"), tr("step")},
+                         {tr("Home / End"), tr("start / end")},
+                         {tr("Space"), tr("play or pause")},
+                         {tr("C"), tr("copy")},
+                         {tr("W"), tr("alg.cubing.net")}};
+  if (retryButton_ && retryButton_->isVisibleTo(this)) {
+    keys.append({tr("R"), tr("retry")});
+  }
+  keys_->setHint({}, keys);
+}
 
 void ReviewDialog::setPlaying(bool on) {
   if (on && at_ >= replay_.size()) {
@@ -595,7 +617,7 @@ void ReviewDialog::showMoves() {
     QStringList steps;
     for (const StepMark &m : marks_) {
       if (m.moves == i && i > 0) {
-        steps << qs(std::string(stepName(m.step)));
+        steps << qs(stepName(m.step));
       }
     }
     if (!steps.isEmpty()) {
@@ -633,12 +655,12 @@ void ReviewDialog::showMarks() {
   QStringList byScramble; // steps the scramble left done
   for (const StepMark &m : marks_) {
     if (m.moves == 0) {
-      byScramble << qs(std::string(stepName(m.step)));
+      byScramble << qs(stepName(m.step));
       continue;
     }
     html += QString("<tr><td><b>%1</b></td><td align='right'>%2</td>"
                     "<td>%3</td><td>%4</td></tr>")
-                .arg(qs(std::string(stepName(m.step))))
+                .arg(qs(stepName(m.step)))
                 .arg(moveWord(m.htm))
                 .arg(m.htm > before ? muted(tr("(+%1)").arg(m.htm - before))
                                     : QString())
@@ -675,7 +697,7 @@ void ReviewDialog::showOptima() {
     return;
   }
   SolveStep step = solve_.step.value_or(SolveStep::EOCross);
-  QString stepText = qs(std::string(stepName(step)));
+  QString stepText = qs(stepName(step));
   // The solve's own count for the step: where it was first done.
   std::optional<int> yours;
   for (const StepMark &m : marks_) {
@@ -780,7 +802,7 @@ void ReviewDialog::showPairs() {
     const PairSegment &seg = b.segments[n];
     QStringList solved;
     for (Slot s : seg.solved) {
-      solved << qs(std::string(slotName(s)));
+      solved << qs(slotName(s));
     }
     yourTotal += seg.htm;
     html += "<p><b>" + tr("Pair %1: %2").arg(n + 1).arg(solved.join(" + ")) +
@@ -803,7 +825,7 @@ void ReviewDialog::showPairs() {
     auto optionHtml = [&](const PairOption &o) {
       auto index = static_cast<std::size_t>(&o - seg.options.data());
       return tr("%1 (%2): %3 %4 <a href='pair:%5:%6'>%7</a>")
-          .arg(qs(std::string(slotName(o.slot))), escaped(o.caseName))
+          .arg(qs(slotName(o.slot)), escaped(o.caseName))
           .arg(moveWord(o.moves))
           .arg(muted(escaped(o.alg)))
           .arg(n)
@@ -863,7 +885,7 @@ void ReviewDialog::showPairs() {
       if (plan.complete && !plan.steps.empty()) {
         QStringList order;
         for (const PairOption &o : plan.steps) {
-          order << qs(std::string(slotName(o.slot)));
+          order << qs(slotName(o.slot));
         }
         html += tr(", the set's cheapest order %1 (%2)")
                     .arg(plan.moves)
@@ -887,7 +909,10 @@ void showTextDialog(QWidget *parent, const QString &title,
   edit->setReadOnly(true);
   edit->setLineWrapMode(QPlainTextEdit::NoWrap);
   QFont mono = edit->font();
-  mono.setFamilies({"DejaVu Sans Mono", "Noto Sans Mono", "Monospace"});
+  // The first of these that is installed: Linux, Windows, then macOS.
+  mono.setFamilies({"DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono",
+                    "Cascadia Mono", "Consolas", "Menlo", "Courier New",
+                    "Monospace"});
   mono.setStyleHint(QFont::Monospace);
   edit->setFont(mono);
   layout->addWidget(edit);

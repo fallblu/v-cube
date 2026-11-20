@@ -84,6 +84,8 @@ private:
   ScrambleAlgs *algs_;
   VirtualAttempt attempt_;
   DeletedAttempt<Solve> deleted_;
+  // The last solve was just recorded: no key since (Backspace marks it).
+  bool justSolved_ = false;
   // Step splits of virtual solves, by splitKey(), worked out off the GUI
   // thread.
   std::map<std::string, SolveSplits> splits_;

@@ -34,7 +34,7 @@ public:
     Alg alg;
   };
 
-  EoCrossPage(AppSettings &settings, const QString &dataDir,
+  EoCrossPage(AppSettings &settings, PracticeStore &store,
               QWidget *parent = nullptr);
   ~EoCrossPage() override;
 
@@ -47,7 +47,7 @@ public:
   // The state as scrambled (white top, green front) and the hold it is
   // first shown in.
   const CubieCube &scrambled() const { return scrambled_; }
-  Hold shownHold() const { return shown_; }
+  Hold shownHold() const { return shown_; } // tests only: a seam, kept
   // The holds a step may be done in.
   std::vector<Hold> allowedHolds() const;
   bool analysisReady() const override { return analysed_; }

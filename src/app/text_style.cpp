@@ -31,15 +31,6 @@ double roleScale(TextRole role) {
   return 1.0;
 }
 
-// `base` at `scale` times its size, in points or pixels as it is given.
-void scaleSize(QFont &f, const QFont &base, double scale) {
-  if (base.pointSizeF() > 0) {
-    f.setPointSizeF(base.pointSizeF() * scale);
-  } else if (base.pixelSize() > 0) {
-    f.setPixelSize(static_cast<int>(std::lround(base.pixelSize() * scale)));
-  }
-}
-
 // Only the size and the weight: the rest comes from the widget's parent.
 QFont roleOnly(TextRole role, bool bold) {
   QFont f;
@@ -56,6 +47,14 @@ std::optional<QFont> &systemFont() {
 }
 
 } // namespace
+
+void scaleSize(QFont &f, const QFont &base, double scale) {
+  if (base.pointSizeF() > 0) {
+    f.setPointSizeF(base.pointSizeF() * scale);
+  } else if (base.pixelSize() > 0) {
+    f.setPixelSize(static_cast<int>(std::lround(base.pixelSize() * scale)));
+  }
+}
 
 void setTextRole(QWidget *w, TextRole role, bool bold) {
   w->setProperty(kRoleProperty, static_cast<int>(role) + 1);
@@ -87,6 +86,33 @@ void setInterfaceTextPercent(int percent) {
                           w->property(kBoldProperty).toBool()));
     }
   }
+}
+
+QFont withTabularFigures(QFont f) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+  f.setFeature(QFont::Tag("tnum"), 1);
+#endif
+  return f;
+}
+
+void useTabularFigures(QWidget *w) {
+  // Only the feature is set: the size and family come from the parent.
+  w->setFont(withTabularFigures(QFont()));
+}
+
+int scaledToText(int pixels) {
+  static const double scale = [] {
+    const QFont now = QApplication::font();
+    const QFont system = systemFont().value_or(now);
+    if (system.pointSizeF() > 0 && now.pointSizeF() > 0) {
+      return now.pointSizeF() / system.pointSizeF();
+    }
+    if (system.pixelSize() > 0 && now.pixelSize() > 0) {
+      return static_cast<double>(now.pixelSize()) / system.pixelSize();
+    }
+    return 1.0;
+  }();
+  return static_cast<int>(std::lround(pixels * scale));
 }
 
 int interfaceTextPixels(int percent) {

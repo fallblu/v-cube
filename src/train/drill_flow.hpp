@@ -28,8 +28,8 @@ namespace vcube {
 //   Revealed the result and the algs; keys are ignored for a moment after
 //            the stop. Space goes on (or practises after a DNF), Tab
 //            practises, Backspace toggles the DNF, Delete deletes the
-//            attempt (one given up before the start is taken back), Esc
-//            tries the case again.
+//            attempt (one given up before the start is taken back) and
+//            Ctrl+Z puts it back, Esc tries the case again.
 //   Aided    practice, untimed and unrecorded: the case with the algs,
 //   Unaided  then without them.
 //
@@ -72,6 +72,7 @@ public:
     PracticeTurn,  // turn and then call practiceTurned()
     ToggleWrong,   // mark the attempt failed or not
     Delete,        // delete the attempt, then call deleted()
+    Restore,       // put the attempt deleted back, then call restored()
     Hint,          // say `hint`
   };
   enum class Hint {
@@ -133,6 +134,9 @@ public:
   // The attempt was deleted. True if it was a case given up before the
   // timer started, which is taken back: Waiting again.
   bool deleted();
+  // The attempt deleted is back (Ctrl+Z, while the result is up); false
+  // if it can't be (it is still recorded, or no result is shown).
+  bool restored();
   // The attempt's record is gone (e.g. its times were cleared).
   void forgotten() { recorded_ = false; }
   // Practice of the case, with the algs or without.
@@ -165,6 +169,8 @@ public:
   bool holding() const;
   // Space held or the solve running (armed is not busy).
   bool busy() const;
+  // Face turns since the case was shown; read by the tests only (a seam,
+  // kept on purpose).
   int faceTurns() const { return faceTurns_; }
 
   // The attempt: its time and how it went.

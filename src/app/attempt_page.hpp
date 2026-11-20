@@ -160,7 +160,6 @@ protected:
   virtual void scrambleShown(const GeneratedScramble *shown) { (void)shown; }
   virtual void phaseShown(bool done) { (void)done; }
   virtual void holdShown(const QColor &colour) { (void)colour; }
-  virtual void entryShown() {}
   virtual void controlsEnabled(bool on) { (void)on; }
   virtual void pageFocusChanged(bool on) { (void)on; }
   virtual void returnFocus() {}

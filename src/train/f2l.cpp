@@ -868,6 +868,42 @@ double solutionCost(const Alg &alg, const AnalysisOptions &options) {
          options.widePenalty * wideTurns(simple);
 }
 
+CostOver costOver(double over, int pairs) {
+  if (over < kSameCost) {
+    return CostOver::Same;
+  }
+  return over >= kFarOver * std::max(1, pairs) ? CostOver::Far : CostOver::Over;
+}
+
+double chosenCost(const Alg &chosen, const AnalysisOptions &options) {
+  return solutionCost(comparableSolution(chosen), options);
+}
+
+PairJudgement judgePair(const Alg &moves, PairSide side, Slot target,
+                        const std::vector<Alg> &chosen,
+                        const AnalysisOptions &options) {
+  PairJudgement j;
+  j.cheapest = std::numeric_limits<double>::infinity();
+  for (const Alg &c : chosen) {
+    j.cheapest = std::min(j.cheapest, chosenCost(c, options));
+  }
+  j.asChosen = comparableSolution(slotToSide(fixedFrame(moves), side, target));
+  j.match = matchChosen(moves, side, target, chosen);
+  j.cost = solutionCost(j.asChosen, options);
+  j.extra = std::max(0.0, j.cost - j.cheapest);
+  j.good = j.match.has_value() || j.cost <= j.cheapest + kSameCost;
+  return j;
+}
+
+WholeJudgement judgeWhole(double cost, double cheapest, int pairsLeft) {
+  WholeJudgement j;
+  j.extra = std::max(0.0, cost - cheapest);
+  const CostOver over = costOver(j.extra, pairsLeft);
+  j.good = over == CostOver::Same;
+  j.far = over == CostOver::Far;
+  return j;
+}
+
 PairAnalysis analysePair(const CubieCube &state, Slot slot,
                          const AnalysisOptions &options,
                          const std::atomic<bool> *stop) {

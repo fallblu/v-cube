@@ -4,6 +4,7 @@
 
 #include <QAbstractSpinBox>
 #include <QApplication>
+#include <QDockWidget>
 #include <QKeyEvent>
 #include <QKeySequenceEdit>
 #include <QLineEdit>
@@ -26,7 +27,7 @@ bool KeyRouter::eventFilter(QObject *obj, QEvent *event) {
     return false;
   }
   auto *w = qobject_cast<QWidget *>(obj);
-  if (!w || w->window() != window_) {
+  if (!w || !ownWindow(w->window())) {
     return false;
   }
   QWidget *focus = QApplication::focusWidget();
@@ -50,6 +51,17 @@ bool KeyRouter::eventFilter(QObject *obj, QEvent *event) {
     return false;
   }
   return route(key, event->type() == QEvent::KeyPress);
+}
+
+bool KeyRouter::ownWindow(const QWidget *top) const {
+  if (top == window_) {
+    return true;
+  }
+  // A dock widget floated out of the window (the help panel) is a window
+  // of its own, but its keys are still the main window's.
+  auto *dock = qobject_cast<const QDockWidget *>(top);
+  return dock && dock->parentWidget() &&
+         dock->parentWidget()->window() == window_;
 }
 
 bool KeyRouter::route(QKeyEvent *e, bool press) {

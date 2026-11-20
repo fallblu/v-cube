@@ -44,6 +44,8 @@ private:
   std::set<int> used_;
 
   bool route(QKeyEvent *e, bool press);
+  // The main window, or a dock widget of it floated as a window.
+  bool ownWindow(const QWidget *top) const;
 };
 
 // A key that only modifies others (Shift, Ctrl, Alt, the lock keys ...):

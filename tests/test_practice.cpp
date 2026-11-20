@@ -2,6 +2,7 @@
 #include "test_files.hpp"
 #include "train/f2l.hpp"
 #include "train/practice.hpp"
+#include "train/practice_flow.hpp"
 #include "train/tsle.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -324,4 +325,158 @@ TEST_CASE("the files the modes kept before are dropped", "[practice][io]") {
   CHECK(QFile::exists(path));
   CHECK(
       removeOldPracticeFile(QDir(dir.path()).filePath("none.json")).isEmpty());
+}
+
+namespace {
+
+TrainKeyEvent press(TrainKey key, bool shift = false) {
+  TrainKeyEvent k;
+  k.key = key;
+  k.shift = shift;
+  return k;
+}
+
+TrainKeyEvent digit(int d) {
+  TrainKeyEvent k = press(TrainKey::Digit);
+  k.digit = d;
+  return k;
+}
+
+TrainKeyEvent turn(Move m) {
+  TrainKeyEvent k = press(TrainKey::Other);
+  k.move = m;
+  return k;
+}
+
+PracticeFlow::State in(PracticePhase phase) {
+  PracticeFlow::State s;
+  s.phase = phase;
+  return s;
+}
+
+} // namespace
+
+TEST_CASE("the practice tabs' keys follow the phase", "[practice]") {
+  using A = PracticeFlow::Action;
+  using K = TrainKey;
+  using P = PracticePhase;
+  auto act = [](const TrainKeyEvent &k, const PracticeFlow::State &s) {
+    return PracticeFlow::key(k, s).action;
+  };
+  const Move r{MoveType::R, 1};
+
+  SECTION("releases do nothing") {
+    TrainKeyEvent k = press(K::Space);
+    k.press = false;
+    CHECK_FALSE(PracticeFlow::key(k, in(P::Done)).handled);
+  }
+  SECTION("idle and ready") {
+    CHECK(act(press(K::Space), in(P::Idle)) == A::NextEarly);
+    CHECK(act(press(K::Enter), in(P::Idle)) == A::NextEarly);
+    CHECK_FALSE(PracticeFlow::key(press(K::Escape), in(P::Idle)).handled);
+    CHECK_FALSE(PracticeFlow::key(turn(r), in(P::Idle)).handled);
+    CHECK(act(press(K::Space), in(P::Ready)) == A::Start);
+    CHECK_FALSE(PracticeFlow::key(press(K::Enter), in(P::Ready)).handled);
+  }
+  SECTION("choosing") {
+    PracticeFlow::State s = in(P::Choose);
+    CHECK(act(press(K::Enter), s) == A::ConfirmChoice);
+    const PracticeFlow::Step five = PracticeFlow::key(digit(5), s);
+    CHECK(five.action == A::ChoiceKey);
+    CHECK(five.digit == 5);
+    CHECK_FALSE(PracticeFlow::key(digit(0), s).handled);
+    CHECK(act(turn(r), s) == A::ChooseFirst);
+    // A new case needs its solutions: Esc leaves only a change.
+    const PracticeFlow::Step esc = PracticeFlow::key(press(K::Escape), s);
+    CHECK((esc.handled && esc.action == A::None));
+    s.choosingAgain = true;
+    CHECK(act(press(K::Escape), s) == A::CancelChoice);
+    for (K k : {K::Space, K::Tab, K::Backspace}) {
+      const PracticeFlow::Step st = PracticeFlow::key(press(k), s);
+      CHECK((st.handled && st.action == A::None));
+    }
+  }
+  SECTION("a new case") {
+    const PracticeFlow::State s = in(P::Demo);
+    CHECK(act(press(K::Enter), s) == A::PlayDemo);
+    CHECK(act(press(K::Space), s) == A::Introduced);
+    CHECK(act(press(K::Escape), s) == A::ResetCube);
+    CHECK(act(turn(r), s) == A::Turn);
+  }
+  SECTION("solving") {
+    PracticeFlow::State s = in(P::Solving);
+    // Space alone doesn't give up: a double tap mustn't.
+    const PracticeFlow::Step space = PracticeFlow::key(press(K::Space), s);
+    CHECK((space.handled && space.action == A::None));
+    CHECK(act(press(K::Space, true), s) == A::GiveUp);
+    CHECK(act(press(K::Backspace), s) == A::GiveUpKeyHint);
+    s.shiftSpaceGivesUp = false;
+    CHECK(act(press(K::Backspace), s) == A::GiveUp);
+    CHECK(act(press(K::Space, true), s) == A::None);
+    CHECK(act(press(K::Tab), s) == A::None);
+    s.hints = true;
+    CHECK(act(press(K::Tab), s) == A::Hint);
+    CHECK(act(press(K::Escape), s) == A::ResetCube);
+    s.tab = PracticeTab::Inspection;
+    CHECK(act(press(K::Escape), s) == A::Retry);
+    CHECK(act(press(K::Delete), s) == A::None);
+    const PracticeFlow::Step t = PracticeFlow::key(turn(r), s);
+    CHECK(t.action == A::Turn);
+    CHECK(t.move == r);
+  }
+  SECTION("blind") {
+    PracticeFlow::State s = in(P::Solving);
+    s.hidden = true;
+    s.hints = true;
+    CHECK(act(press(K::Tab), s) == A::None);
+    PracticeFlow::Step shown = PracticeFlow::key(press(K::Space), s);
+    CHECK(shown.action == A::Reveal);
+    CHECK(shown.gaveUp);
+    s.done = true;
+    shown = PracticeFlow::key(press(K::Space, true), s);
+    CHECK(shown.action == A::Reveal);
+    CHECK_FALSE(shown.gaveUp);
+  }
+  SECTION("done") {
+    PracticeFlow::State s = in(P::Done);
+    CHECK(act(press(K::Space), s) == A::Next);
+    CHECK(act(press(K::Enter), s) == A::PlayBest);
+    CHECK(act(press(K::Tab), s) == A::ToggleDetail);
+    CHECK(act(press(K::Delete), s) == A::DeleteTry);
+    CHECK(act(press(K::Escape), s) == A::Retry);
+    CHECK(act(press(K::Backspace), s) == A::None);
+    // 1-4 only for a graded card, 0 only with solutions to change.
+    CHECK(act(digit(3), s) == A::ModeKey);
+    CHECK_FALSE(PracticeFlow::key(digit(3), s).handled);
+    s.graded = true;
+    const PracticeFlow::Step g = PracticeFlow::key(digit(3), s);
+    CHECK(g.action == A::Regrade);
+    CHECK(g.grade == Grade::Good);
+    CHECK(act(digit(5), s) == A::ModeKey);
+    CHECK(act(digit(0), s) == A::ModeKey);
+    s.chooser = true;
+    CHECK(act(digit(0), s) == A::ChooseAgain);
+    // The mode's own keys, then the turning keys.
+    const PracticeFlow::Step m = PracticeFlow::key(turn(r), s);
+    CHECK(m.action == A::ModeKey);
+    CHECK(m.move == r);
+  }
+  SECTION("waiting for the verdict") {
+    PracticeFlow::State s = in(P::Done);
+    s.waiting = true;
+    s.graded = true;
+    CHECK(act(press(K::Space), s) == A::StillWorking);
+    CHECK(act(press(K::Escape), s) == A::None);
+    CHECK(act(press(K::Delete), s) == A::None);
+    CHECK(act(digit(2), s) == A::None);
+    CHECK(act(turn(r), s) == A::Turn);
+  }
+  SECTION("undo takes a grade back on the Learn tab only") {
+    for (P phase : {P::Idle, P::Choose, P::Solving, P::Done}) {
+      CHECK(act(press(K::Undo), in(phase)) == A::Undo);
+    }
+    PracticeFlow::State s = in(P::Done);
+    s.tab = PracticeTab::Untimed;
+    CHECK_FALSE(PracticeFlow::key(press(K::Undo), s).handled);
+  }
 }

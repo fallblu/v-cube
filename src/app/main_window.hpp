@@ -15,6 +15,7 @@ class QAction;
 class QButtonGroup;
 class QDockWidget;
 class QLabel;
+class QPropertyAnimation;
 class QStackedWidget;
 class QTimer;
 
@@ -43,10 +44,18 @@ public:
   // Brings the window to the front, e.g. when v-cube is started again.
   void raiseWindow();
 
+  // What couldn't be read at start-up (data files, alg sets, key
+  // bindings), each with what became of it.
+  const QStringList &startupProblems() const { return startupProblems_; }
+  // Lists them in one window, if there are any; called once the window is
+  // shown.
+  void showStartupProblems();
+
 protected:
   void changeEvent(QEvent *e) override;
   void closeEvent(QCloseEvent *e) override;
   void contextMenuEvent(QContextMenuEvent *e) override;
+  void resizeEvent(QResizeEvent *e) override;
 
 private:
   AppSettings &settings_;
@@ -59,9 +68,13 @@ private:
   QAction *sidebarAction_ = nullptr;
   QAction *pageUndoAction_ = nullptr;
   QAction *sidePanelAction_ = nullptr;
+  QAction *dismissBannerAction_ = nullptr;
   QMenu *modeMenu_ = nullptr;
   QLabel *focusHint_;
   QTimer *focusHintTimer_;
+  QPropertyAnimation *focusHintFade_ = nullptr;
+  void placeFocusHint();
+  void fadeFocusHint(bool in);
   HelpPanel *help_ = nullptr;
   QWidget *banner_ = nullptr;
   QLabel *bannerText_ = nullptr;
@@ -82,6 +95,7 @@ private:
   std::optional<AppMode::Id> mode_;
   // Data files that couldn't be written, with the reason, for the banner.
   std::map<QString, QString> failedWrites_;
+  QStringList startupProblems_;
 
   QWidget *buildSidebar();
   void styleSidebar();
@@ -110,9 +124,12 @@ private:
   void settingsChanged(SettingsParts parts);
   void showAbout();
   void showMessage(const QString &text);
+  // Says so and returns true while a solve or inspection is running.
+  bool refuseWhileBusy();
   // The result of a write to a data file (see setWriteReporter()).
   void writeReported(const QString &path, const QString &error);
   void updateBanner();
+  void dismissBanner();
   // The due counts on the sidebar's Today and Learn buttons.
   void updateBadges();
   // The alg sets changed (or `setId`'s did): every page that shows them

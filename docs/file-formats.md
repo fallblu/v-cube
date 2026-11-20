@@ -23,6 +23,15 @@ and `%LOCALAPPDATA%\v-cube\` on Windows.
 | `alglab.json` | Alg Lab: lab cases, candidates, test sessions, times, profiles |
 | `backups/` | Daily backups |
 | `v-cube.lock` | Marks the running copy, so a second one hands over to it |
+| `deleted/unsaved/` | Partial saves left by a crash, moved out of the way at startup |
+
+If v-cube says it is already running when it isn't (a lock left by a crash
+on another computer sharing the folder, say), choose **Start anyway**, or
+delete `v-cube.lock` while v-cube is closed.
+
+Started with `--data-dir <folder>` (or with `VCUBE_HOME` set), v-cube uses
+that folder for the data instead, and `settings/v-cube/v-cube.ini` inside
+it for the settings; see [building.md](building.md).
 
 Settings (theme, colours, keys, and per-set and per-mode choices) are in
 `~/.config/v-cube/v-cube.ini` on Linux (following `XDG_CONFIG_HOME`) and
@@ -51,10 +60,11 @@ with buttons to copy them.
   after the id is loaded and the other is left alone.
 - **A save that fails** (a full disk, say) shows a red banner naming the
   file until a later save works or you dismiss it.
-- **Daily backups**: the first start of each day copies the data folder
-  into `backups/<yyyy-MM-dd>/`, without the backups, the deleted sets and
-  the lock file, and keeps the newest 14 days. The settings file isn't
-  backed up.
+- **Daily backups**: the first start of each day, and a copy left open
+  past midnight, copies the data folder into `backups/<yyyy-MM-dd>/`,
+  without the backups, the deleted sets, the lock file and partial saves,
+  and the settings file into `backups/<yyyy-MM-dd>/settings/`. The newest
+  14 days are kept.
 - **Deleted alg sets**: deleting a set moves its file to
   `algsets/deleted/<id>.<yyyyMMdd-hhmmss>.json` and its progress to
   `algsets/deleted/progress/`. To bring one back, move the files back
@@ -84,7 +94,10 @@ Every data file is a JSON object with a `format` and a `version`:
 | Alg Lab | `v-cube.alglab` | 2 (added grip profiles; a version 1 file gets the built-in one) |
 
 A file with another `format` can't be read. A missing `version` is read as
-1. Unknown keys are ignored and missing keys take the defaults below.
+1. Unknown keys are ignored (in an alg set, the app names them at startup,
+so that a misspelt key doesn't go unnoticed) and missing keys take the
+defaults below. A file that isn't valid JSON is reported with the line and
+column where it stops being so.
 
 Times are in milliseconds and timestamps in Unix seconds unless said
 otherwise. Scrambles, algs and solutions are move text (`R U R' U'`, `r`,

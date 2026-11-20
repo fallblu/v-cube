@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cube/move.hpp"
+#include "train/practice.hpp"
 #include "train/srs.hpp"
 
 #include <QColor>
@@ -17,16 +18,13 @@ namespace vcube {
 // text: the lines of the verdict, the Inspection clock and the Timed tab's
 // splits, from plain values.
 
-// How a solve went.
+// How a solve went: what is kept and graded, and how it is said.
 struct PracticeOutcome {
+  PracticeResult result;
   QString verdict;   // one line of rich text
   Alg best;          // the best solution from the start; empty if none
   QString bestText;  // how it is written (default: the alg)
   QString bestLabel; // what the best is called (default: "Best")
-  int moves = 0;
-  int bestMoves = 0;
-  double extra = -1.0;
-  bool good = false; // a card's try: solved well
 };
 
 // The parts of a solve, for the Timed tab's splits: each named, ending
@@ -38,8 +36,6 @@ struct PracticeSplit {
 
 // `text` on a line of its own in small print, or nothing for no text.
 QString smallLine(const QString &text);
-// "in 10 min", "in 4 d", "tomorrow".
-QString dueText(std::int64_t due, std::int64_t now, std::int64_t dayEnd);
 // "12.34", as the timer shows a time with `decimals`.
 QString clockText(std::int64_t ms, int decimals);
 // "9.3 s".

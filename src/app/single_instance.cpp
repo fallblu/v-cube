@@ -2,6 +2,7 @@
 
 #include <QCryptographicHash>
 #include <QDir>
+#include <QFile>
 #include <QLocalServer>
 #include <QLocalSocket>
 
@@ -47,6 +48,27 @@ SingleInstance::Claim SingleInstance::claim() {
   socket.waitForBytesWritten(kWaitMs);
   socket.disconnectFromServer();
   return Claim::Signalled;
+}
+
+QString SingleInstance::lockHolder() const {
+  qint64 pid = 0;
+  QString host, app;
+  if (!lock_.getLockInfo(&pid, &host, &app)) {
+    return {};
+  }
+  return host.isEmpty() ? tr("process %1").arg(pid)
+                        : tr("process %1 on %2").arg(pid).arg(host);
+}
+
+bool SingleInstance::takeOver() {
+  if (!lock_.removeStaleLockFile() && QFile::exists(lock_.fileName())) {
+    return false;
+  }
+  if (!lock_.tryLock(200)) {
+    return false;
+  }
+  listen();
+  return true;
 }
 
 void SingleInstance::listen() {

@@ -6,6 +6,7 @@
 #include "app/drill_history_dialog.hpp"
 #include "app/text_style.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "train/alg_follow.hpp"
 
 #include <QActionGroup>
@@ -159,12 +160,13 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   scrambleLabel_->setMinimumHeight(56);
 
   display_ = new TimeDisplay(right);
+  driver_.setDisplay(display_);
   statusLabel_ = new QLabel(right);
   statusLabel_->setAlignment(Qt::AlignCenter);
   statusLabel_->setWordWrap(true);
   // The message line and the result keep their room while hidden, so
   // that the lines under them don't move from one state to the next.
-  statusLabel_->setMinimumHeight(statusLabel_->fontMetrics().height());
+  keepOneLineHigh(statusLabel_);
   QSizePolicy keep = statusLabel_->sizePolicy();
   keep.setRetainSizeWhenHidden(true);
   statusLabel_->setSizePolicy(keep);
@@ -176,7 +178,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   resultLabel_ = new QLabel(resultRow_);
   resultLabel_->setWordWrap(true); // a long DNF reason mustn't widen the page
   resultLabel_->setAlignment(Qt::AlignCenter);
-  resultLabel_->setMinimumHeight(resultLabel_->fontMetrics().height());
+  keepOneLineHigh(resultLabel_);
   resultRows->addWidget(resultLabel_);
   keep = resultRow_->sizePolicy();
   keep.setRetainSizeWhenHidden(true);
@@ -206,12 +208,12 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   // After a case: its diagram and algs side by side under the time, kept
   // together rather than spread across the page.
   auto *revealBox = new QWidget(right);
-  revealBox->setMinimumHeight(kDiagramSize);
+  revealBox->setMinimumHeight(diagramSize());
   auto *revealLayout = new QHBoxLayout(revealBox);
   revealLayout->setContentsMargins(0, 0, 0, 0);
   diagram_ = new QLabel(revealBox);
   diagram_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-  diagram_->setFixedSize(kDiagramSize, kDiagramSize);
+  diagram_->setFixedSize(diagramSize(), diagramSize());
   reveal_ = new QLabel(revealBox);
   reveal_->setTextFormat(Qt::RichText);
   reveal_->setWordWrap(true);
@@ -243,7 +245,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
           &DrillPage::scrambleReady);
   connect(cubeBox_, &QComboBox::activated, this, [this] {
     CubeKind cube = currentEnum(cubeBox_, CubeKind::Virtual);
-    saved::drillCube(setId_).set(qs(std::string(cubeKindId(cube))));
+    saved::drillCube(setId_).set(qs(cubeKindId(cube)));
     picker_.setAttemptMode(attemptMode());
     showCubeKind();
     session_.clear(); // the other cube's times
@@ -272,7 +274,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   });
   connect(orderBox_, &QComboBox::activated, this, [this] {
     PickMode order = currentEnum(orderBox_, PickMode::Random);
-    saved::drillOrder(setId_).set(qs(std::string(pickModeId(order))));
+    saved::drillOrder(setId_).set(qs(pickModeId(order)));
     picker_.setMode(order);
     picker_.restartRecap();
     recapFrom_ = session_.size();
@@ -378,8 +380,8 @@ void DrillPage::deactivated() {
   cubeView_->finishAnimations();
   tick_.stop();
   if (flow_.leave()) {
-    cancelSolve(tr("The solve was left and cancelled; nothing was "
-                   "recorded."));
+    driver_.cancel(tr("The solve was left and cancelled; nothing was "
+                      "recorded."));
   } else if (flow_.phase() == Phase::Waiting) {
     display_->showTime(0);
     showStatus();
@@ -479,11 +481,6 @@ void DrillPage::startCase(const std::string &caseId) {
   }
 }
 
-QString DrillPage::giveUpKeyText() const {
-  return settings_.drill.shiftSpaceGivesUp ? tr("Shift+Space")
-                                           : tr("Backspace");
-}
-
 void DrillPage::offer(const QString &text, std::function<void()> run) {
   offerRun_ = std::move(run);
   offerButton_->setText(text);
@@ -499,7 +496,7 @@ void DrillPage::say(const QString &message, const QList<KeyHint> &keys) {
 
 void DrillPage::showStatus() {
   const bool virt = onVirtualCube();
-  const KeyHint giveUp{giveUpKeyText(), tr("give up")};
+  const KeyHint giveUp{giveUpKeyName(settings_.drill), tr("give up")};
   const bool recorded = flow_.recorded();
   const bool failed = flow_.failed();
   const bool gaveUp = flow_.gaveUp();
@@ -509,35 +506,13 @@ void DrillPage::showStatus() {
   case Phase::NoCase:
     return;
   case Phase::Waiting:
-    if (!virt) {
-      message = tr("Scramble, then start the timer.");
-      keys = {{tr("hold Space"), tr("start on letting go")}, giveUp};
-    } else if (flow_.armed()) {
-      message = tr("Ready: the first face turn starts the timer.");
-      keys = {{tr("Esc"), tr("not yet")}, giveUp};
-    } else if (settings_.drill.tapToArm) {
-      message = tr("Turn the cube as a whole to look at the case.");
-      keys = {{tr("Space"), tr("ready: the first face turn starts the timer")},
-              giveUp};
-    } else {
-      message = tr("Turn the cube as a whole to look at the case.");
-      keys = {{tr("hold Space"), tr("start on letting go or turning")}, giveUp};
-    }
+  case Phase::Running: {
+    TimedSolveKeys solve = timedSolveKeys(
+        flow_, settings_.drill, current_ && !current_->scramble.isEmpty());
+    message = solve.message;
+    keys = solve.keys;
     break;
-  case Phase::Running:
-    if (!virt) {
-      keys = {{tr("any key but Shift, Ctrl, Alt"), tr("stop")},
-              giveUp,
-              {tr("Esc"), tr("cancel")}};
-    } else if (settings_.drill.autoStop) {
-      message = tr("The timer stops when the step is done.");
-      keys = {{tr("Space"), tr("stop now (a DNF unless done)")},
-              giveUp,
-              {tr("Esc"), tr("cancel")}};
-    } else {
-      keys = {{tr("Space"), tr("stop")}, giveUp, {tr("Esc"), tr("cancel")}};
-    }
-    break;
+  }
   case Phase::Revealed: {
     if (!recorded) {
       message = tr("Deleted; nothing is recorded.");
@@ -560,6 +535,9 @@ void DrillPage::showStatus() {
                       gaveUp && flow_.gaveUpBeforeStart() ? tr("take it back")
                                                           : tr("delete it"),
                       [this] { deleteAttempt(); }};
+    } else if (deleted_) {
+      keys << KeyHint{tr("Ctrl+Z"), tr("put it back"),
+                      [this] { restoreAttempt(); }};
     }
     keys << KeyHint{tr("Esc"), tr("try it again")};
     break;
@@ -652,6 +630,7 @@ void DrillPage::refreshSession() {
 
 void DrillPage::nextCase() {
   flow_.leaveCase();
+  deleted_.reset();
   reveal_->clear();
   setDiagram({});
   resultRow_->setVisible(false);
@@ -724,6 +703,7 @@ void DrillPage::nextCase() {
 
 void DrillPage::retryCase() {
   flow_.leaveCase();
+  deleted_.reset();
   const AlgSet *s = set();
   if (!current_ || !drillable(current_->caseId)) {
     // E.g. deleted in the Library: on to another case, which nextCase()
@@ -826,18 +806,8 @@ void DrillPage::scrambleReady() {
 }
 
 void DrillPage::onTick() {
-  std::int64_t now = monotonicMs();
-  // A popup or dialog took the keyboard: Space's release won't come.
-  if (flow_.holding() && (QApplication::activePopupWidget() ||
-                          QApplication::activeModalWidget())) {
-    flow_.loseKeyboard();
-    display_->showTimer(flow_.timer(), now);
+  if (driver_.tick(monotonicMs())) {
     updateControls();
-    return;
-  }
-  flow_.tick(now);
-  if (isBusy()) {
-    display_->showTimer(flow_.timer(), now);
   }
 }
 

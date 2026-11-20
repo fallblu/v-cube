@@ -1,5 +1,6 @@
 #include "app/f2l_page.hpp"
 
+#include "app/alglab_common.hpp"
 #include "app/cube_painter.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
@@ -28,10 +29,6 @@ namespace vcube {
 namespace {
 
 const char *const kWhole = "whole";
-// Costs closer than this are the same (they are shown to a tenth).
-constexpr double kSameCost = 0.05;
-// A cost this much over the best (a pair's) is far over.
-constexpr double kFarOver = 2.0;
 
 QString costText(double cost) { return QString::number(cost, 'f', 1); }
 
@@ -124,9 +121,8 @@ QString slotsText(const std::vector<Slot> &solved) {
 } // namespace
 
 F2LPage::F2LPage(AppSettings &settings, AlgLibrary &library, AlgLabStore &lab,
-                 const QString &dataDir, QWidget *parent)
-    : PracticePage(settings, dataDir, "f2l.json", parent), library_(library),
-      lab_(lab) {
+                 PracticeStore &store, QWidget *parent)
+    : PracticePage(settings, store, parent), library_(library), lab_(lab) {
   loadChoices();
   // Cards of before, by case alone, start afresh as front and back ones.
   const std::size_t before = data().cards.size();
@@ -443,13 +439,8 @@ void F2LPage::cubeChanged() {
 AnalysisOptions F2LPage::analysisOptions() const {
   AnalysisOptions o;
   o.config = config_;
-  o.profile =
-      lab_.profile(saved::lab("scoreProfile").get().toString().toStdString());
+  o.profile = activeScoreProfile(lab_);
   return o;
-}
-
-double F2LPage::compareCost(const Alg &moves, const AnalysisOptions &options) {
-  return solutionCost(comparableSolution(moves), options);
 }
 
 bool F2LPage::wholeReady() const {
@@ -679,12 +670,8 @@ PracticePage::Outcome F2LPage::judge() {
     if (chosen.empty() || !card_) {
       o.verdict = item().gaveUp ? coloured(kFailColour, tr("Gave up"))
                                 : tr("No solutions are chosen for this case.");
-      o.good = !item().gaveUp;
+      o.result.good = !item().gaveUp;
       return o;
-    }
-    double cheapest = std::numeric_limits<double>::infinity();
-    for (const Alg &c : chosen) {
-      cheapest = std::min(cheapest, compareCost(c, options));
     }
     if (std::optional<Alg> first = chosenHere(chosen.front())) {
       o.best = *first;
@@ -692,23 +679,24 @@ PracticePage::Outcome F2LPage::judge() {
       o.bestText = algText(*first) +
                    QString(" <span style='font-weight:normal'>(%1, %2)</span>")
                        .arg(movesText(htmCount(*first)),
-                            tr("cost %1").arg(costText(
-                                compareCost(chosen.front(), options))));
-      o.bestMoves = htmCount(*first);
+                            tr("cost %1").arg(
+                                costText(chosenCost(chosen.front(), options))));
+      o.result.bestMoves = htmCount(*first);
     }
     if (item().gaveUp) {
       o.verdict = coloured(kFailColour, tr("Gave up"));
       return o;
     }
-    tryAsChosen_ = comparableSolution(
-        slotToSide(fixedFrame(item().moves), card_->side, *target_));
-    const std::optional<std::size_t> match =
-        matchChosen(item().moves, card_->side, *target_, chosen);
-    const double mine = solutionCost(tryAsChosen_, options);
-    o.moves = htmCount(simplify(item().moves));
-    o.extra = std::max(0.0, mine - cheapest);
-    o.good = match.has_value() || mine <= cheapest + kSameCost;
-    offerAdd_ = !match && o.good && !tryAsChosen_.empty();
+    const PairJudgement j =
+        judgePair(item().moves, card_->side, *target_, chosen, options);
+    tryAsChosen_ = j.asChosen;
+    const std::optional<std::size_t> match = j.match;
+    const double mine = j.cost;
+    const double cheapest = j.cheapest;
+    o.result.moves = htmCount(simplify(item().moves));
+    o.result.extra = j.extra;
+    o.result.good = j.good;
+    offerAdd_ = !match && j.good && !tryAsChosen_.empty();
     if (match) {
       o.verdict =
           coloured(kPassColour, chosen.size() > 1 ? tr("Your solution %1 of %2")
@@ -716,7 +704,7 @@ PracticePage::Outcome F2LPage::judge() {
                                                         .arg(chosen.size())
                                                   : tr("Your solution")) +
           ", " + tr("cost %1").arg(costText(mine));
-    } else if (o.good) {
+    } else if (o.result.good) {
       o.verdict = coloured(kPassColour, tr("Not one of yours, but as cheap")) +
                   " " +
                   tr("(cost %1, yours from %2)")
@@ -746,7 +734,7 @@ PracticePage::Outcome F2LPage::judge() {
     for (Slot s : plan->order) {
       order << slotText(s);
     }
-    o.bestMoves = plan->moves;
+    o.result.bestMoves = plan->moves;
     o.bestText =
         order.join(" → ") +
         QString(" <span style='font-weight:normal'>(%1, %2)</span>")
@@ -756,28 +744,28 @@ PracticePage::Outcome F2LPage::judge() {
   if (!solved) {
     return o; // a physical cube: only the time, and the best way
   }
-  o.moves = htmCount(simplify(item().moves));
+  o.result.moves = htmCount(simplify(item().moves));
   if (item().gaveUp) {
     o.verdict = coloured(kFailColour, tr("Not finished"));
     return o;
   }
   const double cost = solutionCost(item().moves, options);
-  o.verdict = tr("F2L in %1, cost %2").arg(movesText(o.moves), costText(cost));
+  o.verdict =
+      tr("F2L in %1, cost %2").arg(movesText(o.result.moves), costText(cost));
   if (plan) {
     // Against the cheapest way found from the start: what the pairs
     // chosen and their solutions cost over it together.
-    const double over = std::max(0.0, cost - (plan->total - plan->hidden));
-    o.extra = over;
-    o.good = over < kSameCost;
-    const double pairs =
-        static_cast<double>(std::max(1, pairsLeft(start_, config_)));
+    const WholeJudgement j = judgeWhole(cost, plan->total - plan->hidden,
+                                        pairsLeft(start_, config_));
+    o.result.extra = j.extra;
+    o.result.good = j.good;
     o.verdict +=
         " · " +
-        (over < kSameCost
+        (j.good
              ? coloured(kPassColour, tr("as good as the cheapest way found"))
              : overMarked(
-                   tr("+%1 over the cheapest way found").arg(costText(over)),
-                   over >= kFarOver * pairs));
+                   tr("+%1 over the cheapest way found").arg(costText(j.extra)),
+                   j.far));
   }
   return o;
 }
@@ -847,7 +835,7 @@ QString F2LPage::chosenHtml() const {
                 "<td align='right' style='color:%3'>%4</td>"
                 "<td style='color:%3'>%5</td></tr>")
             .arg(playLink(shown, algText(shown)), movesText(htmCount(shown)),
-                 muted, costText(compareCost(chosen[i], options)),
+                 muted, costText(chosenCost(chosen[i], options)),
                  match == i ? tr("yours this time") : QString());
   }
   html += "</table>";
@@ -1107,7 +1095,7 @@ void F2LPage::fillCandidates(const std::vector<RankedSolution> &searched) {
     c.solution.alg = alg;
     c.solution.text = toString(alg);
     c.solution.htm = htmCount(comparableSolution(alg));
-    c.solution.cost = compareCost(alg, options);
+    c.solution.cost = chosenCost(alg, options);
     c.sheet = from == From::Sheet;
     c.custom = from == From::Custom;
     auto at = std::find_if(
@@ -1242,7 +1230,7 @@ QString F2LPage::addOwnSolution(const QString &text) {
     c.solution.alg = asChosen;
     c.solution.text = toString(asChosen);
     c.solution.htm = htmCount(asChosen);
-    c.solution.cost = compareCost(asChosen, analysisOptions());
+    c.solution.cost = chosenCost(asChosen, analysisOptions());
     c.custom = true;
     candidates_.push_back(std::move(c));
     it = candidates_.end() - 1;

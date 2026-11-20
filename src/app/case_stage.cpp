@@ -140,6 +140,7 @@ void CaseStage::setActions(const std::vector<Action> &actions) {
   auto *row = static_cast<QHBoxLayout *>(actionRow_->layout());
   while (QLayoutItem *item = row->takeAt(0)) {
     if (QWidget *w = item->widget()) {
+      w->hide();
       w->deleteLater();
     }
     delete item;
@@ -221,7 +222,11 @@ void CaseStage::showOutcome(const QString &badge, const QString &colour,
 void CaseStage::setQuizChoices(const QStringList &names) {
   auto *layout = static_cast<QHBoxLayout *>(quizRow_->layout());
   while (QLayoutItem *item = layout->takeAt(0)) {
-    delete item->widget();
+    // Later, as in setActions(): this may run from an answer's own click.
+    if (QWidget *w = item->widget()) {
+      w->hide();
+      w->deleteLater();
+    }
     delete item;
   }
   layout->addStretch();

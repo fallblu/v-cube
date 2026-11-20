@@ -274,8 +274,41 @@ QJsonObject algSetToJson(const AlgSet &set) {
   return o;
 }
 
+QStringList unknownAlgSetKeys(const QJsonObject &o) {
+  static const QStringList kSetKeys = {
+      "format",   "version",   "id",       "name",          "description",
+      "builtin",  "aufBefore", "aufAfter", "targetSeconds", "guided",
+      "families", "reduction", "mirrors",  "free",          "mask",
+      "view",     "groups"};
+  static const QStringList kGroupKeys = {"name", "free", "mask", "view",
+                                         "cases"};
+  static const QStringList kCaseKeys = {"id", "name", "state", "algs"};
+  QStringList out;
+  auto check = [&out](const QJsonObject &obj, const QStringList &known,
+                      const QString &where) {
+    for (auto it = obj.begin(); it != obj.end(); ++it) {
+      if (!known.contains(it.key())) {
+        QString key = QString("\"%1\"").arg(it.key());
+        if (!out.contains(where + key)) {
+          out << where + key;
+        }
+      }
+    }
+  };
+  check(o, kSetKeys, QString());
+  for (const auto &gv : o.value("groups").toArray()) {
+    QJsonObject go = gv.toObject();
+    check(go, kGroupKeys, "in a group ");
+    for (const auto &cv : go.value("cases").toArray()) {
+      check(cv.toObject(), kCaseKeys, "in a case ");
+    }
+  }
+  return out;
+}
+
 std::optional<AlgSet> readAlgSetFile(const QString &path, QString *error,
-                                     FileStatus *status) {
+                                     FileStatus *status,
+                                     QStringList *unknownKeys) {
   FileRead r = readDataFile(path, kAlgSetFile);
   if (status) {
     *status = r.status;
@@ -284,6 +317,9 @@ std::optional<AlgSet> readAlgSetFile(const QString &path, QString *error,
     fail(error, r.status == FileStatus::Missing ? QString("there is no file")
                                                 : r.error);
     return std::nullopt;
+  }
+  if (unknownKeys) {
+    *unknownKeys = unknownAlgSetKeys(r.object);
   }
   return algSetFromJson(r.object, error);
 }
@@ -298,7 +334,7 @@ bool writeFileAtomically(const QString &path, const QByteArray &data,
       *error = why.isEmpty() || why == "Unknown error"
                    ? QString("%1 couldn't be written")
                          .arg(QDir::toNativeSeparators(path))
-                   : why;
+                   : QString("%1: %2").arg(QDir::toNativeSeparators(path), why);
     }
     return false;
   };

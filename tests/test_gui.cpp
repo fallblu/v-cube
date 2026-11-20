@@ -3,6 +3,7 @@
 // folder. The settings and data folders are temporary ones, set before the
 // QApplication exists, so the user's own data is never read or written.
 #include "app/alglab_page.hpp"
+#include "app/app_data.hpp"
 #include "app/app_settings.hpp"
 #include "app/colours.hpp"
 #include "app/command_palette.hpp"
@@ -23,13 +24,17 @@
 #include "app/practice_html.hpp"
 #include "app/practice_keys.hpp"
 #include "app/quiz_practice.hpp"
+#include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
+#include "app/text_style.hpp"
+#include "app/timed_driver.hpp"
 #include "app/timer_page.hpp"
 #include "app/today_page.hpp"
 #include "app/train_keys.hpp"
 #include "app/tsle_page.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/untimed_page.hpp"
 #include "app/widgets.hpp"
 #include "cube/solver.hpp"
@@ -42,24 +47,31 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QFile>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -68,6 +80,7 @@
 #include <QTextBrowser>
 #include <QThreadPool>
 #include <QTimer>
+#include <QToolButton>
 #include <QToolTip>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -91,6 +104,21 @@ QTemporaryDir *tempRoot = nullptr;
 
 [[maybe_unused]] QString tempPath(const QString &name) {
   return QDir(tempRoot->path()).filePath(name);
+}
+
+// The offscreen platform prints this for every window that is shown, tens
+// of times a run, which buries a real failure.
+QtMessageHandler testMessageHandler = nullptr;
+
+void dropNoise(QtMsgType type, const QMessageLogContext &context,
+               const QString &message) {
+  if (message.contains(
+          QLatin1String("does not support propagateSizeHints()"))) {
+    return;
+  }
+  if (testMessageHandler) {
+    testMessageHandler(type, context, message);
+  }
 }
 
 bool isUnderTemp(const QString &path) {
@@ -318,14 +346,31 @@ private slots:
   void interfaceTextSizeScalesTheText();
   void tipsShowInTheStatusBar();
   void trendChartNamesWhatItCharts();
+  void trendChartHoverKeepsThePlot();
   void helpPanelShowsTheKeys();
+  void floatingHelpPanelPassesKeysOn();
+  void aDayStartsAfterAMissingMidnight();
+  void spaceHoldEndsWhenTheWindowIsLeft();
+  void aLockFromAnotherHostCanBeTakenOver();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
   void undoneDeletionKeepsProgressUnderANewId();
+  void appDataLoadsThePracticeFiles();
+  void timedDriverDoesWhatTheFlowAsks();
+  void mouseOnlyControlsHaveAKey();
+  void reviewButtonsHaveKeys();
+  void saveWarningCanBeDismissedFromTheMenu();
+  void timerSaysItsResult();
+  void bareAltReachesTheMenuBar();
+  // Last: a second window takes over the process's write reporter.
+  void startupProblemsShowInOneWindow();
   void cleanupTestCase();
 };
 
 void GuiTest::initTestCase() {
+  // After QTest's own handler is in place (qExec installs it), so that the
+  // rest still goes to the test log.
+  testMessageHandler = qInstallMessageHandler(dropNoise);
   // Everything the app could read or write is in the temporary folder.
   QVERIFY(tempRoot && tempRoot->isValid());
   QVERIFY(isUnderTemp(QSettings().fileName()));
@@ -666,12 +711,12 @@ void GuiTest::fingertrickGuidance() {
   // The default score is the grip profile's.
   QComboBox *profiles = nullptr;
   for (QComboBox *b : lab->findChildren<QComboBox *>()) {
-    if (b->findText(qs(std::string(kGripProfileName))) >= 0) {
+    if (b->findText(qs(kGripProfileName)) >= 0) {
       profiles = b;
     }
   }
   QVERIFY(profiles);
-  QCOMPARE(profiles->currentText(), qs(std::string(kGripProfileName)));
+  QCOMPARE(profiles->currentText(), qs(kGripProfileName));
   GripModel model = standardGripModel();
   double best = gripCost(parseAlgOrEmpty(kTPerm), model);
   QCOMPARE(candidates->item(0, 5)->text(), QString::number(best, 'f', 1));
@@ -1063,6 +1108,7 @@ void GuiTest::f2lLearnAndTimed() {
   f2l->setPhysical(true);
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Waiting);
   QVERIFY(f2l->cubeHidden());
+  QVERIFY(!f2l->ticking()); // nothing to redraw while it waits
   QTRY_VERIFY_WITH_TIMEOUT(!f2l->scrambleText().isEmpty(), 30000);
   {
     // The scramble gives the state, held as the solve is.
@@ -1074,9 +1120,11 @@ void GuiTest::f2lLearnAndTimed() {
   holdSpace();
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Running);
   QVERIFY(f2l->isBusy());
+  QVERIFY(f2l->ticking());
   QTest::qWait(DrillFlow::kMinPhysicalMs + 100);
   QTest::keyClick(window_.get(), Qt::Key_A);
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Revealed);
+  QVERIFY(!f2l->ticking());
   const std::string physicalGroup = timedKey(CubeKind::Physical, "zz-1");
   QCOMPARE(f2l->data().timed.at(physicalGroup).size(), std::size_t{1});
   QCOMPARE(f2l->data().timed.at(physicalGroup).back().moves, 0);
@@ -1229,6 +1277,7 @@ void GuiTest::tsleLearnAndTimed() {
   }
   QCOMPARE(tsle->phase(), Phase::Solving);
   key = tsle->currentCard();
+  const CaseProgress before = tsle->data().cards.at(key);
   for (const TsleOption &o : options()) {
     if (!o.good) {
       typeMoves(o.alg);
@@ -1239,6 +1288,20 @@ void GuiTest::tsleLearnAndTimed() {
   QVERIFY(tsle->grade() == Grade::Again);
   QVERIFY(tsle->verdictHtml().contains("Not a good trigger"));
   QVERIFY(tsle->data().cards.at(key).attempts.back().failed);
+  // Ctrl+Z takes the grade back, as in Learn mode, and the case comes up
+  // again to be done over.
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  QVERIFY(tsle->data().cards.at(key) == before);
+  QCOMPARE(tsle->currentCard(), key);
+  QCOMPARE(tsle->phase(), Phase::Solving);
+  QVERIFY(tsle->graded());
+  for (const TsleOption &o : options()) {
+    if (!o.good) {
+      typeMoves(o.alg);
+      break;
+    }
+  }
+  QVERIFY(tsle->grade() == Grade::Again);
 
   // Untimed: the whole step, a line on each trigger; the best way to the
   // end is as short as it, typed a step at a time.
@@ -1350,9 +1413,11 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(eo->inspectionLimit(), 15);
   QCOMPARE(eo->phase(), Phase::Ready);
   QVERIFY(eo->promptHtml().contains("Ready"));
+  QVERIFY(!eo->ticking());
   QTest::keyClick(window_.get(), Qt::Key_Space);
   QCOMPARE(eo->phase(), Phase::Solving);
   QVERIFY(eo->inspecting());
+  QVERIFY(eo->ticking());
   QCOMPARE(eo->shownHold(), settings_.neutrality.main);
   QVERIFY(!doneHold(eo->cube(), step, holds));
   typeMoves(parseAlgOrEmpty("y"));
@@ -1362,6 +1427,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QTest::qWait(30);
   int optimum = solveOptimally();
   QVERIFY(!eo->inspecting());
+  QVERIFY(!eo->ticking());
   QVERIFY(eo->inspectedMs() > 0);
   QVERIFY(eo->cubeHidden());
   QCOMPARE(eo->phase(), Phase::Solving);
@@ -1585,6 +1651,17 @@ void GuiTest::timedPhysicalSolve() {
   learnMode->trigger();
   QCOMPARE(shownPage(*window_), timed);
   QVERIFY(timed->isBusy());
+  // Settings and the command list say why they don't open.
+  for (QAction *a : window_->findChildren<QAction *>()) {
+    if (a->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_K) ||
+        a->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Comma)) {
+      window_->statusBar()->clearMessage();
+      a->trigger();
+      QCOMPARE(window_->statusBar()->currentMessage(),
+               QString("Finish or cancel the solve (Esc) first"));
+    }
+  }
+  QVERIFY(timed->isBusy());
   QTest::qWait(400);
   QTest::keyClick(window_.get(), Qt::Key_A); // any key stops it
   QVERIFY(!timed->isBusy());
@@ -1599,6 +1676,22 @@ void GuiTest::timedPhysicalSolve() {
   QVERIFY(s.solves[0].penalty == Penalty::None);
   QVERIFY(!s.solves[0].scramble.empty());
   QVERIFY(s.solves[0].moves.empty());
+
+  // Backspace toggles the DNF on the solve just finished, and not once
+  // another key has been pressed.
+  auto penalty = [this] {
+    finishBackgroundWrites();
+    SessionStore store(QDir(dataDir_).filePath("sessions.json"));
+    return store.load() ? store.sessions().front().solves.back().penalty
+                        : Penalty::Plus2;
+  };
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QVERIFY(penalty() == Penalty::Dnf);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QVERIFY(penalty() == Penalty::None);
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  QVERIFY(penalty() == Penalty::None);
 }
 
 void GuiTest::untimedVirtualSolve() {
@@ -1812,6 +1905,24 @@ void GuiTest::drillArmsAndStopsItself() {
   SetProgress p = savedProgress("pll");
   QCOMPARE(p["T"].drillCount(AttemptMode::VirtualDrill), std::size_t{1});
   QCOMPARE(p["T"].failRate(AttemptMode::VirtualDrill), 0.0);
+  // Delete deletes the attempt and Ctrl+Z (only by itself) puts it back,
+  // as in Timed.
+  QTest::qWait(DrillFlow::kGuardMs + 50);
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(savedProgress("pll")["T"].drillCount(AttemptMode::VirtualDrill),
+           std::size_t{0});
+  QTest::keyClick(window_.get(), Qt::Key_Z,
+                  Qt::ControlModifier | Qt::ShiftModifier);
+  QCOMPARE(savedProgress("pll")["T"].drillCount(AttemptMode::VirtualDrill),
+           std::size_t{0});
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  p = savedProgress("pll");
+  QCOMPARE(p["T"].drillCount(AttemptMode::VirtualDrill), std::size_t{1});
+  QCOMPARE(p["T"].failRate(AttemptMode::VirtualDrill), 0.0);
+  // Once more does nothing: it is back.
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  QCOMPARE(savedProgress("pll")["T"].drillCount(AttemptMode::VirtualDrill),
+           std::size_t{1});
 }
 
 void GuiTest::libraryAddsAnAlgAndUndoes() {
@@ -1953,11 +2064,27 @@ void GuiTest::practiceResultsAreWorded() {
 
   // When a card comes back.
   const std::int64_t now = 1000000, dayEnd = now + 7200;
-  QCOMPARE(dueText(now, now, dayEnd), QString("now"));
-  QCOMPARE(dueText(now + 30, now, dayEnd), QString("in 1 min"));
-  QCOMPARE(dueText(now + 3600, now, dayEnd), QString("in 1 h"));
-  QCOMPARE(dueText(dayEnd, now, dayEnd), QString("tomorrow"));
-  QCOMPARE(dueText(dayEnd + 3 * 86400, now, dayEnd), QString("in 4 d"));
+  QCOMPARE(dueSentence(now, now, dayEnd), QString("now"));
+  QCOMPARE(dueSentence(now + 30, now, dayEnd), QString("in <1 min"));
+  QCOMPARE(dueSentence(now + 90, now, dayEnd), QString("in 2 min"));
+  QCOMPARE(dueSentence(now + 3600, now, dayEnd), QString("in 1 h"));
+  QCOMPARE(dueSentence(dayEnd, now, dayEnd), QString("tomorrow"));
+  QCOMPARE(dueSentence(dayEnd + 3 * 86400, now, dayEnd), QString("in 4 d"));
+  // Every page rounds a length of time the same way.
+  QCOMPARE(durationText(59), QString("<1 min"));
+  QCOMPARE(durationText(90), QString("2 min"));
+  QCOMPARE(durationText(5500), QString("2 h"));
+  QCOMPARE(durationText(3 * 86400 + 3600), QString("3 d"));
+  CaseProgress card;
+  QCOMPARE(dueCell(nullptr, now, dayEnd), QString("-"));
+  QCOMPARE(dueCell(&card, now, dayEnd), QString("-"));
+  card.card.state = CardState::Learning;
+  card.card.due = now + 90;
+  QCOMPARE(dueCell(&card, now, dayEnd), QString("2 min"));
+  card.card.state = CardState::Review;
+  QCOMPARE(dueCell(&card, now, dayEnd), QString("today"));
+  card.card.due = dayEnd + 86400;
+  QCOMPARE(dueCell(&card, now, dayEnd), QString("1 d"));
 }
 
 void GuiTest::practiceKeysFollowThePhase() {
@@ -1969,13 +2096,13 @@ void GuiTest::practiceKeysFollowThePhase() {
     return all.join(' ');
   };
   using P = PracticePhase;
-  auto untimed = [](P phase, auto set) {
-    UntimedKeysState s;
+  auto untimed = [](P phase, auto set, const QList<KeyHint> &modeKeys = {}) {
+    PracticeFlow::State s;
     s.phase = phase;
     set(s);
-    return untimedKeys(s);
+    return untimedKeys(s, modeKeys);
   };
-  auto asIs = [](UntimedKeysState &) {};
+  auto asIs = [](PracticeFlow::State &) {};
   QCOMPARE(names(untimed(P::Idle, asIs)), QString("Space"));
   QCOMPARE(names(untimed(P::Choose, asIs)), QString("1-9 Enter"));
   QCOMPARE(names(untimed(P::Choose, [](auto &s) { s.choosingAgain = true; })),
@@ -1984,7 +2111,7 @@ void GuiTest::practiceKeysFollowThePhase() {
            QString("Tab Shift+Space Esc"));
   // Drill's give-up key, whichever it is.
   QCOMPARE(
-      names(untimed(P::Solving, [](auto &s) { s.giveUpKey = "Backspace"; })),
+      names(untimed(P::Solving, [](auto &s) { s.shiftSpaceGivesUp = false; })),
       QString("Backspace Esc"));
   // A hidden cube has no hint to give, and says so.
   const PracticeKeys hidden =
@@ -1996,15 +2123,65 @@ void GuiTest::practiceKeysFollowThePhase() {
       untimed(P::Done, [](auto &s) { s.waiting = s.best = true; });
   QVERIFY(waiting.keys.isEmpty() && !waiting.message.isEmpty());
   QCOMPARE(names(untimed(P::Done,
-                         [](auto &s) {
-                           s.best = s.graded = s.chooser = true;
-                           s.modeKeys = {{"+", "add"}};
-                         })),
-           QString("Space Enter Tab 1-4 + 0 Esc"));
+                         [](auto &s) { s.best = s.graded = s.chooser = true; },
+                         {{"+", "add"}})),
+           QString("Space Enter Tab 1-4 Ctrl+Z + 0 Esc"));
   QCOMPARE(names(untimed(P::Done, asIs)), QString("Space Tab Esc"));
   // An Untimed or Inspection try just kept can be deleted.
   QCOMPARE(names(untimed(P::Done, [](auto &s) { s.recorded = true; })),
            QString("Space Tab Delete Esc"));
+
+  // Every key a hint names does something in the state it is shown in:
+  // the hints and the keys are read from the same state.
+  auto keyOf = [](const QString &name) -> std::optional<TrainKeyEvent> {
+    TrainKeyEvent k;
+    if (name == "Space" || name == "Shift+Space") {
+      k.key = TrainKey::Space;
+      k.shift = name == "Shift+Space";
+    } else if (name == "Backspace") {
+      k.key = TrainKey::Backspace;
+    } else if (name == "Enter") {
+      k.key = TrainKey::Enter;
+    } else if (name == "Tab") {
+      k.key = TrainKey::Tab;
+    } else if (name == "Esc") {
+      k.key = TrainKey::Escape;
+    } else if (name == "Delete") {
+      k.key = TrainKey::Delete;
+    } else if (name == "Ctrl+Z") {
+      k.key = TrainKey::Undo;
+    } else if (name == "1-9" || name == "1-4" || name == "0") {
+      k.key = TrainKey::Digit;
+      k.digit = name == "0" ? 0 : 1;
+    } else {
+      return std::nullopt;
+    }
+    return k;
+  };
+  for (int bits = 0; bits < (1 << 10); ++bits) {
+    for (P phase :
+         {P::Idle, P::Ready, P::Choose, P::Demo, P::Solving, P::Done}) {
+      PracticeFlow::State s;
+      s.phase = phase;
+      s.tab = bits & 1 ? PracticeTab::Inspection : PracticeTab::Learn;
+      s.hidden = bits & 2;
+      s.waiting = bits & 4;
+      s.hints = bits & 8;
+      s.graded = bits & 16;
+      s.chooser = bits & 32;
+      s.recorded = bits & 64;
+      s.choosingAgain = bits & 128;
+      s.shiftSpaceGivesUp = bits & 256;
+      s.best = bits & 512;
+      for (const KeyHint &h : untimedKeys(s).keys) {
+        const std::optional<TrainKeyEvent> k = keyOf(h.key);
+        QVERIFY2(k, qPrintable(h.key));
+        const PracticeFlow::Step step = PracticeFlow::key(*k, s);
+        QVERIFY2(step.handled && step.action != PracticeFlow::Action::None,
+                 qPrintable(h.key));
+      }
+    }
+  }
 
   DrillFlow flow;
   DrillFlow::Config config;
@@ -2016,7 +2193,6 @@ void GuiTest::practiceKeysFollowThePhase() {
   config.virtualCube = false;
   flow.setConfig(config);
   flow.setUp(0);
-  timed.physical = true;
   const PracticeKeys awaited = timedKeys(flow, drill, timed);
   QCOMPARE(names(awaited), QString("hold Space Shift+Space"));
   QVERIFY(awaited.message.isEmpty());
@@ -2081,6 +2257,11 @@ void GuiTest::themeColoursAreReadable() {
     // White text on a selection, a grade badge or the banner.
     QVERIFY(contrast(pal.color(QPalette::HighlightedText),
                      pal.color(QPalette::Highlight)) >= 4.5);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    // The accent is the app's, not the desktop's.
+    QCOMPARE(pal.color(QPalette::Accent), pal.color(QPalette::Highlight));
+    QVERIFY(pal.isBrushSet(QPalette::Active, QPalette::Accent));
+#endif
     for (Role r :
          {Role::GradeAgain, Role::GradeHard, Role::GradeGood, Role::GradeEasy,
           Role::GradeNone, Role::GradeWalked, Role::Banner}) {
@@ -2254,14 +2435,13 @@ void GuiTest::keysAreReadTheSameForEveryPage() {
   QVERIFY(trainKeyEvent(&repeat, true, KeyChords::Attempt).autoRepeat);
   QVERIFY(!trainKeyEvent(&repeat, false, KeyChords::Attempt).press);
 
-  // Ctrl+Z: nothing to the practice modes and Alg Lab, Undo in Drill and
-  // Learn whatever else is held, Undo in Untimed and Move Count only by
-  // itself.
+  // Ctrl+Z: nothing to Alg Lab, Undo in the rest only by itself
+  // (Ctrl+Shift+Z is Library's redo).
   const Qt::KeyboardModifiers ctrlShift =
       Qt::ControlModifier | Qt::ShiftModifier;
   QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::None).key, K::Other);
   QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::Undo).key, K::Undo);
-  QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Undo).key, K::Undo);
+  QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Undo).key, K::Other);
   QCOMPARE(read(Qt::Key_Z, Qt::ControlModifier, KeyChords::Attempt).key,
            K::Undo);
   QCOMPARE(read(Qt::Key_Z, ctrlShift, KeyChords::Attempt).key, K::Other);
@@ -2345,6 +2525,16 @@ void GuiTest::settingsDialogOpensAndCloses() {
 }
 
 void GuiTest::interfaceTextSizeScalesTheText() {
+  // A size scales in the unit the font gives it, points or pixels.
+  {
+    QFont points, pixels, f;
+    points.setPointSizeF(10);
+    pixels.setPixelSize(14);
+    scaleSize(f, points, 1.5);
+    QCOMPARE(f.pointSizeF(), 15.0);
+    scaleSize(f, pixels, 1.5);
+    QCOMPARE(f.pixelSize(), 21);
+  }
   // Chooses an interface text size in Settings and presses OK.
   auto choose = [this](int percent) {
     ModalWatcher watcher([percent](QWidget *m) {
@@ -2460,6 +2650,38 @@ void GuiTest::trendChartNamesWhatItCharts() {
   QVERIFY(!chart.grab().isNull());
 }
 
+// A long session: hovering only draws the marker over the plot drawn
+// before, so it is quick, and leaves the plot as it was.
+void GuiTest::trendChartHoverKeepsThePlot() {
+  TrendChart chart;
+  std::vector<Solve> solves(20000);
+  for (std::size_t i = 0; i < solves.size(); ++i) {
+    solves[i].timeMs = 9000 + static_cast<std::int64_t>((i * 7919) % 5000);
+  }
+  chart.setSolves(solves);
+  chart.resize(760, 260); // not shown: the main window keeps the focus
+  const QImage before = chart.grab().toImage();
+  QElapsedTimer timer;
+  timer.start();
+  for (int x = 100; x < 300; x += 2) {
+    QMouseEvent move(QEvent::MouseMove, QPointF(x, 100), QPointF(x, 100),
+                     Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&chart, &move);
+    (void)chart.grab(); // paints it
+  }
+  // 100 hovers: about a whole plot drawn each, before the plot was kept.
+  QVERIFY2(timer.elapsed() < 2000,
+           qPrintable(QString::number(timer.elapsed())));
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(&chart, &leave);
+  QCOMPARE(chart.grab().toImage(), before);
+  // A new solve is charted.
+  solves.push_back(solves.front());
+  solves.back().timeMs = 60000;
+  chart.setSolves(solves);
+  QVERIFY(chart.grab().toImage() != before);
+}
+
 void GuiTest::helpPanelShowsTheKeys() {
   auto *help = page<HelpPanel>();
   QVERIFY(!help->isVisible());
@@ -2469,11 +2691,116 @@ void GuiTest::helpPanelShowsTheKeys() {
   QVERIFY(text);
   QString timed = text->toPlainText();
   QVERIFY(timed.contains("Space"));
+  // It takes no focus, but Alt+Page Down and Up scroll it.
+  QScrollBar *scroll = text->verticalScrollBar();
+  QTRY_VERIFY(scroll->maximum() > 0);
+  scroll->setValue(0);
+  QTest::keyClick(window_.get(), Qt::Key_PageDown, Qt::AltModifier);
+  QVERIFY(scroll->value() > 0);
+  QTest::keyClick(window_.get(), Qt::Key_PageUp, Qt::AltModifier);
+  QCOMPARE(scroll->value(), 0);
   // It follows the mode.
   QVERIFY(switchTo(AppMode::Library, page<LibraryPage>()));
   QTRY_VERIFY(text->toPlainText() != timed);
   QTest::keyClick(window_.get(), Qt::Key_F1);
   QTRY_VERIFY(!help->isVisible());
+}
+
+// The help panel floated is a window of its own: keys pressed while it is
+// the active window still reach the page (Space starts Timed's clock).
+void GuiTest::floatingHelpPanelPassesKeysOn() {
+  auto *timed = page<TimerPage>();
+  QVERIFY(switchTo(AppMode::Timed, timed));
+  auto *help = page<HelpPanel>();
+  QTest::keyClick(window_.get(), Qt::Key_F1);
+  QTRY_VERIFY(help->isVisible());
+  help->setFloating(true);
+  QVERIFY(help->isWindow());
+  help->activateWindow();
+  QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget *>(help));
+  QVERIFY(QTest::qWaitFor(
+      [&] {
+        QTest::keyPress(help, Qt::Key_Space);
+        QTest::qWait(settings_.holdMs + 150);
+        QTest::keyRelease(help, Qt::Key_Space);
+        return timed->isBusy();
+      },
+      10000));
+  QTest::qWait(50);
+  QTest::keyClick(help, Qt::Key_A); // any key stops it
+  QVERIFY(!timed->isBusy());
+  help->setFloating(false);
+  help->hide();
+  window_->activateWindow();
+  QTRY_VERIFY(window_->isActiveWindow());
+}
+
+// Space held in Timed, then another window takes the keyboard (Alt+Tab)
+// and the release goes there: the hold is dropped rather than left
+// waiting, nothing starts, and the next hold works as before.
+void GuiTest::spaceHoldEndsWhenTheWindowIsLeft() {
+  auto *timed = page<TimerPage>();
+  QVERIFY(switchTo(AppMode::Timed, timed));
+  QTest::keyPress(window_.get(), Qt::Key_Space);
+  QTest::qWait(settings_.holdMs + 150);
+  QVERIFY(timed->isBusy()); // the hold is shown
+  QWidget other;
+  other.show();
+  other.activateWindow();
+  QTRY_COMPARE(QApplication::activeWindow(), &other);
+  QVERIFY(!timed->isBusy());
+  QTest::keyRelease(&other, Qt::Key_Space); // lost to the other window
+  window_->activateWindow();
+  QTRY_VERIFY(window_->isActiveWindow());
+  QVERIFY(!timed->isBusy());
+  QVERIFY(QTest::qWaitFor(
+      [&] {
+        holdSpace();
+        return timed->isBusy();
+      },
+      10000));
+  QTest::qWait(50);
+  QTest::keyClick(window_.get(), Qt::Key_A); // any key stops it
+  QVERIFY(!timed->isBusy());
+}
+
+// São Paulo's clocks went from 00:00 to 01:00 on 4 November 2018: that
+// day started at 01:00 local time (03:00 UTC), and lasted 23 hours.
+void GuiTest::aDayStartsAfterAMissingMidnight() {
+  const QTimeZone zone("America/Sao_Paulo");
+  if (!zone.isValid() ||
+      zone.offsetFromUtc(QDateTime(QDate(2018, 11, 5), QTime(12, 0),
+                                   QTimeZone::UTC)) != -2 * 3600) {
+    QSKIP("no history for America/Sao_Paulo here");
+  }
+  const QDate day(2018, 11, 4);
+  const std::int64_t start = dayStart(day, zone);
+  QCOMPARE(start,
+           QDateTime(day, QTime(3, 0), QTimeZone::UTC).toSecsSinceEpoch());
+  QCOMPARE(dayStart(day.addDays(1), zone) - start, 23 * 3600);
+  QCOMPARE(dayStart(day.addDays(-1), zone) + 24 * 3600, start);
+}
+
+// A lock left by a crash under another host name is never stale by
+// itself: it is named, and Start anyway takes it over.
+void GuiTest::aLockFromAnotherHostCanBeTakenOver() {
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  QString lock = dir.filePath("v-cube.lock");
+  {
+    QFile f(lock);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("999999\nv-cube\nsome-other-host\n");
+  }
+  SingleInstance instance(dir.path());
+  QVERIFY(instance.claim() == SingleInstance::Claim::Running);
+  QCOMPARE(instance.lockPath(), lock);
+  QVERIFY2(instance.lockHolder().contains("some-other-host"),
+           qPrintable(instance.lockHolder()));
+  QVERIFY(instance.takeOver());
+  // Now this copy holds it, and another is turned away or signalled.
+  SingleInstance second(dir.path());
+  QVERIFY(second.claim() != SingleInstance::Claim::First);
 }
 
 // docs/keys.md is written from the key table; VCUBE_WRITE_DOCS=1 writes
@@ -2562,6 +2889,328 @@ void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
   QTest::keySequence(window_.get(), QKeySequence::Undo);
   QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
   QCOMPARE(savedProgress("pll-2").size(), graded);
+}
+
+void GuiTest::appDataLoadsThePracticeFiles() {
+  // The practice modes' files are read with the others, without a page:
+  // an old TSLE file's OCLL algs are carried over and saved, and a file
+  // that can't be read is reported with the rest.
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  auto write = [&dir](const QString &name, const QByteArray &text) {
+    QFile f(QDir(dir.path()).filePath(name));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(text);
+  };
+  write("tsle.json", R"({"format": "v-cube.tsle", "version": 1,
+    "ocll": {"antisune": "L' U' L U' L' U2 L"}})");
+  write("f2l.json", "not json");
+  AppData data(dir.path());
+  const AppData::LoadReport report = data.load();
+  QCOMPARE(data.tsle.data.notes.at("ocll/antisune"),
+           std::string("L' U' L U' L' U2 L"));
+  QVERIFY(data.eoCross.data.cards.empty());
+  QCOMPARE(report.warnings.size(), 1);
+  QVERIFY(report.warnings.front().contains("f2l.json"));
+  finishBackgroundWrites(data.tsle.path());
+  PracticeStore again(QDir(dir.path()).filePath("tsle.json"));
+  QVERIFY(again.load());
+  QCOMPARE(again.data.notes, data.tsle.data.notes);
+}
+
+void GuiTest::timedDriverDoesWhatTheFlowAsks() {
+  // The host Drill and the practice Timed tabs give the driver: what it
+  // was asked to do, in order.
+  struct Host : TimedHost {
+    QStringList calls;
+    bool done = false;
+    void timedNext(bool fromIdle) override {
+      calls << (fromIdle ? "next from idle" : "next");
+    }
+    void timedRetry() override { calls << "retry"; }
+    void timedResetCube() override { calls << "reset"; }
+    void timedRotate(Move) override { calls << "rotate"; }
+    void timedStarted(std::int64_t) override { calls << "started"; }
+    std::optional<DrillFlow::Turn> timedTurn(Move m, std::int64_t) override {
+      calls << "turn";
+      return isRotation(m.type) ? DrillFlow::Turn::Rotation
+                                : DrillFlow::Turn::OffUdFace;
+    }
+    bool timedStepDone() override { return done; }
+    void timedFinish(std::int64_t, DrillFlow::Result r) override {
+      calls << (r == DrillFlow::Result::Solved   ? "solved"
+                : r == DrillFlow::Result::Failed ? "failed"
+                                                 : "gave up");
+    }
+    void timedPractise(bool) override { calls << "practise"; }
+    void timedToggleWrong() override { calls << "wrong"; }
+    void timedDelete() override { calls << "delete"; }
+    void timedFinishAnimations() override {}
+    void timedShowKeys() override {}
+    void timedSay(const QString &text) override { calls << "say " + text; }
+    void timedCancelled(const QString &why) override {
+      calls << "cancelled " + why;
+    }
+  } host;
+  DrillSettings drill;
+  drill.tapToArm = true;
+  drill.autoStop = true;
+  drill.shiftSpaceGivesUp = true;
+  TimeDisplay display;
+  TimedDriver driver(host, drill);
+  driver.setDisplay(&display);
+  DrillFlow::Config config;
+  config.virtualCube = true;
+  driver.flow().setConfig(config);
+  driver.flow().setUp(0);
+  auto press = [](TrainKey key, bool shift = false) {
+    TrainKeyEvent k;
+    k.key = key;
+    k.shift = shift;
+    return k;
+  };
+  auto turn = [](MoveType t) {
+    TrainKeyEvent k;
+    k.move = Move{t, 1};
+    return k;
+  };
+  auto release = [&press] {
+    TrainKeyEvent k = press(TrainKey::Space);
+    k.press = false;
+    return k;
+  };
+  std::int64_t now = 1000;
+  // A face turn before the timer can start is said, a rotation looks.
+  QVERIFY(driver.key(turn(MoveType::R), now, Scramble::Shown));
+  QCOMPARE(host.calls.takeFirst(),
+           "say " + timedHintText(DrillFlow::Hint::OnlyRotations, drill));
+  QVERIFY(driver.key(turn(MoveType::Y), now, Scramble::Shown));
+  QCOMPARE(host.calls.takeFirst(), QString("rotate"));
+  // Backspace says which key gives up.
+  driver.key(press(TrainKey::Backspace), now, Scramble::Shown);
+  QVERIFY(host.calls.takeFirst().contains("Shift+Space"));
+  // Armed, the first face turn starts the timer and is a turn of the
+  // solve; the turn that does the step stops it.
+  driver.key(press(TrainKey::Space), now, Scramble::Shown);
+  driver.key(release(), now, Scramble::Shown);
+  host.calls.clear();
+  driver.key(turn(MoveType::R), now += 100, Scramble::Shown);
+  QCOMPARE(host.calls, QStringList({"started", "turn"}));
+  host.calls.clear();
+  host.done = true;
+  driver.key(turn(MoveType::U), now += 500, Scramble::Shown);
+  QCOMPARE(host.calls, QStringList({"turn", "solved"}));
+  host.calls.clear();
+  // Esc during a solve cancels it, saying so.
+  driver.flow().setUp(now);
+  driver.key(press(TrainKey::Space), now, Scramble::Shown);
+  driver.key(release(), now, Scramble::Shown);
+  host.done = false;
+  driver.key(turn(MoveType::R), now += 100, Scramble::Shown);
+  host.calls.clear();
+  driver.key(press(TrainKey::Escape), now += 100, Scramble::Shown);
+  QCOMPARE(host.calls, QStringList({"reset", "cancelled " + cancelledText()}));
+  QCOMPARE(driver.flow().phase(), DrillFlow::Phase::Waiting);
+  // Shift+Space gives up.
+  host.calls.clear();
+  driver.key(press(TrainKey::Space, true), now, Scramble::Shown);
+  QCOMPARE(host.calls, QStringList({"gave up"}));
+}
+
+// The main window has no Tab focus (Tab is a page key): every control
+// that can't take the focus can be reached from the keyboard another way,
+// through the command list (which lists the page's buttons and choices),
+// a key of its own or one its tip names.
+void GuiTest::mouseOnlyControlsHaveAKey() {
+  static const QRegularExpression namedKey(
+      R"(\((?:[^()]*\b)?(?:Ctrl|Alt|Shift|F\d+|Space|Enter|Esc|Tab|Home|End|Delete|Backspace|[←→↑↓]|[A-Z0-9])\b?[^()]*\)\s*$)");
+  for (AppMode::Id mode : AppMode::all()) {
+    // The pages are stacked in the order of the modes.
+    ModePage *expected = nullptr;
+    for (QStackedWidget *stack : window_->findChildren<QStackedWidget *>()) {
+      if (auto *p = qobject_cast<ModePage *>(stack->widget(mode))) {
+        expected = p;
+      }
+    }
+    QVERIFY(expected);
+    QVERIFY(switchTo(mode, expected));
+    ModePage *page = expected;
+    QStringList listed;
+    for (const auto &c : CommandPalette::fromControls(page)) {
+      listed << c.text;
+    }
+    QStringList missing;
+    auto reachable = [&](QWidget *w, const QString &text) {
+      QString tip = w->toolTip().simplified();
+      if (namedKey.match(tip).hasMatch()) {
+        return true;
+      }
+      if (auto *b = qobject_cast<QAbstractButton *>(w);
+          b && !b->shortcut().isEmpty()) {
+        return true;
+      }
+      if (auto *t = qobject_cast<QToolButton *>(w);
+          t && t->defaultAction() &&
+          !t->defaultAction()->shortcut().isEmpty()) {
+        return true;
+      }
+      return !text.isEmpty() &&
+             std::ranges::any_of(listed, [&](const QString &entry) {
+               return entry.startsWith(text) || entry.contains(": " + text);
+             });
+    };
+    for (QAbstractButton *b : page->findChildren<QAbstractButton *>()) {
+      if (b->focusPolicy() != Qt::NoFocus || !b->isVisibleTo(page) ||
+          !b->isEnabled() || b->window() != window_.get()) {
+        continue;
+      }
+      // As the command list writes it.
+      QString text =
+          QString(b->text()).remove('&').remove(QStringLiteral("…")).trimmed();
+      if (!reachable(b, text)) {
+        missing << QString("%1 button \"%2\" (%3)")
+                       .arg(AppMode::label(mode), text, b->toolTip());
+      }
+    }
+    for (QComboBox *box : page->findChildren<QComboBox *>()) {
+      if (box->focusPolicy() != Qt::NoFocus || !box->isVisibleTo(page) ||
+          !box->isEnabled() || box->isEditable() || box->count() == 0) {
+        continue;
+      }
+      if (!reachable(box, box->itemText(0))) {
+        missing << QString("%1 choice \"%2\" (%3)")
+                       .arg(AppMode::label(mode), box->currentText(),
+                            box->toolTip());
+      }
+    }
+    QVERIFY2(missing.isEmpty(), qPrintable(missing.join("\n")));
+  }
+}
+
+// The review's buttons take no focus: C, W and R do what they do, and the
+// key strip says so.
+void GuiTest::reviewButtonsHaveKeys() {
+  ReviewedSolve solve;
+  solve.title = "Test solve";
+  solve.scramble = parseAlgOrEmpty("R U R' U'");
+  solve.solution = parseAlgOrEmpty("U R U' R'");
+  ReviewDialog dialog(solve, settings_, nullptr, window_.get());
+  dialog.setRetryEnabled(true);
+  QSignalSpy retried(&dialog, &ReviewDialog::retryRequested);
+  dialog.show();
+  QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+  dialog.activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(&dialog));
+  HintBar *keys = dialog.findChild<HintBar *>();
+  QVERIFY(keys);
+  QStringList shown;
+  for (const KeyHint &k : keys->keys()) {
+    shown << k.key;
+  }
+  QVERIFY2(shown.contains("C") && shown.contains("W") && shown.contains("R"),
+           qPrintable(shown.join(", ")));
+  QApplication::clipboard()->clear();
+  QTest::keyClick(&dialog, Qt::Key_C);
+  QVERIFY2(QApplication::clipboard()->text().contains("R U R' U'"),
+           qPrintable(QApplication::clipboard()->text()));
+  QTest::keyClick(&dialog, Qt::Key_R);
+  QCOMPARE(retried.count(), 1);
+  QVERIFY(!dialog.isVisible());
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
+// A file that can't be saved puts up the banner, which File > Dismiss save
+// warning hides as its button does.
+void GuiTest::saveWarningCanBeDismissedFromTheMenu() {
+  QAction *dismiss = nullptr;
+  for (QAction *a : window_->findChildren<QAction *>()) {
+    if (a->text() == "Dismiss save warning") {
+      dismiss = a;
+    }
+  }
+  QVERIFY(dismiss);
+  QVERIFY(!dismiss->isVisible());
+  QWidget *banner = window_->findChild<QWidget *>("saveBanner");
+  QVERIFY(banner);
+  reportWrite(QDir(dataDir_).filePath("nowhere.json"), false, "disk full");
+  QTRY_VERIFY(banner->isVisible());
+  QVERIFY(dismiss->isVisible());
+  dismiss->trigger();
+  QVERIFY(!banner->isVisible());
+  QVERIFY(!dismiss->isVisible());
+}
+
+// The timer is named "Timer"; what it shows is said in its description,
+// though not on every frame of a running solve.
+void GuiTest::timerSaysItsResult() {
+  TimeDisplay display;
+  display.showTime(12340, Penalty::Plus2);
+  QCOMPARE(display.accessibleName(), QString("Timer"));
+  QCOMPARE(display.accessibleDescription(), display.text());
+  QVERIFY(display.text().contains("+"));
+  display.showText("DNF");
+  QCOMPARE(display.accessibleDescription(), QString("DNF"));
+}
+
+// F10 is focus mode, so the menu bar is reached without a mnemonic by a
+// bare Alt press, as the style offers (Fusion included).
+void GuiTest::bareAltReachesTheMenuBar() {
+  QVERIFY(switchTo(AppMode::Today, page<TodayPage>()));
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  QVERIFY(window_->style()->styleHint(QStyle::SH_MenuBar_AltKeyNavigation));
+  QWidget *target =
+      QApplication::focusWidget() ? QApplication::focusWidget() : window_.get();
+  QTest::keyPress(target, Qt::Key_Alt, Qt::AltModifier);
+  QTest::keyRelease(target, Qt::Key_Alt);
+  QTRY_VERIFY(window_->menuBar()->activeAction() != nullptr);
+  QTest::keyClick(window_->menuBar(), Qt::Key_Escape);
+  QTRY_VERIFY(window_->menuBar()->activeAction() == nullptr);
+  window_->setFocus();
+}
+
+// Everything that couldn't be read at start-up is listed in one window
+// after the window is shown, not in a message box each.
+void GuiTest::startupProblemsShowInOneWindow() {
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  auto write = [&dir](const QString &name, const QByteArray &text) {
+    QVERIFY(QDir(dir.path()).mkpath(QFileInfo(name).path()));
+    QFile f(QDir(dir.path()).filePath(name));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(text);
+  };
+  write("sessions.json", "not json");
+  write("f2l.json", "not json");
+  write("tsle.json", "not json either");
+  write("algsets/broken.json", "{");
+  ModalWatcher watcher;
+  MainWindow second(settings_, dir.path());
+  QCOMPARE(watcher.seen, QStringList{});
+  const QStringList problems = second.startupProblems();
+  QVERIFY2(problems.size() >= 4, qPrintable(problems.join("\n")));
+  for (const char *file : {"f2l.json", "tsle.json", "broken.json"}) {
+    QVERIFY2(std::ranges::any_of(
+                 problems, [&](const QString &p) { return p.contains(file); }),
+             file);
+  }
+  second.showStartupProblems();
+  QCOMPARE(watcher.seen, QStringList{}); // not modal
+  auto *list = second.findChild<QTextBrowser *>("startupProblems");
+  QVERIFY(list);
+  QVERIFY(list->window()->isVisible());
+  QString shown = list->toPlainText();
+  for (const QString &p : problems) {
+    QVERIFY2(shown.contains(p), qPrintable(p));
+  }
+  bool hasFolder = false;
+  for (QPushButton *b : list->window()->findChildren<QPushButton *>()) {
+    hasFolder = hasFolder || b->text() == "Open data folder";
+  }
+  QVERIFY(hasFolder);
+  list->window()->close();
+  window_->activateWindow();
 }
 
 void GuiTest::cleanupTestCase() {

@@ -51,6 +51,10 @@ public:
   // The window is closing: finish background work and queue what is
   // still to be saved, before the last writes are waited for.
   virtual void aboutToClose() {}
+  // Background work aboutToClose() would stop, in a sentence ("Alg Lab's
+  // search"), or empty: if quitting is then cancelled (a save failed),
+  // the user is told that it was stopped.
+  virtual QString workStoppedOnClose() const { return {}; }
 
   // The page was shown or hidden, e.g. to refresh shared state, start or
   // stop timers, and finish animations.

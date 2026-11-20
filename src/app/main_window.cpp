@@ -27,6 +27,7 @@
 #include "app/widgets.hpp"
 
 #include <QAbstractButton>
+#include <QAccessible>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QClipboard>
@@ -38,6 +39,7 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGraphicsOpacityEffect>
 #include <QGridLayout>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -50,6 +52,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPointer>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QScreen>
 #include <QSplitter>
@@ -58,6 +61,7 @@
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
 #include <QTabBar>
+#include <QTextBrowser>
 #include <QTextDocumentFragment>
 #include <QTimer>
 #include <QToolButton>
@@ -69,6 +73,21 @@
 namespace vcube {
 
 namespace {
+
+// Has assistive technology say `text` from `from`: an announcement on Qt
+// 6.8 and later, else a change of `from`'s description, which screen readers
+// read out for the status bar.
+void announce(QWidget *from, const QString &text, bool assertive = false) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+  QAccessibleAnnouncementEvent event(from, text);
+  event.setPoliteness(assertive ? QAccessible::AnnouncementPoliteness::Assertive
+                                : QAccessible::AnnouncementPoliteness::Polite);
+  QAccessible::updateAccessibility(&event);
+#else
+  Q_UNUSED(assertive);
+  from->setAccessibleDescription(text);
+#endif
+}
 
 // The tip of a widget at `pos` (in its coordinates): an item's or a
 // header section's in a view, a tab's, a menu action's, else the widget's
@@ -145,8 +164,22 @@ protected:
         show(w, tipAt(w, static_cast<QMouseEvent *>(e)->position().toPoint()));
       }
       break;
+    case QEvent::FocusIn:
+      // From the keyboard, the tip shows as it would under the mouse.
+      if (w &&
+          static_cast<QFocusEvent *>(e)->reason() != Qt::MouseFocusReason) {
+        show(w, focusTip(w));
+      }
+      break;
+    case QEvent::KeyRelease:
+      // In a list or table, the tip follows the current item.
+      if (w && w->hasFocus() && qobject_cast<QAbstractItemView *>(w)) {
+        show(w, focusTip(w));
+      }
+      break;
     case QEvent::Leave:
     case QEvent::Hide:
+    case QEvent::FocusOut:
       if (w && w == shownFor_) {
         clear();
       }
@@ -161,6 +194,18 @@ private:
   QMainWindow *window_;
   QPointer<QWidget> shownFor_;
   QString shown_;
+
+  // The tip of what has the keyboard in w: a view's current item, else
+  // w's own.
+  static QString focusTip(QWidget *w) {
+    if (auto *view = qobject_cast<QAbstractItemView *>(w)) {
+      QString tip = view->currentIndex().data(Qt::ToolTipRole).toString();
+      if (!tip.isEmpty()) {
+        return tip;
+      }
+    }
+    return w->toolTip();
+  }
 
   // Whether w is in the main window or in a popup (a menu) of it.
   bool inMainWindow(QWidget *w) const {
@@ -287,9 +332,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   if (!loaded.backupError.isEmpty()) {
     failedWrites_[data_.backupsDir()] = loaded.backupError;
   }
-  for (const QString &warning : loaded.warnings) {
-    QMessageBox::warning(this, "v-cube", warning);
-  }
+  // Shown together once the window is (see showStartupProblems()).
+  startupProblems_ = loaded.warnings;
 
   stack_ = new QStackedWidget(this);
   learnPage_ = new LearnPage(settings_, data_.library, stack_);
@@ -300,19 +344,29 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       new UntimedPage(settings_, data_.untimed, data_.library, stack_);
   moveCountPage_ =
       new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_);
-  eoCrossPage_ = new EoCrossPage(settings_, data_.dataDir(), stack_);
+  eoCrossPage_ = new EoCrossPage(settings_, data_.eoCross, stack_);
   algLabPage_ = new AlgLabPage(settings_, data_.library, data_.lab, stack_);
   f2lPage_ =
-      new F2LPage(settings_, data_.library, data_.lab, data_.dataDir(), stack_);
-  tslePage_ = new TslePage(settings_, data_.dataDir(), stack_);
+      new F2LPage(settings_, data_.library, data_.lab, data_.f2l, stack_);
+  tslePage_ = new TslePage(settings_, data_.tsle, stack_);
   todayPage_ = new TodayPage(
       settings_, data_.library, data_.sessions, data_.untimed, data_.moveCounts,
-      data_.lab, eoCrossPage_->data(), f2lPage_->data(), tslePage_->data(),
+      data_.lab, data_.eoCross.data, data_.f2l.data, data_.tsle.data,
       [f2l = f2lPage_] { return f2l->cardPool(); },
       [tsle = tslePage_] { return tsle->cardPool(); }, stack_);
-  pages_ = {learnPage_,   drillPage_,     libraryPage_, timedPage_,
-            untimedPage_, moveCountPage_, eoCrossPage_, algLabPage_,
-            f2lPage_,     tslePage_,      todayPage_};
+  // Indexed by mode, not by the order of a list.
+  const std::pair<AppMode::Id, ModePage *> pages[] = {
+      {AppMode::Learn, learnPage_},     {AppMode::Drill, drillPage_},
+      {AppMode::Library, libraryPage_}, {AppMode::Timed, timedPage_},
+      {AppMode::Untimed, untimedPage_}, {AppMode::MoveCount, moveCountPage_},
+      {AppMode::EoCross, eoCrossPage_}, {AppMode::AlgLab, algLabPage_},
+      {AppMode::F2L, f2lPage_},         {AppMode::Tsle, tslePage_},
+      {AppMode::Today, todayPage_}};
+  for (const auto &[mode, page] : pages) {
+    Q_ASSERT(!pages_[static_cast<std::size_t>(mode)]);
+    pages_[static_cast<std::size_t>(mode)] = page;
+  }
+  Q_ASSERT(std::ranges::none_of(pages_, [](ModePage *p) { return !p; }));
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
@@ -349,16 +403,15 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   });
   connect(todayPage_, &TodayPage::learnSetRequested, this,
           &MainWindow::learnSet);
-  connect(todayPage_, &TodayPage::practiceRequested, this, [this](int index) {
-    // Today's rows carry the mode as a number.
-    AppMode::Id mode = AppMode::fromIndex(index).value_or(AppMode::Tsle);
-    PracticePage *page = mode == AppMode::F2L
-                             ? static_cast<PracticePage *>(f2lPage_)
-                             : static_cast<PracticePage *>(tslePage_);
-    if (setMode(mode)) {
-      page->showCards();
-    }
-  });
+  connect(todayPage_, &TodayPage::practiceRequested, this,
+          [this](AppMode::Id mode) {
+            PracticePage *page = mode == AppMode::F2L
+                                     ? static_cast<PracticePage *>(f2lPage_)
+                                     : static_cast<PracticePage *>(tslePage_);
+            if (setMode(mode)) {
+              page->showCards();
+            }
+          });
   for (CasePage *page : {static_cast<CasePage *>(learnPage_),
                          static_cast<CasePage *>(drillPage_)}) {
     connect(page, &CasePage::editCaseRequested, this,
@@ -402,9 +455,20 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       "QLabel { background: rgba(0, 0, 0, 170); color: white; "
       "border-radius: 6px; padding: 6px 14px; }");
   focusHint_->hide();
+  // It fades in and out rather than snapping.
+  auto *opacity = new QGraphicsOpacityEffect(focusHint_);
+  focusHint_->setGraphicsEffect(opacity);
+  focusHintFade_ = new QPropertyAnimation(opacity, "opacity", this);
+  focusHintFade_->setDuration(150);
+  connect(focusHintFade_, &QPropertyAnimation::finished, this, [this] {
+    if (focusHintFade_->endValue().toDouble() == 0.0) {
+      focusHint_->hide();
+    }
+  });
   focusHintTimer_ = new QTimer(this);
   focusHintTimer_->setSingleShot(true);
-  connect(focusHintTimer_, &QTimer::timeout, focusHint_, &QWidget::hide);
+  connect(focusHintTimer_, &QTimer::timeout, this,
+          [this] { fadeFocusHint(false); });
 
   // Each mode's side panel, hidden or shown as it was left.
   for (AppMode::Id m : AppMode::all()) {
@@ -423,6 +487,12 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   badgeTimer_ = new QTimer(this);
   badgeTimer_->setInterval(60 * 1000);
   connect(badgeTimer_, &QTimer::timeout, this, &MainWindow::updateBadges);
+  // A copy left open for days still makes each day's backup.
+  connect(badgeTimer_, &QTimer::timeout, this, [this] {
+    if (std::optional<QString> error = data_.backUpIfNewDay()) {
+      writeReported(data_.backupsDir(), *error);
+    }
+  });
   badgeTimer_->start();
 
   help_ = new HelpPanel(this);
@@ -435,10 +505,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   qApp->installEventFilter(
       new KeyRouter(this, [this] { return currentPage(); }, this));
 
-  if (!data_.library.errors().isEmpty()) {
-    QMessageBox::warning(this, "v-cube",
-                         tr("Some alg set files had problems:") + "\n\n" +
-                             data_.library.errors().join("\n"));
+  for (const QString &error : data_.library.errors()) {
+    startupProblems_ << tr("Alg sets: %1").arg(error);
   }
   restoreGeometry(saved::windowGeometry().get());
   if (!saved::windowGeometry().exists()) {
@@ -461,6 +529,62 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   setMode(mode.value_or(AppMode::Learn));
   updateBadges();
   updateBanner();
+  if (settings_.droppedKeyBindings > 0) {
+    startupProblems_ << plural(
+        settings_.droppedKeyBindings,
+        tr("%n key binding in the settings file couldn't be read and was "
+           "ignored; set it again in Settings."),
+        tr("%n key bindings in the settings file couldn't be read and were "
+           "ignored; set them again in Settings."));
+  }
+}
+
+void MainWindow::showStartupProblems() {
+  if (startupProblems_.isEmpty()) {
+    return;
+  }
+  // One window for them all, so that they can be read together to decide
+  // what to restore; it stays open beside the data folder.
+  auto *dialog = new QDialog(this);
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle(tr("Problems reading your data"));
+  auto *layout = new QVBoxLayout(dialog);
+  auto *intro = new QLabel(
+      plural(static_cast<int>(startupProblems_.size()),
+             tr("v-cube started, but found a problem while reading your "
+                "data:"),
+             tr("v-cube started, but found %n problems while reading your "
+                "data:")),
+      dialog);
+  intro->setWordWrap(true);
+  layout->addWidget(intro);
+  auto *list = new QTextBrowser(dialog);
+  list->setObjectName("startupProblems");
+  list->setOpenLinks(false);
+  QString html = "<ul>";
+  for (const QString &problem : startupProblems_) {
+    html += "<li>" + problem.toHtmlEscaped() + "</li>";
+  }
+  list->setHtml(html + "</ul>");
+  list->setAccessibleName(tr("Problems"));
+  layout->addWidget(list, 1);
+  auto *more = new QLabel(
+      tr("Dated copies of your files are kept in the data folder's backups "
+         "folder: to restore one, copy it over the file while v-cube is "
+         "closed."),
+      dialog);
+  more->setWordWrap(true);
+  layout->addWidget(more);
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+  QPushButton *folder =
+      buttons->addButton(tr("Open data folder"), QDialogButtonBox::ActionRole);
+  connect(folder, &QPushButton::clicked, this, &MainWindow::openDataFolder);
+  connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  dialog->resize(640, 360);
+  dialog->show();
+  dialog->raise();
+  dialog->activateWindow();
 }
 
 MainWindow::~MainWindow() {
@@ -558,15 +682,17 @@ QWidget *MainWindow::buildBanner() {
   auto *dismiss = new QPushButton(tr("Dismiss"), banner_);
   dismiss->setFocusPolicy(Qt::NoFocus);
   dismiss->setToolTip(tr("Hide this until a file can't be saved again"));
-  connect(dismiss, &QPushButton::clicked, this, [this] {
-    failedWrites_.clear();
-    updateBanner();
-  });
+  connect(dismiss, &QPushButton::clicked, this, &MainWindow::dismissBanner);
   layout->addWidget(bannerText_, 1);
   layout->addWidget(folder);
   layout->addWidget(dismiss);
   banner_->hide();
   return banner_;
+}
+
+void MainWindow::dismissBanner() {
+  failedWrites_.clear();
+  updateBanner();
 }
 
 void MainWindow::writeReported(const QString &path, const QString &error) {
@@ -584,6 +710,9 @@ void MainWindow::updateBanner() {
   if (!banner_) {
     return;
   }
+  if (dismissBannerAction_) {
+    dismissBannerAction_->setVisible(!failedWrites_.empty());
+  }
   if (failedWrites_.empty()) {
     banner_->hide();
     return;
@@ -599,7 +728,10 @@ void MainWindow::updateBanner() {
       "<br>" +
       tr("Check that the data folder can be written to; the next save "
          "tries again."));
-  banner_->show();
+  if (banner_->isHidden()) {
+    banner_->show();
+    announce(banner_, tr("Your changes are not being saved"), true);
+  }
 }
 
 void MainWindow::updateHelp() {
@@ -727,7 +859,7 @@ void MainWindow::setFocusMode(bool on) {
   if (on) {
     showFocusHint();
   } else {
-    focusHint_->hide();
+    fadeFocusHint(false);
   }
 }
 
@@ -751,14 +883,40 @@ void MainWindow::showOverlay(const QString &text, int ms) {
   // Placed once the layout has settled (at start-up, after the window is
   // shown).
   QTimer::singleShot(0, focusHint_, [this] {
-    QWidget *area = centralWidget();
-    // At the bottom, clear of the page's header and scramble.
-    focusHint_->move((area->width() - focusHint_->width()) / 2,
-                     area->height() - focusHint_->height() - 16);
+    placeFocusHint();
     focusHint_->raise();
-    focusHint_->show();
+    fadeFocusHint(true);
   });
   focusHintTimer_->start(ms);
+}
+
+void MainWindow::placeFocusHint() {
+  QWidget *area = centralWidget();
+  // At the bottom, clear of the page's header and scramble.
+  focusHint_->move((area->width() - focusHint_->width()) / 2,
+                   area->height() - focusHint_->height() - 16);
+}
+
+void MainWindow::fadeFocusHint(bool in) {
+  if (!in && focusHint_->isHidden()) {
+    return;
+  }
+  auto *opacity =
+      static_cast<QGraphicsOpacityEffect *>(focusHint_->graphicsEffect());
+  focusHintFade_->stop();
+  focusHintFade_->setStartValue(focusHint_->isHidden() ? 0.0
+                                                       : opacity->opacity());
+  focusHintFade_->setEndValue(in ? 1.0 : 0.0);
+  focusHint_->show();
+  focusHintFade_->start();
+}
+
+void MainWindow::resizeEvent(QResizeEvent *e) {
+  QMainWindow::resizeEvent(e);
+  // Full screen on and off (F11) while the overlay is up keeps it centred.
+  if (focusHint_ && focusHint_->isVisible()) {
+    placeFocusHint();
+  }
 }
 
 void MainWindow::contextMenuEvent(QContextMenuEvent *e) {
@@ -796,8 +954,12 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   saved::windowGeometry().set(saveGeometry());
   saved::windowState().set(saveState());
   saveLayout();
+  QStringList stopped;
   for (ModePage *page : pages_) {
     if (page) {
+      if (QString work = page->workStoppedOnClose(); !work.isEmpty()) {
+        stopped << work;
+      }
       page->aboutToClose();
     }
   }
@@ -811,10 +973,16 @@ void MainWindow::closeEvent(QCloseEvent *e) {
     for (const auto &[path, error] : failedWrites_) {
       lines << QString("%1: %2").arg(QFileInfo(path).fileName(), error);
     }
+    // Staying doesn't bring back what closing stopped.
+    const QString stoppedNote =
+        stopped.isEmpty()
+            ? QString()
+            : "\n\n" + tr("Stopped: %1. If you stay, start it again.")
+                           .arg(stopped.join(", "));
     auto answer = QMessageBox::warning(
         this, tr("Quit v-cube"),
         tr("Some changes could not be saved:") + "\n\n" + lines.join("\n") +
-            "\n\n" + tr("Quit anyway? They will be lost."),
+            stoppedNote + "\n\n" + tr("Quit anyway? They will be lost."),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) {
       e->ignore();
@@ -899,6 +1067,12 @@ void MainWindow::buildMenus() {
   file->addSeparator();
   file->addAction(tr("Export all data…"), this, &MainWindow::exportAllData);
   file->addAction(tr("Open data folder"), this, &MainWindow::openDataFolder);
+  dismissBannerAction_ = file->addAction(tr("Dismiss save warning"), this,
+                                         &MainWindow::dismissBanner);
+  dismissBannerAction_->setToolTip(
+      tr("Hide the warning that changes aren't being saved, until a file "
+         "can't be saved again"));
+  dismissBannerAction_->setVisible(!failedWrites_.empty());
   file->addSeparator();
   file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
 
@@ -1004,15 +1178,10 @@ void MainWindow::buildMenus() {
 }
 
 void MainWindow::openCommandPalette() {
-  if (currentPage() && currentPage()->isBusy()) {
+  if (refuseWhileBusy()) {
     return;
   }
-  // The mode's menu is filled as it opens: fill it now, so that what it
-  // offers can be found too.
-  if (modeMenu_ && currentPage()->hasModeMenu()) {
-    modeMenu_->clear();
-    currentPage()->fillModeMenu(*modeMenu_);
-  }
+  // The mode's menu, filled as it opens, is filled by fromMenus() too.
   // Under three headings: the modes, what the page offers (its own menus
   // and controls), and the other menus.
   const QString go = tr("Go"), page = tr("This page"), menus = tr("Menus");
@@ -1123,13 +1292,22 @@ void MainWindow::exportAllData() {
 
 void MainWindow::showMessage(const QString &text) {
   statusBar()->showMessage(text, 8000);
+  announce(statusBar(), text);
   if (focusMode_) {
     showOverlay(text, 5000); // the status bar is hidden
   }
 }
 
-void MainWindow::openSettings(bool neutrality) {
+bool MainWindow::refuseWhileBusy() {
   if (currentPage() && currentPage()->isBusy()) {
+    showMessage(tr("Finish or cancel the solve (Esc) first"));
+    return true;
+  }
+  return false;
+}
+
+void MainWindow::openSettings(bool neutrality) {
+  if (refuseWhileBusy()) {
     return;
   }
   SettingsDialog dialog(settings_, this);
@@ -1173,7 +1351,7 @@ void MainWindow::applyWindowSettings() {
   double scale = settings_.hintTextPercent / 100.0;
   QFont base = QApplication::font();
   QFont hint = base;
-  hint.setPointSizeF(base.pointSizeF() * scale);
+  scaleSize(hint, base, scale);
   for (ModePage *page : pages_) {
     for (QLabel *label : page->findChildren<QLabel *>()) {
       // Labels given a font of their own keep it.

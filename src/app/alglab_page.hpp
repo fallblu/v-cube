@@ -61,6 +61,7 @@ public:
   void fillModeMenu(QMenu &menu) override;
   bool isBusy() const override;
   void aboutToClose() override;
+  QString workStoppedOnClose() const override;
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;
@@ -102,7 +103,8 @@ private:
   std::shared_ptr<Job> job_;
   QFuture<void> jobFuture_;
   QTimer refreshTimer_;
-  QTimer saveTimer_; // saves what a long search found so far
+  QTimer saveTimer_;     // saves what a long search found so far
+  QTimer spinSaveTimer_; // saves the spin boxes once they have paused
   MoveSet genSet_ = MoveSet::allFaces();
   MoveSet filterSet_;
   bool filterOn_ = false;
@@ -180,6 +182,7 @@ private:
   void stopSearch();
   void searchFinished();
   void updateGenControls();
+  void saveSpinBoxes();
 };
 
 } // namespace vcube

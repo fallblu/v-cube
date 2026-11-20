@@ -69,8 +69,10 @@ QString settingsFile();
 void removeObsolete();
 
 // --- Learn and Drill (`mode` is "learn" or "drill")
-// The set last chosen, or CasePage::kAcrossSetsId; earlier versions kept
-// one set for both modes.
+// The set drop-down's entry for reviewing every set at once.
+inline constexpr const char *kAcrossSetsId = "*across*";
+// The set last chosen, or kAcrossSetsId; earlier versions kept one set for
+// both modes.
 QString caseSet(const QString &mode);
 void setCaseSet(const QString &mode, const QString &setId);
 // The set shown while reviewing across sets.

@@ -9,8 +9,11 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
+#include <QSet>
 
 #include <algorithm>
+#include <optional>
 
 namespace vcube {
 
@@ -36,11 +39,15 @@ QString unreadableSetMessage(const QString &path, const QString &error,
     return QString("%1: %2").arg(file, error);
   }
   QString kept = setAside(path);
+  QString folder = QDir::toNativeSeparators(QFileInfo(path).absolutePath());
   return kept.isEmpty()
-             ? QString("%1 couldn't be read (%2) or moved aside")
-                   .arg(file, error)
-             : QString("%1 couldn't be read (%2), so it was kept as %3")
-                   .arg(file, error, QFileInfo(kept).fileName());
+             ? QString("%1 in %2 couldn't be read (%3) or moved aside; fix "
+                       "it while v-cube is closed (File > Open data folder)")
+                   .arg(file, folder, error)
+             : QString("%1 in %2 couldn't be read (%3), so it was kept as "
+                       "%4. Fix it and rename it back to %1 while v-cube is "
+                       "closed (File > Open data folder)")
+                   .arg(file, folder, error, QFileInfo(kept).fileName());
 }
 
 QString sanitizeId(const std::string &id) {
@@ -116,6 +123,30 @@ void AlgLibrary::installBuiltins() {
     }
     marker.close();
   }
+  // The sets already here, by id as load() matches them, whatever their
+  // files are called: a built-in is never written beside the user's own set
+  // of that id, where it would win as the file named for the id.
+  std::optional<QSet<QString>> present;
+  auto isPresent = [&](const std::string &id) {
+    if (!present) {
+      present.emplace();
+      for (const QString &file : dir.entryList({"*.json"}, QDir::Files)) {
+        if (file == kInstalledFile) {
+          continue;
+        }
+        present->insert(sanitizeId(ss(file.chopped(5))));
+        QFile f(dir.filePath(file));
+        if (f.open(QIODevice::ReadOnly)) {
+          QJsonValue v =
+              QJsonDocument::fromJson(f.readAll()).object().value("id");
+          if (v.isString()) {
+            present->insert(sanitizeId(ss(v.toString())));
+          }
+        }
+      }
+    }
+    return present->contains(sanitizeId(id));
+  };
   bool changed = false;
   if (!known) {
     // Without the marker, a library that already has sets can't tell
@@ -128,7 +159,7 @@ void AlgLibrary::installBuiltins() {
       for (const AlgSet &set : shipped()) {
         QString id = qs(set.id);
         if (!installed.contains(id)) {
-          if (!QFile::exists(pathFor(set.id))) {
+          if (!isPresent(set.id)) {
             missing << qs(set.name);
           }
           installed << id;
@@ -155,7 +186,7 @@ void AlgLibrary::installBuiltins() {
     if (installed.contains(id)) {
       continue;
     }
-    if (!QFile::exists(pathFor(set->id)) && !save(*set, &error)) {
+    if (!isPresent(set->id) && !save(*set, &error)) {
       errors_ << QString("installing %1: %2").arg(file, error);
       continue;
     }
@@ -196,10 +227,18 @@ void AlgLibrary::load() {
     QString error;
     FileStatus status = FileStatus::Read;
     QString path = dir.filePath(file);
-    auto set = readAlgSetFile(path, &error, &status);
+    QStringList unknown;
+    auto set = readAlgSetFile(path, &error, &status, &unknown);
     if (!set) {
       errors_ << unreadableSetMessage(dir.filePath(file), error, status);
       continue;
+    }
+    if (!unknown.isEmpty()) {
+      // Loaded all the same; a misspelt key would otherwise do nothing
+      // without a word.
+      errors_ << QString("%1 has keys v-cube doesn't read, which were "
+                         "ignored and go when the set is next saved: %2")
+                     .arg(file, unknown.join(", "));
     }
     // A file put here by hand may have an id that add() would have changed:
     // the set is used without the slashes, which the file keeps until the
@@ -389,6 +428,18 @@ bool AlgLibrary::restoreBuiltin(const std::string &id, QString *error) {
     return false;
   }
   AlgSet *current = find(id);
+  if (!current && QFile::exists(pathFor(id))) {
+    // Its file is there but wasn't loaded (written by a newer v-cube, or
+    // not openable): left as it is, as is its progress, rather than a
+    // second set made beside it.
+    if (error) {
+      *error = QString("%1 is in the data folder but couldn't be loaded, so "
+                       "the built-in set isn't restored beside it; update "
+                       "v-cube, or move the file out while v-cube is closed")
+                   .arg(QFileInfo(pathFor(id)).fileName());
+    }
+    return false;
+  }
   if (!current) {
     // Progress left behind (its set's file was set aside, or removed by
     // hand) goes where a deleted set's does, so the restored set starts

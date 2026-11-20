@@ -2,6 +2,7 @@
 #include "app/app_style.hpp"
 
 #include "app/colours.hpp"
+#include "app/platform.hpp"
 #include "train/algset.hpp"
 
 #include <QCoreApplication>
@@ -37,13 +38,13 @@ public:
     switch (pe) {
     case PE_FrameLineEdit:
       if (!(opt->state & State_HasFocus)) {
-        roundedEdge(p, opt->rect);
+        roundedEdge(p, opt);
       }
       break;
     case PE_IndicatorCheckBox:
       p->save();
       p->setRenderHint(QPainter::Antialiasing, false);
-      p->setPen(roleColour(Role::FieldEdge));
+      p->setPen(edgeColour(opt));
       p->setBrush(Qt::NoBrush);
       p->drawRect(opt->rect.adjusted(0, 0, -1, -1));
       p->restore();
@@ -51,7 +52,7 @@ public:
     case PE_IndicatorRadioButton:
       p->save();
       p->setRenderHint(QPainter::Antialiasing, true);
-      p->setPen(QPen(roleColour(Role::FieldEdge), 1.0));
+      p->setPen(QPen(edgeColour(opt), 1.0));
       p->setBrush(Qt::NoBrush);
       p->drawEllipse(QRectF(opt->rect).adjusted(1.5, 1.5, -1.5, -1.5));
       p->restore();
@@ -69,29 +70,42 @@ public:
     }
     const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(opt);
     if (spin && spin->frame) {
-      roundedEdge(p, opt->rect);
+      roundedEdge(p, opt);
     }
   }
 
 private:
+  // The field edge colour, half way to the window on a disabled control so
+  // that it reads as disabled.
+  static QColor edgeColour(const QStyleOption *opt) {
+    const QColor edge = roleColour(Role::FieldEdge);
+    if (opt->state & State_Enabled) {
+      return edge;
+    }
+    const QColor window = opt->palette.color(QPalette::Window);
+    return QColor((edge.red() + window.red()) / 2,
+                  (edge.green() + window.green()) / 2,
+                  (edge.blue() + window.blue()) / 2);
+  }
+
   // Fusion's field outline: a rounded rectangle on the half pixel.
-  static void roundedEdge(QPainter *p, const QRect &r) {
+  static void roundedEdge(QPainter *p, const QStyleOption *opt) {
     p->save();
     p->setRenderHint(QPainter::Antialiasing, true);
     p->translate(0.5, 0.5);
-    p->setPen(roleColour(Role::FieldEdge));
+    p->setPen(edgeColour(opt));
     p->setBrush(Qt::NoBrush);
-    p->drawRoundedRect(r.adjusted(0, 0, -1, -1), 2, 2);
+    p->drawRoundedRect(opt->rect.adjusted(0, 0, -1, -1), 2, 2);
     p->restore();
   }
 };
 
 } // namespace
 
-void initSettingsStorage() {
+void initSettingsStorage(bool migrate) {
   QSettings::setDefaultFormat(QSettings::IniFormat);
   QSettings ini;
-  if (QFile::exists(ini.fileName())) {
+  if (!migrate || QFile::exists(ini.fileName())) {
     return;
   }
   // Earlier versions used the native format: v-cube.conf on Linux, the
@@ -157,6 +171,11 @@ AppSettings AppSettings::load() {
     int v = q.value(key, fallback).toInt(&ok);
     return std::clamp(ok ? v : fallback, lo, hi);
   };
+  // Until it is set, turns aren't animated if the desktop asks for less
+  // motion.
+  if (!q.contains("ui/animationMs") && platformPrefersReducedMotion()) {
+    s.animationMs = 0;
+  }
   s.animationMs =
       clamped("ui/animationMs", s.animationMs, 0, AppSettings::kMaxAnimationMs);
   s.interfaceTextPercent =
@@ -178,7 +197,8 @@ AppSettings AppSettings::load() {
     }
   }
   if (q.contains("input/keymap")) {
-    Keymap k = Keymap::fromStrings(q.value("input/keymap").toStringList());
+    Keymap k = Keymap::fromStrings(q.value("input/keymap").toStringList(),
+                                   &s.droppedKeyBindings);
     if (!k.bindings.empty()) {
       s.keymap = k;
     }
@@ -346,6 +366,11 @@ void applyTheme(QApplication &app, bool dark) {
     p.setColor(QPalette::ButtonText, text);
     p.setColor(QPalette::BrightText, Qt::white);
     p.setColor(QPalette::Highlight, accent);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    // Spelled out, or a platform with an accent of its own (Windows 11)
+    // would bring the desktop's to the controls that use it.
+    p.setColor(QPalette::Accent, accent);
+#endif
     p.setColor(QPalette::HighlightedText, Qt::white);
     p.setColor(QPalette::Link, QColor(0x1a, 0x62, 0xc0));
     p.setColor(QPalette::Light, Qt::white);
@@ -353,10 +378,17 @@ void applyTheme(QApplication &app, bool dark) {
     p.setColor(QPalette::Mid, QColor(0xb8, 0xb8, 0xbe));
     p.setColor(QPalette::Dark, QColor(0x9a, 0x9a, 0xa0));
     p.setColor(QPalette::Shadow, QColor(0x50, 0x50, 0x55));
-    for (auto role :
-         {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
-      p.setColor(QPalette::Disabled, role, QColor(0x9a, 0x9b, 0xa0));
+    const QColor disabledText(0x9a, 0x9b, 0xa0);
+    for (auto role : {QPalette::WindowText, QPalette::Text,
+                      QPalette::ButtonText, QPalette::PlaceholderText}) {
+      p.setColor(QPalette::Disabled, role, disabledText);
     }
+    // A disabled field sinks into the window, so that it doesn't look
+    // enabled.
+    p.setColor(QPalette::Disabled, QPalette::Base, window);
+    p.setColor(QPalette::Disabled, QPalette::Button, QColor(0xe9, 0xe9, 0xec));
+    p.setColor(QPalette::Disabled, QPalette::Highlight,
+               QColor(0xa8, 0xa9, 0xae));
     app.setPalette(p);
     return;
   }
@@ -377,15 +409,22 @@ void applyTheme(QApplication &app, bool dark) {
   p.setColor(QPalette::ButtonText, text);
   p.setColor(QPalette::BrightText, Qt::white);
   p.setColor(QPalette::Highlight, accent);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+  p.setColor(QPalette::Accent, accent); // as in the light theme
+#endif
   p.setColor(QPalette::HighlightedText, Qt::white);
   p.setColor(QPalette::Link, QColor(0x6a, 0xaa, 0xff));
   p.setColor(QPalette::Mid, QColor(0x3a, 0x3b, 0x40));
   p.setColor(QPalette::Dark, QColor(0x18, 0x18, 0x1b));
   p.setColor(QPalette::Light, QColor(0x45, 0x46, 0x4c));
-  for (auto role :
-       {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
-    p.setColor(QPalette::Disabled, role, QColor(0x7a, 0x7b, 0x80));
+  const QColor disabledText(0x7a, 0x7b, 0x80);
+  for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText,
+                    QPalette::PlaceholderText}) {
+    p.setColor(QPalette::Disabled, role, disabledText);
   }
+  p.setColor(QPalette::Disabled, QPalette::Base, window);
+  p.setColor(QPalette::Disabled, QPalette::Button, QColor(0x2c, 0x2d, 0x31));
+  p.setColor(QPalette::Disabled, QPalette::Highlight, QColor(0x55, 0x56, 0x5c));
   app.setPalette(p);
 }
 

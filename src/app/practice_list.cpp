@@ -154,7 +154,7 @@ void PracticeList::fillRow(QTreeWidgetItem *row, std::int64_t now,
     } else if (isDueNow(card, now, dayEnd, settings_.srs)) {
       status = tr("due");
     } else {
-      status = dueText(card.due, now, dayEnd);
+      status = dueSentence(card.due, now, dayEnd);
     }
     row->setText(1, status);
     row->setText(2, fresh ? kNoValue : QString::number(card.reps));

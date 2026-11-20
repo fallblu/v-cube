@@ -46,6 +46,10 @@ cmake --build --preset release
 ./build/release/src/app/v-cube
 ```
 
+(Ubuntu 25.04+ / Debian 13+; on 24.04, which ships Qt 6.4, install Qt 6.5+
+with aqtinstall or the Qt installer and pass
+`-DCMAKE_PREFIX_PATH=...`; see [docs/building.md](docs/building.md).)
+
 To run the tests:
 
 ```bash

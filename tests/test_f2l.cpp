@@ -354,3 +354,52 @@ TEST_CASE("a solve is split into its pairs", "[f2l]") {
   CHECK(segs[1].end == moves.size());
   CHECK(segs[1].solved == std::vector<Slot>{Slot::FR});
 }
+
+TEST_CASE("f2l tries are graded against the cheapest", "[f2l]") {
+  CHECK(costOver(0.0) == CostOver::Same);
+  CHECK(costOver(kSameCost / 2) == CostOver::Same);
+  CHECK(costOver(kSameCost) == CostOver::Over);
+  CHECK(costOver(kFarOver) == CostOver::Far);
+  // Far over is for each pair that was left.
+  CHECK(costOver(kFarOver, 3) == CostOver::Over);
+  CHECK(costOver(kFarOver * 3, 3) == CostOver::Far);
+  CHECK(costOver(kFarOver, 0) == CostOver::Far);
+
+  WholeJudgement whole = judgeWhole(10.02, 10.0, 4);
+  CHECK(whole.good);
+  CHECK_FALSE(whole.far);
+  whole = judgeWhole(12.0, 10.0, 4);
+  CHECK_FALSE(whole.good);
+  CHECK_FALSE(whole.far);
+  CHECK(whole.extra == 2.0);
+  whole = judgeWhole(18.0, 10.0, 4);
+  CHECK(whole.far);
+  // Cheaper than the cheapest found is as good, never under it.
+  whole = judgeWhole(9.0, 10.0, 4);
+  CHECK(whole.good);
+  CHECK(whole.extra == 0.0);
+
+  // A pair: one of the chosen solutions, one as cheap, a dearer one.
+  const F2LConfig config;
+  const AnalysisOptions options = optionsFor(config);
+  const PairSide side = PairSide::Front;
+  const Slot slot = sideSlot(side);
+  const Alg mine = parseAlgOrEmpty("R U' R'");
+  const Alg dear = parseAlgOrEmpty("R U2 R' U' R U R'");
+  const std::vector<Alg> chosen{mine, dear};
+  PairJudgement j =
+      judgePair(parseAlgOrEmpty("U R U' R'"), side, slot, chosen, options);
+  CHECK(j.match == 0u);
+  CHECK(j.good);
+  CHECK(j.extra == 0.0);
+  CHECK(j.cheapest == chosenCost(mine, options));
+  j = judgePair(dear, side, slot, chosen, options);
+  CHECK(j.match == 1u);
+  CHECK(j.good); // one of yours, though dearer
+  CHECK(j.extra > kSameCost);
+  j = judgePair(dear, side, slot, {mine}, options);
+  CHECK_FALSE(j.match);
+  CHECK_FALSE(j.good);
+  CHECK(j.extra == j.cost - j.cheapest);
+  CHECK(j.asChosen == comparableSolution(dear));
+}

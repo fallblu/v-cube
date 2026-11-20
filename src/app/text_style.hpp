@@ -31,4 +31,26 @@ void setInterfaceTextPercent(int percent);
 // "13 px": the size of body text at `percent`, for the setting's choices.
 int interfaceTextPixels(int percent);
 
+// Sets `f`'s size to `base`'s times `scale`, in points or in pixels as
+// `base` gives it (an app font from the desktop may be pixel-sized).
+void scaleSize(QFont &f, const QFont &base, double scale);
+
+// `f` with tabular (equal width) figures, for numbers that change in
+// place; as it is where the font has no such feature or Qt is older than
+// 6.7.
+QFont withTabularFigures(QFont f);
+// Gives `w` tabular figures, keeping the rest of its font inherited (so it
+// still follows the interface text size).
+void useTabularFigures(QWidget *w);
+
+// The two sides of a case diagram, in pixels at the system's text size:
+// small beside a list or a table, large where the case is the subject.
+inline constexpr int kSmallDiagram = 120;
+inline constexpr int kLargeDiagram = 160;
+
+// `pixels` scaled by the interface text size the app started with (a
+// change takes effect on the next start, as sizes fixed at construction
+// would otherwise disagree with pictures drawn later).
+int scaledToText(int pixels);
+
 } // namespace vcube

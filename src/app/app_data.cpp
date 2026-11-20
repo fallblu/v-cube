@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QDate>
 #include <QDir>
+#include <QSettings>
 
 namespace vcube {
 
@@ -24,6 +25,30 @@ QString kept(const QString &path) {
              : tr("It was kept as %1.").arg(QDir::toNativeSeparators(path));
 }
 
+// Reads a practice mode's file, `name` in the data folder. What the mode
+// kept before it had its tabs is dropped first (TSLE's OCLL algs are
+// carried over, and saved at once: nothing else may save before the app
+// is closed, and the old file is no longer where the next start would
+// look for it).
+void loadPractice(PracticeStore &store, const QString &name,
+                  QStringList &warnings) {
+  const QJsonObject old = removeOldPracticeFile(store.path());
+  QString error;
+  if (!store.load(&error)) {
+    warnings << tr("Could not read %1 (%2), so the mode starts afresh.")
+                        .arg(name, error) +
+                    " " + kept(store.setAsidePath());
+  }
+  bool carried = false;
+  for (const auto &[key, value] : oldOcllNotes(old)) {
+    carried |= store.data.notes.emplace(key, value).second;
+  }
+  if (carried && !store.save(&error)) {
+    warnings << tr("Could not save the OCLL algs carried over to %1: %2")
+                    .arg(name, error);
+  }
+}
+
 } // namespace
 
 AppData::AppData(QString dataDir)
@@ -31,20 +56,34 @@ AppData::AppData(QString dataDir)
       sessions(QDir(dataDir).filePath("sessions.json")),
       untimed(QDir(dataDir).filePath("untimed.json"), SolveLog::Untimed),
       moveCounts(QDir(dataDir).filePath("movecounts.json")),
-      lab(QDir(dataDir).filePath("alglab.json")), dataDir_(std::move(dataDir)) {
-}
+      lab(QDir(dataDir).filePath("alglab.json")),
+      eoCross(QDir(dataDir).filePath("eocross.json")),
+      f2l(QDir(dataDir).filePath("f2l.json")),
+      tsle(QDir(dataDir).filePath("tsle.json")), dataDir_(std::move(dataDir)) {}
 
 QString AppData::backupsDir() const {
   return QDir(dataDir_).filePath(kBackupsFolder);
 }
 
+std::optional<QString> AppData::backUpIfNewDay() {
+  QDate today = QDate::currentDate();
+  if (today == lastBackup_) {
+    return std::nullopt;
+  }
+  lastBackup_ = today;
+  QString error;
+  if (!makeDailyBackup(dataDir_, QSettings().fileName(), today, kBackupDays,
+                       &error)) {
+    return tr("Today's backup failed: %1").arg(error);
+  }
+  return QString();
+}
+
 AppData::LoadReport AppData::load() {
   LoadReport report;
-  QString backupError;
-  if (!makeDailyBackup(dataDir_, QDate::currentDate(), kBackupDays,
-                       &backupError)) {
-    report.backupError = tr("Today's backup failed: %1").arg(backupError);
-  }
+  // Left by saves cut short (a crash): out of the way before the backup.
+  moveSaveTemporaries(dataDir_, QDateTime::currentDateTime());
+  report.backupError = backUpIfNewDay().value_or(QString());
   library.load();
   QString error;
   if (!sessions.load(&error)) {
@@ -71,6 +110,9 @@ AppData::LoadReport AppData::load() {
                                .arg(error) +
                            " " + kept(lab.setAsidePath());
   }
+  loadPractice(eoCross, "eocross.json", report.warnings);
+  loadPractice(f2l, "f2l.json", report.warnings);
+  loadPractice(tsle, "tsle.json", report.warnings);
   return report;
 }
 

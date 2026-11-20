@@ -320,6 +320,9 @@ void DrillPage::clearTimes(const std::vector<std::string> &caseIds) {
       it->second.clearDrill(attemptMode());
     }
     picker_.requeue(id, 0);
+    if (deleted_ && deleted_->caseId == id) {
+      deleted_.reset();
+    }
     if (current_ && current_->caseId == id && flow_.recorded()) {
       flow_.forgotten(); // nothing left to toggle or delete
       showResult();

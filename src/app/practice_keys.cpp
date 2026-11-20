@@ -16,9 +16,11 @@ KeyHint detailKey(bool open) {
 
 } // namespace
 
-PracticeKeys untimedKeys(const UntimedKeysState &s) {
+PracticeKeys untimedKeys(const PracticeFlow::State &s,
+                         const QList<KeyHint> &modeKeys) {
   QList<KeyHint> keys;
   QString message;
+  const QString giveUpKey = giveUpKeyName(s.shiftSpaceGivesUp);
   switch (s.phase) {
   case PracticePhase::Idle:
     keys = {{"Space", tr("look again")}};
@@ -43,7 +45,7 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     if (s.hidden) {
       message = tr("The cube is hidden: do what you planned.");
       keys = {{"Space", tr("show the cube")},
-              {s.giveUpKey, tr("give up")},
+              {giveUpKey, tr("give up")},
               {"Esc", tr("start again")}};
       break;
     }
@@ -53,7 +55,7 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     if (s.hints) {
       keys << KeyHint{"Tab", tr("hint")};
     }
-    keys << KeyHint{s.giveUpKey, tr("give up")}
+    keys << KeyHint{giveUpKey, tr("give up")}
          << KeyHint{"Esc", tr("start again")};
     break;
   case PracticePhase::Done:
@@ -68,64 +70,40 @@ PracticeKeys untimedKeys(const UntimedKeysState &s) {
     keys << detailKey(s.detailOpen);
     if (s.graded) {
       keys << KeyHint{"1-4", tr("change the grade")};
+      if (s.tab == PracticeTab::Learn) {
+        keys << KeyHint{"Ctrl+Z", tr("take the grade back")};
+      }
     }
-    keys << s.modeKeys;
+    keys << modeKeys;
     if (s.chooser) {
       keys << KeyHint{"0", tr("change your solutions")};
     }
     if (s.recorded) {
       keys << KeyHint{"Delete", tr("delete it")};
     }
-    keys << KeyHint{"Esc", tr("retry, not recorded")};
+    // The try just made is kept: only the retry goes unrecorded.
+    keys << KeyHint{"Esc", s.recorded ? tr("retry (this one stays)")
+                                      : tr("retry, not recorded")};
     break;
   }
   return {message, keys};
-}
-
-QString giveUpKeyName(const DrillSettings &drill) {
-  return drill.shiftSpaceGivesUp ? tr("Shift+Space") : tr("Backspace");
 }
 
 PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,
                        const TimedKeysState &s) {
   QList<KeyHint> keys;
   QString message;
-  const KeyHint giveUp{giveUpKeyName(drill), tr("give up")};
   switch (flow.phase()) {
   case DrillFlow::Phase::NoCase:
     keys = {{"Space", tr("look again")}};
     break;
   case DrillFlow::Phase::Waiting:
-    if (s.physical) {
-      message =
-          s.scrambleShown ? tr("Scramble, then start the timer.") : QString();
-      keys = {{tr("hold Space"), tr("start on letting go")}, giveUp};
-    } else if (flow.armed()) {
-      message = tr("Ready: the first face turn starts the timer.");
-      keys = {{"Esc", tr("not yet")}, giveUp};
-    } else if (drill.tapToArm) {
-      message = tr("Turn the cube as a whole to look at it.");
-      keys = {{"Space", tr("ready: the first face turn starts the timer")},
-              giveUp};
-    } else {
-      message = tr("Turn the cube as a whole to look at it.");
-      keys = {{tr("hold Space"), tr("start on letting go or turning")}, giveUp};
-    }
+  case DrillFlow::Phase::Running: {
+    TimedSolveKeys solve = timedSolveKeys(flow, drill, s.scrambleShown);
+    message = solve.message;
+    keys = solve.keys;
     break;
-  case DrillFlow::Phase::Running:
-    if (s.physical) {
-      keys = {{tr("any key but Shift, Ctrl, Alt"), tr("stop")},
-              giveUp,
-              {"Esc", tr("cancel")}};
-    } else if (drill.autoStop) {
-      message = tr("The timer stops when the step is done.");
-      keys = {{"Space", tr("stop now (a DNF unless done)")},
-              giveUp,
-              {"Esc", tr("cancel")}};
-    } else {
-      keys = {{"Space", tr("stop")}, giveUp, {"Esc", tr("cancel")}};
-    }
-    break;
+  }
   case DrillFlow::Phase::Revealed:
     keys << KeyHint{"Space", tr("next")};
     if (s.best) {
@@ -140,30 +118,15 @@ PracticeKeys timedKeys(const DrillFlow &flow, const DrillSettings &drill,
                                     ? tr("take it back")
                                     : tr("delete it")};
     }
-    keys << KeyHint{"Esc", tr("retry, not recorded")};
+    // The try just made is kept: only the retry goes unrecorded.
+    keys << KeyHint{"Esc", s.recorded ? tr("retry (this one stays)")
+                                      : tr("retry, not recorded")};
     break;
   case DrillFlow::Phase::Aided:
   case DrillFlow::Phase::Unaided:
     break;
   }
   return {message, keys};
-}
-
-QString timedHintText(DrillFlow::Hint hint, const DrillSettings &drill) {
-  switch (hint) {
-  case DrillFlow::Hint::GiveUpKey:
-    return tr("Shift+Space gives the solve up.");
-  case DrillFlow::Hint::KeepHolding:
-    return tr("Keep holding Space until the time turns green, then let go "
-              "or start turning.");
-  case DrillFlow::Hint::OnlyRotations:
-    return drill.tapToArm
-               ? tr("Only rotations until the timer starts: tap Space first.")
-               : tr("Only rotations until the timer starts (hold Space).");
-  case DrillFlow::Hint::None:
-    break;
-  }
-  return {};
 }
 
 } // namespace vcube

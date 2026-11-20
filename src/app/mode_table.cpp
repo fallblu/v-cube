@@ -25,18 +25,60 @@ constexpr std::array<ModeInfo, AppMode::Count> kModes = {{
     {"today", QT_TRANSLATE_NOOP("MainWindow", "Today")},
 }};
 
+constexpr std::array<AppMode::Id, AppMode::Count> kAll = {
+    AppMode::Learn,   AppMode::Drill,     AppMode::Library, AppMode::Timed,
+    AppMode::Untimed, AppMode::MoveCount, AppMode::EoCross, AppMode::AlgLab,
+    AppMode::F2L,     AppMode::Tsle,      AppMode::Today};
+
+constexpr std::array<AppMode::Id, AppMode::Count> kSidebarOrder = {
+    AppMode::Today,   AppMode::Learn, AppMode::Drill,   AppMode::Library,
+    AppMode::AlgLab,  AppMode::Timed, AppMode::Untimed, AppMode::MoveCount,
+    AppMode::EoCross, AppMode::F2L,   AppMode::Tsle};
+
+// A short initialiser would fill the rest with Learn (or null ids), and a
+// mode would be missing without a compiler warning.
+constexpr bool isPermutation(const std::array<AppMode::Id, AppMode::Count> &a) {
+  std::array<bool, AppMode::Count> seen{};
+  for (AppMode::Id mode : a) {
+    const auto i = static_cast<std::size_t>(mode);
+    if (i >= seen.size() || seen[i]) {
+      return false;
+    }
+    seen[i] = true;
+  }
+  return true;
+}
+
+constexpr bool everyModeNamed() {
+  for (const ModeInfo &mode : kModes) {
+    if (mode.id == nullptr || mode.label == nullptr) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static_assert(isPermutation(kAll));
+static_assert(isPermutation(kSidebarOrder));
+static_assert(everyModeNamed());
+
+constexpr bool inEnumOrder() {
+  for (std::size_t i = 0; i < kAll.size(); ++i) {
+    if (static_cast<std::size_t>(kAll[i]) != i) {
+      return false;
+    }
+  }
+  return true;
+}
+static_assert(inEnumOrder());
+
 const ModeInfo &info(AppMode::Id mode) {
   return kModes[static_cast<std::size_t>(mode)];
 }
 
 } // namespace
 
-const std::array<AppMode::Id, AppMode::Count> &AppMode::all() {
-  static constexpr std::array<Id, Count> modes = {
-      Learn,   Drill,  Library, Timed, Untimed, MoveCount,
-      EoCross, AlgLab, F2L,     Tsle,  Today};
-  return modes;
-}
+const std::array<AppMode::Id, AppMode::Count> &AppMode::all() { return kAll; }
 
 std::optional<AppMode::Id> AppMode::fromIndex(int index) {
   if (index < 0 || index >= Count) {
@@ -46,10 +88,7 @@ std::optional<AppMode::Id> AppMode::fromIndex(int index) {
 }
 
 const std::array<AppMode::Id, AppMode::Count> &AppMode::sidebarOrder() {
-  static constexpr std::array<Id, Count> order = {
-      Today,   Learn,     Drill,   Library, AlgLab, Timed,
-      Untimed, MoveCount, EoCross, F2L,     Tsle};
-  return order;
+  return kSidebarOrder;
 }
 
 QString AppMode::sidebarHeader(Id mode) {

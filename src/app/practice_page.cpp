@@ -11,16 +11,15 @@
 
 #include <QApplication>
 #include <QComboBox>
-#include <QDir>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTabBar>
+#include <QTextDocumentFragment>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -62,39 +61,9 @@ int PracticePage::tabIndex(Tab t) const {
   return it == all.end() ? 0 : static_cast<int>(it - all.begin());
 }
 
-PracticePage::PracticePage(AppSettings &settings, const QString &dataDir,
-                           const QString &file, QWidget *parent)
-    : ModePage(parent), settings_(settings),
-      store_(QDir(dataDir).filePath(file)), rng_(makeRng()) {
-  // What the mode kept before it had these tabs is dropped (TSLE's OCLL
-  // algs are carried over).
-  const QJsonObject old = removeOldPracticeFile(store_.path());
-  QString error;
-  if (!store_.load(&error)) {
-    QString kept =
-        store_.setAsidePath().isEmpty()
-            ? tr("It is left where it is, and nothing will be saved over it.")
-            : tr("It was kept as %1.")
-                  .arg(QDir::toNativeSeparators(store_.setAsidePath()));
-    QMessageBox::warning(
-        this, "v-cube",
-        tr("Could not read %1 (%2), so the mode starts afresh.")
-                .arg(file, error) +
-            " " + kept);
-  }
-  bool carried = false;
-  for (const auto &[key, value] : oldOcllNotes(old)) {
-    carried |= store_.data.notes.emplace(key, value).second;
-  }
-  // Saved now: nothing else may save before the app is closed, and the
-  // old file is no longer where the next start would look for it.
-  if (carried && !store_.save(&error)) {
-    QMessageBox::warning(
-        this, "v-cube",
-        tr("Could not save the OCLL algs carried over to %1: %2")
-            .arg(file, error));
-  }
-}
+PracticePage::PracticePage(AppSettings &settings, PracticeStore &store,
+                           QWidget *parent)
+    : ModePage(parent), settings_(settings), store_(store), rng_(makeRng()) {}
 
 PracticePage::~PracticePage() = default;
 
@@ -143,6 +112,7 @@ void PracticePage::build() {
 
   display_ = new TimeDisplay(right);
   display_->setAlignment(Qt::AlignCenter);
+  driver_.setDisplay(display_);
   // A hint asked for is what is being looked for: under the cube, as large
   // as an alg being done.
   requestedHint_ = new QLabel(right);
@@ -238,7 +208,6 @@ void PracticePage::build() {
   });
   connect(&scrambles_, &QFutureWatcher<GeneratedScramble>::finished, this,
           &PracticePage::scrambleReady);
-  tick_.setInterval(37);
   connect(&tick_, &QTimer::timeout, this, &PracticePage::onTick);
 
   built_ = true;
@@ -260,6 +229,7 @@ void PracticePage::buildSide() {
             }
           });
   connect(list_, &PracticeList::cleared, this, [this] {
+    undo_ = {}; // the grades to take back are gone
     save();
     showSummary();
     if (active_ && tab_ == Tab::Learn) {
@@ -306,6 +276,8 @@ void PracticePage::showBar() {
 
 DrillFlow::Config PracticePage::flowConfig() const {
   const DrillSettings &d = settings_.drill;
+  // Space never practises after a DNF here: the practice modes have no
+  // practice stage (Esc tries the same state again instead).
   return {!physical_,          d.tapToArm, d.autoStop,
           d.shiftSpaceGivesUp, false,      d.holdMs};
 }
@@ -343,10 +315,6 @@ void PracticePage::optionChanged() {
   item_ = {};
   progress_.clear();
   readyPending_ = true;
-  // Only Timed and Inspection have a clock to keep up.
-  if (tab_ != Tab::Timed && tab_ != Tab::Inspection) {
-    tick_.stop();
-  }
   showBar();
   fillList();
   if (active_) {
@@ -390,9 +358,7 @@ void PracticePage::activated() {
     refreshList();
     showSummary();
   }
-  if (tab_ == Tab::Timed || tab_ == Tab::Inspection) {
-    tick_.start();
-  }
+  updateTick();
 }
 
 void PracticePage::deactivated() {
@@ -414,6 +380,7 @@ void PracticePage::deactivated() {
 void PracticePage::windowDeactivated() {
   if (tab_ == Tab::Timed && flow_.loseKeyboard()) {
     display_->showTimer(flow_.timer(), monotonicMs());
+    updateTick();
   }
 }
 
@@ -553,9 +520,6 @@ void PracticePage::nextLearn(LearnAhead ahead) {
     begin(*s, Extent::Whole);
     phase_ = Phase::Solving;
     cubeChanged();
-    if (tab_ == Tab::Inspection && active_) {
-      tick_.start();
-    }
     showAll();
     return;
   }
@@ -575,7 +539,7 @@ void PracticePage::nextLearn(LearnAhead ahead) {
     QString why;
     if (pick.nextDue) {
       why = tr("The next card is due %1.")
-                .arg(dueText(*pick.nextDue, now, localDayEnd()));
+                .arg(dueSentence(*pick.nextDue, now, localDayEnd()));
     }
     if (pick.queued > 0) {
       why += " " +
@@ -591,24 +555,48 @@ void PracticePage::nextLearn(LearnAhead ahead) {
     refreshList();
     return;
   }
-  std::optional<Setup> s = setUp(Extent::Unit, *pick.caseId);
-  if (!s) {
+  if (!startCard(*pick.caseId, pick.isNew, !pick.isNew)) {
     showIdle(tr("%1 can't be set up with these options")
                  .arg(cardName(*pick.caseId)));
-    return;
+  }
+}
+
+bool PracticePage::startCard(const std::string &card, bool isNew, bool graded) {
+  std::optional<Setup> s = setUp(Extent::Unit, card);
+  if (!s) {
+    return false;
   }
   begin(*s, Extent::Unit);
-  item_.card = *pick.caseId;
-  item_.isNew = pick.isNew;
-  item_.graded = !pick.isNew;
-  lastCard_ = item_.card;
-  phase_ = pick.isNew ? Phase::Demo : Phase::Solving;
+  item_.card = card;
+  item_.isNew = isNew;
+  item_.graded = graded;
+  lastCard_ = card;
+  phase_ = isNew ? Phase::Demo : Phase::Solving;
   cubeChanged();
   if (needsChoice()) {
     enterChoice(phase_);
-    return;
+    return true;
   }
   showAll();
+  return true;
+}
+
+void PracticePage::undoLast() {
+  std::optional<LearnUndo> u = undo_.pop();
+  if (!u || u->cards.empty()) {
+    emit message(tr("Nothing to take back"));
+    return;
+  }
+  takeBack(store_.data.cards, *u);
+  save();
+  refreshList();
+  emit message(tr("Took back the grade of %1")
+                   .arg(QTextDocumentFragment::fromHtml(cardName(u->caseId))
+                            .toPlainText()));
+  // The card comes up again, to be done over.
+  if (!startCard(u->caseId, u->isNew, !u->isNew)) {
+    next();
+  }
 }
 
 void PracticePage::enterChoice(Phase after) {
@@ -650,7 +638,7 @@ void PracticePage::leaveChoice(Choice choice) {
     // The grade follows the verdict, unless you gave it yourself.
     if (item_.graded && item_.recorded && item_.grade && item_.outcome &&
         !item_.gradedByHand) {
-      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->result.good,
                                      .hinted = item_.hint,
                                      .gaveUp = item_.gaveUp});
       if (g != *item_.grade) {
@@ -701,9 +689,6 @@ void PracticePage::nextTimed() {
   if (physical_) {
     requestScramble();
   }
-  if (active_) {
-    tick_.start();
-  }
   showAll();
 }
 
@@ -743,9 +728,6 @@ void PracticePage::sameAgain() {
     display_->showTime(0);
   } else {
     phase_ = Phase::Solving;
-  }
-  if (tab_ == Tab::Inspection && active_) {
-    tick_.start();
   }
   showAll();
 }
@@ -809,158 +791,142 @@ void PracticePage::scrambleReady() {
 // --- keys --------------------------------------------------------------------
 
 bool PracticePage::handleKey(QKeyEvent *e, bool press) {
-  if (!built_ || (e->modifiers() &
-                  (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+  if (!built_) {
+    return false;
+  }
+  struct Update {
+    PracticePage *page;
+    ~Update() { page->updateTick(); }
+  } update{this};
+  TrainKeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
+  // Of the keys held with Ctrl, Alt or Meta only Ctrl+Z, on the Learn tab.
+  if (k.modified && k.key != TrainKey::Undo) {
     return false;
   }
   if (tab_ == Tab::Timed) {
-    return handleTimedKey(e, press);
+    return !k.modified && handleTimedKey(e, press);
   }
-  return press && item_.id != 0 && handleLearnKey(e);
+  if (!press || item_.id == 0) {
+    return false;
+  }
+  k.move = settings_.keymap.lookup(e);
+  return perform(PracticeFlow::key(k, flowState()), e);
 }
 
-bool PracticePage::handleChooseKey(QKeyEvent *e) {
-  switch (e->key()) {
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
+PracticeFlow::State PracticePage::flowState() {
+  return {.tab = tab_,
+          .phase = phase_,
+          .choosingAgain = afterChoice_ == Phase::Done,
+          .hidden = item_.hidden,
+          .done = item_.done,
+          .inspecting = item_.inspecting,
+          .hints = hasHints() && !blind(),
+          .waiting = waiting_,
+          .best = item_.outcome && !item_.outcome->best.empty(),
+          .detailOpen = detailOpen_,
+          .graded = item_.graded && item_.grade.has_value(),
+          .chooser = choicePanel() && !item_.card.empty(),
+          .recorded = item_.recorded && item_.card.empty(),
+          .shiftSpaceGivesUp = settings_.drill.shiftSpaceGivesUp};
+}
+
+bool PracticePage::perform(const PracticeFlow::Step &step, QKeyEvent *e) {
+  using A = PracticeFlow::Action;
+  switch (step.action) {
+  case A::None:
+    break;
+  case A::Undo:
+    undoLast();
+    break;
+  case A::NextEarly:
+    next(LearnAhead::Early);
+    break;
+  case A::Start:
+    readyPending_ = false;
+    next();
+    break;
+  case A::ConfirmChoice:
     leaveChoice(Choice::Confirmed);
-    return true;
-  case Qt::Key_Escape:
-    if (afterChoice_ == Phase::Done) {
-      leaveChoice(Choice::Cancelled);
-    }
-    return true;
-  case Qt::Key_Space:
-  case Qt::Key_Tab:
-  case Qt::Key_Backspace:
-    return true;
-  default:
     break;
-  }
-  if (e->key() >= Qt::Key_1 && e->key() <= Qt::Key_9) {
-    choiceKey(e->key() - Qt::Key_0);
-    return true;
-  }
-  if (settings_.keymap.lookup(e)) {
+  case A::CancelChoice:
+    leaveChoice(Choice::Cancelled);
+    break;
+  case A::ChoiceKey:
+    choiceKey(step.digit);
+    break;
+  case A::ChooseFirst:
     emit message(tr("Choose first: Enter when your solutions are ticked"));
-    return true;
-  }
-  return false;
-}
-
-bool PracticePage::handleLearnKey(QKeyEvent *e) {
-  const bool shift = e->modifiers().testFlag(Qt::ShiftModifier);
-  if (phase_ == Phase::Idle) {
-    if (e->key() == Qt::Key_Space || e->key() == Qt::Key_Return ||
-        e->key() == Qt::Key_Enter) {
-      next(LearnAhead::Early);
-      return true;
-    }
-    return false;
-  }
-  if (phase_ == Phase::Ready) {
-    if (e->key() == Qt::Key_Space) {
-      readyPending_ = false;
-      next();
-      return true;
-    }
-    return false;
-  }
-  if (phase_ == Phase::Choose) {
-    return handleChooseKey(e);
-  }
-  switch (e->key()) {
-  case Qt::Key_Space:
-    if (phase_ == Phase::Done) {
-      if (waiting_) {
-        emit message(tr("Still working out the best solutions"));
-      } else {
-        next();
-      }
-    } else if (phase_ == Phase::Demo) {
-      introduced();
-    } else if (item_.hidden) {
-      showHidden(false);
-      finishLearn(item_.done ? Try::Finished : Try::GaveUp);
-    } else if (shift && settings_.drill.shiftSpaceGivesUp) {
-      finishLearn(Try::GaveUp);
-    }
-    return true;
-  case Qt::Key_Tab:
-    if (phase_ == Phase::Solving && hasHints() && !item_.hidden) {
-      const QString text = hint();
-      if (text.isEmpty()) {
-        emit message(tr("Still working out the best solutions"));
-      } else {
-        item_.hint = true;
-        requestedHint_->setText(text);
-        showKeys();
-      }
-    } else if (phase_ == Phase::Done) {
-      toggleDetail();
-    }
-    return true;
-  case Qt::Key_Backspace:
-    // Drill's give-up key, which is Shift+Space unless set otherwise: one
-    // press of Backspace mustn't record a DNF that can't be taken back.
-    if (phase_ == Phase::Solving) {
-      if (settings_.drill.shiftSpaceGivesUp) {
-        hint_->setHint(
-            timedHintText(DrillFlow::Hint::GiveUpKey, settings_.drill),
-            hint_->keys());
-      } else {
-        showHidden(false);
-        finishLearn(Try::GaveUp);
-      }
-    }
-    return true;
-  case Qt::Key_Delete:
-    if (phase_ == Phase::Done && !waiting_) {
-      deleteLearnTry();
-    }
-    return true;
-  case Qt::Key_Escape:
-    if (phase_ == Phase::Done) {
-      if (!waiting_) {
-        sameAgain();
-      }
-    } else if (tab_ == Tab::Inspection) {
-      sameAgain(); // the clock again too, and not recorded
+    break;
+  case A::Next:
+    next();
+    break;
+  case A::StillWorking:
+    emit message(tr("Still working out the best solutions"));
+    break;
+  case A::Introduced:
+    introduced();
+    break;
+  case A::Reveal:
+    showHidden(false);
+    finishLearn(step.gaveUp ? Try::GaveUp : Try::Finished);
+    break;
+  case A::GiveUp:
+    showHidden(false);
+    finishLearn(Try::GaveUp);
+    break;
+  case A::GiveUpKeyHint:
+    timedSay(timedHintText(DrillFlow::Hint::GiveUpKey, settings_.drill));
+    break;
+  case A::Hint:
+    if (const QString text = hint(); text.isEmpty()) {
+      emit message(tr("Still working out the best solutions"));
     } else {
-      resetCube();
-      showAll();
+      item_.hint = true;
+      requestedHint_->setText(text);
+      showKeys();
     }
-    return true;
-  case Qt::Key_Return:
-  case Qt::Key_Enter:
-    if (phase_ == Phase::Demo) {
-      playDemo();
-    } else if (phase_ == Phase::Done) {
-      playBest();
+    break;
+  case A::ToggleDetail:
+    toggleDetail();
+    break;
+  case A::DeleteTry:
+    deleteLearnTry();
+    break;
+  case A::Retry:
+    sameAgain();
+    break;
+  case A::ResetCube:
+    resetCube();
+    showAll();
+    break;
+  case A::PlayDemo:
+    playDemo();
+    break;
+  case A::PlayBest:
+    playBest();
+    break;
+  case A::Regrade:
+    regrade(step.grade);
+    item_.gradedByHand = true;
+    break;
+  case A::ChooseAgain:
+    chooseAgain();
+    break;
+  case A::ModeKey:
+    // The mode's own keys first; the turning keys turn the cube freely.
+    if (doneKey(e)) {
+      return true;
     }
-    return true;
-  default:
+    if (step.move) {
+      learnTurn(*step.move);
+      return true;
+    }
+    return false;
+  case A::Turn:
+    learnTurn(*step.move);
     break;
   }
-  if (phase_ == Phase::Done && item_.graded && item_.grade && !waiting_ &&
-      e->key() >= Qt::Key_1 && e->key() <= Qt::Key_4) {
-    regrade(static_cast<Grade>(e->key() - Qt::Key_1 + 1));
-    item_.gradedByHand = true;
-    return true;
-  }
-  if (phase_ == Phase::Done && !waiting_ && doneKey(e)) {
-    return true;
-  }
-  if (phase_ == Phase::Done && e->key() == Qt::Key_0 && choicePanel() &&
-      !item_.card.empty()) {
-    chooseAgain();
-    return true;
-  }
-  if (auto m = settings_.keymap.lookup(e)) {
-    learnTurn(*m);
-    return true;
-  }
-  return false;
+  return step.handled;
 }
 
 // --- Learn -------------------------------------------------------------------
@@ -1030,19 +996,23 @@ void PracticePage::conclude() {
     if (item_.graded) {
       CaseProgress &p = store_.data.cards[item_.card];
       item_.cardBefore = p.card;
-      const Grade g = practiceGrade({.solvedWell = item_.outcome->good,
+      const Grade g = practiceGrade({.solvedWell = item_.outcome->result.good,
                                      .hinted = item_.hint,
                                      .gaveUp = item_.gaveUp});
       review(p.card, g, now, settings_.srs, &rng_);
       p.record({now, 0, g == Grade::Again, AttemptMode::Learn});
+      undo_.push({.setId = modeId().toStdString(),
+                  .caseId = item_.card,
+                  .cards = {{item_.card, item_.cardBefore, now, {}}}},
+                 false);
       item_.grade = g;
       item_.recorded = true;
     } else if (item_.card.empty()) {
       PracticeTry t;
       t.timestamp = now;
-      t.moves = item_.outcome->moves;
-      t.best = item_.outcome->bestMoves;
-      t.extra = item_.outcome->extra;
+      t.moves = item_.outcome->result.moves;
+      t.best = item_.outcome->result.bestMoves;
+      t.extra = item_.outcome->result.extra;
       t.dnf = item_.gaveUp;
       t.hint = item_.hint;
       if (tab_ == Tab::Inspection) {
@@ -1067,13 +1037,19 @@ void PracticePage::introduced() {
   endDemo();
   CaseProgress &p = store_.data.cards[item_.card];
   const std::int64_t now = unixNow();
+  undo_.push({.setId = modeId().toStdString(),
+              .caseId = item_.card,
+              .isNew = true,
+              .cards = {{item_.card, p.card, 0, {}}}},
+             false);
   introduce(p.card, now, settings_.srs);
   save();
   refreshList();
   phase_ = Phase::Done;
   item_.outcome = Outcome{};
-  item_.outcome->verdict = tr("Shown. It comes back %1, to do from memory.")
-                               .arg(dueText(p.card.due, now, localDayEnd()));
+  item_.outcome->verdict =
+      tr("Shown. It comes back %1, to do from memory.")
+          .arg(dueSentence(p.card.due, now, localDayEnd()));
   item_.outcome->best = demoAlg();
   showAll();
 }
@@ -1157,113 +1133,64 @@ bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
     return true;
   }
   const bool scrambleShown = !physical_ || !item_.scramble.isEmpty();
-  DrillFlow::Step step =
-      flow_.key(flowKey(e, press), now,
-                scrambleShown ? Scramble::Shown : Scramble::Awaited);
-  perform(step, now);
-  return step.handled;
+  return driver_.key(flowKey(e, press), now,
+                     scrambleShown ? Scramble::Shown : Scramble::Awaited);
 }
 
-void PracticePage::perform(const DrillFlow::Step &step, std::int64_t now) {
-  using A = DrillFlow::Action;
-  switch (step.action) {
-  case A::None:
-  case A::PracticeReset:
-  case A::PracticeTurn:
-    break;
-  case A::NextFromIdle:
-  case A::NextCase:
-    next();
-    break;
-  case A::Retry:
-    sameAgain();
-    break;
-  case A::ResetWaiting:
-    display_->showTime(0);
-    if (!physical_) {
-      resetCube();
-    }
-    showKeys();
-    break;
-  case A::Rotate:
-    // Looking at the cube before the start: part of the solve's moves, so
-    // that the hold it is solved in is known.
-    applyTurn(*step.move);
-    item_.moves.push_back(*step.move);
-    item_.moveMs.push_back(0);
-    cubeChanged();
-    break;
-  case A::Start:
-    item_.began = now;
-    showKeys();
-    if (step.move) {
-      runningTurn(*step.move, now);
-    } else {
-      display_->showTimer(flow_.timer(), now);
-    }
-    break;
-  case A::Armed:
-    display_->showTimer(flow_.timer(), now);
-    showKeys();
-    break;
-  case A::TimerShown:
-    display_->showTimer(flow_.timer(), now);
-    break;
-  case A::Turn:
-    runningTurn(*step.move, now);
-    break;
-  case A::Stopped:
-    // On the virtual cube a DNF unless the cube shows the step done.
-    finishTimed(step.timeMs, !physical_ && !item_.done
-                                 ? DrillFlow::Result::Failed
-                                 : DrillFlow::Result::Solved);
-    break;
-  case A::CancelNoTurn:
-    cancelTimed(tr("Stopped before any face turn: cancelled, nothing was "
-                   "recorded."));
-    break;
-  case A::Cancel:
-    cancelTimed(tr("Solve cancelled; nothing was recorded."));
-    break;
-  case A::GiveUp:
-    finishTimed(flow_.giveUp(now), DrillFlow::Result::GaveUp);
-    break;
-  case A::Practise:
-    toggleDetail();
-    break;
-  case A::ToggleWrong:
-    toggleDnf();
-    break;
-  case A::Delete:
-    deleteTry();
-    break;
-  case A::Hint:
-    hint_->setHint(timedHintText(step.hint, settings_.drill), hint_->keys());
-    break;
-  }
+void PracticePage::timedNext(bool fromIdle) {
+  (void)fromIdle;
+  next();
 }
 
-void PracticePage::runningTurn(Move m, std::int64_t now) {
-  const bool face = !isRotation(m.type);
+void PracticePage::timedRetry() { sameAgain(); }
+
+void PracticePage::timedResetCube() { resetCube(); }
+
+void PracticePage::timedRotate(Move m) {
+  // Looking at the cube before the start: part of the solve's moves, so
+  // that the hold it is solved in is known.
+  applyTurn(m);
+  item_.moves.push_back(m);
+  item_.moveMs.push_back(0);
+  cubeChanged();
+}
+
+void PracticePage::timedStarted(std::int64_t now) { item_.began = now; }
+
+std::optional<DrillFlow::Turn> PracticePage::timedTurn(Move m,
+                                                       std::int64_t now) {
   applyTurn(m);
   item_.moves.push_back(m);
   item_.moveMs.push_back(now - item_.began);
   item_.done = turned();
   cubeChanged();
-  std::optional<std::int64_t> stopped = flow_.turned(
-      face ? DrillFlow::Turn::OffUdFace : DrillFlow::Turn::Rotation, now,
-      [this] { return item_.done; });
-  if (stopped) {
-    finishTimed(*stopped, DrillFlow::Result::Solved);
-  }
+  return isRotation(m.type) ? DrillFlow::Turn::Rotation
+                            : DrillFlow::Turn::OffUdFace;
 }
 
-void PracticePage::cancelTimed(const QString &why) {
-  flow_.cancelSolve();
-  display_->showTime(0);
-  if (!physical_) {
-    resetCube();
-  }
+void PracticePage::timedFinish(std::int64_t ms, DrillFlow::Result result) {
+  finishTimed(ms, result);
+}
+
+void PracticePage::timedPractise(bool aided) {
+  // No practice here: Tab shows how efficient the solve was.
+  (void)aided;
+  toggleDetail();
+}
+
+void PracticePage::timedToggleWrong() { toggleDnf(); }
+
+void PracticePage::timedDelete() { deleteTry(); }
+
+void PracticePage::timedFinishAnimations() { cubeView_->finishAnimations(); }
+
+void PracticePage::timedShowKeys() { showKeys(); }
+
+void PracticePage::timedSay(const QString &text) {
+  hint_->setHint(text, hint_->keys());
+}
+
+void PracticePage::timedCancelled(const QString &why) {
   showAll();
   hint_->setHint(why, hint_->keys());
 }
@@ -1287,9 +1214,9 @@ void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
     PracticeTry t;
     t.timestamp = unixNow();
     t.ms = ms;
-    t.moves = item_.outcome->moves;
-    t.best = item_.outcome->bestMoves;
-    t.extra = item_.outcome->extra;
+    t.moves = item_.outcome->result.moves;
+    t.best = item_.outcome->result.bestMoves;
+    t.extra = item_.outcome->result.extra;
     t.dnf = failed;
     store_.data.addTimed(key, t);
     item_.recorded = true;
@@ -1361,6 +1288,21 @@ void PracticePage::showInspection() {
                                     palette().color(QPalette::WindowText)));
 }
 
+void PracticePage::updateTick() {
+  // The clock is only redrawn while it changes: a hold of Space or a solve
+  // on the Timed tab, the inspection clock running.
+  const bool busy = active_ && ((tab_ == Tab::Timed && flow_.busy()) ||
+                                (tab_ == Tab::Inspection && item_.inspecting &&
+                                 phase_ == Phase::Solving));
+  if (busy != tick_.isActive()) {
+    if (busy) {
+      tick_.start(16); // as Drill's and the timer's
+    } else {
+      tick_.stop();
+    }
+  }
+}
+
 void PracticePage::onTick() {
   if (tab_ == Tab::Inspection) {
     if (item_.inspecting && phase_ == Phase::Solving) {
@@ -1371,17 +1313,8 @@ void PracticePage::onTick() {
   if (tab_ != Tab::Timed) {
     return;
   }
-  const std::int64_t now = monotonicMs();
-  // A popup or dialog took the keyboard: Space's release won't come.
-  if (flow_.holding() && (QApplication::activePopupWidget() ||
-                          QApplication::activeModalWidget())) {
-    flow_.loseKeyboard();
-    display_->showTimer(flow_.timer(), now);
-    return;
-  }
-  flow_.tick(now);
-  if (flow_.busy()) {
-    display_->showTimer(flow_.timer(), now);
+  if (driver_.tick(monotonicMs())) {
+    updateTick();
   }
 }
 
@@ -1409,10 +1342,10 @@ void PracticePage::analysisArrived(int id) {
     PracticeTry *t =
         newestTry(tabTries(store_.data, tab_),
                   tab_ == Tab::Timed ? timedGroupKey() : item_.group);
-    if (t && (before.extra != item_.outcome->extra ||
-              before.bestMoves != item_.outcome->bestMoves)) {
-      t->best = item_.outcome->bestMoves;
-      t->extra = item_.outcome->extra;
+    if (t && (before.result.extra != item_.outcome->result.extra ||
+              before.result.bestMoves != item_.outcome->result.bestMoves)) {
+      t->best = item_.outcome->result.bestMoves;
+      t->extra = item_.outcome->result.extra;
       save();
       refreshList();
     }
@@ -1452,6 +1385,7 @@ void PracticePage::showAll() {
   if (!built_) {
     return;
   }
+  updateTick();
   // Tab's hint stays while the case is being solved.
   if (!item_.hint || phase_ != Phase::Solving) {
     requestedHint_->clear();
@@ -1514,22 +1448,9 @@ void PracticePage::showKeys() {
   const bool best = item_.outcome && !item_.outcome->best.empty();
   const PracticeKeys k =
       tab_ != Tab::Timed
-          ? untimedKeys({.phase = phase_,
-                         .choosingAgain = afterChoice_ == Phase::Done,
-                         .hidden = item_.hidden,
-                         .inspecting = item_.inspecting,
-                         .hints = hasHints() && !blind(),
-                         .waiting = waiting_,
-                         .best = best,
-                         .detailOpen = detailOpen_,
-                         .graded = item_.graded && item_.grade.has_value(),
-                         .chooser = choicePanel() && !item_.card.empty(),
-                         .recorded = item_.recorded && item_.card.empty(),
-                         .giveUpKey = giveUpKeyName(settings_.drill),
-                         .modeKeys = doneKeys()})
+          ? untimedKeys(flowState(), doneKeys())
           : timedKeys(flow_, settings_.drill,
-                      {.physical = physical_,
-                       .scrambleShown = !item_.scramble.isEmpty(),
+                      {.scrambleShown = !item_.scramble.isEmpty(),
                        .best = best,
                        .detailOpen = detailOpen_,
                        .recorded = item_.recorded});
@@ -1549,11 +1470,12 @@ QString PracticePage::gradeLine() const {
 }
 
 QString PracticePage::timedLine() const {
-  return vcube::timedLine({.moves = item_.outcome ? item_.outcome->moves : 0,
-                           .ms = item_.ms,
-                           .dnf = item_.gaveUp,
-                           .meanBefore = item_.meanBefore},
-                          settings_.decimals);
+  return vcube::timedLine(
+      {.moves = item_.outcome ? item_.outcome->result.moves : 0,
+       .ms = item_.ms,
+       .dnf = item_.gaveUp,
+       .meanBefore = item_.meanBefore},
+      settings_.decimals);
 }
 
 QString PracticePage::inspectionLine() const {

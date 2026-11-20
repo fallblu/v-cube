@@ -26,6 +26,7 @@ class QToolButton;
 namespace vcube {
 
 class CubeView;
+class HintBar;
 
 // A solve done on the virtual cube, to review.
 struct ReviewedSolve {
@@ -101,7 +102,10 @@ private:
   QWidget *pairsBox_;
   QComboBox *pairSetBox_;
   QLabel *pairsLabel_;
-  QPushButton *retryButton_;
+  QPushButton *retryButton_ = nullptr;
+  HintBar *keys_ = nullptr;
+  // The key strip: the replay's keys and the buttons'.
+  void showKeys();
   QToolButton *playButton_ = nullptr;
   QTimer playTimer_; // steps the replay forward while playing
 

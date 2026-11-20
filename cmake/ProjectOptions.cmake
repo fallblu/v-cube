@@ -41,8 +41,12 @@ if(NOT MSVC)
   target_compile_options(vcube_strict INTERFACE -Wconversion -Wsign-conversion)
 endif()
 
+# UBSan stops at the first undefined behaviour, so that it fails the test
+# instead of printing a line in a long log.
 if(VCUBE_SANITIZE AND NOT MSVC)
   target_compile_options(vcube_warnings INTERFACE
-    -fsanitize=address,undefined -fno-omit-frame-pointer)
-  target_link_options(vcube_warnings INTERFACE -fsanitize=address,undefined)
+    -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -fno-omit-frame-pointer)
+  target_link_options(vcube_warnings INTERFACE
+    -fsanitize=address,undefined -fno-sanitize-recover=undefined)
 endif()

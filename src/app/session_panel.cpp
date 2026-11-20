@@ -1,6 +1,8 @@
 #include "app/session_panel.hpp"
 
+#include "app/page_parts.hpp"
 #include "app/review_dialog.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
@@ -108,6 +110,7 @@ SessionPanel::SessionPanel(QWidget *parent) : QWidget(parent) {
 
   stats_ = new QLabel(this);
   stats_->setTextFormat(Qt::RichText);
+  useTabularFigures(stats_); // the figures don't shift as they change
   stats_->setWordWrap(true);
   stats_->setFocusPolicy(Qt::NoFocus);
   stats_->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -456,12 +459,6 @@ void addAttemptActions(ActionMenu &menu, const AttemptMenuActions &actions) {
     menu.addSeparator();
     menu.add(QObject::tr("Delete"), actions.remove);
   }
-}
-
-QPushButton *flatButton(const QString &text, QWidget *parent) {
-  auto *b = new QPushButton(text, parent);
-  b->setFocusPolicy(Qt::NoFocus);
-  return b;
 }
 
 } // namespace vcube

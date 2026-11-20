@@ -2,6 +2,7 @@
 
 #include "app/ui_state.hpp"
 #include <QComboBox>
+#include <QEasingCurve>
 #include <QPainter>
 
 #include <algorithm>
@@ -11,7 +12,10 @@ namespace vcube {
 CubeView::CubeView(QWidget *parent) : QWidget(parent) {
   setFocusPolicy(Qt::NoFocus);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  frame_.setInterval(8);
+  // About a display frame: advance() moves by the time passed, so a
+  // faster timer only copies more frames.
+  frame_.setTimerType(Qt::PreciseTimer);
+  frame_.setInterval(16);
   connect(&frame_, &QTimer::timeout, this, &CubeView::advance);
   clock_.start();
   setAccessibleName(tr("Cube"));
@@ -195,7 +199,7 @@ void CubeView::paintEvent(QPaintEvent *) {
   QRectF area = drawArea();
   StickerMarks marks = shownMarks();
   const StickerMarks *m = marks.empty() ? nullptr : &marks;
-  // The 3D and top views draw the cube at two thirds of the space it is
+  // The 3D and flat views draw the cube at two thirds of the space it is
   // given, centred; the net keeps the full area so its stickers stay easy
   // to click.
   QRectF cubeArea = area;
@@ -208,7 +212,13 @@ void CubeView::paintEvent(QPaintEvent *) {
   case Mode::ThreeD: {
     std::optional<TurnAnimation> turn;
     if (!queue_.empty()) {
-      turn = TurnAnimation{queue_.front(), progress_};
+      // Played sequences (demos, applied algs) ease out; typed moves turn
+      // evenly, so that a backlog keeps up.
+      double at = progress_;
+      if (!queuedTyped_.empty() && !queuedTyped_.front()) {
+        at = QEasingCurve(QEasingCurve::OutCubic).valueForProgress(at);
+      }
+      turn = TurnAnimation{queue_.front(), at};
     }
     cube_painter::paint3D(p, cubeArea, shown_, look_, turn, m);
     break;

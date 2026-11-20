@@ -6,6 +6,9 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
+
+#include <algorithm>
 
 namespace vcube {
 
@@ -54,10 +57,11 @@ QString resolvedPath(const QString &path) {
 }
 
 // Copies the files under `from` to `to`, keeping the layout and skipping
-// the backup and deleted folders at any depth, and anything in `skip` (a
-// canonical path), such as the folder being copied to.
+// the backup and deleted folders at any depth, lock files and save
+// temporaries, and anything in `skip` (canonical paths), such as the folder
+// being copied to.
 bool copyTree(const QString &from, const QString &to, QString *error,
-              const QString &skip = {}) {
+              const QStringList &skip = {}) {
   QDir source(from);
   QDirIterator it(from, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
                   QDirIterator::Subdirectories);
@@ -65,13 +69,15 @@ bool copyTree(const QString &from, const QString &to, QString *error,
     QString path = it.next();
     QString rel = source.relativeFilePath(path);
     QStringList parts = rel.split('/');
-    parts.removeLast();
+    QString name = parts.takeLast();
     if (parts.contains(kBackupsFolder) || parts.contains(kDeletedFolder) ||
-        rel.endsWith(".lock")) {
+        rel.endsWith(".lock") || isSaveTemporary(name)) {
       continue;
     }
-    if (!skip.isEmpty() &&
-        isInside(QFileInfo(path).canonicalFilePath(), skip)) {
+    QString canonical = QFileInfo(path).canonicalFilePath();
+    if (std::any_of(skip.begin(), skip.end(), [&](const QString &s) {
+          return !s.isEmpty() && isInside(canonical, s);
+        })) {
       continue;
     }
     QString dest = QDir(to).filePath(rel);
@@ -86,10 +92,79 @@ bool copyTree(const QString &from, const QString &to, QString *error,
   return true;
 }
 
+// Copies `settingsFile`, if there is one, into <target>/settings/.
+bool copySettings(const QString &settingsFile, const QString &target,
+                  QString *error) {
+  if (settingsFile.isEmpty() || !QFile::exists(settingsFile)) {
+    return true;
+  }
+  QString dest =
+      QDir(target).filePath("settings/" + QFileInfo(settingsFile).fileName());
+  QDir().mkpath(QFileInfo(dest).absolutePath());
+  QFile::remove(dest);
+  if (!QFile::copy(settingsFile, dest)) {
+    return fail(error, QString("%1 couldn't be copied to %2")
+                           .arg(QDir::toNativeSeparators(settingsFile),
+                                QDir::toNativeSeparators(dest)));
+  }
+  return true;
+}
+
+// The settings file, when it is inside the data folder (as with
+// --data-dir): copied once, as the settings, and not again with the data.
+QString canonicalOrEmpty(const QString &path) {
+  return path.isEmpty() ? QString() : QFileInfo(path).canonicalFilePath();
+}
+
 } // namespace
 
-bool makeDailyBackup(const QString &dataDir, const QDate &today, int keep,
-                     QString *error) {
+bool isSaveTemporary(const QString &name) {
+  // QSaveFile writes <name>.XXXXXX beside the file, then renames it; the
+  // X's are random letters of both cases. A name of one case, or a word
+  // such as "Backup", is more likely the user's own copy, and left alone.
+  static const QRegularExpression re(R"(^.+\.(json|ini)\.([A-Za-z0-9]{6})$)");
+  static const QRegularExpression word(R"(^[A-Z]?[a-z0-9]*$|^[A-Z0-9]*$)");
+  QRegularExpressionMatch m = re.match(name);
+  return m.hasMatch() && !word.match(m.captured(2)).hasMatch();
+}
+
+int moveSaveTemporaries(const QString &dataDir, const QDateTime &when) {
+  QDir source(dataDir);
+  QStringList found;
+  QDirIterator it(dataDir, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
+                  QDirIterator::Subdirectories);
+  while (it.hasNext()) {
+    QString path = it.next();
+    QStringList parts = source.relativeFilePath(path).split('/');
+    QString name = parts.takeLast();
+    if (!parts.contains(kBackupsFolder) && !parts.contains(kDeletedFolder) &&
+        isSaveTemporary(name)) {
+      found << path;
+    }
+  }
+  QString folder = source.filePath(QString(kDeletedFolder) + "/unsaved");
+  int moved = 0;
+  for (const QString &path : found) {
+    // Named for the file it was going to be, with the date moved.
+    QString rel = source.relativeFilePath(path);
+    rel.replace('/', '-');
+    QString dest =
+        QDir(folder).filePath(rel + "." + when.toString("yyyyMMdd-hhmmss"));
+    for (int n = 2; QFile::exists(dest); ++n) {
+      dest =
+          QDir(folder).filePath(QString("%1.%2-%3")
+                                    .arg(rel, when.toString("yyyyMMdd-hhmmss"))
+                                    .arg(n));
+    }
+    if (QDir().mkpath(folder) && QFile::rename(path, dest)) {
+      ++moved;
+    }
+  }
+  return moved;
+}
+
+bool makeDailyBackup(const QString &dataDir, const QString &settingsFile,
+                     const QDate &today, int keep, QString *error) {
   finishBackgroundWrites();
   QDir backups(QDir(dataDir).filePath(kBackupsFolder));
   QString name = today.toString(Qt::ISODate);
@@ -101,7 +176,9 @@ bool makeDailyBackup(const QString &dataDir, const QDate &today, int keep,
     QDir(partial).removeRecursively();
     // Made first: a data folder with nothing to copy yet is backed up as
     // an empty one.
-    ok = QDir().mkpath(partial) && copyTree(dataDir, partial, error) &&
+    ok = QDir().mkpath(partial) &&
+         copyTree(dataDir, partial, error, {canonicalOrEmpty(settingsFile)}) &&
+         copySettings(settingsFile, partial, error) &&
          (backups.rename(name + ".partial", name) ||
           fail(error, QString("%1 couldn't be renamed")
                           .arg(QDir::toNativeSeparators(partial))));
@@ -173,19 +250,9 @@ bool exportAllData(const QString &dataDir, const QString &settingsFile,
     return fail(error, QString("%1 is inside the data folder")
                            .arg(QDir::toNativeSeparators(target)));
   }
-  if (!copyTree(dataDir, QDir(target).filePath("data"), error, to)) {
-    return false;
-  }
-  if (!settingsFile.isEmpty() && QFile::exists(settingsFile)) {
-    QString dest =
-        QDir(target).filePath("settings/" + QFileInfo(settingsFile).fileName());
-    QDir().mkpath(QFileInfo(dest).absolutePath());
-    if (!QFile::copy(settingsFile, dest)) {
-      return fail(error, QString("%1 couldn't be copied")
-                             .arg(QDir::toNativeSeparators(settingsFile)));
-    }
-  }
-  return true;
+  return copyTree(dataDir, QDir(target).filePath("data"), error,
+                  {to, canonicalOrEmpty(settingsFile)}) &&
+         copySettings(settingsFile, target, error);
 }
 
 } // namespace vcube

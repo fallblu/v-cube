@@ -7,10 +7,13 @@
 #include "app/practice_html.hpp"
 #include "app/practice_keys.hpp"
 #include "app/practice_list.hpp"
+#include "app/timed_driver.hpp"
 #include "app/widgets.hpp"
 #include "io/practice_store.hpp"
 #include "train/drill_flow.hpp"
+#include "train/learn_session.hpp"
 #include "train/practice.hpp"
+#include "train/practice_flow.hpp"
 
 #include <QFutureWatcher>
 #include <QIcon>
@@ -60,7 +63,7 @@ namespace vcube {
 //
 // A mode says what its tabs, states, cases and solutions are (the
 // virtuals below); the page does the rest.
-class PracticePage : public ModePage {
+class PracticePage : public ModePage, private TimedHost {
   Q_OBJECT
 public:
   using Tab = PracticeTab;
@@ -124,6 +127,8 @@ public:
   // clock runs or with no inspection).
   std::int64_t inspectedMs() const { return item_.inspectMs; }
   bool inspecting() const { return item_.inspecting; }
+  // The clock is being redrawn.
+  bool ticking() const { return tick_.isActive(); }
   // The scramble of a physical attempt ("" until it is worked out).
   QString scrambleText() const { return item_.scramble; }
   // The mode's solutions for the state are worked out.
@@ -135,10 +140,9 @@ public:
   void practiseCard(const std::string &card);
 
 protected:
-  // `file` is the mode's file in `dataDir` ("f2l.json"). The subclass
-  // calls build() at the end of its constructor.
-  PracticePage(AppSettings &settings, const QString &dataDir,
-               const QString &file, QWidget *parent);
+  // `store` is the mode's file (AppData's). The subclass calls build() at
+  // the end of its constructor.
+  PracticePage(AppSettings &settings, PracticeStore &store, QWidget *parent);
   void build();
   void focusModeChanged() override;
 
@@ -200,7 +204,7 @@ protected:
   virtual QString taskNote() const { return {}; }
   // Hide the cube from the first face turn of a solve; Space shows it
   // again, and only then is the solve judged (Inspection).
-  virtual bool blind() const { return tab() == Tab::Inspection; }
+  bool blind() const { return tab() == Tab::Inspection; }
   // Inspection's limit; 0 for none.
   virtual std::int64_t inspectionLimitMs() const { return 0; }
 
@@ -306,7 +310,7 @@ protected:
 
 private:
   AppSettings &settings_;
-  PracticeStore store_;
+  PracticeStore &store_;
   Rng rng_;
   Tab tab_ = Tab::Learn;
   bool physical_ = false;
@@ -314,7 +318,8 @@ private:
   Phase afterChoice_ = Phase::Solving;
   QStringList progress_;
   Phase phase_ = Phase::Idle;
-  DrillFlow flow_;
+  TimedDriver driver_{*this, settings_.drill};
+  DrillFlow &flow_ = driver_.flow();
   Item item_;
   int items_ = 0;
   bool active_ = false;
@@ -324,6 +329,7 @@ private:
   bool demoShown_ = false; // the picture is ahead of the cube
   FaceletCube cube_;
   std::string lastCard_;
+  LearnUndoStack undo_;
   QString idleText_;
   QString note_; // said once under the verdict (a cancelled solve, ...)
   QFutureWatcher<GeneratedScramble> scrambles_;
@@ -363,6 +369,12 @@ private:
   // --- items
   void next(LearnAhead ahead = LearnAhead::WhenDue);
   void nextLearn(LearnAhead ahead);
+  // Puts a card's case on the cube to try (a new one is shown first);
+  // false if it can't be set up.
+  bool startCard(const std::string &card, bool isNew, bool graded);
+  // Ctrl+Z: takes back the last grade (or a new card shown), and the card
+  // comes up again.
+  void undoLast();
   void nextTimed();
   // Puts a set-up state on the cube as a new item.
   void begin(const Setup &setup, Extent extent);
@@ -378,8 +390,10 @@ private:
   void scrambleReady();
 
   // --- the tabs that aren't timed
-  bool handleLearnKey(QKeyEvent *e);
-  bool handleChooseKey(QKeyEvent *e);
+  // Where the tab is, as its keys and their hints are read.
+  PracticeFlow::State flowState();
+  // Does what the flow asked after a key (`e`, for the mode's own keys).
+  bool perform(const PracticeFlow::Step &step, QKeyEvent *e);
   void enterChoice(Phase after);
   // Leaves the choice of solutions, keeping what was ticked or not.
   enum class Choice { Confirmed, Cancelled };
@@ -397,13 +411,28 @@ private:
   // --- Timed
   bool handleTimedKey(QKeyEvent *e, bool press);
   DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
-  void perform(const DrillFlow::Step &step, std::int64_t now);
-  void runningTurn(Move m, std::int64_t now);
   void finishTimed(std::int64_t ms, DrillFlow::Result result);
-  void cancelTimed(const QString &why);
+  // What the Timed tab's flow asks for (see TimedHost).
+  void timedNext(bool fromIdle) override;
+  void timedRetry() override;
+  void timedResetCube() override;
+  void timedRotate(Move m) override;
+  void timedStarted(std::int64_t now) override;
+  std::optional<DrillFlow::Turn> timedTurn(Move m, std::int64_t now) override;
+  bool timedStepDone() override { return item_.done; }
+  void timedFinish(std::int64_t ms, DrillFlow::Result result) override;
+  void timedPractise(bool aided) override;
+  void timedToggleWrong() override;
+  void timedDelete() override;
+  void timedFinishAnimations() override;
+  void timedShowKeys() override;
+  void timedSay(const QString &text) override;
+  void timedCancelled(const QString &why) override;
   void toggleDnf();
   void deleteTry();
   void deleteLearnTry(); // Delete on a finished Untimed or Inspection try
+  // Runs the tick while the clock changes, and stops it otherwise.
+  void updateTick();
   void onTick();
   std::string timedGroupKey() const;
 

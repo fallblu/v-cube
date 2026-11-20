@@ -11,6 +11,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
+#include <QDir>
 #include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -63,6 +64,7 @@ void TimerPage::selectSession(std::size_t index) {
   store_.setCurrentIndex(index);
   if (changed) {
     deleted_.forget(); // undo is for the session it was deleted from
+    justSolved_ = false;
     solveRows_.clear();
   }
   bool wasFinished = flow_.finished();
@@ -273,6 +275,7 @@ void TimerPage::deleteSolve(int index) {
       !deleted_.erase(solves, static_cast<std::size_t>(index))) {
     return;
   }
+  justSolved_ = false;
   save();
   refreshSolves();
   showLastResult();
@@ -284,6 +287,7 @@ void TimerPage::undoDelete() {
     return;
   }
   std::optional<std::size_t> at = deleted_.restore(session().solves);
+  justSolved_ = false;
   emit message(tr("Put back solve #%1").arg(*at + 1));
   save();
   refreshSolves();
@@ -445,7 +449,10 @@ void TimerPage::importCstimer() {
   }
   QFile f(path);
   if (!f.open(QIODevice::ReadOnly)) {
-    QMessageBox::warning(this, tr("Import"), f.errorString());
+    QMessageBox::warning(
+        this, tr("Import"),
+        tr("Couldn't open %1: %2")
+            .arg(QDir::toNativeSeparators(path), f.errorString()));
     return;
   }
   QString error;

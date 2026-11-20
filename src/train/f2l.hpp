@@ -264,6 +264,44 @@ struct AnalysisOptions {
 // simplified, and the penalty for each wide turn.
 double solutionCost(const Alg &alg, const AnalysisOptions &options);
 
+// --- grading -----------------------------------------------------------------
+
+// Costs closer than this are the same (they are shown to a tenth).
+inline constexpr double kSameCost = 0.05;
+// A cost this much over the best (a pair's) is far over.
+inline constexpr double kFarOver = 2.0;
+
+// How a cost compares with the best: the same, over it, or far over it
+// (kFarOver for each of `pairs`).
+enum class CostOver : std::uint8_t { Same, Over, Far };
+CostOver costOver(double over, int pairs = 1);
+
+// What a chosen solution (written for its side's slot) costs, as
+// solutions compare (comparableSolution()).
+double chosenCost(const Alg &chosen, const AnalysisOptions &options);
+
+// A try at one pair, against the solutions chosen for it (not empty).
+struct PairJudgement {
+  std::optional<std::size_t> match; // the chosen solution it was
+  Alg asChosen;          // the try as solutions compare, for the side's slot
+  double cost = 0.0;     // of the try
+  double cheapest = 0.0; // of the chosen ones
+  double extra = 0.0;    // over the cheapest, never negative
+  bool good = false;     // one of them, or as cheap: graded Good
+};
+// `moves` solved `target`'s pair, whose card is of `side`.
+PairJudgement judgePair(const Alg &moves, PairSide side, Slot target,
+                        const std::vector<Alg> &chosen,
+                        const AnalysisOptions &options);
+
+// A whole F2L against the cheapest way found from the start.
+struct WholeJudgement {
+  double extra = 0.0; // cost over it, never negative
+  bool good = false;  // as good
+  bool far = false;   // far over, for the pairs that were left
+};
+WholeJudgement judgeWhole(double cost, double cheapest, int pairsLeft);
+
 struct PairAnalysis {
   Slot slot = Slot::FR;
   PairCase pcase;

@@ -52,9 +52,9 @@ QString progressText(const FaceletCube &cube, SolveStep step) {
 
 } // namespace
 
-EoCrossPage::EoCrossPage(AppSettings &settings, const QString &dataDir,
+EoCrossPage::EoCrossPage(AppSettings &settings, PracticeStore &store,
                          QWidget *parent)
-    : PracticePage(settings, dataDir, "eocross.json", parent) {
+    : PracticePage(settings, store, parent) {
   step_ = stepFromId(saved::practice("eocross", "step", "eocross")
                          .get()
                          .toString()
@@ -240,7 +240,7 @@ PracticePage::Outcome EoCrossPage::judge() {
     // The search is still running in the background (it is never run
     // here, where it would hold up the window): asked again when it
     // arrives.
-    o.moves = solutionHtm(item().moves);
+    o.result.moves = solutionHtm(item().moves);
     o.verdict = tr("Working out the optimum…");
     return o;
   }
@@ -248,16 +248,16 @@ PracticePage::Outcome EoCrossPage::judge() {
     return o;
   }
   const HeldOptimum &top = ranked_.front();
-  o.bestMoves = top.optimum.length;
+  o.result.bestMoves = top.optimum.length;
   if (!top.optimum.solutions.empty()) {
     o.best = fromShown({top.hold, top.optimum.solutions.front()});
   }
   if (item().moves.empty() && !item().gaveUp) {
     // A physical cube: only the optimum is known.
-    o.verdict = tr("The optimum is %1").arg(movesText(o.bestMoves));
+    o.verdict = tr("The optimum is %1").arg(movesText(o.result.bestMoves));
     return o;
   }
-  o.moves = solutionHtm(item().moves);
+  o.result.moves = solutionHtm(item().moves);
   if (item().gaveUp || !solvedIn_) {
     FaceletCube ended = startCube();
     ended.apply(item().moves);
@@ -265,20 +265,22 @@ PracticePage::Outcome EoCrossPage::judge() {
                                                            : tr("Not done")) +
                 (item().moves.empty() ? QString()
                                       : " · " + progressText(ended, solving_)) +
-                " · " + tr("the optimum is %1").arg(movesText(o.bestMoves));
+                " · " +
+                tr("the optimum is %1").arg(movesText(o.result.bestMoves));
     return o;
   }
-  const int over = std::max(0, o.moves - o.bestMoves);
-  o.extra = over;
-  o.good = over == 0;
+  const int over = std::max(0, o.result.moves - o.result.bestMoves);
+  o.result.extra = over;
+  o.result.good = over == 0;
   o.verdict =
-      tr("%1 in %2").arg(qs(vcube::stepName(solving_)), movesText(o.moves)) +
+      tr("%1 in %2")
+          .arg(qs(vcube::stepName(solving_)), movesText(o.result.moves)) +
       " · " +
-      (over == 0
-           ? coloured(kPassColour, tr("optimal"))
-           : overMarked(
-                 tr("+%1 over the optimum (%2)").arg(over).arg(o.bestMoves),
-                 over >= 3));
+      (over == 0 ? coloured(kPassColour, tr("optimal"))
+                 : overMarked(tr("+%1 over the optimum (%2)")
+                                  .arg(over)
+                                  .arg(o.result.bestMoves),
+                              over >= 3));
   return o;
 }
 

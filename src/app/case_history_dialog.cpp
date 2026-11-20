@@ -1,6 +1,5 @@
 #include "app/case_history_dialog.hpp"
 
-#include "app/case_page.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
@@ -63,7 +62,7 @@ void showCaseHistory(QWidget *parent, const QString &caseName,
                .arg(k.intervalDays, 0, 'f', 1)
                .arg(k.state == CardState::Review
                         ? whenText(k.due)
-                        : dueText(card, unixNow(), localDayEnd()));
+                        : dueCell(card, unixNow(), localDayEnd()));
     if (k.suspended) {
       info += "<p>" + tr("Suspended: left out of Learn.") + "</p>";
     }

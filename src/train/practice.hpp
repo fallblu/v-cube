@@ -23,6 +23,28 @@ namespace vcube {
 //   Timed       the whole step against the clock, on the virtual cube or
 //               a physical one, kept as tries by group and cube.
 
+// The tabs of a practice mode.
+enum class PracticeTab { Learn, Inspection, Untimed, Timed };
+
+// The phases of a practice mode's tabs that aren't timed (the Timed tab's
+// are DrillFlow's; see PracticeFlow for their keys).
+//   Idle     no card is due; Space looks again
+//   Ready    Inspection: Space shows a state and starts the clock
+//   Choose   a new case's solutions are chosen
+//   Demo     a new case: Enter shows its solution, then it is done
+//   Solving  the state is being solved
+//   Done     the verdict is up
+enum class PracticePhase { Idle, Ready, Choose, Demo, Solving, Done };
+
+// How a solve went, as it is kept and graded (the practice pages say it
+// in words beside it).
+struct PracticeResult {
+  int moves = 0;       // HTM as simplified; 0 when not known
+  int bestMoves = 0;   // the best solution's; 0 when unknown
+  double extra = -1.0; // over the best (see PracticeTry::extra)
+  bool good = false;   // a card's try: solved well
+};
+
 // One try: an Untimed solve, an Inspection one or a timed attempt.
 struct PracticeTry {
   std::int64_t timestamp = 0; // Unix seconds

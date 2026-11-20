@@ -1,6 +1,7 @@
 #include "app/widgets.hpp"
 
 #include "app/colours.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 
 #include "cube/solver.hpp"
@@ -33,14 +34,19 @@ std::int64_t monotonicMs() {
 
 std::int64_t unixNow() { return QDateTime::currentSecsSinceEpoch(); }
 
+std::int64_t dayStart(const QDate &day, const QTimeZone &zone) {
+  // Not QDateTime(day, QTime(0, 0)): a midnight that doesn't exist is then
+  // resolved as the Qt version sees fit.
+  return day.startOfDay(zone).toSecsSinceEpoch();
+}
+
 std::int64_t localDayStart() {
-  QDateTime now = QDateTime::currentDateTime();
-  return QDateTime(now.date(), QTime(0, 0)).toSecsSinceEpoch();
+  return dayStart(QDate::currentDate(), QTimeZone(QTimeZone::LocalTime));
 }
 
 std::int64_t localDayEnd() {
-  QDateTime now = QDateTime::currentDateTime();
-  return QDateTime(now.date().addDays(1), QTime(0, 0)).toSecsSinceEpoch();
+  return dayStart(QDate::currentDate().addDays(1),
+                  QTimeZone(QTimeZone::LocalTime));
 }
 
 namespace {
@@ -78,6 +84,27 @@ void setDisplayFontSizes(int scramblePt, int timerPt) {
 
 void setInspectionCallHandler(std::function<void(int seconds)> call) {
   gInspectionCall = std::move(call);
+}
+
+namespace {
+
+class OneLineHigh : public QObject {
+public:
+  using QObject::QObject;
+  bool eventFilter(QObject *watched, QEvent *e) override {
+    if (e->type() == QEvent::FontChange) {
+      auto *w = static_cast<QWidget *>(watched);
+      w->setMinimumHeight(w->fontMetrics().height());
+    }
+    return false;
+  }
+};
+
+} // namespace
+
+void keepOneLineHigh(QWidget *widget) {
+  widget->setMinimumHeight(widget->fontMetrics().height());
+  widget->installEventFilter(new OneLineHigh(widget));
 }
 
 TimeDisplay::TimeDisplay(QWidget *parent) : QLabel(parent) {
@@ -143,6 +170,16 @@ void TimeDisplay::showText(const QString &text, const QColor &colour) {
   beforeHold_.reset();
   setCue(HoldCue::None);
   show(text, colour);
+  describe(text);
+}
+
+void TimeDisplay::describe(const QString &text) {
+  // The name stays "Timer" (a label with a name of its own doesn't say its
+  // text changed): what is shown is said in the description, only when it
+  // changes, never on every frame of a running solve.
+  if (accessibleDescription() != text) {
+    setAccessibleDescription(text);
+  }
 }
 
 void TimeDisplay::show(const QString &text, const QColor &colour) {
@@ -217,7 +254,10 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
     break;
   case S::Running: {
     // One decimal while running keeps the display calm, like cstimer.
-    showText(QString::fromStdString(formatTime(timer.elapsed(now), 1)));
+    beforeHold_.reset();
+    setCue(HoldCue::None);
+    show(QString::fromStdString(formatTime(timer.elapsed(now), 1)), {});
+    describe(tr("Running"));
     break;
   }
   case S::Stopped:
@@ -250,25 +290,80 @@ TrendChart::TrendChart(QWidget *parent)
   setAccessibleName(tr("Trend chart"));
 }
 
+namespace {
+
+Solve asSolve(std::int64_t timeMs, Penalty penalty) {
+  Solve s;
+  s.timeMs = timeMs;
+  s.penalty = penalty;
+  return s;
+}
+
+// The points of a line. Where there are far more points
+// than pixel columns, only the lowest and highest point of each column are
+// kept, in their order, which draws the same picture from at most about
+// two points a column.
+std::vector<QPointF> decimated(std::vector<QPointF> pts, double width) {
+  if (static_cast<double>(pts.size()) <= 2 * width + 2) {
+    return pts;
+  }
+  std::vector<QPointF> out;
+  out.reserve(static_cast<std::size_t>(2 * width) + 4);
+  std::size_t i = 0;
+  while (i < pts.size()) {
+    double column = std::floor(pts[i].x());
+    std::size_t lo = i, hi = i;
+    std::size_t j = i + 1;
+    for (; j < pts.size() && std::floor(pts[j].x()) == column; ++j) {
+      // Screen y grows downwards: the lowest value has the largest y.
+      if (pts[j].y() > pts[lo].y()) {
+        lo = j;
+      }
+      if (pts[j].y() < pts[hi].y()) {
+        hi = j;
+      }
+    }
+    out.push_back(pts[std::min(lo, hi)]);
+    if (lo != hi) {
+      out.push_back(pts[std::max(lo, hi)]);
+    }
+    i = j;
+  }
+  return out;
+}
+
+} // namespace
+
+void TrendChart::invalidate() {
+  plot_ = QPixmap();
+  update();
+}
+
 void TrendChart::setEmptyText(const QString &text) {
   emptyText_ = text;
-  update();
+  invalidate();
 }
 
 void TrendChart::setMoveCounts(bool on) {
   moves_ = on;
-  update();
+  invalidate();
 }
 
 void TrendChart::setSettingsKey(const QString &key) {
   settingsKey_ = key;
   last_ = std::max(0, saved::chartLast(key).get());
   showSeries_ = saved::chartSeries(key).get();
-  update();
+  invalidate();
 }
 
-void TrendChart::setSolves(const std::vector<Solve> &solves) {
-  solves_ = solves;
+void TrendChart::setSolves(std::span<const Solve> solves) {
+  solves_.clear();
+  solves_.reserve(solves.size());
+  for (const Solve &s : solves) {
+    solves_.push_back({s.timeMs, s.penalty});
+  }
+  ao5_ = rollingAverages(solves, 5);
+  ao12_ = rollingAverages(solves, 12);
   hover_ = -1;
   // The last solve and its averages in words, for assistive technology.
   setAccessibleDescription(
@@ -277,27 +372,27 @@ void TrendChart::setSolves(const std::vector<Solve> &solves) {
                             .arg(solves_.size())
                             .arg(hoverText(solves_.size() - 1)
                                      .replace('\n', QStringLiteral(", "))));
-  update();
+  invalidate();
 }
 
 void TrendChart::setSeries(std::vector<Series> series) {
   series_ = std::move(series);
-  update();
+  invalidate();
 }
 
 void TrendChart::setPointName(const QString &name) {
   pointName_ = name;
-  update();
+  invalidate();
 }
 
 void TrendChart::setAverages(bool on) {
   averages_ = on;
-  update();
+  invalidate();
 }
 
 void TrendChart::setPointLabels(std::vector<QString> labels) {
   pointLabels_ = std::move(labels);
-  update();
+  invalidate();
 }
 
 bool TrendChart::showsSeries() const {
@@ -357,15 +452,79 @@ double niceTickStep(double lo, double hi, int ticks, double minStep) {
   return std::max(step, minStep);
 }
 
+void TrendChart::changeEvent(QEvent *e) {
+  switch (e->type()) {
+  case QEvent::PaletteChange:
+  case QEvent::FontChange:
+  case QEvent::StyleChange:
+    invalidate();
+    break;
+  default:
+    break;
+  }
+  QWidget::changeEvent(e);
+}
+
 void TrendChart::paintEvent(QPaintEvent *) {
+  if (height() < 60) {
+    return; // too squeezed to read
+  }
+  // Drawn again for a new size or pixel ratio (a hidden widget gets a
+  // resize event on every grab, so the size is compared here instead).
+  const qreal dpr = devicePixelRatioF();
+  if (plot_.isNull() || plot_.devicePixelRatio() != dpr ||
+      plot_.deviceIndependentSize() != QSizeF(size())) {
+    plot_ = QPixmap((QSizeF(size()) * dpr).toSize());
+    plot_.setDevicePixelRatio(dpr);
+    plot_.fill(Qt::transparent);
+    QPainter pp(&plot_);
+    pp.setFont(withTabularFigures(font()));
+    renderPlot(pp);
+  }
   QPainter p(this);
+  p.setFont(withTabularFigures(font()));
+  p.drawPixmap(0, 0, plot_);
+  std::size_t from = first();
+  std::size_t n = solves_.size() - from;
+  if (solves_.size() < 2 || n < 2) {
+    return;
+  }
+  // The solve under the mouse: a line across the plot, and its values on
+  // the read-out line under it (tooltips are off in the app), cut short
+  // with "…" where the line is narrower.
+  p.setRenderHint(QPainter::Antialiasing);
+  const QRectF area = this->area();
+  const QColor axis = palette().color(QPalette::PlaceholderText);
+  const QFontMetrics fm = p.fontMetrics();
+  QRectF readout(area.left(), area.bottom() + 2, area.width(), fm.height());
+  auto fitted = [&](const QString &text) {
+    return fm.elidedText(text, Qt::ElideRight,
+                         static_cast<int>(readout.width()));
+  };
+  if (hover_ >= 0 && static_cast<std::size_t>(hover_) >= from &&
+      static_cast<std::size_t>(hover_) < solves_.size()) {
+    double hx = area.left() + area.width() *
+                                  static_cast<double>(
+                                      static_cast<std::size_t>(hover_) - from) /
+                                  static_cast<double>(n - 1);
+    p.setPen(QPen(axis, 0.8));
+    p.drawLine(QPointF(hx, area.top()), QPointF(hx, area.bottom()));
+    p.setPen(palette().color(QPalette::Text));
+    p.drawText(readout, Qt::AlignLeft | Qt::AlignVCenter,
+               fitted(hoverText(static_cast<std::size_t>(hover_))
+                          .replace('\n', QStringLiteral("    "))));
+  } else {
+    p.setPen(axis);
+    p.drawText(readout, Qt::AlignLeft | Qt::AlignVCenter,
+               fitted(tr("Point at the chart to read its values")));
+  }
+}
+
+void TrendChart::renderPlot(QPainter &p) {
   p.setRenderHint(QPainter::Antialiasing);
   QRectF area = this->area();
   QColor axis = palette().color(QPalette::PlaceholderText);
   p.setPen(axis);
-  if (height() < 60) {
-    return; // too squeezed to read
-  }
   std::size_t from = first();
   std::size_t n = solves_.size() - from;
   if (solves_.size() < 2 || n < 2) {
@@ -374,6 +533,7 @@ void TrendChart::paintEvent(QPaintEvent *) {
   }
   bool splits = showsSeries();
   std::vector<double> times;
+  times.reserve(n);
   double lo = 1e18, hi = 0;
   auto see = [&](double v) {
     if (!std::isnan(v)) {
@@ -382,7 +542,8 @@ void TrendChart::paintEvent(QPaintEvent *) {
     }
   };
   for (std::size_t i = from; i < solves_.size(); ++i) {
-    std::int64_t t = effectiveTime(solves_[i]);
+    std::int64_t t =
+        effectiveTime(asSolve(solves_[i].timeMs, solves_[i].penalty));
     double v = t == kDnfTime ? std::nan("") : static_cast<double>(t) / 1000.0;
     times.push_back(v);
     see(v);
@@ -404,14 +565,17 @@ void TrendChart::paintEvent(QPaintEvent *) {
   }
   // Clip extreme outliers so the interesting range stays readable.
   std::vector<double> sorted;
+  sorted.reserve(times.size());
   for (double v : times) {
     if (!std::isnan(v)) {
       sorted.push_back(v);
     }
   }
   if (!sorted.empty()) {
-    std::sort(sorted.begin(), sorted.end());
-    hi = std::min(hi, sorted[sorted.size() * 95 / 100] * 1.15);
+    auto at =
+        sorted.begin() + static_cast<std::ptrdiff_t>(sorted.size() * 95 / 100);
+    std::nth_element(sorted.begin(), at, sorted.end());
+    hi = std::min(hi, *at * 1.15);
   }
   double minStep = moves_ ? 1.0 : 0.0;
   double step = niceTickStep(lo, hi, 4, minStep);
@@ -445,23 +609,31 @@ void TrendChart::paintEvent(QPaintEvent *) {
   auto drawSeries = [&](const std::vector<StatValue> &vals, const QString &name,
                         const QColor &c, double width) {
     QPainterPath path;
-    bool started = false;
+    std::vector<QPointF> run;
     std::optional<QPointF> last;
+    // A run of values without a gap becomes one stroke.
+    auto flush = [&] {
+      std::vector<QPointF> pts = decimated(std::move(run), area.width());
+      run.clear();
+      for (std::size_t k = 0; k < pts.size(); ++k) {
+        if (k == 0) {
+          path.moveTo(pts[k]);
+        } else {
+          path.lineTo(pts[k]);
+        }
+      }
+    };
     for (std::size_t i = 0; i < n; ++i) {
       std::size_t at = from + i;
       if (at >= vals.size() || !vals[at] || *vals[at] == kDnfTime) {
-        started = false;
+        flush();
         continue;
       }
       QPointF pt(px(i), py(static_cast<double>(*vals[at]) / 1000.0));
       last = pt;
-      if (started) {
-        path.lineTo(pt);
-      } else {
-        path.moveTo(pt);
-        started = true;
-      }
+      run.push_back(pt);
     }
+    flush();
     p.setPen(QPen(c, width));
     p.setBrush(Qt::NoBrush);
     p.drawPath(path);
@@ -473,9 +645,23 @@ void TrendChart::paintEvent(QPaintEvent *) {
   single.setAlpha(splits ? 60 : 110);
   p.setPen(Qt::NoPen);
   p.setBrush(single);
+  // One dot per 2 px cell: dots closer than that draw the same picture,
+  // so a long session draws far fewer of them.
+  const auto cols = static_cast<std::size_t>(width() / 2 + 1);
+  std::vector<bool> taken(cols * static_cast<std::size_t>(height() / 2 + 1));
   for (std::size_t i = 0; i < n; ++i) {
-    if (!std::isnan(times[i])) {
-      p.drawEllipse(QPointF(px(i), py(times[i])), 2.2, 2.2);
+    if (std::isnan(times[i])) {
+      continue;
+    }
+    const QPointF d(px(i), py(times[i]));
+    const auto cx =
+        static_cast<std::size_t>(std::clamp(d.x(), 0.0, 1.0 * width()) / 2);
+    const auto cy =
+        static_cast<std::size_t>(std::clamp(d.y(), 0.0, 1.0 * height()) / 2);
+    const std::size_t cell = cy * cols + cx;
+    if (!taken[cell]) {
+      taken[cell] = true;
+      p.drawEllipse(d, 2.2, 2.2);
     }
   }
   std::vector<std::pair<QString, QColor>> legend;
@@ -488,8 +674,8 @@ void TrendChart::paintEvent(QPaintEvent *) {
   } else if (averages_) {
     QColor ao5 = roleColour(Role::Series1);
     QColor ao12 = roleColour(Role::Series2);
-    drawSeries(rollingAverages(solves_, 5), "ao5", ao5, 1.8);
-    drawSeries(rollingAverages(solves_, 12), "ao12", ao12, 1.8);
+    drawSeries(ao5_, "ao5", ao5, 1.8);
+    drawSeries(ao12_, "ao12", ao12, 1.8);
     legend = {{"ao5", ao5}, {"ao12", ao12}};
   }
   // The names at the line ends, nudged apart where they would overlap.
@@ -521,32 +707,10 @@ void TrendChart::paintEvent(QPaintEvent *) {
     p.drawText(bottomRow, Qt::AlignRight | Qt::AlignVCenter,
                tr("last %1 of %2").arg(n).arg(solves_.size()));
   }
-  // The solve under the mouse: a line across the plot, and its values on
-  // the read-out line under it (tooltips are off in the app), cut short
-  // with "…" where the line is narrower.
-  QRectF readout(area.left(), area.bottom() + 2, area.width(), lineH);
-  auto fitted = [&](const QString &text) {
-    return fm.elidedText(text, Qt::ElideRight,
-                         static_cast<int>(readout.width()));
-  };
-  if (hover_ >= 0 && static_cast<std::size_t>(hover_) >= from &&
-      static_cast<std::size_t>(hover_) < solves_.size()) {
-    double hx = px(static_cast<std::size_t>(hover_) - from);
-    p.setPen(QPen(axis, 0.8));
-    p.drawLine(QPointF(hx, area.top()), QPointF(hx, area.bottom()));
-    p.setPen(palette().color(QPalette::Text));
-    p.drawText(readout, Qt::AlignLeft | Qt::AlignVCenter,
-               fitted(hoverText(static_cast<std::size_t>(hover_))
-                          .replace('\n', QStringLiteral("    "))));
-  } else {
-    p.setPen(axis);
-    p.drawText(readout, Qt::AlignLeft | Qt::AlignVCenter,
-               fitted(tr("Point at the chart to read its values")));
-  }
 }
 
 QString TrendChart::hoverText(std::size_t at) const {
-  const Solve &s = solves_[at];
+  const Solve s = asSolve(solves_[at].timeMs, solves_[at].penalty);
   QStringList lines;
   const QString value = moves_ ? valueText(effectiveTime(s))
                                : QString::fromStdString(formatSolve(s));
@@ -562,13 +726,11 @@ QString TrendChart::hoverText(std::size_t at) const {
       }
     }
   } else if (averages_) {
-    auto ao5 = rollingAverages(std::span(solves_).first(at + 1), 5);
-    auto ao12 = rollingAverages(std::span(solves_).first(at + 1), 12);
-    if (ao5.back()) {
-      lines << QString("ao5: %1").arg(valueText(ao5.back()));
+    if (at < ao5_.size() && ao5_[at]) {
+      lines << QString("ao5: %1").arg(valueText(ao5_[at]));
     }
-    if (ao12.back()) {
-      lines << QString("ao12: %1").arg(valueText(ao12.back()));
+    if (at < ao12_.size() && ao12_[at]) {
+      lines << QString("ao12: %1").arg(valueText(ao12_[at]));
     }
   }
   return lines.join("\n");
@@ -610,7 +772,7 @@ void TrendChart::contextMenuEvent(QContextMenuEvent *e) {
       if (!settingsKey_.isEmpty()) {
         saved::chartLast(settingsKey_).set(n);
       }
-      update();
+      invalidate();
     });
   }
   // Without the averages, the series are always drawn.
@@ -628,7 +790,7 @@ void TrendChart::contextMenuEvent(QContextMenuEvent *e) {
       if (!settingsKey_.isEmpty()) {
         saved::chartSeries(settingsKey_).set(on);
       }
-      update();
+      invalidate();
     });
   }
   menu.exec(e->globalPos());
