@@ -59,6 +59,7 @@ add_library(vcube_gui STATIC
   review_dialog.cpp
   scramble_source.cpp
   session_panel.cpp
+  session_solve_page.cpp
   set_properties_dialog.cpp
   settings_dialog.cpp
   single_instance.cpp
