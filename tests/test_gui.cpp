@@ -10,6 +10,7 @@
 #include "app/cube_painter.hpp"
 #include "app/cube_view.hpp"
 #include "app/drill_page.hpp"
+#include "app/eo_cross_check.hpp"
 #include "app/eo_cross_page.hpp"
 #include "app/f2l_page.hpp"
 #include "app/grip_view.hpp"
@@ -45,6 +46,7 @@
 #include "io/move_counts.hpp"
 #include "io/practice_store.hpp"
 #include "io/sessions.hpp"
+#include "train/step_solver.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -446,6 +448,7 @@ private slots:
   void keymapIsSavedAndReadBack();
   void srsStepsAreWrittenAndRead();
   void caseFilterHidesWhatDoesntMatch();
+  void optimalCountsUseTheChosenHolds();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3158,6 +3161,26 @@ void GuiTest::caseFilterHidesWhatDoesntMatch() {
   status->setCurrentIndex(0);
   QVERIFY(!filter->isActive());
   QCOMPARE(hidden(), QStringList{});
+}
+
+// The holds the optimal EO Cross and step counts are taken over: all of
+// them, or the colour neutrality's with either EO axis.
+void GuiTest::optimalCountsUseTheChosenHolds() {
+  AppSettings s;
+  s.optimalAnyHold = true;
+  std::vector<Hold> holds = optimalHolds(s);
+  QVERIFY(std::ranges::equal(holds, allHolds()));
+
+  s.optimalAnyHold = false;
+  s.neutrality.holds = {kWcaHold};
+  holds = optimalHolds(s);
+  QCOMPARE(holds.size(), std::size_t{2});
+  QVERIFY(std::ranges::find(holds, kWcaHold) != holds.end());
+  QVERIFY(holds == withBothEoAxes({kWcaHold}));
+  // The hold and the hold turned a quarter (y): white on top in both.
+  for (const Hold &h : holds) {
+    QCOMPARE(h.top, kWcaHold.top);
+  }
 }
 
 // Everything that couldn't be read at start-up is listed in one window
