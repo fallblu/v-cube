@@ -795,7 +795,11 @@ struct Searcher {
       return; // already an alg: the rest would only undo and redo
     }
     for (std::size_t mi = 0; mi < model.moves.size(); ++mi) {
-      if (!allowed(n, mi, depth) || cornersAfter(n, mi) > remaining - 1) {
+      if (!allowed(n, mi, depth)) {
+        continue;
+      }
+      if (cornersAfter(n, mi) > remaining - 1) {
+        ++count; // counted as the child would have counted itself
         continue;
       }
       path.push_back(mi);
