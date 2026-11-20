@@ -4,10 +4,13 @@
 #include "app/ui_text.hpp"
 #include "io/algset_json.hpp"
 #include "train/case_logic.hpp"
+#include "train/enum_ids.hpp"
 
 #include <QCoreApplication>
 #include <QObject>
 #include <QStringList>
+
+#include <array>
 
 namespace vcube {
 
@@ -147,32 +150,17 @@ QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
                        : viewAlgsHtml(set, seen->view, state, seen->world);
 }
 
+// By Grade, which counts from 1.
 const char *gradeName(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return "Again";
-  case Grade::Hard:
-    return "Hard";
-  case Grade::Good:
-    return "Good";
-  case Grade::Easy:
-    return "Easy";
-  }
-  return "";
+  return idOf(std::array{"", "Again", "Hard", "Good", "Easy"}, g, "");
 }
 
 QString gradeColour(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return roleColour(Role::GradeAgain).name();
-  case Grade::Hard:
-    return roleColour(Role::GradeHard).name();
-  case Grade::Good:
-    return roleColour(Role::GradeGood).name();
-  case Grade::Easy:
-    return roleColour(Role::GradeEasy).name();
-  }
-  return roleColour(Role::GradeNone).name();
+  return roleColour(
+             idOf(std::array{Role::GradeNone, Role::GradeAgain, Role::GradeHard,
+                             Role::GradeGood, Role::GradeEasy},
+                  g, Role::GradeNone))
+      .name();
 }
 
 QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
