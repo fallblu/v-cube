@@ -1,5 +1,6 @@
 #include "app/settings_dialog.hpp"
 #include "app/colours.hpp"
+#include "app/drill_settings_tab.hpp"
 #include "app/page_parts.hpp"
 #include "app/text_style.hpp"
 

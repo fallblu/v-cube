@@ -6,6 +6,7 @@
 #include "app/ui_state.hpp"
 #include "train/algset.hpp"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QFile>
 #include <QPainter>

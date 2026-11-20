@@ -5,13 +5,14 @@
 #include "app/keymap.hpp"
 #include "train/srs.hpp"
 
-#include <QApplication>
 #include <QFlags>
 #include <QStringList>
 
 #include <cstdint>
 #include <string>
 #include <vector>
+
+class QApplication;
 
 namespace vcube {
 

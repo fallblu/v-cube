@@ -23,7 +23,7 @@ add_library(vcube_gui STATIC
   drill_history_dialog.cpp
   drill_list.cpp
   drill_page.cpp
-  drill_settings.cpp
+  drill_settings_tab.cpp
   eo_cross_check.cpp
   eo_cross_page.cpp
   f2l_page.cpp
