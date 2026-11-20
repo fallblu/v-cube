@@ -403,8 +403,9 @@ bool AlgLibrary::remove(const std::string &id, QString *error) {
                     QDir(deletedDirectory()).filePath("progress"), now, &why)
           .isEmpty()) {
     // The set is gone; its progress stays where it was, and would come
-    // back with a set of the same id.
-    reportWrite(progressPathFor(id), false, why);
+    // back with a set of the same id. The caller says so from `error`. It
+    // isn't reported as a failed write: nothing is left unsaved, and no
+    // later write to that file would take the report back.
     if (error) {
       *error = why;
     }

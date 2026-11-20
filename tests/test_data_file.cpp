@@ -518,6 +518,27 @@ TEST_CASE("a direct save reports itself, as a background one does") {
   CHECK(log.reports.size() == 1);
 }
 
+TEST_CASE("progress left behind by a deleted set isn't a failed write") {
+  // No later write to the file would take such a report back, so every
+  // quit would ask about changes that could not be saved.
+  ReportLog log;
+  QTemporaryDir tmp;
+  AlgLibrary lib = loadedLibrary(tmp.path());
+  QString progress = tmp.filePath("progress/pll.json");
+  writeText(progress, "kept");
+  // A file where the folder for deleted progress goes: nothing moves there.
+  writeText(tmp.filePath("deleted/progress"), "in the way");
+  log.reports.clear();
+  QString error;
+  REQUIRE(lib.remove("pll", &error));
+  log.takeQueued();
+  CHECK_FALSE(error.isEmpty());
+  CHECK(lib.find("pll") == nullptr);
+  CHECK(readText(progress) == "kept");
+  CHECK(std::none_of(log.reports.begin(), log.reports.end(),
+                     [](const auto &r) { return !r.second.isEmpty(); }));
+}
+
 TEST_CASE("a background write that throws is a failed write") {
   ReportLog log;
   QTemporaryDir tmp;
