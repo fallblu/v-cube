@@ -88,9 +88,10 @@ public:
            Scramble scramble);
   // The solve is called off and nothing recorded; `why` is said.
   void cancel(const QString &why);
-  // The timer's tick at `now`; true if a popup or dialog took the
-  // keyboard and a hold of Space was called off.
-  bool tick(std::int64_t now);
+  // The timer's tick at `now`; with `keyboardTaken` (a popup or dialog
+  // took the keyboard, see ModePage::keyboardTaken()) a hold of Space is
+  // called off, and true is returned.
+  bool tick(std::int64_t now, bool keyboardTaken);
 
 private:
   TimedHost &host_;

@@ -5,7 +5,6 @@
 #include "app/page_parts.hpp"
 #include "app/ui_state.hpp"
 
-#include <QApplication>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QPushButton>
@@ -217,8 +216,7 @@ void TimerPage::tick() {
   std::int64_t now = monotonicMs();
   bool wasHidden = flow_.cubeHidden();
   // A popup or dialog took the Space release: the hold can't be let go of.
-  flow_.tick(now, QApplication::activePopupWidget() ||
-                      QApplication::activeModalWidget());
+  flow_.tick(now, keyboardTaken());
   // Also after a cancelled hold, to bring back what it replaced.
   display_->showTimer(flow_.timer(), now);
   if (wasHidden != flow_.cubeHidden()) {

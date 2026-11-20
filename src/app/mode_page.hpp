@@ -174,6 +174,9 @@ protected:
   // then: tick() every 16 ms while clockNeeded(), as updateTick() last saw.
   virtual bool clockNeeded() const { return isBusy(); }
   virtual void tick() {}
+  // A popup or dialog took the keyboard: a key held down (Space) will be
+  // released there, not on the page.
+  static bool keyboardTaken();
   void updateTick() {
     if (!clockNeeded()) {
       tick_.stop();

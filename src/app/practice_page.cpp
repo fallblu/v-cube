@@ -1202,7 +1202,8 @@ bool PracticePage::clockNeeded() const {
 void PracticePage::tick() {
   if (tab_ == Tab::Inspection && item_.inspecting && phase_ == Phase::Solving) {
     showInspection();
-  } else if (tab_ == Tab::Timed && driver_.tick(monotonicMs())) {
+  } else if (tab_ == Tab::Timed &&
+             driver_.tick(monotonicMs(), keyboardTaken())) {
     updateTick();
   }
 }

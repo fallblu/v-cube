@@ -5,7 +5,7 @@
 #include "app/train_keys.hpp"
 #include "app/widgets.hpp"
 
-#include <QApplication>
+#include <QCoreApplication>
 
 namespace vcube {
 
@@ -139,10 +139,9 @@ void TimedDriver::cancel(const QString &why) {
   host_.timedCancelled(why);
 }
 
-bool TimedDriver::tick(std::int64_t now) {
+bool TimedDriver::tick(std::int64_t now, bool keyboardTaken) {
   // A popup or dialog took the keyboard: Space's release won't come.
-  if (flow_.holding() && (QApplication::activePopupWidget() ||
-                          QApplication::activeModalWidget())) {
+  if (flow_.holding() && keyboardTaken) {
     flow_.loseKeyboard();
     display_->showTimer(flow_.timer(), now);
     return true;

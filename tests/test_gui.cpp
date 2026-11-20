@@ -453,6 +453,7 @@ private slots:
   void timerTableAndStatsFollowEachSolve();
   void algLabFilterKeepsTheCaseShown();
   void algLabSearchAddsRowsAsItFindsThem();
+  void untimedSpaceHoldRunsOnThePageClock();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3405,6 +3406,65 @@ void GuiTest::startupProblemsShowInOneWindow() {
   }));
   list->window()->close();
   window_->activateWindow();
+}
+
+// Untimed's hold of Space runs on the page's clock: it ticks only while
+// Space is held, turns Ready after the hold time, and is let go of by a
+// release too early, by Esc and by a popup taking the release.
+void GuiTest::untimedSpaceHoldRunsOnThePageClock() {
+  OPEN_PAGE(untimed, UntimedPage, Untimed);
+  // Enter asks for the next scramble after a solve.
+  QTest::keyClick(window_.get(), Qt::Key_Return);
+  QVERIFY(waitForCase(untimed));
+  auto hint = [untimed](const QString &text) {
+    return lastChild<QLabel>(untimed, [&](QLabel *l) {
+             return l->text() == text && l->isVisible();
+           }) != nullptr;
+  };
+  const QString holding = "Keep holding Space…";
+  const QString ready = "Release Space to start";
+  QVERIFY(!untimed->ticking());
+
+  // Let go too early: nothing starts, and the clock stops.
+  QTest::keyPress(window_.get(), Qt::Key_Space);
+  QVERIFY(untimed->isBusy());
+  QVERIFY(untimed->ticking());
+  QVERIFY(hint(holding));
+  QTest::qWait(settings_.holdMs / 4);
+  QVERIFY(hint(holding));
+  QTest::keyRelease(window_.get(), Qt::Key_Space);
+  QVERIFY(!untimed->isBusy());
+  QVERIFY(!untimed->ticking());
+
+  // Esc lets go of a hold.
+  QTest::keyPress(window_.get(), Qt::Key_Space);
+  QVERIFY(untimed->ticking());
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QVERIFY(!untimed->isBusy());
+  QVERIFY(!untimed->ticking());
+  QTest::keyRelease(window_.get(), Qt::Key_Space);
+  QVERIFY(!untimed->isBusy());
+
+  // Held long enough it is Ready; a popup then takes the release.
+  QTest::keyPress(window_.get(), Qt::Key_Space);
+  QTRY_VERIFY_WITH_TIMEOUT(hint(ready), settings_.holdMs + 1000);
+  QVERIFY(untimed->ticking());
+  QMenu menu;
+  menu.addAction("Popup");
+  menu.popup(window_->geometry().center());
+  QTRY_VERIFY(QApplication::activePopupWidget());
+  QTRY_VERIFY(!untimed->isBusy());
+  QVERIFY(!untimed->ticking());
+  menu.close();
+  QTRY_VERIFY(!QApplication::activePopupWidget());
+  QTest::keyRelease(window_.get(), Qt::Key_Space);
+  QVERIFY(!untimed->isBusy());
+
+  // A solve started runs without the clock; Esc calls it off.
+  QVERIFY(holdSpaceUntilBusy(untimed));
+  QVERIFY(!untimed->ticking());
+  QTest::keyClick(window_.get(), Qt::Key_Escape);
+  QVERIFY(!untimed->isBusy());
 }
 
 void GuiTest::cleanupTestCase() {

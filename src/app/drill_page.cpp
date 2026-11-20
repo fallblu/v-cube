@@ -737,7 +737,7 @@ void DrillPage::scrambleReady() {
 }
 
 void DrillPage::tick() {
-  if (driver_.tick(monotonicMs())) {
+  if (driver_.tick(monotonicMs(), keyboardTaken())) {
     updateControls();
   }
 }
