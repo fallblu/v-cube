@@ -84,7 +84,7 @@ public:
   struct Step {
     bool handled = false; // the key was used (or swallowed)
     Action action = Action::None;
-    std::optional<Move> move;
+    std::optional<Move> move{};
     bool aided = false;
     std::int64_t timeMs = 0;
     Hint hint = Hint::None;
@@ -171,7 +171,6 @@ public:
   bool busy() const;
   // Face turns since the case was shown; read by the tests only (a seam,
   // kept on purpose).
-  int faceTurns() const { return faceTurns_; }
 
   // The attempt: its time and how it went.
   std::int64_t timeMs() const { return timeMs_; }

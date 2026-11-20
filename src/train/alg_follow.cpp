@@ -119,7 +119,7 @@ AlgOpening algOpening(const Alg &alg) {
     }
     o.rotation.insert(o.rotation.end(), t->rotation.begin(), t->rotation.end());
   }
-  o.rest.assign(alg.begin() + static_cast<std::ptrdiff_t>(i), alg.end());
+  o.rest = slice(alg, i, alg.size());
   return o;
 }
 

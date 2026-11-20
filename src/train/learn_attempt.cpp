@@ -4,15 +4,6 @@
 
 namespace vcube {
 
-namespace {
-
-const CaseProgress *find(const SetProgress &progress, const std::string &id) {
-  auto it = progress.find(id);
-  return it == progress.end() ? nullptr : &it->second;
-}
-
-} // namespace
-
 void LearnAttempt::begin(const std::string &caseId, Kind kind) {
   clear();
   caseId_ = caseId;
@@ -144,7 +135,7 @@ bool LearnAttempt::endLink(LinkEnd end, const std::optional<std::string> &next,
   link.why = why;
 
   const std::string card = g.cardId(id);
-  const CaseProgress *cardNow = find(progress, card);
+  const CaseProgress *cardNow = findProgress(progress, card);
   bool record = false;
   if (first) {
     leftAlgs_ = wrong && !g.chained;
@@ -265,7 +256,7 @@ void LearnAttempt::recalled(bool knew, std::int64_t nowMs, std::int64_t now,
                        ? std::max<std::int64_t>(1, nowMs - shownAtMs_)
                        : std::int64_t{0};
   gradedCard_ = g.cardId(caseId_);
-  const CaseProgress *cp = find(*g.progress, gradedCard_);
+  const CaseProgress *cp = findProgress(*g.progress, gradedCard_);
   cardBefore_ = cp ? cp->card : SrsCard{};
   gradeTime_ = now;
   grade_ = autoGrade_ = knew ? Grade::Good : Grade::Again;

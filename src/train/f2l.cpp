@@ -1,5 +1,6 @@
 #include "train/f2l.hpp"
 
+#include "train/enum_ids.hpp"
 #include "train/families.hpp"
 
 #include <algorithm>
@@ -11,14 +12,8 @@ namespace vcube {
 namespace {
 
 constexpr std::array<Edge, 4> kCross = {DR, DF, DL, DB};
-constexpr std::array<const char *, kCorners> kCornerNames = {
-    "URF", "UFL", "ULB", "UBR", "DFR", "DLF", "DBL", "DRB"};
-constexpr std::array<const char *, kEdges> kEdgeNames = {
-    "UR", "UF", "UL", "UB", "DR", "DF", "DL", "DB", "FR", "FL", "BL", "BR"};
 constexpr std::array<const char *, 6> kFaceNames = {"U", "R", "F",
                                                     "D", "L", "B"};
-
-Mirror mirrorOf(Slot s) { return slotMirror(s); }
 
 std::optional<Slot> slotOfCorner(int place) {
   for (Slot s : kF2LSlots) {
@@ -38,37 +33,9 @@ std::optional<Slot> slotOfEdge(int place) {
   return std::nullopt;
 }
 
-// Where each piece value goes under a U turn.
-struct UTurns {
-  std::array<std::uint8_t, 24> corner{};
-  std::array<std::uint8_t, 24> edge{};
-};
-
-const UTurns &uTurns() {
-  static const UTurns turns = [] {
-    UTurns t;
-    const CubieCube &u = faceTurnCubie(Face::U);
-    for (std::size_t i = 0; i < kCorners; ++i) {
-      for (int twist = 0; twist < 3; ++twist) {
-        t.corner[static_cast<std::size_t>(u.cp[i] * 3 + twist)] =
-            static_cast<std::uint8_t>(static_cast<int>(i) * 3 +
-                                      (twist + u.co[i]) % 3);
-      }
-    }
-    for (std::size_t i = 0; i < kEdges; ++i) {
-      for (int flip = 0; flip < 2; ++flip) {
-        t.edge[static_cast<std::size_t>(u.ep[i] * 2 + flip)] =
-            static_cast<std::uint8_t>(static_cast<int>(i) * 2 +
-                                      (flip + u.eo[i]) % 2);
-      }
-    }
-    return t;
-  }();
-  return turns;
-}
-
 PairCase normalized(int corner, int edge) {
-  const UTurns &u = uTurns();
+  // A U turn is move 0.
+  const PieceMoves &u = pieceMoves();
   PairCase c = {static_cast<std::uint8_t>(corner),
                 static_cast<std::uint8_t>(edge)};
   for (int i = 0; i < 4; ++i) {
@@ -78,23 +45,13 @@ PairCase normalized(int corner, int edge) {
       break;
     }
     if (c.cornerOnTop()) {
-      c.corner = u.corner[c.corner];
+      c.corner = u.corner[c.corner * PieceMoves::kMoves];
     }
     if (c.edgeOnTop()) {
-      c.edge = u.edge[c.edge];
+      c.edge = u.edge[c.edge * PieceMoves::kMoves];
     }
   }
   return c;
-}
-
-int placeOfCorner(const CubieCube &c, Corner piece) {
-  return static_cast<int>(std::find(c.cp.begin(), c.cp.end(), piece) -
-                          c.cp.begin());
-}
-
-int placeOfEdge(const CubieCube &c, Edge piece) {
-  return static_cast<int>(std::find(c.ep.begin(), c.ep.end(), piece) -
-                          c.ep.begin());
 }
 
 template <typename T> const T &pickOne(const std::vector<T> &from, Rng &rng) {
@@ -125,8 +82,8 @@ std::optional<CubieCube> stateWithCase(const std::vector<Slot> &open,
   for (int i = 0; i < kSetupTries; ++i) {
     CubieCube c = randomF2LState(open, edges, rng);
     // A quick look before the mirrored one: the pieces' layers.
-    bool cornerTop = placeOfCorner(c, slotCorner(target)) < 4;
-    bool edgeTop = placeOfEdge(c, slotEdge(target)) < 4;
+    bool cornerTop = cornerValue(c, slotCorner(target)) / 3 < 4;
+    bool edgeTop = edgeValue(c, slotEdge(target)) / 2 < 4;
     if (cornerTop != wanted.cornerOnTop() || edgeTop != wanted.edgeOnTop()) {
       continue;
     }
@@ -135,12 +92,6 @@ std::optional<CubieCube> stateWithCase(const std::vector<Slot> &open,
     }
   }
   return std::nullopt;
-}
-
-std::optional<CubieCube> afterAlg(const CubieCube &state, const Alg &alg) {
-  FaceletCube f = state.toFacelets();
-  f.apply(alg);
-  return centredCubie(f);
 }
 
 int wideTurns(const Alg &alg) {
@@ -169,11 +120,11 @@ Alg ordered(Alg alg) {
   return alg;
 }
 
-// Whether the moves solve a slot's pair from a state, keeping the base and
-// the slots that were solved.
+// Whether the moves (after `uBefore` U turns) solve a slot's pair from a
+// state, keeping the base and the slots that were solved.
 bool solvesPair(const CubieCube &state, Slot slot, const Alg &alg,
-                const F2LConfig &config) {
-  auto c = afterAlg(state, alg);
+                const F2LConfig &config, int uBefore = 0) {
+  auto c = applyAlg(state, alg, uBefore);
   return c && f2lBase(*c, config) && slotSolved(*c, slot) &&
          std::all_of(kF2LSlots.begin(), kF2LSlots.end(), [&](Slot s) {
            return !slotSolved(state, s) || slotSolved(*c, s);
@@ -217,7 +168,7 @@ Plan cheapestPlan(const CubieCube &state, const AnalysisOptions &options,
     if (!a.found()) {
       continue;
     }
-    auto next = afterAlg(state, a.solutions[0].alg);
+    auto next = applyAlg(state, a.solutions[0].alg);
     if (!next) {
       continue;
     }
@@ -237,6 +188,15 @@ Plan cheapestPlan(const CubieCube &state, const AnalysisOptions &options,
   return best;
 }
 
+int solvedSlotCount(const CubieCube &c) {
+  return kSlots - static_cast<int>(unsolvedSlots(c).size());
+}
+
+// "front", "back" (the slots: "FR / FL", "BR / BL").
+std::string_view sideName(PairSide side) {
+  return side == PairSide::Front ? "front" : "back";
+}
+
 } // namespace
 
 // --- the F2L of a method -----------------------------------------------------
@@ -250,42 +210,18 @@ PairMoves F2LConfig::moves() const {
   return m;
 }
 
-std::string_view methodId(F2LMethod m) {
-  switch (m) {
-  case F2LMethod::ZZMinus1:
-    return "zz-1";
-  case F2LMethod::ZZ:
-    return "zz";
-  case F2LMethod::CFOP:
-    return "cfop";
-  case F2LMethod::CFOPMinus1:
-    return "cfop-1";
-  }
-  return "zz-1";
-}
+constexpr std::array<std::string_view, kF2LMethods> kMethodIds = {
+    "zz-1", "zz", "cfop", "cfop-1"};
+constexpr std::array<std::string_view, kF2LMethods> kMethodNames = {
+    "ZZ F2L - 1 (ZZ-CT)", "ZZ F2L (ZZ-OP, ZZ-A)", "CFOP F2L", "CFOP F2L - 1"};
+
+std::string_view methodId(F2LMethod m) { return idOf(kMethodIds, m, "zz-1"); }
 
 std::optional<F2LMethod> methodFromId(std::string_view id) {
-  for (int i = 0; i < kF2LMethods; ++i) {
-    if (methodId(static_cast<F2LMethod>(i)) == id) {
-      return static_cast<F2LMethod>(i);
-    }
-  }
-  return std::nullopt;
+  return fromId<F2LMethod>(kMethodIds, id);
 }
 
-std::string_view methodName(F2LMethod m) {
-  switch (m) {
-  case F2LMethod::ZZMinus1:
-    return "ZZ F2L - 1 (ZZ-CT)";
-  case F2LMethod::ZZ:
-    return "ZZ F2L (ZZ-OP, ZZ-A)";
-  case F2LMethod::CFOP:
-    return "CFOP F2L";
-  case F2LMethod::CFOPMinus1:
-    return "CFOP F2L - 1";
-  }
-  return "";
-}
+std::string_view methodName(F2LMethod m) { return idOf(kMethodNames, m); }
 
 void applyMethod(F2LConfig &config, F2LMethod m) {
   config.eo = m == F2LMethod::ZZMinus1 || m == F2LMethod::ZZ;
@@ -323,10 +259,6 @@ std::vector<Slot> unsolvedSlots(const CubieCube &c) {
   return out;
 }
 
-int solvedSlotCount(const CubieCube &c) {
-  return kSlots - static_cast<int>(unsolvedSlots(c).size());
-}
-
 bool f2lDone(const CubieCube &c, const F2LConfig &config) {
   return f2lBase(c, config) && pairsLeft(c, config) == 0;
 }
@@ -338,12 +270,6 @@ int pairsLeft(const CubieCube &c, const F2LConfig &config) {
   return static_cast<int>(open.size()) - (canLeave ? 1 : 0);
 }
 
-std::optional<CubieCube> centredCubie(const FaceletCube &cube) {
-  FaceletCube f = cube;
-  f.normalizeOrientation();
-  return CubieCube::fromFacelets(f);
-}
-
 // --- pair cases --------------------------------------------------------------
 
 std::optional<Slot> PairCase::cornerSlot() const {
@@ -353,17 +279,14 @@ std::optional<Slot> PairCase::cornerSlot() const {
 std::optional<Slot> PairCase::edgeSlot() const { return slotOfEdge(edge / 2); }
 
 PairCase pairCaseOf(const CubieCube &state, Slot target) {
-  CubieCube m = mirrorState(state, mirrorOf(target));
-  int cp = placeOfCorner(m, DFR);
-  int ep = placeOfEdge(m, FR);
-  return normalized(cp * 3 + m.co[static_cast<std::size_t>(cp)],
-                    ep * 2 + m.eo[static_cast<std::size_t>(ep)]);
+  CubieCube m = mirrorState(state, slotMirror(target));
+  return normalized(cornerValue(m, DFR), edgeValue(m, FR));
 }
 
 std::string caseKey(PairCase c) {
   return std::string(kCornerNames[c.corner / 3]) +
-         std::to_string(c.corner % 3) + "-" + kEdgeNames[c.edge / 2] +
-         std::to_string(c.edge % 2);
+         std::to_string(c.corner % 3) + "-" +
+         std::string(kEdgeNames[c.edge / 2]) + std::to_string(c.edge % 2);
 }
 
 std::optional<PairCase> caseFromKey(std::string_view key) {
@@ -397,7 +320,7 @@ std::string caseName(PairCase c) {
   }
   bool flipped = c.edge % 2 != 0;
   if (c.edgeOnTop()) {
-    out += c.cornerOnTop() ? std::string("; edge ") + kEdgeNames[c.edge / 2]
+    out += c.cornerOnTop() ? "; edge " + std::string(kEdgeNames[c.edge / 2])
                            : std::string("; edge on top");
   } else if (*c.edgeSlot() == Slot::FR) {
     out += "; edge in slot";
@@ -437,23 +360,15 @@ PairGroup groupOf(PairCase c) {
 }
 
 std::string_view groupName(PairGroup g) {
-  switch (g) {
-  case PairGroup::BothTop:
-    return "Both on top";
-  case PairGroup::CornerTopEdgeSlot:
-    return "Corner on top, edge in slot";
-  case PairGroup::EdgeTopCornerSlot:
-    return "Edge on top, corner in slot";
-  case PairGroup::BothSlot:
-    return "Both in slot";
-  case PairGroup::CornerElsewhere:
-    return "Corner in another slot";
-  case PairGroup::EdgeElsewhere:
-    return "Edge in another slot";
-  case PairGroup::BothElsewhere:
-    return "Both in other slots";
-  }
-  return "";
+  static constexpr std::array<std::string_view, kPairGroups> kNames = {
+      "Both on top",
+      "Corner on top, edge in slot",
+      "Edge on top, corner in slot",
+      "Both in slot",
+      "Corner in another slot",
+      "Edge in another slot",
+      "Both in other slots"};
+  return idOf(kNames, g);
 }
 
 const std::vector<PairCase> &pairCases(Edges edges) {
@@ -485,10 +400,6 @@ const std::vector<PairCase> &pairCases(Edges edges) {
 }
 
 // --- cards -------------------------------------------------------------------
-
-std::string_view sideName(PairSide side) {
-  return side == PairSide::Front ? "front" : "back";
-}
 
 std::string cardKey(const PairCard &card) {
   return std::string(sideName(card.side)) + "/" + caseKey(card.pcase);
@@ -544,14 +455,12 @@ std::optional<CubieCube> cardState(const PairCard &card, Edges edges,
   // The top layer turned so that the pair is where the case has it, not
   // a U turn away: the solutions found don't depend on where it fell.
   for (int turn = 0; turn < 4; ++turn) {
-    CubieCube m = mirrorState(*state, mirrorOf(target));
-    const int cp = placeOfCorner(m, DFR);
-    const int ep = placeOfEdge(m, FR);
-    if (cp * 3 + m.co[static_cast<std::size_t>(cp)] == card.pcase.corner &&
-        ep * 2 + m.eo[static_cast<std::size_t>(ep)] == card.pcase.edge) {
+    CubieCube m = mirrorState(*state, slotMirror(target));
+    if (cornerValue(m, DFR) == card.pcase.corner &&
+        edgeValue(m, FR) == card.pcase.edge) {
       break;
     }
-    state = afterAlg(*state, {Move{MoveType::U, 1}});
+    state = applyAlg(*state, {Move{MoveType::U, 1}});
   }
   return state;
 }
@@ -639,12 +548,7 @@ std::optional<int> solvesPairWithAuf(const CubieCube &state, Slot slot,
     body.erase(body.begin());
   }
   for (int auf = 0; auf < 4; ++auf) {
-    Alg moves;
-    if (auf != 0) {
-      moves.push_back({MoveType::U, static_cast<std::uint8_t>(auf)});
-    }
-    moves.insert(moves.end(), body.begin(), body.end());
-    if (solvesPair(state, slot, moves, config)) {
+    if (solvesPair(state, slot, body, config, auf)) {
       return auf;
     }
   }
@@ -674,7 +578,7 @@ Mirror slotMirror(Slot s) {
 }
 
 Slot slotSeenFrom(Slot seen, Slot target) {
-  Mirror m = mirrorOf(target);
+  Mirror m = slotMirror(target);
   bool left = seen == Slot::FL || seen == Slot::BL;
   bool back = seen == Slot::BL || seen == Slot::BR;
   left = left != m.leftRight;
@@ -752,76 +656,6 @@ CubieCube randomF2LState(const std::vector<Slot> &open, Edges edges, Rng &rng) {
   return c;
 }
 
-int stageCount(const F2LConfig &config) {
-  bool any = std::any_of(kF2LSlots.begin(), kF2LSlots.end(),
-                         [&](Slot s) { return config.leaves(s); });
-  return any ? kSlots - 1 : kSlots;
-}
-
-std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
-                                         std::optional<PairCase> wanted,
-                                         Rng &rng) {
-  for (int attempt = 0; attempt < 8; ++attempt) {
-    // The slot left to the end, and the pair to solve among the others.
-    std::vector<Slot> leavable, targets;
-    for (Slot s : kF2LSlots) {
-      if (config.leaves(s)) {
-        leavable.push_back(s);
-      }
-    }
-    std::optional<Slot> left;
-    if (!leavable.empty()) {
-      left = pickOne(leavable, rng);
-    }
-    for (Slot s : kF2LSlots) {
-      if (s != left) {
-        targets.push_back(s);
-      }
-    }
-    Slot target = pickOne(targets, rng);
-    std::vector<Slot> needed{target};
-    if (left) {
-      needed.push_back(*left);
-    }
-    if (wanted) {
-      for (Slot s : slotsNeeded(*wanted, target)) {
-        if (std::find(needed.begin(), needed.end(), s) == needed.end()) {
-          needed.push_back(s);
-        }
-      }
-    }
-    int stages = stageCount(config);
-    int before = stage > 0
-                     ? std::min(stage, stages) - 1
-                     : std::uniform_int_distribution<int>(0, stages - 1)(rng);
-    before = std::min(before, kSlots - static_cast<int>(needed.size()));
-    std::vector<Slot> others;
-    for (Slot s : kF2LSlots) {
-      if (std::find(needed.begin(), needed.end(), s) == needed.end()) {
-        others.push_back(s);
-      }
-    }
-    std::shuffle(others.begin(), others.end(), rng);
-    std::vector<Slot> open = needed;
-    open.insert(open.end(), others.begin() + before, others.end());
-    std::sort(open.begin(), open.end());
-    PairSetup out;
-    out.target = target;
-    if (wanted) {
-      auto state = stateWithCase(open, config.edges(), target, *wanted, rng);
-      if (!state) {
-        continue;
-      }
-      out.state = *state;
-    } else {
-      out.state = randomF2LState(open, config.edges(), rng);
-    }
-    out.pcase = pairCaseOf(out.state, target);
-    return out;
-  }
-  return std::nullopt;
-}
-
 CubieCube randomFullState(const F2LConfig &config, Rng &rng) {
   return randomF2LState({kF2LSlots.begin(), kF2LSlots.end()}, config.edges(),
                         rng);
@@ -856,8 +690,8 @@ double hiddenCost(const CubieCube &state, Slot slot) {
   auto cost = [](int shown, int needed) {
     return shown >= needed ? 0.0 : shown == 0 ? kHidden : kPartlyHidden;
   };
-  return cost(flatStickers(true, placeOfCorner(state, slotCorner(slot))), 2) +
-         cost(flatStickers(false, placeOfEdge(state, slotEdge(slot))), 2);
+  return cost(flatStickers(true, cornerValue(state, slotCorner(slot)) / 3), 2) +
+         cost(flatStickers(false, edgeValue(state, slotEdge(slot)) / 2), 2);
 }
 
 // --- ranking -----------------------------------------------------------------
@@ -998,7 +832,7 @@ std::vector<PairRank> rankPairs(const CubieCube &state,
       continue;
     }
     const RankedSolution &best = r.pair.solutions[0];
-    auto next = afterAlg(state, best.alg);
+    auto next = applyAlg(state, best.alg);
     if (!next) {
       continue;
     }

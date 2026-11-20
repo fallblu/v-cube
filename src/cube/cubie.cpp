@@ -235,6 +235,21 @@ CubieCube cubieOf(const Alg &alg) {
   return CubieCube::fromRealFacelets(f);
 }
 
+std::optional<CubieCube> centredCubie(const FaceletCube &cube) {
+  FaceletCube f = cube;
+  f.normalizeOrientation();
+  return CubieCube::fromFacelets(f);
+}
+
+std::optional<CubieCube> applyAlg(const CubieCube &cube, const Alg &alg,
+                                  int uBefore) {
+  FaceletCube f = cube.toFacelets();
+  f.apply(
+      Move{MoveType::U, static_cast<std::uint8_t>(((uBefore % 4) + 4) % 4)});
+  f.apply(alg);
+  return centredCubie(f);
+}
+
 CubieCube uTurn(int quarters) {
   CubieCube c;
   int q = ((quarters % 4) + 4) % 4;

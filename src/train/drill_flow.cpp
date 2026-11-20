@@ -10,7 +10,7 @@ using Step = DrillFlow::Step;
 using Action = DrillFlow::Action;
 using Key = DrillFlow::Key;
 
-Step used(Action a = Action::None) { return {true, a, {}, false, 0, {}}; }
+Step used(Action a = Action::None) { return {true, a}; }
 
 Step hint(DrillFlow::Hint h) {
   Step s = used(Action::Hint);
@@ -226,7 +226,7 @@ std::optional<DrillFlow::Timing> DrillFlow::timing(std::int64_t timeMs,
 Step DrillFlow::key(const KeyEvent &k, std::int64_t now, Scramble scramble) {
   // A modifier alone does nothing, and never stops the timer.
   if (k.key == Key::Modifier) {
-    return {phase_ == Phase::Running, Action::None, {}, false, 0, {}};
+    return Step{phase_ == Phase::Running};
   }
   // Just after the stop, a second key meant for it mustn't skip the
   // result, mark it or retry the case.
@@ -238,7 +238,7 @@ Step DrillFlow::key(const KeyEvent &k, std::int64_t now, Scramble scramble) {
     if (k.press && (k.key == Key::Space || k.key == Key::Enter)) {
       return used(Action::NextFromIdle);
     }
-    return {k.move.has_value(), Action::None, {}, false, 0, {}};
+    return Step{k.move.has_value()};
   case Phase::Revealed:
     return revealedKey(k);
   case Phase::Aided:
@@ -261,12 +261,7 @@ Step DrillFlow::runningKey(const KeyEvent &k, std::int64_t now) {
   }
   if (config_.virtualCube) {
     // Space stops the timer; the turning keys turn the cube.
-    Step s{k.key == Key::Space || k.move.has_value(),
-           Action::None,
-           {},
-           false,
-           0,
-           {}};
+    Step s{k.key == Key::Space || k.move.has_value()};
     if (k.press && k.key == Key::Space) {
       if (faceTurns_ == 0) {
         // Nothing was done: a stray Space, not an attempt.
@@ -408,7 +403,7 @@ Step DrillFlow::revealedKey(const KeyEvent &k) {
     return used(Action::Retry);
   }
   // The cube stays as the solve left it.
-  return {k.move.has_value(), Action::None, {}, false, 0, {}};
+  return Step{k.move.has_value()};
 }
 
 Step DrillFlow::practiceKey(const KeyEvent &k) {
@@ -418,7 +413,7 @@ Step DrillFlow::practiceKey(const KeyEvent &k) {
                        k.key == Key::Escape || k.key == Key::Delete ||
                        k.move.has_value();
   if (!k.press) {
-    return {handled, Action::None, {}, false, 0, {}};
+    return Step{handled};
   }
   if (k.key == Key::Space || k.key == Key::Enter) {
     return used(Action::NextCase);
@@ -443,7 +438,7 @@ Step DrillFlow::practiceKey(const KeyEvent &k) {
     s.aided = aided;
     return s;
   }
-  Step s{handled, Action::None, {}, false, 0, {}};
+  Step s{handled};
   if (k.move && config_.virtualCube) {
     s.action = Action::PracticeTurn;
     s.move = k.move;

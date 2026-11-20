@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -35,6 +36,12 @@ struct Move {
 };
 
 using Alg = std::vector<Move>;
+
+// The moves [b, e) of `alg`.
+inline Alg slice(const Alg &alg, std::size_t b, std::size_t e) {
+  return Alg(alg.begin() + static_cast<std::ptrdiff_t>(b),
+             alg.begin() + static_cast<std::ptrdiff_t>(e));
+}
 
 constexpr bool isFaceTurn(MoveType t) { return static_cast<int>(t) < 6; }
 constexpr bool isRotation(MoveType t) {

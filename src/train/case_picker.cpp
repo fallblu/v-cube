@@ -1,31 +1,24 @@
 #include "train/case_picker.hpp"
 
+#include "train/enum_ids.hpp"
+
 #include <algorithm>
 
 namespace vcube {
 
+namespace {
+
+constexpr std::array<std::string_view, 4> kPickModeIds = {"random", "weighted",
+                                                          "inorder", "recap"};
+
+} // namespace
+
 std::string_view pickModeId(PickMode m) {
-  switch (m) {
-  case PickMode::Random:
-    return "random";
-  case PickMode::Weighted:
-    return "weighted";
-  case PickMode::InOrder:
-    return "inorder";
-  case PickMode::Recap:
-    return "recap";
-  }
-  return "random";
+  return idOf(kPickModeIds, m, "random");
 }
 
 std::optional<PickMode> pickModeFromId(std::string_view id) {
-  for (PickMode m : {PickMode::Random, PickMode::Weighted, PickMode::InOrder,
-                     PickMode::Recap}) {
-    if (id == pickModeId(m)) {
-      return m;
-    }
-  }
-  return std::nullopt;
+  return fromId<PickMode>(kPickModeIds, id);
 }
 
 double drillReference(const std::vector<std::string> &pool,
@@ -37,11 +30,11 @@ double drillReference(const std::vector<std::string> &pool,
   double total = 0;
   int counted = 0;
   for (const auto &id : pool) {
-    auto it = progress.find(id);
-    if (it == progress.end()) {
+    const CaseProgress *p = findProgress(progress, id);
+    if (!p) {
       continue;
     }
-    if (auto m = it->second.recentMean(mode)) {
+    if (auto m = p->recentMean(mode)) {
       total += *m;
       ++counted;
     }
@@ -68,9 +61,7 @@ std::vector<std::string> weakestCases(const std::vector<std::string> &pool,
   double reference = drillReference(pool, progress, mode, targetMs);
   std::vector<std::pair<double, std::string>> weak;
   for (const auto &id : pool) {
-    auto it = progress.find(id);
-    if (auto w = drillWeakness(it == progress.end() ? nullptr : &it->second,
-                               mode, reference)) {
+    if (auto w = drillWeakness(findProgress(progress, id), mode, reference)) {
       weak.emplace_back(*w, id);
     }
   }
@@ -126,11 +117,6 @@ void CasePicker::requeue(const std::string &caseId, int after) {
   }
 }
 
-bool CasePicker::isRequeued(const std::string &caseId) const {
-  return std::any_of(requeued_.begin(), requeued_.end(),
-                     [&caseId](const auto &r) { return r.first == caseId; });
-}
-
 void CasePicker::restartRecap() {
   recapLeft_.clear();
   recapStarted_ = false;
@@ -141,9 +127,8 @@ std::optional<std::string> CasePicker::next(const SetProgress &progress,
   if (pool_.empty()) {
     return std::nullopt;
   }
-  auto find = [&progress](const std::string &id) -> const CaseProgress * {
-    auto it = progress.find(id);
-    return it == progress.end() ? nullptr : &it->second;
+  auto find = [&progress](const std::string &id) {
+    return findProgress(progress, id);
   };
   const bool several = pool_.size() > 1;
   if (mode_ == PickMode::Recap && !recapStarted_) {

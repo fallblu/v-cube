@@ -242,7 +242,7 @@ TEST_CASE("learning cards come up early only when nothing else is left") {
   CHECK(*r.caseId == "queued");
   prog["queued"].record({now, 0, false, AttemptMode::Learn});
   review(prog["queued"].card, Grade::Good, now, cfg); // due in 10 min
-  r = pickLearnCase({"soon", "queued"}, prog, now, 0, cfg, "queued");
+  r = pickLearnCase({"soon", "queued"}, prog, now, 0, cfg, {.last = "queued"});
   CHECK(*r.caseId == "soon"); // learn-ahead, avoiding the last case
   prog["soon"].card.due = now + 5000;
   prog["queued"].card.due = now + 4000;
@@ -261,8 +261,9 @@ TEST_CASE("learn avoids repeating the last case while another is due") {
   prog["a"].card.due = 10;
   prog["b"].card.due = 20;
   CHECK(*pickLearnCase({"a", "b"}, prog, 100, 0, cfg).caseId == "a");
-  CHECK(*pickLearnCase({"a", "b"}, prog, 100, 0, cfg, "a").caseId == "b");
-  CHECK(*pickLearnCase({"a"}, prog, 100, 0, cfg, "a").caseId == "a");
+  CHECK(*pickLearnCase({"a", "b"}, prog, 100, 0, cfg, {.last = "a"}).caseId ==
+        "b");
+  CHECK(*pickLearnCase({"a"}, prog, 100, 0, cfg, {.last = "a"}).caseId == "a");
 }
 
 TEST_CASE("a drill order keeps its name in settings") {
@@ -512,11 +513,9 @@ TEST_CASE("a failed case comes back a few cases later") {
   p.setPool({"a", "b", "c", "d", "e"});
   CHECK(*p.next(prog, rng) == "a");
   p.requeue("a", 2);
-  CHECK(p.isRequeued("a"));
   CHECK(*p.next(prog, rng) == "b");
   CHECK(*p.next(prog, rng) == "c");
   CHECK(*p.next(prog, rng) == "a");
-  CHECK_FALSE(p.isRequeued("a"));
   CHECK(*p.next(prog, rng) == "d");
   // Forgotten again, e.g. when the DNF is taken back.
   p.requeue("d", 1);

@@ -70,12 +70,6 @@ Alg joined(Alg a, const Alg &b) {
   return simplify(a);
 }
 
-std::optional<CubieCube> applied(const CubieCube &c, const Alg &alg) {
-  FaceletCube f = c.toFacelets();
-  f.apply(alg);
-  return centredCubie(f);
-}
-
 struct Graph {
   std::array<std::array<std::uint16_t, 4>, kTsleStates> turned{};
   std::array<std::array<std::uint16_t, kOptions>, kTsleStates> after{};
@@ -139,6 +133,13 @@ CubieCube ocllCube(std::size_t index) {
 bool cornersOriented(const CubieCube &c) {
   return std::all_of(c.co.begin(), c.co.end(),
                      [](std::uint8_t t) { return t == 0; });
+}
+
+// The state after a U turn of `auf` quarters and the trigger R U^turn R'.
+TsleState tsleAfter(TsleState state, int auf, int turn) {
+  return TsleState::fromIndex(graph().after[static_cast<std::size_t>(
+      state.index())][static_cast<std::size_t>((((auf % 4) + 4) % 4) * 3 +
+                                               turn - 1)]);
 }
 
 } // namespace
@@ -206,12 +207,6 @@ CubieCube randomTsleCube(TsleState state, Slot slot, Rng &rng) {
 TsleState tsleTurned(TsleState state, int quarters) {
   return TsleState::fromIndex(graph().turned[static_cast<std::size_t>(
       state.index())][static_cast<std::size_t>(((quarters % 4) + 4) % 4)]);
-}
-
-TsleState tsleAfter(TsleState state, int auf, int turn) {
-  return TsleState::fromIndex(graph().after[static_cast<std::size_t>(
-      state.index())][static_cast<std::size_t>((((auf % 4) + 4) % 4) * 3 +
-                                               turn - 1)]);
 }
 
 TsleState tsleCase(TsleState state) {
@@ -342,9 +337,7 @@ bool ocllAlgWorks(std::string_view id, const Alg &alg) {
     }
     CubieCube start = ocllCube(i);
     for (int auf = 0; auf < 4; ++auf) {
-      Alg moves = uTurn2(auf);
-      moves.insert(moves.end(), alg.begin(), alg.end());
-      auto c = applied(start, moves);
+      auto c = applyAlg(start, alg, auf);
       if (c && f2lWhole(*c) && cornersOriented(*c)) {
         return true;
       }
@@ -392,7 +385,7 @@ TsleSolver::TsleSolver(Slot slot, const std::vector<OcllAlg> &algs)
       for (std::size_t a = 0; a < world.size(); ++a) {
         for (int auf = 0; auf < 4; ++auf) {
           Alg moves = joined(uTurn2(auf), world[a]);
-          auto c = applied(cube, moves);
+          auto c = applyAlg(cube, moves);
           if (c && f2lWhole(*c) && cornersOriented(*c)) {
             finishes_[at].push_back({a, std::move(moves)});
           }

@@ -1,5 +1,7 @@
 #include "train/f2l.hpp"
 
+#include "test_support.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -8,16 +10,9 @@
 #include <set>
 
 using namespace vcube;
+using namespace vcube::testing;
 
 namespace {
-
-CubieCube after(const CubieCube &c, const Alg &alg) {
-  FaceletCube f = c.toFacelets();
-  f.apply(alg);
-  auto out = centredCubie(f);
-  REQUIRE(out);
-  return *out;
-}
 
 F2LConfig configOf(F2LMethod m) {
   F2LConfig c;
@@ -71,8 +66,7 @@ TEST_CASE("the methods' F2L is done as they define it", "[f2l]") {
   CubieCube flipped = cubieOf(parseAlgOrEmpty("F R U R' U' F'"));
   CHECK_FALSE(f2lDone(flipped, op));
   CHECK(f2lDone(flipped, configOf(F2LMethod::CFOP)));
-  CHECK(stageCount(ct) == 3);
-  CHECK(stageCount(op) == 4);
+
   for (int m = 0; m < kF2LMethods; ++m) {
     auto method = static_cast<F2LMethod>(m);
     CHECK(methodFromId(methodId(method)) == method);
@@ -85,13 +79,16 @@ TEST_CASE("pair solutions solve the pair and keep the rest", "[f2l]") {
   for (int m = 0; m < kF2LMethods; ++m) {
     F2LConfig config = configOf(static_cast<F2LMethod>(m));
     for (int i = 0; i < 6; ++i) {
-      auto setup = randomPairSetup(config, 0, std::nullopt, rng);
-      REQUIRE(setup);
-      REQUIRE(f2lBase(setup->state, config));
+      // One to four slots open, the last of them the pair to solve.
+      std::vector<Slot> open(kF2LSlots.begin(), kF2LSlots.begin() + 1 + i % 4);
+      const Slot target = open.back();
+      const CubieCube state = randomF2LState(open, config.edges(), rng);
+      REQUIRE(f2lBase(state, config));
+      REQUIRE_FALSE(slotSolved(state, target));
       PairSearchOptions o;
       o.moves = config.moves();
       o.maxResults = 300;
-      PairSearchResult r = searchPair(setup->state, setup->target, o);
+      PairSearchResult r = searchPair(state, target, o);
       REQUIRE(r.shortest > 0);
       REQUIRE_FALSE(r.algs.empty());
       std::set<std::string> seen;
@@ -100,11 +97,11 @@ TEST_CASE("pair solutions solve the pair and keep the rest", "[f2l]") {
         CHECK(static_cast<int>(alg.size()) >= r.shortest);
         CHECK(static_cast<int>(alg.size()) <= r.shortest + o.extra);
         CHECK(seen.insert(toString(alg)).second);
-        CubieCube done = after(setup->state, alg);
+        CubieCube done = after(state, alg);
         CHECK(f2lBase(done, config));
-        CHECK(slotSolved(done, setup->target));
+        CHECK(slotSolved(done, target));
         for (Slot s : kF2LSlots) {
-          if (slotSolved(setup->state, s)) {
+          if (slotSolved(state, s)) {
             CHECK(slotSolved(done, s));
           }
         }
@@ -143,33 +140,6 @@ TEST_CASE("a pair's shortest solution is found", "[f2l]") {
       CHECK((m.type == MoveType::R || m.type == MoveType::U ||
              m.type == MoveType::L));
     }
-  }
-}
-
-TEST_CASE("every case can be set up in every method", "[f2l]") {
-  Rng rng(11);
-  for (F2LMethod m : {F2LMethod::ZZMinus1, F2LMethod::CFOP}) {
-    F2LConfig config = configOf(m);
-    for (PairCase pc : pairCases(config.edges())) {
-      INFO(caseKey(pc));
-      auto setup = randomPairSetup(config, 0, pc, rng);
-      REQUIRE(setup);
-      CHECK(setup->pcase == pc);
-      CHECK(pairCaseOf(setup->state, setup->target) == pc);
-      CHECK(f2lBase(setup->state, config));
-      CHECK_FALSE(slotSolved(setup->state, setup->target));
-    }
-  }
-  F2LConfig config;
-  // A late stage leaves fewer slots open.
-  for (int i = 0; i < 10; ++i) {
-    PairCase top = pairCases(Edges::Oriented)[0];
-    auto last = randomPairSetup(config, 3, top, rng);
-    REQUIRE(last);
-    CHECK(unsolvedSlots(last->state).size() == 2);
-    auto first = randomPairSetup(config, 1, top, rng);
-    REQUIRE(first);
-    CHECK(unsolvedSlots(first->state).size() == 4);
   }
 }
 

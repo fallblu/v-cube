@@ -6,6 +6,22 @@ namespace vcube {
 
 namespace {
 
+// A mean of the first kRecentTries values added.
+struct Mean {
+  double sum = 0.0;
+  std::size_t n = 0;
+  bool full() const { return n >= kRecentTries; }
+  void add(double v) {
+    if (!full()) {
+      sum += v;
+      ++n;
+    }
+  }
+  std::optional<double> value() const {
+    return n ? std::optional(sum / static_cast<double>(n)) : std::nullopt;
+  }
+};
+
 void addCapped(std::vector<PracticeTry> &tries, const PracticeTry &t) {
   tries.push_back(t);
   if (tries.size() > PracticeData::kPerGroup) {
@@ -62,9 +78,7 @@ PracticeSummary summarize(const std::vector<PracticeTry> &tries) {
 PracticeSummary summarize(const std::vector<PracticeTry> &tries,
                           std::int64_t since) {
   PracticeSummary s;
-  double msSum = 0.0, moveSum = 0.0, extraSum = 0.0, inspectSum = 0.0,
-         tpsSum = 0.0;
-  std::size_t msN = 0, moveN = 0, extraN = 0, inspectN = 0, tpsN = 0;
+  Mean ms, moves, extra, inspect, tps;
   // Newest first, so that the means are of the last few.
   for (auto it = tries.rbegin(); it != tries.rend(); ++it) {
     const PracticeTry &t = *it;
@@ -73,51 +87,34 @@ PracticeSummary summarize(const std::vector<PracticeTry> &tries,
     }
     ++s.tries;
     s.overTime += t.over ? 1 : 0;
-    if (t.inspectMs > 0 && inspectN < kRecentTries) {
-      inspectSum += static_cast<double>(t.inspectMs);
-      ++inspectN;
+    if (t.inspectMs > 0) {
+      inspect.add(static_cast<double>(t.inspectMs));
     }
     if (t.dnf) {
       continue;
     }
-    if (t.ms > 0 && t.moves > 0 && tpsN < kRecentTries) {
-      tpsSum += t.moves * 1000.0 / static_cast<double>(t.ms);
-      ++tpsN;
+    if (t.ms > 0 && t.moves > 0) {
+      tps.add(t.moves * 1000.0 / static_cast<double>(t.ms));
     }
     ++s.solved;
     if (t.ms > 0) {
       if (!s.bestMs || t.ms < *s.bestMs) {
         s.bestMs = t.ms;
       }
-      if (msN < kRecentTries) {
-        msSum += static_cast<double>(t.ms);
-        ++msN;
-      }
+      ms.add(static_cast<double>(t.ms));
     }
-    if (t.moves > 0 && moveN < kRecentTries) {
-      moveSum += t.moves;
-      ++moveN;
+    if (t.moves > 0 && !moves.full()) {
+      moves.add(t.moves);
       if (t.extra >= 0.0) {
-        extraSum += t.extra;
-        ++extraN;
+        extra.add(t.extra);
       }
     }
   }
-  if (msN) {
-    s.meanMs = msSum / static_cast<double>(msN);
-  }
-  if (moveN) {
-    s.meanMoves = moveSum / static_cast<double>(moveN);
-  }
-  if (extraN) {
-    s.meanExtra = extraSum / static_cast<double>(extraN);
-  }
-  if (inspectN) {
-    s.meanInspectMs = inspectSum / static_cast<double>(inspectN);
-  }
-  if (tpsN) {
-    s.meanTps = tpsSum / static_cast<double>(tpsN);
-  }
+  s.meanMs = ms.value();
+  s.meanMoves = moves.value();
+  s.meanExtra = extra.value();
+  s.meanInspectMs = inspect.value();
+  s.meanTps = tps.value();
   return s;
 }
 

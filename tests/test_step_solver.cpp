@@ -1,4 +1,5 @@
 #include "cube/scramble.hpp"
+#include "train/solve_review.hpp"
 #include "train/step_solver.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -83,7 +84,7 @@ TEST_CASE("the cross alone ignores edge orientation", "[step]") {
 TEST_CASE("one F2L pair is solved in <R, U, L>", "[step]") {
   // The FR pair out with R U R', the rest solved.
   CubieCube c = cubieOf(parseAlgOrEmpty("R U R'"));
-  auto alg = solvePairRul(c, DFR, FR, {{DLF, FL}, {DBL, BL}, {DRB, BR}});
+  auto alg = optimalPair(c, Slot::FR);
   REQUIRE(alg);
   CHECK(alg->size() == 3);
   CubieCube done = c;
@@ -92,7 +93,7 @@ TEST_CASE("one F2L pair is solved in <R, U, L>", "[step]") {
   // A longer one: the solution keeps the other slots.
   Alg setup = parseAlgOrEmpty("R U' R' U R U R' U2 R U2 R'");
   CubieCube s = cubieOf(setup);
-  auto two = solvePairRul(s, DFR, FR, {{DLF, FL}, {DBL, BL}, {DRB, BR}});
+  auto two = optimalPair(s, Slot::FR);
   REQUIRE(two);
   CubieCube after = s;
   after.apply(*two);
@@ -105,7 +106,7 @@ TEST_CASE("one F2L pair is solved in <R, U, L>", "[step]") {
   CHECK(after.ep[DR] == DR);
   CHECK(after.ep[DL] == DL);
   // Not a ZZ F2L state.
-  CHECK_FALSE(solvePairRul(cubieOf(parseAlgOrEmpty("F")), DFR, FR, {}));
+  CHECK_FALSE(optimalPair(cubieOf(parseAlgOrEmpty("F")), Slot::FR));
 }
 
 TEST_CASE("short scrambles are undone at most as long", "[step]") {
@@ -208,36 +209,6 @@ TEST_CASE("both EO axes add the hold turned a quarter", "[step]") {
   // Any front with two tops stays the same eight holds.
   auto neutral = neutralHolds(kWcaHold, Neutrality::X2Y);
   CHECK(withBothEoAxes(neutral) == neutral);
-}
-
-TEST_CASE("bad edges are counted for each axis by position", "[step]") {
-  for (int axis = 0; axis < 3; ++axis) {
-    CHECK(badEdgeCount(CubieCube{}, axis) == 0);
-  }
-  auto badAt = [](const char *alg, int axis) {
-    std::vector<Edge> out;
-    auto bad = badEdges(cubieOf(parseAlgOrEmpty(alg)), axis);
-    for (std::size_t i = 0; i < kEdges; ++i) {
-      if (bad[i]) {
-        out.push_back(static_cast<Edge>(i));
-      }
-    }
-    return out;
-  };
-  // A quarter turn flips its layer's edges for its own axis only.
-  CHECK(badAt("F", 0) == std::vector<Edge>{UF, DF, FR, FL});
-  CHECK(badAt("F", 1).empty());
-  CHECK(badAt("F", 2).empty());
-  CHECK(badAt("R", 1) == std::vector<Edge>{UR, DR, FR, BR});
-  CHECK(badAt("R", 0).empty());
-  CHECK(badAt("R", 2).empty());
-  CHECK(badAt("U", 2) == std::vector<Edge>{UR, UF, UL, UB});
-  CHECK(badAt("U", 0).empty());
-  CHECK(badAt("U", 1).empty());
-  // Half turns and turns on other axes keep an axis's orientation.
-  CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("U D2 R2 L' F2 B")), 1) == 4);
-  CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("U R2 D' F2 L2 B2")), 1) == 0);
-  CHECK(badEdgeCount(cubieOf(parseAlgOrEmpty("R L F2 B2 U2 D2")), 2) == 0);
 }
 
 TEST_CASE("distinct solutions leave out reorderings and prefer new faces",

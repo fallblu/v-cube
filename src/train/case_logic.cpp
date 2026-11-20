@@ -3,14 +3,13 @@
 #include "train/reduction.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <sstream>
 
 namespace vcube {
 
 namespace {
-
-constexpr int kAufOrder[4] = {0, 1, 3, 2};
 
 std::string trim(std::string_view s) {
   auto b = s.find_first_not_of(" \t\r\n");
@@ -113,18 +112,11 @@ std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
   if (alg.empty()) {
     return std::nullopt;
   }
-  FaceletCube start = state.toFacelets();
   for (int u : kAufOrder) {
     if (u != 0 && !aufBefore) {
       continue;
     }
-    FaceletCube f = start;
-    if (u != 0) {
-      f.apply(Move{MoveType::U, static_cast<std::uint8_t>(u)});
-    }
-    f.apply(alg);
-    f.normalizeOrientation();
-    auto after = CubieCube::fromFacelets(f);
+    auto after = applyAlg(state, alg, u);
     if (!after) {
       continue;
     }
@@ -176,16 +168,9 @@ StepMiss stepMiss(const CubieCube &cube, const PieceMask &free) {
 }
 
 std::string aufText(int quarters) {
-  switch (((quarters % 4) + 4) % 4) {
-  case 1:
-    return "U";
-  case 2:
-    return "U2";
-  case 3:
-    return "U'";
-  default:
-    return "";
-  }
+  static constexpr std::array<std::string_view, 4> kAufs = {"", "U", "U2",
+                                                            "U'"};
+  return std::string(kAufs[static_cast<std::size_t>(((quarters % 4) + 4) % 4)]);
 }
 
 std::string withAufs(const std::string &alg, AufFit fit) {
@@ -318,26 +303,16 @@ std::string describeUnsolved(const Unsolved &u) {
                       u.edgesMisplaced[i] == 0;
   }
   std::string text = "leaves ";
-  if (onlyOrientation) {
-    if (c) {
-      text += count(c, "corner") + " twisted";
-    }
-    if (c && e) {
-      text += " and ";
-    }
-    if (e) {
-      text += count(e, "edge") + " flipped";
-    }
-  } else {
-    if (c) {
-      text += count(c, "corner");
-    }
-    if (c && e) {
-      text += " and ";
-    }
-    if (e) {
-      text += count(e, "edge");
-    }
+  if (c) {
+    text += count(c, "corner") + (onlyOrientation ? " twisted" : "");
+  }
+  if (c && e) {
+    text += " and ";
+  }
+  if (e) {
+    text += count(e, "edge") + (onlyOrientation ? " flipped" : "");
+  }
+  if (!onlyOrientation) {
     text += " unsolved";
   }
   static const char *names[] = {"U", "middle", "D"};
@@ -378,16 +353,9 @@ AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
     return r;
   }
   // Describe the closest result over the AUFs the set allows.
-  FaceletCube start = state.toFacelets();
   std::optional<Unsolved> best;
   for (int u = 0; u < (aufBefore ? 4 : 1); ++u) {
-    FaceletCube f = start;
-    if (u != 0) {
-      f.apply(Move{MoveType::U, static_cast<std::uint8_t>(u)});
-    }
-    f.apply(parsed.alg);
-    f.normalizeOrientation();
-    auto after = CubieCube::fromFacelets(f);
+    auto after = applyAlg(state, parsed.alg, u);
     if (!after) {
       continue;
     }
@@ -517,8 +485,7 @@ std::optional<DisplayOrientation> displayOrientation(const CubieCube &state,
   if (prefix == 0 && fit->before == 0) {
     return canonical;
   }
-  Alg rest(parsed.alg.begin() + static_cast<std::ptrdiff_t>(prefix),
-           parsed.alg.end());
+  Alg rest = slice(parsed.alg, prefix, parsed.alg.size());
   if (rest.empty()) {
     return canonical; // nothing but a setup: keep the case as it is
   }
@@ -526,8 +493,7 @@ std::optional<DisplayOrientation> displayOrientation(const CubieCube &state,
   if (fit->before != 0) {
     f.apply(Move{MoveType::U, static_cast<std::uint8_t>(fit->before)});
   }
-  f.apply(Alg(parsed.alg.begin(),
-              parsed.alg.begin() + static_cast<std::ptrdiff_t>(prefix)));
+  f.apply(slice(parsed.alg, 0, prefix));
   auto shown = recolouredToCentres(f);
   if (!shown) {
     return canonical;
@@ -553,10 +519,7 @@ AlgCheck checkCaseAlg(const AlgSet &set, const CaseGroup &group,
   AlgCheck check = checkAlg(c.state, alg, set.specFor(group).free, aufsOf(set));
   if (set.reduction && !check.passes() && !check.parseError && !check.empty) {
     // A step: done as written, it stops at another case of the set.
-    FaceletCube f = c.state.toFacelets();
-    f.apply(parseAlgOrEmpty(alg));
-    f.normalizeOrientation();
-    auto after = CubieCube::fromFacelets(f);
+    auto after = applyAlg(c.state, parseAlgOrEmpty(alg));
     auto seen = after ? seenCase(set, *after) : std::nullopt;
     const AlgCase *next = seen ? set.findCase(seen->caseId) : nullptr;
     if (next && next->id != c.id) {
@@ -593,10 +556,9 @@ CaseAnalysis analyzeCase(const AlgSet &set, const CaseGroup &group,
 
 namespace {
 
-enum class Matches { First, All };
-std::vector<CaseRef> casesSolvedBy(const AlgSet &set, const Alg &alg,
-                                   Matches matches) {
-  const bool firstOnly = matches == Matches::First;
+// The cases of `set` that `alg` solves, in set order, at most `max`.
+std::vector<CaseRef> matchCases(const AlgSet &set, const Alg &alg,
+                                std::size_t max = SIZE_MAX) {
   std::vector<CaseRef> out;
   for (std::size_t g = 0; g < set.groups.size(); ++g) {
     const auto &group = set.groups[g];
@@ -604,7 +566,7 @@ std::vector<CaseRef> casesSolvedBy(const AlgSet &set, const Alg &alg,
     for (std::size_t i = 0; i < group.cases.size(); ++i) {
       if (fitAlg(group.cases[i].state, alg, free, aufsOf(set))) {
         out.push_back(CaseRef{g, i});
-        if (firstOnly) {
+        if (out.size() == max) {
           return out;
         }
       }
@@ -616,12 +578,8 @@ std::vector<CaseRef> casesSolvedBy(const AlgSet &set, const Alg &alg,
 } // namespace
 
 std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg) {
-  auto found = casesSolvedBy(set, alg, Matches::First);
+  auto found = matchCases(set, alg, 1);
   return found.empty() ? std::nullopt : std::optional(found.front());
-}
-
-std::vector<CaseRef> matchCases(const AlgSet &set, const Alg &alg) {
-  return casesSolvedBy(set, alg, Matches::All);
 }
 
 CubieCube withRandomAufs(const AlgSet &set, const CubieCube &state, Rng &rng) {

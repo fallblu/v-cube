@@ -37,7 +37,6 @@ public:
   void setConfig(const Config &c) { config_ = c; }
   const Config &config() const { return config_; }
   State state() const { return state_; }
-  bool isInspecting() const { return inspectStart_.has_value(); }
 
   void pressStart(std::int64_t now);   // start key (space) down
   void releaseStart(std::int64_t now); // start key up

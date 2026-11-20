@@ -2,6 +2,8 @@
 #include "io/move_counts.hpp"
 #include "train/move_count.hpp"
 
+#include "test_support.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <QFile>
@@ -9,6 +11,7 @@
 #include <QTemporaryDir>
 
 using namespace vcube;
+using namespace vcube::testing;
 
 namespace {
 std::vector<MoveCountAttempt> attempts(std::initializer_list<int> counts) {
@@ -136,14 +139,6 @@ TEST_CASE("the move count store starts with a virtual session per step") {
   CHECK_FALSE(MoveCountStore(path).load(&error));
   CHECK_FALSE(error.isEmpty());
 }
-
-namespace {
-FaceletCube after(std::string_view moves) {
-  FaceletCube f;
-  f.apply(parseAlgOrEmpty(moves));
-  return f;
-}
-} // namespace
 
 TEST_CASE("move count steps are named and found by name") {
   CHECK(solveSteps().size() == 9);

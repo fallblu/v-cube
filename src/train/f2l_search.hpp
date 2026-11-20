@@ -4,6 +4,7 @@
 #include "cube/move.hpp"
 #include "train/solve_review.hpp"
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <vector>
@@ -53,5 +54,22 @@ struct PairSearchResult {
 PairSearchResult searchPair(const CubieCube &state, Slot target,
                             const PairSearchOptions &options = {},
                             const std::atomic<bool> *stop = nullptr);
+
+// Tables shared with the step solver and the pair cases. A piece's value
+// is a corner's place * 3 + twist or an edge's place * 2 + flip (see
+// cornerValue() and edgeValue()).
+struct PieceMoves {
+  static constexpr int kMoves = 18; // face * 3 + amount - 1, U R F D L B
+  // corner[value * kMoves + move]: the value after the move; edge likewise.
+  std::array<std::uint8_t, 24 * kMoves> corner{};
+  std::array<std::uint8_t, 24 * kMoves> edge{};
+};
+const PieceMoves &pieceMoves();
+// The distance to `start` of every arrangement of four pieces (each a
+// corner or an edge) under `moves`, by their values in base 24; 0xff for
+// those it can't reach.
+std::vector<std::uint8_t> pieceDistances(std::array<int, 4> start,
+                                         std::array<bool, 4> isCorner,
+                                         const std::vector<int> &moves);
 
 } // namespace vcube

@@ -199,14 +199,14 @@ TEST_CASE("cancelled inspection gives no penalty to the next solve") {
   t.cancel();
   t.releaseStart(10);
   CHECK(t.state() == SolveTimer::State::Idle);
-  CHECK_FALSE(t.isInspecting());
+  CHECK_FALSE(t.inspectionElapsed(0));
   // Inspecting, then cancelled long after the DNF limit.
   t.pressStart(100);
   t.releaseStart(150);
   REQUIRE(t.state() == SolveTimer::State::Inspecting);
   CHECK(t.inspectionPenalty(20000) == Penalty::Dnf);
   t.cancel();
-  CHECK_FALSE(t.isInspecting());
+  CHECK_FALSE(t.inspectionElapsed(0));
   CHECK_FALSE(t.inspectionElapsed(20000));
   CHECK(t.inspectionPenalty(20000) == Penalty::None);
   // A new inspection starts from its own release.
@@ -219,11 +219,11 @@ TEST_CASE("cancelled inspection gives no penalty to the next solve") {
   CHECK(t.state() == SolveTimer::State::Ready); // no hold time
   t.cancel();
   CHECK(t.state() == SolveTimer::State::Idle);
-  CHECK_FALSE(t.isInspecting());
+  CHECK_FALSE(t.inspectionElapsed(0));
 
   // The virtual cube: armed, cancelled, then started by a turn.
   t.arm(40000);
-  REQUIRE(t.isInspecting());
+  REQUIRE(t.inspectionElapsed(40000));
   t.cancel();
   t.startNow(60000);
   t.stopNow(61000);

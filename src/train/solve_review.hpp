@@ -7,6 +7,7 @@
 #include "train/algset.hpp"
 #include "train/move_count.hpp"
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -53,6 +54,8 @@ enum class Slot : std::uint8_t { FR, FL, BL, BR };
 // EO, or the edges may be flipped, as in CFOP.
 enum class Edges : std::uint8_t { Oriented, Any };
 inline constexpr int kSlots = 4;
+inline constexpr std::array<Slot, kSlots> kF2LSlots = {Slot::FR, Slot::FL,
+                                                       Slot::BL, Slot::BR};
 std::string_view slotName(Slot s); // "FR", "FL", "BL", "BR"
 Corner slotCorner(Slot s);         // DFR, DLF, DBL, DRB
 Edge slotEdge(Slot s);             // FR, FL, BL, BR
@@ -115,8 +118,10 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
                           bool simplified = true);
 
 // The shortest <R, U, L> solution of a slot's pair from a ZZ F2L state (in
-// the solver's frame) that keeps EO Cross and the slots solved there; see
-// solvePairRul(). nullopt if none is found within `maxDepth` moves.
+// the solver's frame) that keeps EO Cross and the slots solved there: the
+// first in searchPair()'s order, and no moves for a slot already solved.
+// nullopt if none is found within `maxDepth` moves, or the state isn't a
+// ZZ F2L state.
 std::optional<Alg> optimalPair(const CubieCube &state, Slot slot,
                                int maxDepth = 14);
 
