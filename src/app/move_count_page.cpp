@@ -104,16 +104,11 @@ void MoveCountPage::showModeWidgets(bool virtualCube) {
 }
 
 std::vector<AttemptColumn> MoveCountPage::columns() const {
-  auto col = [](const QString &title, bool fit = false) {
-    AttemptColumn c;
-    c.id = title;
-    c.title = title;
-    c.fit = fit;
-    return c;
-  };
-  AttemptColumn opt = col(tr("Opt"));
-  opt.available = hasOptimal();
-  return {col("#", true), col(tr("Moves")), opt, col("ao5"), col("ao12")};
+  return {{.title = "#", .fit = true},
+          {.title = tr("Moves")},
+          {.title = tr("Opt"), .available = hasOptimal()},
+          {.title = "ao5"},
+          {.title = "ao12"}};
 }
 
 void MoveCountPage::addCells(std::vector<AttemptCell> &cells,

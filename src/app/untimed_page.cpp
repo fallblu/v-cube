@@ -83,17 +83,15 @@ void UntimedPage::showModeWidgets(bool virtualCube) {
 }
 
 std::vector<AttemptColumn> UntimedPage::columns() const {
-  auto col = [](const QString &title, bool fit = false) {
-    AttemptColumn c;
-    c.id = title;
-    c.title = title;
-    c.fit = fit;
-    return c;
-  };
   if (scramblesOnly()) {
-    return {col("#", true), col(tr("Scramble")), col(tr("Date"), true)};
+    return {{.title = "#", .fit = true},
+            {.title = tr("Scramble")},
+            {.title = tr("Date"), .fit = true}};
   }
-  return {col("#", true), col(tr("Moves")), col("ao5"), col("ao12")};
+  return {{.title = "#", .fit = true},
+          {.title = tr("Moves")},
+          {.title = "ao5"},
+          {.title = "ao12"}};
 }
 
 void UntimedPage::addCells(std::vector<AttemptCell> &cells,

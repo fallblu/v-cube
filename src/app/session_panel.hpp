@@ -27,8 +27,8 @@ class TrendChart;
 
 // A column of a session's attempt table.
 struct AttemptColumn {
-  QString id;    // names it in the hidden-columns setting
-  QString title; // the header
+  QString id = {}; // names it in the hidden-columns setting, if any
+  QString title;   // the header
   // Sized to its contents; otherwise the columns share the width.
   bool fit = false;
   // Offered in the header's menu, to hide or show.
