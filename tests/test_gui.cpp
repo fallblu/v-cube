@@ -418,6 +418,7 @@ private slots:
   void libraryAddsAnAlgAndUndoes();
   void algLabTimesEachAlg();
   void fingertrickGuidance();
+  void algMenuAfterAnEditOnItsWay();
   void f2lLearnAndTimed();
   void tsleLearnAndTimed();
   void eoCrossLearnAndTimed();
@@ -816,6 +817,54 @@ void GuiTest::fingertrickGuidance() {
   QVERIFY(libView && libView->isVisible());
   QVERIFY(libView->findChild<QLabel *>()->text().contains("Start:"));
   QCOMPARE(libView->findChild<QTableWidget *>()->columnCount(), 14);
+}
+
+// An alg edit still on its way to being stored when the alg menu opens is
+// stored first: the menu's Edit works on the list as it was rebuilt.
+void GuiTest::algMenuAfterAnEditOnItsWay() {
+  OPEN_PAGE(library, LibraryPage, Library);
+  library->selectCase("pll", "T");
+  auto *algs = library->findChild<AlgListWidget *>();
+  QVERIFY(algs);
+  QVERIFY(algs->topLevelItemCount() >= 1);
+  const QString original = algs->topLevelItem(0)->text(0);
+  const QString edited = original + " U2 U2";
+  algs->topLevelItem(0)->setText(0, edited); // stored by a queued call
+  bool chose = false;
+  QTimer pick;
+  connect(&pick, &QTimer::timeout, &pick, [&] {
+    auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+    if (!menu) {
+      return;
+    }
+    pick.stop();
+    for (QAction *a : menu->actions()) {
+      if (a->text().remove('&') == "Edit") {
+        chose = true;
+        a->trigger();
+      }
+    }
+    menu->close();
+  });
+  pick.start(20);
+  emit algs->customContextMenuRequested(
+      algs->visualItemRect(algs->topLevelItem(0)).center());
+  QVERIFY(chose);
+  const std::vector<std::string> saved = savedAlgs("pll", "T");
+  QVERIFY(!saved.empty());
+  QCOMPARE(saved.front(), edited.toStdString());
+  // The editor is open, on the first alg of the rebuilt list.
+  QCOMPARE(algs->topLevelItem(0)->text(0), edited);
+  auto *editor = algs->viewport()->findChild<QLineEdit *>();
+  QVERIFY(editor);
+
+  // The alg as it was, for the tests that follow.
+  QTest::keyClick(editor, Qt::Key_Escape);
+  algs = library->findChild<AlgListWidget *>();
+  algs->topLevelItem(0)->setText(0, original);
+  QTRY_COMPARE(savedAlgs("pll", "T").front(), original.toStdString());
+  window_->activateWindow(); // the menu took it
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
 }
 
 void GuiTest::f2lLearnAndTimed() {
