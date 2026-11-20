@@ -9,6 +9,7 @@
 
 #include <QDir>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
 
@@ -349,6 +350,75 @@ TEST_CASE("the Alg Lab file keeps everything", "[alglab][io]") {
   CHECK(again.candidates({"", "1"}).size() == 1);
   CHECK(again.clearAttempts({"", "1"}, "R U") == 1);
   CHECK(again.newCaseId() == "2");
+}
+
+TEST_CASE("an Alg Lab file edited by hand reads what can be used",
+          "[alglab][io]") {
+  QJsonObject o = QJsonDocument::fromJson(R"({
+    "format": "v-cube.alglab", "version": 2, "current": 0,
+    "sessions": [
+      {"name": "High", "reps": 5000, "warmup": -1, "trim": 99,
+       "cube": "x", "order": "zigzag", "entries": [
+         {"case": "", "alg": "R U"},
+         {"case": "set:pll/T", "alg": ""},
+         {"case": "set:pll/T", "alg": "R U R'"}]},
+      {"id": "keep", "name": "Low", "reps": 0, "warmup": 500, "trim": -5}],
+    "cases": [{"id": "", "name": "No id"}, {"id": "1", "name": "Kept"}],
+    "candidates": [
+      {"case": "nonsense", "algs": [{"alg": "R", "source": "typed"}]},
+      {"case": "lab:1", "algs": [{"alg": "", "source": "typed"},
+                                 {"alg": "R U", "source": "x"}]}],
+    "attempts": [
+      {"case": "set:/T", "alg": "R", "time": 1000},
+      {"case": "lab:1", "alg": "R U", "cube": "x", "time": 900}],
+    "moveSets": [{"name": "Bad", "moves": "Q"},
+                 {"name": "Good", "moves": "R U"}]})")
+                      .object();
+  REQUIRE_FALSE(o.isEmpty());
+  AlgLabData d = algLabFromJson(o);
+
+  REQUIRE(d.sessions.size() == 2);
+  const LabSession &high = d.sessions[0];
+  // A session without an id gets a fresh one.
+  CHECK(high.id.size() == 12);
+  CHECK(high.reps == 1000);
+  CHECK(high.warmup == 0);
+  CHECK(high.trimPercent == 40);
+  CHECK(high.cube == CubeKind::Physical);
+  CHECK(high.order == LabOrder::Interleaved);
+  // Entries without a readable case or an alg are dropped.
+  REQUIRE(high.entries.size() == 1);
+  CHECK(high.entries[0].key == LabCaseKey{"pll", "T"});
+  CHECK(high.entries[0].alg == "R U R'");
+  const LabSession &low = d.sessions[1];
+  CHECK(low.id == "keep");
+  CHECK(low.reps == 1);
+  CHECK(low.warmup == 100);
+  CHECK(low.trimPercent == 0);
+
+  // A case without an id is dropped.
+  REQUIRE(d.cases.size() == 1);
+  CHECK(d.cases[0].id == "1");
+
+  // Candidates of a case key that can't be read are dropped, and so are
+  // candidates without an alg; an unknown source reads as typed.
+  REQUIRE(d.candidates.size() == 1);
+  CHECK(d.candidates[0].key == LabCaseKey{"", "1"});
+  REQUIRE(d.candidates[0].candidates.size() == 1);
+  CHECK(d.candidates[0].candidates[0].alg == "R U");
+  CHECK(d.candidates[0].candidates[0].source == CandidateSource::Typed);
+
+  // So are attempts of a case key that can't be read; an unknown cube
+  // reads as physical.
+  REQUIRE(d.attempts.size() == 1);
+  CHECK(d.attempts[0].key == LabCaseKey{"", "1"});
+  CHECK(d.attempts[0].timeMs == 900);
+  CHECK(d.attempts[0].cube == CubeKind::Physical);
+
+  // A move set whose moves can't be read is dropped.
+  REQUIRE(d.moveSets.size() == 1);
+  CHECK(d.moveSets[0].name == "Good");
+  CHECK(d.moveSets[0].set == *MoveSet::parse("R U"));
 }
 
 TEST_CASE("Alg Lab times and timestamps are kept within range",
