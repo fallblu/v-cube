@@ -428,6 +428,8 @@ private slots:
   void practiceKeysFollowThePhase();
   void themeColoursAreReadable();
   void pagesTakeTheKeyboard();
+  // After those that look at Alg Lab's times: it clears some.
+  void algLabDeleteAfterTimesWereCleared();
   void keysAreReadTheSameForEveryPage();
   void commandListGroupsAndRemembers();
   void settingsDialogOpensAndCloses();
@@ -767,6 +769,90 @@ void GuiTest::algLabTimesEachAlg() {
   QVERIFY(algs->topLevelItemCount() >= 1);
   // Interleaved, each alg was timed once: the set's on one of the cubes.
   QVERIFY(algs->topLevelItem(0)->text(2).contains("mean of 1"));
+}
+
+// Times erased on the Search tab move the others: Delete on the Test tab
+// still deletes the time just made.
+void GuiTest::algLabDeleteAfterTimesWereCleared() {
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
+  lab->selectCase("pll", "T");
+  QTabWidget *tabs = lab->findChild<QTabWidget *>();
+  QVERIFY(tabs);
+  tabs->setCurrentIndex(0);
+  QTableWidget *candidates = candidateTable(lab);
+  QVERIFY(candidates);
+  auto *add = lastChild<QLineEdit>(lab, [](QLineEdit *e) {
+    return e->placeholderText().startsWith("Type an alg");
+  });
+  QVERIFY(add);
+  // Two algs in the session, unless the tests before left them there.
+  if (candidates->rowCount() < 2) {
+    add->setText("R2 F2 U R2 U2 F' U F' R2 F U' F' U F2");
+    QMetaObject::invokeMethod(add, "returnPressed");
+    candidates->selectAll();
+    auto *toSession = lastChild<QPushButton>(
+        lab, [](QPushButton *b) { return b->text() == "Add to session"; });
+    QVERIFY(toSession);
+    toSession->click();
+  }
+  QVERIFY(candidates->rowCount() >= 2);
+  tabs->setCurrentIndex(1);
+  for (QSpinBox *box : lab->findChildren<QSpinBox *>()) {
+    if (box->prefix().startsWith("warm-up")) {
+      box->setValue(0);
+    }
+  }
+  auto *cube = lastChild<QComboBox>(
+      lab, [](QComboBox *box) { return box->findText("Virtual cube") >= 0; });
+  QVERIFY(cube);
+  cube->setCurrentIndex(cube->findText("Physical cube"));
+  // Each alg timed once, on a physical cube.
+  for (int i = 0; i < 2; ++i) {
+    QTest::keyClick(window_.get(), Qt::Key_Space); // the session, the next alg
+    QVERIFY(holdSpaceUntilBusy(lab));
+    QTest::qWait(50);
+    QTest::keyClick(window_.get(), Qt::Key_A);
+    QVERIFY(!lab->isBusy());
+    QTest::qWait(400);
+  }
+  auto savedAttempts = [this] {
+    finishBackgroundWrites();
+    AlgLabStore saved(QDir(dataDir_).filePath("alglab.json"));
+    return saved.load() ? saved.attempts() : std::vector<LabAttempt>{};
+  };
+  const std::vector<LabAttempt> all = savedAttempts();
+  QVERIFY(all.size() >= 2);
+  const std::string last = all.back().alg;
+  const auto ofLast = static_cast<std::size_t>(std::ranges::count_if(
+      all, [&](const LabAttempt &a) { return a.alg == last; }));
+  QVERIFY(ofLast < all.size());
+
+  // The other alg's times are cleared: the last time made moves down.
+  tabs->setCurrentIndex(0);
+  candidates->clearSelection();
+  for (int r = 0; r < candidates->rowCount(); ++r) {
+    if (candidates->item(r, 0)->data(Qt::UserRole).toString() != qs(last)) {
+      candidates->selectRow(r);
+    }
+  }
+  auto *clear = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text().startsWith("Clear times"); });
+  QVERIFY(clear);
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *box = qobject_cast<QMessageBox *>(m)) {
+        box->button(QMessageBox::Yes)->click();
+      }
+    });
+    clear->click();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  QCOMPARE(savedAttempts().size(), ofLast);
+  window_->activateWindow(); // the message box took it
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  tabs->setCurrentIndex(1);
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(savedAttempts().size(), ofLast - 1);
 }
 
 void GuiTest::fingertrickGuidance() {
