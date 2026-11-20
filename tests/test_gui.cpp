@@ -73,6 +73,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScopeGuard>
 #include <QScrollBar>
@@ -424,6 +425,7 @@ private slots:
   void drillArmsAndStopsItself();
   void libraryAddsAnAlgAndUndoes();
   void pastedAlgGoesToTheNamesakeChosen();
+  void aPasteOfTooManyAlgsIsTurnedDown();
   void algLabTimesEachAlg();
   void fingertrickGuidance();
   void profileCostsAreReadInTheLocale();
@@ -2013,6 +2015,49 @@ void GuiTest::pastedAlgGoesToTheNamesakeChosen() {
   QCOMPARE(dialog.plan().results[0].caseId, std::string("b"));
   QVERIFY(dialog.plan().results[0].filed());
   // The keyboard back with the window, for the tests that follow.
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
+// Checking tries every alg on every case, so a paste of more algs than the
+// window can check without standing still is turned down, and says so.
+void GuiTest::aPasteOfTooManyAlgsIsTurnedDown() {
+  AlgSet set;
+  set.id = "few";
+  set.name = "Few";
+  set.spec.free = *parseFree("LL:p");
+  set.groups.push_back({"Group", std::nullopt, {}});
+  QString text;
+  for (std::size_t i = 0; i <= kMaxPastedAlgs; ++i) {
+    text += "R U R' U'\n";
+  }
+  PasteDialog dialog(set, -1, text);
+  dialog.show();
+  auto *check = lastChild<QPushButton>(
+      &dialog, [](QPushButton *b) { return b->text() == "Check >"; });
+  auto *pages = dialog.findChild<QStackedWidget *>();
+  auto *edit = dialog.findChild<QPlainTextEdit *>();
+  QVERIFY(check && pages && edit);
+  {
+    ModalWatcher watcher;
+    check->click();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+    VERIFY_CONTAINS(watcher.texts.join("\n"),
+                    QString("At most %1 can be checked").arg(kMaxPastedAlgs));
+  }
+  QCOMPARE(pages->currentIndex(), 0);
+  QVERIFY(dialog.plan().results.empty());
+
+  // One alg fewer is checked.
+  edit->setPlainText(text.chopped(10));
+  {
+    ModalWatcher watcher;
+    check->click();
+    QCOMPARE(watcher.seen, QStringList{});
+  }
+  QCOMPARE(pages->currentIndex(), 1);
+  QCOMPARE(dialog.plan().results.size(), kMaxPastedAlgs);
   dialog.close();
   window_->activateWindow();
   QVERIFY(QTest::qWaitForWindowActive(window_.get()));

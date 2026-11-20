@@ -182,7 +182,18 @@ CaseChoices caseChoices(const AlgSet &set) {
 }
 
 void PasteDialog::check() {
-  items_ = readPaste(edit_->toPlainText().toStdString());
+  std::vector<PasteItem> items = readPaste(edit_->toPlainText().toStdString());
+  if (items.size() > kMaxPastedAlgs) {
+    // Each alg is tried on every case, and again after each correction, in
+    // this window: more than this and it would stand still for too long.
+    warnPlain(this, windowTitle(),
+              tr("That is %1 algs. At most %2 can be checked at a time: "
+                 "paste them a part at a time.")
+                  .arg(items.size())
+                  .arg(kMaxPastedAlgs));
+    return;
+  }
+  items_ = std::move(items);
   pages_->setCurrentIndex(1);
   backButton_->setVisible(true);
   checkButton_->setVisible(false);

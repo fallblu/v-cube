@@ -5,6 +5,7 @@
 #include <QDialog>
 #include <QStringList>
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,12 @@ class QStackedWidget;
 class QTableWidget;
 
 namespace vcube {
+
+// The most algs one paste may hold. Every alg is tried on every case of the
+// set, on the window's own thread and again after each correction, and an
+// alg that solves none may add a case for the next ones to be tried on: the
+// work grows with the square of the count.
+inline constexpr std::size_t kMaxPastedAlgs = 1000;
 
 // A set's cases as the choices of "Other case…": a label for each, no two
 // alike, and the case ids in the same order. Cases may share a name, so one
