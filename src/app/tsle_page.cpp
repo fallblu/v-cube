@@ -11,10 +11,7 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMenu>
 #include <QPushButton>
-#include <QSignalBlocker>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -39,19 +36,7 @@ const char *const kWhole = "whole";
 } // namespace
 
 TslePage::TslePage(AppSettings &settings, PracticeStore &store, QWidget *parent)
-    : PracticePage(settings, store, parent) {
-  QStringList chosen = saved::practice("tsle", "slots", QStringList{"FR", "FL"})
-                           .get()
-                           .toStringList();
-  bool any = false;
-  for (Slot s : kF2LSlots) {
-    bool on = chosen.contains(slotText(s));
-    slots_[static_cast<std::size_t>(s)] = on;
-    any = any || on;
-  }
-  if (!any) {
-    slots_ = {true, true, false, false};
-  }
+    : PracticePage(settings, store, parent), slots_(loadSlots("slots")) {
   rebuildSolvers();
   build();
 }
@@ -61,22 +46,8 @@ TslePage::~TslePage() = default;
 // --- options -----------------------------------------------------------------
 
 void TslePage::addOptions(OptionBar *bar) {
-  slotsButton_ = new QToolButton(bar);
-  slotsButton_->setFocusPolicy(Qt::NoFocus);
-  slotsButton_->setPopupMode(QToolButton::InstantPopup);
-  auto *menu = new QMenu(slotsButton_);
-  for (Slot s : kF2LSlots) {
-    QAction *a = menu->addAction(slotText(s));
-    a->setCheckable(true);
-    a->setData(static_cast<int>(s));
-    connect(a, &QAction::toggled, this, [this, s](bool on) {
-      std::array<bool, kSlots> chosen = slots_;
-      chosen[static_cast<std::size_t>(s)] = on;
-      setLastSlots(chosen);
-    });
-  }
-  slotsButton_->setMenu(menu);
-  bar->addPicker(tr("Last slot:"), slotsButton_);
+  addSlotPicker(bar, slotsButton_, slots_,
+                [this](const Slots &chosen) { setLastSlots(chosen); });
 }
 
 void TslePage::addButtons(OptionBar *bar) {
@@ -85,32 +56,13 @@ void TslePage::addButtons(OptionBar *bar) {
   connect(ocllButton_, &QPushButton::clicked, this, &TslePage::editOcllAlgs);
 }
 
-void TslePage::showOptions() {
-  QStringList names;
-  for (QAction *a : slotsButton_->menu()->actions()) {
-    QSignalBlocker block(a);
-    bool on = slots_[static_cast<std::size_t>(a->data().toInt())];
-    a->setChecked(on);
-    if (on) {
-      names << a->text();
-    }
-  }
-  slotsButton_->setText(names.join(" / "));
-}
-
-void TslePage::setLastSlots(const std::array<bool, kSlots> &chosen) {
-  if (std::none_of(chosen.begin(), chosen.end(), [](bool b) { return b; })) {
+void TslePage::setLastSlots(const Slots &chosen) {
+  if (std::ranges::none_of(chosen, std::identity{})) {
     showOptions(); // one slot at least
     return;
   }
   slots_ = chosen;
-  QStringList names;
-  for (Slot s : kF2LSlots) {
-    if (slots_[static_cast<std::size_t>(s)]) {
-      names << slotText(s);
-    }
-  }
-  saved::practice("tsle", "slots").set(names);
+  saveSlots("slots", slots_);
   optionChanged();
 }
 

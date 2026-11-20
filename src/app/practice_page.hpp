@@ -14,11 +14,14 @@
 #include "train/learn_session.hpp"
 #include "train/practice.hpp"
 #include "train/practice_flow.hpp"
+#include "train/solve_review.hpp"
 
 #include <QFutureWatcher>
 #include <QIcon>
 #include <QTimer>
 
+#include <array>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -29,6 +32,7 @@ class QLabel;
 class QScrollArea;
 class QStackedWidget;
 class QTabBar;
+class QToolButton;
 
 namespace vcube {
 
@@ -293,6 +297,19 @@ protected:
   QString mutedColour() const;
   // The link that plays `alg` from the start when clicked in the detail.
   static QString playLink(const Alg &alg, const QString &text);
+  // The last slots a mode leaves (F2L's, TSLE's): kept as `name`, FR and FL
+  // at first (and when none is kept).
+  using Slots = std::array<bool, kSlots>;
+  Slots loadSlots(const char *name) const;
+  void saveSlots(const char *name, const Slots &picked) const;
+  // The "Last slot:" picker of the slots `current`, made as `button`: a
+  // slot ticked or unticked calls `chosen` with them as they would be, one
+  // slot at least.
+  QWidget *addSlotPicker(OptionBar *bar, QToolButton *&button,
+                         const Slots &current,
+                         const std::function<void(const Slots &)> &chosen);
+  // Ticks the slots on the picker and names them on its button.
+  static void showSlots(QToolButton *button, const Slots &picked);
 
 private:
   AppSettings &settings_;

@@ -44,8 +44,8 @@ public:
   std::optional<TsleState> currentState() const;
   const TsleSolver &solver(Slot slot) const;
   // The slots chosen; read by the tests only (a seam, kept on purpose).
-  std::array<bool, kSlots> lastSlots() const { return slots_; }
-  void setLastSlots(const std::array<bool, kSlots> &chosen);
+  Slots lastSlots() const { return slots_; }
+  void setLastSlots(const Slots &chosen);
 
 protected:
   QString modeId() const override { return "tsle"; }
@@ -55,7 +55,7 @@ protected:
   }
   void addOptions(OptionBar *bar) override;
   void addButtons(OptionBar *bar) override;
-  void showOptions() override;
+  void showOptions() override { showSlots(slotsButton_, slots_); }
   std::optional<Setup> setUp(const std::string &card) override;
   void restarted() override;
   bool turned() override;
@@ -88,7 +88,7 @@ private:
   };
 
   std::array<std::unique_ptr<TsleSolver>, kSlots> solvers_;
-  std::array<bool, kSlots> slots_{true, true, false, false};
+  Slots slots_;
   Slot slot_ = Slot::FR;
   TsleState start_;
   std::vector<Step> steps_;

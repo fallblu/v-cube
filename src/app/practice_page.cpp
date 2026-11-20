@@ -6,6 +6,7 @@
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "io/session_store.hpp"
+#include "train/f2l.hpp"
 #include "train/move_count.hpp"
 #include "train/stats.hpp"
 
@@ -13,6 +14,7 @@
 #include <QComboBox>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
@@ -20,6 +22,7 @@
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QTextDocumentFragment>
+#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -416,6 +419,71 @@ QString PracticePage::playLink(const Alg &alg, const QString &text) {
   return QString("<a href='play:%1'>%2</a>")
       .arg(QString::fromLatin1(QUrl::toPercentEncoding(qs(toString(alg)))),
            text);
+}
+
+PracticePage::Slots PracticePage::loadSlots(const char *name) const {
+  const QStringList names =
+      saved::practice(modeId(), name, QStringList{"FR", "FL"})
+          .get()
+          .toStringList();
+  Slots picked{};
+  for (Slot s : kF2LSlots) {
+    picked[static_cast<std::size_t>(s)] = names.contains(slotText(s));
+  }
+  if (std::ranges::none_of(picked, std::identity{})) {
+    picked = {true, true, false, false};
+  }
+  return picked;
+}
+
+void PracticePage::saveSlots(const char *name, const Slots &picked) const {
+  QStringList names;
+  for (Slot s : kF2LSlots) {
+    if (picked[static_cast<std::size_t>(s)]) {
+      names << slotText(s);
+    }
+  }
+  saved::practice(modeId(), name).set(names);
+}
+
+QWidget *
+PracticePage::addSlotPicker(OptionBar *bar, QToolButton *&button,
+                            const Slots &current,
+                            const std::function<void(const Slots &)> &chosen) {
+  button = new QToolButton(bar);
+  button->setFocusPolicy(Qt::NoFocus);
+  button->setPopupMode(QToolButton::InstantPopup);
+  auto *menu = new QMenu(button);
+  for (Slot s : kF2LSlots) {
+    QAction *a = menu->addAction(slotText(s));
+    a->setCheckable(true);
+    a->setData(static_cast<int>(s));
+    connect(a, &QAction::toggled, this,
+            [shown = button, &current, chosen, s](bool on) {
+              Slots picked = current;
+              picked[static_cast<std::size_t>(s)] = on;
+              if (std::ranges::none_of(picked, std::identity{})) {
+                showSlots(shown, current); // one slot at least
+                return;
+              }
+              chosen(picked);
+            });
+  }
+  button->setMenu(menu);
+  return bar->addPicker(tr("Last slot:"), button);
+}
+
+void PracticePage::showSlots(QToolButton *button, const Slots &picked) {
+  QStringList names;
+  for (QAction *a : button->menu()->actions()) {
+    QSignalBlocker block(a);
+    bool on = picked[static_cast<std::size_t>(a->data().toInt())];
+    a->setChecked(on);
+    if (on) {
+      names << a->text();
+    }
+  }
+  button->setText(names.join(" / "));
 }
 
 void PracticePage::save() {

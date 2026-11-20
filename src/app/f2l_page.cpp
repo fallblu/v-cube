@@ -14,10 +14,8 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMenu>
 #include <QSignalBlocker>
 #include <QTextDocumentFragment>
-#include <QToolButton>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -153,30 +151,11 @@ void F2LPage::addOptions(OptionBar *bar) {
     methodBox_->addItem(qs(methodName(method)), qs(methodId(method)));
   }
   bar->addPicker(tr("F2L:"), methodBox_);
-
-  leaveButton_ = new QToolButton(bar);
-  leaveButton_->setFocusPolicy(Qt::NoFocus);
-  leaveButton_->setPopupMode(QToolButton::InstantPopup);
-  auto *leaveMenu = new QMenu(leaveButton_);
-  for (Slot s : kF2LSlots) {
-    QAction *a = leaveMenu->addAction(slotText(s));
-    a->setCheckable(true);
-    a->setData(static_cast<int>(s));
-    connect(a, &QAction::toggled, this, [this, s, a](bool on) {
-      config_.lsSlots[static_cast<std::size_t>(s)] = on;
-      if (std::none_of(config_.lsSlots.begin(), config_.lsSlots.end(),
-                       [](bool b) { return b; })) {
-        // One slot at least can be left.
-        config_.lsSlots[static_cast<std::size_t>(s)] = true;
-        QSignalBlocker block(a);
-        a->setChecked(true);
-        return;
-      }
-      configChanged();
-    });
-  }
-  leaveButton_->setMenu(leaveMenu);
-  leaveItem_ = bar->addPicker(tr("Last slot:"), leaveButton_);
+  leaveItem_ = addSlotPicker(bar, leaveButton_, config_.lsSlots,
+                             [this](const Slots &chosen) {
+                               config_.lsSlots = chosen;
+                               configChanged();
+                             });
 
   connect(methodBox_, &QComboBox::activated, this, [this] {
     if (auto m =
@@ -194,18 +173,7 @@ void F2LPage::loadChoices() {
                                 .toStdString())) {
     applyMethod(config_, *m);
   }
-  QStringList leave = saved::practice("f2l", "leave", QStringList{"FR", "FL"})
-                          .get()
-                          .toStringList();
-  bool any = false;
-  for (Slot s : kF2LSlots) {
-    bool on = leave.contains(slotText(s));
-    config_.lsSlots[static_cast<std::size_t>(s)] = on;
-    any = any || on;
-  }
-  if (!any) {
-    config_.lsSlots = F2LConfig().lsSlots;
-  }
+  config_.lsSlots = loadSlots("leave");
   // Solutions are searched with every move the method allows.
   config_.dMoves = true;
   config_.halfFB = true;
@@ -214,13 +182,7 @@ void F2LPage::loadChoices() {
 
 void F2LPage::saveChoices() const {
   saved::practice("f2l", "method").set(qs(methodId(methodOf(config_))));
-  QStringList leave;
-  for (Slot s : kF2LSlots) {
-    if (config_.lsSlots[static_cast<std::size_t>(s)]) {
-      leave << slotText(s);
-    }
-  }
-  saved::practice("f2l", "leave").set(leave);
+  saveSlots("leave", config_.lsSlots);
 }
 
 void F2LPage::showOptions() {
@@ -229,16 +191,7 @@ void F2LPage::showOptions() {
     methodBox_->setCurrentIndex(
         methodBox_->findData(qs(methodId(methodOf(config_)))));
   }
-  QStringList leave;
-  for (QAction *a : leaveButton_->menu()->actions()) {
-    QSignalBlocker block(a);
-    bool on = config_.lsSlots[static_cast<std::size_t>(a->data().toInt())];
-    a->setChecked(on);
-    if (on) {
-      leave << a->text();
-    }
-  }
-  leaveButton_->setText(leave.join(" / "));
+  showSlots(leaveButton_, config_.lsSlots);
   leaveItem_->setVisible(config_.lastSlot);
 }
 
