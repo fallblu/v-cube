@@ -421,6 +421,61 @@ TEST_CASE("an Alg Lab file edited by hand reads what can be used",
   CHECK(d.moveSets[0].set == *MoveSet::parse("R U"));
 }
 
+TEST_CASE("Alg Lab candidates and attempts can be removed", "[alglab][io]") {
+  QTemporaryDir dir;
+  REQUIRE(dir.isValid());
+  const QString path = QDir(dir.path()).filePath("alglab.json");
+  AlgLabStore store(path);
+  REQUIRE(store.load());
+  const LabCaseKey t{"pll", "T"};
+  const LabCaseKey mine{"", "1"};
+  CHECK(store.addCandidate(t, {"R U R'", CandidateSource::Typed, 0}));
+  CHECK(store.addCandidate(t, {"R U2 R'", CandidateSource::Pasted, 0}));
+  CHECK(store.addCandidate(mine, {"F R F'", CandidateSource::Typed, 0}));
+  CHECK(store.removeCandidate(t, "R U R'"));
+  CHECK_FALSE(store.removeCandidate(t, "R U R'"));
+  CHECK_FALSE(store.removeCandidate(t, "U"));
+  CHECK_FALSE(store.removeCandidate({"pll", "Y"}, "R U2 R'"));
+  REQUIRE(store.candidates(t).size() == 1);
+  CHECK(store.candidates(t)[0].alg == "R U2 R'");
+  store.removeCandidates(mine);
+  CHECK(store.candidates(mine).empty());
+  CHECK(store.candidates(t).size() == 1);
+
+  store.addAttempt(attempt(t, "R U2 R'", 1000));
+  store.addAttempt(attempt(t, "R U2 R'", 2000));
+  store.addAttempt(attempt(t, "R U2 R'", 3000));
+  const std::size_t n = store.attempts().size();
+  CHECK(store.attempt(n) == nullptr);
+  store.removeAttempt(n);
+  CHECK(store.attempts().size() == n);
+  store.removeAttempt(0);
+  REQUIRE(store.attempts().size() == 2);
+  REQUIRE(store.attempt(0) != nullptr);
+  CHECK(store.attempt(0)->timeMs == 2000);
+  CHECK(store.attempt(1)->timeMs == 3000);
+  CHECK(store.attempt(2) == nullptr);
+
+  store.current().warmup = 3;
+  const std::string id = store.current().id;
+  REQUIRE(store.sessionById(id) != nullptr);
+  CHECK(store.sessionById(id) == &store.current());
+  CHECK(store.warmupOf(id) == 3);
+  CHECK(store.sessionById("gone") == nullptr);
+  CHECK(store.warmupOf("gone") == 0);
+
+  REQUIRE(store.save());
+  AlgLabStore again(path);
+  REQUIRE(again.load());
+  CHECK(again.data() == store.data());
+  CHECK(again.candidates(mine).empty());
+  REQUIRE(again.candidates(t).size() == 1);
+  CHECK(again.candidates(t)[0].source == CandidateSource::Pasted);
+  REQUIRE(again.attempts().size() == 2);
+  CHECK(again.attempts()[0].timeMs == 2000);
+  CHECK(again.warmupOf(id) == 3);
+}
+
 TEST_CASE("Alg Lab times and timestamps are kept within range",
           "[alglab][io]") {
   AlgLabData d;
