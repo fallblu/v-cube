@@ -14,6 +14,7 @@
 #include "app/grip_view.hpp"
 #include "app/help_panel.hpp"
 #include "app/help_text.hpp"
+#include "app/keymap.hpp"
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/main_window.hpp"
@@ -441,6 +442,7 @@ private slots:
   void saveWarningCanBeDismissedFromTheMenu();
   void timerSaysItsResult();
   void bareAltReachesTheMenuBar();
+  void keymapIsSavedAndReadBack();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3030,6 +3032,52 @@ void GuiTest::bareAltReachesTheMenuBar() {
   QTest::keyClick(window_->menuBar(), Qt::Key_Escape);
   QTRY_VERIFY(window_->menuBar()->activeAction() == nullptr);
   window_->setFocus();
+}
+
+// The key bindings as they are kept in the settings: lines that can't be
+// read, or bind a key the modes use, are left out and counted.
+void GuiTest::keymapIsSavedAndReadBack() {
+  const Keymap defaults = Keymap::defaultLayout();
+  int dropped = -1;
+  QCOMPARE(Keymap::fromStrings(defaults.toStrings(), &dropped), defaults);
+  QCOMPARE(dropped, 0);
+
+  // Shift turns the wide layer, and the = key is split at the last '='.
+  Keymap read = Keymap::fromStrings({"Shift+I=r", "==M"}, &dropped);
+  QCOMPARE(dropped, 0);
+  const std::vector<KeyBinding> expected = {
+      {Qt::Key_I, true, parseAlgOrEmpty("r").front()},
+      {Qt::Key_Equal, false, parseAlgOrEmpty("M").front()}};
+  QVERIFY(read.bindings == expected);
+  QCOMPARE(read.toStrings(), (QStringList{"Shift+I=r", "==M"}));
+
+  // A key turns its layer once: R3 is R'.
+  read = Keymap::fromStrings({"I=R3"}, &dropped);
+  QCOMPARE(dropped, 0);
+  QCOMPARE(read.bindings.size(), std::size_t{1});
+  QVERIFY(read.bindings.front().move == parseAlgOrEmpty("R'").front());
+
+  // Reserved keys, lines that aren't a binding, and keys the cube never
+  // sees: Ctrl and Alt are left to the shortcuts, and a sequence of keys
+  // can't be pressed at once.
+  const QStringList bad = {"Space=R", "F1=U",     "5=U",     "Left=U",
+                           "garbage", "=R",       "I=R U",   "I=Q",
+                           "I=",      "Ctrl+I=R", "Alt+J=U", "I, J=R"};
+  for (const QString &line : bad) {
+    read = Keymap::fromStrings({line}, &dropped);
+    QVERIFY2(read.bindings.empty(), qPrintable(line));
+    QVERIFY2(dropped == 1, qPrintable(line));
+  }
+  read = Keymap::fromStrings(bad + QStringList{"J=U"}, &dropped);
+  QCOMPARE(dropped, static_cast<int>(bad.size()));
+  QCOMPARE(read.toStrings(), QStringList{"J=U"});
+
+  QVERIFY(!Keymap::reservedReason(Qt::Key_Space).isEmpty());
+  QVERIFY(!Keymap::reservedReason(Qt::Key_Home).isEmpty());
+  QVERIFY(!Keymap::reservedReason(Qt::Key_9).isEmpty());
+  QVERIFY(!Keymap::reservedReason(Qt::Key_F12).isEmpty());
+  QVERIFY(Keymap::reservedReason(Qt::Key_I).isEmpty());
+  QVERIFY(Keymap::reservedReason(Qt::Key_Equal).isEmpty());
 }
 
 // Everything that couldn't be read at start-up is listed in one window
