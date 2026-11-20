@@ -6,25 +6,8 @@
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
-#include <QActionGroup>
-#include <QComboBox>
-#include <QDateTime>
-#include <QFormLayout>
-#include <QHBoxLayout>
 #include <QKeyEvent>
-#include <QLabel>
-#include <QMenu>
 #include <QPushButton>
-#include <QRandomGenerator>
-#include <QScrollArea>
-#include <QSpinBox>
-#include <QSplitter>
-#include <QToolButton>
-#include <QTreeWidget>
-#include <QVBoxLayout>
-
-#include <algorithm>
-#include <cmath>
 
 namespace vcube {
 
@@ -93,10 +76,7 @@ void LearnPage::holdBack(std::function<void()> start) {
   // after the reset makes GCC warn about the guide it has just dropped.)
   guide_.reset();
   stage_->showGuide(nullptr);
-  reveal_->clear();
-  gradeRow_->setVisible(false);
-  stage_->hideFamily();
-  stage_->hideQuiz();
+  stage_->clearCase();
   stage_->setActions({});
   cube_ = FaceletCube();
   cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
@@ -127,7 +107,6 @@ void LearnPage::begin(const std::string &caseId, LearnAttempt::Kind kind) {
     contextButton_->setText(tr("Practise in context"));
   }
   idleTimer_.stop();
-  stage_->hideQuiz();
   Hold hold = pickHold();
   Mirror world = pickWorld(caseId);
   // A reduction set's cases come up with the step's free pieces anywhere,
@@ -145,9 +124,7 @@ void LearnPage::begin(const std::string &caseId, LearnAttempt::Kind kind) {
   undo_.close();
   attempt_.begin(caseId, kind);
   linkNote_.clear();
-  reveal_->clear();
-  gradeRow_->setVisible(false);
-  stage_->hideFamily();
+  stage_->clearCase();
   cubeView_->setColourMap(colourMapOf(hold));
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);
@@ -265,14 +242,7 @@ void LearnPage::startLink(const CaseView &view) {
   // front, as a back slot is done). A case whose algs are done as
   // written, such as an OCLL a mirrored step stops at, is looked at from
   // the group's own corner (the front right), as its algs are.
-  CubeLook look = cubeView_->look();
-  double yaw = yawFor(view.caseId, view.mirrored ? current_->world : Mirror{});
-  viewMoved_ = links > 1 && look.yaw != yaw && !view.mirrored;
-  if (look.yaw != yaw) {
-    look.yaw = yaw;
-    cubeView_->finishAnimations();
-    cubeView_->setLook(look);
-  }
+  viewMoved_ = lookAt(view) && links > 1 && !view.mirrored;
   guide_.reset();
   refreshLink();
   // A case passed on the way that was never learned has its step shown.
@@ -292,8 +262,7 @@ void LearnPage::refreshLink() {
   const CaseInfo *info = infoOf(link->view.caseId);
   std::vector<ViewAlg> algs;
   if (c && g && info) {
-    algs = algsFor(*s, *g, *c, info->analysis, link->view, link->state,
-                   current_->world);
+    algs = algsFor(*s, *g, *c, *info, link->view, link->state, current_->world);
   }
   attempt_.setLinkAlgs(std::move(algs));
   bool follow = guide_ && guide_->follow;
@@ -384,17 +353,21 @@ void LearnPage::resetCube() {
   cube_ = solving && !links.empty() ? links.back().start
                                     : current_->start.toFacelets();
   if (!solving && !links.empty()) {
-    const CaseView &first = links.front().view;
-    CubeLook look = cubeView_->look();
-    double yaw =
-        yawFor(first.caseId, first.mirrored ? current_->world : Mirror{});
-    if (look.yaw != yaw) {
-      look.yaw = yaw;
-      cubeView_->finishAnimations();
-      cubeView_->setLook(look);
-    }
+    lookAt(links.front().view);
   }
   cubeView_->setState(cube_);
+}
+
+bool LearnPage::lookAt(const CaseView &view) {
+  CubeLook look = cubeView_->look();
+  double yaw = yawFor(view.caseId, view.mirrored ? current_->world : Mirror{});
+  if (look.yaw == yaw) {
+    return false;
+  }
+  look.yaw = yaw;
+  cubeView_->finishAnimations();
+  cubeView_->setLook(look);
+  return true;
 }
 
 void LearnPage::setPhase(Phase p) {
@@ -765,7 +738,7 @@ void LearnPage::regrade(Grade grade) {
 
 void LearnPage::showFamily() {
   const std::vector<std::string> *members =
-      current_ ? families_.familyFor(current_->caseId) : nullptr;
+      current_ ? families().familyFor(current_->caseId) : nullptr;
   bool shown = byFamily() &&
                (phase() == Phase::Done || phase() == Phase::Recalled) &&
                members && members->size() > 1;

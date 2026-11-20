@@ -7,7 +7,6 @@
 
 #include <QActionGroup>
 #include <QComboBox>
-#include <QDateTime>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -581,7 +580,7 @@ std::vector<std::string> LearnPage::pool() const {
   cases.reserve(cards.size());
   for (const auto &card : cards) {
     std::string member = card;
-    if (const auto *members = families_.familyFor(card);
+    if (const auto *members = families().familyFor(card);
         members && !members->empty() && (!s || !s->findCase(card))) {
       member = members->front();
     }
@@ -609,7 +608,7 @@ std::vector<std::string> LearnPage::pool() const {
 }
 
 std::string LearnPage::pickMember(const std::string &card) {
-  const std::vector<std::string> *members = families_.familyFor(card);
+  const std::vector<std::string> *members = families().familyFor(card);
   if (!byFamily() || !members) {
     return card;
   }
@@ -628,7 +627,7 @@ std::string LearnPage::pickMember(const std::string &card) {
 }
 
 void LearnPage::updateCardRows(const std::string &caseId) {
-  const std::vector<std::string> *members = families_.familyFor(caseId);
+  const std::vector<std::string> *members = families().familyFor(caseId);
   if (!byFamily() || !members) {
     updateRow(caseId);
     return;
@@ -641,10 +640,7 @@ void LearnPage::updateCardRows(const std::string &caseId) {
 void LearnPage::nextCase(LearnAhead ahead) {
   pending_ = nullptr; // what comes next is worked out afresh
   idleTimer_.stop();
-  reveal_->clear();
-  stage_->hideFamily();
-  gradeRow_->setVisible(false);
-  stage_->hideQuiz();
+  stage_->clearCase();
   // Nothing of the last case stays up, e.g. a walkthrough's moves.
   guide_.reset();
   attempt_.clear();
@@ -676,6 +672,10 @@ void LearnPage::nextCase(LearnAhead ahead) {
     showIdle(pick);
     return;
   }
+  beginPick(pick);
+}
+
+void LearnPage::beginPick(const LearnPick &pick) {
   std::string member = pickMember(*pick.caseId);
   const CaseProgress *cp = progressOf(*pick.caseId);
   if (practice() == Practice::Recognise && !pick.isNew && cp &&
@@ -717,14 +717,7 @@ bool LearnPage::nextAcrossSets() {
     LearnPick pick = pickLearnCase(pool(), progress(), now, localDayStart(),
                                    settings_.srs, options);
     if (pick.caseId) {
-      std::string member = pickMember(*pick.caseId);
-      const CaseProgress *cp = progressOf(*pick.caseId);
-      if (practice() == Practice::Recognise && cp &&
-          cp->card.state == CardState::Review) {
-        beginRecognition(member);
-      } else {
-        begin(member, LearnAttempt::Kind::Known);
-      }
+      beginPick(pick); // never a new case: none are picked across sets
       return true;
     }
     due[*i].due = 0;

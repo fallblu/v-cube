@@ -20,12 +20,7 @@ std::function<ScrambleSetup(Rng &)>
 scrambleStateMaker(const AlgLibrary &library, const QString &type) {
   if (type.startsWith("set:")) {
     std::string id = ss(type.mid(4));
-    const AlgSet *set = nullptr;
-    for (const auto &s : library.sets()) {
-      if (s.id == id) {
-        set = &s;
-      }
-    }
+    const AlgSet *set = library.find(id);
     if (set && set->caseCount() > 0) {
       // The cases ticked in Learn and Drill (or all of them).
       QStringList unticked = untickedCases(*set);
@@ -102,14 +97,14 @@ ScrambleAlgs::ScrambleAlgs(AlgLibrary &library, QString settingsKey,
   label_->setMinimumHeight(110);
   connect(button_, &QPushButton::toggled, this, [this](bool on) {
     saved::showAlgs(settingsKey_).set(on);
-    update();
+    refresh();
   });
   setType({});
 }
 
 void ScrambleAlgs::setType(const QString &type) {
   offered_ = type.startsWith("set:");
-  update();
+  refresh();
 }
 
 void ScrambleAlgs::setScramble(const GeneratedScramble *scramble) {
@@ -118,7 +113,7 @@ void ScrambleAlgs::setScramble(const GeneratedScramble *scramble) {
   } else {
     scramble_.reset();
   }
-  update();
+  refresh();
 }
 
 bool ScrambleAlgs::toggle() {
@@ -129,7 +124,7 @@ bool ScrambleAlgs::toggle() {
   return true;
 }
 
-void ScrambleAlgs::update() {
+void ScrambleAlgs::refresh() {
   button_->setVisible(offered_);
   label_->setVisible(offered_);
   const AlgSet *set = nullptr;
@@ -268,11 +263,8 @@ void ScrambleFeed::request() {
   // ticked cases change (compared through the unticked ones).
   std::optional<QStringList> ticked;
   if (type_.startsWith("set:")) {
-    std::string id = ss(type_.mid(4));
-    for (const auto &s : library_.sets()) {
-      if (s.id == id) {
-        ticked = untickedCases(s);
-      }
+    if (const AlgSet *s = library_.find(ss(type_.mid(4)))) {
+      ticked = untickedCases(*s);
     }
   }
   if (!maker_ || makerType_ != type_ || makerTicked_ != ticked) {

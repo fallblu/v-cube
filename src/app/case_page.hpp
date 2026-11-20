@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -22,11 +23,8 @@
 #include <QStringList>
 
 class QComboBox;
-class QFormLayout;
-class QHBoxLayout;
 class QLabel;
 class QMenu;
-class QPushButton;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QVBoxLayout;
@@ -78,13 +76,10 @@ protected:
   // derived constructor.
   void init();
 
-  // What the page knows about a case.
-  struct CaseInfo {
-    std::vector<std::size_t> passing; // indices of passing algs; [0] = main
-    CubieCube state;     // the case as it is set up and drawn (oriented for
-                         // the main alg)
-    std::string mainAlg; // the main alg as done from `state`
-    CaseAnalysis analysis;
+  // What the page knows about a case: its algs checked, and `state`, the
+  // case as it is set up and drawn (oriented for the main alg).
+  struct CaseInfo : CaseAnalysis {
+    CubieCube state;
   };
 
   AppSettings &settings_;
@@ -92,17 +87,11 @@ protected:
   const QString mode_;
   std::string setId_;
   Rng rng_;
-  std::map<std::string, CaseInfo> info_;
-  // The set's mirror families, when it learns by family (else empty).
-  CaseFamilies families_;
-  // Steps left from each case by the set's algs (see stepsLeft()).
-  std::map<std::string, int> steps_;
 
   // The case list on the left; the pointers below are its parts.
   CaseListPanel *panel_;
   QWidget *left_;
   QVBoxLayout *leftLayout_;
-  QFormLayout *form_; // set selector; derived pages add rows
   QComboBox *setBox_;
   CaseFilter *filter_;
   QTreeWidget *tree_;
@@ -114,7 +103,9 @@ protected:
   const SetProgress &progress() const;
   const CaseProgress *progressOf(const std::string &caseId) const;
   // The set learns each case with its mirror images as one family.
-  bool byFamily() const { return !families_.families.empty(); }
+  bool byFamily() const { return !families().families.empty(); }
+  // The set's mirror families, when it learns by family (else none).
+  const CaseFamilies &families() const { return info_->families; }
   // The case whose card is this case's: the first case of its family when
   // learning by family, else the case itself.
   std::string cardId(const std::string &caseId) const;
@@ -154,8 +145,8 @@ protected:
   bool acrossSets() const { return acrossSets_; }
   // Switches to another set, or to the reviews across every set, as the
   // set selector does.
-  void chooseSet(const std::string &id) { selectSet(id); }
-  void chooseAcrossSets() { selectAcrossSets(); }
+  void chooseSet(const std::string &id);
+  void chooseAcrossSets();
   virtual bool offersAcrossSets() const { return false; }
   // While reviewing across sets: shows another set's cases (without
   // starting it as selecting it would).
@@ -164,8 +155,6 @@ protected:
   virtual QString setItemText(const AlgSet &set) const;
   virtual QString acrossItemText() const { return tr("All sets: due reviews"); }
   void refreshSetLabels();
-  // Gives the keyboard back to the cube from the search box or a field.
-  void releaseKeys();
 
   // The yaw to look at a case's group from in 3D: the corner its diagrams
   // are drawn from (so that e.g. a back-left F2L slot can be seen), moved
@@ -201,11 +190,8 @@ protected:
   virtual QStringList defaultHiddenColumns() const { return {}; }
   virtual void fillRow(QTreeWidgetItem *item, const std::string &caseId) = 0;
   // A group's row, from its cases (e.g. their statistics taken together).
-  virtual void fillGroupRow(QTreeWidgetItem *item,
-                            const std::vector<std::string> &caseIds) {
-    (void)item;
-    (void)caseIds;
-  }
+  virtual void fillGroupRow(QTreeWidgetItem *,
+                            const std::vector<std::string> &) {}
   // The list can be sorted by the columns after "Case": a click on a
   // column's header sorts by it (largest first, then smallest first, then
   // in list order again, as a click on "Case" does). Cases sort within
@@ -213,8 +199,6 @@ protected:
   // fillGroupRow() give each column's value in kSortRole (a number; none
   // sorts as -1).
   virtual bool sortableColumns() const { return false; }
-  // Sorts the list again, e.g. after its values changed.
-  void applySort();
   virtual void updateSummary() = 0;
   // A set was selected: start practising it.
   virtual void startSet() = 0;
@@ -225,14 +209,10 @@ protected:
   virtual QString startCaseLabel(const std::string &caseId) const = 0;
   // More actions for the cases right-clicked: the selected cases, or a
   // group's cases when its row was right-clicked.
-  virtual void extendCaseMenu(QMenu &menu,
-                              const std::vector<std::string> &caseIds) {
-    (void)menu;
-    (void)caseIds;
-  }
+  virtual void extendCaseMenu(QMenu &, const std::vector<std::string> &) {}
   // More of the mode's menu after the case list's own (e.g. Drill's
   // Reset tally).
-  virtual void extendModeMenu(QMenu &menu) { (void)menu; }
+  virtual void extendModeMenu(QMenu &) {}
   virtual void ticksChanged() {}
   // The colour neutrality changed in Settings.
   virtual void neutralityChanged() {}
@@ -243,22 +223,28 @@ private:
   bool ticksPending_ = false;   // a tick change waits to be saved
   bool acrossSets_ = false;
 
-  struct InfoCache {
-    std::map<std::string, CaseInfo> info;
+  // What computeInfo() works out for a set: its cases, its families and
+  // the steps left from each case by the set's algs (see stepsLeft()).
+  struct SetInfo {
+    std::map<std::string, CaseInfo> cases;
     CaseFamilies families;
     std::map<std::string, int> steps;
   };
-  // What computeInfo() worked out for each set, for reviews across sets;
-  // emptied whenever the library changes.
-  std::map<std::string, InfoCache> infoCache_;
+  std::shared_ptr<const SetInfo> info_ = std::make_shared<SetInfo>();
+  // What was worked out for each set, kept until the library changes.
+  std::map<std::string, std::shared_ptr<const SetInfo>> infoCache_;
 
   void populateSets();
-  void selectSet(const std::string &id);
-  void selectAcrossSets();
+  // The cases that can be offered of the rows that pass `test`, in list
+  // order.
+  std::vector<std::string>
+  eligibleRows(const std::function<bool(const QTreeWidgetItem *)> &test) const;
   // Starts the case chosen in the list, giving the keys back first.
   void startCaseFromList(const std::string &id);
-  // Works the set's cases out afresh, or reuses what was worked out for
-  // the set before.
+  // Works the set's cases out, or reuses what was worked out for it since
+  // the library last changed. A family's card kept under one of its cases
+  // moves to the family (see adoptFamilyCards()) unless it is Cached and
+  // reused, as reviews across sets go from set to set.
   enum class Info { Fresh, Cached };
   void computeInfo(Info info = Info::Fresh);
   // Builds the case list, keeping its scroll position and collapsed groups.

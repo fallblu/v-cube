@@ -1,48 +1,6 @@
 #include "app/library_page.hpp"
 #include "app/library_private.hpp"
-#include "app/ui_text.hpp"
-
-#include "app/alglab_common.hpp"
-#include "app/case_filter.hpp"
-#include "app/case_history_dialog.hpp"
-#include "app/cube_painter.hpp"
-#include "app/drill_history_dialog.hpp"
-#include "app/grip_view.hpp"
-#include "app/mode_table.hpp"
-#include "app/paste_dialog.hpp"
-#include "app/set_properties_dialog.hpp"
-#include "app/ui_state.hpp"
-#include "train/reduction.hpp"
-
-#include <QAction>
-#include <QApplication>
-#include <QDateTime>
-#include <QDialog>
-#include <QDialogButtonBox>
-#include <QDropEvent>
-#include <QFileDialog>
-#include <QFormLayout>
-#include <QGroupBox>
-#include <QHBoxLayout>
-#include <QHeaderView>
-#include <QInputDialog>
-#include <QLabel>
-#include <QLineEdit>
-#include <QListWidget>
-#include <QLocale>
-#include <QMenu>
-#include <QMessageBox>
-#include <QPushButton>
-#include <QScrollBar>
-#include <QSet>
-#include <QSplitter>
-#include <QTabWidget>
-#include <QToolButton>
-#include <QUndoStack>
-#include <QVBoxLayout>
-
-#include <algorithm>
-#include <cmath>
+#include "app/session_panel.hpp"
 
 namespace vcube {
 
@@ -67,7 +25,7 @@ std::vector<std::string> LibraryPage::selectedCases() const {
     for (int c = 0; c < groupItem->childCount(); ++c) {
       QTreeWidgetItem *item = groupItem->child(c);
       if (item->isSelected() && !item->isHidden()) {
-        out.push_back(ss(item->data(0, kCaseRole).toString()));
+        out.push_back(caseIdOf(item));
       }
     }
   }
@@ -79,8 +37,7 @@ std::vector<std::size_t> LibraryPage::selectedGroups() const {
   for (int g = 0; g < caseTree_->topLevelItemCount(); ++g) {
     QTreeWidgetItem *groupItem = caseTree_->topLevelItem(g);
     if (groupItem->isSelected() && !groupItem->isHidden()) {
-      out.push_back(
-          static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt()));
+      out.push_back(groupIndexOf(groupItem));
     }
   }
   return out;
@@ -92,7 +49,7 @@ std::optional<std::size_t> LibraryPage::currentGroup() const {
     return std::nullopt;
   }
   QTreeWidgetItem *groupItem = item->parent() ? item->parent() : item;
-  return static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt());
+  return groupIndexOf(groupItem);
 }
 
 void LibraryPage::selectItems(const std::vector<std::string> &cases,
@@ -103,15 +60,14 @@ void LibraryPage::selectItems(const std::vector<std::string> &cases,
     QTreeWidgetItem *first = nullptr;
     for (int g = 0; g < caseTree_->topLevelItemCount(); ++g) {
       QTreeWidgetItem *groupItem = caseTree_->topLevelItem(g);
-      auto gi =
-          static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt());
-      if (std::find(groups.begin(), groups.end(), gi) != groups.end()) {
+      if (std::find(groups.begin(), groups.end(), groupIndexOf(groupItem)) !=
+          groups.end()) {
         groupItem->setSelected(true);
         first = first ? first : groupItem;
       }
       for (int c = 0; c < groupItem->childCount(); ++c) {
         QTreeWidgetItem *item = groupItem->child(c);
-        std::string id = ss(item->data(0, kCaseRole).toString());
+        std::string id = caseIdOf(item);
         if (std::find(cases.begin(), cases.end(), id) != cases.end()) {
           item->setSelected(true);
           // Keep the shown case when it is one of them.
@@ -136,14 +92,13 @@ void LibraryPage::newGroup() {
   if (!s) {
     return;
   }
-  bool ok = false;
-  QString name = QInputDialog::getText(this, tr("New group"), tr("Group name:"),
-                                       QLineEdit::Normal, QString(), &ok);
-  if (!ok || name.trimmed().isEmpty()) {
+  std::optional<QString> name =
+      askSessionName(this, tr("New group"), tr("Group name:"), QString());
+  if (!name) {
     return;
   }
   auto pending = editor_.begin();
-  s->groups.push_back({ss(name.trimmed()), std::nullopt, {}});
+  s->groups.push_back({ss(*name), std::nullopt, {}});
   std::size_t added = s->groups.size() - 1;
   if (editor_.commit(tr("New group"), *pending)) {
     selectItems({}, {added});
@@ -165,20 +120,17 @@ void LibraryPage::renameSelected() {
     caseNameEdit_->selectAll();
     return;
   }
-  auto gi = static_cast<std::size_t>(item->data(0, kGroupRole).toInt());
+  std::size_t gi = groupIndexOf(item);
   if (gi >= s->groups.size()) {
     return;
   }
-  bool ok = false;
-  QString name =
-      QInputDialog::getText(this, tr("Rename group"), tr("Group name:"),
-                            QLineEdit::Normal, qs(s->groups[gi].name), &ok);
-  if (!ok || name.trimmed().isEmpty() ||
-      ss(name.trimmed()) == s->groups[gi].name) {
+  std::optional<QString> name = askSessionName(
+      this, tr("Rename group"), tr("Group name:"), qs(s->groups[gi].name));
+  if (!name || ss(*name) == s->groups[gi].name) {
     return;
   }
   auto pending = editor_.begin();
-  s->groups[gi].name = ss(name.trimmed());
+  s->groups[gi].name = ss(*name);
   editor_.commit(tr("Rename group"), *pending);
 }
 
@@ -306,9 +258,8 @@ void LibraryPage::dropOnTree(QTreeWidgetItem *target, int position) {
   bool expanded = false;
   if (target) {
     QTreeWidgetItem *groupItem = target->parent() ? target->parent() : target;
-    targetGroup =
-        static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt());
-    targetCase = ss(target->data(0, kCaseRole).toString());
+    targetGroup = groupIndexOf(groupItem);
+    targetCase = caseIdOf(target);
     expanded = groupItem->isExpanded();
   }
   auto where = static_cast<CaseTreeWidget::Drop>(position);

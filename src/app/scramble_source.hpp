@@ -115,8 +115,8 @@ public:
   void setType(const QString &type);
   // The scramble shown, or nullptr while there is none.
   void setScramble(const GeneratedScramble *scramble);
-  // The alg sets changed.
-  void refresh() { update(); }
+  // Shows the algs again, e.g. after the alg sets changed.
+  void refresh();
   // Shows or hides the algs (Tab); false if they aren't offered.
   bool toggle();
 
@@ -127,8 +127,6 @@ private:
   QLabel *label_;
   bool offered_ = false;
   std::optional<GeneratedScramble> scramble_;
-
-  void update();
 };
 
 // A small unfolded net of a cube state, in the WCA orientation (white top,

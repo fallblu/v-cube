@@ -54,12 +54,13 @@ class CaseTreeWidget : public QTreeWidget {
 public:
   explicit CaseTreeWidget(QWidget *parent = nullptr);
 
-  // Where on an item a drop lands.
-  enum Drop : int { DropOn, DropAbove, DropBelow, DropElsewhere };
+  // Where beside an item a drop lands (a drop indicator position); a drop
+  // on it, or past the items, is neither.
+  enum Drop : int { DropAbove = AboveItem, DropBelow = BelowItem };
 
 signals:
   // The selected items were dropped on `target` (nullptr: below the last
-  // item) at `position`, a Drop.
+  // item) at `position` (see Drop).
   void dropped(QTreeWidgetItem *target, int position);
 
 protected:
@@ -179,25 +180,25 @@ private:
   void refresh(const LibraryEditor::Change &change);
 
   void buildActions();
-  // The context menu of the list of sets, or of the list of cases.
-  enum class MenuOf { Sets, Cases };
-  void fillContextMenu(QMenu *menu, MenuOf list);
+  // Shows the actions of the Set or Cases menu as a context menu at `at`.
+  void execContextMenu(const QMenu &from, const QPoint &at);
+  // Shows or hides the menus and the edit actions.
+  void setMenusShown(bool shown);
   void updateActions();
   void fillRestoreSetMenu();
   void fillMoveToMenu();
   void refreshSetList();
-  void loadSet();
   void buildCaseTree();
   void fillCaseItem(QTreeWidgetItem *item, const AlgSet &s, const CaseGroup &g,
                     const AlgCase &c);
-  void fillGroupItem(QTreeWidgetItem *item, const AlgSet &s,
-                     const CaseGroup &g);
+  void fillGroupItem(QTreeWidgetItem *item, const CaseGroup &g);
   void loadCase();
+  // The current set's progress on a case; null if it has none.
+  const CaseProgress *progressOf(const std::string &caseId) const;
   // The case's Learn card and drill statistics, for the History tab.
   QString historyHtml(const AlgCase &c) const;
   void refreshAlgList();
   void updateGrips();
-  void storeAlgs(const QString &text, std::optional<int> edited = {});
   // Stores `texts` as the algs of a case of the current set, which need
   // not be the one shown.
   void storeAlgTexts(const QString &text, const std::string &caseId,

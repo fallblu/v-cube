@@ -21,6 +21,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -30,6 +31,30 @@ namespace {
 
 constexpr int kCaseIdRole = Qt::UserRole;
 constexpr int kOrderRole = Qt::UserRole + 31; // place in list order
+
+std::string caseIdOf(const QTreeWidgetItem *item) {
+  return ss(item->data(0, kCaseIdRole).toString());
+}
+
+// The case rows of a case list, in list order.
+std::vector<QTreeWidgetItem *> caseItems(const QTreeWidget *tree) {
+  std::vector<QTreeWidgetItem *> out;
+  for (int g = 0; g < tree->topLevelItemCount(); ++g) {
+    for (int i = 0; i < tree->topLevelItem(g)->childCount(); ++i) {
+      out.push_back(tree->topLevelItem(g)->child(i));
+    }
+  }
+  return out;
+}
+
+// The cases of a group's row.
+std::vector<std::string> groupCaseIds(const QTreeWidgetItem *group) {
+  std::vector<std::string> ids;
+  for (int i = 0; i < group->childCount(); ++i) {
+    ids.push_back(caseIdOf(group->child(i)));
+  }
+  return ids;
+}
 
 // A row that sorts by its kSortRole numbers, or in list order.
 class SortItem : public QTreeWidgetItem {
@@ -63,7 +88,6 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
   panel_ = new CaseListPanel(mode_, settings_.thumbnailSize, this);
   left_ = panel_;
   leftLayout_ = panel_->layout;
-  form_ = panel_->form;
   setBox_ = panel_->setBox;
   filter_ = panel_->filter;
   tree_ = panel_->tree;
@@ -92,7 +116,7 @@ CasePage::CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
 void CasePage::init() {
   auto byId = [](std::function<bool(const std::string &)> test) {
     return [test = std::move(test)](const QTreeWidgetItem *item) {
-      return test(ss(item->data(0, kCaseIdRole).toString()));
+      return test(caseIdOf(item));
     };
   };
   std::vector<CaseFilter::Status> statuses;
@@ -117,25 +141,18 @@ void CasePage::init() {
   QString last = saved::caseSet(mode_);
   if (last == saved::kAcrossSetsId && offersAcrossSets()) {
     setId_ = ss(saved::shownSet(mode_).get());
-    selectAcrossSets();
+    chooseAcrossSets();
     return;
   }
-  selectSet(last.isEmpty() && !library_.sets().empty()
+  chooseSet(last.isEmpty() && !library_.sets().empty()
                 ? library_.sets().front().id
                 : ss(last));
 }
 
-void CasePage::applySort() { panel_->applySort(); }
-
 void CasePage::fillGroupRows() {
   QSignalBlocker block(tree_);
   for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    QTreeWidgetItem *group = tree_->topLevelItem(g);
-    std::vector<std::string> ids;
-    for (int i = 0; i < group->childCount(); ++i) {
-      ids.push_back(ss(group->child(i)->data(0, kCaseIdRole).toString()));
-    }
-    fillGroupRow(group, ids);
+    fillGroupRow(tree_->topLevelItem(g), groupCaseIds(tree_->topLevelItem(g)));
   }
 }
 
@@ -160,7 +177,7 @@ const CaseProgress *CasePage::progressOf(const std::string &caseId) const {
 }
 
 std::string CasePage::cardId(const std::string &caseId) const {
-  return byFamily() ? families_.representative(caseId) : caseId;
+  return byFamily() ? families().representative(caseId) : caseId;
 }
 
 const CaseProgress *CasePage::cardOf(const std::string &caseId) const {
@@ -168,18 +185,18 @@ const CaseProgress *CasePage::cardOf(const std::string &caseId) const {
 }
 
 const CasePage::CaseInfo *CasePage::infoOf(const std::string &caseId) const {
-  auto it = info_.find(caseId);
-  return it == info_.end() ? nullptr : &it->second;
+  auto it = info_->cases.find(caseId);
+  return it == info_->cases.end() ? nullptr : &it->second;
 }
 
 bool CasePage::eligible(const std::string &caseId) const {
   const CaseInfo *i = infoOf(caseId);
-  return i && !i->passing.empty() && steps_.contains(caseId);
+  return i && !i->passing.empty() && info_->steps.contains(caseId);
 }
 
 int CasePage::stepsFrom(const std::string &caseId) const {
-  auto it = steps_.find(caseId);
-  return it == steps_.end() ? 0 : it->second;
+  auto it = info_->steps.find(caseId);
+  return it == info_->steps.end() ? 0 : it->second;
 }
 
 Mirror CasePage::pickWorld(const std::string &caseId) {
@@ -200,69 +217,46 @@ Mirror CasePage::pickWorld(const std::string &caseId) {
   return worlds[pick(rng_)];
 }
 
-std::vector<std::string> CasePage::shownEligible() const {
+std::vector<std::string> CasePage::eligibleRows(
+    const std::function<bool(const QTreeWidgetItem *)> &test) const {
   std::vector<std::string> out;
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    auto *group = tree_->topLevelItem(g);
-    if (group->isHidden()) {
-      continue;
-    }
-    for (int i = 0; i < group->childCount(); ++i) {
-      std::string id = ss(group->child(i)->data(0, kCaseIdRole).toString());
-      if (!group->child(i)->isHidden() && eligible(id)) {
-        out.push_back(id);
-      }
+  for (const QTreeWidgetItem *item : caseItems(tree_)) {
+    if (test(item) && eligible(caseIdOf(item))) {
+      out.push_back(caseIdOf(item));
     }
   }
   return out;
+}
+
+std::vector<std::string> CasePage::shownEligible() const {
+  return eligibleRows([](const QTreeWidgetItem *item) {
+    return !item->parent()->isHidden() && !item->isHidden();
+  });
 }
 
 std::vector<std::string>
 CasePage::groupEligible(const std::string &groupName) const {
-  std::vector<std::string> out;
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    auto *group = tree_->topLevelItem(g);
-    if (group->text(0) != qs(groupName)) {
-      continue;
-    }
-    for (int i = 0; i < group->childCount(); ++i) {
-      std::string id = ss(group->child(i)->data(0, kCaseIdRole).toString());
-      if (eligible(id)) {
-        out.push_back(id);
-      }
-    }
-  }
-  return out;
+  return eligibleRows([&](const QTreeWidgetItem *item) {
+    return item->parent()->text(0) == qs(groupName);
+  });
 }
 
 std::vector<std::string> CasePage::tickedEligible() const {
-  std::vector<std::string> out;
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    auto *group = tree_->topLevelItem(g);
-    for (int i = 0; i < group->childCount(); ++i) {
-      std::string id = ss(group->child(i)->data(0, kCaseIdRole).toString());
-      if (group->child(i)->checkState(0) == Qt::Checked && eligible(id)) {
-        out.push_back(id);
-      }
-    }
-  }
-  return out;
+  return eligibleRows([](const QTreeWidgetItem *item) {
+    return item->checkState(0) == Qt::Checked;
+  });
 }
 
 int CasePage::tickedCount() const {
-  int n = 0;
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    auto *group = tree_->topLevelItem(g);
-    for (int i = 0; i < group->childCount(); ++i) {
-      n += group->child(i)->checkState(0) == Qt::Checked ? 1 : 0;
-    }
-  }
-  return n;
+  return static_cast<int>(
+      std::ranges::count_if(caseItems(tree_), [](const QTreeWidgetItem *item) {
+        return item->checkState(0) == Qt::Checked;
+      }));
 }
 
 int CasePage::excludedCount() const {
   int n = 0;
-  for (const auto &[id, i] : info_) {
+  for (const auto &[id, i] : info_->cases) {
     n += eligible(id) ? 0 : 1;
   }
   return n;
@@ -326,30 +320,26 @@ void CasePage::refreshSetLabels() {
 }
 
 void CasePage::reloadSets() {
+  infoCache_.clear();
   if (!isVisible()) {
     reloadPending_ = true;
     return;
   }
-  infoCache_.clear();
   populateSets();
   std::string id = setId_;
   if (!library_.find(id)) {
     id = library_.sets().empty() ? std::string() : library_.sets().front().id;
   }
-  if (acrossSets_) {
-    setBox_->setCurrentIndex(setBox_->findData(QString(saved::kAcrossSetsId)));
-    setId_ = id;
-    computeInfo();
-    buildTree();
-    setReloaded();
-  } else if (id == setId_ && set()) {
-    setBox_->setCurrentIndex(setBox_->findData(qs(id)));
-    computeInfo();
-    buildTree();
-    setReloaded();
-  } else {
-    selectSet(id);
+  if (!acrossSets_ && (id != setId_ || !set())) {
+    chooseSet(id);
+    return;
   }
+  setBox_->setCurrentIndex(
+      setBox_->findData(acrossSets_ ? QString(saved::kAcrossSetsId) : qs(id)));
+  setId_ = id;
+  computeInfo();
+  buildTree();
+  setReloaded();
 }
 
 void CasePage::pickSet(const QString &setId) {
@@ -357,13 +347,13 @@ void CasePage::pickSet(const QString &setId) {
     return;
   }
   if (setId == saved::kAcrossSetsId) {
-    selectAcrossSets();
+    chooseAcrossSets();
   } else {
-    selectSet(ss(setId));
+    chooseSet(ss(setId));
   }
 }
 
-void CasePage::selectSet(const std::string &id) {
+void CasePage::chooseSet(const std::string &id) {
   acrossSets_ = false;
   if (id != setId_) {
     filter_->clearSearch(); // another set's cases
@@ -379,7 +369,7 @@ void CasePage::selectSet(const std::string &id) {
   startSet();
 }
 
-void CasePage::selectAcrossSets() {
+void CasePage::chooseAcrossSets() {
   acrossSets_ = true;
   if (!library_.find(setId_)) {
     setId_ =
@@ -405,66 +395,63 @@ void CasePage::showSet(const std::string &id) {
 
 void CasePage::showCase(const QString &setId, const QString &caseId) {
   if (acrossSets_ || ss(setId) != setId_) {
-    selectSet(ss(setId));
+    chooseSet(ss(setId));
   }
   selectInTree(ss(caseId));
 }
 
-void CasePage::releaseKeys() {
+void CasePage::startCaseFromList(const std::string &id) {
+  // The keyboard goes back to the cube from the search box or a field.
   filter_->release();
   if (QWidget *focus = QApplication::focusWidget();
       focus && isAncestorOf(focus)) {
     focus->clearFocus();
   }
-}
-
-void CasePage::startCaseFromList(const std::string &id) {
-  releaseKeys();
   startCase(id);
 }
 
-void CasePage::computeInfo(Info info) {
-  if (info == Info::Cached) {
-    if (auto it = infoCache_.find(setId_); it != infoCache_.end()) {
-      info_ = it->second.info;
-      families_ = it->second.families;
-      steps_ = it->second.steps;
+void CasePage::computeInfo(Info how) {
+  AlgSet *s = set();
+  if (auto it = infoCache_.find(setId_); it != infoCache_.end()) {
+    info_ = it->second;
+    if (how == Info::Cached) {
       return;
     }
-  }
-  info_.clear();
-  families_ = {};
-  steps_.clear();
-  AlgSet *s = set();
-  if (!s) {
+  } else if (!s) {
+    info_ = std::make_shared<SetInfo>();
     return;
-  }
-  if (s->families) {
-    families_ = findFamilies(*s);
-    if (adoptFamilyCards(families_, progress())) {
-      saveProgress();
+  } else {
+    auto info = std::make_shared<SetInfo>();
+    if (s->families) {
+      info->families = findFamilies(*s);
     }
-  }
-  for (const auto &g : s->groups) {
-    for (const auto &c : g.cases) {
-      CaseAnalysis a = analyzeCase(*s, g, c);
-      if (!s->reduction && !a.passing.empty()) {
-        steps_[c.id] = 1;
+    for (const auto &g : s->groups) {
+      for (const auto &c : g.cases) {
+        CaseAnalysis a = analyzeCase(*s, g, c);
+        if (!s->reduction && !a.passing.empty()) {
+          info->steps[c.id] = 1;
+        }
+        CubieCube display = a.display;
+        info->cases[c.id] = CaseInfo{std::move(a), display};
       }
-      info_[c.id] = CaseInfo{a.passing, a.display, a.mainAlg, std::move(a)};
     }
+    if (s->reduction) {
+      info->steps = stepsLeft(*s, [&](const CaseGroup &, const AlgCase &c) {
+        return CaseAnalysis(info->cases.at(c.id));
+      });
+    }
+    info_ = infoCache_[setId_] = info;
   }
-  if (s->reduction) {
-    steps_ = stepsLeft(*s);
+  if (s && s->families && adoptFamilyCards(info_->families, progress())) {
+    saveProgress();
   }
-  infoCache_[setId_] = InfoCache{info_, families_, steps_};
 }
 
 void CasePage::buildTree() {
   QSignalBlocker block(tree_);
   std::string current;
   if (auto *item = tree_->currentItem()) {
-    current = ss(item->data(0, kCaseIdRole).toString());
+    current = caseIdOf(item);
   }
   int scroll = tree_->verticalScrollBar()->value();
   QSet<QString> collapsed;
@@ -526,7 +513,7 @@ void CasePage::buildTree() {
     groupItem->setExpanded(!collapsed.contains(qs(g.name)));
   }
   fillGroupRows();
-  applySort();
+  panel_->applySort();
   filter_->apply();
   tree_->verticalScrollBar()->setValue(scroll);
   updateSummary();
@@ -539,20 +526,16 @@ void CasePage::syncRows() {
     const QStringList list = untickedCases(*s);
     unticked = QSet<QString>(list.begin(), list.end());
   }
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    auto *group = tree_->topLevelItem(g);
-    for (int i = 0; i < group->childCount(); ++i) {
-      QTreeWidgetItem *item = group->child(i);
-      QString id = item->data(0, kCaseIdRole).toString();
-      bool on = !unticked.contains(id);
-      if ((item->checkState(0) == Qt::Checked) != on) {
-        item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
-      }
-      fillRow(item, ss(id));
+  for (QTreeWidgetItem *item : caseItems(tree_)) {
+    QString id = item->data(0, kCaseIdRole).toString();
+    bool on = !unticked.contains(id);
+    if ((item->checkState(0) == Qt::Checked) != on) {
+      item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
     }
+    fillRow(item, ss(id));
   }
   fillGroupRows();
-  applySort();
+  panel_->applySort();
   filter_->apply();
   updateSummary();
 }
@@ -572,15 +555,11 @@ void CasePage::ticksEdited() {
 }
 
 QTreeWidgetItem *CasePage::itemFor(const std::string &caseId) const {
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    auto *group = tree_->topLevelItem(g);
-    for (int i = 0; i < group->childCount(); ++i) {
-      if (ss(group->child(i)->data(0, kCaseIdRole).toString()) == caseId) {
-        return group->child(i);
-      }
-    }
-  }
-  return nullptr;
+  const std::vector<QTreeWidgetItem *> items = caseItems(tree_);
+  auto it = std::ranges::find_if(items, [&](const QTreeWidgetItem *item) {
+    return caseIdOf(item) == caseId;
+  });
+  return it == items.end() ? nullptr : *it;
 }
 
 void CasePage::selectInTree(const std::string &caseId) {
@@ -602,11 +581,7 @@ void CasePage::updateRow(const std::string &caseId) {
     QSignalBlocker block(tree_);
     fillRow(item, caseId);
     if (QTreeWidgetItem *group = item->parent()) {
-      std::vector<std::string> ids;
-      for (int i = 0; i < group->childCount(); ++i) {
-        ids.push_back(ss(group->child(i)->data(0, kCaseIdRole).toString()));
-      }
-      fillGroupRow(group, ids);
+      fillGroupRow(group, groupCaseIds(group));
     }
   }
   filter_->apply();
@@ -615,27 +590,20 @@ void CasePage::updateRow(const std::string &caseId) {
 
 void CasePage::updateAllRows() {
   QSignalBlocker block(tree_);
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    auto *group = tree_->topLevelItem(g);
-    for (int i = 0; i < group->childCount(); ++i) {
-      fillRow(group->child(i),
-              ss(group->child(i)->data(0, kCaseIdRole).toString()));
-    }
+  for (QTreeWidgetItem *item : caseItems(tree_)) {
+    fillRow(item, caseIdOf(item));
   }
   fillGroupRows();
-  applySort();
+  panel_->applySort();
   filter_->apply();
   updateSummary();
 }
 
 void CasePage::saveTicks() {
   QStringList ids;
-  for (int g = 0; g < tree_->topLevelItemCount(); ++g) {
-    auto *group = tree_->topLevelItem(g);
-    for (int i = 0; i < group->childCount(); ++i) {
-      if (group->child(i)->checkState(0) != Qt::Checked) {
-        ids << group->child(i)->data(0, kCaseIdRole).toString();
-      }
+  for (const QTreeWidgetItem *item : caseItems(tree_)) {
+    if (item->checkState(0) != Qt::Checked) {
+      ids << item->data(0, kCaseIdRole).toString();
     }
   }
   setUntickedCases(setId_, ids);
@@ -685,7 +653,7 @@ bool CasePage::fillCaseMenu(QMenu &menu, QTreeWidgetItem *item) {
     if (it->data(0, kCaseIdRole).isNull()) {
       for (int i = 0; i < it->childCount(); ++i) {
         if (!it->child(i)->isHidden()) {
-          std::string id = ss(it->child(i)->data(0, kCaseIdRole).toString());
+          std::string id = caseIdOf(it->child(i));
           if (std::find(ids.begin(), ids.end(), id) == ids.end()) {
             ids.push_back(id);
           }
@@ -693,7 +661,7 @@ bool CasePage::fillCaseMenu(QMenu &menu, QTreeWidgetItem *item) {
       }
       return;
     }
-    std::string id = ss(it->data(0, kCaseIdRole).toString());
+    std::string id = caseIdOf(it);
     if (std::find(ids.begin(), ids.end(), id) == ids.end()) {
       ids.push_back(id);
     }

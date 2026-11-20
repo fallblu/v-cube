@@ -182,7 +182,10 @@ std::vector<ViewAlg> algsFor(const AlgSet &set, const CaseGroup &group,
   return out;
 }
 
-std::map<std::string, int> stepsLeft(const AlgSet &set) {
+std::map<std::string, int>
+stepsLeft(const AlgSet &set,
+          const std::function<CaseAnalysis(const CaseGroup &, const AlgCase &)>
+              &analysisOf) {
   struct Entry {
     std::string id;
     std::vector<std::string> next; // per passing alg; empty = finishes
@@ -190,7 +193,7 @@ std::map<std::string, int> stepsLeft(const AlgSet &set) {
   std::vector<Entry> entries;
   for (const auto &g : set.groups) {
     for (const auto &c : g.cases) {
-      CaseAnalysis a = analyzeCase(set, g, c);
+      CaseAnalysis a = analysisOf ? analysisOf(g, c) : analyzeCase(set, g, c);
       Entry e{c.id, {}};
       for (std::size_t i : a.passing) {
         e.next.push_back(a.checks[i].reducesTo);

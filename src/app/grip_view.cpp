@@ -79,11 +79,11 @@ GripView::GripView(QWidget *parent) : QWidget(parent) {
   auto *buttons = new QVBoxLayout;
   reset_ = new QPushButton(tr("Reset picks"), body_);
   reset_->setToolTip(tr("Back to the best plan"));
-  copy_ = new QPushButton(tr("Copy"), body_);
-  copy_->setToolTip(tr("Copy the plan as text"));
+  auto *copy = new QPushButton(tr("Copy"), body_);
+  copy->setToolTip(tr("Copy the plan as text"));
   buttons->addStretch();
   buttons->addWidget(reset_);
-  buttons->addWidget(copy_);
+  buttons->addWidget(copy);
   below->addLayout(buttons);
   bl->addLayout(below);
   layout->addWidget(body_);
@@ -96,7 +96,7 @@ GripView::GripView(QWidget *parent) : QWidget(parent) {
     choice_ = {};
     replan();
   });
-  connect(copy_, &QPushButton::clicked, this, [this] {
+  connect(copy, &QPushButton::clicked, this, [this] {
     if (model_) {
       QApplication::clipboard()->setText(
           text_ + "\n" + qs(gripPlanText(result_.plan, *model_)));

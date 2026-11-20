@@ -350,9 +350,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       new F2LPage(settings_, data_.library, data_.lab, data_.f2l, stack_);
   tslePage_ = new TslePage(settings_, data_.tsle, stack_);
   todayPage_ = new TodayPage(
-      settings_, data_.library, data_.sessions, data_.untimed, data_.moveCounts,
-      data_.lab, data_.eoCross.data, data_.f2l.data, data_.tsle.data,
-      [f2l = f2lPage_] { return f2l->cardPool(); },
+      settings_, data_, [f2l = f2lPage_] { return f2l->cardPool(); },
       [tsle = tslePage_] { return tsle->cardPool(); }, stack_);
   // Indexed by mode, not by the order of a list.
   const std::pair<AppMode::Id, ModePage *> pages[] = {
@@ -371,11 +369,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
   }
-  // Alg Lab says so itself only when it saves a set without Library (it
-  // has no alg editor): with one, Library makes the change and says so.
   connect(libraryPage_, &LibraryPage::setsChanged, this,
-          &MainWindow::librarySetsChanged);
-  connect(algLabPage_, &AlgLabPage::setsChanged, this,
           &MainWindow::librarySetsChanged);
   libraryPage_->setLab(&data_.lab);
   connect(

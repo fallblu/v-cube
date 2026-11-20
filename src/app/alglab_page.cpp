@@ -1,43 +1,10 @@
 #include "app/alglab_page.hpp"
 #include "app/alglab_private.hpp"
-#include "app/ui_state.hpp"
-
-#include "app/alglab_dialogs.hpp"
-#include "app/app_settings.hpp"
-#include "app/grip_view.hpp"
-#include "app/lab_test_panel.hpp"
 #include "app/page_parts.hpp"
 #include "app/text_style.hpp"
 #include "app/ui_text.hpp"
-#include "app/widgets.hpp"
-#include "io/algset_json.hpp"
-#include "train/ergonomics.hpp"
 
-#include <QApplication>
-#include <QCheckBox>
-#include <QClipboard>
-#include <QComboBox>
-#include <QGroupBox>
-#include <QHBoxLayout>
-#include <QHeaderView>
-#include <QInputDialog>
-#include <QKeyEvent>
-#include <QLabel>
-#include <QLineEdit>
-#include <QMenu>
-#include <QMessageBox>
-#include <QPointer>
-#include <QPushButton>
 #include <QScrollArea>
-#include <QSettings>
-#include <QSpinBox>
-#include <QSplitter>
-#include <QTabWidget>
-#include <QTableWidget>
-#include <QToolButton>
-#include <QTreeWidget>
-#include <QVBoxLayout>
-#include <QtConcurrent>
 
 namespace vcube {
 
@@ -324,15 +291,8 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   genMenu->setPopupMode(QToolButton::InstantPopup);
   auto *gm = new QMenu(genMenu);
   gm->addAction(tr("Edit the move set…"), this, [this] {
-    MoveSetDialog d(genSet_, this);
-    if (d.exec() != QDialog::Accepted) {
+    if (!editMoveSet(genSet_)) {
       return;
-    }
-    genSet_ = d.moveSet();
-    if (!d.presetName().isEmpty()) {
-      store_.moveSets().push_back({d.presetName().toStdString(), genSet_});
-      saveStore();
-      fillMoveSetBoxes();
     }
     loading_ = true;
     selectMoveSet(genBox_, genSet_);
@@ -588,7 +548,7 @@ bool AlgLabPage::handleKey(QKeyEvent *e, bool press) {
   // Ctrl+Z takes back an alg added to the set or made its main alg here.
   if (press && e->key() == Qt::Key_Z &&
       (e->modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier) {
-    if (setEdits_ > 0 && setUndo_ && setUndo_()) {
+    if (setEdits_ > 0 && setUndo_()) {
       --setEdits_;
       showCase(case_ ? std::optional(case_->key) : std::nullopt);
       emit message(tr("The set's algs are as they were before"));
@@ -972,11 +932,8 @@ void AlgLabPage::editProfile(ProfileEdit edit) {
     ps[static_cast<std::size_t>(i)] = edited;
   }
   saveStore();
+  fillProfiles();
   loading_ = true;
-  profileBox_->clear();
-  for (const auto &x : ps) {
-    profileBox_->addItem(qs(x.name));
-  }
   profileBox_->setCurrentText(qs(edited.name));
   loading_ = false;
   setScoreProfileName(qs(edited.name));
@@ -997,21 +954,30 @@ void AlgLabPage::fillMoveSetBoxes() {
   loading_ = false;
 }
 
+bool AlgLabPage::editMoveSet(MoveSet &set) {
+  MoveSetDialog d(set, this);
+  if (d.exec() != QDialog::Accepted) {
+    return false;
+  }
+  set = d.moveSet();
+  if (!d.presetName().isEmpty()) {
+    store_.moveSets().push_back({d.presetName().toStdString(), set});
+    saveStore();
+    fillMoveSetBoxes();
+  }
+  return true;
+}
+
 void AlgLabPage::filterChosen() {
   if (loading_) {
     return;
   }
   QString d = filterBox_->currentData().toString();
   if (d == "custom") {
-    MoveSetDialog dialog(filterOn_ ? filterSet_ : MoveSet::allFaces(), this);
-    if (dialog.exec() == QDialog::Accepted) {
-      filterSet_ = dialog.moveSet();
+    MoveSet set = filterOn_ ? filterSet_ : MoveSet::allFaces();
+    if (editMoveSet(set)) {
+      filterSet_ = set;
       filterOn_ = true;
-      if (!dialog.presetName().isEmpty()) {
-        store_.moveSets().push_back(
-            {dialog.presetName().toStdString(), filterSet_});
-        saveStore();
-      }
     }
     fillMoveSetBoxes();
   } else if (d.isEmpty()) {
@@ -1030,15 +996,7 @@ void AlgLabPage::genChosen() {
   }
   QString d = genBox_->currentData().toString();
   if (d == "custom") {
-    MoveSetDialog dialog(genSet_, this);
-    if (dialog.exec() == QDialog::Accepted) {
-      genSet_ = dialog.moveSet();
-      if (!dialog.presetName().isEmpty()) {
-        store_.moveSets().push_back(
-            {dialog.presetName().toStdString(), genSet_});
-        saveStore();
-      }
-    }
+    editMoveSet(genSet_);
     fillMoveSetBoxes();
   } else if (auto s = MoveSet::parse(d.mid(2).toStdString())) {
     genSet_ = *s;

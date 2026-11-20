@@ -301,4 +301,11 @@ void CaseStage::showFamily(const std::vector<FamilyCase> &cases) {
 
 void CaseStage::hideFamily() { familyRow_->setVisible(false); }
 
+void CaseStage::clearCase() {
+  reveal->clear();
+  gradeRow->setVisible(false);
+  hideQuiz();
+  hideFamily();
+}
+
 } // namespace vcube

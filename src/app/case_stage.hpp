@@ -83,6 +83,10 @@ public:
   void showFamily(const std::vector<FamilyCase> &cases);
   void hideFamily();
 
+  // Nothing said about the last case stays: its algs, grade, quiz and
+  // family.
+  void clearCase();
+
 signals:
   void quizAnswered(std::size_t choice);
 
