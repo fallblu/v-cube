@@ -55,6 +55,33 @@ TEST_CASE("reads the spaces and primes of copied text") {
   CHECK(roundTrip("R'2 U2'") == "R2 U2");
 }
 
+TEST_CASE("cleaned alg text has plain spaces and primes and no ends") {
+  // No-break space, zero-width space, byte order mark and ideographic
+  // space: one plain space each.
+  CHECK(cleanAlgText("R\xC2\xA0U") == "R U");
+  CHECK(cleanAlgText("R\xE2\x80\x8BU") == "R U");
+  CHECK(cleanAlgText("R\xEF\xBB\xBFU") == "R U");
+  CHECK(cleanAlgText("R\xE3\x80\x80U") == "R U");
+  // Curly quotes, prime and acute accent: a plain prime.
+  CHECK(cleanAlgText("R\xE2\x80\x99 U\xE2\x80\x98 L\xE2\x80\xB2 D\xC2\xB4") ==
+        "R' U' L' D'");
+  // The ends are trimmed, Unicode spaces too.
+  CHECK(cleanAlgText(" \t\r\nR U\n\r\t ") == "R U");
+  CHECK(cleanAlgText("\xEF\xBB\xBFR U\xC2\xA0") == "R U");
+  CHECK(cleanAlgText(" \t\xC2\xA0\r\n").empty());
+  CHECK(cleanAlgText("").empty());
+  // Spaces inside are kept as typed: labAlgKey(), not this, makes two
+  // spellings of one alg the same.
+  CHECK(cleanAlgText("R  U\xC2\xA0\xC2\xA0R'") == "R  U  R'");
+  // The text still reads as the same moves.
+  const char *raw = "\xEF\xBB\xBF(R\xE2\x80\x99 U\xE2\x80\x8B"
+                    "F)2\xE3\x80\x80"
+                    "D\xC2\xB4 ";
+  REQUIRE(parseAlg(raw));
+  CHECK(parseAlgOrEmpty(cleanAlgText(raw)) == parseAlgOrEmpty(raw));
+  CHECK(cleanAlgText(raw) == "(R' U F)2 D'");
+}
+
 TEST_CASE("reads common ways of writing a repetition") {
   CHECK(roundTrip("(R U R' U')x2") == "R U R' U' R U R' U'");
   CHECK(roundTrip("(R U)*2 F") == "R U R U F");
