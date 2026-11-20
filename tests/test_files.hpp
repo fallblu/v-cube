@@ -1,12 +1,16 @@
 #pragma once
 
 // File helpers shared by the storage tests.
+#include "io/library.hpp"
+
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QString>
 #include <QStringList>
+
+#include <algorithm>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -33,6 +37,19 @@ inline QByteArray readText(const QString &path) {
 // Files in `dir` whose names start with `prefix`.
 inline QStringList filesStarting(const QString &dir, const QString &prefix) {
   return QDir(dir).entryList({prefix + "*"}, QDir::Files);
+}
+
+// The library in `dir`, with the built-in sets, loaded.
+inline AlgLibrary loadedLibrary(const QString &dir) {
+  AlgLibrary lib(dir, kBuiltins);
+  lib.load();
+  return lib;
+}
+
+// How many of the library's errors contain `text`.
+inline auto errorsContaining(const AlgLibrary &lib, const QString &text) {
+  return std::ranges::count_if(
+      lib.errors(), [&text](const QString &e) { return e.contains(text); });
 }
 
 } // namespace vcube::testing
