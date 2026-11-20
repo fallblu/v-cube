@@ -303,8 +303,7 @@ QString EoCrossPage::breakdownHtml() const {
       tr("You") + "</th><th>" + tr("Moves") + "</th><th>" +
       tr("EO Cross then") + "</th><th>" + tr("Lost") + "</th></tr>";
   for (const EoPart &p : b.parts) {
-    Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(p.begin),
-              item().moves.begin() + static_cast<std::ptrdiff_t>(p.end));
+    Alg moves = slice(item().moves, p.begin, p.end);
     QString lost = p.lost <= 0
                        ? coloured(kPassColour, tr("nothing"))
                        : overMarked("+" + QString::number(p.lost), p.lost >= 3);

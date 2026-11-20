@@ -492,8 +492,7 @@ std::optional<Alg> F2LPage::chosenHere(const Alg &chosen) const {
 QString F2LPage::pairLine(std::size_t i, const AnalysisOptions &options) const {
   const F2LSegment &seg = segments_[i];
   const QString name = "<b>" + slotsText(seg.solved) + "</b>";
-  Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
-            item().moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
+  Alg moves = slice(item().moves, seg.begin, seg.end);
   const double cost = solutionCost(moves, options);
   if (seg.solved.size() != 1) {
     return tr("%1 together, cost %2").arg(name, costText(cost));
@@ -802,8 +801,7 @@ QString F2LPage::wholeHtml() const {
   const AnalysisOptions options = analysisOptions();
   for (std::size_t i = 0; i < segments_.size(); ++i) {
     const F2LSegment &seg = segments_[i];
-    Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(seg.begin),
-              item().moves.begin() + static_cast<std::ptrdiff_t>(seg.end));
+    Alg moves = slice(item().moves, seg.begin, seg.end);
     Alg simple = simplify(moves);
     double cost = solutionCost(moves, options);
     QString best, over, pick;

@@ -169,9 +169,7 @@ QString splitsHtml(const std::vector<PracticeSplit> &parts, const Alg &moves,
     const std::int64_t began = first < end ? moveMs[first] : ended;
     const std::int64_t pause = std::max<std::int64_t>(0, began - at);
     const std::int64_t time = std::max<std::int64_t>(0, ended - at);
-    Alg part(moves.begin() + static_cast<std::ptrdiff_t>(from),
-             moves.begin() + static_cast<std::ptrdiff_t>(end));
-    const int htm = htmCount(simplify(part));
+    const int htm = htmCount(simplify(slice(moves, from, end)));
     const std::int64_t turning = ended - began;
     html +=
         QString("<tr><td>%1</td><td align='right'>%2</td><td "

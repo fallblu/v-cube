@@ -173,8 +173,7 @@ bool TslePage::turned() {
     return false; // in the middle of a trigger
   }
   const Alg &moves = item().moves;
-  Alg since(moves.begin() + static_cast<std::ptrdiff_t>(stepBegin_),
-            moves.end());
+  Alg since = slice(moves, stepBegin_, moves.size());
   if (!turnsTheSlot(since)) {
     return false; // only U turns so far
   }
@@ -193,10 +192,8 @@ bool TslePage::turned() {
     // A line on each step as it is done.
     QStringList lines;
     for (const Step &done : steps_) {
-      Alg stepMoves(moves.begin() + static_cast<std::ptrdiff_t>(done.begin),
-                    moves.begin() + static_cast<std::ptrdiff_t>(done.end));
-      lines << "<b>" + algText(simplify(stepMoves)) + "</b> · " +
-                   stepVerdict(done);
+      lines << "<b>" + algText(simplify(slice(moves, done.begin, done.end))) +
+                   "</b> · " + stepVerdict(done);
     }
     setProgress(lines);
   }
@@ -337,8 +334,7 @@ PracticePage::Outcome TslePage::judge() {
     if (i > 0 && steps_[i].before.ocll()) {
       const Step &prev = steps_[i - 1];
       const Alg &moves = item().moves;
-      Alg both(moves.begin() + static_cast<std::ptrdiff_t>(prev.begin),
-               moves.begin() + static_cast<std::ptrdiff_t>(steps_[i].end));
+      Alg both = slice(moves, prev.begin, steps_[i].end);
       o.result.moves -= prev.moves + steps_[i].moves - htmCount(simplify(both));
     }
   }
@@ -448,8 +444,7 @@ QString TslePage::detail() {
           tr("Verdict") + "</th><th align='left'>" + tr("Best then") +
           "</th></tr>";
   for (const Step &step : steps_) {
-    Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(step.begin),
-              item().moves.begin() + static_cast<std::ptrdiff_t>(step.end));
+    Alg moves = slice(item().moves, step.begin, step.end);
     QString bestThen;
     if (step.before.ocll()) {
       if (auto f = s.finish(step.before)) {
