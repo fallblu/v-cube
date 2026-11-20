@@ -1,6 +1,7 @@
 #include "io/alglab_store.hpp"
 
 #include "io/json_values.hpp"
+#include "io/qt_text.hpp"
 
 #include <QJsonArray>
 #include <QRandomGenerator>
@@ -20,47 +21,41 @@ constexpr FileField kAlgLabFields[] = {
 constexpr FileFormat kAlgLabFile{"v-cube.alglab", 2, false, "Alg Lab file",
                                  kAlgLabFields};
 
-QString q(const std::string &s) { return QString::fromStdString(s); }
-QString q(std::string_view s) {
-  return QString::fromUtf8(s.data(), static_cast<qsizetype>(s.size()));
-}
-std::string str(const QJsonValue &v) { return v.toString().toStdString(); }
-
 QJsonObject sessionToJson(const LabSession &s) {
   QJsonObject o;
-  o["id"] = q(s.id);
-  o["name"] = q(s.name);
-  o["cube"] = q(cubeKindId(s.cube));
-  o["order"] = q(labOrderId(s.order));
+  o["id"] = qs(s.id);
+  o["name"] = qs(s.name);
+  o["cube"] = qs(cubeKindId(s.cube));
+  o["order"] = qs(labOrderId(s.order));
   o["reps"] = s.reps;
   o["warmup"] = s.warmup;
   o["trim"] = s.trimPercent;
   o["randomAuf"] = s.randomAuf;
-  QJsonArray entries;
-  for (const auto &e : s.entries) {
-    entries.append(QJsonObject{{"case", q(e.key.text())}, {"alg", q(e.alg)}});
-  }
-  o["entries"] = entries;
+  o["entries"] = jsonArray(s.entries, [](const LabEntry &e) {
+    return QJsonObject{{"case", qs(e.key.text())}, {"alg", qs(e.alg)}};
+  });
   return o;
 }
 
 LabSession sessionFromJson(const QJsonObject &o) {
   LabSession s;
-  s.id = str(o["id"]);
+  s.id = ss(o["id"].toString());
   if (s.id.empty()) {
     s.id = newLabSessionId();
   }
-  s.name = str(o["name"]);
-  s.cube = cubeKindFromId(str(o["cube"])).value_or(CubeKind::Physical);
-  s.order = labOrderFromId(str(o["order"])).value_or(LabOrder::Interleaved);
+  s.name = ss(o["name"].toString());
+  s.cube =
+      cubeKindFromId(ss(o["cube"].toString())).value_or(CubeKind::Physical);
+  s.order =
+      labOrderFromId(ss(o["order"].toString())).value_or(LabOrder::Interleaved);
   s.reps = std::clamp(o["reps"].toInt(12), 1, 1000);
   s.warmup = std::clamp(o["warmup"].toInt(1), 0, 100);
   s.trimPercent = std::clamp(o["trim"].toInt(0), 0, 40);
   s.randomAuf = o["randomAuf"].toBool(false);
   for (const auto &v : o["entries"].toArray()) {
     QJsonObject e = v.toObject();
-    auto key = LabCaseKey::parse(str(e["case"]));
-    std::string alg = str(e["alg"]);
+    auto key = LabCaseKey::parse(ss(e["case"].toString()));
+    std::string alg = ss(e["alg"].toString());
     if (key && !alg.empty()) {
       s.entries.push_back({*key, alg});
     }
@@ -70,39 +65,32 @@ LabSession sessionFromJson(const QJsonObject &o) {
 
 QJsonObject profileToJson(const ErgoProfile &p) {
   QJsonObject o;
-  o["name"] = q(p.name);
+  o["name"] = qs(p.name);
   QJsonObject moves;
   for (const auto &[k, v] : p.moves) {
-    moves[q(k)] = v;
+    moves[qs(k)] = v;
   }
   o["moves"] = moves;
   o["other"] = p.otherMove;
   o["axis"] = p.axisChange;
-  QJsonArray rules;
-  for (const auto &r : p.rules) {
-    rules.append(QJsonObject{
-        {"first", q(r.first)}, {"second", q(r.second)}, {"cost", r.cost}});
-  }
-  o["rules"] = rules;
+  o["rules"] = jsonArray(p.rules, [](const ErgoRule &r) {
+    return QJsonObject{
+        {"first", qs(r.first)}, {"second", qs(r.second)}, {"cost", r.cost}};
+  });
   if (p.grips) {
     const GripModel &g = *p.grips;
-    QJsonArray tricks;
-    for (const auto &t : g.tricks) {
-      QJsonObject j{{"move", q(t.move)},
-                    {"hand", q(handId(t.hand))},
-                    {"finger", q(fingerId(t.finger))},
-                    {"how", q(t.how)},
-                    {"from", q(gripMaskText(t.from))},
+    QJsonArray tricks = jsonArray(g.tricks, [](const GripTrick &t) {
+      QJsonObject j{{"move", qs(t.move)},
+                    {"hand", qs(handId(t.hand))},
+                    {"finger", qs(fingerId(t.finger))},
+                    {"how", qs(t.how)},
+                    {"from", qs(gripMaskText(t.from))},
                     {"turn", t.turn},
                     {"cost", t.cost}};
-      if (t.reset) {
-        j["reset"] = true;
-      }
-      if (!t.on) {
-        j["off"] = true;
-      }
-      tricks.append(j);
-    }
+      setIf(j, "reset", t.reset, true);
+      setIf(j, "off", !t.on, true);
+      return j;
+    });
     o["grips"] = QJsonObject{{"other", g.otherMove},
                              {"regrip", g.regrip},
                              {"hiddenRegrip", g.hiddenRegrip},
@@ -132,10 +120,10 @@ GripModel gripsFromJson(const QJsonObject &o) {
   g.sameFinger = costOr(o["sameFinger"], g.sameFinger);
   for (const auto &v : o["tricks"].toArray()) {
     QJsonObject j = v.toObject();
-    auto hand = handFromId(str(j["hand"]));
-    auto finger = fingerFromId(str(j["finger"]));
-    auto from = gripMaskFromText(str(j["from"]));
-    std::string move = str(j["move"]);
+    auto hand = handFromId(ss(j["hand"].toString()));
+    auto finger = fingerFromId(ss(j["finger"].toString()));
+    auto from = gripMaskFromText(ss(j["from"].toString()));
+    std::string move = ss(j["move"].toString());
     if (!hand || !finger || !from || move.empty()) {
       continue;
     }
@@ -143,7 +131,7 @@ GripModel gripsFromJson(const QJsonObject &o) {
     t.move = move;
     t.hand = *hand;
     t.finger = *finger;
-    t.how = str(j["how"]);
+    t.how = ss(j["how"].toString());
     t.from = *from;
     t.turn = std::clamp(j["turn"].toInt(0), -4, 4);
     t.cost = costOr(j["cost"], 1.0);
@@ -156,12 +144,12 @@ GripModel gripsFromJson(const QJsonObject &o) {
 
 ErgoProfile profileFromJson(const QJsonObject &o) {
   ErgoProfile p;
-  p.name = str(o["name"]);
+  p.name = ss(o["name"].toString());
   QJsonObject moves = o["moves"].toObject();
   for (auto it = moves.begin(); it != moves.end(); ++it) {
     // A cost that can't be used leaves the move at the "other" cost.
     if (it.value().isDouble() && validCost(it.value().toDouble())) {
-      p.moves[it.key().toStdString()] = it.value().toDouble();
+      p.moves[ss(it.key())] = it.value().toDouble();
     }
   }
   p.otherMove = costOr(o["other"], 2.0);
@@ -169,8 +157,8 @@ ErgoProfile profileFromJson(const QJsonObject &o) {
   for (const auto &v : o["rules"].toArray()) {
     QJsonObject r = v.toObject();
     if (r["cost"].isDouble() && validCost(r["cost"].toDouble())) {
-      p.rules.push_back(
-          {str(r["first"]), str(r["second"]), r["cost"].toDouble()});
+      p.rules.push_back({ss(r["first"].toString()), ss(r["second"].toString()),
+                         r["cost"].toDouble()});
     }
   }
   if (o["grips"].isObject()) {
@@ -191,70 +179,38 @@ QJsonObject algLabToJson(const AlgLabData &d) {
   o["format"] = kAlgLabFile.format;
   o["version"] = kAlgLabFile.version;
   o["current"] = static_cast<int>(d.current);
-  QJsonArray sessions;
-  for (const auto &s : d.sessions) {
-    sessions.append(sessionToJson(s));
-  }
-  o["sessions"] = sessions;
-  QJsonArray cases;
-  for (const auto &c : d.cases) {
-    cases.append(QJsonObject{{"id", q(c.id)},
-                             {"name", q(c.name)},
-                             {"setup", q(c.setup)},
-                             {"free", q(c.free)},
-                             {"aufBefore", c.aufBefore},
-                             {"aufAfter", c.aufAfter}});
-  }
-  o["cases"] = cases;
-  QJsonArray candidates;
-  for (const auto &cc : d.candidates) {
-    QJsonArray algs;
-    for (const auto &c : cc.candidates) {
-      algs.append(QJsonObject{{"alg", q(c.alg)},
-                              {"source", q(candidateSourceId(c.source))},
-                              {"added", static_cast<qint64>(c.added)}});
-    }
-    candidates.append(QJsonObject{{"case", q(cc.key.text())}, {"algs", algs}});
-  }
-  o["candidates"] = candidates;
-  QJsonArray attempts;
-  for (const auto &a : d.attempts) {
-    QJsonObject j;
-    j["case"] = q(a.key.text());
-    j["alg"] = q(a.alg);
-    j["cube"] = q(cubeKindId(a.cube));
-    j["time"] = static_cast<qint64>(a.timeMs);
-    if (a.dnf) {
-      j["dnf"] = true;
-    }
-    if (a.deviated) {
-      j["deviated"] = true;
-    }
-    if (a.include) {
-      j["include"] = true;
-    }
-    j["session"] = q(a.session);
-    j["timestamp"] = static_cast<qint64>(a.timestamp);
-    if (!a.scramble.empty()) {
-      j["scramble"] = q(a.scramble);
-    }
-    if (!a.moves.empty()) {
-      j["moves"] = q(a.moves);
-    }
-    attempts.append(j);
-  }
-  o["attempts"] = attempts;
-  QJsonArray profiles;
-  for (const auto &p : d.profiles) {
-    profiles.append(profileToJson(p));
-  }
-  o["profiles"] = profiles;
-  QJsonArray moveSets;
-  for (const auto &m : d.moveSets) {
-    moveSets.append(
-        QJsonObject{{"name", q(m.name)}, {"moves", q(m.set.toString())}});
-  }
-  o["moveSets"] = moveSets;
+  o["sessions"] = jsonArray(d.sessions, sessionToJson);
+  o["cases"] = jsonArray(d.cases, [](const LabCase &c) {
+    return QJsonObject{{"id", qs(c.id)},           {"name", qs(c.name)},
+                       {"setup", qs(c.setup)},     {"free", qs(c.free)},
+                       {"aufBefore", c.aufBefore}, {"aufAfter", c.aufAfter}};
+  });
+  o["candidates"] = jsonArray(d.candidates, [](const CaseCandidates &cc) {
+    QJsonArray algs = jsonArray(cc.candidates, [](const Candidate &c) {
+      return QJsonObject{{"alg", qs(c.alg)},
+                         {"source", qs(candidateSourceId(c.source))},
+                         {"added", static_cast<qint64>(c.added)}};
+    });
+    return QJsonObject{{"case", qs(cc.key.text())}, {"algs", algs}};
+  });
+  o["attempts"] = jsonArray(d.attempts, [](const LabAttempt &a) {
+    QJsonObject j{{"case", qs(a.key.text())},
+                  {"alg", qs(a.alg)},
+                  {"cube", qs(cubeKindId(a.cube))},
+                  {"time", static_cast<qint64>(a.timeMs)},
+                  {"session", qs(a.session)},
+                  {"timestamp", static_cast<qint64>(a.timestamp)}};
+    setIf(j, "dnf", a.dnf, true);
+    setIf(j, "deviated", a.deviated, true);
+    setIf(j, "include", a.include, true);
+    setIf(j, "scramble", !a.scramble.empty(), qs(a.scramble));
+    setIf(j, "moves", !a.moves.empty(), qs(a.moves));
+    return j;
+  });
+  o["profiles"] = jsonArray(d.profiles, profileToJson);
+  o["moveSets"] = jsonArray(d.moveSets, [](const MoveSetPreset &m) {
+    return QJsonObject{{"name", qs(m.name)}, {"moves", qs(m.set.toString())}};
+  });
   return o;
 }
 
@@ -267,10 +223,10 @@ AlgLabData algLabFromJson(const QJsonObject &o) {
   for (const auto &v : o["cases"].toArray()) {
     QJsonObject c = v.toObject();
     LabCase lc;
-    lc.id = str(c["id"]);
-    lc.name = str(c["name"]);
-    lc.setup = str(c["setup"]);
-    lc.free = str(c["free"]);
+    lc.id = ss(c["id"].toString());
+    lc.name = ss(c["name"].toString());
+    lc.setup = ss(c["setup"].toString());
+    lc.free = ss(c["free"].toString());
     lc.aufBefore = c["aufBefore"].toBool(true);
     lc.aufAfter = c["aufAfter"].toBool(true);
     if (!lc.id.empty()) {
@@ -279,7 +235,7 @@ AlgLabData algLabFromJson(const QJsonObject &o) {
   }
   for (const auto &v : o["candidates"].toArray()) {
     QJsonObject c = v.toObject();
-    auto key = LabCaseKey::parse(str(c["case"]));
+    auto key = LabCaseKey::parse(ss(c["case"].toString()));
     if (!key) {
       continue;
     }
@@ -287,8 +243,8 @@ AlgLabData algLabFromJson(const QJsonObject &o) {
     for (const auto &a : c["algs"].toArray()) {
       QJsonObject j = a.toObject();
       Candidate cand;
-      cand.alg = str(j["alg"]);
-      cand.source = candidateSourceFromId(str(j["source"]))
+      cand.alg = ss(j["alg"].toString());
+      cand.source = candidateSourceFromId(ss(j["source"].toString()))
                         .value_or(CandidateSource::Typed);
       cand.added = jsonInt64(j["added"]);
       if (!cand.alg.empty()) {
@@ -299,22 +255,23 @@ AlgLabData algLabFromJson(const QJsonObject &o) {
   }
   for (const auto &v : o["attempts"].toArray()) {
     QJsonObject j = v.toObject();
-    auto key = LabCaseKey::parse(str(j["case"]));
+    auto key = LabCaseKey::parse(ss(j["case"].toString()));
     if (!key) {
       continue;
     }
     LabAttempt a;
     a.key = *key;
-    a.alg = str(j["alg"]);
-    a.cube = cubeKindFromId(str(j["cube"])).value_or(CubeKind::Physical);
+    a.alg = ss(j["alg"].toString());
+    a.cube =
+        cubeKindFromId(ss(j["cube"].toString())).value_or(CubeKind::Physical);
     a.timeMs = jsonInt64(j["time"]);
     a.dnf = j["dnf"].toBool(false);
     a.deviated = j["deviated"].toBool(false);
     a.include = j["include"].toBool(false);
-    a.session = str(j["session"]);
+    a.session = ss(j["session"].toString());
     a.timestamp = jsonInt64(j["timestamp"]);
-    a.scramble = str(j["scramble"]);
-    a.moves = str(j["moves"]);
+    a.scramble = ss(j["scramble"].toString());
+    a.moves = ss(j["moves"].toString());
     d.attempts.push_back(std::move(a));
   }
   if (o.contains("profiles")) {
@@ -334,9 +291,9 @@ AlgLabData algLabFromJson(const QJsonObject &o) {
   }
   for (const auto &v : o["moveSets"].toArray()) {
     QJsonObject m = v.toObject();
-    auto set = MoveSet::parse(str(m["moves"]));
+    auto set = MoveSet::parse(ss(m["moves"].toString()));
     if (set) {
-      d.moveSets.push_back({str(m["name"]), *set});
+      d.moveSets.push_back({ss(m["name"].toString()), *set});
     }
   }
   return d;

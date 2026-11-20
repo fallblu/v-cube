@@ -25,6 +25,16 @@ QString kept(const QString &path) {
              : tr("It was kept as %1.").arg(QDir::toNativeSeparators(path));
 }
 
+// Reads `store`. A file that can't be read is told in `warnings` with
+// `message`, whose %1 is the reason, and what became of the file.
+void loadStore(FileStore &store, const QString &message,
+               QStringList &warnings) {
+  QString error;
+  if (!store.load(&error)) {
+    warnings << message.arg(error) + " " + kept(store.setAsidePath());
+  }
+}
+
 // Reads a practice mode's file, `name` in the data folder. What the mode
 // kept before it had its tabs is dropped first (TSLE's OCLL algs are
 // carried over, and saved at once: nothing else may save before the app
@@ -33,16 +43,14 @@ QString kept(const QString &path) {
 void loadPractice(PracticeStore &store, const QString &name,
                   QStringList &warnings) {
   const QJsonObject old = removeOldPracticeFile(store.path());
-  QString error;
-  if (!store.load(&error)) {
-    warnings << tr("Could not read %1 (%2), so the mode starts afresh.")
-                        .arg(name, error) +
-                    " " + kept(store.setAsidePath());
-  }
+  loadStore(store,
+            tr("Could not read %1 (%2), so the mode starts afresh.").arg(name),
+            warnings);
   bool carried = false;
   for (const auto &[key, value] : oldOcllNotes(old)) {
     carried |= store.data.notes.emplace(key, value).second;
   }
+  QString error;
   if (carried && !store.save(&error)) {
     warnings << tr("Could not save the OCLL algs carried over to %1: %2")
                     .arg(name, error);
@@ -85,31 +93,22 @@ AppData::LoadReport AppData::load() {
   moveSaveTemporaries(dataDir_, QDateTime::currentDateTime());
   report.backupError = backUpIfNewDay().value_or(QString());
   library.load();
-  QString error;
-  if (!sessions.load(&error)) {
-    report.warnings << tr("Could not read your timer sessions (%1), so the "
-                          "timer starts with an empty session.")
-                               .arg(error) +
-                           " " + kept(sessions.setAsidePath());
-  }
-  if (!untimed.load(&error)) {
-    report.warnings << tr("Could not read your untimed solves (%1), so "
-                          "Untimed starts with an empty session.")
-                               .arg(error) +
-                           " " + kept(untimed.setAsidePath());
-  }
-  if (!moveCounts.load(&error)) {
-    report.warnings << tr("Could not read your move counts (%1), so Move "
-                          "Count starts with the default sessions.")
-                               .arg(error) +
-                           " " + kept(moveCounts.setAsidePath());
-  }
-  if (!lab.load(&error)) {
-    report.warnings << tr("Could not read your Alg Lab data (%1), so Alg Lab "
-                          "starts afresh.")
-                               .arg(error) +
-                           " " + kept(lab.setAsidePath());
-  }
+  loadStore(sessions,
+            tr("Could not read your timer sessions (%1), so the timer starts "
+               "with an empty session."),
+            report.warnings);
+  loadStore(untimed,
+            tr("Could not read your untimed solves (%1), so Untimed starts "
+               "with an empty session."),
+            report.warnings);
+  loadStore(moveCounts,
+            tr("Could not read your move counts (%1), so Move Count starts "
+               "with the default sessions."),
+            report.warnings);
+  loadStore(lab,
+            tr("Could not read your Alg Lab data (%1), so Alg Lab starts "
+               "afresh."),
+            report.warnings);
   loadPractice(eoCross, "eocross.json", report.warnings);
   loadPractice(f2l, "f2l.json", report.warnings);
   loadPractice(tsle, "tsle.json", report.warnings);

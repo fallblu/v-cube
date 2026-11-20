@@ -46,106 +46,63 @@ namespace {
 QJsonObject attemptToJson(const MoveCountAttempt &a) {
   QJsonObject o{{"scramble", qs(a.scramble)},
                 {"timestamp", static_cast<double>(a.timestamp)}};
-  if (a.counted) {
-    o["moves"] = a.moves;
-  }
-  if (a.dnf) {
-    o["dnf"] = true;
-  }
-  if (!a.comment.empty()) {
-    o["comment"] = qs(a.comment);
-  }
-  if (!a.solution.empty()) {
-    o["solution"] = qs(a.solution);
-  }
+  setIf(o, "moves", a.counted, a.moves);
+  setIf(o, "dnf", a.dnf, true);
+  setIf(o, "comment", !a.comment.empty(), qs(a.comment));
+  setIf(o, "solution", !a.solution.empty(), qs(a.solution));
   return o;
-}
-
-// The file, with each session's attempts from `attemptsJson`.
-template <typename AttemptsJson>
-QJsonObject moveCountsJson(const std::vector<MoveCountSession> &sessions,
-                           std::size_t current, SolveLog mode,
-                           AttemptsJson attemptsJson) {
-  QJsonArray arr;
-  for (const auto &s : sessions) {
-    QJsonObject so{{"name", qs(s.name)},
-                   {"scrambleType", qs(s.scrambleType)},
-                   {"cube", qs(std::string(cubeKindId(s.cube)))},
-                   {"attempts", attemptsJson(s)}};
-    if (mode == SolveLog::MoveCount) {
-      so["step"] = qs(std::string(stepId(s.step)));
-    }
-    arr.append(so);
-  }
-  return QJsonObject{{"format", moveCountFormat(mode).format},
-                     {"version", 1},
-                     {"current", static_cast<int>(current)},
-                     {"sessions", arr}};
 }
 
 } // namespace
 
 QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,
-                             std::size_t current, SolveLog mode) {
-  return moveCountsJson(sessions, current, mode, [](const MoveCountSession &s) {
-    QJsonArray attempts;
-    for (const auto &a : s.attempts) {
-      attempts.append(attemptToJson(a));
-    }
-    return attempts;
-  });
+                             std::size_t current, SolveLog mode,
+                             ItemJsonCache<MoveCountAttempt> *cache) {
+  ItemJsonCache<MoveCountAttempt> fresh;
+  ItemJsonCache<MoveCountAttempt> &attempts = cache ? *cache : fresh;
+  attempts.trim(sessions.size());
+  std::size_t i = 0;
+  return sessionListJson(
+      moveCountFormat(mode).format, sessions, current,
+      [&](const MoveCountSession &s, QJsonObject &so) {
+        so["attempts"] = attempts.array(i++, s.attempts, attemptToJson);
+        setIf(so, "step", mode == SolveLog::MoveCount, qs(stepId(s.step)));
+      });
 }
 
 std::vector<MoveCountSession>
 moveCountsFromJson(const QJsonObject &o, std::size_t *current, SolveLog mode) {
-  std::vector<MoveCountSession> out;
-  for (const auto &v : o.value("sessions").toArray()) {
-    QJsonObject so = v.toObject();
-    MoveCountSession s;
-    s.name = ss(so.value("name").toString("Session"));
-    s.scrambleType = ss(so.value("scrambleType").toString("333"));
-    if (mode == SolveLog::MoveCount &&
-        !isMoveCountScrambleType(s.scrambleType)) {
-      s.scrambleType = "333";
-    }
-    s.cube = cubeKindFromId(ss(so.value("cube").toString()))
-                 .value_or(CubeKind::Physical);
-    if (auto step = stepFromId(ss(so.value("step").toString()))) {
-      s.step = *step;
-    } else if (auto named = stepFromName(s.name)) {
-      s.step = *named;
-    } else {
-      s.step =
-          s.scrambleType == "eocross" ? SolveStep::ZZF2L : SolveStep::EOCross;
-    }
-    for (const auto &av : so.value("attempts").toArray()) {
-      QJsonObject ao = av.toObject();
-      MoveCountAttempt a;
-      a.counted = ao.contains("moves");
-      a.moves = std::clamp(ao.value("moves").toInt(), 0, kMaxMoveCount);
-      a.dnf = ao.value("dnf").toBool(false);
-      a.scramble = ss(ao.value("scramble").toString());
-      a.comment = ss(ao.value("comment").toString());
-      a.solution = ss(ao.value("solution").toString());
-      a.timestamp = jsonInt64(ao.value("timestamp"));
-      s.attempts.push_back(std::move(a));
-    }
-    out.push_back(std::move(s));
-  }
-  if (current) {
-    *current =
-        static_cast<std::size_t>(std::max(0, o.value("current").toInt()));
-  }
-  return out;
+  return sessionListFromJson<MoveCountSession>(
+      o, current, [mode](const QJsonObject &so, MoveCountSession &s) {
+        if (mode == SolveLog::MoveCount &&
+            !isMoveCountScrambleType(s.scrambleType)) {
+          s.scrambleType = "333";
+        }
+        if (auto step = stepFromId(ss(so.value("step").toString()))) {
+          s.step = *step;
+        } else if (auto named = stepFromName(s.name)) {
+          s.step = *named;
+        } else {
+          s.step = s.scrambleType == "eocross" ? SolveStep::ZZF2L
+                                               : SolveStep::EOCross;
+        }
+        for (const auto &av : so.value("attempts").toArray()) {
+          QJsonObject ao = av.toObject();
+          MoveCountAttempt a;
+          a.counted = ao.contains("moves");
+          a.moves = std::clamp(ao.value("moves").toInt(), 0, kMaxMoveCount);
+          a.dnf = ao.value("dnf").toBool(false);
+          a.scramble = ss(ao.value("scramble").toString());
+          a.comment = ss(ao.value("comment").toString());
+          a.solution = ss(ao.value("solution").toString());
+          a.timestamp = jsonInt64(ao.value("timestamp"));
+          s.attempts.push_back(std::move(a));
+        }
+      });
 }
 
 QJsonObject MoveCountStore::toJson() const {
-  cache_.trim(sessions_.size());
-  std::size_t i = 0;
-  return moveCountsJson(sessions_, current_, mode_,
-                        [&](const MoveCountSession &s) {
-                          return cache_.array(i++, s.attempts, attemptToJson);
-                        });
+  return moveCountsToJson(sessions_, current_, mode_, &cache_);
 }
 
 void MoveCountStore::fromJson(const QJsonObject &o) {

@@ -5,13 +5,12 @@
 class QCheckBox;
 class QComboBox;
 class QFormLayout;
-class QLabel;
-class QSettings;
 class QSpinBox;
 
 namespace vcube {
 
-// Drill mode's own preferences, kept in QSettings under "drill/".
+// Drill mode's own preferences, kept in QSettings under "drill/" (see
+// AppSettings).
 struct DrillSettings {
   // Virtual cube: the attempt ends as soon as the cube shows the step
   // done, without Space.
@@ -35,9 +34,6 @@ struct DrillSettings {
   // The cases the "Weakest" choice drills.
   int weakestCount = 5;
 
-  void load(const QSettings &q);
-  void save(QSettings &q) const;
-
   friend bool operator==(const DrillSettings &,
                          const DrillSettings &) = default;
 };
@@ -46,12 +42,12 @@ struct DrillSettings {
 class DrillSettingsTab : public QWidget {
   Q_OBJECT
 public:
-  DrillSettingsTab(const DrillSettings &settings, QWidget *parent = nullptr);
+  // The rows about starting and stopping the timer go in `timing` from
+  // `row` on, where the same choices of the other modes are.
+  DrillSettingsTab(const DrillSettings &settings, QFormLayout *timing, int row,
+                   QWidget *parent = nullptr);
   DrillSettings result() const;
   QFormLayout *form() const { return form_; }
-  // Moves the rows about starting and stopping the timer into `to` at
-  // `row`, where the same choices of the other modes are.
-  void moveTimingRows(QFormLayout *to, int row);
 
 private:
   DrillSettings settings_;

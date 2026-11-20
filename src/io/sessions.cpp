@@ -32,17 +32,15 @@ QJsonArray solveToJson(const Solve &s) {
   if (!s.moves.empty()) {
     a.append(qs(s.moves));
     if (!s.moveTimes.empty()) {
-      QJsonArray times;
-      for (std::int64_t t : s.moveTimes) {
-        times.append(static_cast<double>(t));
-      }
-      a.append(times);
+      a.append(jsonArray(
+          s.moveTimes, [](std::int64_t t) { return static_cast<double>(t); }));
     }
   }
   return a;
 }
 
-Solve solveFromJson(const QJsonArray &a) {
+Solve solveFromJson(const QJsonValue &v) {
+  const QJsonArray a = v.toArray();
   Solve s;
   s.timeMs = jsonInt64(a.at(0));
   s.penalty = penaltyFromCode(a.at(1).toInt());
@@ -50,27 +48,8 @@ Solve solveFromJson(const QJsonArray &a) {
   s.comment = ss(a.at(3).toString());
   s.timestamp = jsonInt64(a.at(4));
   s.moves = ss(a.at(5).toString());
-  for (const auto &t : a.at(6).toArray()) {
-    s.moveTimes.push_back(jsonInt64(t));
-  }
+  s.moveTimes = vectorOf(a.at(6), jsonInt64);
   return s;
-}
-
-// The file, with each session's solves from `solvesJson`.
-template <typename SolvesJson>
-QJsonObject sessionsJson(const std::vector<Session> &sessions,
-                         std::size_t current, SolvesJson solvesJson) {
-  QJsonArray arr;
-  for (const auto &s : sessions) {
-    arr.append(QJsonObject{{"name", qs(s.name)},
-                           {"scrambleType", qs(s.scrambleType)},
-                           {"cube", qs(std::string(cubeKindId(s.cube)))},
-                           {"solves", solvesJson(s)}});
-  }
-  return QJsonObject{{"format", kSessionsFile.format},
-                     {"version", 1},
-                     {"current", static_cast<int>(current)},
-                     {"sessions", arr}};
 }
 
 } // namespace
@@ -79,11 +58,7 @@ SessionStore::SessionStore(QString path)
     : SessionFileStore(std::move(path), kSessionsFile) {}
 
 QJsonObject SessionStore::toJson() const {
-  cache_.trim(sessions_.size());
-  std::size_t i = 0;
-  return sessionsJson(sessions_, current_, [&](const Session &s) {
-    return cache_.array(i++, s.solves, solveToJson);
-  });
+  return sessionsToJson(sessions_, current_, &cache_);
 }
 
 void SessionStore::fromJson(const QJsonObject &o) {
@@ -93,36 +68,24 @@ void SessionStore::fromJson(const QJsonObject &o) {
 }
 
 QJsonObject sessionsToJson(const std::vector<Session> &sessions,
-                           std::size_t current) {
-  return sessionsJson(sessions, current, [](const Session &s) {
-    QJsonArray solves;
-    for (const auto &solve : s.solves) {
-      solves.append(solveToJson(solve));
-    }
-    return solves;
-  });
+                           std::size_t current, ItemJsonCache<Solve> *cache) {
+  ItemJsonCache<Solve> fresh;
+  ItemJsonCache<Solve> &solves = cache ? *cache : fresh;
+  solves.trim(sessions.size());
+  std::size_t i = 0;
+  return sessionListJson(kSessionsFile.format, sessions, current,
+                         [&](const Session &s, QJsonObject &so) {
+                           so["solves"] =
+                               solves.array(i++, s.solves, solveToJson);
+                         });
 }
 
 std::vector<Session> sessionsFromJson(const QJsonObject &o,
                                       std::size_t *current) {
-  std::vector<Session> out;
-  for (const auto &v : o.value("sessions").toArray()) {
-    QJsonObject so = v.toObject();
-    Session s;
-    s.name = ss(so.value("name").toString("Session"));
-    s.scrambleType = ss(so.value("scrambleType").toString("333"));
-    s.cube = cubeKindFromId(ss(so.value("cube").toString()))
-                 .value_or(CubeKind::Physical);
-    for (const auto &sv : so.value("solves").toArray()) {
-      s.solves.push_back(solveFromJson(sv.toArray()));
-    }
-    out.push_back(std::move(s));
-  }
-  if (current) {
-    *current =
-        static_cast<std::size_t>(std::max(0, o.value("current").toInt()));
-  }
-  return out;
+  return sessionListFromJson<Session>(
+      o, current, [](const QJsonObject &so, Session &s) {
+        s.solves = vectorOf(so.value("solves"), solveFromJson);
+      });
 }
 
 namespace {
