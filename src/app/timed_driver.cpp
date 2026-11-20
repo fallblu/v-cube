@@ -139,6 +139,27 @@ void TimedDriver::cancel(const QString &why) {
   host_.timedCancelled(why);
 }
 
+bool TimedDriver::leave(OnLeave on, const QString &why) {
+  if (!flow_.leave()) {
+    return false;
+  }
+  if (on == OnLeave::Cancel) {
+    cancel(why);
+  } else {
+    flow_.cancelSolve();
+  }
+  return true;
+}
+
+bool TimedDriver::windowLost() {
+  flow_.windowLost();
+  if (!flow_.loseKeyboard()) { // Space's release would never arrive
+    return false;
+  }
+  display_->showTimer(flow_.timer(), monotonicMs()); // as shown before
+  return true;
+}
+
 bool TimedDriver::tick(std::int64_t now, bool keyboardTaken) {
   // A popup or dialog took the keyboard: Space's release won't come.
   if (flow_.holding() && keyboardTaken) {

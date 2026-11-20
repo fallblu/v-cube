@@ -335,10 +335,10 @@ void DrillPage::activated() {
 void DrillPage::deactivated() {
   CasePage::deactivated();
   cubeView_->finishAnimations();
-  if (flow_.leave()) {
-    driver_.cancel(tr("The solve was left and cancelled; nothing was "
-                      "recorded."));
-  } else if (flow_.phase() == Phase::Waiting) {
+  const bool cancelled = driver_.leave(
+      TimedDriver::OnLeave::Cancel,
+      tr("The solve was left and cancelled; nothing was recorded."));
+  if (!cancelled && flow_.phase() == Phase::Waiting) {
     display_->showTime(0);
     showStatus();
   }
@@ -346,9 +346,7 @@ void DrillPage::deactivated() {
 }
 
 void DrillPage::windowDeactivated() {
-  flow_.windowLost();
-  if (flow_.loseKeyboard()) { // Space's release would never arrive
-    display_->showTimer(flow_.timer(), monotonicMs()); // as shown before
+  if (driver_.windowLost()) {
     updateControls();
   }
 }

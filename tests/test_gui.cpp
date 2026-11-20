@@ -454,6 +454,7 @@ private slots:
   void algLabFilterKeepsTheCaseShown();
   void algLabSearchAddsRowsAsItFindsThem();
   void untimedSpaceHoldRunsOnThePageClock();
+  void timedDriverLeavesAndLosesTheKeyboard();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3465,6 +3466,87 @@ void GuiTest::untimedSpaceHoldRunsOnThePageClock() {
   QVERIFY(!untimed->ticking());
   QTest::keyClick(window_.get(), Qt::Key_Escape);
   QVERIFY(!untimed->isBusy());
+}
+
+// Leaving the page calls a running solve off through the host (Drill) or
+// silently (the practice Timed tabs); the window losing the keyboard lets
+// go of a hold of Space.
+void GuiTest::timedDriverLeavesAndLosesTheKeyboard() {
+  struct Host : TimedHost {
+    QStringList calls;
+    void timedNext(bool) override {}
+    void timedRetry() override {}
+    void timedResetCube() override { calls << "reset"; }
+    void timedRotate(Move) override {}
+    void timedStarted(std::int64_t) override {}
+    std::optional<DrillFlow::Turn> timedTurn(Move, std::int64_t) override {
+      return DrillFlow::Turn::OffUdFace;
+    }
+    bool timedStepDone() override { return false; }
+    void timedFinish(std::int64_t, DrillFlow::Result) override {}
+    void timedPractise(bool) override {}
+    void timedToggleWrong() override {}
+    void timedDelete() override {}
+    void timedFinishAnimations() override {}
+    void timedShowKeys() override {}
+    void timedSay(const QString &) override {}
+    void timedCancelled(const QString &why) override {
+      calls << "cancelled " + why;
+    }
+  } host;
+  DrillSettings drill;
+  TimeDisplay display;
+  TimedDriver driver(host, drill);
+  driver.setDisplay(&display);
+  DrillFlow::Config config;
+  config.virtualCube = true;
+  config.tapToArm = true;
+  driver.flow().setConfig(config);
+  auto key = [](TrainKey k, bool press = true) {
+    TrainKeyEvent e;
+    e.key = k;
+    e.press = press;
+    return e;
+  };
+  auto faceTurn = [] {
+    TrainKeyEvent e;
+    e.move = Move{MoveType::R, 1};
+    return e;
+  };
+  std::int64_t now = 1000;
+  auto run = [&] {
+    driver.flow().setUp(now);
+    driver.key(key(TrainKey::Space), now, Scramble::Shown);
+    driver.key(key(TrainKey::Space, false), now, Scramble::Shown);
+    driver.key(faceTurn(), now += 100, Scramble::Shown);
+    host.calls.clear();
+    return driver.flow().phase() == DrillFlow::Phase::Running;
+  };
+
+  // Through the host: the cube set up again, and why.
+  QVERIFY(run());
+  QVERIFY(driver.leave(TimedDriver::OnLeave::Cancel, "left"));
+  QCOMPARE(host.calls, QStringList({"reset", "cancelled left"}));
+  QVERIFY(driver.flow().phase() == DrillFlow::Phase::Waiting);
+  // Silently: nothing asked of the host.
+  QVERIFY(run());
+  QVERIFY(driver.leave(TimedDriver::OnLeave::Silently));
+  QCOMPARE(host.calls, QStringList{});
+  QVERIFY(driver.flow().phase() == DrillFlow::Phase::Waiting);
+  // No solve running: nothing to call off.
+  QVERIFY(!driver.leave(TimedDriver::OnLeave::Cancel, "left"));
+  QCOMPARE(host.calls, QStringList{});
+
+  // A hold of Space let go of when the window loses the keyboard.
+  config.tapToArm = false;
+  driver.flow().setConfig(config);
+  driver.flow().setUp(now);
+  driver.key(key(TrainKey::Space), now, Scramble::Shown);
+  QVERIFY(driver.flow().holding());
+  QVERIFY(driver.windowLost());
+  QVERIFY(!driver.flow().holding());
+  QVERIFY(!driver.windowLost());
+  QCOMPARE(host.calls, QStringList{});
 }
 
 void GuiTest::cleanupTestCase() {

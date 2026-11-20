@@ -88,6 +88,17 @@ public:
            Scramble scramble);
   // The solve is called off and nothing recorded; `why` is said.
   void cancel(const QString &why);
+  // What leaving the page does to a running solve: cancel() it through the
+  // host, saying `why`, for a page that keeps the case to come back to
+  // (Drill); or call it off silently, for a page that drops the case and
+  // starts a new one on its return (the practice modes' Timed tabs).
+  enum class OnLeave { Cancel, Silently };
+  // The page was left: anything under way is called off. True if a
+  // running solve was.
+  bool leave(OnLeave on, const QString &why = {});
+  // The window lost the keyboard: the attempt has no recognition time,
+  // and a hold of Space is called off (true), showing what it replaced.
+  bool windowLost();
   // The timer's tick at `now`; with `keyboardTaken` (a popup or dialog
   // took the keyboard, see ModePage::keyboardTaken()) a hold of Space is
   // called off, and true is returned.

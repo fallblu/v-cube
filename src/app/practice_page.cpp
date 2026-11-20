@@ -316,9 +316,7 @@ void PracticePage::deactivated() {
   updateTick();
   cubeView_->finishAnimations();
   if (tab_ == Tab::Timed) {
-    if (flow_.leave()) {
-      flow_.cancelSolve();
-    }
+    driver_.leave(TimedDriver::OnLeave::Silently);
     flow_.noCase();
     item_ = {};
   }
@@ -328,8 +326,7 @@ void PracticePage::deactivated() {
 }
 
 void PracticePage::windowDeactivated() {
-  if (tab_ == Tab::Timed && flow_.loseKeyboard()) {
-    display_->showTimer(flow_.timer(), monotonicMs());
+  if (tab_ == Tab::Timed && driver_.windowLost()) {
     updateTick();
   }
 }
