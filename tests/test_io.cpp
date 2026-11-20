@@ -622,7 +622,9 @@ TEST_CASE("restoring a built-in keeps progress its set left behind") {
 }
 
 TEST_CASE("removing an earlier session keeps the current one current") {
-  SessionStore store(QTemporaryDir().filePath("sessions.json"));
+  QTemporaryDir tmp;
+  REQUIRE(tmp.isValid());
+  SessionStore store(tmp.filePath("sessions.json"));
   store.sessions()[0].name = "a";
   store.addSession("b");
   store.addSession("c");
