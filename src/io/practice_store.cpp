@@ -19,30 +19,14 @@ namespace {
 
 QJsonObject tryToJson(const PracticeTry &t) {
   QJsonObject o = {{"timestamp", static_cast<double>(t.timestamp)}};
-  if (t.ms != 0) {
-    o["ms"] = static_cast<double>(t.ms);
-  }
-  if (t.moves != 0) {
-    o["moves"] = t.moves;
-  }
-  if (t.best != 0) {
-    o["best"] = t.best;
-  }
-  if (t.extra >= 0.0) {
-    o["extra"] = t.extra;
-  }
-  if (t.dnf) {
-    o["dnf"] = true;
-  }
-  if (t.hint) {
-    o["hint"] = true;
-  }
-  if (t.inspectMs != 0) {
-    o["inspect"] = static_cast<double>(t.inspectMs);
-  }
-  if (t.over) {
-    o["over"] = true;
-  }
+  setIf(o, "ms", t.ms != 0, static_cast<double>(t.ms));
+  setIf(o, "moves", t.moves != 0, t.moves);
+  setIf(o, "best", t.best != 0, t.best);
+  setIf(o, "extra", t.extra >= 0.0, t.extra);
+  setIf(o, "dnf", t.dnf, true);
+  setIf(o, "hint", t.hint, true);
+  setIf(o, "inspect", t.inspectMs != 0, static_cast<double>(t.inspectMs));
+  setIf(o, "over", t.over, true);
   return o;
 }
 
@@ -64,11 +48,7 @@ PracticeTry tryFromJson(const QJsonObject &o) {
 QJsonObject triesToJson(const PracticeTries &tries) {
   QJsonObject out;
   for (const auto &[key, list] : tries) {
-    QJsonArray array;
-    for (const PracticeTry &t : list) {
-      array.append(tryToJson(t));
-    }
-    out[qs(key)] = array;
+    out[qs(key)] = jsonArray(list, tryToJson);
   }
   return out;
 }
@@ -82,46 +62,35 @@ QJsonObject practiceToJson(const PracticeData &data) {
   }
   QJsonObject choices;
   for (const auto &[key, algs] : data.choices) {
-    QJsonArray list;
-    for (const std::string &alg : algs) {
-      list.append(qs(alg));
-    }
-    choices[qs(key)] = list;
+    choices[qs(key)] = jsonArray(algs, qs);
   }
   QJsonObject o = {
       {"format", kPracticeFile.format},      {"version", kPracticeFile.version},
       {"cards", progressToJson(data.cards)}, {"learn", triesToJson(data.learn)},
       {"timed", triesToJson(data.timed)},    {"notes", notes}};
-  if (!data.inspection.empty()) {
-    o["inspection"] = triesToJson(data.inspection);
-  }
-  if (!choices.isEmpty()) {
-    o["choices"] = choices;
-  }
+  setIf(o, "inspection", !data.inspection.empty(),
+        triesToJson(data.inspection));
+  setIf(o, "choices", !choices.isEmpty(), choices);
   return o;
 }
 
 PracticeData practiceFromJson(const QJsonObject &o) {
   PracticeData data;
   data.cards = progressFromJson(o.value("cards").toObject());
-  const QJsonObject learn = o.value("learn").toObject();
-  for (auto it = learn.begin(); it != learn.end(); ++it) {
-    for (const QJsonValue &v : it.value().toArray()) {
-      data.addLearn(ss(it.key()), tryFromJson(v.toObject()));
-    }
-  }
-  const QJsonObject timed = o.value("timed").toObject();
-  for (auto it = timed.begin(); it != timed.end(); ++it) {
-    for (const QJsonValue &v : it.value().toArray()) {
-      data.addTimed(ss(it.key()), tryFromJson(v.toObject()));
-    }
-  }
-  const QJsonObject inspection = o.value("inspection").toObject();
-  for (auto it = inspection.begin(); it != inspection.end(); ++it) {
-    for (const QJsonValue &v : it.value().toArray()) {
-      data.addInspection(ss(it.key()), tryFromJson(v.toObject()));
-    }
-  }
+  // Each list of tries under `key`, by its group or key, with `add`.
+  auto readTries =
+      [&](const char *key,
+          void (PracticeData::*add)(const std::string &, const PracticeTry &)) {
+        const QJsonObject lists = o.value(key).toObject();
+        for (auto it = lists.begin(); it != lists.end(); ++it) {
+          for (const QJsonValue &v : it.value().toArray()) {
+            (data.*add)(ss(it.key()), tryFromJson(v.toObject()));
+          }
+        }
+      };
+  readTries("learn", &PracticeData::addLearn);
+  readTries("timed", &PracticeData::addTimed);
+  readTries("inspection", &PracticeData::addInspection);
   const QJsonObject choices = o.value("choices").toObject();
   for (auto it = choices.begin(); it != choices.end(); ++it) {
     std::vector<std::string> algs;

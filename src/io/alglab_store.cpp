@@ -31,11 +31,9 @@ QJsonObject sessionToJson(const LabSession &s) {
   o["warmup"] = s.warmup;
   o["trim"] = s.trimPercent;
   o["randomAuf"] = s.randomAuf;
-  QJsonArray entries;
-  for (const auto &e : s.entries) {
-    entries.append(QJsonObject{{"case", qs(e.key.text())}, {"alg", qs(e.alg)}});
-  }
-  o["entries"] = entries;
+  o["entries"] = jsonArray(s.entries, [](const LabEntry &e) {
+    return QJsonObject{{"case", qs(e.key.text())}, {"alg", qs(e.alg)}};
+  });
   return o;
 }
 
@@ -75,16 +73,13 @@ QJsonObject profileToJson(const ErgoProfile &p) {
   o["moves"] = moves;
   o["other"] = p.otherMove;
   o["axis"] = p.axisChange;
-  QJsonArray rules;
-  for (const auto &r : p.rules) {
-    rules.append(QJsonObject{
-        {"first", qs(r.first)}, {"second", qs(r.second)}, {"cost", r.cost}});
-  }
-  o["rules"] = rules;
+  o["rules"] = jsonArray(p.rules, [](const ErgoRule &r) {
+    return QJsonObject{
+        {"first", qs(r.first)}, {"second", qs(r.second)}, {"cost", r.cost}};
+  });
   if (p.grips) {
     const GripModel &g = *p.grips;
-    QJsonArray tricks;
-    for (const auto &t : g.tricks) {
+    QJsonArray tricks = jsonArray(g.tricks, [](const GripTrick &t) {
       QJsonObject j{{"move", qs(t.move)},
                     {"hand", qs(handId(t.hand))},
                     {"finger", qs(fingerId(t.finger))},
@@ -92,14 +87,10 @@ QJsonObject profileToJson(const ErgoProfile &p) {
                     {"from", qs(gripMaskText(t.from))},
                     {"turn", t.turn},
                     {"cost", t.cost}};
-      if (t.reset) {
-        j["reset"] = true;
-      }
-      if (!t.on) {
-        j["off"] = true;
-      }
-      tricks.append(j);
-    }
+      setIf(j, "reset", t.reset, true);
+      setIf(j, "off", !t.on, true);
+      return j;
+    });
     o["grips"] = QJsonObject{{"other", g.otherMove},
                              {"regrip", g.regrip},
                              {"hiddenRegrip", g.hiddenRegrip},
@@ -158,7 +149,7 @@ ErgoProfile profileFromJson(const QJsonObject &o) {
   for (auto it = moves.begin(); it != moves.end(); ++it) {
     // A cost that can't be used leaves the move at the "other" cost.
     if (it.value().isDouble() && validCost(it.value().toDouble())) {
-      p.moves[it.key().toStdString()] = it.value().toDouble();
+      p.moves[ss(it.key())] = it.value().toDouble();
     }
   }
   p.otherMove = costOr(o["other"], 2.0);
@@ -188,70 +179,38 @@ QJsonObject algLabToJson(const AlgLabData &d) {
   o["format"] = kAlgLabFile.format;
   o["version"] = kAlgLabFile.version;
   o["current"] = static_cast<int>(d.current);
-  QJsonArray sessions;
-  for (const auto &s : d.sessions) {
-    sessions.append(sessionToJson(s));
-  }
-  o["sessions"] = sessions;
-  QJsonArray cases;
-  for (const auto &c : d.cases) {
-    cases.append(QJsonObject{{"id", qs(c.id)},
-                             {"name", qs(c.name)},
-                             {"setup", qs(c.setup)},
-                             {"free", qs(c.free)},
-                             {"aufBefore", c.aufBefore},
-                             {"aufAfter", c.aufAfter}});
-  }
-  o["cases"] = cases;
-  QJsonArray candidates;
-  for (const auto &cc : d.candidates) {
-    QJsonArray algs;
-    for (const auto &c : cc.candidates) {
-      algs.append(QJsonObject{{"alg", qs(c.alg)},
-                              {"source", qs(candidateSourceId(c.source))},
-                              {"added", static_cast<qint64>(c.added)}});
-    }
-    candidates.append(QJsonObject{{"case", qs(cc.key.text())}, {"algs", algs}});
-  }
-  o["candidates"] = candidates;
-  QJsonArray attempts;
-  for (const auto &a : d.attempts) {
-    QJsonObject j;
-    j["case"] = qs(a.key.text());
-    j["alg"] = qs(a.alg);
-    j["cube"] = qs(cubeKindId(a.cube));
-    j["time"] = static_cast<qint64>(a.timeMs);
-    if (a.dnf) {
-      j["dnf"] = true;
-    }
-    if (a.deviated) {
-      j["deviated"] = true;
-    }
-    if (a.include) {
-      j["include"] = true;
-    }
-    j["session"] = qs(a.session);
-    j["timestamp"] = static_cast<qint64>(a.timestamp);
-    if (!a.scramble.empty()) {
-      j["scramble"] = qs(a.scramble);
-    }
-    if (!a.moves.empty()) {
-      j["moves"] = qs(a.moves);
-    }
-    attempts.append(j);
-  }
-  o["attempts"] = attempts;
-  QJsonArray profiles;
-  for (const auto &p : d.profiles) {
-    profiles.append(profileToJson(p));
-  }
-  o["profiles"] = profiles;
-  QJsonArray moveSets;
-  for (const auto &m : d.moveSets) {
-    moveSets.append(
-        QJsonObject{{"name", qs(m.name)}, {"moves", qs(m.set.toString())}});
-  }
-  o["moveSets"] = moveSets;
+  o["sessions"] = jsonArray(d.sessions, sessionToJson);
+  o["cases"] = jsonArray(d.cases, [](const LabCase &c) {
+    return QJsonObject{{"id", qs(c.id)},           {"name", qs(c.name)},
+                       {"setup", qs(c.setup)},     {"free", qs(c.free)},
+                       {"aufBefore", c.aufBefore}, {"aufAfter", c.aufAfter}};
+  });
+  o["candidates"] = jsonArray(d.candidates, [](const CaseCandidates &cc) {
+    QJsonArray algs = jsonArray(cc.candidates, [](const Candidate &c) {
+      return QJsonObject{{"alg", qs(c.alg)},
+                         {"source", qs(candidateSourceId(c.source))},
+                         {"added", static_cast<qint64>(c.added)}};
+    });
+    return QJsonObject{{"case", qs(cc.key.text())}, {"algs", algs}};
+  });
+  o["attempts"] = jsonArray(d.attempts, [](const LabAttempt &a) {
+    QJsonObject j{{"case", qs(a.key.text())},
+                  {"alg", qs(a.alg)},
+                  {"cube", qs(cubeKindId(a.cube))},
+                  {"time", static_cast<qint64>(a.timeMs)},
+                  {"session", qs(a.session)},
+                  {"timestamp", static_cast<qint64>(a.timestamp)}};
+    setIf(j, "dnf", a.dnf, true);
+    setIf(j, "deviated", a.deviated, true);
+    setIf(j, "include", a.include, true);
+    setIf(j, "scramble", !a.scramble.empty(), qs(a.scramble));
+    setIf(j, "moves", !a.moves.empty(), qs(a.moves));
+    return j;
+  });
+  o["profiles"] = jsonArray(d.profiles, profileToJson);
+  o["moveSets"] = jsonArray(d.moveSets, [](const MoveSetPreset &m) {
+    return QJsonObject{{"name", qs(m.name)}, {"moves", qs(m.set.toString())}};
+  });
   return o;
 }
 
