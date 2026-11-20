@@ -61,7 +61,6 @@ public:
   enum class Action {
     None,
     Undo,             // take back the last grades
-    ToggleList,       // the case list on or off
     NextEarly,        // look again, taking a learning case early
     NextCase,         // on to the next case
     Turn,             // turn the cube by `move`

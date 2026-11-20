@@ -535,9 +535,6 @@ void LearnPage::perform(const LearnSession::Step &step) {
   case A::Undo:
     undoLast();
     break;
-  case A::ToggleList:
-    toggleList();
-    break;
   case A::NextEarly:
   case A::NextCase:
     // Space: whatever was waiting for it starts now.

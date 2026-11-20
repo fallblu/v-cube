@@ -43,9 +43,6 @@ Step LearnSession::key(const KeyEvent &k, std::int64_t now) const {
   if (k.key == Key::Undo) {
     return used(k.press ? Action::Undo : Action::None);
   }
-  if (k.key == Key::List) {
-    return used(k.press ? Action::ToggleList : Action::None);
-  }
   if (!k.press) {
     return {k.key == Key::Space, Action::None, {}, 0, {}, false, 0};
   }

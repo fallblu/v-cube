@@ -29,7 +29,6 @@ enum class TrainKey : std::uint8_t {
   Comment, // Alt+C
   Review,  // Alt+R
   Skip,    // Ctrl+Right
-  List,    // F9
   // A key that turns the page's virtual cube, where the page gives its
   // turns a key of their own (the others read TrainKeyEvent::move).
   Turn,

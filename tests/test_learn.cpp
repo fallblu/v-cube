@@ -201,7 +201,6 @@ TEST_CASE("learn keys: walkthrough, solving and the grade") {
   up.key = Key::Tab;
   CHECK_FALSE(s.key(up).handled);
   CHECK(s.key(press(Key::Undo)).action == Action::Undo);
-  CHECK(s.key(press(Key::List)).action == Action::ToggleList);
 }
 
 TEST_CASE("learn keys: recognition, the quiz and context practice") {
