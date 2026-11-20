@@ -321,7 +321,7 @@ std::vector<LabSession> AlgLabStore::defaults() const {
 void AlgLabStore::reset() {
   assign(defaults(), 0);
   cases_.clear();
-  candidates_.clear();
+  setCandidates({});
   attempts_.clear();
   profiles_ = builtinErgoProfiles();
   moveSets_.clear();
@@ -338,7 +338,7 @@ void AlgLabStore::fromJson(const QJsonObject &o) {
   AlgLabData d = algLabFromJson(o);
   assign(std::move(d.sessions), d.current);
   cases_ = std::move(d.cases);
-  candidates_ = std::move(d.candidates);
+  setCandidates(std::move(d.candidates));
   attempts_ = std::move(d.attempts);
   profiles_ = std::move(d.profiles);
   // Two of one name (from an older version, or a file edited by hand)
@@ -393,47 +393,71 @@ std::string AlgLabStore::newCaseId() const {
 const std::vector<Candidate> &
 AlgLabStore::candidates(const LabCaseKey &key) const {
   static const std::vector<Candidate> none;
-  for (const auto &cc : candidates_) {
-    if (cc.key == key) {
-      return cc.candidates;
+  auto it = candidateIndex_.find(key);
+  return it == candidateIndex_.end() ? none
+                                     : candidates_[it->second].candidates;
+}
+
+std::size_t AlgLabStore::candidateEntry(const LabCaseKey &key) {
+  auto [it, added] = candidateIndex_.try_emplace(key, candidates_.size());
+  if (added) {
+    candidates_.push_back({key, {}});
+    candidateAlgs_.emplace_back();
+  }
+  return it->second;
+}
+
+void AlgLabStore::setCandidates(std::vector<CaseCandidates> all) {
+  candidates_.clear();
+  candidateIndex_.clear();
+  candidateAlgs_.clear();
+  for (auto &cc : all) {
+    std::size_t at = candidateEntry(cc.key);
+    for (auto &c : cc.candidates) {
+      if (candidateAlgs_[at].insert(c.alg).second) {
+        candidates_[at].candidates.push_back(std::move(c));
+      }
     }
   }
-  return none;
 }
 
 bool AlgLabStore::addCandidate(const LabCaseKey &key, const Candidate &c) {
-  for (auto &cc : candidates_) {
-    if (cc.key == key) {
-      for (const auto &have : cc.candidates) {
-        if (have.alg == c.alg) {
-          return false;
-        }
-      }
-      cc.candidates.push_back(c);
-      return true;
-    }
+  std::size_t at = candidateEntry(key);
+  if (!candidateAlgs_[at].insert(c.alg).second) {
+    return false;
   }
-  candidates_.push_back({key, {c}});
+  candidates_[at].candidates.push_back(c);
   return true;
 }
 
 bool AlgLabStore::removeCandidate(const LabCaseKey &key, std::string_view alg) {
-  for (auto &cc : candidates_) {
-    if (cc.key == key) {
-      auto it = std::find_if(cc.candidates.begin(), cc.candidates.end(),
-                             [&](const Candidate &c) { return c.alg == alg; });
-      if (it != cc.candidates.end()) {
-        cc.candidates.erase(it);
-        return true;
-      }
-    }
+  auto entry = candidateIndex_.find(key);
+  if (entry == candidateIndex_.end()) {
+    return false;
   }
-  return false;
+  std::vector<Candidate> &list = candidates_[entry->second].candidates;
+  auto it = std::find_if(list.begin(), list.end(),
+                         [&](const Candidate &c) { return c.alg == alg; });
+  if (it == list.end()) {
+    return false;
+  }
+  candidateAlgs_[entry->second].erase(it->alg);
+  list.erase(it);
+  return true;
 }
 
 void AlgLabStore::removeCandidates(const LabCaseKey &key) {
-  std::erase_if(candidates_,
-                [&](const CaseCandidates &cc) { return cc.key == key; });
+  auto entry = candidateIndex_.find(key);
+  if (entry == candidateIndex_.end()) {
+    return;
+  }
+  auto at = static_cast<std::ptrdiff_t>(entry->second);
+  candidates_.erase(candidates_.begin() + at);
+  candidateAlgs_.erase(candidateAlgs_.begin() + at);
+  candidateIndex_.clear();
+  for (std::size_t i = 0; i < candidates_.size(); ++i) {
+    candidateIndex_[candidates_[i].key] = i;
+  }
 }
 
 void AlgLabStore::addAttempt(LabAttempt a) {

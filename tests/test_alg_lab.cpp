@@ -10,6 +10,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -583,4 +584,58 @@ TEST_CASE("the ids kept in files read back as their values", "[io]") {
   d.candidates = {cc};
   d.profiles = builtinErgoProfiles();
   CHECK(algLabFromJson(algLabToJson(d)) == d);
+}
+
+TEST_CASE("Alg Lab candidates are kept by case, each alg once",
+          "[alglab][io]") {
+  QTemporaryDir dir;
+  AlgLabStore store(QDir(dir.path()).filePath("alglab.json"));
+  LabCaseKey t{"pll", "T"}, y{"pll", "Y"}, lab{"", "1"};
+  CHECK(store.addCandidate(t, {"R U", CandidateSource::Generated, 0}));
+  CHECK(store.addCandidate(y, {"R U", CandidateSource::Generated, 0}));
+  CHECK(store.addCandidate(t, {"R U'", CandidateSource::Typed, 0}));
+  CHECK_FALSE(store.addCandidate(t, {"R U", CandidateSource::Typed, 1}));
+  CHECK(store.addCandidate(lab, {"F", CandidateSource::Pasted, 0}));
+  REQUIRE(store.candidates(t).size() == 2);
+  CHECK(store.candidates(t)[1].alg == "R U'");
+  CHECK(store.candidates(y).size() == 1);
+  CHECK(store.candidates({"pll", "Z"}).empty());
+
+  CHECK(store.removeCandidate(t, "R U"));
+  CHECK_FALSE(store.removeCandidate(t, "R U"));
+  CHECK_FALSE(store.removeCandidate({"pll", "Z"}, "R U"));
+  CHECK(store.addCandidate(t, {"R U", CandidateSource::Typed, 2}));
+  CHECK(store.candidates(t).back().alg == "R U");
+
+  // The cases after one that is forgotten are still found.
+  store.removeCandidates(t);
+  CHECK(store.candidates(t).empty());
+  CHECK(store.candidates(lab).size() == 1);
+  CHECK_FALSE(store.addCandidate(lab, {"F", CandidateSource::Typed, 3}));
+  CHECK(store.addCandidate(t, {"R2", CandidateSource::Typed, 4}));
+  AlgLabData d = store.data();
+  REQUIRE(d.candidates.size() == 3);
+  CHECK(d.candidates[0].key == y);
+  CHECK(d.candidates[1].key == lab);
+  CHECK(d.candidates[2].key == t);
+
+  // A case listed twice (a file edited by hand) is read as one.
+  QJsonObject o = algLabToJson(d);
+  QJsonArray list = o["candidates"].toArray();
+  list.append(QJsonObject{{"case", "set:pll/Y"},
+                          {"algs", QJsonArray{QJsonObject{{"alg", "R U"}},
+                                              QJsonObject{{"alg", "U2"}}}}});
+  o["candidates"] = list;
+  AlgLabData read = algLabFromJson(o);
+  REQUIRE(read.candidates.size() == 4);
+  REQUIRE(store.save());
+  QFile f(store.path());
+  REQUIRE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  f.write(QJsonDocument(o).toJson());
+  f.close();
+  AlgLabStore again(store.path());
+  REQUIRE(again.load());
+  REQUIRE(again.candidates(y).size() == 2);
+  CHECK(again.candidates(y)[1].alg == "U2");
+  CHECK(again.data().candidates.size() == 3);
 }
