@@ -39,6 +39,29 @@ const std::array<Preset, 5> kPresets = {{
     {"Whole last layer free (F2L, last slot)", "LL:po"},
 }};
 
+// The mirror images a set's cases can also be set up in, as ticked.
+struct MirrorChoice {
+  const char *label;
+  Mirror mirror;
+};
+const std::array<MirrorChoice, 3> kMirrors = {{
+    {QT_TRANSLATE_NOOP("vcube::SetPropertiesDialog", "Left-right"),
+     {true, false}},
+    {QT_TRANSLATE_NOOP("vcube::SetPropertiesDialog", "Front-back"),
+     {false, true}},
+    {QT_TRANSLATE_NOOP("vcube::SetPropertiesDialog", "Both"), {true, true}},
+}};
+
+// The step settings `scope` (a group, or -1 for the whole set) has of its
+// own in `set`; nullptr for a group without its own.
+StepSpec *ownSpec(AlgSet &set, int scope) {
+  if (scope < 0) {
+    return &set.spec;
+  }
+  auto &g = set.groups[static_cast<std::size_t>(scope)];
+  return g.spec ? &*g.spec : nullptr;
+}
+
 int previewSize() { return scaledToText(kLargeDiagram); }
 
 QComboBox *maskCombo(QWidget *parent) {
@@ -69,6 +92,10 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   auto *layout = new QVBoxLayout(this);
   auto *tabs = new QTabWidget(this);
   layout->addWidget(tabs, 1);
+  // A line of help under the row before.
+  auto help = [](QFormLayout *form, const QString &text) {
+    form->addRow(QString(), helpLabel(text, form->parentWidget()));
+  };
 
   // --- the set ---
   auto *general = new QWidget(tabs);
@@ -84,11 +111,8 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   targetSpin_->setSuffix(" s");
   targetSpin_->setValue(set_.targetSeconds);
   form->addRow(tr("Target time:"), targetSpin_);
-  form->addRow(QString(),
-               helpLabel(tr("Drill times at or under this show in green, and "
-                            "slower cases come up more often in weighted "
-                            "order."),
-                         general));
+  help(form, tr("Drill times at or under this show in green, and slower "
+                "cases come up more often in weighted order."));
   tabs->addTab(general, tr("Set"));
 
   // --- Learn and Drill ---
@@ -100,11 +124,8 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   aufAfterBox_->setChecked(set_.aufAfter);
   trainingForm->addRow(tr("Set up:"), aufBeforeBox_);
   trainingForm->addRow(QString(), aufAfterBox_);
-  trainingForm->addRow(
-      QString(),
-      helpLabel(tr("Cases come up from any side, and algs may need a U turn "
-                   "first (or at the end) to pass."),
-                training));
+  help(trainingForm, tr("Cases come up from any side, and algs may need a U "
+                        "turn first (or at the end) to pass."));
   guidedBox_ = new QCheckBox(tr("Guided learning"), training);
   guidedBox_->setChecked(set_.guided);
   familiesBox_ = new QCheckBox(tr("Learn by family"), training);
@@ -112,49 +133,31 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   reductionBox_ = new QCheckBox(tr("Solve a step at a time"), training);
   reductionBox_->setChecked(set_.reduction);
   trainingForm->addRow(tr("Learn:"), guidedBox_);
-  trainingForm->addRow(
-      QString(),
-      helpLabel(tr("New cases start with a walkthrough of the main alg, and "
-                   "Tab shows only the next move while a case is being "
-                   "learned."),
-                training));
+  help(trainingForm, tr("New cases start with a walkthrough of the main alg, "
+                        "and Tab shows only the next move while a case is "
+                        "being learned."));
   trainingForm->addRow(QString(), familiesBox_);
-  trainingForm->addRow(
-      QString(),
-      helpLabel(tr("A case and its mirror images (e.g. the four F2L slots) "
-                   "share one review card; a random one comes up."),
-                training));
+  help(trainingForm, tr("A case and its mirror images (e.g. the four F2L "
+                        "slots) share one review card; a random one comes "
+                        "up."));
   trainingForm->addRow(QString(), reductionBox_);
-  trainingForm->addRow(
-      QString(),
-      helpLabel(tr("An alg may stop at another case of the set, as a "
-                   "trigger does; Learn asks for one step per case and "
-                   "follows the cases through to the end."),
-                training));
-  auto hasMirror = [this](Mirror m) {
-    return std::find(set_.mirrors.begin(), set_.mirrors.end(), m) !=
-           set_.mirrors.end();
-  };
-  mirrorLeftRightBox_ = new QCheckBox(tr("Left-right"), training);
-  mirrorFrontBackBox_ = new QCheckBox(tr("Front-back"), training);
-  mirrorBothBox_ = new QCheckBox(tr("Both"), training);
-  mirrorLeftRightBox_->setChecked(hasMirror({true, false}));
-  mirrorFrontBackBox_->setChecked(hasMirror({false, true}));
-  mirrorBothBox_->setChecked(hasMirror({true, true}));
+  help(trainingForm, tr("An alg may stop at another case of the set, as a "
+                        "trigger does; Learn asks for one step per case and "
+                        "follows the cases through to the end."));
   auto *mirrorRow = new QHBoxLayout;
-  for (QCheckBox *box :
-       {mirrorLeftRightBox_, mirrorFrontBackBox_, mirrorBothBox_}) {
-    mirrorRow->addWidget(box);
+  for (std::size_t i = 0; i < kMirrors.size(); ++i) {
+    mirrorBoxes_[i] = new QCheckBox(tr(kMirrors[i].label), training);
+    mirrorBoxes_[i]->setChecked(
+        std::find(set_.mirrors.begin(), set_.mirrors.end(),
+                  kMirrors[i].mirror) != set_.mirrors.end());
+    mirrorRow->addWidget(mirrorBoxes_[i]);
   }
   mirrorRow->addStretch();
   trainingForm->addRow(tr("Also mirrored:"), mirrorRow);
-  trainingForm->addRow(
-      QString(),
-      helpLabel(tr("Learn and Drill also set each case up mirrored, with its "
-                   "algs mirrored to match (R U R' becomes L' U' L "
-                   "left-right), so a set for the front-right slot is "
-                   "practised for the other slots too."),
-                training));
+  help(trainingForm, tr("Learn and Drill also set each case up mirrored, "
+                        "with its algs mirrored to match (R U R' becomes L' "
+                        "U' L left-right), so a set for the front-right slot "
+                        "is practised for the other slots too."));
   tabs->addTab(training, tr("Learn and Drill"));
 
   // --- step settings ---
@@ -184,13 +187,10 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   freeEdit_->setPlaceholderText(tr("nothing free: everything must be solved"));
   specForm->addRow(tr("Left unsolved:"), presetBox_);
   specForm->addRow(tr("Tokens:"), freeEdit_);
-  specForm->addRow(
-      QString(),
-      helpLabel(tr("Pieces the algs may leave unsolved, e.g. \"LL:p\" or "
-                   "\"LL:po DFR:po FR:po\": LL, LLC (LL corners), LLE (LL "
-                   "edges), F2L, ALL or a piece (URF, FR, …), with p for "
-                   "place and o for orientation."),
-                specWidgets_));
+  help(specForm, tr("Pieces the algs may leave unsolved, e.g. \"LL:p\" or "
+                    "\"LL:po DFR:po FR:po\": LL, LLC (LL corners), LLE (LL "
+                    "edges), F2L, ALL or a piece (URF, FR, …), with p for "
+                    "place and o for orientation."));
   freeError_ = new QLabel(specWidgets_);
   freeError_->setStyleSheet("color: " + kFailColour.name());
   freeError_->setWordWrap(true);
@@ -221,12 +221,9 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   specForm->addRow(tr("Diagram LL edges:"), edgeMaskBox_);
   specForm->addRow(tr("Diagram rest:"), restMaskBox_);
   specForm->addRow(QString(), byPieceBox_);
-  specForm->addRow(
-      QString(),
-      helpLabel(tr("The LL settings apply to the last-layer pieces (and F2L "
-                   "pieces left unsolved) wherever they are, so F2L pieces "
-                   "in the top layer keep their colours."),
-                specWidgets_));
+  help(specForm, tr("The LL settings apply to the last-layer pieces (and F2L "
+                    "pieces left unsolved) wherever they are, so F2L pieces "
+                    "in the top layer keep their colours."));
   specForm->addRow(tr("Diagram view:"), viewBox_);
   specRow->addWidget(specWidgets_, 1);
   // The diagram of a case of the scope, as these settings draw it.
@@ -262,21 +259,16 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   impact_ = new QLabel(this);
   impact_->setWordWrap(true);
   layout->addWidget(impact_);
-  auto *buttons = new QDialogButtonBox(
-      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-  layout->addWidget(buttons);
-  connect(buttons, &QDialogButtonBox::accepted, this,
-          &SetPropertiesDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+  addButtonBox(this, layout, QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
-  updateTimer_ = new QTimer(this);
-  updateTimer_->setSingleShot(true);
-  updateTimer_->setInterval(150);
-  connect(updateTimer_, &QTimer::timeout, this,
+  auto *updateTimer = new QTimer(this);
+  updateTimer->setSingleShot(true);
+  updateTimer->setInterval(150);
+  connect(updateTimer, &QTimer::timeout, this,
           &SetPropertiesDialog::updatePreview);
-  auto changed = [this] {
+  auto changed = [this, updateTimer] {
     if (!loading_) {
-      updateTimer_->start();
+      updateTimer->start();
     }
   };
   for (QCheckBox *box :
@@ -290,21 +282,19 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   connect(freeEdit_, &QLineEdit::textChanged, this, changed);
   connect(targetSpin_, &QDoubleSpinBox::valueChanged, this,
           [this] { targetEdited_ = true; });
-  connect(previous, &QToolButton::clicked, this, [this] {
+  // The next case of the scope, or the one before, round the list.
+  auto stepPreview = [this](bool forward) {
     if (!previewCases_.empty()) {
-      previewIndex_ =
-          (previewIndex_ + previewCases_.size() - 1) % previewCases_.size();
+      std::size_t n = previewCases_.size();
+      previewIndex_ = (previewIndex_ + (forward ? 1 : n - 1)) % n;
       previewCase_ = previewCases_[previewIndex_];
       updatePreview();
     }
-  });
-  connect(next, &QToolButton::clicked, this, [this] {
-    if (!previewCases_.empty()) {
-      previewIndex_ = (previewIndex_ + 1) % previewCases_.size();
-      previewCase_ = previewCases_[previewIndex_];
-      updatePreview();
-    }
-  });
+  };
+  connect(previous, &QToolButton::clicked, this,
+          [stepPreview] { stepPreview(false); });
+  connect(next, &QToolButton::clicked, this,
+          [stepPreview] { stepPreview(true); });
 
   connect(scopeBox_, &QComboBox::currentIndexChanged, this, [this](int i) {
     if (loading_) {
@@ -357,18 +347,10 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   resize(640, sizeHint().height());
 }
 
-StepSpec *SetPropertiesDialog::scopeSpec() {
-  if (scope_ < 0) {
-    return &set_.spec;
-  }
-  auto &g = set_.groups[static_cast<std::size_t>(scope_)];
-  return g.spec ? &*g.spec : nullptr;
-}
-
 void SetPropertiesDialog::loadScope() {
   loading_ = true;
   overrideBox_->setVisible(scope_ >= 0);
-  StepSpec *own = scopeSpec();
+  StepSpec *own = ownSpec(set_, scope_);
   overrideBox_->setChecked(scope_ >= 0 && own);
   // A group without its own settings shows the set's, read-only.
   const StepSpec &spec = own ? *own : set_.spec;
@@ -392,12 +374,7 @@ void SetPropertiesDialog::loadScope() {
 }
 
 bool SetPropertiesDialog::storeScope(AlgSet &into, Errors errors) {
-  StepSpec *spec = nullptr;
-  if (scope_ < 0) {
-    spec = &into.spec;
-  } else if (auto &g = into.groups[static_cast<std::size_t>(scope_)]; g.spec) {
-    spec = &*g.spec;
-  }
+  StepSpec *spec = ownSpec(into, scope_);
   if (!spec) {
     return true; // nothing of its own to store
   }
@@ -443,14 +420,10 @@ bool SetPropertiesDialog::readWidgets(AlgSet &into, Errors errors) {
   into.families = familiesBox_->isChecked();
   into.reduction = reductionBox_->isChecked();
   into.mirrors.clear();
-  if (mirrorLeftRightBox_->isChecked()) {
-    into.mirrors.push_back({true, false});
-  }
-  if (mirrorFrontBackBox_->isChecked()) {
-    into.mirrors.push_back({false, true});
-  }
-  if (mirrorBothBox_->isChecked()) {
-    into.mirrors.push_back({true, true});
+  for (std::size_t i = 0; i < kMirrors.size(); ++i) {
+    if (mirrorBoxes_[i]->isChecked()) {
+      into.mirrors.push_back(kMirrors[i].mirror);
+    }
   }
   return true;
 }

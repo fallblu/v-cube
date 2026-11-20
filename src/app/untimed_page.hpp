@@ -1,7 +1,6 @@
 #pragma once
 
 #include "app/attempt_page.hpp"
-#include "app/eo_cross_check.hpp"
 #include "train/scramble_history.hpp"
 
 #include <optional>
@@ -26,10 +25,11 @@ public:
   UntimedPage(AppSettings &settings, MoveCountStore &store, AlgLibrary &library,
               QWidget *parent = nullptr);
   ~UntimedPage() override;
+  void librarySetsChanged(const QString &setId) override {
+    refreshScrambleTypes(setId);
+  }
 
 protected:
-  bool eventFilter(QObject *obj, QEvent *event) override;
-
   void showModeWidgets(bool virtualCube) override;
   std::vector<AttemptColumn> columns() const override;
   void addCells(std::vector<AttemptCell> &cells, const MoveCountAttempt &a,
@@ -47,13 +47,9 @@ protected:
   const GeneratedScramble *historyScramble() const override;
   QString scrambleText(const GeneratedScramble &s) const override;
   void settingsApplied() override;
-  void typesRefreshed() override;
-  void scrambleTypeChanged(const QString &type, bool fresh) override;
-  void scrambleShown(const GeneratedScramble *shown) override;
   void phaseShown(bool done) override;
   void pageFocusChanged(bool on) override;
   void returnFocus() override;
-  bool toggleAlgs() override;
   void solveRecorded(const MoveCountAttempt &a) override;
   void forward() override;
   void back() override;
@@ -61,11 +57,8 @@ protected:
   void historyCleared() override { history_.clear(); }
 
 private:
-  ScrambleAlgs *algs_;
   // On a physical cube: the scrambles done, to go back to.
   ScrambleHistory<GeneratedScramble> history_;
-  // The optimal EO Cross after a solve, and the solve's own.
-  EoCrossCheck eoCheck_;
 
   QWidget *algPanel_;
   QLineEdit *algEdit_;

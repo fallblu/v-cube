@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 namespace vcube {
 
@@ -15,6 +16,10 @@ enum Edge : std::uint8_t { UR, UF, UL, UB, DR, DF, DL, DB, FR, FL, BL, BR };
 
 inline constexpr int kCorners = 8;
 inline constexpr int kEdges = 12;
+inline constexpr std::array<std::string_view, kCorners> kCornerNames = {
+    "URF", "UFL", "ULB", "UBR", "DFR", "DLF", "DBL", "DRB"};
+inline constexpr std::array<std::string_view, kEdges> kEdgeNames = {
+    "UR", "UF", "UL", "UB", "DR", "DF", "DL", "DB", "FR", "FL", "BL", "BR"};
 
 // Facelet indices of each corner/edge position. The first facelet of a
 // corner is its U or D sticker; edges list U/D (or F/B for slice edges)
@@ -71,6 +76,25 @@ inline bool cornerSolved(const CubieCube &c, Corner k) {
   return c.cp[k] == k && c.co[k] == 0;
 }
 
+// Where a piece is and how it is turned there, as one value: a corner's
+// place * 3 + twist, an edge's place * 2 + flip.
+inline int cornerValue(const CubieCube &c, Corner piece) {
+  for (std::size_t i = 0; i < kCorners; ++i) {
+    if (c.cp[i] == piece) {
+      return static_cast<int>(i) * 3 + c.co[i];
+    }
+  }
+  return 0;
+}
+inline int edgeValue(const CubieCube &c, Edge piece) {
+  for (std::size_t i = 0; i < kEdges; ++i) {
+    if (c.ep[i] == piece) {
+      return static_cast<int>(i) * 2 + c.eo[i];
+    }
+  }
+  return 0;
+}
+
 // Cubie cube of one face quarter turn.
 const CubieCube &faceTurnCubie(Face f);
 
@@ -80,5 +104,13 @@ CubieCube cubieOf(const Alg &alg);
 
 // U-layer turn by `quarters` (0..3).
 CubieCube uTurn(int quarters);
+
+// A cube turned any way round (e.g. after rotations while solving), as
+// the solver sees it with the centres in their places.
+std::optional<CubieCube> centredCubie(const FaceletCube &cube);
+// The cube after `uBefore` U turns and then `alg` (rotations allowed), as
+// centredCubie() sees it.
+std::optional<CubieCube> applyAlg(const CubieCube &cube, const Alg &alg,
+                                  int uBefore = 0);
 
 } // namespace vcube

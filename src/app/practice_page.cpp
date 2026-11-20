@@ -6,6 +6,8 @@
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "io/session_store.hpp"
+#include "train/enum_ids.hpp"
+#include "train/f2l.hpp"
 #include "train/move_count.hpp"
 #include "train/stats.hpp"
 
@@ -13,6 +15,7 @@
 #include <QComboBox>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
@@ -20,39 +23,24 @@
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QTextDocumentFragment>
+#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 
 namespace vcube {
 
 QString PracticePage::tabId(Tab t) {
-  switch (t) {
-  case Tab::Learn:
-    return "learn";
-  case Tab::Inspection:
-    return "inspection";
-  case Tab::Untimed:
-    return "untimed";
-  case Tab::Timed:
-    return "timed";
-  }
-  return "learn";
+  return idOf(std::array{"learn", "inspection", "untimed", "timed"}, t,
+              "learn");
 }
 
 QString PracticePage::tabName(Tab t) {
-  switch (t) {
-  case Tab::Learn:
-    return tr("Learn");
-  case Tab::Inspection:
-    return tr("Inspection");
-  case Tab::Untimed:
-    return tr("Untimed");
-  case Tab::Timed:
-    return tr("Timed");
-  }
-  return {};
+  return tr(idOf(std::array{QT_TR_NOOP("Learn"), QT_TR_NOOP("Inspection"),
+                            QT_TR_NOOP("Untimed"), QT_TR_NOOP("Timed")},
+                 t));
 }
 
 int PracticePage::tabIndex(Tab t) const {
@@ -91,15 +79,19 @@ void PracticePage::build() {
   addButtons(options_);
   rightLayout->addWidget(options_);
 
-  prompt_ = new QLabel(right);
-  prompt_->setAlignment(Qt::AlignCenter);
-  prompt_->setWordWrap(true);
+  // The lines of the block under the options: centred, and wrapped.
+  auto line = [right](const char *name) {
+    auto *label = new QLabel(right);
+    label->setObjectName(name);
+    label->setAlignment(Qt::AlignCenter);
+    label->setWordWrap(true);
+    return label;
+  };
+  prompt_ = line("");
   prompt_->setTextFormat(Qt::RichText);
   setTextRole(prompt_, TextRole::Title);
 
-  scrambleLabel_ = new QLabel(right);
-  scrambleLabel_->setAlignment(Qt::AlignCenter);
-  scrambleLabel_->setWordWrap(true);
+  scrambleLabel_ = line("");
   scrambleLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   markScrambleLabel(scrambleLabel_);
 
@@ -115,45 +107,24 @@ void PracticePage::build() {
   driver_.setDisplay(display_);
   // A hint asked for is what is being looked for: under the cube, as large
   // as an alg being done.
-  requestedHint_ = new QLabel(right);
-  requestedHint_->setObjectName("practiceHint");
-  requestedHint_->setAlignment(Qt::AlignCenter);
-  requestedHint_->setWordWrap(true);
+  requestedHint_ = line("practiceHint");
   requestedHint_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   setTextRole(requestedHint_, TextRole::Title, true);
   requestedHint_->hide();
   hint_ = new HintBar(right);
-  verdict_ = new QLabel(right);
-  verdict_->setObjectName("practiceVerdict");
-  verdict_->setAlignment(Qt::AlignCenter);
-  verdict_->setWordWrap(true);
+  verdict_ = line("practiceVerdict");
   verdict_->setTextFormat(Qt::RichText);
   setTextRole(verdict_, TextRole::Heading);
-  progressLabel_ = new QLabel(right);
-  progressLabel_->setObjectName("practiceProgress");
-  progressLabel_->setAlignment(Qt::AlignCenter);
-  progressLabel_->setWordWrap(true);
+  progressLabel_ = line("practiceProgress");
   progressLabel_->setTextFormat(Qt::RichText);
-  detail_ = new QLabel(right);
-  detail_->setObjectName("practiceDetail");
+  detail_ = line("practiceDetail");
   detail_->setTextFormat(Qt::RichText);
-  detail_->setWordWrap(true);
   detail_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
   detail_->setTextInteractionFlags(Qt::TextBrowserInteraction);
   detail_->setFocusPolicy(Qt::NoFocus);
   detail_->setOpenExternalLinks(false);
-  detailScroll_ = new QScrollArea(right);
-  detailScroll_->setFrameShape(QFrame::NoFrame);
-  detailScroll_->setWidgetResizable(true);
-  detailScroll_->setFocusPolicy(Qt::NoFocus);
-  detailScroll_->setWidget(detail_);
-  choiceScroll_ = new QScrollArea(right);
-  choiceScroll_->setFrameShape(QFrame::NoFrame);
-  choiceScroll_->setWidgetResizable(true);
-  choiceScroll_->setFocusPolicy(Qt::NoFocus);
-  if (QWidget *panel = choicePanel()) {
-    choiceScroll_->setWidget(panel);
-  }
+  detailScroll_ = scrollArea(detail_, right);
+  choiceScroll_ = scrollArea(choicePanel(), right); // none: stays empty
   choiceScroll_->hide();
 
   // One block centred in the height: the prompt, the cube, and right
@@ -173,15 +144,11 @@ void PracticePage::build() {
   rightLayout->addWidget(choiceScroll_, 4);
   rightLayout->addStretch(1);
 
-  auto *split = new QSplitter(this);
-  split->setObjectName("main");
-  split->addWidget(list_);
-  split->addWidget(right);
+  QSplitter *split = mainSplitter(this, {list_, right}, {380, 800});
   split->setStretchFactor(0, 0);
-  split->setStretchFactor(1, 1);
-  split->setSizes({380, 800});
 
   tabs_ = new QTabBar(this);
+  hideInFocusMode({options_, tabs_});
   tabs_->setFocusPolicy(Qt::NoFocus);
   tabs_->setExpanding(false);
   for (Tab t : tabs()) {
@@ -208,9 +175,7 @@ void PracticePage::build() {
   });
   connect(&scrambles_, &QFutureWatcher<GeneratedScramble>::finished, this,
           &PracticePage::scrambleReady);
-  connect(&tick_, &QTimer::timeout, this, &PracticePage::onTick);
 
-  built_ = true;
   loadChoices();
   applySettings();
   showBar();
@@ -274,14 +239,6 @@ void PracticePage::showBar() {
   showCubeKind();
 }
 
-DrillFlow::Config PracticePage::flowConfig() const {
-  const DrillSettings &d = settings_.drill;
-  // Space never practises after a DNF here: the practice modes have no
-  // practice stage (Esc tries the same state again instead).
-  return {!physical_,          d.tapToArm, d.autoStop,
-          d.shiftSpaceGivesUp, false,      d.holdMs};
-}
-
 // --- the page ----------------------------------------------------------------
 
 void PracticePage::selectTab(Tab t) {
@@ -305,13 +262,12 @@ void PracticePage::setPhysical(bool on) {
 }
 
 void PracticePage::optionChanged() {
-  if (!built_) {
-    return;
-  }
   saveChoices();
   flow_.leaveCase();
   flow_.noCase();
-  flow_.setConfig(flowConfig());
+  // Space never practises after a DNF here: the practice modes have no
+  // practice stage (Esc tries the same state again instead).
+  driver_.configure(!physical_, false);
   item_ = {};
   progress_.clear();
   readyPending_ = true;
@@ -325,15 +281,9 @@ void PracticePage::optionChanged() {
 }
 
 void PracticePage::applySettings() {
-  if (!built_) {
-    return;
-  }
-  flow_.setConfig(flowConfig());
+  driver_.configure(!physical_, false);
   display_->setDecimals(settings_.decimals);
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   fillList();
   if (active_ && item_.id != 0) {
     showAll();
@@ -363,7 +313,7 @@ void PracticePage::activated() {
 
 void PracticePage::deactivated() {
   active_ = false;
-  tick_.stop();
+  updateTick();
   cubeView_->finishAnimations();
   if (tab_ == Tab::Timed) {
     if (flow_.leave()) {
@@ -381,13 +331,6 @@ void PracticePage::windowDeactivated() {
   if (tab_ == Tab::Timed && flow_.loseKeyboard()) {
     display_->showTimer(flow_.timer(), monotonicMs());
     updateTick();
-  }
-}
-
-void PracticePage::focusModeChanged() {
-  if (built_) {
-    options_->setVisible(!focusMode());
-    tabs_->setVisible(!focusMode());
   }
 }
 
@@ -417,10 +360,6 @@ QString PracticePage::detailHtml() const {
   return detailOpen_ ? detail_->text() : QString();
 }
 
-QString PracticePage::clockText(std::int64_t ms) const {
-  return vcube::clockText(ms, settings_.decimals);
-}
-
 QString PracticePage::mutedColour() const {
   return palette().color(QPalette::PlaceholderText).name();
 }
@@ -429,6 +368,71 @@ QString PracticePage::playLink(const Alg &alg, const QString &text) {
   return QString("<a href='play:%1'>%2</a>")
       .arg(QString::fromLatin1(QUrl::toPercentEncoding(qs(toString(alg)))),
            text);
+}
+
+PracticePage::Slots PracticePage::loadSlots(const char *name) const {
+  const QStringList names =
+      saved::practice(modeId(), name, QStringList{"FR", "FL"})
+          .get()
+          .toStringList();
+  Slots picked{};
+  for (Slot s : kF2LSlots) {
+    picked[static_cast<std::size_t>(s)] = names.contains(slotText(s));
+  }
+  if (std::ranges::none_of(picked, std::identity{})) {
+    picked = {true, true, false, false};
+  }
+  return picked;
+}
+
+void PracticePage::saveSlots(const char *name, const Slots &picked) const {
+  QStringList names;
+  for (Slot s : kF2LSlots) {
+    if (picked[static_cast<std::size_t>(s)]) {
+      names << slotText(s);
+    }
+  }
+  saved::practice(modeId(), name).set(names);
+}
+
+QWidget *
+PracticePage::addSlotPicker(OptionBar *bar, QToolButton *&button,
+                            const Slots &current,
+                            const std::function<void(const Slots &)> &chosen) {
+  button = new QToolButton(bar);
+  button->setFocusPolicy(Qt::NoFocus);
+  button->setPopupMode(QToolButton::InstantPopup);
+  auto *menu = new QMenu(button);
+  for (Slot s : kF2LSlots) {
+    QAction *a = menu->addAction(slotText(s));
+    a->setCheckable(true);
+    a->setData(static_cast<int>(s));
+    connect(a, &QAction::toggled, this,
+            [shown = button, &current, chosen, s](bool on) {
+              Slots picked = current;
+              picked[static_cast<std::size_t>(s)] = on;
+              if (std::ranges::none_of(picked, std::identity{})) {
+                showSlots(shown, current); // one slot at least
+                return;
+              }
+              chosen(picked);
+            });
+  }
+  button->setMenu(menu);
+  return bar->addPicker(tr("Last slot:"), button);
+}
+
+void PracticePage::showSlots(QToolButton *button, const Slots &picked) {
+  QStringList names;
+  for (QAction *a : button->menu()->actions()) {
+    QSignalBlocker block(a);
+    bool on = picked[static_cast<std::size_t>(a->data().toInt())];
+    a->setChecked(on);
+    if (on) {
+      names << a->text();
+    }
+  }
+  button->setText(names.join(" / "));
 }
 
 void PracticePage::save() {
@@ -448,29 +452,20 @@ void PracticePage::next(LearnAhead ahead) {
   }
 }
 
-void PracticePage::showIdle(const QString &text) {
+void PracticePage::showIdle(const QString &text, Phase phase) {
   item_ = {};
   item_.id = ++items_;
-  phase_ = Phase::Idle;
+  phase_ = phase;
   idleText_ = text;
   cube_ = FaceletCube();
   cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
   cubeView_->clearMarks();
   cubeView_->setState(cube_);
-  showAll();
-}
-
-void PracticePage::showReady() {
-  item_ = {};
-  item_.id = ++items_;
-  phase_ = Phase::Ready;
-  progress_.clear();
-  cube_ = FaceletCube();
-  cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
-  cubeView_->clearMarks();
-  cubeView_->setState(cube_);
-  showHidden(false);
-  display_->setText({});
+  if (phase == Phase::Ready) {
+    progress_.clear();
+    showHidden(false);
+    display_->setText({});
+  }
   showAll();
 }
 
@@ -479,28 +474,23 @@ void PracticePage::setProgress(const QStringList &lines) {
   showVerdict();
 }
 
-void PracticePage::begin(const Setup &setup, Extent extent) {
+void PracticePage::begin(const Setup &setup) {
   item_ = {};
   item_.id = ++items_;
-  item_.whole = extent == Extent::Whole;
   item_.group = setup.group;
   item_.start = setup.cube;
-  item_.colours = setup.colours;
   item_.scrambleState = setup.state;
-  item_.scrambleHold = setup.hold;
+  item_.hold = setup.hold;
   item_.began = monotonicMs();
   waiting_ = false;
   demoShown_ = false;
   detailOpen_ = false;
   progress_.clear();
   note_.clear();
-  if (tab_ == Tab::Inspection) {
-    item_.inspecting = true;
-    item_.inspectStart = item_.began;
-  }
+  item_.inspecting = tab_ == Tab::Inspection;
   cube_ = item_.start;
   cubeView_->finishAnimations();
-  cubeView_->setColourMap(colourMapOf(item_.colours));
+  cubeView_->setColourMap(colourMapOf(item_.hold));
   cubeView_->clearMarks();
   cubeView_->setState(cube_);
   showHidden(false);
@@ -508,16 +498,16 @@ void PracticePage::begin(const Setup &setup, Extent extent) {
 
 void PracticePage::nextLearn(LearnAhead ahead) {
   if (tab_ == Tab::Inspection && readyPending_) {
-    showReady();
+    showIdle({}, Phase::Ready);
     return;
   }
-  if (whole()) {
-    std::optional<Setup> s = setUp(Extent::Whole, {});
+  if (tab_ != Tab::Learn) {
+    std::optional<Setup> s = setUp({});
     if (!s) {
       showIdle(tr("No state could be set up with these options"));
       return;
     }
-    begin(*s, Extent::Whole);
+    begin(*s);
     phase_ = Phase::Solving;
     cubeChanged();
     showAll();
@@ -562,11 +552,11 @@ void PracticePage::nextLearn(LearnAhead ahead) {
 }
 
 bool PracticePage::startCard(const std::string &card, bool isNew, bool graded) {
-  std::optional<Setup> s = setUp(Extent::Unit, card);
+  std::optional<Setup> s = setUp(card);
   if (!s) {
     return false;
   }
-  begin(*s, Extent::Unit);
+  begin(*s);
   item_.card = card;
   item_.isNew = isNew;
   item_.graded = graded;
@@ -657,37 +647,30 @@ void PracticePage::practiseCard(const std::string &card) {
     showBar();
     fillList();
   }
-  std::optional<Setup> s = setUp(Extent::Unit, card);
-  if (!s) {
+  // Practice isn't the card last picked.
+  const std::string last = lastCard_;
+  if (!startCard(card, false, false)) {
     emit message(
         tr("%1 can't be set up with these options").arg(cardName(card)));
-    return;
   }
-  begin(*s, Extent::Unit);
-  item_.card = card;
-  phase_ = Phase::Solving;
-  cubeChanged();
-  if (needsChoice()) {
-    enterChoice(Phase::Solving);
-    return;
-  }
-  showAll();
+  lastCard_ = last;
 }
 
 void PracticePage::nextTimed() {
-  flow_.setConfig(flowConfig());
-  std::optional<Setup> s = setUp(Extent::Whole, {});
+  driver_.configure(!physical_, false);
+  std::optional<Setup> s = setUp({});
   if (!s) {
     flow_.noCase();
     showIdle(tr("No state could be set up with these options"));
     return;
   }
-  begin(*s, Extent::Whole);
+  begin(*s);
   flow_.setUp(monotonicMs());
   display_->showTime(0);
   cubeChanged();
   if (physical_) {
-    requestScramble();
+    // setFuture() drops the result of a request still on its way.
+    scrambles_.setFuture(generateScramble(item_.scrambleState, item_.hold));
   }
   showAll();
 }
@@ -696,31 +679,12 @@ void PracticePage::sameAgain() {
   if (item_.id == 0) {
     return;
   }
-  Item again;
-  again.id = item_.id; // the mode's analysis of the state still holds
-  again.whole = item_.whole;
-  again.card = item_.card;
-  again.group = item_.group;
-  again.start = item_.start;
-  again.colours = item_.colours;
-  again.scrambleState = item_.scrambleState;
-  again.scrambleHold = item_.scrambleHold;
-  again.scramble = item_.scramble;
-  again.retry = true;
-  again.began = monotonicMs();
-  if (tab_ == Tab::Inspection) {
-    again.inspecting = true;
-    again.inspectStart = again.began;
-  }
-  item_ = std::move(again);
-  waiting_ = false;
-  detailOpen_ = false;
-  progress_.clear();
-  note_.clear();
-  cubeView_->finishAnimations();
-  cube_ = item_.start;
-  cubeView_->setState(cube_);
-  showHidden(false);
+  const Item was = std::move(item_);
+  begin({was.start, was.scrambleState, was.hold, was.group});
+  item_.id = was.id; // the mode's analysis of the state still holds
+  item_.card = was.card;
+  item_.scramble = was.scramble;
+  item_.retry = true;
   restarted();
   cubeChanged();
   if (tab_ == Tab::Timed) {
@@ -769,17 +733,6 @@ void PracticePage::showCubeKind() {
       (tab_ == Tab::Inspection && phase_ == Phase::Solving));
 }
 
-void PracticePage::requestScramble() {
-  // setFuture() drops the result of a request still on its way.
-  ColourNeutrality hold;
-  hold.main = item_.scrambleHold;
-  hold.holds = {item_.scrambleHold};
-  scrambles_.setFuture(
-      generateScramble([state = item_.scrambleState](
-                           Rng &) { return ScrambleSetup{state, {}, {}}; },
-                       hold));
-}
-
 void PracticePage::scrambleReady() {
   if (tab_ != Tab::Timed || !physical_ || item_.id == 0) {
     return;
@@ -791,13 +744,6 @@ void PracticePage::scrambleReady() {
 // --- keys --------------------------------------------------------------------
 
 bool PracticePage::handleKey(QKeyEvent *e, bool press) {
-  if (!built_) {
-    return false;
-  }
-  struct Update {
-    PracticePage *page;
-    ~Update() { page->updateTick(); }
-  } update{this};
   TrainKeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
   // Of the keys held with Ctrl, Alt or Meta only Ctrl+Z, on the Learn tab.
   if (k.modified && k.key != TrainKey::Undo) {
@@ -941,8 +887,7 @@ void PracticePage::learnTurn(Move m) {
   if (item_.inspecting && phase_ == Phase::Solving && !isRotation(m.type)) {
     // The plan is made: the clock stops at the first face turn.
     item_.inspecting = false;
-    item_.inspectMs =
-        std::max<std::int64_t>(1, monotonicMs() - item_.inspectStart);
+    item_.inspectMs = std::max<std::int64_t>(1, monotonicMs() - item_.began);
     showInspection();
   }
   if (blind() && phase_ == Phase::Solving && !isRotation(m.type) &&
@@ -974,8 +919,7 @@ void PracticePage::finishLearn(Try how) {
   if (item_.inspecting) {
     // Given up while looking: the time looked is what it took.
     item_.inspecting = false;
-    item_.inspectMs =
-        std::max<std::int64_t>(1, monotonicMs() - item_.inspectStart);
+    item_.inspectMs = std::max<std::int64_t>(1, monotonicMs() - item_.began);
     showInspection();
   }
   item_.gaveUp = gaveUp;
@@ -1106,20 +1050,10 @@ std::string PracticePage::timedGroupKey() const {
   return timedKey(cubeKind(), item_.group);
 }
 
-DrillFlow::KeyEvent PracticePage::flowKey(const QKeyEvent *e,
-                                          bool press) const {
-  DrillFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::None);
-  if (!physical_) {
-    k.move = settings_.keymap.lookup(e);
-  }
-  return k;
-}
-
 bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
   if (item_.id == 0) {
     return false;
   }
-  const std::int64_t now = monotonicMs();
   if (flow_.phase() == DrillFlow::Phase::NoCase) {
     if (press && e->key() == Qt::Key_Space) {
       next();
@@ -1133,18 +1067,9 @@ bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
     return true;
   }
   const bool scrambleShown = !physical_ || !item_.scramble.isEmpty();
-  return driver_.key(flowKey(e, press), now,
+  return driver_.key(e, press, settings_.keymap,
                      scrambleShown ? Scramble::Shown : Scramble::Awaited);
 }
-
-void PracticePage::timedNext(bool fromIdle) {
-  (void)fromIdle;
-  next();
-}
-
-void PracticePage::timedRetry() { sameAgain(); }
-
-void PracticePage::timedResetCube() { resetCube(); }
 
 void PracticePage::timedRotate(Move m) {
   // Looking at the cube before the start: part of the solve's moves, so
@@ -1154,8 +1079,6 @@ void PracticePage::timedRotate(Move m) {
   item_.moveMs.push_back(0);
   cubeChanged();
 }
-
-void PracticePage::timedStarted(std::int64_t now) { item_.began = now; }
 
 std::optional<DrillFlow::Turn> PracticePage::timedTurn(Move m,
                                                        std::int64_t now) {
@@ -1168,34 +1091,16 @@ std::optional<DrillFlow::Turn> PracticePage::timedTurn(Move m,
                             : DrillFlow::Turn::OffUdFace;
 }
 
-void PracticePage::timedFinish(std::int64_t ms, DrillFlow::Result result) {
-  finishTimed(ms, result);
-}
-
-void PracticePage::timedPractise(bool aided) {
-  // No practice here: Tab shows how efficient the solve was.
-  (void)aided;
-  toggleDetail();
-}
-
-void PracticePage::timedToggleWrong() { toggleDnf(); }
-
-void PracticePage::timedDelete() { deleteTry(); }
-
-void PracticePage::timedFinishAnimations() { cubeView_->finishAnimations(); }
-
-void PracticePage::timedShowKeys() { showKeys(); }
-
 void PracticePage::timedSay(const QString &text) {
   hint_->setHint(text, hint_->keys());
 }
 
 void PracticePage::timedCancelled(const QString &why) {
   showAll();
-  hint_->setHint(why, hint_->keys());
+  timedSay(why);
 }
 
-void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
+void PracticePage::timedFinish(std::int64_t ms, DrillFlow::Result result) {
   const bool failed = result != DrillFlow::Result::Solved;
   cubeView_->finishAnimations();
   item_.ms = ms;
@@ -1229,7 +1134,7 @@ void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
   showAll();
 }
 
-void PracticePage::toggleDnf() {
+void PracticePage::timedToggleWrong() {
   if (!item_.recorded || !flow_.setWrong(!flow_.failed())) {
     return;
   }
@@ -1243,7 +1148,7 @@ void PracticePage::toggleDnf() {
   showAll();
 }
 
-void PracticePage::deleteTry() {
+void PracticePage::timedDelete() {
   if (item_.recorded) {
     dropNewestTry(store_.data.timed, timedGroupKey());
     item_.recorded = false;
@@ -1283,37 +1188,21 @@ void PracticePage::showInspection() {
   }
   const std::int64_t limit = inspectionLimitMs();
   const std::int64_t used =
-      item_.inspecting ? monotonicMs() - item_.inspectStart : item_.inspectMs;
+      item_.inspecting ? monotonicMs() - item_.began : item_.inspectMs;
   display_->setText(inspectionClock(used, limit, item_.inspecting,
                                     palette().color(QPalette::WindowText)));
 }
 
-void PracticePage::updateTick() {
-  // The clock is only redrawn while it changes: a hold of Space or a solve
-  // on the Timed tab, the inspection clock running.
-  const bool busy = active_ && ((tab_ == Tab::Timed && flow_.busy()) ||
-                                (tab_ == Tab::Inspection && item_.inspecting &&
-                                 phase_ == Phase::Solving));
-  if (busy != tick_.isActive()) {
-    if (busy) {
-      tick_.start(16); // as Drill's and the timer's
-    } else {
-      tick_.stop();
-    }
-  }
+bool PracticePage::clockNeeded() const {
+  return active_ && ((tab_ == Tab::Timed && flow_.busy()) ||
+                     (tab_ == Tab::Inspection && item_.inspecting &&
+                      phase_ == Phase::Solving));
 }
 
-void PracticePage::onTick() {
-  if (tab_ == Tab::Inspection) {
-    if (item_.inspecting && phase_ == Phase::Solving) {
-      showInspection();
-    }
-    return;
-  }
-  if (tab_ != Tab::Timed) {
-    return;
-  }
-  if (driver_.tick(monotonicMs())) {
+void PracticePage::tick() {
+  if (tab_ == Tab::Inspection && item_.inspecting && phase_ == Phase::Solving) {
+    showInspection();
+  } else if (tab_ == Tab::Timed && driver_.tick(monotonicMs())) {
     updateTick();
   }
 }
@@ -1382,9 +1271,6 @@ void PracticePage::toggleDetail() {
 }
 
 void PracticePage::showAll() {
-  if (!built_) {
-    return;
-  }
   updateTick();
   // Tab's hint stays while the case is being solved.
   if (!item_.hint || phase_ != Phase::Solving) {
@@ -1533,9 +1419,6 @@ void PracticePage::showVerdict() {
 // --- the list ----------------------------------------------------------------
 
 void PracticePage::fillList() {
-  if (!built_) {
-    return;
-  }
   std::vector<ListRow> rows;
   switch (tab_) {
   case Tab::Learn:
@@ -1558,16 +1441,9 @@ void PracticePage::fillList() {
   showSummary();
 }
 
-void PracticePage::refreshList() {
-  if (built_) {
-    list_->refresh();
-  }
-}
+void PracticePage::refreshList() { list_->refresh(); }
 
 void PracticePage::showSummary() {
-  if (!built_) {
-    return;
-  }
   std::vector<std::string> pool;
   std::string group;
   switch (tab_) {

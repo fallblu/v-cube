@@ -68,10 +68,12 @@ private:
 // Files from before sessions had a cube were for physical cubes only, so a
 // session without "cube" is for a physical cube. A Move Count session
 // without "step" takes it from its name, or else from its scramble type.
-// In Move Count, a scramble type it doesn't offer reads as "333".
+// In Move Count, a scramble type it doesn't offer reads as "333". The
+// attempts' JSON comes from `cache` when given (see ItemJsonCache).
 QJsonObject moveCountsToJson(const std::vector<MoveCountSession> &sessions,
                              std::size_t current,
-                             SolveLog mode = SolveLog::MoveCount);
+                             SolveLog mode = SolveLog::MoveCount,
+                             ItemJsonCache<MoveCountAttempt> *cache = nullptr);
 std::vector<MoveCountSession>
 moveCountsFromJson(const QJsonObject &o, std::size_t *current = nullptr,
                    SolveLog mode = SolveLog::MoveCount);

@@ -7,6 +7,7 @@
 #include "io/algset_json.hpp"
 
 #include <QSettings>
+#include <QTableWidget>
 
 #include <algorithm>
 #include <array>
@@ -37,28 +38,21 @@ std::optional<ResolvedCase> resolveLabCase(const AlgLibrary &library,
         withinMask(r.state, ll) ? DiagramView::TopLayer : DiagramView::Iso3D;
     return r;
   }
-  for (const AlgSet &s : library.sets()) {
-    if (s.id != key.setId) {
-      continue;
-    }
-    for (const CaseGroup &g : s.groups) {
-      for (const AlgCase &c : g.cases) {
-        if (c.id != key.caseId) {
-          continue;
-        }
-        r.name = qs(c.name);
-        r.where = qs(s.name) + " / " + qs(g.name);
-        r.state = c.state;
-        r.spec = s.specFor(g);
-        r.free = r.spec.free;
-        r.aufBefore = s.aufBefore;
-        r.aufAfter = s.aufAfter;
-        r.setAlgs = c.algs;
-        return r;
-      }
-    }
+  const AlgSet *s = library.find(key.setId);
+  const AlgCase *c = s ? s->findCase(key.caseId) : nullptr;
+  if (!c) {
+    return std::nullopt;
   }
-  return std::nullopt;
+  const CaseGroup &g = *s->groupOf(key.caseId);
+  r.name = qs(c->name);
+  r.where = qs(s->name) + " / " + qs(g.name);
+  r.state = c->state;
+  r.spec = s->specFor(g);
+  r.free = r.spec.free;
+  r.aufBefore = s->aufBefore;
+  r.aufAfter = s->aufAfter;
+  r.setAlgs = c->algs;
+  return r;
 }
 
 QPixmap labDiagram(const ResolvedCase &c, const AppSettings &settings, int size,
@@ -115,16 +109,7 @@ std::vector<CandidateRow> candidateRows(const ResolvedCase &c,
       rows[at->second].inSet = rows[at->second].inSet || inSet;
       return;
     }
-    CandidateRow row;
-    row.alg = f.key;
-    row.source = source;
-    row.inSet = inSet;
-    row.moves = f.moves;
-    row.counts = f.counts;
-    row.rotations = f.rotations;
-    row.fit = f.fit;
-    row.shown = f.shown;
-    rows.push_back(std::move(row));
+    rows.push_back({f, source, inSet});
   };
   for (const auto &a : c.setAlgs) {
     add(a, CandidateSource::Set, true);
@@ -167,20 +152,12 @@ const ErgoProfile *labGuideProfile(const AlgLabStore &store,
   return first;
 }
 
-const ErgoProfile *labGuideProfile(const AlgLabStore &store) {
-  return labGuideProfile(store, scoreProfileName());
-}
-
 QString scoreProfileName() {
   return saved::lab("scoreProfile").get().toString();
 }
 
 void setScoreProfileName(const QString &name) {
   saved::lab("scoreProfile").set(name);
-}
-
-const ErgoProfile &activeScoreProfile(const AlgLabStore &store) {
-  return store.profile(scoreProfileName().toStdString());
 }
 
 QString labTime(std::optional<std::int64_t> ms, int decimals) {
@@ -191,6 +168,30 @@ QString labTime(std::optional<std::int64_t> ms, int decimals) {
     return QStringLiteral("DNF");
   }
   return qs(formatTime(*ms, decimals));
+}
+
+void setLabStatCells(QTableWidget *table, int row, int column,
+                     const LabStats &st, int decimals, LabStatColumns columns) {
+  auto cell = [&](const QString &text, std::optional<double> key) {
+    table->setItem(row, column++, new SortItem(text, key));
+  };
+  auto time = [&](std::optional<std::int64_t> ms) {
+    cell(labTime(ms, decimals),
+         ms ? std::optional(static_cast<double>(*ms)) : std::nullopt);
+  };
+  cell(QString::number(st.used), st.used);
+  time(st.mean);
+  time(st.median);
+  time(st.best);
+  if (columns.worst) {
+    time(st.worst);
+  }
+  time(st.ao5);
+  time(st.ao12);
+  cell(st.sd ? QString::number(*st.sd / 1000.0, 'f', decimals) : "–", st.sd);
+  bool tried = st.used + st.dnfs > 0;
+  cell(tried ? QString::number(st.dnfRate() * 100.0, 'f', 0) : "–",
+       tried || columns.dnfOfNone ? std::optional(st.dnfRate()) : std::nullopt);
 }
 
 } // namespace vcube

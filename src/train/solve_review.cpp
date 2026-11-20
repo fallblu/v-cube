@@ -1,8 +1,9 @@
 #include "train/solve_review.hpp"
 
 #include "train/case_logic.hpp"
+#include "train/enum_ids.hpp"
+#include "train/f2l_search.hpp"
 #include "train/families.hpp"
-#include "train/step_solver.hpp"
 
 #include <algorithm>
 #include <array>
@@ -10,6 +11,7 @@
 #include <climits>
 #include <cstdio>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -18,33 +20,6 @@ namespace vcube {
 
 namespace {
 
-constexpr std::array<Slot, kSlots> kAllSlots = {Slot::FR, Slot::FL, Slot::BL,
-                                                Slot::BR};
-
-// Where a piece is: its position and orientation there.
-struct Place {
-  int position = -1;
-  int orientation = 0;
-};
-
-Place cornerPlace(const CubieCube &c, Corner piece) {
-  for (std::size_t i = 0; i < kCorners; ++i) {
-    if (c.cp[i] == piece) {
-      return {static_cast<int>(i), c.co[i]};
-    }
-  }
-  return {};
-}
-
-Place edgePlace(const CubieCube &c, Edge piece) {
-  for (std::size_t i = 0; i < kEdges; ++i) {
-    if (c.ep[i] == piece) {
-      return {static_cast<int>(i), c.eo[i]};
-    }
-  }
-  return {};
-}
-
 // The slot whose pair these pieces are: its corner, its edge or both (a
 // case may have one of them solved already).
 std::optional<Slot> pairSlot(const CasePieces &pieces) {
@@ -52,7 +27,7 @@ std::optional<Slot> pairSlot(const CasePieces &pieces) {
       (pieces.corners.empty() && pieces.edges.empty())) {
     return std::nullopt;
   }
-  for (Slot s : kAllSlots) {
+  for (Slot s : kF2LSlots) {
     bool corner = pieces.corners.empty() || pieces.corners[0] == slotCorner(s);
     bool edge = pieces.edges.empty() || pieces.edges[0] == slotEdge(s);
     if (corner && edge) {
@@ -75,15 +50,12 @@ struct PairCase {
   std::vector<Passing> algs;
 };
 
-// Slot, then the pair's corner position and twist and edge position and
-// flip.
-using PairKey = std::array<int, 5>;
+// Slot, then the values of the pair's corner and edge.
+using PairKey = std::array<int, 3>;
 
 PairKey pairKey(Slot s, const CubieCube &c) {
-  Place corner = cornerPlace(c, slotCorner(s));
-  Place edge = edgePlace(c, slotEdge(s));
-  return {static_cast<int>(s), corner.position, corner.orientation,
-          edge.position, edge.orientation};
+  return {static_cast<int>(s), cornerValue(c, slotCorner(s)),
+          edgeValue(c, slotEdge(s))};
 }
 
 struct PairIndex {
@@ -176,22 +148,9 @@ std::shared_ptr<const PairIndex> indexOf(const AlgSet &set) {
   return index;
 }
 
-// The state after an alg, done after `quarters` U turns; nullopt if it
-// can't be worked out (a malformed alg).
-std::optional<CubieCube> applied(const CubieCube &state, int quarters,
-                                 const Alg &alg) {
-  FaceletCube f = state.toFacelets();
-  if (quarters % 4 != 0) {
-    f.apply(Move{MoveType::U, static_cast<std::uint8_t>(quarters % 4)});
-  }
-  f.apply(alg);
-  f.normalizeOrientation();
-  return CubieCube::fromFacelets(f);
-}
-
 std::array<bool, kSlots> solvedSlots(const CubieCube &c) {
   std::array<bool, kSlots> out{};
-  for (Slot s : kAllSlots) {
+  for (Slot s : kF2LSlots) {
     out[static_cast<std::size_t>(s)] = slotSolved(c, s);
   }
   return out;
@@ -216,12 +175,12 @@ PairOption bestOption(const CubieCube &state, Slot slot,
       const PairCase &pc = index.cases[i];
       for (const auto &p : pc.algs) {
         int total = (a + p.before) % 4;
-        auto after = applied(state, total, p.alg);
+        auto after = applyAlg(state, p.alg, total);
         if (!after || !slotSolved(*after, slot) || !eoCrossSolved(*after)) {
           continue;
         }
         bool kept = true;
-        for (Slot s : kAllSlots) {
+        for (Slot s : kF2LSlots) {
           kept = kept && (!solvedBefore[static_cast<std::size_t>(s)] ||
                           slotSolved(*after, s));
         }
@@ -256,10 +215,7 @@ std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
   std::vector<std::optional<StepMark>> found(steps.size());
   FaceletCube f = start;
   for (std::size_t k = 0; k <= solution.size(); ++k) {
-    int htm =
-        solutionHtm(Alg(solution.begin(),
-                        solution.begin() + static_cast<std::ptrdiff_t>(k)),
-                    simplified);
+    int htm = solutionHtm(slice(solution, 0, k), simplified);
     bool all = true;
     for (std::size_t i = 0; i < steps.size(); ++i) {
       if (found[i]) {
@@ -287,45 +243,20 @@ std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
 }
 
 std::string_view slotName(Slot s) {
-  switch (s) {
-  case Slot::FR:
-    return "FR";
-  case Slot::FL:
-    return "FL";
-  case Slot::BL:
-    return "BL";
-  case Slot::BR:
-    return "BR";
-  }
-  return "";
+  static constexpr std::array<std::string_view, kSlots> kNames = {"FR", "FL",
+                                                                  "BL", "BR"};
+  return idOf(kNames, s);
 }
 
 Corner slotCorner(Slot s) {
-  switch (s) {
-  case Slot::FR:
-    return DFR;
-  case Slot::FL:
-    return DLF;
-  case Slot::BL:
-    return DBL;
-  case Slot::BR:
-    return DRB;
-  }
-  return DFR;
+  static constexpr std::array<Corner, kSlots> kSlotCorners = {DFR, DLF, DBL,
+                                                              DRB};
+  return idOf(kSlotCorners, s, DFR);
 }
 
 Edge slotEdge(Slot s) {
-  switch (s) {
-  case Slot::FR:
-    return FR;
-  case Slot::FL:
-    return FL;
-  case Slot::BL:
-    return BL;
-  case Slot::BR:
-    return BR;
-  }
-  return FR;
+  static constexpr std::array<Edge, kSlots> kSlotEdges = {FR, FL, BL, BR};
+  return idOf(kSlotEdges, s, FR);
 }
 
 bool slotSolved(const CubieCube &c, Slot s) {
@@ -341,7 +272,7 @@ std::vector<PairOption> pairOptions(const CubieCube &state,
   std::shared_ptr<const PairIndex> index =
       reference ? indexOf(*reference) : nullptr;
   std::vector<PairOption> out;
-  for (Slot s : kAllSlots) {
+  for (Slot s : kF2LSlots) {
     if (slotSolved(state, s)) {
       continue;
     }
@@ -433,11 +364,8 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
     PairSegment seg;
     seg.begin = segmentBegin;
     seg.end = k + 1;
-    seg.htm = solutionHtm(
-        Alg(solution.begin() + static_cast<std::ptrdiff_t>(segmentBegin),
-            solution.begin() + static_cast<std::ptrdiff_t>(k + 1)),
-        simplified);
-    for (Slot s : kAllSlots) {
+    seg.htm = solutionHtm(slice(solution, segmentBegin, k + 1), simplified);
+    for (Slot s : kF2LSlots) {
       auto i = static_cast<std::size_t>(s);
       if (now[i] && !before[i]) {
         seg.solved.push_back(s);
@@ -456,13 +384,24 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
 
 std::optional<Alg> optimalPair(const CubieCube &state, Slot slot,
                                int maxDepth) {
-  std::vector<std::pair<Corner, Edge>> keep;
-  for (Slot s : kAllSlots) {
-    if (s != slot && slotSolved(state, s)) {
-      keep.emplace_back(slotCorner(s), slotEdge(s));
-    }
+  if (!eoCrossSolved(state)) {
+    return std::nullopt;
   }
-  return solvePairRul(state, slotCorner(slot), slotEdge(slot), keep, maxDepth);
+  if (slotSolved(state, slot)) {
+    return Alg{};
+  }
+  // The first of the shortest in <R, U, L>, however long the search takes.
+  PairSearchResult found =
+      searchPair(state, slot,
+                 {.moves = {.d = false, .halfFB = false},
+                  .extra = 0,
+                  .maxLength = maxDepth,
+                  .maxResults = 1,
+                  .maxNodes = std::numeric_limits<std::uint64_t>::max()});
+  if (found.algs.empty()) {
+    return std::nullopt;
+  }
+  return found.algs.front();
 }
 
 double tps(int htm, std::int64_t ms) {
@@ -482,10 +421,7 @@ SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
     return times[moves - 1];
   };
   auto htmOf = [&](std::size_t begin, std::size_t end) {
-    return solutionHtm(
-        Alg(solution.begin() + static_cast<std::ptrdiff_t>(begin),
-            solution.begin() + static_cast<std::ptrdiff_t>(end)),
-        simplified);
+    return solutionHtm(slice(solution, begin, end), simplified);
   };
   std::vector<StepMark> marks = stepMarks(
       start, solution, {SolveStep::EOCross, SolveStep::CFOPF2L}, simplified);
@@ -571,8 +507,7 @@ std::string seconds(std::int64_t ms) {
 
 std::string phaseMoves(const Alg &solution, std::size_t begin,
                        std::size_t end) {
-  return toString(Alg(solution.begin() + static_cast<std::ptrdiff_t>(begin),
-                      solution.begin() + static_cast<std::ptrdiff_t>(end)));
+  return toString(slice(solution, begin, end));
 }
 
 // Each line of the reconstruction after the scramble: the moves and the
@@ -675,7 +610,7 @@ PairPlan cheapestPairOrder(const CubieCube &state, const AlgSet &reference) {
       if (o.caseId.empty()) {
         continue;
       }
-      auto next = applied(s, 0, parseAlgOrEmpty(o.alg));
+      auto next = applyAlg(s, parseAlgOrEmpty(o.alg));
       if (!next) {
         continue;
       }
@@ -719,7 +654,7 @@ CubieCube randomPairState(const std::vector<Slot> &open, Rng &rng) {
 }
 
 CubieCube randomPairState(int count, Rng &rng) {
-  std::array<Slot, kSlots> slots = kAllSlots;
+  std::array<Slot, kSlots> slots = kF2LSlots;
   std::shuffle(slots.begin(), slots.end(), rng);
   auto n = static_cast<std::size_t>(std::clamp(count, 1, kSlots));
   std::vector<Slot> open(slots.begin(),

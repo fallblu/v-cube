@@ -4,10 +4,10 @@
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
+#include "train/enum_ids.hpp"
 
 #include <QActionGroup>
 #include <QComboBox>
-#include <QDateTime>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -23,7 +23,9 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <string_view>
 
 namespace vcube {
 
@@ -50,6 +52,9 @@ const OrderName kOrders[] = {
      QT_TRANSLATE_NOOP("vcube::LearnPage", "Fewest steps left first")},
 };
 
+constexpr std::array<std::string_view, 3> kPracticeIds = {"solve", "recognise",
+                                                          "quiz"};
+
 } // namespace
 
 LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
@@ -75,6 +80,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   learnCount_->setValue(3);
   learnCount_->setFocusPolicy(Qt::ClickFocus);
   learnCount_->installEventFilter(this);
+  escapeLeaves(learnCount_);
   connect(learnCount_, &QSpinBox::editingFinished, learnCount_,
           [this] { learnCount_->clearFocus(); });
   learnButton_ = new QPushButton(tr("Add new cases"), left_);
@@ -133,6 +139,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
 
   // --- right: the options, the virtual cube, what is said about it ---
   stage_ = new CaseStage(this);
+  hideInFocusMode({stage_->options});
   cubeView_ = stage_->cube;
   statusLabel_ = stage_->status;
   reveal_ = stage_->reveal;
@@ -185,12 +192,8 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   }
   connect(stage_, &CaseStage::quizAnswered, this, &LearnPage::answerQuiz);
 
-  split_ = new QSplitter(this);
-  split_->addWidget(left_);
-  split_->addWidget(stage_);
-  split_->setStretchFactor(1, 1);
   left_->setMinimumWidth(240);
-  split_->setSizes({340, 860});
+  split_ = mainSplitter(this, {left_, stage_}, {340, 860});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split_);
   split_->restoreState(saved::learnSplitter().get());
@@ -281,10 +284,6 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
       }
       return true;
     }
-    if (key == Qt::Key_Escape) {
-      learnCount_->clearFocus();
-      return true;
-    }
     if ((key >= Qt::Key_0 && key <= Qt::Key_9 &&
          !ke->modifiers().testFlag(Qt::ControlModifier)) ||
         key == Qt::Key_Backspace || key == Qt::Key_Delete) {
@@ -306,10 +305,7 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void LearnPage::applySettings() {
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   CasePage::applySettings();
   // The limits and steps may have changed what is due.
   if (phase() == Phase::NoCase && set() && isVisible()) {
@@ -341,11 +337,6 @@ void LearnPage::saveSplitters() {
 void LearnPage::aboutToClose() {
   CasePage::aboutToClose();
   saveSplitters();
-}
-
-void LearnPage::focusModeChanged() {
-  CasePage::focusModeChanged();
-  stage_->options->setVisible(!focusMode());
 }
 
 void LearnPage::toggleList() { setSideShown(!sideShown()); }
@@ -394,13 +385,9 @@ void LearnPage::windowDeactivated() {
 // --- the learn queue -------------------------------------------------------
 
 NewOrder LearnPage::newOrder() const {
-  QString id = orderBox_->currentData().toString();
-  for (const OrderName &o : kOrders) {
-    if (id == o.id) {
-      return o.order;
-    }
-  }
-  return NewOrder::ListOrder;
+  // The box lists kOrders in order.
+  const int i = orderBox_->currentIndex();
+  return i < 0 ? NewOrder::ListOrder : kOrders[i].order;
 }
 
 int LearnPage::algMoves(const std::string &caseId) const {
@@ -444,26 +431,12 @@ void LearnPage::adoptSet() {
 }
 
 QString LearnPage::practiceId(Practice practice) {
-  switch (practice) {
-  case Practice::Solve:
-    return "solve";
-  case Practice::Recognise:
-    return "recognise";
-  case Practice::Quiz:
-    return "quiz";
-  }
-  return "solve";
+  return qs(idOf(kPracticeIds, practice, "solve"));
 }
 
 std::optional<LearnPage::Practice>
 LearnPage::practiceFromId(const QString &id) {
-  for (Practice practice :
-       {Practice::Solve, Practice::Recognise, Practice::Quiz}) {
-    if (id == practiceId(practice)) {
-      return practice;
-    }
-  }
-  return std::nullopt;
+  return fromId<Practice>(kPracticeIds, ss(id));
 }
 
 LearnPage::Practice LearnPage::practice() const {
@@ -581,7 +554,7 @@ std::vector<std::string> LearnPage::pool() const {
   cases.reserve(cards.size());
   for (const auto &card : cards) {
     std::string member = card;
-    if (const auto *members = families_.familyFor(card);
+    if (const auto *members = families().familyFor(card);
         members && !members->empty() && (!s || !s->findCase(card))) {
       member = members->front();
     }
@@ -609,7 +582,7 @@ std::vector<std::string> LearnPage::pool() const {
 }
 
 std::string LearnPage::pickMember(const std::string &card) {
-  const std::vector<std::string> *members = families_.familyFor(card);
+  const std::vector<std::string> *members = families().familyFor(card);
   if (!byFamily() || !members) {
     return card;
   }
@@ -628,7 +601,7 @@ std::string LearnPage::pickMember(const std::string &card) {
 }
 
 void LearnPage::updateCardRows(const std::string &caseId) {
-  const std::vector<std::string> *members = families_.familyFor(caseId);
+  const std::vector<std::string> *members = families().familyFor(caseId);
   if (!byFamily() || !members) {
     updateRow(caseId);
     return;
@@ -641,10 +614,7 @@ void LearnPage::updateCardRows(const std::string &caseId) {
 void LearnPage::nextCase(LearnAhead ahead) {
   pending_ = nullptr; // what comes next is worked out afresh
   idleTimer_.stop();
-  reveal_->clear();
-  stage_->hideFamily();
-  gradeRow_->setVisible(false);
-  stage_->hideQuiz();
+  stage_->clearCase();
   // Nothing of the last case stays up, e.g. a walkthrough's moves.
   guide_.reset();
   attempt_.clear();
@@ -676,6 +646,10 @@ void LearnPage::nextCase(LearnAhead ahead) {
     showIdle(pick);
     return;
   }
+  beginPick(pick);
+}
+
+void LearnPage::beginPick(const LearnPick &pick) {
   std::string member = pickMember(*pick.caseId);
   const CaseProgress *cp = progressOf(*pick.caseId);
   if (practice() == Practice::Recognise && !pick.isNew && cp &&
@@ -717,14 +691,7 @@ bool LearnPage::nextAcrossSets() {
     LearnPick pick = pickLearnCase(pool(), progress(), now, localDayStart(),
                                    settings_.srs, options);
     if (pick.caseId) {
-      std::string member = pickMember(*pick.caseId);
-      const CaseProgress *cp = progressOf(*pick.caseId);
-      if (practice() == Practice::Recognise && cp &&
-          cp->card.state == CardState::Review) {
-        beginRecognition(member);
-      } else {
-        begin(member, LearnAttempt::Kind::Known);
-      }
+      beginPick(pick); // never a new case: none are picked across sets
       return true;
     }
     due[*i].due = 0;

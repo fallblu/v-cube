@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDialogButtonBox>
 #include <QLabel>
 #include <QList>
 #include <QString>
@@ -9,11 +10,15 @@
 #include <algorithm>
 #include <functional>
 
+class QBoxLayout;
 class QButtonGroup;
 class QComboBox;
+class QDialog;
 class QFormLayout;
 class QPushButton;
 class QHBoxLayout;
+class QScrollArea;
+class QSplitter;
 class QVBoxLayout;
 
 namespace vcube {
@@ -100,25 +105,6 @@ struct KeyHint {
   std::function<void()> click = {};
 };
 
-// The keys that do something now, as a line of chips (see keyHintsHtml);
-// the chips of keys with a click action can be clicked. Hidden while there
-// are none.
-class KeyStrip : public QLabel {
-  Q_OBJECT
-public:
-  explicit KeyStrip(QWidget *parent = nullptr);
-
-  void setKeys(const QList<KeyHint> &keys);
-  const QList<KeyHint> &keys() const { return keys_; }
-
-protected:
-  void changeEvent(QEvent *e) override;
-
-private:
-  QList<KeyHint> keys_;
-  void render();
-};
-
 // The line under the stage that says what is going on and which keys do
 // what: a message, then each key as a chip with its action. Follows the
 // hint text size of the settings.
@@ -140,9 +126,38 @@ private:
   void render();
 };
 
+// The keys that do something now, as a line of chips (see keyHintsHtml);
+// the chips of keys with a click action can be clicked. Hidden while there
+// are none.
+class KeyStrip : public HintBar {
+  Q_OBJECT
+public:
+  explicit KeyStrip(QWidget *parent = nullptr) : HintBar(parent) {
+    setVisible(false);
+  }
+  void setKeys(const QList<KeyHint> &keys) { setHint({}, keys); }
+};
+
 // A short explanation shown under a control. Tooltips are never shown in
 // the app (see MainWindow), so what a control needs said is said here.
 QLabel *helpLabel(const QString &text, QWidget *parent);
+
+// The splitter across a page, between its side panel and the rest:
+// `widgets` from left to right, each after the first taking the width
+// gained, at `sizes` until the window restores the sizes saved under its
+// name ("main").
+QSplitter *mainSplitter(QWidget *page, const QList<QWidget *> &widgets,
+                        const QList<int> &sizes);
+
+// The row of `buttons` at the foot of `dialog`, added to `layout`: OK
+// accepts the dialog, Cancel and Close reject it. Returns the row, to add
+// buttons to.
+QDialogButtonBox *addButtonBox(QDialog *dialog, QBoxLayout *layout,
+                               QDialogButtonBox::StandardButtons buttons);
+
+// `content` in a frameless scroll area that fits it to its width and takes
+// no keys.
+QScrollArea *scrollArea(QWidget *content, QWidget *parent);
 
 // A button that doesn't take the keyboard focus.
 QPushButton *flatButton(const QString &text, QWidget *parent);

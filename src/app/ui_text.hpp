@@ -5,6 +5,7 @@
 #include "io/qt_text.hpp"
 #include "train/solve_review.hpp"
 #include "train/srs.hpp"
+#include "train/stats.hpp"
 
 #include <QDate>
 #include <QDateTime>
@@ -66,6 +67,16 @@ inline QString slotText(Slot s) { return qs(slotName(s)); }
 // Rich text in a colour.
 inline QString coloured(const QColor &colour, const QString &text) {
   return QString("<span style='color:%1'>%2</span>").arg(colour.name(), text);
+}
+
+// Rich text in the colour of secondary text.
+inline QString mutedHtml(const QString &text) {
+  return coloured(roleColour(Role::Muted), text);
+}
+
+// A time as the timer shows it, with `decimals`: "12.34".
+inline QString timeText(StatValue ms, int decimals = 2) {
+  return qs(formatTime(ms, decimals));
 }
 
 // What a table shows where there is no value.

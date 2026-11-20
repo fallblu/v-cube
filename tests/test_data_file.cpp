@@ -221,19 +221,13 @@ TEST_CASE("sessions and progress are written with their format") {
 
 TEST_CASE("progress from a newer version is kept and not saved over") {
   QTemporaryDir tmp;
-  {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
-  }
+  loadedLibrary(tmp.path());
   QString path = tmp.filePath("progress/pll.json");
   QByteArray text = R"({"format": "v-cube.progress", "version": 5})";
   writeText(path, text);
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   // A library with sets but no installed-builtins.json also reports that.
-  CHECK(std::ranges::count_if(lib.errors(), [](const QString &e) {
-          return e.contains("newer version");
-        }) == 1);
+  CHECK(errorsContaining(lib, "newer version") == 1);
   lib.progress("pll")["T"].record({100, 1500, false});
   QString error;
   CHECK_FALSE(lib.saveProgress("pll", &error));
@@ -243,10 +237,7 @@ TEST_CASE("progress from a newer version is kept and not saved over") {
 
 TEST_CASE("a progress file that can't be opened isn't saved over") {
   QTemporaryDir tmp;
-  {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
-  }
+  loadedLibrary(tmp.path());
   // It is left where it is (it may be fine once it can be opened), and
   // saving is refused.
   QString path = tmp.filePath("progress/pll.json");
@@ -256,8 +247,7 @@ TEST_CASE("a progress file that can't be opened isn't saved over") {
   if (probe.open(QIODevice::ReadOnly)) {
     SKIP("permissions don't stop this user reading the file");
   }
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE(lib.errors().size() == 1);
   CHECK(lib.errors().front().contains("pll.json"));
   lib.progress("pll")["T"].record({100, 1500, false});
@@ -274,12 +264,9 @@ TEST_CASE("alg sets from a newer version are reported and left alone") {
   QByteArray text =
       R"({"format": "v-cube.algset", "version": 2, "id": "future"})";
   writeText(path, text);
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   // A library with sets but no installed-builtins.json also reports that.
-  CHECK(std::ranges::count_if(lib.errors(), [](const QString &e) {
-          return e.contains("newer version");
-        }) == 1);
+  CHECK(errorsContaining(lib, "newer version") == 1);
   CHECK(lib.idTaken("future"));
   CHECK(readText(path) == text);
 }
@@ -335,12 +322,9 @@ TEST_CASE("a cut-short alg set file is set aside") {
   QTemporaryDir tmp;
   QString path = tmp.filePath("mine.json");
   writeText(path, R"({"format": "v-cube.algset", "version": 1, "id": "mi)");
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   // A library with sets but no installed-builtins.json also reports that.
-  CHECK(std::ranges::count_if(lib.errors(), [](const QString &e) {
-          return e.contains("kept as");
-        }) == 1);
+  CHECK(errorsContaining(lib, "kept as") == 1);
   CHECK_FALSE(QFile::exists(path));
   CHECK(filesStarting(tmp.path(), "mine.json.unreadable-").size() == 1);
 }
@@ -374,8 +358,7 @@ TEST_CASE("alg sets with bad cases or settings are refused") {
 
 TEST_CASE("a set with a very long name gets a short id and saves") {
   QTemporaryDir tmp;
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   AlgSet set = *lib.find("pll");
   set.builtin = false;
   set.name = std::string(300, 'n');
@@ -549,8 +532,7 @@ TEST_CASE("an unreadable set says where it is and what to do") {
   writeText(tmp.filePath("installed-builtins.json"),
             R"(["oll", "pll", "2look-oll", "2look-pll"])");
   writeText(tmp.filePath("mine.json"), R"({"format": "v-cube.algset",)");
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE(lib.errors().size() == 1);
   QString e = lib.errors().front();
   CHECK(e.contains("mine.json in " + QDir::toNativeSeparators(tmp.path())));
@@ -568,8 +550,7 @@ TEST_CASE("keys an alg set doesn't use are named, and the set still loads") {
     "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB", "alg": "R"},
     {"id": "b", "state":
     "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB", "alg": "U"}]}]})");
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE(lib.find("mine"));
   REQUIRE(lib.errors().size() == 1);
   QString e = lib.errors().front();
@@ -579,8 +560,7 @@ TEST_CASE("keys an alg set doesn't use are named, and the set still loads") {
   CHECK(e.count(R"(in a case "alg")") == 1);
   // The built-ins have none.
   QTemporaryDir fresh;
-  AlgLibrary builtins(fresh.path(), kBuiltins);
-  builtins.load();
+  AlgLibrary builtins = loadedLibrary(fresh.path());
   CHECK(builtins.errors().isEmpty());
 }
 

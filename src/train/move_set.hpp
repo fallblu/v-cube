@@ -80,8 +80,4 @@ struct MoveCounts {
 };
 MoveCounts moveCounts(const Alg &alg);
 
-// The smallest preset-like move set an alg uses: each layer it turns, with
-// the turns it makes of it (quarter, half). Rotations are left out.
-MoveSet moveSetOf(const Alg &alg);
-
 } // namespace vcube

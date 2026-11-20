@@ -1,10 +1,13 @@
 #include "app/text_style.hpp"
 
+#include "train/enum_ids.hpp"
+
 #include <QApplication>
 #include <QEvent>
 #include <QFontInfo>
 #include <QWidget>
 
+#include <array>
 #include <cmath>
 #include <optional>
 
@@ -15,20 +18,9 @@ namespace {
 const char *const kRoleProperty = "vcubeTextRole";
 const char *const kBoldProperty = "vcubeTextBold";
 
+// Caption, Body, Heading, Title, Display.
 double roleScale(TextRole role) {
-  switch (role) {
-  case TextRole::Caption:
-    return 0.9;
-  case TextRole::Body:
-    return 1.0;
-  case TextRole::Heading:
-    return 1.25;
-  case TextRole::Title:
-    return 1.5;
-  case TextRole::Display:
-    return 1.8;
-  }
-  return 1.0;
+  return idOf(std::array{0.9, 1.0, 1.25, 1.5, 1.8}, role, 1.0);
 }
 
 // Only the size and the weight: the rest comes from the widget's parent.

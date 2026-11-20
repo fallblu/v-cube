@@ -5,6 +5,10 @@ namespace vcube {
 LabFlow::Step LabFlow::key(const KeyEvent &k, std::int64_t now) const {
   // Nothing of the flow's is held with Ctrl, Alt or Meta.
   const bool plain = !k.modified;
+  // The flow's own keys and the modifiers never turn the cube.
+  const bool turn = k.move && k.key != Key::Space && k.key != Key::Escape &&
+                    k.key != Key::Backspace && k.key != Key::Delete &&
+                    k.key != Key::Modifier;
   switch (phase_) {
   case Phase::Idle:
   case Phase::Finished:
@@ -39,7 +43,7 @@ LabFlow::Step LabFlow::key(const KeyEvent &k, std::int64_t now) const {
       return {Action::ResetReady, true};
     }
     if (virtual_) {
-      if (k.press && plain && k.key == Key::Turn) {
+      if (k.press && plain && turn) {
         return {Action::Turn, true};
       }
       return {};
@@ -59,7 +63,7 @@ LabFlow::Step LabFlow::key(const KeyEvent &k, std::int64_t now) const {
       if (k.key == Key::Space && plain) {
         return {Action::StopVirtual, true};
       }
-      if (k.key == Key::Turn && plain) {
+      if (turn && plain) {
         return {Action::Turn, true};
       }
       return {};

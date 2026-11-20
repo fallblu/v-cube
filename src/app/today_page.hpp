@@ -1,14 +1,9 @@
 #pragma once
 
-#include "io/alglab_store.hpp"
-
+#include "app/app_data.hpp"
 #include "app/app_settings.hpp"
 #include "app/mode_page.hpp"
 #include "app/mode_table.hpp"
-#include "io/library.hpp"
-#include "io/move_counts.hpp"
-#include "io/sessions.hpp"
-#include "train/practice.hpp"
 #include "train/today.hpp"
 
 #include <QTimer>
@@ -40,12 +35,8 @@ public:
   // A practice mode's cards, as its page works them out.
   using CardPool = std::function<std::vector<std::string>()>;
 
-  TodayPage(AppSettings &settings, const AlgLibrary &library,
-            const SessionStore &timed, const MoveCountStore &untimed,
-            const MoveCountStore &moveCounts, const AlgLabStore &lab,
-            const PracticeData &eoCross, const PracticeData &f2l,
-            const PracticeData &tsle, CardPool f2lPool, CardPool tslePool,
-            QWidget *parent = nullptr);
+  TodayPage(AppSettings &settings, const AppData &appData, CardPool f2lPool,
+            CardPool tslePool, QWidget *parent = nullptr);
 
   // Learn's due reviews (and learning steps) and the new cases left today,
   // over every set, for the sidebar.
@@ -70,16 +61,9 @@ signals:
 
 private:
   AppSettings &settings_;
-  const AlgLibrary &library_;
-  const SessionStore &timed_;
-  const MoveCountStore &untimed_;
-  const MoveCountStore &moveCounts_;
-  const AlgLabStore &lab_;
-  // What the practice modes' pages keep, as they have it in memory: read
-  // from there, a refresh opens no file and sees what was just recorded.
-  const PracticeData &eoCross_;
-  const PracticeData &f2l_;
-  const PracticeData &tsle_;
+  // What the modes keep, as they have it in memory: read from there, a
+  // refresh opens no file and sees what was just recorded.
+  const AppData &data_;
   CardPool f2lPool_;
   CardPool tslePool_;
   QLabel *streakLabel_ = nullptr;
@@ -99,6 +83,7 @@ private:
   // Opens a row of the sets table: its set in Learn, or its practice
   // mode's cards.
   void open(QTreeWidgetItem *item);
+  void open(const QString &setId, std::optional<AppMode::Id> mode);
   void reviewAll();
 };
 

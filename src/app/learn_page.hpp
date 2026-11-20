@@ -75,7 +75,6 @@ signals:
   void drillSetRequested(const QString &setId, bool weakest);
 
 protected:
-  void focusModeChanged() override;
   // Enter in the "Start learning" count starts learning when a number was
   // typed, and any other key leaves the field, so that the keys go back to
   // the cube either way.
@@ -222,6 +221,9 @@ private:
   PieceMask linkFree() const;
   // The cube shows a case: it is solved from here.
   void startLink(const CaseView &view);
+  // Turns the 3D view to where `view`'s case is looked at from (see
+  // startLink()); false if it was there already.
+  bool lookAt(const CaseView &view);
   // The case being solved is over: the step was finished, stopped at
   // `next`, or was given up. Grades its card.
   void endLink(LearnAttempt::LinkEnd end, const std::optional<CaseView> &next);
@@ -235,6 +237,8 @@ private:
   // Across sets: the next due case of any set, switching the list to its
   // set; false when nothing is due anywhere.
   bool nextAcrossSets();
+  // Begins the case picked, a member of its family when learning by family.
+  void beginPick(const LearnPick &pick);
   // Nothing to do: says why, and when to look again.
   void showIdle(const LearnPick &pick);
   // A case is timed from the moment it is shown, so the first one waits

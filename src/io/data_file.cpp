@@ -186,7 +186,7 @@ FileStatus DataFile::load(QJsonObject &out, QString *error) {
 bool DataFile::save(const QJsonObject &o, QString *error) const {
   QString why;
   bool ok = false;
-  if (keptOff()) {
+  if (!keptOffReason_.isEmpty()) {
     why = keptOffReason_;
   } else {
     QDir().mkpath(QFileInfo(path_).absolutePath());

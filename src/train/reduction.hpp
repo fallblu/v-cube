@@ -3,6 +3,7 @@
 #include "train/algset.hpp"
 #include "train/case_logic.hpp"
 
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -81,8 +82,12 @@ std::vector<ViewAlg> algsFor(const AlgSet &set, const CaseGroup &group,
 // stops at; the fewest over the case's passing algs. Cases that never
 // reach the end (no passing alg, or algs that only lead round in circles)
 // are left out. In a set that isn't a reduction set every case with a
-// passing alg has 1.
-std::map<std::string, int> stepsLeft(const AlgSet &set);
+// passing alg has 1. `analysisOf` gives a case's analyzeCase() when it is
+// known already.
+std::map<std::string, int>
+stepsLeft(const AlgSet &set,
+          const std::function<CaseAnalysis(const CaseGroup &, const AlgCase &)>
+              &analysisOf = {});
 
 // The cases a cube goes through by the set's main algs, and what is done
 // at each.

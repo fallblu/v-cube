@@ -1,7 +1,5 @@
 #include "app/ui_state.hpp"
 
-#include "app/app_settings.hpp"
-
 #include <QDir>
 
 namespace vcube::saved {
@@ -15,19 +13,6 @@ QString setGroup(const std::string &setId) {
 }
 
 } // namespace
-
-Stored<QByteArray> windowGeometry() { return {"window/geometry"}; }
-Stored<QByteArray> windowState() { return {"window/state"}; }
-Stored<bool> sidebarShown() { return {"window/sidebar", true}; }
-Stored<QString> windowMode() { return {"window/mode"}; }
-Stored<int> legacyTab() { return {"window/tab", -1}; }
-
-Stored<QByteArray> splitter(const QString &modeId, int index) {
-  return {QString("window/splitters/%1/%2").arg(modeId).arg(index)};
-}
-Stored<QByteArray> splitter(const QString &modeId, const QString &name) {
-  return {QString("window/splitters/%1/%2").arg(modeId, name)};
-}
 
 Stored<QString> exportFolder() { return {"export/folder", QDir::homePath()}; }
 
@@ -57,50 +42,6 @@ void setCaseSet(const QString &mode, const QString &setId) {
   QSettings().setValue(mode + "/set", setId);
 }
 
-Stored<QString> shownSet(const QString &mode) { return {mode + "/shownSet"}; }
-Stored<int> sortColumn(const QString &mode) {
-  return {mode + "/sortColumn", -1};
-}
-Stored<bool> sortAscending(const QString &mode) {
-  return {mode + "/sortAscending", false};
-}
-Stored<QStringList> hiddenColumns(const QString &mode,
-                                  const QStringList &fallback) {
-  return {mode + "/hiddenColumns", fallback};
-}
-
-Stored<QByteArray> learnSplitter() { return {"learn/splitter"}; }
-Stored<QByteArray> learnRightSplitter() { return {"learn/rightSplitter"}; }
-Stored<bool> sideHidden(const QString &modeId) {
-  // Learn's list was the first that could be hidden: its key is kept.
-  return {modeId == "learn" ? QStringLiteral("learn/listHidden")
-                            : "window/sideHidden/" + modeId,
-          false};
-}
-Stored<QString> learnPractice() { return {"learn/practice", "solve"}; }
-Stored<QString> learnOrder(const std::string &setId) {
-  return {setSettingsKey(setId, "learnOrder"), "list"};
-}
-Stored<QString> learnView(const std::string &setId) {
-  return {setSettingsKey(setId, "learnView")};
-}
-Stored<QString> learnSeed(const std::string &setId) {
-  return {setSettingsKey(setId, "learnSeed")};
-}
-
-Stored<QString> drillCube(const std::string &setId) {
-  return {setSettingsKey(setId, "drillCube"), "virtual"};
-}
-Stored<QString> drillScope(const std::string &setId) {
-  return {setSettingsKey(setId, "drillScope"), "ticked"};
-}
-Stored<QString> drillPool(const std::string &setId) {
-  return {setSettingsKey(setId, "drillPool"), "learned"};
-}
-Stored<QString> drillOrder(const std::string &setId) {
-  return {setSettingsKey(setId, "drillOrder"), "random"};
-}
-
 QVariantMap setSettings(const std::string &setId) {
   QSettings q;
   q.beginGroup(setGroup(setId));
@@ -122,31 +63,6 @@ void setSetSettings(const std::string &setId, const QVariantMap &values) {
 
 void removeSetSettings(const std::string &setId) {
   QSettings().remove(setGroup(setId));
-}
-
-Stored<QString> cubeViewMode(const QString &page) {
-  return {"ui/view/" + page};
-}
-Stored<int> chartLast(const QString &key) { return {key + "/last", 0}; }
-Stored<bool> chartSeries(const QString &key) {
-  return {key + "/series", false};
-}
-Stored<bool> showAlgs(const QString &key) { return {key, false}; }
-
-Stored<QString> reviewPairSet() { return {"review/pairSet", "zz-f2l"}; }
-
-Stored<QStringList> recentCommands() { return {"commandList/recent"}; }
-
-Stored<QStringList> timedHiddenColumns() { return {"timed/hiddenColumns"}; }
-Stored<QStringList> hiddenSessionColumns(const QString &key) { return {key}; }
-
-Stored<QVariant> lab(const char *name, const QVariant &fallback) {
-  return {QStringLiteral("alglab/") + name, fallback};
-}
-
-Stored<QVariant> practice(const QString &mode, const char *name,
-                          const QVariant &fallback) {
-  return {mode + "/" + name, fallback};
 }
 
 } // namespace vcube::saved

@@ -49,9 +49,7 @@ QJsonObject maskToJson(const DiagramMask &m) {
   QJsonObject o{{"llCorners", qs(std::string(stickerModeName(m.llCorners)))},
                 {"llEdges", qs(std::string(stickerModeName(m.llEdges)))},
                 {"rest", qs(std::string(stickerModeName(m.rest)))}};
-  if (m.byPiece) {
-    o["by"] = "piece";
-  }
+  setIf(o, "by", m.byPiece, "piece");
   return o;
 }
 
@@ -230,47 +228,30 @@ QJsonObject algSetToJson(const AlgSet &set) {
   o["aufBefore"] = set.aufBefore;
   o["aufAfter"] = set.aufAfter;
   o["targetSeconds"] = set.targetSeconds;
-  if (!set.guided) {
-    o["guided"] = false;
-  }
-  if (set.families) {
-    o["families"] = true;
-  }
-  if (set.reduction) {
-    o["reduction"] = true;
-  }
-  if (!set.mirrors.empty()) {
-    QJsonArray mirrors;
-    for (Mirror m : set.mirrors) {
-      mirrors.append(m.leftRight && m.frontBack ? "both"
-                     : m.leftRight              ? "left-right"
-                                                : "front-back");
-    }
-    o["mirrors"] = mirrors;
-  }
+  setIf(o, "guided", !set.guided, false);
+  setIf(o, "families", set.families, true);
+  setIf(o, "reduction", set.reduction, true);
+  setIf(o, "mirrors", !set.mirrors.empty(),
+        jsonArray(set.mirrors, [](Mirror m) {
+          return m.leftRight && m.frontBack ? "both"
+                 : m.leftRight              ? "left-right"
+                                            : "front-back";
+        }));
   writeSpec(o, set.spec);
-  QJsonArray groups;
-  for (const auto &g : set.groups) {
+  o["groups"] = jsonArray(set.groups, [](const CaseGroup &g) {
     QJsonObject go;
     go["name"] = qs(g.name);
     if (g.spec) {
       writeSpec(go, *g.spec);
     }
-    QJsonArray cases;
-    for (const auto &c : g.cases) {
-      QJsonArray algs;
-      for (const auto &a : c.algs) {
-        algs.append(qs(a));
-      }
-      cases.append(QJsonObject{{"id", qs(c.id)},
-                               {"name", qs(c.name)},
-                               {"state", qs(c.state.toFacelets().toString())},
-                               {"algs", algs}});
-    }
-    go["cases"] = cases;
-    groups.append(go);
-  }
-  o["groups"] = groups;
+    go["cases"] = jsonArray(g.cases, [](const AlgCase &c) {
+      return QJsonObject{{"id", qs(c.id)},
+                         {"name", qs(c.name)},
+                         {"state", qs(c.state.toFacelets().toString())},
+                         {"algs", jsonArray(c.algs, qs)}};
+    });
+    return go;
+  });
   return o;
 }
 
@@ -379,17 +360,11 @@ QJsonObject progressToJson(const SetProgress &p) {
                      {"reps", c.reps},
                      {"lapses", c.lapses},
                      {"introduced", static_cast<double>(c.introduced)}};
-    if (c.marked) {
-      card["marked"] = true;
-    }
-    if (c.suspended) {
-      card["suspended"] = true;
-    }
-    if (c.buriedUntil != 0) {
-      card["buriedUntil"] = static_cast<double>(c.buriedUntil);
-    }
-    QJsonArray attempts;
-    for (const auto &a : cp.attempts) {
+    setIf(card, "marked", c.marked, true);
+    setIf(card, "suspended", c.suspended, true);
+    setIf(card, "buriedUntil", c.buriedUntil != 0,
+          static_cast<double>(c.buriedUntil));
+    QJsonArray attempts = jsonArray(cp.attempts, [](const Attempt &a) {
       QJsonArray row{static_cast<double>(a.timestamp),
                      static_cast<double>(a.timeMs), a.failed ? 1 : 0,
                      attemptModeId(a.mode)};
@@ -401,8 +376,8 @@ QJsonObject progressToJson(const SetProgress &p) {
       if (a.recognitionOnly) {
         row.append(1);
       }
-      attempts.append(row);
-    }
+      return row;
+    });
     QJsonObject caseObject{{"card", card}, {"attempts", attempts}};
     // What is kept of the drill attempts that no longer are, per mode: the
     // best time and [day, attempts, fails, sum, best] per day.
@@ -411,18 +386,15 @@ QJsonObject progressToJson(const SetProgress &p) {
       if (kept.empty()) {
         continue;
       }
-      QJsonArray days;
-      for (const DayRollup &d : kept.days) {
-        days.append(QJsonArray{static_cast<double>(d.day), d.count, d.fails,
-                               static_cast<double>(d.sumMs),
-                               static_cast<double>(d.bestMs)});
-      }
+      QJsonArray days = jsonArray(kept.days, [](const DayRollup &d) {
+        return QJsonArray{static_cast<double>(d.day), d.count, d.fails,
+                          static_cast<double>(d.sumMs),
+                          static_cast<double>(d.bestMs)};
+      });
       archive[attemptModeId(mode)] = QJsonObject{
           {"best", static_cast<double>(kept.bestMs)}, {"days", days}};
     }
-    if (!archive.isEmpty()) {
-      caseObject["drillArchive"] = archive;
-    }
+    setIf(caseObject, "drillArchive", !archive.isEmpty(), archive);
     cases[qs(id)] = caseObject;
   }
   return QJsonObject{{"format", kProgressFile.format},

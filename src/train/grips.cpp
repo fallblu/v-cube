@@ -1,5 +1,7 @@
 #include "train/grips.hpp"
 
+#include "train/enum_ids.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -36,12 +38,7 @@ std::string_view handId(Hand h) {
 }
 
 std::optional<Hand> handFromId(std::string_view id) {
-  for (std::size_t i = 0; i < kHandIds.size(); ++i) {
-    if (kHandIds[i] == id) {
-      return static_cast<Hand>(i);
-    }
-  }
-  return std::nullopt;
+  return fromId<Hand>(kHandIds, id);
 }
 
 std::string_view fingerId(Finger f) {
@@ -49,12 +46,7 @@ std::string_view fingerId(Finger f) {
 }
 
 std::optional<Finger> fingerFromId(std::string_view id) {
-  for (std::size_t i = 0; i < kFingerIds.size(); ++i) {
-    if (kFingerIds[i] == id) {
-      return static_cast<Finger>(i);
-    }
-  }
-  return std::nullopt;
+  return fromId<Finger>(kFingerIds, id);
 }
 
 std::string_view gripName(int grip) {
@@ -66,26 +58,13 @@ std::string_view gripName(int grip) {
 
 std::optional<int> gripFromName(std::string_view name) {
   name = trim(name);
+  // Numbers too: -2 .. 2, the positive ones with or without a +.
   for (int g = kGripMin; g <= kGripMax; ++g) {
-    if (gripName(g) == name) {
+    std::string number = std::to_string(g);
+    if (gripName(g) == name || number == name ||
+        (g > 0 && "+" + number == name)) {
       return g;
     }
-  }
-  // Numbers too: -2 .. 2.
-  if (name == "-2") {
-    return -2;
-  }
-  if (name == "-1") {
-    return -1;
-  }
-  if (name == "0") {
-    return 0;
-  }
-  if (name == "1" || name == "+1") {
-    return 1;
-  }
-  if (name == "2" || name == "+2") {
-    return 2;
   }
   return std::nullopt;
 }
@@ -129,21 +108,7 @@ std::optional<GripMask> gripMaskFromText(std::string_view text) {
 }
 
 std::string trickText(const GripTrick &t) {
-  std::string s;
-  switch (t.hand) {
-  case Hand::Right:
-    s = "right";
-    break;
-  case Hand::Left:
-    s = "left";
-    break;
-  case Hand::Both:
-    s = "both";
-    break;
-  case Hand::Either:
-    s = "either";
-    break;
-  }
+  std::string s(handId(t.hand));
   s += ' ';
   s += fingerId(t.finger);
   if (!t.how.empty()) {

@@ -15,6 +15,8 @@ class QComboBox;
 
 namespace vcube {
 
+struct AppSettings;
+
 // Shows a facelet cube in 3D (with animated turns), in Alg-Trainer's flat
 // view, as an unfolded net, or not at all. The owner keeps the real cube
 // state and feeds moves through animateMove(); the view's own copy catches
@@ -43,6 +45,8 @@ public:
 
   // Duration of one quarter turn; 0 turns animation off.
   void setAnimationMs(int ms) { animationMs_ = ms; }
+  // The colour scheme and animation speed of the settings.
+  void applySettings(const AppSettings &settings);
 
   void setMode(Mode m);
   Mode mode() const { return mode_; }
@@ -71,8 +75,11 @@ protected:
 private:
   CubeLook look_;
   FaceletCube shown_;
-  std::deque<Move> queue_;
-  std::deque<bool> queuedTyped_; // per queued move: from animateMove()
+  struct Queued {
+    Move move;
+    bool typed; // from animateMove()
+  };
+  std::deque<Queued> queue_;
   double progress_ = 0.0;
   int animationMs_ = 110;
   Mode mode_ = Mode::Flat;
@@ -89,10 +96,10 @@ private:
   // A move typed by the solver, or one of a sequence played to them.
   enum class Source { Typed, Played };
   void enqueue(Move m, Source source);
-  QRectF drawArea() const;
   // marks_ moved back through the turns still to animate, onto the stickers
-  // of the state shown now.
-  StickerMarks shownMarks() const;
+  // of the state shown now (worked out in `moved` if need be); null with
+  // no marks.
+  const StickerMarks *shownMarks(StickerMarks &moved) const;
 };
 
 // A drop-down (3D, Flat, Net, Hidden) that switches `view` and remembers

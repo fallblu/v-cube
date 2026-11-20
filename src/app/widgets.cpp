@@ -156,6 +156,9 @@ void TimeDisplay::paintEvent(QPaintEvent *e) {
 }
 
 void TimeDisplay::setColour(const QColor &c) {
+  if (c == colour_) {
+    return;
+  }
   colour_ = c;
   // Only a colour of its own is set, so that the text otherwise follows
   // the theme, also when it changes.
@@ -241,17 +244,14 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
     break;
   }
   case S::Holding:
+  case S::Ready: {
+    const bool ready = timer.state() == S::Ready;
     show(inspection ? inspectText
                     : QString::fromStdString(formatTime(0, decimals_)),
-         statusColour(Status::Bad));
-    setCue(HoldCue::Holding);
+         statusColour(ready ? Status::Good : Status::Bad));
+    setCue(ready ? HoldCue::Ready : HoldCue::Holding);
     break;
-  case S::Ready:
-    show(inspection ? inspectText
-                    : QString::fromStdString(formatTime(0, decimals_)),
-         statusColour(Status::Good));
-    setCue(HoldCue::Ready);
-    break;
+  }
   case S::Running: {
     // One decimal while running keeps the display calm, like cstimer.
     beforeHold_.reset();
@@ -339,16 +339,6 @@ void TrendChart::invalidate() {
   update();
 }
 
-void TrendChart::setEmptyText(const QString &text) {
-  emptyText_ = text;
-  invalidate();
-}
-
-void TrendChart::setMoveCounts(bool on) {
-  moves_ = on;
-  invalidate();
-}
-
 void TrendChart::setSettingsKey(const QString &key) {
   settingsKey_ = key;
   last_ = std::max(0, saved::chartLast(key).get());
@@ -356,14 +346,16 @@ void TrendChart::setSettingsKey(const QString &key) {
   invalidate();
 }
 
-void TrendChart::setSolves(std::span<const Solve> solves) {
+void TrendChart::setSolves(std::span<const Solve> solves,
+                           std::vector<StatValue> ao5,
+                           std::vector<StatValue> ao12) {
   solves_.clear();
   solves_.reserve(solves.size());
   for (const Solve &s : solves) {
     solves_.push_back({s.timeMs, s.penalty});
   }
-  ao5_ = rollingAverages(solves, 5);
-  ao12_ = rollingAverages(solves, 12);
+  ao5_ = std::move(ao5);
+  ao12_ = std::move(ao12);
   hover_ = -1;
   // The last solve and its averages in words, for assistive technology.
   setAccessibleDescription(
@@ -375,40 +367,8 @@ void TrendChart::setSolves(std::span<const Solve> solves) {
   invalidate();
 }
 
-void TrendChart::setSeries(std::vector<Series> series) {
-  series_ = std::move(series);
-  invalidate();
-}
-
-void TrendChart::setPointName(const QString &name) {
-  pointName_ = name;
-  invalidate();
-}
-
-void TrendChart::setAverages(bool on) {
-  averages_ = on;
-  invalidate();
-}
-
-void TrendChart::setPointLabels(std::vector<QString> labels) {
-  pointLabels_ = std::move(labels);
-  invalidate();
-}
-
 bool TrendChart::showsSeries() const {
   return !series_.empty() && (showSeries_ || !averages_);
-}
-
-QStringList TrendChart::lineNames() const {
-  QStringList names;
-  if (showsSeries()) {
-    for (const Series &s : series_) {
-      names << s.name;
-    }
-  } else if (averages_) {
-    names << QStringLiteral("ao5") << QStringLiteral("ao12");
-  }
-  return names;
 }
 
 std::size_t TrendChart::first() const {
@@ -424,9 +384,12 @@ QRectF TrendChart::area() const {
   // larger text isn't cut.
   const QFontMetrics fm = fontMetrics();
   const int lineH = fm.height();
+  // ao12 is the wider name of the averages.
   int right = fm.horizontalAdvance(QStringLiteral("ao12"));
-  for (const QString &name : lineNames()) {
-    right = std::max(right, fm.horizontalAdvance(name));
+  if (showsSeries()) {
+    for (const Series &s : series_) {
+      right = std::max(right, fm.horizontalAdvance(s.name));
+    }
   }
   return QRectF(rect()).adjusted(fm.horizontalAdvance(QStringLiteral("000.0")) +
                                      8,
@@ -794,6 +757,14 @@ void TrendChart::contextMenuEvent(QContextMenuEvent *e) {
     });
   }
   menu.exec(e->globalPos());
+}
+
+QFuture<GeneratedScramble> generateScramble(const CubieCube &state, Hold hold) {
+  ColourNeutrality neutrality;
+  neutrality.main = hold;
+  neutrality.holds = {hold};
+  return generateScramble(
+      [state](Rng &) { return ScrambleSetup{state, {}, {}}; }, neutrality);
 }
 
 } // namespace vcube

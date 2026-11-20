@@ -49,8 +49,8 @@ public:
   // The cards the mode offers, also counted on Today.
   std::vector<std::string> cardPool() const override;
   void activated() override;
-  // The alg sets changed: the sheet's algs may be read from them.
-  void reloadSets();
+  // The sheet's algs may be read from the alg sets now.
+  void librarySetsChanged(const QString &) override;
 
   // What the page shows, for tests and scripts.
   const F2LConfig &config() const { return config_; }
@@ -90,7 +90,7 @@ protected:
   }
   void addOptions(OptionBar *bar) override;
   void showOptions() override;
-  std::optional<Setup> setUp(Extent extent, const std::string &card) override;
+  std::optional<Setup> setUp(const std::string &card) override;
   void restarted() override;
   bool turned() override;
   void cubeChanged() override;
@@ -113,13 +113,10 @@ protected:
   QList<KeyHint> doneKeys() const override;
   std::vector<Split> splits() override;
   std::vector<ListRow> cardRows() override;
-  std::vector<ListRow> untimedGroups() override;
   std::vector<ListRow> timedGroups() override;
   QString listHelp() const override;
   void groupActivated(const std::string &key) override;
   QString cardName(const std::string &card) const override;
-  // Esc in the own-solution field gives the keys back to the page.
-  bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
   // What a background job worked out, for the request that asked.

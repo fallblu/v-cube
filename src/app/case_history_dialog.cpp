@@ -1,5 +1,6 @@
 #include "app/case_history_dialog.hpp"
 
+#include "app/page_parts.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
@@ -130,10 +131,7 @@ void showCaseHistory(QWidget *parent, const QString &caseName,
     }
   }
   layout->addWidget(table, 1);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog,
-                   &QDialog::reject);
-  layout->addWidget(buttons);
+  addButtonBox(&dialog, layout, QDialogButtonBox::Close);
   dialog.resize(640, 480);
   dialog.exec();
 }

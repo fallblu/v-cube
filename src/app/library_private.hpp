@@ -7,6 +7,7 @@
 #include "app/drill_history_dialog.hpp"
 #include "app/grip_view.hpp"
 #include "app/mode_table.hpp"
+#include "app/page_parts.hpp"
 #include "app/paste_dialog.hpp"
 #include "app/set_properties_dialog.hpp"
 #include "app/text_style.hpp"
@@ -51,6 +52,15 @@ constexpr int kCaseRole = Qt::UserRole;
 constexpr int kGroupRole = Qt::UserRole + 1;
 
 inline int diagramSize() { return scaledToText(kLargeDiagram); }
+
+// The case of a row of the case tree (empty for a group's row), and the
+// group of a group's row.
+inline std::string caseIdOf(const QTreeWidgetItem *item) {
+  return ss(item->data(0, kCaseRole).toString());
+}
+inline std::size_t groupIndexOf(const QTreeWidgetItem *item) {
+  return static_cast<std::size_t>(item->data(0, kGroupRole).toInt());
+}
 
 } // namespace
 

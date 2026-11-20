@@ -108,12 +108,7 @@ CaseStage::CaseStage(QWidget *parent) : QWidget(parent) {
   reveal->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
   reveal->setTextInteractionFlags(Qt::TextSelectableByMouse);
   setTextRole(reveal, TextRole::Heading);
-  auto *revealScroll = new QScrollArea(bottom);
-  revealScroll->setWidget(reveal);
-  revealScroll->setWidgetResizable(true);
-  revealScroll->setFrameShape(QFrame::NoFrame);
-  revealScroll->setFocusPolicy(Qt::NoFocus);
-  bottomLayout->addWidget(revealScroll, 1);
+  bottomLayout->addWidget(scrollArea(reveal, bottom), 1);
   familyRow_ = new QWidget(bottom);
   new QHBoxLayout(familyRow_);
   familyRow_->setVisible(false);
@@ -300,5 +295,12 @@ void CaseStage::showFamily(const std::vector<FamilyCase> &cases) {
 }
 
 void CaseStage::hideFamily() { familyRow_->setVisible(false); }
+
+void CaseStage::clearCase() {
+  reveal->clear();
+  gradeRow->setVisible(false);
+  hideQuiz();
+  hideFamily();
+}
 
 } // namespace vcube

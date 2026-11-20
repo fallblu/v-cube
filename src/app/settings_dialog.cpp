@@ -25,6 +25,8 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
+#include <type_traits>
+
 namespace vcube {
 
 namespace {
@@ -65,41 +67,74 @@ const std::array<const char *, 6> kFaceNames = {
 const std::array<const char *, 6> kFaceLetters = {"U", "R", "F", "D", "L", "B"};
 } // namespace
 
+template <typename Widget, typename T>
+Widget *SettingsDialog::bound(Widget *widget, T &field) {
+  if constexpr (std::is_same_v<Widget, QCheckBox>) {
+    widget->setChecked(field);
+    readBacks_.push_back([widget, &field] { field = widget->isChecked(); });
+  } else if constexpr (std::is_same_v<Widget, QComboBox>) {
+    widget->setCurrentIndex(widget->findData(field));
+    readBacks_.push_back([widget, &field] {
+      field = widget->currentData().template value<T>();
+    });
+  } else {
+    widget->setValue(field);
+    readBacks_.push_back([widget, &field] { field = widget->value(); });
+  }
+  return widget;
+}
+
 SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     : QDialog(parent), settings_(settings) {
   setWindowTitle(tr("Settings"));
   auto *tabs = new QTabWidget(this);
   tabs_ = tabs;
+  // A check box with a tooltip.
+  auto checkBox = [this](const QString &text, const QString &tip, bool &field,
+                         QWidget *page) {
+    auto *box = new QCheckBox(text, page);
+    box->setToolTip(tip);
+    return bound(box, field);
+  };
 
   // General
   auto *general = new QWidget(tabs);
   auto *gForm = wrappingForm(general);
-  themeBox_ = new QComboBox(general);
-  themeBox_->addItems({tr("Dark"), tr("Light")});
-  themeBox_->setCurrentIndex(settings_.darkTheme ? 0 : 1);
-  gForm->addRow(tr("Theme:"), themeBox_);
-  interfaceTextBox_ = new QComboBox(general);
+  // A choice of a few sizes, keeping one set by hand in the file.
+  auto choice = [this,
+                 general](const std::vector<std::pair<QString, int>> &items,
+                          int &value, const QString &custom) {
+    auto *box = new QComboBox(general);
+    for (const auto &[label, v] : items) {
+      box->addItem(label, v);
+    }
+    if (box->findData(value) < 0) {
+      box->addItem(custom.arg(value), value);
+    }
+    return bound(box, value);
+  };
+  auto *themeBox = new QComboBox(general);
+  themeBox->addItem(tr("Dark"), true);
+  themeBox->addItem(tr("Light"), false);
+  gForm->addRow(tr("Theme:"), bound(themeBox, settings_.darkTheme));
+  std::vector<std::pair<QString, int>> textSizes;
   for (int percent : {100, 108, 117, 125, 133}) {
     QString px = tr("%1 px").arg(interfaceTextPixels(percent));
-    interfaceTextBox_->addItem(percent == 100 ? tr("Normal (%1)").arg(px) : px,
-                               percent);
+    textSizes.emplace_back(percent == 100 ? tr("Normal (%1)").arg(px) : px,
+                           percent);
   }
-  if (interfaceTextBox_->findData(settings_.interfaceTextPercent) < 0) {
-    interfaceTextBox_->addItem(tr("%1%").arg(settings_.interfaceTextPercent),
-                               settings_.interfaceTextPercent);
-  }
-  interfaceTextBox_->setCurrentIndex(
-      interfaceTextBox_->findData(settings_.interfaceTextPercent));
-  interfaceTextBox_->setToolTip(
+  auto *interfaceTextBox =
+      choice(textSizes, settings_.interfaceTextPercent, tr("%1%"));
+  interfaceTextBox->setToolTip(
       tr("The size of the text everywhere: lists, buttons, menus, this dialog "
          "and the help panel. The sizes below are on top of it."));
-  gForm->addRow(tr("Interface text size:"), interfaceTextBox_);
-  animationSpin_ = new QSpinBox(general);
-  animationSpin_->setRange(0, 500);
-  animationSpin_->setSuffix(" ms");
-  animationSpin_->setSpecialValueText(tr("Off"));
-  animationSpin_->setValue(settings_.animationMs);
-  gForm->addRow(tr("Virtual cube turn speed:"), animationSpin_);
+  gForm->addRow(tr("Interface text size:"), interfaceTextBox);
+  auto *animationSpin = new QSpinBox(general);
+  animationSpin->setRange(0, 500);
+  animationSpin->setSuffix(" ms");
+  animationSpin->setSpecialValueText(tr("Off"));
+  gForm->addRow(tr("Virtual cube turn speed:"),
+                bound(animationSpin, settings_.animationMs));
   auto *colourRow = new QHBoxLayout;
   for (std::size_t i = 0; i < 6; ++i) {
     auto *b = new QPushButton(general);
@@ -134,39 +169,26 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     refreshColours();
   });
   gForm->addRow(tr("Colour scheme:"), colourRow);
-  scrambleFontSpin_ = new QSpinBox(general);
-  scrambleFontSpin_->setRange(AppSettings::kMinScrambleFontPt,
-                              AppSettings::kMaxScrambleFontPt);
-  scrambleFontSpin_->setSuffix(" pt");
-  scrambleFontSpin_->setValue(settings_.scrambleFontPt);
-  gForm->addRow(tr("Scramble text size:"), scrambleFontSpin_);
-  // A choice of a few sizes, keeping one set by hand in the file.
-  auto choice = [general](const std::vector<std::pair<QString, int>> &items,
-                          int value, const QString &custom) {
-    auto *box = new QComboBox(general);
-    for (const auto &[label, v] : items) {
-      box->addItem(label, v);
-    }
-    if (box->findData(value) < 0) {
-      box->addItem(custom.arg(value), value);
-    }
-    box->setCurrentIndex(box->findData(value));
-    return box;
-  };
-  hintTextBox_ = choice({{tr("Normal"), 100},
-                         {tr("Large"), 120},
-                         {tr("Larger"), 145},
-                         {tr("Largest"), 175}},
-                        settings_.hintTextPercent, tr("%1%"));
-  hintTextBox_->setToolTip(
+  auto *scrambleFontSpin = new QSpinBox(general);
+  scrambleFontSpin->setRange(AppSettings::kMinScrambleFontPt,
+                             AppSettings::kMaxScrambleFontPt);
+  scrambleFontSpin->setSuffix(" pt");
+  gForm->addRow(tr("Scramble text size:"),
+                bound(scrambleFontSpin, settings_.scrambleFontPt));
+  auto *hintTextBox = choice({{tr("Normal"), 100},
+                              {tr("Large"), 120},
+                              {tr("Larger"), 145},
+                              {tr("Largest"), 175}},
+                             settings_.hintTextPercent, tr("%1%"));
+  hintTextBox->setToolTip(
       tr("The size of the hints under the timer and cube, and of messages"));
-  gForm->addRow(tr("Hint and message text:"), hintTextBox_);
-  thumbnailBox_ =
+  gForm->addRow(tr("Hint and message text:"), hintTextBox);
+  auto *thumbnailBox =
       choice({{tr("Small"), 38}, {tr("Medium"), 56}, {tr("Large"), 76}},
              settings_.thumbnailSize, tr("%1 px"));
-  thumbnailBox_->setToolTip(
+  thumbnailBox->setToolTip(
       tr("The size of the case pictures in the Learn and Drill lists"));
-  gForm->addRow(tr("Case pictures:"), thumbnailBox_);
+  gForm->addRow(tr("Case pictures:"), thumbnailBox);
   tabs->addTab(scrolled(general, tabs), tr("Appearance"));
 
   tabs->addTab(buildNeutralityTab(tabs), tr("Colour neutrality"));
@@ -175,62 +197,57 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   // Timer
   auto *timer = new QWidget(tabs);
   auto *tForm = wrappingForm(timer);
-  holdSpin_ = new QSpinBox(timer);
-  holdSpin_->setRange(0, AppSettings::kMaxHoldMs);
-  holdSpin_->setSingleStep(50);
-  holdSpin_->setSuffix(" ms");
-  holdSpin_->setSpecialValueText(tr("None"));
-  holdSpin_->setValue(settings_.holdMs);
-  holdSpin_->setToolTip(tr("How long Space must be held before the timer "
-                           "can start in Timed, Untimed and Move Count "
-                           "(cstimer uses 300 ms, a Stackmat 550 ms)"));
-  tForm->addRow(tr("Hold to start:"), holdSpin_);
-  inspectionBox_ = new QCheckBox(tr("15 s WCA inspection"), timer);
-  inspectionBox_->setToolTip(tr("+2 after 15 s, DNF after 17 s"));
-  inspectionBox_->setChecked(settings_.inspection);
-  tForm->addRow(tr("Inspection:"), inspectionBox_);
-  soundsBox_ = new QCheckBox(tr("Beep at 8 s and 12 s"), timer);
-  soundsBox_->setToolTip(
-      tr("Once at 8 s and twice at 12 s, like a judge's calls"));
-  soundsBox_->setChecked(settings_.inspectionSounds);
-  tForm->addRow(tr("Inspection calls:"), soundsBox_);
-  decimalsSpin_ = new QSpinBox(timer);
-  decimalsSpin_->setRange(1, 3);
-  decimalsSpin_->setValue(settings_.decimals);
-  tForm->addRow(tr("Decimal places:"), decimalsSpin_);
-  timerFontSpin_ = new QSpinBox(timer);
-  timerFontSpin_->setRange(AppSettings::kMinTimerFontPt,
-                           AppSettings::kMaxTimerFontPt);
-  timerFontSpin_->setSuffix(" pt");
-  timerFontSpin_->setValue(settings_.timerFontPt);
-  tForm->addRow(tr("Timer text size:"), timerFontSpin_);
-  autoStopBox_ = new QCheckBox(tr("Stop when the cube is solved"), timer);
-  autoStopBox_->setToolTip(
-      tr("Timed and Untimed. Off: Space ends the solve, and a cube that isn't "
-         "solved then is a DNF"));
-  autoStopBox_->setChecked(settings_.autoStop);
-  tForm->addRow(tr("Virtual cube solves:"), autoStopBox_);
-  hideCubeBox_ =
-      new QCheckBox(tr("Hide the scrambled cube until inspection"), timer);
-  hideCubeBox_->setToolTip(
-      tr("Timed, with inspection on: the scramble can't be studied before"));
-  hideCubeBox_->setChecked(settings_.hideBeforeInspection);
-  tForm->addRow(QString(), hideCubeBox_);
-  simplifiedBox_ = new QCheckBox(tr("Count moves simplified"), timer);
-  simplifiedBox_->setToolTip(
-      tr("U D U' is 1 move, R x R' none. Off: every turn counts as you did "
-         "it. The solution is kept as you did it either way."));
-  simplifiedBox_->setChecked(settings_.simplifiedCounts);
-  tForm->addRow(tr("Move counts:"), simplifiedBox_);
-  anyHoldBox_ = new QCheckBox(tr("The optimum in any hold"), timer);
-  anyHoldBox_->setToolTip(
-      tr("As the step is checked. Off: the optimum in the holds of your "
-         "colour neutrality (either EO axis)"));
-  anyHoldBox_->setChecked(settings_.optimalAnyHold);
-  tForm->addRow(tr("Move Count's Opt:"), anyHoldBox_);
+  auto *holdSpin = new QSpinBox(timer);
+  holdSpin->setRange(0, AppSettings::kMaxHoldMs);
+  holdSpin->setSingleStep(50);
+  holdSpin->setSuffix(" ms");
+  holdSpin->setSpecialValueText(tr("None"));
+  holdSpin->setToolTip(tr("How long Space must be held before the timer "
+                          "can start in Timed, Untimed and Move Count "
+                          "(cstimer uses 300 ms, a Stackmat 550 ms)"));
+  tForm->addRow(tr("Hold to start:"), bound(holdSpin, settings_.holdMs));
+  tForm->addRow(tr("Inspection:"), checkBox(tr("15 s WCA inspection"),
+                                            tr("+2 after 15 s, DNF after 17 s"),
+                                            settings_.inspection, timer));
+  tForm->addRow(tr("Inspection calls:"),
+                checkBox(tr("Beep at 8 s and 12 s"),
+                         tr("Once at 8 s and twice at 12 s, like a judge's "
+                            "calls"),
+                         settings_.inspectionSounds, timer));
+  auto *decimalsSpin = new QSpinBox(timer);
+  decimalsSpin->setRange(1, 3);
+  tForm->addRow(tr("Decimal places:"), bound(decimalsSpin, settings_.decimals));
+  auto *timerFontSpin = new QSpinBox(timer);
+  timerFontSpin->setRange(AppSettings::kMinTimerFontPt,
+                          AppSettings::kMaxTimerFontPt);
+  timerFontSpin->setSuffix(" pt");
+  tForm->addRow(tr("Timer text size:"),
+                bound(timerFontSpin, settings_.timerFontPt));
+  tForm->addRow(tr("Virtual cube solves:"),
+                checkBox(tr("Stop when the cube is solved"),
+                         tr("Timed and Untimed. Off: Space ends the solve, "
+                            "and a cube that isn't solved then is a DNF"),
+                         settings_.autoStop, timer));
+  tForm->addRow(QString(),
+                checkBox(tr("Hide the scrambled cube until inspection"),
+                         tr("Timed, with inspection on: the scramble can't "
+                            "be studied before"),
+                         settings_.hideBeforeInspection, timer));
+  tForm->addRow(tr("Move counts:"),
+                checkBox(tr("Count moves simplified"),
+                         tr("U D U' is 1 move, R x R' none. Off: every turn "
+                            "counts as you did it. The solution is kept as "
+                            "you did it either way."),
+                         settings_.simplifiedCounts, timer));
+  tForm->addRow(tr("Move Count's Opt:"),
+                checkBox(tr("The optimum in any hold"),
+                         tr("As the step is checked. Off: the optimum in the "
+                            "holds of your colour neutrality (either EO "
+                            "axis)"),
+                         settings_.optimalAnyHold, timer));
   // What is about text and looks goes with the appearance.
-  moveRow(tForm, gForm, timerFontSpin_);
-  moveRow(tForm, gForm, decimalsSpin_);
+  moveRow(tForm, gForm, timerFontSpin);
+  moveRow(tForm, gForm, decimalsSpin);
   tabs->addTab(scrolled(timer, tabs), tr("Timing and solves"));
 
   // Keyboard
@@ -238,7 +255,7 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   auto *kLayout = new QVBoxLayout(keys);
   auto *cubeForm = new QFormLayout;
   kLayout->addLayout(cubeForm);
-  moveRow(gForm, cubeForm, animationSpin_);
+  moveRow(gForm, cubeForm, animationSpin);
   kLayout->addWidget(
       new QLabel(tr("Virtual cube turning keys. Select a row to change its "
                     "key or move, or enter a key and a move to add one."),
@@ -305,37 +322,33 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   // Learning
   auto *learning = new QWidget(tabs);
   auto *lForm = wrappingForm(learning);
-  newPerDaySpin_ = new QSpinBox(learning);
-  newPerDaySpin_->setRange(0, 100);
-  newPerDaySpin_->setValue(settings_.srs.newPerDay);
-  newPerDaySpin_->setToolTip(tr("Taken from the learn queue"));
-  lForm->addRow(tr("New cases per day:"), newPerDaySpin_);
-  learningEdit_ =
-      new QLineEdit(stepsToText(settings_.srs.learningSteps), learning);
+  SrsConfig &srs = settings_.srs;
+  auto *newPerDaySpin = new QSpinBox(learning);
+  newPerDaySpin->setRange(0, 100);
+  newPerDaySpin->setToolTip(tr("Taken from the learn queue"));
+  lForm->addRow(tr("New cases per day:"), bound(newPerDaySpin, srs.newPerDay));
+  learningEdit_ = new QLineEdit(stepsToText(srs.learningSteps), learning);
   learningEdit_->setToolTip(
       tr("Delays before a new case's next reviews, e.g. \"1m 10m\""));
   lForm->addRow(tr("Learning steps:"), learningEdit_);
-  relearningEdit_ =
-      new QLineEdit(stepsToText(settings_.srs.relearningSteps), learning);
+  relearningEdit_ = new QLineEdit(stepsToText(srs.relearningSteps), learning);
   lForm->addRow(tr("Relearning steps (after a miss):"), relearningEdit_);
-  const SrsConfig &srs = settings_.srs;
-  auto days = [learning](double value) {
+  auto days = [this, learning](double &value) {
     auto *spin = new QDoubleSpinBox(learning);
     spin->setRange(1, 365);
     spin->setDecimals(1);
     spin->setSuffix(tr(" d"));
-    spin->setValue(value);
-    return spin;
+    return bound(spin, value);
   };
-  graduatingSpin_ = days(srs.graduatingDays);
-  graduatingSpin_->setToolTip(
+  auto *graduatingSpin = days(srs.graduatingDays);
+  graduatingSpin->setToolTip(
       tr("The first review interval of a case that finishes its learning "
          "steps"));
-  lForm->addRow(tr("Graduating interval:"), graduatingSpin_);
-  easySpin_ = days(srs.easyDays);
-  easySpin_->setToolTip(tr("The first review interval of a new case graded "
-                           "Easy, and of a case marked as learned"));
-  lForm->addRow(tr("Easy interval:"), easySpin_);
+  lForm->addRow(tr("Graduating interval:"), graduatingSpin);
+  auto *easySpin = days(srs.easyDays);
+  easySpin->setToolTip(tr("The first review interval of a new case graded "
+                          "Easy, and of a case marked as learned"));
+  lForm->addRow(tr("Easy interval:"), easySpin);
   lapseSpin_ = new QSpinBox(learning);
   lapseSpin_->setRange(0, 100);
   lapseSpin_->setSuffix(" %");
@@ -343,37 +356,35 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
   lapseSpin_->setToolTip(tr("How much of its interval a forgotten case keeps "
                             "once it is relearned"));
   lForm->addRow(tr("Interval kept after a miss:"), lapseSpin_);
-  easeRecoverySpin_ = new QDoubleSpinBox(learning);
-  easeRecoverySpin_->setRange(0, 0.3);
-  easeRecoverySpin_->setSingleStep(0.05);
-  easeRecoverySpin_->setDecimals(2);
-  easeRecoverySpin_->setSpecialValueText(tr("Off"));
-  easeRecoverySpin_->setValue(srs.easeRecovery);
-  easeRecoverySpin_->setToolTip(
+  auto *easeRecoverySpin = new QDoubleSpinBox(learning);
+  easeRecoverySpin->setRange(0, 0.3);
+  easeRecoverySpin->setSingleStep(0.05);
+  easeRecoverySpin->setDecimals(2);
+  easeRecoverySpin->setSpecialValueText(tr("Off"));
+  easeRecoverySpin->setToolTip(
       tr("A Good review raises a case's ease by this much, up to where it "
          "started, so that a case once missed can be spaced out as far "
          "again (Off: only Easy raises it)"));
-  lForm->addRow(tr("Ease regained per Good review:"), easeRecoverySpin_);
-  lateBox_ =
-      new QCheckBox(tr("A late review counts part of the delay"), learning);
-  lateBox_->setChecked(srs.creditLateReviews);
-  lateBox_->setToolTip(tr("A case reviewed days after it was due and still "
-                          "remembered gets a longer interval, as in Anki"));
-  lForm->addRow(tr("Late reviews:"), lateBox_);
-  hardBox_ =
-      new QCheckBox(tr("Hard moves on to the next learning step"), learning);
-  hardBox_->setChecked(srs.hardAdvancesSteps);
-  hardBox_->setToolTip(tr("Otherwise Hard (the next-move hint) repeats the "
-                          "step. Hard never finishes the steps."));
-  lForm->addRow(tr("Hard:"), hardBox_);
-  maxLearningSpin_ = new QSpinBox(learning);
-  maxLearningSpin_->setRange(0, 50);
-  maxLearningSpin_->setSpecialValueText(tr("No limit"));
-  maxLearningSpin_->setValue(srs.maxLearning);
-  maxLearningSpin_->setToolTip(
+  lForm->addRow(tr("Ease regained per Good review:"),
+                bound(easeRecoverySpin, srs.easeRecovery));
+  lForm->addRow(tr("Late reviews:"),
+                checkBox(tr("A late review counts part of the delay"),
+                         tr("A case reviewed days after it was due and still "
+                            "remembered gets a longer interval, as in Anki"),
+                         srs.creditLateReviews, learning));
+  lForm->addRow(tr("Hard:"),
+                checkBox(tr("Hard moves on to the next learning step"),
+                         tr("Otherwise Hard (the next-move hint) repeats the "
+                            "step. Hard never finishes the steps."),
+                         srs.hardAdvancesSteps, learning));
+  auto *maxLearningSpin = new QSpinBox(learning);
+  maxLearningSpin->setRange(0, 50);
+  maxLearningSpin->setSpecialValueText(tr("No limit"));
+  maxLearningSpin->setToolTip(
       tr("New cases wait while this many are in their learning steps, so "
          "that walkthroughs don't come back to back"));
-  lForm->addRow(tr("New cases learning at once:"), maxLearningSpin_);
+  lForm->addRow(tr("New cases learning at once:"),
+                bound(maxLearningSpin, srs.maxLearning));
   learnAheadSpin_ = new QSpinBox(learning);
   learnAheadSpin_->setRange(0, 60);
   learnAheadSpin_->setSuffix(tr(" min"));
@@ -384,14 +395,13 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
          "steps come up early. Space on the idle "
          "screen always takes the next one early."));
   lForm->addRow(tr("Learn ahead:"), learnAheadSpin_);
-  leechSpin_ = new QSpinBox(learning);
-  leechSpin_->setRange(0, 50);
-  leechSpin_->setSpecialValueText(tr("Off"));
-  leechSpin_->setSuffix(tr(" misses"));
-  leechSpin_->setValue(srs.leechLapses);
-  leechSpin_->setToolTip(tr("A case forgotten this many times is flagged as "
-                            "a leech in the case list"));
-  lForm->addRow(tr("Leech after:"), leechSpin_);
+  auto *leechSpin = new QSpinBox(learning);
+  leechSpin->setRange(0, 50);
+  leechSpin->setSpecialValueText(tr("Off"));
+  leechSpin->setSuffix(tr(" misses"));
+  leechSpin->setToolTip(tr("A case forgotten this many times is flagged as "
+                           "a leech in the case list"));
+  lForm->addRow(tr("Leech after:"), bound(leechSpin, srs.leechLapses));
   slowSpin_ = new QDoubleSpinBox(learning);
   slowSpin_->setRange(0.1, 30);
   slowSpin_->setDecimals(1);
@@ -412,19 +422,13 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
       learning);
   learningNote->setWordWrap(true);
   lForm->addRow(learningNote);
-  // The form is longer than the dialog on small screens.
-  auto *learningScroll = new QScrollArea(tabs);
-  learningScroll->setWidget(learning);
-  learningScroll->setWidgetResizable(true);
-  learningScroll->setFrameShape(QFrame::NoFrame);
-  learningScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  tabs->addTab(learningScroll, tr("Learn"));
+  tabs->addTab(scrolled(learning, tabs), tr("Learn"));
 
-  drillTab_ = new DrillSettingsTab(settings_.drill, tabs);
-  // Starting and stopping the timer is set in one place for every mode.
+  // Starting and stopping the timer is set in one place for every mode:
+  // Drill's rows go under the hold time.
   int holdRow = 0;
-  tForm->getWidgetPosition(holdSpin_, &holdRow, nullptr);
-  drillTab_->moveTimingRows(tForm, holdRow);
+  tForm->getWidgetPosition(holdSpin, &holdRow, nullptr);
+  drillTab_ = new DrillSettingsTab(settings_.drill, tForm, holdRow + 1, tabs);
   tabs->addTab(scrolled(drillTab_, tabs), tr("Drill"));
 
   // Tooltips are never shown (see MainWindow), so each option's
@@ -433,20 +437,18 @@ SettingsDialog::SettingsDialog(const AppSettings &settings, QWidget *parent)
     showTipsAsHelp(form);
   }
 
-  auto *buttons = new QDialogButtonBox(
-      QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel,
-      this);
-  connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &SettingsDialog::reject);
+  auto *layout = new QVBoxLayout(this);
+  layout->addWidget(tabs);
+  QDialogButtonBox *buttons =
+      addButtonBox(this, layout,
+                   QDialogButtonBox::Ok | QDialogButtonBox::Apply |
+                       QDialogButtonBox::Cancel);
   connect(buttons->button(QDialogButtonBox::Apply), &QPushButton::clicked, this,
           [this] {
             if (collect()) {
               emit applied(settings_);
             }
           });
-  auto *layout = new QVBoxLayout(this);
-  layout->addWidget(tabs);
-  layout->addWidget(buttons);
   resize(720, 640);
 }
 
@@ -563,19 +565,17 @@ QWidget *SettingsDialog::buildNeutralityTab(QWidget *parent) {
     auto *top = new QLabel(page);
     holdSwatches_[static_cast<std::size_t>(c)] = front;
     holdSwatches_[static_cast<std::size_t>(6 + c)] = top;
-    auto *frontName = new QLabel(colourName(c), page);
-    auto *frontCell = new QHBoxLayout;
-    frontCell->setSpacing(6);
-    frontCell->addWidget(front);
-    frontCell->addWidget(frontName);
-    frontCell->addStretch();
-    grid->addLayout(frontCell, 0, c + 1);
-    auto *topCell = new QHBoxLayout;
-    topCell->setSpacing(6);
-    topCell->addWidget(top);
-    topCell->addWidget(new QLabel(colourName(c), page));
-    topCell->addStretch();
-    grid->addLayout(topCell, c + 1, 0);
+    // The swatch with the colour's name.
+    auto cell = [page, c](QLabel *swatch) {
+      auto *row = new QHBoxLayout;
+      row->setSpacing(6);
+      row->addWidget(swatch);
+      row->addWidget(new QLabel(colourName(c), page));
+      row->addStretch();
+      return row;
+    };
+    grid->addLayout(cell(front), 0, c + 1);
+    grid->addLayout(cell(top), c + 1, 0);
   }
   for (Hold h : allHolds()) {
     auto *box = new QCheckBox(page);
@@ -609,7 +609,15 @@ QWidget *SettingsDialog::buildNeutralityTab(QWidget *parent) {
   layout->addWidget(holdSummary_);
   layout->addStretch();
 
-  connect(mainTopBox_, &QComboBox::activated, this, [this] {
+  // The preset chosen (but Custom) from the main hold.
+  auto applyPreset = [this] {
+    if (int p = presetBox_->currentData().toInt(); p != kCustomPreset) {
+      settings_.neutrality = ColourNeutrality::preset(
+          settings_.neutrality.main, static_cast<Neutrality>(p));
+    }
+    refreshNeutrality();
+  };
+  connect(mainTopBox_, &QComboBox::activated, this, [this, applyPreset] {
     settings_.neutrality.main.top = mainTopBox_->currentData().toInt();
     if (!isValidHold(settings_.neutrality.main)) {
       // Keep the front if it fits, else the first colour that does.
@@ -621,27 +629,13 @@ QWidget *SettingsDialog::buildNeutralityTab(QWidget *parent) {
       }
     }
     fillMainFronts();
-    if (int p = presetBox_->currentData().toInt(); p != kCustomPreset) {
-      settings_.neutrality = ColourNeutrality::preset(
-          settings_.neutrality.main, static_cast<Neutrality>(p));
-    }
-    refreshNeutrality();
+    applyPreset();
   });
-  connect(mainFrontBox_, &QComboBox::activated, this, [this] {
+  connect(mainFrontBox_, &QComboBox::activated, this, [this, applyPreset] {
     settings_.neutrality.main.front = mainFrontBox_->currentData().toInt();
-    if (int p = presetBox_->currentData().toInt(); p != kCustomPreset) {
-      settings_.neutrality = ColourNeutrality::preset(
-          settings_.neutrality.main, static_cast<Neutrality>(p));
-    }
-    refreshNeutrality();
+    applyPreset();
   });
-  connect(presetBox_, &QComboBox::activated, this, [this] {
-    if (int p = presetBox_->currentData().toInt(); p != kCustomPreset) {
-      settings_.neutrality = ColourNeutrality::preset(
-          settings_.neutrality.main, static_cast<Neutrality>(p));
-    }
-    refreshNeutrality();
-  });
+  connect(presetBox_, &QComboBox::activated, this, applyPreset);
   fillMainFronts();
   return page;
 }
@@ -810,33 +804,13 @@ bool SettingsDialog::collect() {
                             "or \"30s 5m 1h\"."));
     return false;
   }
-  settings_.darkTheme = themeBox_->currentIndex() == 0;
-  settings_.interfaceTextPercent = interfaceTextBox_->currentData().toInt();
-  settings_.animationMs = animationSpin_->value();
-  settings_.scrambleFontPt = scrambleFontSpin_->value();
-  settings_.hintTextPercent = hintTextBox_->currentData().toInt();
-  settings_.thumbnailSize = thumbnailBox_->currentData().toInt();
-  settings_.holdMs = holdSpin_->value();
-  settings_.inspection = inspectionBox_->isChecked();
-  settings_.inspectionSounds = soundsBox_->isChecked();
-  settings_.decimals = decimalsSpin_->value();
-  settings_.timerFontPt = timerFontSpin_->value();
-  settings_.autoStop = autoStopBox_->isChecked();
-  settings_.hideBeforeInspection = hideCubeBox_->isChecked();
-  settings_.simplifiedCounts = simplifiedBox_->isChecked();
-  settings_.optimalAnyHold = anyHoldBox_->isChecked();
-  settings_.srs.newPerDay = newPerDaySpin_->value();
+  for (const auto &readBack : readBacks_) {
+    readBack();
+  }
   settings_.srs.learningSteps = learn;
   settings_.srs.relearningSteps = relearn;
-  settings_.srs.graduatingDays = graduatingSpin_->value();
-  settings_.srs.easyDays = easySpin_->value();
   settings_.srs.lapseFactor = lapseSpin_->value() / 100.0;
-  settings_.srs.easeRecovery = easeRecoverySpin_->value();
-  settings_.srs.creditLateReviews = lateBox_->isChecked();
-  settings_.srs.hardAdvancesSteps = hardBox_->isChecked();
-  settings_.srs.maxLearning = maxLearningSpin_->value();
   settings_.srs.learnAheadSeconds = learnAheadSpin_->value() * 60;
-  settings_.srs.leechLapses = leechSpin_->value();
   settings_.slowRecognitionMs =
       static_cast<int>(std::lround(slowSpin_->value() * 1000));
   settings_.drill = drillTab_->result();

@@ -1,33 +1,32 @@
-#include "app/page_parts.hpp"
 #include "app/timer_page.hpp"
-#include "app/timer_private.hpp"
 
 #include "app/review_dialog.hpp"
-#include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
-#include "io/data_file.hpp"
-#include "train/step_solver.hpp"
 
-#include <QApplication>
-#include <QClipboard>
-#include <QComboBox>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
-#include <QHBoxLayout>
-#include <QKeyEvent>
-#include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
-#include <QPushButton>
-#include <QSplitter>
-#include <QToolButton>
-#include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace vcube {
 
 namespace {
+
+// The table's columns. Those after ao12 are for virtual sessions.
+enum Column : int {
+  kNumber,
+  kTime,
+  kAo5,
+  kAo12,
+  kMoves,
+  kTps,
+  kCross,
+  kF2l,
+  kLl,
+  kColumns
+};
 
 SolveSplits computeSplits(const Solve &s, bool simplified) {
   ParseResult scramble = parseAlg(s.scramble);
@@ -79,8 +78,8 @@ void TimerPage::selectSession(std::size_t index) {
     showScramble(); // onto the session's cube
   }
   showLastResult();
-  statusLabel_->clear();
-  refreshSolves();
+  hintLabel_->clear();
+  refreshAttempts();
   save();
 }
 
@@ -130,7 +129,7 @@ void TimerPage::requestSplits() {
   }));
 }
 
-void TimerPage::refreshSolves() {
+void TimerPage::refreshAttempts() {
   const auto &solves = session().solves;
   int d = settings_.decimals;
   std::int64_t unit = statUnit(d);
@@ -157,8 +156,8 @@ void TimerPage::refreshSolves() {
     set(kNumber, s.comment.empty() ? QString::number(i + 1)
                                    : QString("%1 *").arg(i + 1));
     set(kTime, qs(formatSolve(s, d)));
-    set(kAo5, statText(ao5[i], d));
-    set(kAo12, statText(ao12[i], d));
+    set(kAo5, timeText(ao5[i], d));
+    set(kAo12, timeText(ao12[i], d));
     QString moves, rate, cross, f2l, ll;
     if (virt && !s.moves.empty()) {
       SolveRow &kept = solveRows_[i];
@@ -181,7 +180,7 @@ void TimerPage::refreshSolves() {
       }
       if (const SolveSplits *sp = kept.splits) {
         auto text = [&](const std::optional<std::int64_t> &ms) {
-          return ms ? statText(*ms, d) : QString();
+          return ms ? timeText(*ms, d) : QString();
         };
         cross = text(sp->crossMs);
         f2l = text(sp->f2lMs);
@@ -211,29 +210,15 @@ void TimerPage::refreshSolves() {
   if (missing) {
     requestSplits();
   }
-  static constexpr std::string_view kStats[] = {"single", "mo3", "ao5", "ao12",
-                                                "ao100"};
-  SessionStats stats = sessionStats(solves, kStats, unit);
-  const SessionSummary &sum = stats.summary;
-  QString colour = palette().color(QPalette::WindowText).name();
-  QString html = statsTableHtml(
-      stats,
-      [](const std::string &id) {
-        return id == "single" ? tr("time") : qs(id);
-      },
-      [d](const std::string &, StatValue v) { return statText(v, d); }, colour);
-  html += tr("<p>Solves: %1%2 &nbsp; Mean: %3</p>")
-              .arg(sum.count)
-              .arg(sum.dnfs ? QString(" (%1 DNF)").arg(sum.dnfs) : QString())
-              .arg(statLinkHtml("mean:all", sum.mean, statText(sum.mean, d),
-                                colour));
-  panel_->setStatsHtml(html);
-  focusStats_->setText(tr("ao5 %1 · ao12 %2 · best %3 · %4 solves")
-                           .arg(statText(currentAverage(solves, 5, unit), d),
-                                statText(currentAverage(solves, 12, unit), d),
-                                statText(sum.best, d))
-                           .arg(sum.count));
-  chart_->setSolves(solves);
+  showStats(
+      solves, unit, tr("time"),
+      [d](const std::string &, StatValue v) { return timeText(v, d); },
+      solves.size());
+  if (unit != kWcaUnit) { // the chart's averages are in WCA units
+    ao5 = rollingAverages(solves, 5);
+    ao12 = rollingAverages(solves, 12);
+  }
+  chart_->setSolves(solves, std::move(ao5), std::move(ao12));
   if (virt) {
     chart_->setSeries({{tr("cross"), Role::Series3, crossSeries},
                        {tr("F2L"), Role::Series1, f2lSeries},
@@ -249,7 +234,7 @@ void TimerPage::showStat(const QString &link) {
   int d = settings_.decimals;
   StatLinkView view;
   view.unit = statUnit(d);
-  view.format = [d](StatValue v) { return statText(v, d); };
+  view.format = [d](StatValue v) { return timeText(v, d); };
   view.result = [&solves, d](std::size_t i) {
     return qs(formatSolve(solves[i], d));
   };
@@ -265,19 +250,17 @@ void TimerPage::setLastPenalty(Penalty p) {
   Solve &s = session().solves.back();
   s.penalty = s.penalty == p ? Penalty::None : p;
   display_->showTime(s.timeMs, s.penalty);
-  save();
-  refreshSolves();
+  saveAndRefresh();
 }
 
-void TimerPage::deleteSolve(int index) {
+void TimerPage::deleteAttempt(int index) {
   auto &solves = session().solves;
   if (isBusy() || index < 0 ||
       !deleted_.erase(solves, static_cast<std::size_t>(index))) {
     return;
   }
   justSolved_ = false;
-  save();
-  refreshSolves();
+  saveAndRefresh();
   showLastResult();
   emit message(tr("Deleted solve #%1 (Ctrl+Z puts it back)").arg(index + 1));
 }
@@ -289,8 +272,7 @@ void TimerPage::undoDelete() {
   std::optional<std::size_t> at = deleted_.restore(session().solves);
   justSolved_ = false;
   emit message(tr("Put back solve #%1").arg(*at + 1));
-  save();
-  refreshSolves();
+  saveAndRefresh();
   showLastResult();
 }
 
@@ -303,8 +285,7 @@ void TimerPage::commentSolve(int index) {
   if (std::optional<QString> text = askComment(
           this, tr("Comment on solve #%1:").arg(index + 1), qs(s.comment))) {
     s.comment = ss(*text);
-    save();
-    refreshSolves();
+    saveAndRefresh();
   }
 }
 
@@ -352,7 +333,7 @@ void TimerPage::showDetails(int index) {
       QString line = p.htm == 1 ? tr("%1: 1 move").arg(qs(p.name))
                                 : tr("%1: %2 moves").arg(qs(p.name)).arg(p.htm);
       if (p.ms > 0) {
-        line += tr(" in %1").arg(statText(p.ms, d));
+        line += tr(" in %1").arg(timeText(p.ms, d));
       }
       phases << line;
     }
@@ -367,7 +348,7 @@ void TimerPage::showDetails(int index) {
                       : [this, index] { review(index); });
 }
 
-void TimerPage::showSolveMenu(int index, const QPoint &globalPos) {
+void TimerPage::showAttemptMenu(int index, const QPoint &globalPos) {
   const auto &solves = session().solves;
   if (isBusy() || index < 0 || index >= static_cast<int>(solves.size())) {
     return; // nothing changes in the middle of a solve
@@ -384,8 +365,7 @@ void TimerPage::showSolveMenu(int index, const QPoint &globalPos) {
       if (index + 1 == static_cast<int>(list.size())) {
         showLastResult();
       }
-      save();
-      refreshSolves();
+      saveAndRefresh();
     };
   };
   for (auto [text, p] : {std::pair{tr("No penalty"), Penalty::None},
@@ -404,7 +384,7 @@ void TimerPage::showSolveMenu(int index, const QPoint &globalPos) {
   common.comment = [this, index] { commentSolve(index); };
   common.scramble = qs(s.scramble);
   common.solution = qs(s.moves);
-  common.remove = [this, index] { deleteSolve(index); };
+  common.remove = [this, index] { deleteAttempt(index); };
   addAttemptActions(menu, common);
   menu.run(globalPos, [this] { return !isBusy(); });
 }

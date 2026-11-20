@@ -8,6 +8,8 @@
 #include <QDialog>
 
 #include <array>
+#include <utility>
+#include <vector>
 
 class QCheckBox;
 class QComboBox;
@@ -77,7 +79,8 @@ public:
 private:
   ErgoProfile base_;
   QLineEdit *name_;
-  QDoubleSpinBox *other_, *regrip_, *hidden_, *step_, *strain_, *start_, *same_;
+  // The costs' fields, with what of the profile each one edits.
+  std::vector<std::pair<double GripModel::*, QDoubleSpinBox *>> costs_;
   QTableWidget *tricks_;
   QLabel *problems_;
   QLineEdit *tryAlg_;
@@ -98,7 +101,6 @@ public:
 
 private:
   LabCase case_;
-  const AlgLibrary &library_;
   const AppSettings &settings_;
   QLineEdit *name_;
   QLineEdit *setup_;

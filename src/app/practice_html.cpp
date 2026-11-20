@@ -1,5 +1,6 @@
 #include "app/practice_html.hpp"
 
+#include "app/alg_html.hpp"
 #include "app/colours.hpp"
 #include "app/ui_text.hpp"
 #include "train/move_count.hpp"
@@ -20,45 +21,12 @@ QString tr(const char *text) {
   return QCoreApplication::translate("vcube::PracticePage", text);
 }
 
-QString gradeName(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return QObject::tr("Again");
-  case Grade::Hard:
-    return QObject::tr("Hard");
-  case Grade::Good:
-    return QObject::tr("Good");
-  case Grade::Easy:
-    return QObject::tr("Easy");
-  }
-  return {};
-}
-
-// Learn's grade badge colours (gradeColour() in alg_html.cpp).
-QColor gradeBadgeColour(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return roleColour(Role::GradeAgain);
-  case Grade::Hard:
-    return roleColour(Role::GradeHard);
-  case Grade::Good:
-    return roleColour(Role::GradeGood);
-  case Grade::Easy:
-    return roleColour(Role::GradeEasy);
-  }
-  return roleColour(Role::GradeNone);
-}
-
 } // namespace
 
 QString smallLine(const QString &text) {
   return text.isEmpty()
              ? QString()
              : "<br><span style='font-size:small'>" + text + "</span>";
-}
-
-QString clockText(std::int64_t ms, int decimals) {
-  return qs(formatTime(StatValue(ms), decimals));
 }
 
 QString tenthsText(std::int64_t ms) {
@@ -79,8 +47,8 @@ QString gradeLine(Grade grade, std::int64_t due, std::int64_t now,
   const QString badge =
       QString("<span style=\"background-color: %1; color: %2;\">"
               "&nbsp;<b>%3</b>&nbsp;</span>")
-          .arg(gradeBadgeColour(grade).name(), roleColour(Role::OnBadge).name(),
-               gradeName(grade));
+          .arg(gradeColour(grade), roleColour(Role::OnBadge).name(),
+               tr(gradeName(grade)));
   return tr("%1 · it comes back %2").arg(badge, dueSentence(due, now, dayEnd));
 }
 
@@ -98,9 +66,9 @@ QString timedLine(const TimedResult &r, int decimals) {
   } else if (r.meanBefore && r.ms > 0) {
     const double d = static_cast<double>(r.ms) - *r.meanBefore;
     const QString mean =
-        clockText(static_cast<std::int64_t>(*r.meanBefore), decimals);
+        timeText(static_cast<std::int64_t>(*r.meanBefore), decimals);
     const QString by =
-        clockText(static_cast<std::int64_t>(std::abs(d)), decimals);
+        timeText(static_cast<std::int64_t>(std::abs(d)), decimals);
     parts << (d <= 0 ? coloured(kPassColour,
                                 tr("%1 under your mean (%2)").arg(by, mean))
                      : tr("%1 over your mean (%2)").arg(by, mean));
@@ -140,7 +108,7 @@ QString inspectionClock(std::int64_t usedMs, std::int64_t limitMs, bool running,
   if (!running) {
     shown = tr("Looked %1").arg(tenthsText(usedMs));
   }
-  return QString("<span style='color:%1'>%2</span>").arg(colour.name(), shown);
+  return coloured(colour, shown);
 }
 
 QString inspectionReadyPrompt(std::int64_t limitMs) {
@@ -201,15 +169,13 @@ QString splitsHtml(const std::vector<PracticeSplit> &parts, const Alg &moves,
     const std::int64_t began = first < end ? moveMs[first] : ended;
     const std::int64_t pause = std::max<std::int64_t>(0, began - at);
     const std::int64_t time = std::max<std::int64_t>(0, ended - at);
-    Alg part(moves.begin() + static_cast<std::ptrdiff_t>(from),
-             moves.begin() + static_cast<std::ptrdiff_t>(end));
-    const int htm = htmCount(simplify(part));
+    const int htm = htmCount(simplify(slice(moves, from, end)));
     const std::int64_t turning = ended - began;
     html +=
         QString("<tr><td>%1</td><td align='right'>%2</td><td "
                 "align='right'>%3</td><td align='right'>%4</td><td "
                 "align='right'>%5</td></tr>")
-            .arg(name, clockText(time, decimals), clockText(pause, decimals))
+            .arg(name, timeText(time, decimals), timeText(pause, decimals))
             .arg(htm)
             .arg(turning > 0 && htm > 1
                      ? QString::number(

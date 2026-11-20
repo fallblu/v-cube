@@ -17,7 +17,7 @@ namespace vcube {
 class LabFlow {
 public:
   enum class Phase { Idle, Ready, Running, Done, Finished };
-  // Turn is a key that turns the virtual cube.
+  // A key that turns the virtual cube carries its turn (TrainKeyEvent::move).
   using Key = TrainKey;
   using KeyEvent = TrainKeyEvent;
 

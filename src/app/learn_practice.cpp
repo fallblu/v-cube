@@ -5,25 +5,8 @@
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
-#include <QActionGroup>
-#include <QComboBox>
-#include <QDateTime>
-#include <QFormLayout>
-#include <QHBoxLayout>
-#include <QKeyEvent>
-#include <QLabel>
-#include <QMenu>
 #include <QPushButton>
-#include <QRandomGenerator>
-#include <QScrollArea>
 #include <QSpinBox>
-#include <QSplitter>
-#include <QToolButton>
-#include <QTreeWidget>
-#include <QVBoxLayout>
-
-#include <algorithm>
-#include <cmath>
 
 namespace vcube {
 
@@ -48,10 +31,7 @@ void LearnPage::beginRecognition(const std::string &caseId) {
   last_ = cardId(caseId);
   undo_.close();
   attempt_.begin(caseId, LearnAttempt::Kind::Known);
-  reveal_->clear();
-  gradeRow_->setVisible(false);
-  stage_->hideFamily();
-  stage_->hideQuiz();
+  stage_->clearCase();
   cubeView_->setColourMap(colourMapOf(hold));
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);

@@ -194,82 +194,21 @@ private:
 
   bool parseMove(Alg &out) {
     char c = peek();
-    std::optional<MoveType> type;
-    bool wideByCase = false;
-    switch (c) {
-    case 'U':
-      type = MoveType::U;
-      break;
-    case 'R':
-      type = MoveType::R;
-      break;
-    case 'F':
-      type = MoveType::F;
-      break;
-    case 'D':
-      type = MoveType::D;
-      break;
-    case 'L':
-      type = MoveType::L;
-      break;
-    case 'B':
-      type = MoveType::B;
-      break;
-    case 'u':
-      type = MoveType::Uw;
-      wideByCase = true;
-      break;
-    case 'r':
-      type = MoveType::Rw;
-      wideByCase = true;
-      break;
-    case 'f':
-      type = MoveType::Fw;
-      wideByCase = true;
-      break;
-    case 'd':
-      type = MoveType::Dw;
-      wideByCase = true;
-      break;
-    case 'l':
-      type = MoveType::Lw;
-      wideByCase = true;
-      break;
-    case 'b':
-      type = MoveType::Bw;
-      wideByCase = true;
-      break;
-    case 'M':
-      type = MoveType::M;
-      break;
-    case 'E':
-      type = MoveType::E;
-      break;
-    case 'S':
-      type = MoveType::S;
-      break;
-    case 'x':
-    case 'X':
-      type = MoveType::X;
-      break;
-    case 'y':
-    case 'Y':
-      type = MoveType::Y;
-      break;
-    case 'z':
-    case 'Z':
-      type = MoveType::Z;
-      break;
-    default:
+    // Rotations may be written in capitals too.
+    char name =
+        c == 'X' || c == 'Y' || c == 'Z' ? static_cast<char>(c - 'X' + 'x') : c;
+    auto it = std::ranges::find(kNames, std::string_view(&name, 1));
+    if (it == kNames.end()) {
       return fail("unexpected character '" +
                   std::string(text_.substr(
                       pos_, utf8Length(static_cast<unsigned char>(c)))) +
                   "'");
     }
+    auto type = static_cast<MoveType>(it - kNames.begin());
     ++pos_;
-    if (!wideByCase && peek() == 'w' && isFaceTurn(*type)) {
+    if (peek() == 'w' && isFaceTurn(type)) {
       ++pos_;
-      type = static_cast<MoveType>(static_cast<int>(*type) + 6);
+      type = static_cast<MoveType>(static_cast<int>(type) + 6);
     }
     std::optional<int> count = readAmount();
     if (!count) {
@@ -285,7 +224,7 @@ private:
       int quarters = std::abs(*count);
       int fewest = amount == 2 ? 2 : 1;
       out.push_back(
-          {*type, static_cast<std::uint8_t>(amount),
+          {type, static_cast<std::uint8_t>(amount),
            static_cast<std::uint16_t>(quarters > fewest ? quarters : 0)});
     }
     return true;

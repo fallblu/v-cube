@@ -72,21 +72,20 @@ TEST_CASE("built-in cases are distinct and accept standard algs") {
       }
     }
   }
-  AlgSet p = *pll;
-  auto report = importAlgs(p,
-                           "T: R U R' U' R' F R2 U' R' U' R U R' F'\n"
-                           "M2 U M U2 M' U M2\n"
-                           "x R2 D2 R U R' D2 R U' R x'\n",
-                           NewCases::Skip);
-  CHECK(report.added == 3);
-  CHECK(p.findCase("T")->algs.size() == 1);
-  CHECK(p.findCase("Ua")->algs.size() == 1);
-  CHECK(p.findCase("Ab")->algs.size() == 1);
-  AlgSet o = *oll;
-  report = importAlgs(o, "R U R' U R U2 R'\nF R U R' U' F'\n", NewCases::Skip);
-  CHECK(report.added == 2);
-  CHECK(o.findCase("oll27")->algs.size() == 1);
-  CHECK(o.findCase("oll45")->algs.size() == 1);
+  auto plan = planPaste(*pll,
+                        readPaste("T: R U R' U' R' F R2 U' R' U' R U R' F'\n"
+                                  "M2 U M U2 M' U M2\n"
+                                  "x R2 D2 R U R' D2 R U' R x'\n"),
+                        NewCases::Skip, 0);
+  CHECK(plan.report.added == 3);
+  CHECK(plan.set.findCase("T")->algs.size() == 1);
+  CHECK(plan.set.findCase("Ua")->algs.size() == 1);
+  CHECK(plan.set.findCase("Ab")->algs.size() == 1);
+  plan = planPaste(*oll, readPaste("R U R' U R U2 R'\nF R U R' U' F'\n"),
+                   NewCases::Skip, 0);
+  CHECK(plan.report.added == 2);
+  CHECK(plan.set.findCase("oll27")->algs.size() == 1);
+  CHECK(plan.set.findCase("oll45")->algs.size() == 1);
 }
 
 namespace {
@@ -176,10 +175,10 @@ TEST_CASE("built-in cases keep their last layer on top whatever the main "
 TEST_CASE("a tilted Aa perm alg shows the case the usual way up") {
   auto pll = readAlgSetFile(kBuiltins + "/pll.json", nullptr);
   REQUIRE(pll);
-  AlgSet set = *pll;
-  auto report =
-      importAlgs(set, "x R' U R' D2 R U' R' D2 R2 x'\n", NewCases::Skip);
-  REQUIRE(report.added == 1);
+  auto plan = planPaste(*pll, readPaste("x R' U R' D2 R U' R' D2 R2 x'\n"),
+                        NewCases::Skip, 0);
+  REQUIRE(plan.report.added == 1);
+  const AlgSet &set = plan.set;
   const CaseGroup *group = nullptr;
   const AlgCase *aa = nullptr;
   for (const auto &g : set.groups) {
@@ -232,8 +231,7 @@ TEST_CASE("diagram views and masks by piece round-trip") {
 TEST_CASE("library installs built-ins once and saves changes") {
   QTemporaryDir tmp;
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     CHECK(lib.errors().isEmpty());
     REQUIRE(lib.sets().size() == 4);
     CHECK(lib.sets()[0].id == "pll");
@@ -244,8 +242,7 @@ TEST_CASE("library installs built-ins once and saves changes") {
     lib.progress("pll")["T"].record({100, 1500, false});
     lib.saveProgress("pll");
   }
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   CHECK(lib.sets().size() == 3); // removed built-in stays removed
   // Its file was moved aside, not deleted.
   CHECK(QDir(lib.deletedDirectory())
@@ -281,14 +278,10 @@ TEST_CASE("unreadable session files are set aside, not saved over") {
 
 TEST_CASE("unreadable progress is set aside and reported") {
   QTemporaryDir tmp;
-  {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
-  }
+  loadedLibrary(tmp.path());
   QString progress = tmp.filePath("progress/pll.json");
   writeText(progress, "{\"cases\": {\"T\": ");
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE(lib.errors().size() == 1);
   CHECK(lib.errors().front().contains("pll.json"));
   CHECK(lib.progress("pll").empty());
@@ -352,8 +345,7 @@ TEST_CASE("progress or a set that can't be opened stays in place") {
   QString progress = tmp.filePath("progress/pll.json");
   QString set = tmp.filePath("oll.json");
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     lib.progress("pll")["T"].record({100, 1500, false});
     REQUIRE(lib.saveProgress("pll"));
   }
@@ -366,8 +358,7 @@ TEST_CASE("progress or a set that can't be opened stays in place") {
     SKIP("permissions don't stop this user opening a file");
   }
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     CHECK(lib.errors().size() == 2);
     CHECK_FALSE(lib.find("oll"));
     CHECK(lib.progress("pll").empty());
@@ -385,8 +376,7 @@ TEST_CASE("progress or a set that can't be opened stays in place") {
   makeOpenable(set);
   CHECK(readText(progress) == progressText);
   CHECK(readText(set) == setText);
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   CHECK(lib.errors().isEmpty());
   CHECK(lib.find("oll"));
   CHECK(lib.progress("pll").contains("T"));
@@ -394,8 +384,7 @@ TEST_CASE("progress or a set that can't be opened stays in place") {
 
 TEST_CASE("set ids that share a file name are kept apart") {
   QTemporaryDir tmp;
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   CHECK(lib.idTaken("pll"));
   CHECK(lib.idTaken("PLL"));
   CHECK(lib.idTaken("p.l.l") == false);
@@ -405,8 +394,7 @@ TEST_CASE("set ids that share a file name are kept apart") {
   std::string id = lib.add(copy)->id;
   CHECK(id != "PLL");
   CHECK(lib.find("pll")->name == "PLL");
-  AlgLibrary again(tmp.path(), kBuiltins);
-  again.load();
+  AlgLibrary again = loadedLibrary(tmp.path());
   CHECK(again.find("pll"));
   CHECK(again.find(id));
 }
@@ -415,8 +403,7 @@ TEST_CASE("a set id never has a slash in it") {
   QTemporaryDir tmp;
   std::string added;
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     AlgSet set = *lib.find("pll");
     set.builtin = false;
     set.id = "a/b";
@@ -431,8 +418,7 @@ TEST_CASE("a set id never has a slash in it") {
     QString why;
     REQUIRE(writeAlgSetFile(set, tmp.filePath("byhand.json"), &why));
   }
-  AlgLibrary again(tmp.path(), kBuiltins);
-  again.load();
+  AlgLibrary again = loadedLibrary(tmp.path());
   CHECK(again.errors() == QStringList{});
   CHECK(again.find(added));
   CHECK(again.find("My Set.2"));
@@ -442,16 +428,14 @@ TEST_CASE("a set id never has a slash in it") {
   again.find("c-d-e")->name = "Renamed";
   REQUIRE(again.save(*again.find("c-d-e")));
   CHECK_FALSE(QFile::exists(tmp.filePath("c-d-e.json")));
-  AlgLibrary third(tmp.path(), kBuiltins);
-  third.load();
+  AlgLibrary third = loadedLibrary(tmp.path());
   REQUIRE(third.find("c-d-e"));
   CHECK(third.find("c-d-e")->name == "Renamed");
 }
 
 TEST_CASE("restoring built-in cases keeps the user's cases and settings") {
   QTemporaryDir tmp;
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   AlgSet &pll = *lib.find("pll");
   pll.targetSeconds = 1.5;
   pll.aufAfter = false;
@@ -480,18 +464,14 @@ TEST_CASE("restoring built-in cases keeps the user's cases and settings") {
 
 TEST_CASE("a stray copy of a set file never overwrites the set") {
   QTemporaryDir tmp;
-  {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
-  }
+  loadedLibrary(tmp.path());
   // "pll - Copy.json" sorts before "pll.json" and has the same id.
   QByteArray original = readText(tmp.filePath("pll.json"));
   QByteArray stale = original;
   stale.replace("\"name\": \"PLL\"", "\"name\": \"Stale PLL\"");
   REQUIRE(stale != original);
   writeText(tmp.filePath("pll - Copy.json"), stale);
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE(lib.errors().size() == 1);
   CHECK(lib.errors().front().contains("pll - Copy.json"));
   CHECK(lib.find("pll")->name == "PLL");
@@ -504,8 +484,7 @@ TEST_CASE("a stray copy of a set file never overwrites the set") {
 
   // A set in a file of another name is saved back to that file.
   QFile::rename(tmp.filePath("oll.json"), tmp.filePath("my oll.json"));
-  AlgLibrary again(tmp.path(), kBuiltins);
-  again.load();
+  AlgLibrary again = loadedLibrary(tmp.path());
   REQUIRE(again.find("oll"));
   CHECK(again.pathFor("oll") == tmp.filePath("my oll.json"));
   REQUIRE(again.save(*again.find("oll")));
@@ -518,8 +497,7 @@ TEST_CASE("set ids that differ only in case or punctuation are one set") {
   QTemporaryDir tmp;
   AlgSet set;
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     set = *lib.find("pll");
   }
   set.builtin = false;
@@ -536,8 +514,7 @@ TEST_CASE("set ids that differ only in case or punctuation are one set") {
   QByteArray handMade = readText(tmp.filePath("A.json"));
   QByteArray another = readText(tmp.filePath("B.json"));
 
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE(lib.errors().size() == 2);
   // B.json is found to clash with A.json, which then gives way.
   CHECK(lib.errors()[0].startsWith("B.json"));
@@ -558,8 +535,7 @@ TEST_CASE("set ids that differ only in case or punctuation are one set") {
 
   // Without a file named for the id, the first one loads.
   QFile::remove(tmp.filePath("zz-f2l.json"));
-  AlgLibrary again(tmp.path(), kBuiltins);
-  again.load();
+  AlgLibrary again = loadedLibrary(tmp.path());
   REQUIRE(again.errors().size() == 1);
   CHECK(again.errors()[0].contains("B.json"));
   CHECK(again.find("ZZ F2L"));
@@ -570,8 +546,7 @@ TEST_CASE("of two files with one set id, one loads and the other is named") {
   QTemporaryDir tmp;
   QByteArray mine;
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     AlgSet set = *lib.find("pll");
     set.builtin = false;
     set.id = "mine";
@@ -585,8 +560,7 @@ TEST_CASE("of two files with one set id, one loads and the other is named") {
   REQUIRE(other != mine);
   writeText(tmp.filePath("a mine.json"), other);
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     REQUIRE(lib.errors().size() == 1);
     CHECK(lib.errors().front().contains("a mine.json"));
     CHECK(lib.errors().front().contains("\"mine\""));
@@ -597,8 +571,7 @@ TEST_CASE("of two files with one set id, one loads and the other is named") {
   // Neither named for the id: the first by name loads, and saving it
   // leaves the other alone.
   REQUIRE(QFile::rename(tmp.filePath("mine.json"), tmp.filePath("z.json")));
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE(lib.errors().size() == 1);
   CHECK(lib.errors().front().startsWith("z.json"));
   CHECK(lib.find("mine")->name == "Other");
@@ -616,8 +589,7 @@ TEST_CASE("of two files with one set id, one loads and the other is named") {
 
 TEST_CASE("deleted built-in sets can be restored") {
   QTemporaryDir tmp;
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   CHECK(lib.missingBuiltins().empty());
   lib.progress("oll")["oll27"].record({100, 1500, false});
   lib.saveProgress("oll");
@@ -634,16 +606,14 @@ TEST_CASE("deleted built-in sets can be restored") {
 TEST_CASE("restoring a built-in keeps progress its set left behind") {
   QTemporaryDir tmp;
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     lib.progress("oll")["oll27"].record({100, 1500, false});
     lib.saveProgress("oll");
     finishBackgroundWrites();
   }
   // The set's file is lost; its progress file stays.
   REQUIRE(QFile::remove(tmp.filePath("oll.json")));
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE(lib.missingBuiltins().size() == 1);
   REQUIRE(lib.restoreBuiltin("oll"));
   CHECK(lib.progress("oll").empty());
@@ -669,61 +639,53 @@ TEST_CASE("removing an earlier session keeps the current one current") {
 TEST_CASE("a lost install marker doesn't bring deleted built-ins back") {
   QTemporaryDir tmp;
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     REQUIRE(lib.remove("2look-pll"));
   }
   REQUIRE(QFile::remove(tmp.filePath("installed-builtins.json")));
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   CHECK_FALSE(lib.find("2look-pll"));
   REQUIRE(lib.errors().size() == 1);
   CHECK(lib.errors().front().contains("2-look PLL"));
   CHECK(lib.missingBuiltins().size() == 1);
   // The marker is written again, so it is said once.
-  AlgLibrary again(tmp.path(), kBuiltins);
-  again.load();
+  AlgLibrary again = loadedLibrary(tmp.path());
   CHECK(again.errors().isEmpty());
   // A fresh library still gets every built-in.
   QTemporaryDir fresh;
-  AlgLibrary first(fresh.path(), kBuiltins);
-  first.load();
+  AlgLibrary first = loadedLibrary(fresh.path());
   CHECK(first.sets().size() == 4);
 }
 
 TEST_CASE("a new built-in never goes beside the user's set of its id") {
   QTemporaryDir tmp;
-  QDir d(tmp.path());
   // The user's own OLL, in a file of another name, from before OLL was a
   // built-in (the marker lists the others).
   QByteArray mine = readText(kBuiltins + "/oll.json");
   mine.replace("\"name\": \"OLL\"", "\"name\": \"My OLL\"");
   REQUIRE(mine.contains("My OLL"));
-  writeText(d.filePath("my-oll.json"), mine);
-  writeText(d.filePath("installed-builtins.json"),
+  writeText(tmp.filePath("my-oll.json"), mine);
+  writeText(tmp.filePath("installed-builtins.json"),
             R"(["pll", "2look-oll", "2look-pll"])");
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
-  CHECK_FALSE(QFile::exists(d.filePath("oll.json")));
+  AlgLibrary lib = loadedLibrary(tmp.path());
+  CHECK_FALSE(QFile::exists(tmp.filePath("oll.json")));
   REQUIRE(lib.find("oll"));
   CHECK(lib.find("oll")->name == "My OLL");
-  CHECK(readText(d.filePath("my-oll.json")) == mine);
-  CHECK(readText(d.filePath("installed-builtins.json")).contains("oll"));
+  CHECK(readText(tmp.filePath("my-oll.json")) == mine);
+  CHECK(readText(tmp.filePath("installed-builtins.json")).contains("oll"));
 }
 
 TEST_CASE("restoring doesn't overwrite a user case that shares an id") {
   QTemporaryDir tmp;
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   AlgSet &pll = *lib.find("pll");
   std::erase_if(pll.groups.front().cases,
                 [](const AlgCase &c) { return c.id == "T"; });
   // The user's own case named T, which isn't the T perm.
-  AlgCase mine;
-  mine.id = "T";
-  mine.name = "T";
-  mine.state = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'"));
-  mine.algs = {"R U R' U R U2 R'"};
+  AlgCase mine{.id = "T",
+               .name = "T",
+               .state = stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")),
+               .algs = {"R U R' U R U2 R'"}};
   pll.groups.front().cases.push_back(mine);
   lib.progress("pll")["T"].record({100, 1500, false});
   int cases = pll.caseCount();
@@ -748,8 +710,7 @@ TEST_CASE("restoring doesn't overwrite a user case that shares an id") {
 
 TEST_CASE("a set that can't be saved or deleted stays as it was") {
   QTemporaryDir tmp;
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   std::size_t before = lib.sets().size();
   auto writable = QFile::permissions(tmp.path());
   QFile::setPermissions(tmp.path(),
@@ -777,14 +738,12 @@ TEST_CASE("a set that can't be saved or deleted stays as it was") {
 
 TEST_CASE("a new case doesn't inherit a deleted case's progress") {
   QTemporaryDir tmp;
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   lib.progress("pll")["T"].record({100, 1500, false});
   lib.progress("pll")["H"].record({100, 1500, false});
   lib.saveProgress("pll");
   lib.forgetProgress("pll", {"T", "unknown"});
-  AlgLibrary again(tmp.path(), kBuiltins);
-  again.load();
+  AlgLibrary again = loadedLibrary(tmp.path());
   CHECK_FALSE(again.progress("pll").contains("T"));
   CHECK(again.progress("pll").contains("H"));
 }
@@ -903,11 +862,11 @@ TEST_CASE("progress keeps the drill archive, and files without one load") {
 }
 
 TEST_CASE("sessions round-trip and convert to and from cstimer") {
-  Session s;
-  s.name = "Main";
-  s.solves.push_back({12340, Penalty::None, "R U", "nice", 1700000000, "", {}});
-  s.solves.push_back({9000, Penalty::Plus2, "F", "", 1700000100, "R U R'", {}});
-  s.solves.push_back({20000, Penalty::Dnf, "D", "", 1700000200, "", {}});
+  Session s{
+      .name = "Main",
+      .solves = {{12340, Penalty::None, "R U", "nice", 1700000000, "", {}},
+                 {9000, Penalty::Plus2, "F", "", 1700000100, "R U R'", {}},
+                 {20000, Penalty::Dnf, "D", "", 1700000200, "", {}}}};
   std::size_t current = 0;
   auto back = sessionsFromJson(sessionsToJson({s}, 0), &current);
   REQUIRE(back.size() == 1);
@@ -1128,12 +1087,11 @@ TEST_CASE("cstimer import reports nested JSON that doesn't read") {
 }
 
 TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {
-  Session a;
-  a.name = "A";
-  a.scrambleType = "xcross"; // cstimer has no such type: 3x3
-  a.solves.push_back({1000, Penalty::Dnf, "R", "", 1, "x y R2 M'", {}});
-  a.solves.push_back({2000, Penalty::Plus2, "U", "", 2, "Rw U", {5}});
-  a.solves.push_back({3000, Penalty::None, "F", "", 3, "", {}});
+  Session a{.name = "A",
+            .scrambleType = "xcross", // cstimer has no such type: 3x3
+            .solves = {{1000, Penalty::Dnf, "R", "", 1, "x y R2 M'", {}},
+                       {2000, Penalty::Plus2, "U", "", 2, "Rw U", {5}},
+                       {3000, Penalty::None, "F", "", 3, "", {}}}};
   Session empty;
   empty.name = "Empty";
   QByteArray cs = sessionsToCstimer({a, empty});
@@ -1183,25 +1141,19 @@ TEST_CASE("exports to cstimer keep penalties, rotations and untimed moves") {
 TEST_CASE("a built-in set's file from a newer version is not restored over") {
   QTemporaryDir tmp;
   {
-    AlgLibrary lib(tmp.path(), kBuiltins);
-    lib.load();
+    AlgLibrary lib = loadedLibrary(tmp.path());
     lib.progress("pll")["T"].record({100, 1500, false});
     REQUIRE(lib.saveProgress("pll"));
   }
   finishBackgroundWrites();
   // pll.json as a later version writes it (after a downgrade).
-  const QString path = QDir(tmp.path()).filePath("pll.json");
-  QFile f(path);
-  REQUIRE(f.open(QIODevice::ReadOnly));
-  QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
-  f.close();
+  const QString path = tmp.filePath("pll.json");
+  QJsonObject o = QJsonDocument::fromJson(readText(path)).object();
+  REQUIRE_FALSE(o.isEmpty());
   o["version"] = 99;
-  REQUIRE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
-  f.write(QJsonDocument(o).toJson());
-  f.close();
+  writeText(path, QJsonDocument(o).toJson());
 
-  AlgLibrary lib(tmp.path(), kBuiltins);
-  lib.load();
+  AlgLibrary lib = loadedLibrary(tmp.path());
   REQUIRE_FALSE(lib.find("pll"));
   QString error;
   CHECK_FALSE(lib.restoreBuiltin("pll", &error));
@@ -1209,5 +1161,5 @@ TEST_CASE("a built-in set's file from a newer version is not restored over") {
   // Nothing moved or made: the file, its progress and no pll-2.
   CHECK_FALSE(lib.find("pll-2"));
   CHECK(QFile::exists(path));
-  CHECK(QFile::exists(QDir(tmp.path()).filePath("progress/pll.json")));
+  CHECK(QFile::exists(tmp.filePath("progress/pll.json")));
 }

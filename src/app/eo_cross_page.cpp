@@ -122,13 +122,12 @@ void EoCrossPage::setInspectionLimit(int seconds) {
 }
 
 std::vector<Hold> EoCrossPage::allowedHolds() const {
-  return eoHolds(settings().neutrality);
+  return withBothEoAxes(settings().neutrality.holds);
 }
 
 // --- states ------------------------------------------------------------------
 
-std::optional<PracticePage::Setup> EoCrossPage::setUp(Extent,
-                                                      const std::string &) {
+std::optional<PracticePage::Setup> EoCrossPage::setUp(const std::string &) {
   const std::vector<Hold> allowed = allowedHolds();
   solving_ = step_;
   shown_ = settings().neutrality.main;
@@ -304,8 +303,7 @@ QString EoCrossPage::breakdownHtml() const {
       tr("You") + "</th><th>" + tr("Moves") + "</th><th>" +
       tr("EO Cross then") + "</th><th>" + tr("Lost") + "</th></tr>";
   for (const EoPart &p : b.parts) {
-    Alg moves(item().moves.begin() + static_cast<std::ptrdiff_t>(p.begin),
-              item().moves.begin() + static_cast<std::ptrdiff_t>(p.end));
+    Alg moves = slice(item().moves, p.begin, p.end);
     QString lost = p.lost <= 0
                        ? coloured(kPassColour, tr("nothing"))
                        : overMarked("+" + QString::number(p.lost), p.lost >= 3);
@@ -344,7 +342,7 @@ QString EoCrossPage::holdsHtml() const {
                                                  : algText(solutions[at].alg));
     }
     if (r.optimum.more) {
-      algs << QString("<span style='color:%1'>…</span>").arg(muted);
+      algs << coloured(QColor(muted), "…");
     }
     QString hold = stepHoldHtml(r.hold, eoOnly, settings().scheme);
     QString length = r.optimum.length == best
@@ -416,10 +414,6 @@ std::vector<PracticePage::ListRow> EoCrossPage::untimedGroups() {
     rows.push_back({std::string(stepId(s)), qs(vcube::stepName(s)), {}, {}});
   }
   return rows;
-}
-
-std::vector<PracticePage::ListRow> EoCrossPage::timedGroups() {
-  return untimedGroups();
 }
 
 void EoCrossPage::groupActivated(const std::string &key) {

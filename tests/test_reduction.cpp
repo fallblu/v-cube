@@ -4,6 +4,8 @@
 #include "train/families.hpp"
 #include "train/reduction.hpp"
 
+#include "test_support.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -17,12 +19,7 @@ const std::string kAntisune = "R U2 R' U' R U' R'";
 
 AlgCase makeCase(const std::string &id, const std::string &solvedBy,
                  const std::string &alg) {
-  AlgCase c;
-  c.id = id;
-  c.name = id;
-  c.state = stateSolvedBy(parseAlgOrEmpty(solvedBy));
-  c.algs = {alg};
-  return c;
+  return {id, id, stateSolvedBy(parseAlgOrEmpty(solvedBy)), {alg}};
 }
 
 // A last-slot set for the front-right slot, a trigger at a time: the last
@@ -49,12 +46,7 @@ const std::vector<Mirror> kMirrors = {
     {true, false}, {false, true}, {true, true}};
 
 CubieCube done(const CubieCube &cube, const std::string &alg) {
-  FaceletCube f = cube.toFacelets();
-  f.apply(parseAlgOrEmpty(alg));
-  f.normalizeOrientation();
-  auto c = CubieCube::fromFacelets(f);
-  REQUIRE(c);
-  return *c;
+  return testing::after(cube, parseAlgOrEmpty(alg));
 }
 
 } // namespace

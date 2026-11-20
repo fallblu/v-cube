@@ -20,16 +20,15 @@ constexpr std::array<Edge, 4> kCrossEdges = {DR, DF, DL, DB};
 constexpr std::array<std::array<Edge, 2>, kSlots> kSlotCross = {
     {{DF, DR}, {DF, DL}, {DB, DL}, {DB, DR}}};
 
-// Where each piece value (place * 3 + twist, place * 2 + flip) goes under
-// each face turn.
-struct MoveTables {
-  std::array<std::uint8_t, 24 * kMoves> corner{};
-  std::array<std::uint8_t, 24 * kMoves> edge{};
-};
+std::size_t indexOf(int a, int b, int c, int d) {
+  return static_cast<std::size_t>(((a * 24 + b) * 24 + c) * 24 + d);
+}
 
-const MoveTables &moveTables() {
-  static const MoveTables tables = [] {
-    MoveTables t;
+} // namespace
+
+const PieceMoves &pieceMoves() {
+  static const PieceMoves tables = [] {
+    PieceMoves t;
     const std::array<CubieCube, kMoves> cubes = coord::moveCubies();
     for (int m = 0; m < kMoves; ++m) {
       const CubieCube &mc = cubes[static_cast<std::size_t>(m)];
@@ -55,16 +54,10 @@ const MoveTables &moveTables() {
   return tables;
 }
 
-std::size_t indexOf(int a, int b, int c, int d) {
-  return static_cast<std::size_t>(((a * 24 + b) * 24 + c) * 24 + d);
-}
-
-// The distance to `start` of every arrangement of four pieces (each a
-// corner or an edge) under `moves`.
-std::vector<std::uint8_t> distances(std::array<int, 4> start,
-                                    std::array<bool, 4> isCorner,
-                                    const std::vector<int> &moves) {
-  const MoveTables &mt = moveTables();
+std::vector<std::uint8_t> pieceDistances(std::array<int, 4> start,
+                                         std::array<bool, 4> isCorner,
+                                         const std::vector<int> &moves) {
+  const PieceMoves &mt = pieceMoves();
   std::vector<std::uint8_t> dist(kTableSize, kUnseen);
   std::vector<std::uint32_t> frontier{static_cast<std::uint32_t>(
       indexOf(start[0], start[1], start[2], start[3]))};
@@ -92,6 +85,8 @@ std::vector<std::uint8_t> distances(std::array<int, 4> start,
   }
   return dist;
 }
+
+namespace {
 
 int cornerHome(Slot s) { return slotCorner(s) * 3; }
 int edgeHome(Slot s) { return slotEdge(s) * 2; }
@@ -122,20 +117,20 @@ const Tables &tablesFor(std::uint32_t faceMask) {
   for (int s = 0; s < kSlots; ++s) {
     auto slot = static_cast<Slot>(s);
     auto at = static_cast<std::size_t>(s);
-    t->slot[at] = distances({cornerHome(slot), edgeHome(slot),
-                             kSlotCross[at][0] * 2, kSlotCross[at][1] * 2},
-                            {true, false, false, false}, moves);
+    t->slot[at] = pieceDistances({cornerHome(slot), edgeHome(slot),
+                                  kSlotCross[at][0] * 2, kSlotCross[at][1] * 2},
+                                 {true, false, false, false}, moves);
     for (int o = s + 1; o < kSlots; ++o) {
       auto other = static_cast<Slot>(o);
       t->two[at][static_cast<std::size_t>(o)] =
-          distances({cornerHome(slot), edgeHome(slot), cornerHome(other),
-                     edgeHome(other)},
-                    {true, false, true, false}, moves);
+          pieceDistances({cornerHome(slot), edgeHome(slot), cornerHome(other),
+                          edgeHome(other)},
+                         {true, false, true, false}, moves);
     }
   }
-  t->cross = distances({kCrossEdges[0] * 2, kCrossEdges[1] * 2,
-                        kCrossEdges[2] * 2, kCrossEdges[3] * 2},
-                       {false, false, false, false}, moves);
+  t->cross = pieceDistances({kCrossEdges[0] * 2, kCrossEdges[1] * 2,
+                             kCrossEdges[2] * 2, kCrossEdges[3] * 2},
+                            {false, false, false, false}, moves);
   entry = std::move(t);
   return *entry;
 }
@@ -246,29 +241,11 @@ std::vector<Written> writtenMoves(const PairMoves &moves) {
   return out;
 }
 
-int valueOfCorner(const CubieCube &c, Corner piece) {
-  for (std::size_t i = 0; i < kCorners; ++i) {
-    if (c.cp[i] == piece) {
-      return static_cast<int>(i) * 3 + c.co[i];
-    }
-  }
-  return 0;
-}
-
-int valueOfEdge(const CubieCube &c, Edge piece) {
-  for (std::size_t i = 0; i < kEdges; ++i) {
-    if (c.ep[i] == piece) {
-      return static_cast<int>(i) * 2 + c.eo[i];
-    }
-  }
-  return 0;
-}
-
 class Search {
 public:
   Search(const CubieCube &state, std::vector<Slot> slots,
          const PairSearchOptions &options, const std::atomic<bool> *stop)
-      : mt_(moveTables()), fr_(frames()), slots_(std::move(slots)),
+      : mt_(pieceMoves()), fr_(frames()), slots_(std::move(slots)),
         written_(writtenMoves(options.moves)), options_(options), stop_(stop) {
     std::uint32_t mask = 0;
     if (options.moves.wide) {
@@ -280,14 +257,13 @@ public:
     }
     tables_ = &tablesFor(mask);
     for (std::size_t i = 0; i < slots_.size(); ++i) {
-      start_.c[i] = static_cast<std::uint8_t>(
-          valueOfCorner(state, slotCorner(slots_[i])));
+      start_.c[i] =
+          static_cast<std::uint8_t>(cornerValue(state, slotCorner(slots_[i])));
       start_.e[i] =
-          static_cast<std::uint8_t>(valueOfEdge(state, slotEdge(slots_[i])));
+          static_cast<std::uint8_t>(edgeValue(state, slotEdge(slots_[i])));
     }
     for (std::size_t i = 0; i < 4; ++i) {
-      start_.x[i] =
-          static_cast<std::uint8_t>(valueOfEdge(state, kCrossEdges[i]));
+      start_.x[i] = static_cast<std::uint8_t>(edgeValue(state, kCrossEdges[i]));
     }
     // What each written move is in each frame.
     const std::size_t nf = fr_.frames.size();
@@ -332,7 +308,7 @@ private:
     std::array<std::uint8_t, 4> x{}; // the cross edges
   };
 
-  const MoveTables &mt_;
+  const PieceMoves &mt_;
   const Frames &fr_;
   const Tables *tables_ = nullptr;
   std::vector<Slot> slots_;

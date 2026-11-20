@@ -1,12 +1,16 @@
 #include "app/alg_html.hpp"
 
 #include "app/colours.hpp"
+#include "app/ui_text.hpp"
 #include "io/algset_json.hpp"
 #include "train/case_logic.hpp"
+#include "train/enum_ids.hpp"
 
 #include <QCoreApplication>
 #include <QObject>
 #include <QStringList>
+
+#include <array>
 
 namespace vcube {
 
@@ -18,9 +22,6 @@ QString tr(const char *text) {
 
 } // namespace
 
-// The moves as done, as rich text, with two quarter turns of a layer the
-// same way written as a half turn. The move at `mark` (an index into
-// `moves`) is highlighted and kept on its own.
 QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
   struct Done {
     Move move;
@@ -49,22 +50,15 @@ QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
 
 namespace {
 
-QString caseHeaderHtml(const AlgCase &c, const CaseGroup &group) {
-  return QString("<p style='font-size:large'><b>%1</b> <span "
-                 "style='color:" +
-                 roleColour(Role::Muted).name() + "'>· %2</span></p>")
-      .arg(qs(c.name).toHtmlEscaped(), qs(group.name).toHtmlEscaped());
-}
-
-QString greyHtml(const QString &text) {
-  return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + text +
-         "</span>";
+QString caseHeaderHtml(const std::string &name, const std::string &group) {
+  return "<p style='font-size:large'><b>" + qs(name).toHtmlEscaped() + "</b> " +
+         mutedHtml("· " + qs(group).toHtmlEscaped()) + "</p>";
 }
 
 // " → Sune" after a step that stops at that case.
 QString reachedHtml(const AlgSet &set, const std::string &caseId) {
   const AlgCase *next = set.findCase(caseId);
-  return next ? " " + greyHtml("→ " + qs(next->name).toHtmlEscaped())
+  return next ? " " + mutedHtml("→ " + qs(next->name).toHtmlEscaped())
               : QString();
 }
 
@@ -77,7 +71,7 @@ QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
   if (!c || !g) {
     return {};
   }
-  QString html = caseHeaderHtml(*c, *g);
+  QString html = caseHeaderHtml(c->name, g->name);
   std::vector<ViewAlg> algs =
       algsFor(set, *g, *c, analyzeCase(set, *g, *c), view, state, world);
   if (algs.empty()) {
@@ -89,7 +83,7 @@ QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
   bool first = true;
   for (const ViewAlg &alg : algs) {
     QString line = qs(alg.text).toHtmlEscaped();
-    line = first ? "<b>" + line + "</b>" : greyHtml(line);
+    line = first ? "<b>" + line + "</b>" : mutedHtml(line);
     html += "<p>" + line + reachedHtml(set, alg.reducesTo) + "</p>";
     first = false;
   }
@@ -118,7 +112,8 @@ QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world) {
     }
     lines << line;
   }
-  QString html = caseHeaderHtml(*c, *g) + "<p>" + lines.join("<br>") + "</p>";
+  QString html =
+      caseHeaderHtml(c->name, g->name) + "<p>" + lines.join("<br>") + "</p>";
   if (!chain.complete) {
     html += "<p style='color:" + roleColour(Role::Muted).name() + "'>" +
             QObject::tr("The set's algs don't reach the end from there.")
@@ -155,32 +150,17 @@ QString caseAlgsHtml(const AlgSet &set, const std::string &caseId,
                        : viewAlgsHtml(set, seen->view, state, seen->world);
 }
 
+// By Grade, which counts from 1.
 const char *gradeName(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return "Again";
-  case Grade::Hard:
-    return "Hard";
-  case Grade::Good:
-    return "Good";
-  case Grade::Easy:
-    return "Easy";
-  }
-  return "";
+  return idOf(std::array{"", "Again", "Hard", "Good", "Easy"}, g, "");
 }
 
 QString gradeColour(Grade g) {
-  switch (g) {
-  case Grade::Again:
-    return roleColour(Role::GradeAgain).name();
-  case Grade::Hard:
-    return roleColour(Role::GradeHard).name();
-  case Grade::Good:
-    return roleColour(Role::GradeGood).name();
-  case Grade::Easy:
-    return roleColour(Role::GradeEasy).name();
-  }
-  return roleColour(Role::GradeNone).name();
+  return roleColour(
+             idOf(std::array{Role::GradeNone, Role::GradeAgain, Role::GradeHard,
+                             Role::GradeGood, Role::GradeEasy},
+                  g, Role::GradeNone))
+      .name();
 }
 
 QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
@@ -193,36 +173,28 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
     const AlgCase *c = s->findCase(id);
     return c ? qs(c->name).toHtmlEscaped() : QString();
   };
-  auto grey = [](const QString &t) {
-    return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + t +
-           "</span>";
-  };
-  const QString good =
-      "<span style='color:" + statusColour(Status::Good).name() + "'>✓</span>";
-  const QString bad =
-      "<span style='color:" + statusColour(Status::Bad).name() + "'>✗</span>";
+  const QString good = coloured(kPassColour, "✓");
+  const QString bad = coloured(statusColour(Status::Bad), "✗");
   const std::string &firstId = links.front().view.caseId;
+  const AlgCase *first = s->findCase(firstId);
   const CaseGroup *group = s->groupOf(firstId);
   QString html =
-      QString("<p style='font-size:large'><b>%1</b> <span "
-              "style='color:" +
-              roleColour(Role::Muted).name() + "'>· %2</span></p>")
-          .arg(nameOf(firstId), group ? qs(group->name).toHtmlEscaped() : "");
+      caseHeaderHtml(first ? first->name : "", group ? group->name : "");
   for (const LearnLink &link : links) {
     if (!link.over) {
       continue;
     }
     QString line = (link.grade == Grade::Again ? bad : good) + " ";
     if (&link != &links.front()) {
-      line += grey(nameOf(link.view.caseId) + ":") + " ";
+      line += mutedHtml(nameOf(link.view.caseId) + ":") + " ";
     }
     if (link.algs.empty()) {
-      line += grey(tr("no alg"));
+      line += mutedHtml(tr("no alg"));
     } else {
       const ViewAlg &alg = link.algs.front();
       line += "<b>" + qs(alg.text).toHtmlEscaped() + "</b>";
       if (!alg.reducesTo.empty()) {
-        line += " " + grey("→ " + nameOf(alg.reducesTo));
+        line += " " + mutedHtml("→ " + nameOf(alg.reducesTo));
       }
     }
     QStringList notes;
@@ -238,7 +210,7 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
       notes << n;
     }
     if (!notes.isEmpty()) {
-      line += "<br>" + grey(notes.join(" · "));
+      line += "<br>" + mutedHtml(notes.join(" · "));
     }
     html += "<p>" + line + "</p>";
   }

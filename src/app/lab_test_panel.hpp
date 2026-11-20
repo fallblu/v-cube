@@ -20,9 +20,7 @@ class QCheckBox;
 class QComboBox;
 class QKeyEvent;
 class QLabel;
-class QPushButton;
 class QSpinBox;
-class QStackedWidget;
 class QTableWidget;
 class QTabWidget;
 
@@ -138,8 +136,6 @@ private:
   void fillEntries(CaseNames &names);
   void fillCompare(CaseNames &names);
   void fillTimes(CaseNames &names);
-  LabWindow window() const;
-  WarmupOf warmup() const;
 
   void newSession();
   void renameSession();

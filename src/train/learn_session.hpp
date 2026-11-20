@@ -61,7 +61,6 @@ public:
   enum class Action {
     None,
     Undo,             // take back the last grades
-    ToggleList,       // the case list on or off
     NextEarly,        // look again, taking a learning case early
     NextCase,         // on to the next case
     Turn,             // turn the cube by `move`
@@ -87,9 +86,9 @@ public:
   struct Step {
     bool handled = false;
     Action action = Action::None;
-    std::optional<Move> move;
+    std::optional<Move> move{};
     int step = 0;
-    std::optional<Grade> grade; // GradeRecognition: nullopt = as shown
+    std::optional<Grade> grade{}; // GradeRecognition: nullopt = as shown
     bool knew = false;
     std::size_t choice = 0;
   };

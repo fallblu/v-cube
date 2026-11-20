@@ -1,5 +1,7 @@
 #include "app/timed_driver.hpp"
 
+#include "app/keymap.hpp"
+#include "app/train_keys.hpp"
 #include "app/widgets.hpp"
 
 #include <QApplication>
@@ -14,14 +16,23 @@ QString tr(const char *text) {
 
 } // namespace
 
+void TimedDriver::configure(bool virtualCube, bool practiseAfterDnf) {
+  flow_.setConfig({virtualCube, drill_.tapToArm, drill_.autoStop,
+                   drill_.shiftSpaceGivesUp, practiseAfterDnf, drill_.holdMs});
+}
+
+bool TimedDriver::key(const QKeyEvent *e, bool press, const Keymap &keymap,
+                      Scramble scramble) {
+  TrainKeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
+  if (flow_.config().virtualCube) {
+    k.move = keymap.lookup(e);
+  }
+  return key(k, monotonicMs(), scramble);
+}
+
 bool TimedDriver::key(const TrainKeyEvent &k, std::int64_t now,
                       Scramble scramble) {
   const DrillFlow::Step step = flow_.key(k, now, scramble);
-  perform(step, now);
-  return step.handled;
-}
-
-void TimedDriver::perform(const DrillFlow::Step &step, std::int64_t now) {
   using A = DrillFlow::Action;
   const bool virt = flow_.config().virtualCube;
   switch (step.action) {
@@ -102,6 +113,7 @@ void TimedDriver::perform(const DrillFlow::Step &step, std::int64_t now) {
     host_.timedSay(timedHintText(step.hint, drill_));
     break;
   }
+  return step.handled;
 }
 
 void TimedDriver::turn(Move m, std::int64_t now) {

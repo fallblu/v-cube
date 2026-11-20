@@ -11,6 +11,8 @@
 #include <QString>
 #include <QTableWidgetItem>
 
+class QTableWidget;
+
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -72,15 +74,9 @@ private:
 };
 
 // One candidate as the page lists it.
-struct CandidateRow {
-  std::string alg; // labAlgKey() form
+struct CandidateRow : CandidateFacts {
   CandidateSource source = CandidateSource::Typed;
   bool inSet = false; // the case's set has it
-  Alg moves;
-  MoveCounts counts;
-  bool rotations = false;
-  std::optional<AufFit> fit; // when it solves the case
-  QString shown;             // the alg with its AUFs, or why it fails
 };
 
 // The set's algs, then the kept candidates the set doesn't have.
@@ -101,18 +97,24 @@ public:
 // is none.
 const ErgoProfile *labGuideProfile(const AlgLabStore &store,
                                    const QString &chosen);
-// The same with the profile chosen in Alg Lab.
-const ErgoProfile *labGuideProfile(const AlgLabStore &store);
 
 // The name of the profile chosen in Alg Lab for its Score column (any
 // profile, grip or not), and saving a new choice.
 QString scoreProfileName();
 void setScoreProfileName(const QString &name);
-// That profile, or the first one when it is gone: what F2L and Alg Lab
-// score algs with.
-const ErgoProfile &activeScoreProfile(const AlgLabStore &store);
 
 // Seconds with the app's decimals, "DNF" or "–".
 QString labTime(std::optional<std::int64_t> ms, int decimals);
+
+// The statistics cells of a row of times, from `column` on: n, mean,
+// median, best, worst (with `worst`), ao5, ao12, SD and DNF %. A row
+// without tries sorts last by DNF %, or with `dnfOfNone` as its rate.
+struct LabStatColumns {
+  bool worst = false;
+  bool dnfOfNone = false;
+};
+void setLabStatCells(QTableWidget *table, int row, int column,
+                     const LabStats &st, int decimals,
+                     LabStatColumns columns = {});
 
 } // namespace vcube

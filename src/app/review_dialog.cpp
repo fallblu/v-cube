@@ -5,6 +5,7 @@
 #include "app/page_parts.hpp"
 #include "app/text_style.hpp"
 #include "app/ui_state.hpp"
+#include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
 #include <QApplication>
@@ -51,10 +52,6 @@ QLabel *richLabel(QWidget *parent) {
   return l;
 }
 
-QString secondsText(std::int64_t ms) {
-  return QString::fromStdString(formatTime(ms));
-}
-
 // The whole-cube rotation that turns `cube` (in any orientation) to be held
 // as `h`.
 Alg rotationTo(const FaceletCube &cube, Hold h) {
@@ -70,15 +67,6 @@ Alg rotationTo(const FaceletCube &cube, Hold h) {
 
 QString escaped(const std::string &text) { return qs(text).toHtmlEscaped(); }
 
-QString muted(const QString &html) {
-  return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + html +
-         "</span>";
-}
-
-QString moveWord(int n) {
-  return n == 1 ? QObject::tr("1 move") : QObject::tr("%1 moves").arg(n);
-}
-
 } // namespace
 
 QString holdRotationText(Hold h) { return qs(toString(holdRotation(h))); }
@@ -90,17 +78,13 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   setWindowTitle(tr("Review: %1").arg(solve_.title));
   start_.apply(solve_.scramble);
   marks_ = stepMarks(start_, solve_.solution, settings_.simplifiedCounts);
-  if (!solve_.step) {
-    splits_ = solveSplits(start_, solve_.solution, solve_.times, solve_.totalMs,
-                          settings_.simplifiedCounts);
-  }
+  splits_ = solveSplits(start_, solve_.solution, solve_.times, solve_.totalMs,
+                        settings_.simplifiedCounts);
   // Name each step's hold from the neutrality's holds when one has it.
   std::vector<Hold> neutral = withBothEoAxes(settings_.neutrality.holds);
   for (StepMark &m : marks_) {
     FaceletCube then = start_;
-    then.apply(
-        Alg(solve_.solution.begin(),
-            solve_.solution.begin() + static_cast<std::ptrdiff_t>(m.moves)));
+    then.apply(slice(solve_.solution, 0, m.moves));
     for (Hold h : stepReachedHolds(then, m.step)) {
       if (std::find(neutral.begin(), neutral.end(), h) != neutral.end()) {
         m.hold = h;
@@ -116,10 +100,7 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   auto *leftLayout = new QVBoxLayout(left);
   leftLayout->setContentsMargins(0, 0, 0, 0);
   cube_ = new CubeView(left);
-  CubeLook look = cube_->look();
-  look.scheme = settings_.scheme;
-  cube_->setLook(look);
-  cube_->setAnimationMs(settings_.animationMs);
+  cube_->applySettings(settings_);
   cube_->setMinimumSize(320, 280);
   auto *viewRow = new QHBoxLayout;
   viewRow->addWidget(new QLabel(tr("View:"), left));
@@ -130,35 +111,45 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   slider_ = new QSlider(Qt::Horizontal, left);
   slider_->setFocusPolicy(Qt::NoFocus);
   leftLayout->addWidget(slider_);
+  // Window shortcuts, so that the keys step the replay whatever has the
+  // focus.
+  auto shortcut = [this](Qt::Key key, const std::function<void()> &fn) {
+    auto *s = new QShortcut(QKeySequence(key), this);
+    s->setContext(Qt::WindowShortcut);
+    connect(s, &QShortcut::activated, this, fn);
+  };
   auto *buttons = new QHBoxLayout;
+  // A replay button, with its key as a shortcut.
   auto button = [&](QStyle::StandardPixmap icon, const QString &name,
-                    auto &&fn) {
+                    Qt::Key key, const std::function<void()> &fn) {
     auto *b = new QToolButton(left);
     b->setIcon(style()->standardIcon(icon));
     b->setToolTip(name);
     b->setAccessibleName(name);
     b->setFocusPolicy(Qt::NoFocus);
-    QSize icons = b->iconSize();
-    b->setIconSize(icons * 1.4);
+    b->setIconSize(b->iconSize() * 1.4);
     connect(b, &QToolButton::clicked, this, fn);
     buttons->addWidget(b);
+    shortcut(key, fn);
     return b;
   };
   buttons->addStretch();
-  button(QStyle::SP_MediaSkipBackward, tr("To the scramble (Home)"), [this] {
-    setPlaying(false);
-    showPosition(0);
-  });
-  button(QStyle::SP_MediaSeekBackward, tr("Back one move (←)"),
+  button(QStyle::SP_MediaSkipBackward, tr("To the scramble (Home)"),
+         Qt::Key_Home, [this] {
+           setPlaying(false);
+           showPosition(0);
+         });
+  button(QStyle::SP_MediaSeekBackward, tr("Back one move (←)"), Qt::Key_Left,
          [this] { step(-1); });
-  playButton_ = button(QStyle::SP_MediaPlay, tr("Play (Space)"),
+  playButton_ = button(QStyle::SP_MediaPlay, tr("Play (Space)"), Qt::Key_Space,
                        [this] { setPlaying(!playTimer_.isActive()); });
-  button(QStyle::SP_MediaSeekForward, tr("Forward one move (→)"),
+  button(QStyle::SP_MediaSeekForward, tr("Forward one move (→)"), Qt::Key_Right,
          [this] { step(1); });
-  button(QStyle::SP_MediaSkipForward, tr("To the end (End)"), [this] {
-    setPlaying(false);
-    showPosition(replay_.size());
-  });
+  button(QStyle::SP_MediaSkipForward, tr("To the end (End)"), Qt::Key_End,
+         [this] {
+           setPlaying(false);
+           showPosition(replay_.size());
+         });
   buttons->addStretch();
   leftLayout->addLayout(buttons);
   positionLabel_ = new QLabel(left);
@@ -187,38 +178,33 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   auto *scramble = richLabel(right);
   QString recorded;
   if (solve_.recorded) {
-    recorded = " · " + tr("recorded: %1").arg(moveWord(*solve_.recorded));
+    recorded = " · " + tr("recorded: %1").arg(movesText(*solve_.recorded));
   }
   if (solve_.totalMs > 0) {
-    recorded += " · " + secondsText(solve_.totalMs);
+    recorded += " · " + timeText(solve_.totalMs);
   }
   scramble->setText(
       "<b>" + solve_.title.toHtmlEscaped() + "</b>" +
       (solve_.dnf ? " · DNF" : QString()) + recorded + "<br>" +
-      muted(tr("Scramble: %1").arg(escaped(toString(solve_.scramble)))));
+      mutedHtml(tr("Scramble: %1").arg(escaped(toString(solve_.scramble)))));
   rightLayout->addWidget(scramble);
 
-  auto *movesBox = new QGroupBox(tr("Moves"), right);
-  auto *movesLayout = new QVBoxLayout(movesBox);
-  movesLabel_ = richLabel(movesBox);
+  // A group box of rich labels, under the others.
+  auto group = [&](const QString &title,
+                   std::initializer_list<QLabel **> labels) {
+    auto *box = new QGroupBox(title, right);
+    auto *boxLayout = new QVBoxLayout(box);
+    for (QLabel **label : labels) {
+      *label = richLabel(box);
+      boxLayout->addWidget(*label);
+    }
+    rightLayout->addWidget(box);
+    return box;
+  };
+  group(tr("Moves"), {&movesLabel_, &marksLabel_});
   setTextRole(movesLabel_, TextRole::Heading);
-  movesLayout->addWidget(movesLabel_);
-  marksLabel_ = richLabel(movesBox);
-  movesLayout->addWidget(marksLabel_);
-  rightLayout->addWidget(movesBox);
-
-  auto *splitsBox = new QGroupBox(tr("Splits"), right);
-  auto *splitsLayout = new QVBoxLayout(splitsBox);
-  splitsLabel_ = richLabel(splitsBox);
-  splitsLayout->addWidget(splitsLabel_);
-  rightLayout->addWidget(splitsBox);
-  splitsBox->setVisible(!solve_.step);
-
-  auto *optimalBox = new QGroupBox(tr("Optimal"), right);
-  auto *optimalLayout = new QVBoxLayout(optimalBox);
-  optimalLabel_ = richLabel(optimalBox);
-  optimalLayout->addWidget(optimalLabel_);
-  rightLayout->addWidget(optimalBox);
+  group(tr("Splits"), {&splitsLabel_})->setVisible(!solve_.step);
+  group(tr("Optimal"), {&optimalLabel_});
 
   pairsBox_ = new QGroupBox(tr("F2L pairs"), right);
   auto *pairsLayout = new QVBoxLayout(pairsBox_);
@@ -235,11 +221,7 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   rightLayout->addWidget(pairsBox_);
   rightLayout->addStretch();
 
-  auto *scroll = new QScrollArea(this);
-  scroll->setWidget(right);
-  scroll->setWidgetResizable(true);
-  scroll->setFrameShape(QFrame::NoFrame);
-  scroll->setFocusPolicy(Qt::NoFocus);
+  QScrollArea *scroll = scrollArea(right, this);
 
   auto *bottom = new QDialogButtonBox(this);
   auto *copyButton = bottom->addButton(tr("Copy reconstruction"),
@@ -267,18 +249,12 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
     accept();
   });
   connect(copyButton, &QPushButton::clicked, this, [this] {
-    SolveSplits splits =
-        solveSplits(start_, solve_.solution, solve_.times, solve_.totalMs,
-                    settings_.simplifiedCounts);
     QApplication::clipboard()->setText(
-        qs(reconstruction(solve_.scramble, solve_.solution, splits)));
+        qs(reconstruction(solve_.scramble, solve_.solution, splits_)));
   });
   connect(webButton, &QPushButton::clicked, this, [this] {
-    SolveSplits splits =
-        solveSplits(start_, solve_.solution, solve_.times, solve_.totalMs,
-                    settings_.simplifiedCounts);
     QDesktopServices::openUrl(QUrl(qs(reconstructionUrl(
-        solve_.scramble, solve_.solution, splits, ss(solve_.title)))));
+        solve_.scramble, solve_.solution, splits_, ss(solve_.title)))));
   });
 
   auto *columns = new QHBoxLayout;
@@ -288,24 +264,6 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   layout->addLayout(columns, 1);
   layout->addWidget(bottom);
   resize(1100, 720);
-  // Window shortcuts, so that the keys step the replay whatever has the
-  // focus.
-  auto shortcut = [this](Qt::Key key, auto &&fn) {
-    auto *s = new QShortcut(QKeySequence(key), this);
-    s->setContext(Qt::WindowShortcut);
-    connect(s, &QShortcut::activated, this, fn);
-  };
-  shortcut(Qt::Key_Left, [this] { step(-1); });
-  shortcut(Qt::Key_Right, [this] { step(1); });
-  shortcut(Qt::Key_Home, [this] {
-    setPlaying(false);
-    showPosition(0);
-  });
-  shortcut(Qt::Key_End, [this] {
-    setPlaying(false);
-    showPosition(replay_.size());
-  });
-  shortcut(Qt::Key_Space, [this] { setPlaying(!playTimer_.isActive()); });
   // The buttons take no focus: each has a key of its own.
   shortcut(Qt::Key_C, [copyButton] { copyButton->click(); });
   shortcut(Qt::Key_W, [webButton] { webButton->click(); });
@@ -322,7 +280,20 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
       showPosition(static_cast<std::size_t>(v));
     }
   });
-  auto link = [this](const QString &href) {
+  // The solution up to the pair's start, turned to be held as `hold`, then
+  // `pair`, shown from the turn.
+  auto playPair = [this](std::size_t begin, Hold hold, const Alg &pair,
+                         const QString &name) {
+    Alg alg = slice(solve_.solution, 0, begin);
+    FaceletCube then = start_;
+    then.apply(alg);
+    Alg turn = rotationTo(then, hold);
+    alg.insert(alg.end(), turn.begin(), turn.end());
+    alg.insert(alg.end(), pair.begin(), pair.end());
+    play(alg, name);
+    showPosition(begin + turn.size());
+  };
+  auto link = [this, playPair](const QString &href) {
     // "opt:<list>:<hold>:<solution>" plays an optimal solution, "pair:<n>:
     // <option>" the set's alg for a pair, "mine" the solution again.
     QStringList parts = href.split(':');
@@ -345,18 +316,8 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
       auto n = parts[1].toULongLong();
       if (n < b.segments.size() && n < pairOptima_->size() &&
           (*pairOptima_)[n]) {
-        const PairSegment &seg = b.segments[n];
-        Alg alg(solve_.solution.begin(),
-                solve_.solution.begin() +
-                    static_cast<std::ptrdiff_t>(seg.begin));
-        FaceletCube then = start_;
-        then.apply(alg);
-        Alg turn = rotationTo(then, b.hold);
-        alg.insert(alg.end(), turn.begin(), turn.end());
-        const Alg &pair = *(*pairOptima_)[n];
-        alg.insert(alg.end(), pair.begin(), pair.end());
-        play(alg, tr("The optimal pair"));
-        showPosition(seg.begin + turn.size());
+        playPair(b.segments[n].begin, b.hold, *(*pairOptima_)[n],
+                 tr("The optimal pair"));
       }
     } else if (parts[0] == "pair" && parts.size() == 3) {
       F2LBreakdown b = f2lBreakdown(
@@ -366,20 +327,9 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
       auto n = parts[1].toULongLong();
       auto o = parts[2].toULongLong();
       if (n < b.segments.size() && o < b.segments[n].options.size()) {
-        const PairSegment &seg = b.segments[n];
-        Alg alg(solve_.solution.begin(),
-                solve_.solution.begin() +
-                    static_cast<std::ptrdiff_t>(seg.begin));
-        FaceletCube then = start_;
-        then.apply(alg);
-        Alg turn = rotationTo(then, b.hold);
-        alg.insert(alg.end(), turn.begin(), turn.end());
-        Alg pair = parseAlgOrEmpty(seg.options[o].alg);
-        alg.insert(alg.end(), pair.begin(), pair.end());
-        play(
-            alg,
-            tr("%1 with the set's alg").arg(qs(slotName(seg.options[o].slot))));
-        showPosition(seg.begin + turn.size());
+        const PairOption &option = b.segments[n].options[o];
+        playPair(b.segments[n].begin, b.hold, parseAlgOrEmpty(option.alg),
+                 tr("%1 with the set's alg").arg(qs(slotName(option.slot))));
       }
     }
   };
@@ -500,8 +450,7 @@ void ReviewDialog::startPairOptima() {
     FaceletCube f = start;
     std::size_t at = 0;
     for (const PairSegment &seg : b.segments) {
-      f.apply(Alg(solution.begin() + static_cast<std::ptrdiff_t>(at),
-                  solution.begin() + static_cast<std::ptrdiff_t>(seg.begin)));
+      f.apply(slice(solution, at, seg.begin));
       at = seg.begin;
       std::optional<CubieCube> c = heldCubie(f, b.hold);
       out.push_back(c && seg.solved.size() == 1
@@ -517,7 +466,7 @@ void ReviewDialog::showSplits() {
     return;
   }
   if (splits_.phases.empty()) {
-    splitsLabel_->setText(muted(tr("The solve never had a cross done.")));
+    splitsLabel_->setText(mutedHtml(tr("The solve never had a cross done.")));
     return;
   }
   bool timed =
@@ -535,12 +484,12 @@ void ReviewDialog::showSplits() {
     html += "<tr><td>" + b + name.toHtmlEscaped() + e +
             "</td><td align='right'>" + QString::number(htm) + "</td>";
     if (timed) {
-      html += "<td align='right'>" + (ms ? secondsText(*ms) : QString("-")) +
+      html += "<td align='right'>" + (ms ? timeText(*ms) : QString("-")) +
               "</td><td align='right'>" +
               (ms && *ms > 0 ? QString::number(tps(htm, *ms), 'f', 2)
                              : QString("-")) +
               "</td><td align='right'>" +
-              (at ? muted(secondsText(*at)) : QString()) + "</td>";
+              (at ? mutedHtml(timeText(*at)) : QString()) + "</td>";
     }
     html += "</tr>";
   };
@@ -558,12 +507,12 @@ void ReviewDialog::showSplits() {
   int total = solutionHtm(solve_.solution, settings_.simplifiedCounts);
   if (timed && solve_.totalMs > 0) {
     html += tr("Whole solve: %1 in %2, %3 TPS")
-                .arg(moveWord(total))
-                .arg(secondsText(solve_.totalMs))
+                .arg(movesText(total))
+                .arg(timeText(solve_.totalMs))
                 .arg(tps(total, solve_.totalMs), 0, 'f', 2);
   } else if (!timed) {
-    html += muted(tr("No step times: the solve wasn't timed, or was saved "
-                     "before move times were kept."));
+    html += mutedHtml(tr("No step times: the solve wasn't timed, or was saved "
+                         "before move times were kept."));
   }
   splitsLabel_->setText(html);
 }
@@ -587,22 +536,19 @@ void ReviewDialog::showPosition(std::size_t at) {
     cube_->animateSequence(invert(Alg{replay_[at]}));
   } else if (at != at_) {
     FaceletCube f = start_;
-    f.apply(Alg(replay_.begin(),
-                replay_.begin() + static_cast<std::ptrdiff_t>(at)));
+    f.apply(slice(replay_, 0, at));
     cube_->setState(f);
   }
   at_ = at;
   slider_->blockSignals(true);
   slider_->setValue(static_cast<int>(at));
   slider_->blockSignals(false);
-  QString where = tr("%1: move %2 of %3, %4 HTM")
-                      .arg(replayName_)
-                      .arg(at)
-                      .arg(replay_.size())
-                      .arg(solutionHtm(Alg(replay_.begin(),
-                                           replay_.begin() +
-                                               static_cast<std::ptrdiff_t>(at)),
-                                       settings_.simplifiedCounts));
+  QString where =
+      tr("%1: move %2 of %3, %4 HTM")
+          .arg(replayName_)
+          .arg(at)
+          .arg(replay_.size())
+          .arg(solutionHtm(slice(replay_, 0, at), settings_.simplifiedCounts));
   positionLabel_->setText(where);
   showMoves();
 }
@@ -621,8 +567,7 @@ void ReviewDialog::showMoves() {
       }
     }
     if (!steps.isEmpty()) {
-      parts << "<span style='color:" + statusColour(Status::Good).name() +
-                   "'>| " + steps.join(", ") + "</span>";
+      parts << coloured(kPassColour, "| " + steps.join(", "));
     }
   };
   for (std::size_t i = 0; i < replay_.size(); ++i) {
@@ -632,12 +577,12 @@ void ReviewDialog::showMoves() {
       t = "<span style='color:" + statusColour(Status::Warning).name() +
           "; font-weight:bold'>" + t + "</span>";
     } else if (i >= at_) {
-      t = muted(t);
+      t = mutedHtml(t);
     }
     parts << t;
   }
   markAt(replay_.size());
-  QString html = parts.isEmpty() ? muted(tr("No moves")) : parts.join(' ');
+  QString html = parts.isEmpty() ? mutedHtml(tr("No moves")) : parts.join(' ');
   if (!mine) {
     html = "<b>" + replayName_.toHtmlEscaped() + "</b>: " + html + "<br>" +
            "<a href='mine'>" + tr("Back to your solution") + "</a>";
@@ -647,7 +592,7 @@ void ReviewDialog::showMoves() {
 
 void ReviewDialog::showMarks() {
   if (marks_.empty()) {
-    marksLabel_->setText(muted(tr("No step was done.")));
+    marksLabel_->setText(mutedHtml(tr("No step was done.")));
     return;
   }
   QString html = "<table cellspacing='3'>";
@@ -661,8 +606,8 @@ void ReviewDialog::showMarks() {
     html += QString("<tr><td><b>%1</b></td><td align='right'>%2</td>"
                     "<td>%3</td><td>%4</td></tr>")
                 .arg(qs(stepName(m.step)))
-                .arg(moveWord(m.htm))
-                .arg(m.htm > before ? muted(tr("(+%1)").arg(m.htm - before))
+                .arg(movesText(m.htm))
+                .arg(m.htm > before ? mutedHtml(tr("(+%1)").arg(m.htm - before))
                                     : QString())
                 .arg(stepHoldHtml(m.hold, m.step == SolveStep::EO,
                                   settings_.scheme));
@@ -670,7 +615,8 @@ void ReviewDialog::showMarks() {
   }
   html += "</table>";
   if (!byScramble.isEmpty()) {
-    html += muted(tr("Done by the scramble: %1").arg(byScramble.join(", ")));
+    html +=
+        mutedHtml(tr("Done by the scramble: %1").arg(byScramble.join(", ")));
   }
   marksLabel_->setText(html);
 }
@@ -681,7 +627,7 @@ void ReviewDialog::startOptima() {
     optimalLabel_->parentWidget()->setVisible(false);
     return;
   }
-  optimalLabel_->setText(muted(tr("Working out the optimal solutions…")));
+  optimalLabel_->setText(mutedHtml(tr("Working out the optimal solutions…")));
   std::vector<Hold> neutral = withBothEoAxes(settings_.neutrality.holds);
   Alg scramble = solve_.scramble;
   optimaWatcher_.setFuture(QtConcurrent::run([scramble, step, neutral] {
@@ -707,14 +653,16 @@ void ReviewDialog::showOptima() {
   }
   QString html;
   if (!solve_.step) {
-    html += muted(tr("For reference: EO Cross for this scramble.")) + "<br>";
+    html +=
+        mutedHtml(tr("For reference: EO Cross for this scramble.")) + "<br>";
   }
   html +=
-      yours ? tr("You did %1 in <b>%2</b>.").arg(stepText).arg(moveWord(*yours))
-            : tr("%1 wasn't done.").arg(stepText);
+      yours
+          ? tr("You did %1 in <b>%2</b>.").arg(stepText).arg(movesText(*yours))
+          : tr("%1 wasn't done.").arg(stepText);
   if (yours && solve_.step && solve_.recorded && *solve_.recorded != *yours) {
-    html += " " + muted(tr("(%1 recorded: the moves after it count too)")
-                            .arg(*solve_.recorded));
+    html += " " + mutedHtml(tr("(%1 recorded: the moves after it count too)")
+                                .arg(*solve_.recorded));
   }
   auto list = [&](const std::vector<HeldOptimum> &optima, const QString &id,
                   const QString &heading) {
@@ -726,7 +674,7 @@ void ReviewDialog::showOptima() {
     if (yours) {
       int over = *yours - best;
       html += " " + (over == 0 ? tr("(you were optimal)")
-                               : muted(tr("(+%1)").arg(over)));
+                               : mutedHtml(tr("(+%1)").arg(over)));
     }
     std::size_t shown = 0;
     for (std::size_t h = 0; h < optima.size() && shown < kListed; ++h) {
@@ -741,7 +689,7 @@ void ReviewDialog::showOptima() {
         html += "<br>" +
                 stepHoldHtml(o.hold, step == SolveStep::EO, settings_.scheme) +
                 ": " +
-                (rotation.isEmpty() ? QString() : muted(rotation) + " ") +
+                (rotation.isEmpty() ? QString() : mutedHtml(rotation) + " ") +
                 moves +
                 QString(" <a href='opt:%1:%2:%3'>%4</a>")
                     .arg(id)
@@ -761,7 +709,7 @@ void ReviewDialog::showOptima() {
       }
     }
     if (!others.isEmpty() && others.size() <= 8) {
-      html += "<br>" + muted(tr("Other holds: ")) + others.join(", ");
+      html += "<br>" + mutedHtml(tr("Other holds: ")) + others.join(", ");
     }
     html += "</p>";
   };
@@ -781,20 +729,18 @@ void ReviewDialog::showPairs() {
   F2LBreakdown b = f2lBreakdown(start_, solve_.solution, reference,
                                 Edges::Oriented, settings_.simplifiedCounts);
   if (!b.found) {
-    pairsLabel_->setText(muted(tr("The solve never had EO Cross done.")));
+    pairsLabel_->setText(mutedHtml(tr("The solve never had EO Cross done.")));
     return;
   }
   QString html;
   if (!reference) {
-    html += muted(tr("No alg set of F2L pair cases to compare with (such as "
+    html +=
+        mutedHtml(tr("No alg set of F2L pair cases to compare with (such as "
                      "a ZZ F2L set).")) +
-            "<br>";
+        "<br>";
   }
   html += tr("EO Cross after %1, %2.")
-              .arg(moveWord(
-                  htmCount(Alg(solve_.solution.begin(),
-                               solve_.solution.begin() +
-                                   static_cast<std::ptrdiff_t>(b.eoCross)))))
+              .arg(movesText(htmCount(slice(solve_.solution, 0, b.eoCross))))
               .arg(stepHoldHtml(b.hold, false, settings_.scheme));
   int yourTotal = 0, setTotal = 0;
   bool allMatched = true;
@@ -806,8 +752,8 @@ void ReviewDialog::showPairs() {
     }
     yourTotal += seg.htm;
     html += "<p><b>" + tr("Pair %1: %2").arg(n + 1).arg(solved.join(" + ")) +
-            "</b> — " + tr("you took %1").arg(moveWord(seg.htm)) + " " +
-            muted(tr("(moves %1–%2)").arg(seg.begin + 1).arg(seg.end));
+            "</b> — " + tr("you took %1").arg(movesText(seg.htm)) + " " +
+            mutedHtml(tr("(moves %1–%2)").arg(seg.begin + 1).arg(seg.end));
     // The set's alg for the pair that was done, and the cheapest then.
     const PairOption *done = nullptr;
     const PairOption *cheapest = nullptr;
@@ -826,8 +772,8 @@ void ReviewDialog::showPairs() {
       auto index = static_cast<std::size_t>(&o - seg.options.data());
       return tr("%1 (%2): %3 %4 <a href='pair:%5:%6'>%7</a>")
           .arg(qs(slotName(o.slot)), escaped(o.caseName))
-          .arg(moveWord(o.moves))
-          .arg(muted(escaped(o.alg)))
+          .arg(movesText(o.moves))
+          .arg(mutedHtml(escaped(o.alg)))
           .arg(n)
           .arg(index)
           .arg(tr("show"));
@@ -836,32 +782,33 @@ void ReviewDialog::showPairs() {
       setTotal += done->moves;
       int over = seg.htm - done->moves;
       html += "<br>" + tr("Your set: %1").arg(optionHtml(*done)) +
-              (over > 0   ? " " + muted(tr("(you +%1)").arg(over))
-               : over < 0 ? " " + muted(tr("(you %1 fewer)").arg(-over))
+              (over > 0   ? " " + mutedHtml(tr("(you +%1)").arg(over))
+               : over < 0 ? " " + mutedHtml(tr("(you %1 fewer)").arg(-over))
                           : QString());
     } else if (seg.solved.size() == 1) {
       allMatched = false;
       if (reference) {
-        html += "<br>" + muted(tr("No case of the set matched this pair."));
+        html += "<br>" + mutedHtml(tr("No case of the set matched this pair."));
       }
     } else {
       allMatched = false;
-      html += "<br>" + muted(tr("Several slots were solved at once."));
+      html += "<br>" + mutedHtml(tr("Several slots were solved at once."));
     }
     if (seg.solved.size() == 1) {
       if (!pairOptima_) {
-        html += "<br>" + muted(tr("Working out the optimal pair…"));
+        html += "<br>" + mutedHtml(tr("Working out the optimal pair…"));
       } else if (n < pairOptima_->size() && (*pairOptima_)[n]) {
         const Alg &best = *(*pairOptima_)[n];
         int moves = htmCount(best);
         int over = seg.htm - moves;
-        html += "<br>" +
-                tr("Optimal &lt;R, U, L&gt;: %1 %2 <a href='pairopt:%3'>%4</a>")
-                    .arg(moveWord(moves))
-                    .arg(muted(escaped(toString(best))))
-                    .arg(n)
-                    .arg(tr("show")) +
-                (over > 0 ? " " + muted(tr("(you +%1)").arg(over)) : QString());
+        html +=
+            "<br>" +
+            tr("Optimal &lt;R, U, L&gt;: %1 %2 <a href='pairopt:%3'>%4</a>")
+                .arg(movesText(moves))
+                .arg(mutedHtml(escaped(toString(best))))
+                .arg(n)
+                .arg(tr("show")) +
+            (over > 0 ? " " + mutedHtml(tr("(you +%1)").arg(over)) : QString());
       }
     }
     if (cheapest && cheapest != done &&
@@ -877,9 +824,7 @@ void ReviewDialog::showPairs() {
     }
     // The best order from EO Cross with the set's algs.
     FaceletCube f = start_;
-    f.apply(
-        Alg(solve_.solution.begin(),
-            solve_.solution.begin() + static_cast<std::ptrdiff_t>(b.eoCross)));
+    f.apply(slice(solve_.solution, 0, b.eoCross));
     if (std::optional<CubieCube> c = heldCubie(f, b.hold)) {
       PairPlan plan = cheapestPairOrder(*c, *reference);
       if (plan.complete && !plan.steps.empty()) {
@@ -895,7 +840,7 @@ void ReviewDialog::showPairs() {
     html += ".</p>";
   }
   if (!b.complete) {
-    html += muted(tr("Not every slot was solved."));
+    html += mutedHtml(tr("Not every slot was solved."));
   }
   pairsLabel_->setText(html);
 }
@@ -916,14 +861,11 @@ void showTextDialog(QWidget *parent, const QString &title,
   mono.setStyleHint(QFont::Monospace);
   edit->setFont(mono);
   layout->addWidget(edit);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
   QPushButton *copy =
-      buttons->addButton(QObject::tr("Copy"), QDialogButtonBox::ActionRole);
+      addButtonBox(&dialog, layout, QDialogButtonBox::Close)
+          ->addButton(QObject::tr("Copy"), QDialogButtonBox::ActionRole);
   QObject::connect(copy, &QPushButton::clicked, &dialog,
                    [text] { QApplication::clipboard()->setText(text); });
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog,
-                   &QDialog::reject);
-  layout->addWidget(buttons);
   dialog.resize(640, 420);
   dialog.exec();
 }
@@ -979,16 +921,13 @@ void showSolveDetails(QWidget *parent, const QString &title,
     }
   }
   layout->addLayout(form);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+  auto *buttons = addButtonBox(&dialog, layout, QDialogButtonBox::Close);
   if (review) {
     QPushButton *b = buttons->addButton(QObject::tr("Review…"),
                                         QDialogButtonBox::ActionRole);
     QObject::connect(b, &QPushButton::clicked, &dialog,
                      [&dialog] { dialog.done(2); });
   }
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog,
-                   &QDialog::reject);
-  layout->addWidget(buttons);
   if (dialog.exec() == 2 && review) {
     review();
   }

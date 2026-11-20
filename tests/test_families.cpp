@@ -3,54 +3,15 @@
 #include "train/case_logic.hpp"
 #include "train/families.hpp"
 
+#include "test_support.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <set>
 
 using namespace vcube;
-
-namespace {
-
-// Three FR pair cases and their mirrors in the other slots, one group per
-// slot, as an F2L set has them.
-const std::vector<std::string> kFrAlgs = {"R U' R'", "R U' R' U R U R'",
-                                          "R U2 R' U R U' R'"};
-
-AlgSet pairSet() {
-  AlgSet set;
-  set.id = "pairs";
-  set.spec.free = *parseFree("LL:p LLC:o");
-  struct Slot {
-    std::string name;
-    bool lr, fb;
-  };
-  for (const Slot &s : std::vector<Slot>{{"FR", false, false},
-                                         {"FL", true, false},
-                                         {"BR", false, true},
-                                         {"BL", true, true}}) {
-    CaseGroup g{s.name, std::nullopt, {}};
-    for (std::size_t i = 0; i < kFrAlgs.size(); ++i) {
-      Alg alg = parseAlgOrEmpty(kFrAlgs[i]);
-      if (s.lr) {
-        alg = mirrorM(alg);
-      }
-      if (s.fb) {
-        alg = mirrorS(alg);
-      }
-      AlgCase c;
-      c.id = s.name + "-" + std::to_string(i + 1);
-      c.name = s.name + " " + std::to_string(i + 1);
-      c.state = stateSolvedBy(alg);
-      c.algs.push_back(toString(alg));
-      g.cases.push_back(c);
-    }
-    set.groups.push_back(g);
-  }
-  return set;
-}
-
-} // namespace
+using namespace vcube::testing;
 
 TEST_CASE("mirrored states are real and mirror back", "[families]") {
   Rng rng(7);

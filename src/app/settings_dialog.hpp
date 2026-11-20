@@ -5,6 +5,8 @@
 #include <QDialog>
 
 #include <array>
+#include <functional>
+#include <vector>
 
 class QCheckBox;
 class QComboBox;
@@ -43,26 +45,16 @@ private:
   // Reads the controls into the settings; false (with a message) if
   // something can't be read.
   bool collect();
+  // Shows `field` in `widget` (a check box, a spin box or a combo box of
+  // values), and has collect() read it back.
+  template <typename Widget, typename T>
+  Widget *bound(Widget *widget, T &field);
 
 private:
   AppSettings settings_;
+  std::vector<std::function<void()>> readBacks_;
   QTabWidget *tabs_;
-  QComboBox *themeBox_;
-  QSpinBox *animationSpin_;
-  QSpinBox *scrambleFontSpin_;
-  QComboBox *interfaceTextBox_;
-  QComboBox *hintTextBox_;
-  QComboBox *thumbnailBox_;
   std::array<QPushButton *, 6> colourButtons_{};
-  QSpinBox *holdSpin_;
-  QCheckBox *inspectionBox_;
-  QCheckBox *soundsBox_;
-  QSpinBox *decimalsSpin_;
-  QSpinBox *timerFontSpin_;
-  QCheckBox *autoStopBox_;
-  QCheckBox *hideCubeBox_;
-  QCheckBox *simplifiedBox_;
-  QCheckBox *anyHoldBox_;
   QComboBox *mainTopBox_;
   QComboBox *mainFrontBox_;
   QComboBox *presetBox_;
@@ -74,18 +66,10 @@ private:
   QLineEdit *moveEdit_;
   QPushButton *changeButton_;
   QPushButton *removeButton_;
-  QSpinBox *newPerDaySpin_;
   QLineEdit *learningEdit_;
   QLineEdit *relearningEdit_;
-  QDoubleSpinBox *graduatingSpin_;
-  QDoubleSpinBox *easySpin_;
   QSpinBox *lapseSpin_;
-  QDoubleSpinBox *easeRecoverySpin_;
-  QCheckBox *lateBox_;
-  QCheckBox *hardBox_;
-  QSpinBox *maxLearningSpin_;
   QSpinBox *learnAheadSpin_;
-  QSpinBox *leechSpin_;
   QDoubleSpinBox *slowSpin_;
   DrillSettingsTab *drillTab_;
 

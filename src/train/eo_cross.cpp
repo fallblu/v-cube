@@ -11,10 +11,6 @@ const std::vector<SolveStep> &eoCrossSteps() {
   return steps;
 }
 
-std::vector<Hold> eoHolds(const ColourNeutrality &neutrality) {
-  return withBothEoAxes(neutrality.holds);
-}
-
 std::optional<Hold> doneHold(const FaceletCube &cube, SolveStep step,
                              const std::vector<Hold> &allowed) {
   std::vector<Hold> holds;
@@ -89,9 +85,7 @@ EoBreakdown eoBreakdown(const FaceletCube &start, const Alg &solution,
     part.step = *reached;
     part.begin = begin;
     part.end = done;
-    part.moves = htmCount(
-        simplify(Alg(solution.begin() + static_cast<std::ptrdiff_t>(begin),
-                     solution.begin() + static_cast<std::ptrdiff_t>(done))));
+    part.moves = htmCount(simplify(slice(solution, begin, done)));
     part.toGo = toGo(c);
     part.lost = part.moves + part.toGo - before;
     before = part.toGo;

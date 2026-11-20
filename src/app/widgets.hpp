@@ -108,12 +108,23 @@ class TrendChart : public QWidget {
   Q_OBJECT
 public:
   explicit TrendChart(QWidget *parent = nullptr);
-  // Only each solve's time and penalty are kept.
-  void setSolves(std::span<const Solve> solves);
+  // Only each solve's time and penalty are kept, and the rolling ao5 and
+  // ao12 ending at each, worked out here (in WCA units) unless given.
+  void setSolves(std::span<const Solve> solves) {
+    setSolves(solves, rollingAverages(solves, 5), rollingAverages(solves, 12));
+  }
+  void setSolves(std::span<const Solve> solves, std::vector<StatValue> ao5,
+                 std::vector<StatValue> ao12);
   // Shown until there are two values to chart.
-  void setEmptyText(const QString &text);
+  void setEmptyText(const QString &text) {
+    emptyText_ = text;
+    invalidate();
+  }
   // The values are move counts: the axis is in whole moves.
-  void setMoveCounts(bool on);
+  void setMoveCounts(bool on) {
+    moves_ = on;
+    invalidate();
+  }
   // Where the choices from the context menu are kept (QSettings).
   void setSettingsKey(const QString &key);
   // Lines that can be drawn instead of the averages, one value per solve
@@ -123,14 +134,26 @@ public:
     Role colour; // a chart series role, which follows the theme
     std::vector<StatValue> values;
   };
-  void setSeries(std::vector<Series> series);
+  void setSeries(std::vector<Series> series) {
+    series_ = std::move(series);
+    invalidate();
+  }
   // What the values are, when they aren't single solves: the name of the
   // dots in the legend, whether the ao5 and ao12 lines are drawn (without
   // them the series are), and each value's name on the read-out (instead
   // of its number, e.g. its date).
-  void setPointName(const QString &name);
-  void setAverages(bool on);
-  void setPointLabels(std::vector<QString> labels);
+  void setPointName(const QString &name) {
+    pointName_ = name;
+    invalidate();
+  }
+  void setAverages(bool on) {
+    averages_ = on;
+    invalidate();
+  }
+  void setPointLabels(std::vector<QString> labels) {
+    pointLabels_ = std::move(labels);
+    invalidate();
+  }
   QSize sizeHint() const override { return {400, 160}; }
 
 protected:
@@ -148,8 +171,7 @@ private:
     Penalty penalty = Penalty::None;
   };
   std::vector<Point> solves_;
-  // The rolling ao5 and ao12 ending at each solve, worked out once per
-  // setSolves().
+  // The rolling ao5 and ao12 ending at each solve.
   std::vector<StatValue> ao5_, ao12_;
   // Everything but the hover line and the read-out, drawn when the data,
   // size, pixel ratio, palette or font change; a hover only draws those
@@ -173,8 +195,6 @@ private:
   QRectF area() const;
   // Whether the series are drawn instead of the averages.
   bool showsSeries() const;
-  // The names written at the right ends of the lines.
-  QStringList lineNames() const;
   QString valueText(StatValue v) const;
 };
 
@@ -191,5 +211,10 @@ std::int64_t localDayEnd();
 // Unix seconds of the first moment of `day` in `zone`: 01:00 where the
 // clocks go forward at midnight.
 std::int64_t dayStart(const QDate &day, const QTimeZone &zone);
+
+// The scramble that sets `state` up (see generateScramble() above), for
+// `hold` alone.
+QFuture<GeneratedScramble> generateScramble(const CubieCube &state,
+                                            Hold hold = kWcaHold);
 
 } // namespace vcube

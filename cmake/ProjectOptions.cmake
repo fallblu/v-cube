@@ -13,7 +13,8 @@ if(MSVC)
     $<$<BOOL:${VCUBE_WARNINGS_AS_ERRORS}>:/WX>)
   # MSVC rejects /O2 together with the debug /RTC1, so the debug
   # optimization flags move from the global flags to the targets, and a
-  # target with the VCUBE_OPTIMIZE property gets /O2 instead (see src/cube).
+  # target with the VCUBE_OPTIMIZE property gets /O2 instead (see
+  # vcube_optimize_in_debug below).
   string(REGEX REPLACE "/RTC1|/Od|/Ob0" "" CMAKE_CXX_FLAGS_DEBUG
     "${CMAKE_CXX_FLAGS_DEBUG}")
   set(vcube_debug "$<CONFIG:Debug>")
@@ -50,3 +51,21 @@ if(VCUBE_SANITIZE AND NOT MSVC)
   target_link_options(vcube_warnings INTERFACE
     -fsanitize=address,undefined -fno-sanitize-recover=undefined)
 endif()
+
+# Adds sources to target, optimised in debug builds too (the solvers' tables
+# and searches would be slow otherwise). MSVC can't combine /O2 with /RTC1 in
+# one file, so there the sources form an object library without runtime
+# checks.
+function(vcube_optimize_in_debug target)
+  if(MSVC)
+    add_library(${target}_optimized OBJECT ${ARGN})
+    target_include_directories(${target}_optimized PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(${target}_optimized PRIVATE vcube_strict)
+    set_target_properties(${target}_optimized PROPERTIES VCUBE_OPTIMIZE ON)
+    target_sources(${target} PRIVATE $<TARGET_OBJECTS:${target}_optimized>)
+  else()
+    target_sources(${target} PRIVATE ${ARGN})
+    set_source_files_properties(${ARGN} PROPERTIES
+      COMPILE_OPTIONS "$<$<CONFIG:Debug>:-O2>")
+  endif()
+endfunction()

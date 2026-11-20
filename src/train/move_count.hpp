@@ -10,6 +10,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace vcube {
@@ -121,13 +122,13 @@ public:
   bool started() const { return started_; }
   const FaceletCube &cube() const { return cube_; }
   const Alg &moves() const { return moves_; }
-  Alg solution() const;
+  Alg solution() const { return joined().first; }
   int count(bool simplified = true) const {
     return solutionHtm(solution(), simplified);
   }
   // Milliseconds from start() to each move of solution(): a joined move
   // has the time of its last turn. Moves before start() have 0.
-  std::vector<std::int64_t> solutionTimes() const;
+  std::vector<std::int64_t> solutionTimes() const { return joined().second; }
   // Times are taken from this clock (ms); set before the solve.
   void setClock(std::int64_t startMs) { startMs_ = startMs; }
   // Turns the cube at `nowMs` on the clock given to setClock().
@@ -141,6 +142,9 @@ private:
   std::int64_t startMs_ = 0;
   bool started_ = false;
   bool free_ = false;
+
+  // The solution and its times.
+  std::pair<Alg, std::vector<std::int64_t>> joined() const;
 };
 
 // The largest move count that can be entered.

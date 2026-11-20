@@ -20,7 +20,6 @@ constexpr std::uint8_t kUnseen = 0xff;
 constexpr std::uint64_t kEdgeBudget = 48'000'000;
 // Tables kept between searches, in bytes.
 constexpr std::size_t kCacheBudget = 900'000'000;
-constexpr std::array<int, 4> kAufs = {0, 1, 3, 2};
 
 std::string bytesOf(const CubieCube &c) {
   std::string s;
@@ -33,18 +32,15 @@ std::string bytesOf(const CubieCube &c) {
 
 std::string bytesOf(const PieceMask &m) {
   std::string s;
-  for (bool b : m.cp) {
-    s += b ? '1' : '0';
-  }
-  for (bool b : m.co) {
-    s += b ? '1' : '0';
-  }
-  for (bool b : m.ep) {
-    s += b ? '1' : '0';
-  }
-  for (bool b : m.eo) {
-    s += b ? '1' : '0';
-  }
+  auto add = [&s](const auto &bits) {
+    for (bool b : bits) {
+      s += b ? '1' : '0';
+    }
+  };
+  add(m.cp);
+  add(m.co);
+  add(m.ep);
+  add(m.eo);
   return s;
 }
 
@@ -55,48 +51,14 @@ std::string bytesOf(const PieceMask &m) {
 // seen from the centres: r turns the centres as x does, M as x', ...
 Alg rotationPart(Move m) {
   using enum MoveType;
-  MoveType r = X;
-  bool inverse = false;
-  switch (m.type) {
-  case Rw:
-    r = X;
-    break;
-  case Lw:
-    r = X;
-    inverse = true;
-    break;
-  case Uw:
-    r = Y;
-    break;
-  case Dw:
-    r = Y;
-    inverse = true;
-    break;
-  case Fw:
-    r = Z;
-    break;
-  case Bw:
-    r = Z;
-    inverse = true;
-    break;
-  case M:
-    r = X;
-    inverse = true;
-    break;
-  case E:
-    r = Y;
-    inverse = true;
-    break;
-  case S:
-    r = Z;
-    break;
-  default:
+  if (isFaceTurn(m.type) || isRotation(m.type)) {
     return {};
   }
-  int amount = m.amount;
-  if (inverse) {
-    amount = (4 - amount) % 4;
-  }
+  // The rotation about the move's axis; the wide turns of the D, L and B
+  // sides turn against it, and so do M and E.
+  auto r = static_cast<MoveType>(static_cast<int>(X) + moveAxis(m.type));
+  bool inverse = (m.type >= Dw && m.type <= Bw) || m.type == M || m.type == E;
+  int amount = inverse ? (4 - m.amount) % 4 : m.amount;
   return {Move{r, static_cast<std::uint8_t>(amount), 0}};
 }
 
@@ -217,6 +179,26 @@ distances(std::size_t size, const std::vector<std::size_t> &seeds, int effects,
     }
   }
   return dist;
+}
+
+// Entries of an edge table: k pieces placed among n places, each flipped
+// or not.
+std::uint64_t edgeEntries(int n, int k) {
+  std::uint64_t s = 1;
+  for (int i = 0; i < k; ++i) {
+    s *= static_cast<std::uint64_t>(n - i);
+  }
+  return s << k;
+}
+
+// Which of a table's places is each position (-1: none).
+template <typename Table>
+void setPlaces(Table &t, const std::vector<int> &places) {
+  t.places = places;
+  t.local.fill(-1);
+  for (std::size_t i = 0; i < places.size(); ++i) {
+    t.local[static_cast<std::size_t>(places[i])] = static_cast<int>(i);
+  }
 }
 
 std::uint64_t pow3(int n) {
@@ -359,12 +341,6 @@ struct EdgeTable {
   }
 };
 
-struct PlaceMoves {
-  // For each effect, as seen from a place: where the piece there goes.
-  std::vector<std::array<std::uint8_t, kEdges>> to;
-  std::vector<std::array<std::uint8_t, kEdges>> flip;
-};
-
 std::vector<std::uint8_t> goalAufs(bool aufAfter) {
   if (!aufAfter) {
     return {0};
@@ -379,11 +355,7 @@ std::shared_ptr<CornerTable> buildCorners(const MoveModel &model,
                                           int threads,
                                           const std::atomic<bool> &stop) {
   auto t = std::make_shared<CornerTable>();
-  t->places = places;
-  t->local.fill(-1);
-  for (std::size_t i = 0; i < places.size(); ++i) {
-    t->local[static_cast<std::size_t>(places[i])] = static_cast<int>(i);
-  }
+  setPlaces(*t, places);
   for (std::size_t q = 0; q < kCorners; ++q) {
     t->label[q] = free.cp[q] ? 15 : static_cast<std::uint8_t>(q);
   }
@@ -472,11 +444,7 @@ buildEdges(const MoveModel &model, const std::vector<int> &places,
            const std::vector<int> &pieces, const PieceMask &free, bool aufAfter,
            int threads, const std::atomic<bool> &stop) {
   auto t = std::make_shared<EdgeTable>();
-  t->places = places;
-  t->local.fill(-1);
-  for (std::size_t i = 0; i < places.size(); ++i) {
-    t->local[static_cast<std::size_t>(places[i])] = static_cast<int>(i);
-  }
+  setPlaces(*t, places);
   t->pieces = pieces;
   t->slot.fill(-1);
   for (std::size_t j = 0; j < pieces.size(); ++j) {
@@ -491,9 +459,11 @@ buildEdges(const MoveModel &model, const std::vector<int> &places,
     }
     t->perms.push_back(p);
   }
-  // Where each effect takes the piece at each local place, and whether it
+  // Where an effect takes the piece at each local place, and whether it
   // flips it.
   const int ne = static_cast<int>(model.effects.size());
+  using PlaceMoves = std::pair<std::array<std::uint8_t, kEdges>,
+                               std::array<std::uint8_t, kEdges>>;
   auto movesOf = [&](const CubieCube &e) {
     std::array<std::uint8_t, kEdges> to{}, fl{};
     for (std::size_t q = 0; q < kEdges; ++q) {
@@ -504,19 +474,13 @@ buildEdges(const MoveModel &model, const std::vector<int> &places,
         fl[static_cast<std::size_t>(from)] = e.eo[q];
       }
     }
-    return std::pair{to, fl};
+    return PlaceMoves{to, fl};
   };
-  PlaceMoves pm;
+  std::vector<PlaceMoves> pm;
   for (const auto &e : model.effects) {
-    auto [to, fl] = movesOf(e);
-    pm.to.push_back(to);
-    pm.flip.push_back(fl);
+    pm.push_back(movesOf(e));
   }
-  std::size_t size = 1;
-  for (int i = 0; i < t->k; ++i) {
-    size *= static_cast<std::size_t>(t->n - i);
-  }
-  size <<= t->k;
+  const auto size = static_cast<std::size_t>(edgeEntries(t->n, t->k));
   // Seeds: the pieces home, or (for pieces whose place is free) at any of
   // the free places, flipped where the step allows.
   std::vector<int> freePlaces;
@@ -560,24 +524,20 @@ buildEdges(const MoveModel &model, const std::vector<int> &places,
   }
   std::vector<PlaceMoves> aufMoves;
   for (std::uint8_t v : goalAufs(aufAfter)) {
-    PlaceMoves am;
-    auto [to, fl] = movesOf(uTurn((4 - v) % 4));
-    am.to.push_back(to);
-    am.flip.push_back(fl);
-    aufMoves.push_back(am);
+    aufMoves.push_back(movesOf(uTurn((4 - v) % 4)));
   }
   for (const auto &pl : placements) {
     // Every subset of the free flips.
     for (std::uint32_t sub = freeFlips;; sub = (sub - 1) & freeFlips) {
-      for (const auto &am : aufMoves) {
+      for (const auto &[to, fl] : aufMoves) {
         std::array<std::uint8_t, kEdges> np{};
         std::uint32_t nf = 0;
         for (int j = 0; j < t->k; ++j) {
           auto uj = static_cast<std::size_t>(j);
           // A local place, below kEdges (clamped so that GCC sees it).
           std::size_t at = std::min<std::size_t>(pl[uj], kEdges - 1);
-          np[uj] = am.to[0][at];
-          nf |= (((sub >> j) & 1u) ^ am.flip[0][at]) << j;
+          np[uj] = to[at];
+          nf |= (((sub >> j) & 1u) ^ fl[at]) << j;
         }
         seeds.insert(t->rank(np, nf));
       }
@@ -603,8 +563,8 @@ buildEdges(const MoveModel &model, const std::vector<int> &places,
           std::uint32_t nf = 0;
           for (int j = 0; j < t->k; ++j) {
             auto uj = static_cast<std::size_t>(j);
-            nf |= static_cast<std::uint32_t>(pm.flip[e][p[uj]]) << j;
-            np[uj] = pm.to[e][p[uj]];
+            nf |= static_cast<std::uint32_t>(pm[e].second[p[uj]]) << j;
+            np[uj] = pm[e].first[p[uj]];
           }
           permMove[r * une + e] =
               static_cast<std::uint32_t>(t->rank(np, 0) >> t->k);
@@ -921,15 +881,7 @@ struct Searcher {
     // first and the last that many (overlapping if need be).
     const int ne = static_cast<int>(sortedPlaces.size());
     int kmax = 0;
-    for (int k = 1; k <= ne; ++k) {
-      std::uint64_t s = 1;
-      for (int i = 0; i < k; ++i) {
-        s *= static_cast<std::uint64_t>(ne - i);
-      }
-      s <<= k;
-      if (s > kEdgeBudget) {
-        break;
-      }
+    for (int k = 1; k <= ne && edgeEntries(ne, k) <= kEdgeBudget; ++k) {
       kmax = k;
     }
     std::vector<std::vector<int>> groups;
@@ -944,7 +896,7 @@ struct Searcher {
     // Starts: the case after each U turn allowed before it, when the
     // places no move turns are already as the step wants them.
     std::vector<CubieCube> starts;
-    for (int b : kAufs) {
+    for (int b : kAufOrder) {
       if (b != 0 && !goal.aufBefore) {
         continue;
       }
@@ -988,35 +940,23 @@ struct Searcher {
       }
       announced = true;
     };
-    {
-      std::string key = base + "|c";
-      {
-        std::lock_guard lock(cache().mutex);
-        if (!cache().tables.contains(key)) {
-          announce();
-        }
-      }
-      corners = cache().get<CornerTable>(key, [&] {
-        return buildCorners(model, cPlaces, goal.free, goal.aufAfter, threads,
-                            stop);
-      });
-      if (!corners) {
-        out.end = SearchEnd::Stopped;
-        return out;
-      }
+    // The cache builds a table only when it has none.
+    corners = cache().get<CornerTable>(base + "|c", [&] {
+      announce();
+      return buildCorners(model, cPlaces, goal.free, goal.aufAfter, threads,
+                          stop);
+    });
+    if (!corners) {
+      out.end = SearchEnd::Stopped;
+      return out;
     }
     for (const auto &g : groups) {
       std::string key = base + "|e";
       for (int p : g) {
         key += static_cast<char>('a' + p);
       }
-      {
-        std::lock_guard lock(cache().mutex);
-        if (!cache().tables.contains(key)) {
-          announce();
-        }
-      }
       edges.push_back(cache().get<EdgeTable>(key, [&] {
+        announce();
         return buildEdges(model, sortedPlaces, g, goal.free, goal.aufAfter,
                           threads, stop);
       }));

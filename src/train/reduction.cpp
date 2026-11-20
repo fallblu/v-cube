@@ -15,13 +15,12 @@ constexpr int kMaxSteps = 32;
 // undoes, up to `free` pieces and a U turn after it.
 std::optional<int> lineUp(const AlgSet &set, const CubieCube &cube,
                           const CubieCube &inverse, const PieceMask &free) {
-  static constexpr int kOrder[4] = {0, 1, 3, 2};
-  for (int u : kOrder) {
+  for (int u : kAufOrder) {
     if (u != 0 && !set.aufBefore) {
       continue;
     }
     CubieCube turned = cube * uTurn(u) * inverse;
-    for (int v : kOrder) {
+    for (int v : kAufOrder) {
       if (v != 0 && !set.aufAfter) {
         continue;
       }
@@ -55,13 +54,6 @@ std::optional<CaseView> mirroredView(const AlgSet &set, const CaseGroup &group,
     return CaseView{c.id, true, *u};
   }
   return std::nullopt;
-}
-
-std::optional<CubieCube> after(const CubieCube &cube, const Alg &alg) {
-  FaceletCube f = cube.toFacelets();
-  f.apply(alg);
-  f.normalizeOrientation();
-  return CubieCube::fromFacelets(f);
 }
 
 } // namespace
@@ -172,7 +164,7 @@ std::vector<ViewAlg> algsFor(const AlgSet &set, const CaseGroup &group,
     if (!alg.reducesTo.empty() && view.mirrored) {
       // The case a mirrored step stops at may be one that is seen as it
       // is written: its mirror image, by name.
-      std::optional<CubieCube> next = after(cube, parseAlgOrEmpty(alg.text));
+      std::optional<CubieCube> next = applyAlg(cube, parseAlgOrEmpty(alg.text));
       if (auto seen = next ? seenCase(set, *next, world) : std::nullopt) {
         alg.reducesTo = seen->caseId;
       }
@@ -182,7 +174,10 @@ std::vector<ViewAlg> algsFor(const AlgSet &set, const CaseGroup &group,
   return out;
 }
 
-std::map<std::string, int> stepsLeft(const AlgSet &set) {
+std::map<std::string, int>
+stepsLeft(const AlgSet &set,
+          const std::function<CaseAnalysis(const CaseGroup &, const AlgCase &)>
+              &analysisOf) {
   struct Entry {
     std::string id;
     std::vector<std::string> next; // per passing alg; empty = finishes
@@ -190,7 +185,7 @@ std::map<std::string, int> stepsLeft(const AlgSet &set) {
   std::vector<Entry> entries;
   for (const auto &g : set.groups) {
     for (const auto &c : g.cases) {
-      CaseAnalysis a = analyzeCase(set, g, c);
+      CaseAnalysis a = analysisOf ? analysisOf(g, c) : analyzeCase(set, g, c);
       Entry e{c.id, {}};
       for (std::size_t i : a.passing) {
         e.next.push_back(a.checks[i].reducesTo);
@@ -245,7 +240,7 @@ Chain solveChain(const AlgSet &set, const CubieCube &cube, Mirror world) {
       break;
     }
     std::optional<CubieCube> next =
-        after(at, parseAlgOrEmpty(algs.front().text));
+        applyAlg(at, parseAlgOrEmpty(algs.front().text));
     if (!next) {
       break;
     }

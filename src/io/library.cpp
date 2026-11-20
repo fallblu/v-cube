@@ -194,13 +194,11 @@ void AlgLibrary::installBuiltins() {
     changed = true;
   }
   if (changed) {
-    QJsonArray arr;
-    for (const auto &id : installed) {
-      arr.append(id);
-    }
     QString error;
-    if (!writeFileAtomically(dir.filePath(kInstalledFile),
-                             QJsonDocument(arr).toJson(), &error)) {
+    if (!writeFileAtomically(
+            dir.filePath(kInstalledFile),
+            QJsonDocument(QJsonArray::fromStringList(installed)).toJson(),
+            &error)) {
       errors_ << QString("%1 couldn't be written, so new built-in sets may "
                          "not be installed next time: %2")
                      .arg(kInstalledFile, error);

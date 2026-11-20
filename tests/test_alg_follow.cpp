@@ -32,6 +32,14 @@ void doMoves(AlgFollower &f, std::string_view moves) {
   }
 }
 
+// The follower after `moves`.
+AlgFollower followed(const std::vector<std::string> &algs,
+                     std::string_view moves, std::string_view setup = "") {
+  AlgFollower f = follower(algs, setup);
+  doMoves(f, moves);
+  return f;
+}
+
 const std::string kSune = "R U R' U R U2 R'";
 
 } // namespace
@@ -100,58 +108,48 @@ TEST_CASE("an alg that passes through a state twice follows as written") {
        {std::string("R U R' R U2 R'"), std::string("F l' R U R' F'"),
         std::string("R U R' U' R U R' R U2 R' U2")}) {
     INFO(a);
-    AlgFollower f = follower({a});
-    doMoves(f, a);
+    AlgFollower f = followed({a}, a);
     CHECK_FALSE(f.deviated());
     CHECK(f.finished());
   }
   // A turn undone is still a wrong turn.
-  AlgFollower g = follower({kSune});
-  doMoves(g, "R U R' U R U U'");
+  AlgFollower g = followed({kSune}, "R U R' U R U U'");
   CHECK(g.deviated());
 }
 
 TEST_CASE("U turns and rotations before the alg are free") {
   // The case is set up a U off, so it needs a U' first.
-  AlgFollower f = follower({kSune}, "U");
-  doMoves(f, "y U2 y' U U' U " + kSune);
+  AlgFollower f = followed({kSune}, "y U2 y' U U' U " + kSune, "U");
   CHECK(f.onAlg());
   // The alg can also be done from a side where it solves the case.
-  AlgFollower h = follower({"M2 U M2 U2 M2 U M2"});
-  doMoves(h, "y M2 U M2 U2 M2 U M2");
+  AlgFollower h = followed({"M2 U M2 U2 M2 U M2"}, "y M2 U M2 U2 M2 U M2");
   CHECK(h.onAlg());
 }
 
 TEST_CASE("the same turns done another way still follow the alg") {
   SECTION("half turns as two quarter turns either way") {
-    AlgFollower f = follower({kSune});
-    doMoves(f, "R U R' U R U' U' R'");
+    AlgFollower f = followed({kSune}, "R U R' U R U' U' R'");
     CHECK(f.onAlg());
-    AlgFollower g = follower({kSune});
-    doMoves(g, "R U R' U R U U R'");
+    AlgFollower g = followed({kSune}, "R U R' U R U U R'");
     CHECK(g.onAlg());
   }
   SECTION("a move written with a 3 as three quarter turns") {
     const std::string ub = "R' U R' U' R3 U' R' U R U R2";
-    AlgFollower f = follower({ub});
-    doMoves(f, "R' U R' U' R R");
+    AlgFollower f = followed({ub}, "R' U R' U' R R");
     CHECK_FALSE(f.deviated());
     CHECK_FALSE(f.onAlg());
     doMoves(f, "R U' R' U R U R2");
     CHECK_FALSE(f.deviated());
     CHECK(f.onAlg());
     // Or as the one turn the other way.
-    AlgFollower g = follower({ub});
-    doMoves(g, "R' U R' U' R' U' R' U R U R2");
+    AlgFollower g = followed({ub}, "R' U R' U' R' U' R' U R U R2");
     CHECK(g.onAlg());
     // At the start, in the D turns before the AUF.
-    AlgFollower h = follower({"D3 R U R' D"});
-    doMoves(h, "D D D R U R' D");
+    AlgFollower h = followed({"D3 R U R' D"}, "D D D R U R' D");
     CHECK(h.onAlg());
   }
   SECTION("but not halfway through a half turn") {
-    AlgFollower f = follower({"R2 U R2"});
-    doMoves(f, "R");
+    AlgFollower f = followed({"R2 U R2"}, "R");
     CHECK_FALSE(f.deviated());
     CHECK_FALSE(f.onAlg());
     doMoves(f, "R");
@@ -159,121 +157,99 @@ TEST_CASE("the same turns done another way still follow the alg") {
   }
   SECTION("wide turns as a face and a slice turn, or a face and a rotation") {
     const std::string t = "r U R' U' r' F R F'";
-    AlgFollower f = follower({t});
-    doMoves(f, "R M' U R' U' M R' F R F'");
+    AlgFollower f = followed({t}, "R M' U R' U' M R' F R F'");
     CHECK(f.onAlg());
-    AlgFollower g = follower({t});
-    doMoves(g, "L x U R' U' r' F R F'");
+    AlgFollower g = followed({t}, "L x U R' U' r' F R F'");
     CHECK(g.onAlg());
   }
   SECTION("with or without the alg's rotations") {
     const std::string aa = "x R' U R' D2 R U' R' D2 R2 x'";
-    AlgFollower f = follower({aa});
-    doMoves(f, "R' F R' B2 R F' R' B2 R2");
+    AlgFollower f = followed({aa}, "R' F R' B2 R F' R' B2 R2");
     CHECK(f.onAlg());
-    AlgFollower g = follower({aa});
-    doMoves(g, "x R' U R' D2 R U' R' D2 R2");
+    AlgFollower g = followed({aa}, "x R' U R' D2 R U' R' D2 R2");
     CHECK(g.onAlg());
     // Tilting first and then doing the alg's own x tilts twice.
-    AlgFollower h = follower({aa});
-    doMoves(h, "x x R' U");
+    AlgFollower h = followed({aa}, "x x R' U");
     CHECK(h.deviated());
   }
   SECTION("opposite faces in either order") {
-    AlgFollower f = follower({"R L' U2 R' L"});
-    doMoves(f, "L' R U' U' L R'");
+    AlgFollower f = followed({"R L' U2 R' L"}, "L' R U' U' L R'");
     CHECK(f.onAlg());
   }
   SECTION("the AUF before or after D turns at the start") {
     const std::string a = "D R U R' D' R U' R'";
-    AlgFollower f = follower({a}, "U2");
-    doMoves(f, "D U2 R U R' D' R U' R'");
+    AlgFollower f = followed({a}, "D U2 R U R' D' R U' R'", "U2");
     CHECK(f.onAlg());
-    AlgFollower g = follower({a}, "U2");
-    doMoves(g, "U2 D R U R' D' R U' R'");
+    AlgFollower g = followed({a}, "U2 D R U R' D' R U' R'", "U2");
     CHECK(g.onAlg());
-    AlgFollower h = follower({"U2 " + a}, "U2");
-    doMoves(h, "D U' U' R U R' D' R U' R'");
+    AlgFollower h = followed({"U2 " + a}, "D U' U' R U R' D' R U' R'", "U2");
     CHECK(h.onAlg());
   }
   SECTION("a wide U-D turn as a face and a slice turn") {
-    AlgFollower f = follower({"u R U R' u'"});
-    doMoves(f, "U E' R U R' u'");
+    AlgFollower f = followed({"u R U R' u'"}, "U E' R U R' u'");
     CHECK(f.onAlg());
   }
   SECTION("without the U turn that ends an alg") {
-    AlgFollower f = follower({"R U R' U D'"});
-    doMoves(f, "R U R' D'");
+    AlgFollower f = followed({"R U R' U D'"}, "R U R' D'");
     CHECK_FALSE(f.deviated());
     CHECK(f.onAlg());
-    AlgFollower g = follower({"R U R' U D'"});
-    doMoves(g, "R U R' D' U");
+    AlgFollower g = followed({"R U R' U D'"}, "R U R' D' U");
     CHECK(g.onAlg());
   }
   SECTION("any of the case's algs") {
-    AlgFollower f = follower({kSune, "y' R' U' R U' R' U2 R"});
-    doMoves(f, "y' R' U' R U' R' U2 R");
+    AlgFollower f =
+        followed({kSune, "y' R' U' R U' R' U2 R"}, "y' R' U' R U' R' U2 R");
     CHECK(f.onAlg());
   }
 }
 
 TEST_CASE("a wrong turn leaves the algs") {
   SECTION("on another axis, at once") {
-    AlgFollower f = follower({kSune});
-    doMoves(f, "R F");
+    AlgFollower f = followed({kSune}, "R F");
     CHECK(f.deviated());
   }
   SECTION("the wrong way, by the next turn") {
-    AlgFollower f = follower({kSune});
-    doMoves(f, "R U'");
+    AlgFollower f = followed({kSune}, "R U'");
     CHECK_FALSE(f.deviated());
     doMoves(f, "R'");
     CHECK(f.deviated());
   }
   SECTION("even when it is undone") {
-    AlgFollower f = follower({kSune});
-    doMoves(f, "R U R' U' U R U2 R'");
+    AlgFollower f = followed({kSune}, "R U R' U' U R U2 R'");
     CHECK(f.deviated());
     CHECK_FALSE(f.onAlg());
   }
   SECTION("or turned on round") {
-    AlgFollower f = follower({kSune});
-    doMoves(f, "R U' U' U' R'");
+    AlgFollower f = followed({kSune}, "R U' U' U' R'");
     CHECK(f.deviated());
     // Three turns the other way, where the alg writes R3, aren't R3.
-    AlgFollower g = follower({"R' U R' U' R3 U' R' U R U R2"});
-    doMoves(g, "R' U R' U' R R R R");
+    AlgFollower g =
+        followed({"R' U R' U' R3 U' R' U R U R2"}, "R' U R' U' R R R R");
     CHECK(g.deviated());
   }
   SECTION("so does turning another layer to start") {
-    AlgFollower f = follower({kSune});
-    doMoves(f, "D");
+    AlgFollower f = followed({kSune}, "D");
     CHECK(f.deviated());
     // F could start the alg done from another side, F F can't.
-    AlgFollower g = follower({kSune});
-    doMoves(g, "F");
+    AlgFollower g = followed({kSune}, "F");
     CHECK_FALSE(g.deviated());
     doMoves(g, "F");
     CHECK(g.deviated());
   }
   SECTION("or the D layer the wrong way") {
-    AlgFollower f = follower({"D R U R' D'"});
-    doMoves(f, "D'");
+    AlgFollower f = followed({"D R U R' D'"}, "D'");
     CHECK(f.deviated());
-    AlgFollower g = follower({"D R U R' D'"});
-    doMoves(g, "D D' D");
+    AlgFollower g = followed({"D R U R' D'"}, "D D' D");
     CHECK(g.deviated());
   }
   SECTION("or going on after the alg (with more than a U turn)") {
-    AlgFollower f = follower({kSune});
-    doMoves(f, kSune + " R");
+    AlgFollower f = followed({kSune}, kSune + " R");
     CHECK(f.deviated());
   }
 }
 
 TEST_CASE("starting over counts once the alg was begun") {
-  AlgFollower f = follower({kSune}, "U");
-  doMoves(f, "U' U");
+  AlgFollower f = followed({kSune}, "U' U", "U");
   f.restart();
   CHECK_FALSE(f.deviated());
   doMoves(f, "U' R U");
@@ -285,16 +261,14 @@ TEST_CASE("starting over counts once the alg was begun") {
 }
 
 TEST_CASE("starting over after D turns counts too") {
-  AlgFollower f = follower({"D R U R' D'"});
-  doMoves(f, "D");
+  AlgFollower f = followed({"D R U R' D'"}, "D");
   CHECK_FALSE(f.deviated());
   f.restart();
   CHECK(f.deviated());
 }
 
 TEST_CASE("changing the algs checks the moves again") {
-  AlgFollower f = follower({kSune});
-  doMoves(f, "R U2 R'");
+  AlgFollower f = followed({kSune}, "R U2 R'");
   CHECK(f.deviated());
   f.setAlgs({alg("R U2 R' U' R U' R'")});
   CHECK_FALSE(f.deviated());
@@ -304,8 +278,7 @@ TEST_CASE("changing the algs checks the moves again") {
 TEST_CASE("the move that left the algs is found") {
   auto leftAt = [](const std::vector<std::string> &algs,
                    std::string_view moves) {
-    AlgFollower f = follower(algs);
-    doMoves(f, moves);
+    AlgFollower f = followed(algs, moves);
     return f.leftAt();
   };
   SECTION("not while the moves keep to an alg") {
@@ -339,8 +312,7 @@ TEST_CASE("the move that left the algs is found") {
     CHECK(leftAt({kSune}, "U D") == 1u);
   }
   SECTION("counted again after a restart or a change of algs") {
-    AlgFollower f = follower({kSune});
-    doMoves(f, "R U2 R'");
+    AlgFollower f = followed({kSune}, "R U2 R'");
     CHECK(f.leftAt() == 1u);
     f.setAlgs({alg("R U2 R' U' R U' R'")});
     CHECK_FALSE(f.leftAt());

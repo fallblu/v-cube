@@ -1,8 +1,10 @@
 #include "train/alg_lab.hpp"
 
 #include "cube/move.hpp"
+#include "train/enum_ids.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <map>
 
@@ -50,42 +52,25 @@ std::string labAlgKey(std::string_view alg) {
   return toString(parsed.alg);
 }
 
+constexpr std::array<std::string_view, 4> kSourceIds = {"set", "generated",
+                                                        "pasted", "typed"};
+constexpr std::array<std::string_view, 2> kOrderIds = {"interleaved",
+                                                       "blocked"};
+
 std::string_view candidateSourceId(CandidateSource s) {
-  switch (s) {
-  case CandidateSource::Set:
-    return "set";
-  case CandidateSource::Generated:
-    return "generated";
-  case CandidateSource::Pasted:
-    return "pasted";
-  case CandidateSource::Typed:
-    return "typed";
-  }
-  return "typed";
+  return idOf(kSourceIds, s, "typed");
 }
 
 std::optional<CandidateSource> candidateSourceFromId(std::string_view id) {
-  for (auto s : {CandidateSource::Set, CandidateSource::Generated,
-                 CandidateSource::Pasted, CandidateSource::Typed}) {
-    if (candidateSourceId(s) == id) {
-      return s;
-    }
-  }
-  return std::nullopt;
+  return fromId<CandidateSource>(kSourceIds, id);
 }
 
 std::string_view labOrderId(LabOrder o) {
-  return o == LabOrder::Blocked ? "blocked" : "interleaved";
+  return idOf(kOrderIds, o, "interleaved");
 }
 
 std::optional<LabOrder> labOrderFromId(std::string_view id) {
-  if (id == "blocked") {
-    return LabOrder::Blocked;
-  }
-  if (id == "interleaved") {
-    return LabOrder::Interleaved;
-  }
-  return std::nullopt;
+  return fromId<LabOrder>(kOrderIds, id);
 }
 
 std::vector<int> repsDone(const LabSession &s,
@@ -207,16 +192,7 @@ std::vector<LabAttempt> afterWarmup(std::span<const LabAttempt> attempts,
   return out;
 }
 
-} // namespace
-
-std::vector<LabAttempt> labTimed(std::span<const LabAttempt> attempts,
-                                 const LabCaseKey &key, std::string_view alg,
-                                 CubeKind cube, const LabWindow &window,
-                                 const WarmupOf &warmupOf) {
-  return afterWarmup(attempts, key, alg, cube, window, warmupOf, nullptr,
-                     nullptr);
-}
-
+// Attempts as solves, oldest first (DNFs kept).
 std::vector<Solve> labSolves(std::span<const LabAttempt> timed) {
   std::vector<Solve> out;
   out.reserve(timed.size());
@@ -278,6 +254,16 @@ LabStats statsOf(std::span<const LabAttempt> timed, int trimPercent,
   return st;
 }
 
+} // namespace
+
+std::vector<LabAttempt> labTimed(std::span<const LabAttempt> attempts,
+                                 const LabCaseKey &key, std::string_view alg,
+                                 CubeKind cube, const LabWindow &window,
+                                 const WarmupOf &warmupOf) {
+  return afterWarmup(attempts, key, alg, cube, window, warmupOf, nullptr,
+                     nullptr);
+}
+
 LabStats labStats(std::span<const LabAttempt> attempts, const LabCaseKey &key,
                   std::string_view alg, CubeKind cube, const LabWindow &window,
                   int trimPercent, const WarmupOf &warmupOf) {
@@ -287,16 +273,10 @@ LabStats labStats(std::span<const LabAttempt> attempts, const LabCaseKey &key,
   return statsOf(timed, trimPercent, inWindow, deviated);
 }
 
-LabAttemptGroups::LabAttemptGroups(std::span<const LabAttempt> attempts) {
-  for (const auto &a : attempts) {
-    groups_[{a.key, a.alg}].push_back(a);
-  }
-}
-
 LabAttemptGroups::LabAttemptGroups(std::span<const LabAttempt> attempts,
-                                   const LabCaseKey &key) {
+                                   const std::optional<LabCaseKey> &key) {
   for (const auto &a : attempts) {
-    if (a.key == key) {
+    if (!key || a.key == *key) {
       groups_[{a.key, a.alg}].push_back(a);
     }
   }

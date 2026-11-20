@@ -49,11 +49,11 @@ void selectQtPlatform() {
 
 namespace {
 
-// Linux path -> Windows path (e.g. \\wsl.localhost\Ubuntu\home\...).
-QString windowsPath(const QString &path) {
+// What `program` prints, trimmed, or "" when it fails or takes over `ms`.
+QString runOutput(const QString &program, const QStringList &args, int ms) {
   QProcess p;
-  p.start("wslpath", {"-w", path});
-  if (!p.waitForFinished(5000) || p.exitStatus() != QProcess::NormalExit ||
+  p.start(program, args);
+  if (!p.waitForFinished(ms) || p.exitStatus() != QProcess::NormalExit ||
       p.exitCode() != 0) {
     return {};
   }
@@ -61,7 +61,8 @@ QString windowsPath(const QString &path) {
 }
 
 bool openFolderInExplorer(const QString &path) {
-  QString winPath = windowsPath(path);
+  // Linux path -> Windows path (e.g. \\wsl.localhost\Ubuntu\home\...).
+  QString winPath = runOutput("wslpath", {"-w", path}, 5000);
   if (winPath.isEmpty()) {
     return false;
   }
@@ -92,14 +93,9 @@ bool platformPrefersReducedMotion() {
            .contains("GNOME", Qt::CaseInsensitive)) {
     return false;
   }
-  QProcess p;
-  p.start("gsettings",
-          {"get", "org.gnome.desktop.interface", "enable-animations"});
-  if (!p.waitForFinished(1000) || p.exitStatus() != QProcess::NormalExit ||
-      p.exitCode() != 0) {
-    return false;
-  }
-  return QString::fromUtf8(p.readAllStandardOutput()).trimmed() == "false";
+  return runOutput("gsettings",
+                   {"get", "org.gnome.desktop.interface", "enable-animations"},
+                   1000) == "false";
 #else
   return false;
 #endif

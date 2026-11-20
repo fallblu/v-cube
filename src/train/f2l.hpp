@@ -57,25 +57,17 @@ std::string_view methodName(F2LMethod m);
 void applyMethod(F2LConfig &config, F2LMethod m);
 F2LMethod methodOf(const F2LConfig &config);
 
-inline constexpr std::array<Slot, kSlots> kF2LSlots = {Slot::FR, Slot::FL,
-                                                       Slot::BL, Slot::BR};
-
 bool crossSolved(const CubieCube &c);
 bool edgesOriented(const CubieCube &c);
 // The cross is done, and EO with it when the method has EO.
 bool f2lBase(const CubieCube &c, const F2LConfig &config);
 std::vector<Slot> unsolvedSlots(const CubieCube &c);
-int solvedSlotCount(const CubieCube &c);
 // The method's F2L is done: the base holds and every slot is solved, or
 // (F2L - 1) all but one that may be left.
 bool f2lDone(const CubieCube &c, const F2LConfig &config);
 // The pairs still to solve at least: the unsolved slots, less the one
 // that can be left.
 int pairsLeft(const CubieCube &c, const F2LConfig &config);
-
-// A cube turned any way round (e.g. after rotations while solving), as
-// the solver sees it with the centres in their places.
-std::optional<CubieCube> centredCubie(const FaceletCube &cube);
 
 // --- pair cases --------------------------------------------------------------
 
@@ -148,8 +140,6 @@ std::optional<PairCard> cardFromKey(std::string_view key);
 // FR or BR.
 Slot sideSlot(PairSide side);
 PairSide sideOf(Slot slot);
-// "front", "back" (the slots: "FR / FL", "BR / BL").
-std::string_view sideName(PairSide side);
 // The case of `target`'s pair in a state, as a card.
 PairCard pairCardOf(const CubieCube &state, Slot target);
 
@@ -170,9 +160,6 @@ std::optional<PairSetup> cardSetup(const PairCard &card,
 // Moves written for the side's own slot as they are done for `slot`, and
 // back: mirrored left to right for the side's other slot.
 Alg sideToSlot(const Alg &alg, PairSide side, Slot slot);
-inline Alg slotToSide(const Alg &alg, PairSide side, Slot slot) {
-  return sideToSlot(alg, side, slot);
-}
 // A pair solution as solutions compare: the turns without rotations (see
 // fixedFrame()), simplified, without the U turns at the start and the end,
 // opposite faces in one order.
@@ -212,16 +199,6 @@ FaceletCube pairDiagram(const CubieCube &state, Slot slot);
 // A random state with the cross (and EO, for `eo`) done, the `open` slots
 // unsolved and the others solved.
 CubieCube randomF2LState(const std::vector<Slot> &open, Edges edges, Rng &rng);
-
-// A state with one pair to solve: `stage` is the pair's place in the solve (1
-// first, with every slot open; 0 any), brought down when the case needs
-// more slots open than that leaves. With `wanted` the target pair is that
-// case (in a random slot); nullopt when it can't be set up.
-std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
-                                         std::optional<PairCase> wanted,
-                                         Rng &rng);
-// The most pairs a solve of the method has (3 for F2L - 1, else 4).
-int stageCount(const F2LConfig &config);
 
 // A state for a whole F2L: every slot open.
 CubieCube randomFullState(const F2LConfig &config, Rng &rng);

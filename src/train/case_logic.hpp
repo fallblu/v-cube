@@ -22,6 +22,9 @@ struct AufFit {
 // The U turns an alg may need around it to solve a case: one before it,
 // one after it, both or neither.
 enum class Aufs : std::uint8_t { None, Before, After, Both };
+// The U turns (in quarters) in the order they are tried: none, the quarter
+// turns, then the half turn.
+inline constexpr std::array<int, 4> kAufOrder = {0, 1, 3, 2};
 constexpr bool allowsAufBefore(Aufs a) {
   return a == Aufs::Before || a == Aufs::Both;
 }
@@ -156,8 +159,6 @@ struct CaseRef {
 // The case of `set` that `alg` solves, if any, with the U turns before and
 // after it that the set allows.
 std::optional<CaseRef> matchCase(const AlgSet &set, const Alg &alg);
-// Every case of `set` that `alg` solves, in set order.
-std::vector<CaseRef> matchCases(const AlgSet &set, const Alg &alg);
 
 // The case with the random U turns before and after it that the set asks
 // for, so that it is seen from any side, as Learn and Drill set it up.
@@ -232,10 +233,5 @@ struct PastePlan {
 enum class NewCases : std::uint8_t { Create, Skip };
 PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
                     NewCases newCases, std::size_t newCaseGroup);
-
-// planPaste() of readPaste(text) applied to `set`, with new cases going to
-// the last group.
-ImportReport importAlgs(AlgSet &set, const std::string &text,
-                        NewCases newCases);
 
 } // namespace vcube

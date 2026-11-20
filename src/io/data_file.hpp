@@ -77,14 +77,13 @@ public:
   const QString &path() const { return path_; }
   // Where load() moved an unreadable file, if it did.
   const QString &setAsidePath() const { return setAside_; }
-  // Whether save() refuses to write, because the file load() couldn't use
-  // is still there.
-  bool keptOff() const { return !keptOffReason_.isEmpty(); }
 
 private:
   QString path_;
   FileFormat format_;
   QString setAside_;
+  // Why save() refuses to write: the file load() couldn't use is still
+  // there.
   QString keptOffReason_;
 };
 
@@ -123,35 +122,62 @@ void setWriteReporter(WriteReporter reporter);
 // Reports a write done directly; from any thread.
 void reportWrite(const QString &path, bool ok, const QString &error = {});
 
-// One value saved as a JSON data file: `ToJson` writes the whole file from
-// it and `FromJson` reads it back.
-template <typename Data, const FileFormat &Format, auto ToJson, auto FromJson>
-class JsonStore {
+// What is kept as one JSON data file (see DataFile), loaded and saved
+// whole:
+//
+//   reset()     back to what a missing or unreadable file gives
+//   toJson()    the whole file
+//   fromJson()  reads a file of this format, after reset()
+class FileStore {
 public:
-  explicit JsonStore(QString path) : file_(std::move(path), Format) {}
-
-  // A missing file gives an empty value. A file that can't be read is set
-  // aside (see DataFile) and also gives an empty one.
+  // A missing file gives what reset() leaves. A file that can't be read
+  // is set aside (see DataFile) and gives the same; if it can't be moved,
+  // nothing is saved over it.
   bool load(QString *error = nullptr) {
-    data = {};
+    reset();
     QJsonObject o;
     FileStatus status = file_.load(o, error);
     if (status != FileStatus::Read) {
       return status == FileStatus::Missing;
     }
-    data = FromJson(o);
+    fromJson(o);
     return true;
   }
   bool save(QString *error = nullptr) const {
-    return file_.save(ToJson(data), error);
+    return file_.save(toJson(), error);
   }
+  // Where load() moved an unreadable file, if it did.
   const QString &setAsidePath() const { return file_.setAsidePath(); }
   QString path() const { return file_.path(); }
 
+  virtual ~FileStore() = default;
+
+protected:
+  FileStore(QString path, FileFormat format) : file_(std::move(path), format) {}
+  FileStore(const FileStore &) = default;
+  FileStore &operator=(const FileStore &) = default;
+
+  virtual void reset() = 0;
+  virtual QJsonObject toJson() const = 0;
+  virtual void fromJson(const QJsonObject &o) = 0;
+
+  DataFile file_;
+};
+
+// One value saved as a JSON data file: `ToJson` writes the whole file from
+// it and `FromJson` reads it back. A missing or unreadable file gives an
+// empty value.
+template <typename Data, const FileFormat &Format, auto ToJson, auto FromJson>
+class JsonStore : public FileStore {
+public:
+  explicit JsonStore(QString path) : FileStore(std::move(path), Format) {}
+
   Data data;
 
-private:
-  DataFile file_;
+protected:
+  void reset() override { data = {}; }
+  QJsonObject toJson() const override { return ToJson(data); }
+  void fromJson(const QJsonObject &o) override { data = FromJson(o); }
 };
 
 } // namespace vcube

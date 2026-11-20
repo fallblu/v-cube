@@ -28,7 +28,6 @@ public:
   explicit LabChart(QWidget *parent = nullptr);
   void setSeries(std::vector<Series> series);
   void setMode(Mode m);
-  Mode mode() const { return mode_; }
   void setDecimals(int d);
   void setEmptyText(const QString &text);
   QSize sizeHint() const override { return {420, 220}; }

@@ -22,8 +22,6 @@ namespace vcube {
 // EO+1, EO+2, EO Cross.
 const std::vector<SolveStep> &eoCrossSteps();
 
-// The holds a step may be done in: the neutrality's with both EO axes.
-std::vector<Hold> eoHolds(const ColourNeutrality &neutrality);
 // The hold in which the cube shows `step` done, among those that pose the
 // same problem as one of `allowed`: the hold the cube is in now if it is
 // one, else one with the same top colour, else the first; nullopt when the
