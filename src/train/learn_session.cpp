@@ -11,12 +11,7 @@ using Step = LearnSession::Step;
 using Action = LearnSession::Action;
 using Key = LearnSession::Key;
 
-Step used(Action a = Action::None) {
-  Step s;
-  s.handled = true;
-  s.action = a;
-  return s;
-}
+Step used(Action a = Action::None) { return {true, a}; }
 
 bool isNext(Key k) { return k == Key::Space || k == Key::Enter; }
 
@@ -44,7 +39,7 @@ Step LearnSession::key(const KeyEvent &k, std::int64_t now) const {
     return used(k.press ? Action::Undo : Action::None);
   }
   if (!k.press) {
-    return {k.key == Key::Space, Action::None, {}, 0, {}, false, 0};
+    return Step{k.key == Key::Space};
   }
   const bool next = isNext(k.key);
   // Recognition and the quiz: the cube only turns as a whole (and U and
@@ -105,13 +100,7 @@ Step LearnSession::key(const KeyEvent &k, std::int64_t now) const {
       return used(Action::StartFollowing);
     }
     // The turning keys wait for the try, so that the demo stays in step.
-    return {k.move.has_value() || k.key == Key::Tab,
-            Action::None,
-            {},
-            0,
-            {},
-            false,
-            0};
+    return Step{k.move.has_value() || k.key == Key::Tab};
   case Phase::Solving:
     if (k.key == Key::Tab) {
       return used(Action::Hint);

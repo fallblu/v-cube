@@ -9,12 +9,7 @@ using Action = PracticeFlow::Action;
 using Phase = PracticePhase;
 using Key = TrainKey;
 
-Step used(Action a = Action::None) {
-  Step s;
-  s.handled = true;
-  s.action = a;
-  return s;
-}
+Step used(Action a = Action::None) { return {true, a}; }
 
 Step chooseKey(const TrainKeyEvent &k, const PracticeFlow::State &s) {
   switch (k.key) {

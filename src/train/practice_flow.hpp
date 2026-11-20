@@ -84,7 +84,7 @@ public:
   struct Step {
     bool handled = false;
     Action action = Action::None;
-    std::optional<Move> move;
+    std::optional<Move> move{};
     int digit = 0;
     Grade grade = Grade::Again;
     bool gaveUp = false; // Reveal: the cube didn't show the item done

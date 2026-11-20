@@ -86,9 +86,9 @@ public:
   struct Step {
     bool handled = false;
     Action action = Action::None;
-    std::optional<Move> move;
+    std::optional<Move> move{};
     int step = 0;
-    std::optional<Grade> grade; // GradeRecognition: nullopt = as shown
+    std::optional<Grade> grade{}; // GradeRecognition: nullopt = as shown
     bool knew = false;
     std::size_t choice = 0;
   };
