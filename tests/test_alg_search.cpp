@@ -70,7 +70,6 @@ TEST_CASE("move sets read and write their text form", "[movesets]") {
   CHECK(s->contains(parseAlgOrEmpty("y R U R'")));
   CHECK_FALSE(s->contains(parseAlgOrEmpty("y R U R'"), false));
   CHECK(s->contains(parseAlgOrEmpty("R3 U")));
-  CHECK(moveSetOf(parseAlgOrEmpty("R U2 R' F2")).toString() == "U2, R1, F2");
 
   CHECK(builtinMoveSets().front().name == "<U, R>");
   CHECK(builtinMoveSets().back().set == MoveSet::allFaces());

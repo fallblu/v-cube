@@ -77,7 +77,6 @@ std::vector<std::string> tsleCardPool();
 // ends a chain: 0 when done, 1 for an OCLL. The same for every state of a
 // case and for every slot.
 int tsleStepsLeft(TsleState state);
-inline constexpr int kTsleLevels = 3; // the most steps a case takes
 
 // A picture of a case for the front-right slot: the F2L, the slot's edge,
 // and of the five corners and the other edges only the top and bottom

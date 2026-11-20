@@ -209,16 +209,6 @@ FaceletCube pairDiagram(const CubieCube &state, Slot slot);
 // unsolved and the others solved.
 CubieCube randomF2LState(const std::vector<Slot> &open, Edges edges, Rng &rng);
 
-// A state with one pair to solve: `stage` is the pair's place in the solve (1
-// first, with every slot open; 0 any), brought down when the case needs
-// more slots open than that leaves. With `wanted` the target pair is that
-// case (in a random slot); nullopt when it can't be set up.
-std::optional<PairSetup> randomPairSetup(const F2LConfig &config, int stage,
-                                         std::optional<PairCase> wanted,
-                                         Rng &rng);
-// The most pairs a solve of the method has (3 for F2L - 1, else 4).
-int stageCount(const F2LConfig &config);
-
 // A state for a whole F2L: every slot open.
 CubieCube randomFullState(const F2LConfig &config, Rng &rng);
 

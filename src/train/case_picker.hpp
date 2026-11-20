@@ -62,7 +62,6 @@ public:
   // Brings a case back once `after` other cases have come (e.g. one just
   // failed), whatever the order; `after` 0 forgets it.
   void requeue(const std::string &caseId, int after);
-  bool isRequeued(const std::string &caseId) const;
 
   // Recap: the cases still to come this round, and whether the round is
   // over (next() then gives nothing until restartRecap()).

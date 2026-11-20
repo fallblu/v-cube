@@ -589,15 +589,6 @@ bool isDueNow(const SrsCard &card, std::int64_t now, std::int64_t dayEnd,
 LearnPick pickLearnCase(const std::vector<std::string> &pool,
                         const SetProgress &progress, std::int64_t now,
                         std::int64_t dayStart, const SrsConfig &config,
-                        const std::string &last) {
-  LearnPickOptions options;
-  options.last = last;
-  return pickLearnCase(pool, progress, now, dayStart, config, options);
-}
-
-LearnPick pickLearnCase(const std::vector<std::string> &pool,
-                        const SetProgress &progress, std::int64_t now,
-                        std::int64_t dayStart, const SrsConfig &config,
                         const LearnPickOptions &options) {
   LearnPick r;
   const std::string &last = options.last;

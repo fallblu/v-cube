@@ -119,11 +119,6 @@ void CasePicker::requeue(const std::string &caseId, int after) {
   }
 }
 
-bool CasePicker::isRequeued(const std::string &caseId) const {
-  return std::any_of(requeued_.begin(), requeued_.end(),
-                     [&caseId](const auto &r) { return r.first == caseId; });
-}
-
 void CasePicker::restartRecap() {
   recapLeft_.clear();
   recapStarted_ = false;

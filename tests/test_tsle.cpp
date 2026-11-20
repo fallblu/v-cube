@@ -52,7 +52,7 @@ TEST_CASE("TSLE has the sheet's cases", "[tsle]") {
   CHECK(TsleState{}.done());
   for (int i = 0; i < kTsleStates; ++i) {
     CHECK(TsleState::fromIndex(i).index() == i);
-    CHECK(tsleStepsLeft(TsleState::fromIndex(i)) <= kTsleLevels);
+    CHECK(tsleStepsLeft(TsleState::fromIndex(i)) <= 3); // the most steps
   }
 }
 

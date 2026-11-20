@@ -200,20 +200,4 @@ MoveCounts moveCounts(const Alg &alg) {
   return c;
 }
 
-MoveSet moveSetOf(const Alg &alg) {
-  MoveSet s;
-  for (Move m : alg) {
-    if (isRotation(m.type)) {
-      continue;
-    }
-    auto &l = s.layers[static_cast<std::size_t>(m.type)];
-    if (m.amount == 2) {
-      l.half = true;
-    } else {
-      l.quarter = true;
-    }
-  }
-  return s;
-}
-
 } // namespace vcube

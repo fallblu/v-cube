@@ -63,7 +63,6 @@ TEST_CASE("drill: a tap of Space arms the virtual timer, a face turn starts") {
   CHECK(f.busy());
   // The page turns the cube and reports it: not done yet, then done.
   CHECK_FALSE(f.turned(Turn::OffUdFace, 2000, done(false)));
-  CHECK(f.faceTurns() == 1);
   auto stopped = f.turned(Turn::UdFace, 3500, done(true));
   REQUIRE(stopped);
   CHECK(*stopped == 1500);

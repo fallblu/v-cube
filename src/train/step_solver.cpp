@@ -328,45 +328,6 @@ std::vector<Hold> distinctHolds(const std::vector<Hold> &holds,
   return out;
 }
 
-// The cube seen after a whole-cube rotation, each sticker renamed for the
-// face whose centre has its colour then.
-CubieCube rotated(const CubieCube &c, Move rotation) {
-  FaceletCube f = c.toFacelets();
-  f.apply(rotation);
-  std::array<std::uint8_t, 6> faceOf{};
-  for (int face = 0; face < 6; ++face) {
-    faceOf[f[face * 9 + 4]] = static_cast<std::uint8_t>(face);
-  }
-  for (int i = 0; i < kFaceletCount; ++i) {
-    f[i] = faceOf[f[i]];
-  }
-  return CubieCube::fromRealFacelets(f);
-}
-
-// Where each edge position goes under a whole-cube rotation.
-std::array<int, kEdges> rotatedPositions(Move rotation) {
-  FaceletCube labels;
-  for (int i = 0; i < kFaceletCount; ++i) {
-    labels[i] = static_cast<std::uint8_t>(i);
-  }
-  labels.apply(rotation);
-  std::array<int, kEdges> out{};
-  for (std::size_t p = 0; p < kEdges; ++p) {
-    int facelet = kEdgeFacelets[p][0];
-    for (int j = 0; j < kFaceletCount; ++j) {
-      if (labels[j] != facelet) {
-        continue;
-      }
-      for (std::size_t i = 0; i < kEdges; ++i) {
-        if (kEdgeFacelets[i][0] == j || kEdgeFacelets[i][1] == j) {
-          out[p] = static_cast<int>(i);
-        }
-      }
-    }
-  }
-  return out;
-}
-
 } // namespace
 
 bool hasOptimalSolver(SolveStep step) {
@@ -532,30 +493,6 @@ std::vector<Hold> withBothEoAxes(const std::vector<Hold> &holds) {
   std::sort(out.begin(), out.end());
   out.erase(std::unique(out.begin(), out.end()), out.end());
   return out;
-}
-
-std::array<bool, kEdges> badEdges(const CubieCube &cube, int axis) {
-  std::array<bool, kEdges> out{};
-  if (axis == 0) {
-    for (std::size_t i = 0; i < kEdges; ++i) {
-      out[i] = cube.eo[i] != 0;
-    }
-    return out;
-  }
-  // Turned so that the axis faces front and back (a y brings R/L there,
-  // an x brings U/D), the axis's orientation is the F/B one.
-  Move rotation{axis == 1 ? MoveType::Y : MoveType::X, 1, 0};
-  CubieCube turned = rotated(cube, rotation);
-  std::array<int, kEdges> to = rotatedPositions(rotation);
-  for (std::size_t p = 0; p < kEdges; ++p) {
-    out[p] = turned.eo[static_cast<std::size_t>(to[p])] != 0;
-  }
-  return out;
-}
-
-int badEdgeCount(const CubieCube &cube, int axis) {
-  auto bad = badEdges(cube, axis);
-  return static_cast<int>(std::count(bad.begin(), bad.end(), true));
 }
 
 } // namespace vcube

@@ -171,7 +171,6 @@ public:
   bool busy() const;
   // Face turns since the case was shown; read by the tests only (a seam,
   // kept on purpose).
-  int faceTurns() const { return faceTurns_; }
 
   // The attempt: its time and how it went.
   std::int64_t timeMs() const { return timeMs_; }

@@ -280,11 +280,7 @@ struct LearnPickOptions {
 LearnPick pickLearnCase(const std::vector<std::string> &pool,
                         const SetProgress &progress, std::int64_t now,
                         std::int64_t dayStart, const SrsConfig &config,
-                        const LearnPickOptions &options);
-LearnPick pickLearnCase(const std::vector<std::string> &pool,
-                        const SetProgress &progress, std::int64_t now,
-                        std::int64_t dayStart, const SrsConfig &config,
-                        const std::string &last = {});
+                        const LearnPickOptions &options = {});
 
 // The counts Learn shows over a pool of cards.
 struct LearnCounts {

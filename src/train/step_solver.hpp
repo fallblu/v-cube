@@ -97,11 +97,4 @@ std::vector<std::size_t> distinctSolutions(const std::vector<Alg> &solutions,
 // either of the two around the top colour. Sorted, without repeats.
 std::vector<Hold> withBothEoAxes(const std::vector<Hold> &holds);
 
-// Edge orientation of a cube in the solver's frame, for one axis: 0 the
-// F/B axis (ZZ's EO as held), 1 the R/L axis, 2 the U/D axis. An edge is
-// bad when it needs a quarter turn of a face on that axis to be solved, by
-// position (true for the edge at that position).
-std::array<bool, kEdges> badEdges(const CubieCube &cube, int axis);
-int badEdgeCount(const CubieCube &cube, int axis);
-
 } // namespace vcube
