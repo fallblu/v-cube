@@ -3,7 +3,9 @@
 #include "train/case_logic.hpp"
 
 #include <QDialog>
+#include <QStringList>
 
+#include <string>
 #include <vector>
 
 class QCheckBox;
@@ -15,6 +17,15 @@ class QStackedWidget;
 class QTableWidget;
 
 namespace vcube {
+
+// A set's cases as the choices of "Other case…": a label for each, no two
+// alike, and the case ids in the same order. Cases may share a name, so one
+// whose label is there already gets a number after it.
+struct CaseChoices {
+  QStringList labels;
+  std::vector<std::string> ids;
+};
+CaseChoices caseChoices(const AlgSet &set);
 
 // Pastes a list of algs into a set in two steps: the text, then a table of
 // what each alg would do (the case it goes to, or why it isn't filed),

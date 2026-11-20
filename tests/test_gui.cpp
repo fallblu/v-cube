@@ -23,6 +23,7 @@
 #include "app/mode_table.hpp"
 #include "app/move_count_page.hpp"
 #include "app/page_parts.hpp"
+#include "app/paste_dialog.hpp"
 #include "app/practice_html.hpp"
 #include "app/practice_keys.hpp"
 #include "app/quiz_practice.hpp"
@@ -50,6 +51,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
@@ -58,6 +60,7 @@
 #include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QFile>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -415,6 +418,7 @@ private slots:
   void quizAsksAmongLookAlikes();
   void drillArmsAndStopsItself();
   void libraryAddsAnAlgAndUndoes();
+  void pastedAlgGoesToTheNamesakeChosen();
   void algLabTimesEachAlg();
   void fingertrickGuidance();
   void f2lLearnAndTimed();
@@ -1885,6 +1889,63 @@ void GuiTest::libraryAddsAnAlgAndUndoes() {
   QCOMPARE(savedAlgs("pll", "Ua"), std::vector<std::string>{});
   // The T perm alg was never touched.
   QCOMPARE(savedAlgs("pll", "T"), std::vector<std::string>{kTPerm});
+}
+
+// Two cases may share a name: "Other case…" still files the alg under the
+// one that was picked, not the first of that name.
+void GuiTest::pastedAlgGoesToTheNamesakeChosen() {
+  AlgSet set;
+  set.id = "twins";
+  set.name = "Twins";
+  set.spec.free = *parseFree("LL:p");
+  CaseGroup g{"Group", std::nullopt, {}};
+  g.cases.push_back(
+      {"a", "Case", stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")), {}});
+  g.cases.push_back(
+      {"b", "Case", stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R F'")), {}});
+  set.groups.push_back(g);
+
+  const CaseChoices choices = caseChoices(set);
+  QCOMPARE(choices.ids, (std::vector<std::string>{"a", "b"}));
+  QCOMPARE(choices.labels.size(), 2);
+  QVERIFY(choices.labels[0] != choices.labels[1]);
+
+  PasteDialog dialog(set, -1, "F R U R' U' F'\n");
+  dialog.show();
+  auto *check = lastChild<QPushButton>(
+      &dialog, [](QPushButton *b) { return b->text() == "Check >"; });
+  QVERIFY(check);
+  // No new case for it: it stays to be given one.
+  auto *create = dialog.findChild<QCheckBox *>();
+  QVERIFY(create);
+  create->setChecked(false);
+  check->click();
+  QCOMPARE(dialog.plan().results.size(), std::size_t{1});
+  QVERIFY(!dialog.plan().results[0].filed());
+  auto *table = dialog.findChild<QTableWidget *>();
+  QVERIFY(table);
+  auto *combo = qobject_cast<QComboBox *>(table->cellWidget(0, 2));
+  QVERIFY(combo);
+  const int other = combo->findText("Other case…");
+  QVERIFY(other >= 0);
+  {
+    ModalWatcher watcher([&](QWidget *m) {
+      if (auto *input = qobject_cast<QInputDialog *>(m)) {
+        input->setTextValue(choices.labels[1]);
+        input->accept();
+      }
+    });
+    combo->setCurrentIndex(other);
+    emit combo->activated(other);
+    QCOMPARE(watcher.seen, QStringList{"QInputDialog"});
+  }
+  QCoreApplication::processEvents(); // the plan is redone after the signal
+  QCOMPARE(dialog.plan().results[0].caseId, std::string("b"));
+  QVERIFY(dialog.plan().results[0].filed());
+  // The keyboard back with the window, for the tests that follow.
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
 }
 
 namespace {
