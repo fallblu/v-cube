@@ -4,6 +4,7 @@
 #include "train/srs.hpp"
 
 #include "io/data_file.hpp"
+#include "io/json_values.hpp"
 #include "io/qt_text.hpp"
 
 #include <QJsonObject>
@@ -38,8 +39,10 @@ bool writeAlgSetFile(const AlgSet &set, const QString &path, QString *error);
 
 // Per-set drill progress: SRS card and recent attempts per case
 // ("format": "v-cube.progress", version 1; files from before the format was
-// written have none). readProgressFile() reads and checks a file.
-QJsonObject progressToJson(const SetProgress &p);
+// written have none). readProgressFile() reads and checks a file. With a
+// `cache`, only the cases that changed since its last use are made again.
+QJsonObject progressToJson(const SetProgress &p,
+                           KeyedJsonCache<CaseProgress> *cache = nullptr);
 SetProgress progressFromJson(const QJsonObject &o);
 FileRead readProgressFile(const QString &path);
 

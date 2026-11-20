@@ -150,6 +150,15 @@ public:
   bool save(QString *error = nullptr) const {
     return file_.save(toJson(), error);
   }
+  // A save of the file as it is now that can run on another thread: the
+  // JSON is made here, and the write and the rest of the work there. Worth
+  // it over copying the store when toJson() keeps what it built (see
+  // ItemJsonCache and KeyedJsonCache).
+  std::function<bool(QString *)> saveJob() const {
+    return [file = file_, o = toJson()](QString *error) {
+      return file.save(o, error);
+    };
+  }
   // Where load() moved an unreadable file, if it did.
   const QString &setAsidePath() const { return file_.setAsidePath(); }
   QString path() const { return file_.path(); }

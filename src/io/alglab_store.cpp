@@ -174,7 +174,45 @@ std::string newLabSessionId() {
   return QString::number(n, 16).rightJustified(12, '0').toStdString();
 }
 
-QJsonObject algLabToJson(const AlgLabData &d) {
+namespace {
+
+QJsonObject candidateToJson(const Candidate &c) {
+  return QJsonObject{{"alg", qs(c.alg)},
+                     {"source", qs(candidateSourceId(c.source))},
+                     {"added", static_cast<qint64>(c.added)}};
+}
+
+QJsonObject attemptToJson(const LabAttempt &a) {
+  QJsonObject j{{"case", qs(a.key.text())},
+                {"alg", qs(a.alg)},
+                {"cube", qs(cubeKindId(a.cube))},
+                {"time", static_cast<qint64>(a.timeMs)},
+                {"session", qs(a.session)},
+                {"timestamp", static_cast<qint64>(a.timestamp)}};
+  setIf(j, "dnf", a.dnf, true);
+  setIf(j, "deviated", a.deviated, true);
+  setIf(j, "include", a.include, true);
+  setIf(j, "scramble", !a.scramble.empty(), qs(a.scramble));
+  setIf(j, "moves", !a.moves.empty(), qs(a.moves));
+  return j;
+}
+
+// What Alg Lab keeps, as AlgLabData has it, without a copy of it.
+struct LabParts {
+  const std::vector<LabSession> &sessions;
+  std::size_t current;
+  const std::vector<LabCase> &cases;
+  const std::vector<CaseCandidates> &candidates;
+  const std::vector<LabAttempt> &attempts;
+  const std::vector<ErgoProfile> &profiles;
+  const std::vector<MoveSetPreset> &moveSets;
+};
+
+// The file's JSON, with the candidates' and attempts' from the caches
+// when given.
+QJsonObject labToJson(const LabParts &d,
+                      ItemJsonCache<Candidate> *candidatesJson,
+                      ItemJsonCache<LabAttempt> *attemptsJson) {
   QJsonObject o;
   o["format"] = kAlgLabFile.format;
   o["version"] = kAlgLabFile.version;
@@ -185,33 +223,35 @@ QJsonObject algLabToJson(const AlgLabData &d) {
                        {"setup", qs(c.setup)},     {"free", qs(c.free)},
                        {"aufBefore", c.aufBefore}, {"aufAfter", c.aufAfter}};
   });
-  o["candidates"] = jsonArray(d.candidates, [](const CaseCandidates &cc) {
-    QJsonArray algs = jsonArray(cc.candidates, [](const Candidate &c) {
-      return QJsonObject{{"alg", qs(c.alg)},
-                         {"source", qs(candidateSourceId(c.source))},
-                         {"added", static_cast<qint64>(c.added)}};
-    });
-    return QJsonObject{{"case", qs(cc.key.text())}, {"algs", algs}};
-  });
-  o["attempts"] = jsonArray(d.attempts, [](const LabAttempt &a) {
-    QJsonObject j{{"case", qs(a.key.text())},
-                  {"alg", qs(a.alg)},
-                  {"cube", qs(cubeKindId(a.cube))},
-                  {"time", static_cast<qint64>(a.timeMs)},
-                  {"session", qs(a.session)},
-                  {"timestamp", static_cast<qint64>(a.timestamp)}};
-    setIf(j, "dnf", a.dnf, true);
-    setIf(j, "deviated", a.deviated, true);
-    setIf(j, "include", a.include, true);
-    setIf(j, "scramble", !a.scramble.empty(), qs(a.scramble));
-    setIf(j, "moves", !a.moves.empty(), qs(a.moves));
-    return j;
-  });
+  QJsonArray candidates;
+  for (std::size_t i = 0; i < d.candidates.size(); ++i) {
+    const CaseCandidates &cc = d.candidates[i];
+    QJsonArray algs =
+        candidatesJson
+            ? candidatesJson->array(i, cc.candidates, candidateToJson)
+            : jsonArray(cc.candidates, candidateToJson);
+    candidates.append(QJsonObject{{"case", qs(cc.key.text())}, {"algs", algs}});
+  }
+  if (candidatesJson) {
+    candidatesJson->trim(d.candidates.size());
+  }
+  o["candidates"] = candidates;
+  o["attempts"] = attemptsJson
+                      ? attemptsJson->array(0, d.attempts, attemptToJson)
+                      : jsonArray(d.attempts, attemptToJson);
   o["profiles"] = jsonArray(d.profiles, profileToJson);
   o["moveSets"] = jsonArray(d.moveSets, [](const MoveSetPreset &m) {
     return QJsonObject{{"name", qs(m.name)}, {"moves", qs(m.set.toString())}};
   });
   return o;
+}
+
+} // namespace
+
+QJsonObject algLabToJson(const AlgLabData &d) {
+  return labToJson({d.sessions, d.current, d.cases, d.candidates, d.attempts,
+                    d.profiles, d.moveSets},
+                   nullptr, nullptr);
 }
 
 AlgLabData algLabFromJson(const QJsonObject &o) {
@@ -332,7 +372,11 @@ AlgLabData AlgLabStore::data() const {
           attempts_, profiles_, moveSets_};
 }
 
-QJsonObject AlgLabStore::toJson() const { return algLabToJson(data()); }
+QJsonObject AlgLabStore::toJson() const {
+  return labToJson({sessions_, current_, cases_, candidates_, attempts_,
+                    profiles_, moveSets_},
+                   &candidatesJson_, &attemptsJson_);
+}
 
 void AlgLabStore::fromJson(const QJsonObject &o) {
   AlgLabData d = algLabFromJson(o);

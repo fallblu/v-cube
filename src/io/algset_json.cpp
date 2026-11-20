@@ -348,54 +348,67 @@ bool writeAlgSetFile(const AlgSet &set, const QString &path, QString *error) {
       error);
 }
 
-QJsonObject progressToJson(const SetProgress &p) {
-  QJsonObject cases;
-  for (const auto &[id, cp] : p) {
-    const SrsCard &c = cp.card;
-    QJsonObject card{{"state", static_cast<int>(c.state)},
-                     {"step", c.step},
-                     {"ease", c.ease},
-                     {"interval", c.intervalDays},
-                     {"due", static_cast<double>(c.due)},
-                     {"reps", c.reps},
-                     {"lapses", c.lapses},
-                     {"introduced", static_cast<double>(c.introduced)}};
-    setIf(card, "marked", c.marked, true);
-    setIf(card, "suspended", c.suspended, true);
-    setIf(card, "buriedUntil", c.buriedUntil != 0,
-          static_cast<double>(c.buriedUntil));
-    QJsonArray attempts = jsonArray(cp.attempts, [](const Attempt &a) {
-      QJsonArray row{static_cast<double>(a.timestamp),
-                     static_cast<double>(a.timeMs), a.failed ? 1 : 0,
-                     attemptModeId(a.mode)};
-      // Recognition and execution times, when measured, follow.
-      if (a.recognitionMs != 0 || a.executionMs != 0 || a.recognitionOnly) {
-        row.append(static_cast<double>(a.recognitionMs));
-        row.append(static_cast<double>(a.executionMs));
-      }
-      if (a.recognitionOnly) {
-        row.append(1);
-      }
-      return row;
-    });
-    QJsonObject caseObject{{"card", card}, {"attempts", attempts}};
-    // What is kept of the drill attempts that no longer are, per mode: the
-    // best time and [day, attempts, fails, sum, best] per day.
-    QJsonObject archive;
-    for (const auto &[mode, kept] : cp.archive) {
-      if (kept.empty()) {
-        continue;
-      }
-      QJsonArray days = jsonArray(kept.days, [](const DayRollup &d) {
-        return QJsonArray{static_cast<double>(d.day), d.count, d.fails,
-                          static_cast<double>(d.sumMs),
-                          static_cast<double>(d.bestMs)};
-      });
-      archive[attemptModeId(mode)] = QJsonObject{
-          {"best", static_cast<double>(kept.bestMs)}, {"days", days}};
+namespace {
+
+QJsonObject caseProgressToJson(const CaseProgress &cp) {
+  const SrsCard &c = cp.card;
+  QJsonObject card{{"state", static_cast<int>(c.state)},
+                   {"step", c.step},
+                   {"ease", c.ease},
+                   {"interval", c.intervalDays},
+                   {"due", static_cast<double>(c.due)},
+                   {"reps", c.reps},
+                   {"lapses", c.lapses},
+                   {"introduced", static_cast<double>(c.introduced)}};
+  setIf(card, "marked", c.marked, true);
+  setIf(card, "suspended", c.suspended, true);
+  setIf(card, "buriedUntil", c.buriedUntil != 0,
+        static_cast<double>(c.buriedUntil));
+  QJsonArray attempts = jsonArray(cp.attempts, [](const Attempt &a) {
+    QJsonArray row{static_cast<double>(a.timestamp),
+                   static_cast<double>(a.timeMs), a.failed ? 1 : 0,
+                   attemptModeId(a.mode)};
+    // Recognition and execution times, when measured, follow.
+    if (a.recognitionMs != 0 || a.executionMs != 0 || a.recognitionOnly) {
+      row.append(static_cast<double>(a.recognitionMs));
+      row.append(static_cast<double>(a.executionMs));
     }
-    setIf(caseObject, "drillArchive", !archive.isEmpty(), archive);
-    cases[qs(id)] = caseObject;
+    if (a.recognitionOnly) {
+      row.append(1);
+    }
+    return row;
+  });
+  QJsonObject caseObject{{"card", card}, {"attempts", attempts}};
+  // What is kept of the drill attempts that no longer are, per mode: the
+  // best time and [day, attempts, fails, sum, best] per day.
+  QJsonObject archive;
+  for (const auto &[mode, kept] : cp.archive) {
+    if (kept.empty()) {
+      continue;
+    }
+    QJsonArray days = jsonArray(kept.days, [](const DayRollup &d) {
+      return QJsonArray{static_cast<double>(d.day), d.count, d.fails,
+                        static_cast<double>(d.sumMs),
+                        static_cast<double>(d.bestMs)};
+    });
+    archive[attemptModeId(mode)] =
+        QJsonObject{{"best", static_cast<double>(kept.bestMs)}, {"days", days}};
+  }
+  setIf(caseObject, "drillArchive", !archive.isEmpty(), archive);
+  return caseObject;
+}
+
+} // namespace
+
+QJsonObject progressToJson(const SetProgress &p,
+                           KeyedJsonCache<CaseProgress> *cache) {
+  QJsonObject cases;
+  if (cache) {
+    cases = cache->object(p, caseProgressToJson);
+  } else {
+    for (const auto &[id, cp] : p) {
+      cases[qs(id)] = caseProgressToJson(cp);
+    }
   }
   return QJsonObject{{"format", kProgressFile.format},
                      {"version", kProgressFile.version},

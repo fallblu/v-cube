@@ -639,3 +639,41 @@ TEST_CASE("Alg Lab candidates are kept by case, each alg once",
   CHECK(again.candidates(y)[1].alg == "U2");
   CHECK(again.data().candidates.size() == 3);
 }
+
+namespace {
+
+void checkWritesAfresh(AlgLabStore &store) {
+  REQUIRE(store.save());
+  QFile f(store.path());
+  REQUIRE(f.open(QIODevice::ReadOnly));
+  CHECK(
+      f.readAll() ==
+      QJsonDocument(algLabToJson(store.data())).toJson(QJsonDocument::Compact));
+}
+
+} // namespace
+
+TEST_CASE("Alg Lab is written right however it changes between saves",
+          "[alglab][io]") {
+  QTemporaryDir dir;
+  AlgLabStore store(QDir(dir.path()).filePath("alglab.json"));
+  LabCaseKey t{"pll", "T"}, y{"pll", "Y"};
+  store.addCandidate(t, {"R U", CandidateSource::Generated, 0});
+  store.addCandidate(y, {"R U'", CandidateSource::Generated, 0});
+  store.addAttempt(attempt(t, "R U", 1000));
+  store.addAttempt(attempt(y, "R U'", 1100));
+  checkWritesAfresh(store);
+  store.addCandidate(t, {"R2", CandidateSource::Typed, 1});
+  store.addAttempt(attempt(t, "R2", 900));
+  checkWritesAfresh(store);
+  store.attempt(0)->dnf = true;
+  checkWritesAfresh(store);
+  store.removeAttempt(1);
+  store.removeCandidate(t, "R U");
+  checkWritesAfresh(store);
+  store.removeCandidates(t);
+  checkWritesAfresh(store);
+  store.cases().push_back({store.newCaseId(), "x", "R", "", true, true});
+  store.addLabSession("Two");
+  checkWritesAfresh(store);
+}

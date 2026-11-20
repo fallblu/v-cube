@@ -695,3 +695,56 @@ TEST_CASE("move counts are written right however they change between saves") {
     checkWritesAfresh(store, mode);
   }
 }
+
+namespace {
+
+void checkWritesAfresh(PracticeStore &store) {
+  REQUIRE(store.save());
+  CHECK(
+      readText(store.path()) ==
+      QJsonDocument(practiceToJson(store.data)).toJson(QJsonDocument::Compact));
+}
+
+} // namespace
+
+TEST_CASE("practice is written right however it changes between saves") {
+  QTemporaryDir tmp;
+  PracticeStore store(tmp.filePath("f2l.json"));
+  store.data.cards["a"].record({100, 1500, false});
+  store.data.cards["b"].record({101, 1600, true});
+  store.data.addLearn("whole", {.timestamp = 1, .moves = 30});
+  store.data.addTimed("virtual/f2l", {.timestamp = 2, .ms = 9000});
+  checkWritesAfresh(store);
+  store.data.cards["a"].record({102, 1400, false}); // one card changed
+  checkWritesAfresh(store);
+  store.data.cards["c"].record({103, 1300, false}); // a new card
+  checkWritesAfresh(store);
+  store.data.cards.erase("b"); // a card gone
+  checkWritesAfresh(store);
+  store.data.addLearn("whole", {.timestamp = 3, .moves = 28});
+  store.data.addLearn("cross", {.timestamp = 4, .moves = 8});
+  checkWritesAfresh(store);
+  store.data.addInspection("eocross", {.timestamp = 5, .inspectMs = 9000});
+  checkWritesAfresh(store);
+  store.data.timed.clear();
+  store.data.inspection.clear();
+  checkWritesAfresh(store);
+  store.data = {};
+  checkWritesAfresh(store);
+}
+
+TEST_CASE("a background save writes practice as it was when asked") {
+  QTemporaryDir tmp;
+  PracticeStore store(tmp.filePath("f2l.json"));
+  store.data.cards["a"].record({100, 1500, false});
+  std::function<bool(QString *)> job = store.saveJob();
+  store.data.cards["a"].record({101, 1400, false});
+  store.data.cards["b"].record({102, 1300, false});
+  store.save(); // fills the cache with the later data
+  QString error;
+  REQUIRE(job(&error));
+  PracticeStore read(store.path());
+  REQUIRE(read.load());
+  REQUIRE(read.data.cards.size() == 1);
+  CHECK(read.data.cards["a"].attempts.size() == 1);
+}

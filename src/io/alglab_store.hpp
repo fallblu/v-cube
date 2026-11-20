@@ -36,6 +36,10 @@ struct AlgLabData {
 // one empty physical-cube session, no lab cases and the built-in profiles.
 class AlgLabStore : public SessionFileStore<LabSession> {
 public:
+  // The candidates' and attempts' JSON is kept between saves (see
+  // ItemJsonCache), so a save makes only what changed again.
+  static constexpr bool kCachesJson = true;
+
   explicit AlgLabStore(QString path);
 
   AlgLabData data() const;
@@ -98,6 +102,8 @@ private:
   // doesn't look through every case and candidate each time.
   std::map<LabCaseKey, std::size_t> candidateIndex_;
   std::vector<std::unordered_set<std::string>> candidateAlgs_;
+  mutable ItemJsonCache<Candidate> candidatesJson_;
+  mutable ItemJsonCache<LabAttempt> attemptsJson_;
 
   // The entry of candidates_ for this case, made if it has none.
   std::size_t candidateEntry(const LabCaseKey &key);
