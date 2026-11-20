@@ -28,14 +28,12 @@ CaseFilter::CaseFilter(QTreeWidget *tree, QWidget *parent)
   status_->addItem(tr("All cases"));
   layout->addWidget(search_, 1);
   layout->addWidget(status_);
-  connect(search_, &QLineEdit::textChanged, this, [this] {
+  auto refilter = [this] {
     apply();
     emit changed();
-  });
-  connect(status_, &QComboBox::currentIndexChanged, this, [this] {
-    apply();
-    emit changed();
-  });
+  };
+  connect(search_, &QLineEdit::textChanged, this, refilter);
+  connect(status_, &QComboBox::currentIndexChanged, this, refilter);
 }
 
 void CaseFilter::setStatuses(std::vector<Status> statuses) {
