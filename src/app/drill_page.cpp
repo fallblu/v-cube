@@ -307,16 +307,10 @@ AttemptMode DrillPage::attemptMode() const {
 
 void DrillPage::showCubeKind() {
   bool virt = onVirtualCube();
-  flow_.setConfig(flowConfig());
+  driver_.configure(virt, settings_.drill.practiseAfterDnf);
   cubeView_->setVisible(virt);
   viewRow_->setVisible(virt);
   scrambleLabel_->setVisible(!virt);
-}
-
-DrillFlow::Config DrillPage::flowConfig() const {
-  const DrillSettings &d = settings_.drill;
-  return {onVirtualCube(),     d.tapToArm,         d.autoStop,
-          d.shiftSpaceGivesUp, d.practiseAfterDnf, d.holdMs};
 }
 
 void DrillPage::focusModeChanged() {
@@ -331,7 +325,7 @@ bool DrillPage::isBusy() const {
 }
 
 void DrillPage::applySettings() {
-  flow_.setConfig(flowConfig());
+  driver_.configure(onVirtualCube(), settings_.drill.practiseAfterDnf);
   display_->setDecimals(settings_.decimals);
   CubeLook look = cubeView_->look();
   look.scheme = settings_.scheme;
@@ -509,16 +503,16 @@ void DrillPage::showStatus() {
       keys << KeyHint{tr("Backspace"),
                       virt ? (failed ? tr("not a DNF") : tr("DNF"))
                            : (failed ? tr("not a wrong alg") : tr("wrong alg")),
-                      [this] { setWrong(!flow_.failed()); }};
+                      [this] { timedToggleWrong(); }};
     }
     if (recorded) {
       keys << KeyHint{tr("Delete"),
                       gaveUp && flow_.gaveUpBeforeStart() ? tr("take it back")
                                                           : tr("delete it"),
-                      [this] { deleteAttempt(); }};
+                      [this] { timedDelete(); }};
     } else if (deleted_) {
       keys << KeyHint{tr("Ctrl+Z"), tr("put it back"),
-                      [this] { restoreAttempt(); }};
+                      [this] { timedRestore(); }};
     }
     keys << KeyHint{tr("Esc"), tr("try it again")};
     break;
@@ -569,7 +563,7 @@ void DrillPage::showStatus() {
   if (flow_.inPractice() && recorded && !gaveUp) {
     keys << KeyHint{tr("Backspace"),
                     virt ? tr("toggle the DNF") : tr("toggle the wrong alg"),
-                    [this] { setWrong(!flow_.failed()); }};
+                    [this] { timedToggleWrong(); }};
   }
   say(message, keys);
 }
@@ -721,7 +715,8 @@ void DrillPage::retryCase() {
     resetCube();
   } else {
     scrambleLabel_->setText(tr("Generating scramble…"));
-    requestScramble();
+    // setFuture() drops the result of a request still on its way.
+    watcher_.setFuture(generateScramble(current_->state, current_->hold));
   }
   showStatus();
 }
@@ -758,19 +753,6 @@ void DrillPage::resetCube() {
   }
   attempt_.load(current_ ? current_->state.toFacelets() : FaceletCube());
   cubeView_->setState(attempt_.cube());
-}
-
-void DrillPage::requestScramble() {
-  if (!current_) {
-    return;
-  }
-  CubieCube state = current_->state;
-  // setFuture() drops the result of a request still on its way.
-  ColourNeutrality hold;
-  hold.main = current_->hold;
-  hold.holds = {current_->hold};
-  watcher_.setFuture(generateScramble(
-      [state](Rng &) { return ScrambleSetup{state, {}, {}}; }, hold));
 }
 
 void DrillPage::scrambleReady() {

@@ -364,7 +364,6 @@ private:
   void showBar();
   void loadChoices();
   void saveChoices() const;
-  DrillFlow::Config flowConfig() const;
 
   // --- items
   void next(LearnAhead ahead = LearnAhead::WhenDue);
@@ -386,7 +385,6 @@ private:
   void showCubeKind();
   void applyTurn(Move m);
   void showHidden(bool hidden);
-  void requestScramble();
   void scrambleReady();
 
   // --- the tabs that aren't timed
@@ -410,26 +408,23 @@ private:
 
   // --- Timed
   bool handleTimedKey(QKeyEvent *e, bool press);
-  DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
-  void finishTimed(std::int64_t ms, DrillFlow::Result result);
   // What the Timed tab's flow asks for (see TimedHost).
-  void timedNext(bool fromIdle) override;
-  void timedRetry() override;
-  void timedResetCube() override;
+  void timedNext(bool) override { next(); }
+  void timedRetry() override { sameAgain(); }
+  void timedResetCube() override { resetCube(); }
   void timedRotate(Move m) override;
-  void timedStarted(std::int64_t now) override;
+  void timedStarted(std::int64_t now) override { item_.began = now; }
   std::optional<DrillFlow::Turn> timedTurn(Move m, std::int64_t now) override;
   bool timedStepDone() override { return item_.done; }
   void timedFinish(std::int64_t ms, DrillFlow::Result result) override;
-  void timedPractise(bool aided) override;
+  // No practice here: Tab shows how efficient the solve was.
+  void timedPractise(bool) override { toggleDetail(); }
   void timedToggleWrong() override;
   void timedDelete() override;
-  void timedFinishAnimations() override;
-  void timedShowKeys() override;
+  void timedFinishAnimations() override { cubeView_->finishAnimations(); }
+  void timedShowKeys() override { showKeys(); }
   void timedSay(const QString &text) override;
   void timedCancelled(const QString &why) override;
-  void toggleDnf();
-  void deleteTry();
   void deleteLearnTry(); // Delete on a finished Untimed or Inspection try
   // Runs the tick while the clock changes, and stops it otherwise.
   void updateTick();

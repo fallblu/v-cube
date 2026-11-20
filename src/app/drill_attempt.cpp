@@ -1,6 +1,5 @@
 #include "app/drill_page.hpp"
 #include "app/text_style.hpp"
-#include "app/train_keys.hpp"
 #include "app/ui_text.hpp"
 
 #include "train/alg_follow.hpp"
@@ -25,16 +24,8 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
   } update{this};
   bool scrambleShown =
       current_ && (onVirtualCube() || !current_->scramble.isEmpty());
-  return driver_.key(flowKey(e, press), monotonicMs(),
+  return driver_.key(e, press, settings_.keymap,
                      scrambleShown ? Scramble::Shown : Scramble::Awaited);
-}
-
-DrillFlow::KeyEvent DrillPage::flowKey(const QKeyEvent *e, bool press) const {
-  DrillFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
-  if (onVirtualCube()) {
-    k.move = settings_.keymap.lookup(e);
-  }
-  return k;
 }
 
 void DrillPage::timedNext(bool fromIdle) {
@@ -70,8 +61,6 @@ std::optional<DrillFlow::Turn> DrillPage::timedTurn(Move m, std::int64_t) {
   return turn;
 }
 
-void DrillPage::timedFinishAnimations() { cubeView_->finishAnimations(); }
-
 void DrillPage::timedSay(const QString &text) {
   statusLabel_->setText(text);
   statusLabel_->show();
@@ -103,7 +92,7 @@ bool DrillPage::stepDone() const {
   return c && withinMask(*c, mirrorMask(s->specFor(*g).free, current_->world));
 }
 
-void DrillPage::startPractice(bool aided) {
+void DrillPage::timedPractise(bool aided) {
   if (!current_) {
     return;
   }
@@ -122,7 +111,7 @@ void DrillPage::startPractice(bool aided) {
   showResult();
 }
 
-void DrillPage::practiceTurn(Move m) {
+void DrillPage::timedPracticeTurn(Move m) {
   if (!attempt_.turn(m)) {
     return;
   }
@@ -141,7 +130,7 @@ void DrillPage::practiceTurn(Move m) {
             return;
           }
           if (aided && flow_.phase() == Phase::Aided) {
-            startPractice(false);
+            timedPractise(false);
           } else if (!aided && flow_.phase() == Phase::Unaided) {
             nextCase();
           }
@@ -149,7 +138,7 @@ void DrillPage::practiceTurn(Move m) {
   }
 }
 
-void DrillPage::finish(std::int64_t timeMs, DrillFlow::Result result) {
+void DrillPage::timedFinish(std::int64_t timeMs, DrillFlow::Result result) {
   const bool failed = result != DrillFlow::Result::Solved;
   if (!current_ || !set()) {
     return;
@@ -198,8 +187,8 @@ void DrillPage::finish(std::int64_t timeMs, DrillFlow::Result result) {
   refreshSession();
 }
 
-void DrillPage::setWrong(bool wrong) {
-  if (!current_ || !flow_.setWrong(wrong)) {
+void DrillPage::timedToggleWrong() {
+  if (!current_ || !flow_.setWrong(!flow_.failed())) {
     showResult();
     return;
   }
@@ -231,7 +220,7 @@ void DrillPage::setWrong(bool wrong) {
   refreshSession();
 }
 
-void DrillPage::deleteAttempt() {
+void DrillPage::timedDelete() {
   if (!current_ || !flow_.recorded()) {
     return;
   }
@@ -279,7 +268,7 @@ void DrillPage::deleteAttempt() {
   showResult();
 }
 
-void DrillPage::restoreAttempt() {
+void DrillPage::timedRestore() {
   if (!current_ || !deleted_ || deleted_->caseId != current_->caseId ||
       deleted_->attempt.mode != attemptMode() || !flow_.restored()) {
     return;

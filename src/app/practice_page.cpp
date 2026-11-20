@@ -276,14 +276,6 @@ void PracticePage::showBar() {
   showCubeKind();
 }
 
-DrillFlow::Config PracticePage::flowConfig() const {
-  const DrillSettings &d = settings_.drill;
-  // Space never practises after a DNF here: the practice modes have no
-  // practice stage (Esc tries the same state again instead).
-  return {!physical_,          d.tapToArm, d.autoStop,
-          d.shiftSpaceGivesUp, false,      d.holdMs};
-}
-
 // --- the page ----------------------------------------------------------------
 
 void PracticePage::selectTab(Tab t) {
@@ -310,7 +302,9 @@ void PracticePage::optionChanged() {
   saveChoices();
   flow_.leaveCase();
   flow_.noCase();
-  flow_.setConfig(flowConfig());
+  // Space never practises after a DNF here: the practice modes have no
+  // practice stage (Esc tries the same state again instead).
+  driver_.configure(!physical_, false);
   item_ = {};
   progress_.clear();
   readyPending_ = true;
@@ -324,7 +318,7 @@ void PracticePage::optionChanged() {
 }
 
 void PracticePage::applySettings() {
-  flow_.setConfig(flowConfig());
+  driver_.configure(!physical_, false);
   display_->setDecimals(settings_.decimals);
   CubeLook look = cubeView_->look();
   look.scheme = settings_.scheme;
@@ -725,7 +719,7 @@ void PracticePage::practiseCard(const std::string &card) {
 }
 
 void PracticePage::nextTimed() {
-  flow_.setConfig(flowConfig());
+  driver_.configure(!physical_, false);
   std::optional<Setup> s = setUp({});
   if (!s) {
     flow_.noCase();
@@ -737,7 +731,8 @@ void PracticePage::nextTimed() {
   display_->showTime(0);
   cubeChanged();
   if (physical_) {
-    requestScramble();
+    // setFuture() drops the result of a request still on its way.
+    scrambles_.setFuture(generateScramble(item_.scrambleState, item_.hold));
   }
   showAll();
 }
@@ -812,17 +807,6 @@ void PracticePage::showCubeKind() {
   display_->setVisible(
       (tab_ == Tab::Timed && flow_.phase() != DrillFlow::Phase::NoCase) ||
       (tab_ == Tab::Inspection && phase_ == Phase::Solving));
-}
-
-void PracticePage::requestScramble() {
-  // setFuture() drops the result of a request still on its way.
-  ColourNeutrality hold;
-  hold.main = item_.hold;
-  hold.holds = {item_.hold};
-  scrambles_.setFuture(
-      generateScramble([state = item_.scrambleState](
-                           Rng &) { return ScrambleSetup{state, {}, {}}; },
-                       hold));
 }
 
 void PracticePage::scrambleReady() {
@@ -1146,20 +1130,10 @@ std::string PracticePage::timedGroupKey() const {
   return timedKey(cubeKind(), item_.group);
 }
 
-DrillFlow::KeyEvent PracticePage::flowKey(const QKeyEvent *e,
-                                          bool press) const {
-  DrillFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::None);
-  if (!physical_) {
-    k.move = settings_.keymap.lookup(e);
-  }
-  return k;
-}
-
 bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
   if (item_.id == 0) {
     return false;
   }
-  const std::int64_t now = monotonicMs();
   if (flow_.phase() == DrillFlow::Phase::NoCase) {
     if (press && e->key() == Qt::Key_Space) {
       next();
@@ -1173,15 +1147,9 @@ bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
     return true;
   }
   const bool scrambleShown = !physical_ || !item_.scramble.isEmpty();
-  return driver_.key(flowKey(e, press), now,
+  return driver_.key(e, press, settings_.keymap,
                      scrambleShown ? Scramble::Shown : Scramble::Awaited);
 }
-
-void PracticePage::timedNext(bool) { next(); }
-
-void PracticePage::timedRetry() { sameAgain(); }
-
-void PracticePage::timedResetCube() { resetCube(); }
 
 void PracticePage::timedRotate(Move m) {
   // Looking at the cube before the start: part of the solve's moves, so
@@ -1191,8 +1159,6 @@ void PracticePage::timedRotate(Move m) {
   item_.moveMs.push_back(0);
   cubeChanged();
 }
-
-void PracticePage::timedStarted(std::int64_t now) { item_.began = now; }
 
 std::optional<DrillFlow::Turn> PracticePage::timedTurn(Move m,
                                                        std::int64_t now) {
@@ -1205,33 +1171,16 @@ std::optional<DrillFlow::Turn> PracticePage::timedTurn(Move m,
                             : DrillFlow::Turn::OffUdFace;
 }
 
-void PracticePage::timedFinish(std::int64_t ms, DrillFlow::Result result) {
-  finishTimed(ms, result);
-}
-
-void PracticePage::timedPractise(bool) {
-  // No practice here: Tab shows how efficient the solve was.
-  toggleDetail();
-}
-
-void PracticePage::timedToggleWrong() { toggleDnf(); }
-
-void PracticePage::timedDelete() { deleteTry(); }
-
-void PracticePage::timedFinishAnimations() { cubeView_->finishAnimations(); }
-
-void PracticePage::timedShowKeys() { showKeys(); }
-
 void PracticePage::timedSay(const QString &text) {
   hint_->setHint(text, hint_->keys());
 }
 
 void PracticePage::timedCancelled(const QString &why) {
   showAll();
-  hint_->setHint(why, hint_->keys());
+  timedSay(why);
 }
 
-void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
+void PracticePage::timedFinish(std::int64_t ms, DrillFlow::Result result) {
   const bool failed = result != DrillFlow::Result::Solved;
   cubeView_->finishAnimations();
   item_.ms = ms;
@@ -1265,7 +1214,7 @@ void PracticePage::finishTimed(std::int64_t ms, DrillFlow::Result result) {
   showAll();
 }
 
-void PracticePage::toggleDnf() {
+void PracticePage::timedToggleWrong() {
   if (!item_.recorded || !flow_.setWrong(!flow_.failed())) {
     return;
   }
@@ -1279,7 +1228,7 @@ void PracticePage::toggleDnf() {
   showAll();
 }
 
-void PracticePage::deleteTry() {
+void PracticePage::timedDelete() {
   if (item_.recorded) {
     dropNewestTry(store_.data.timed, timedGroupKey());
     item_.recorded = false;

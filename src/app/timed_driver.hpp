@@ -10,8 +10,11 @@
 #include <cstdint>
 #include <optional>
 
+class QKeyEvent;
+
 namespace vcube {
 
+class Keymap;
 class TimeDisplay;
 
 // What a page timing a step with DrillFlow does when the flow asks: Drill
@@ -73,11 +76,16 @@ public:
 
   DrillFlow &flow() { return flow_; }
   const DrillFlow &flow() const { return flow_; }
+  // The flow's settings: Drill's, with the cube and whether Space after a
+  // DNF practises the case.
+  void configure(bool virtualCube, bool practiseAfterDnf);
 
-  // A key at `now`: whether it was used.
+  // A key at `now`, done as the flow asks: whether it was used.
   bool key(const TrainKeyEvent &k, std::int64_t now, Scramble scramble);
-  // Does what the flow asked.
-  void perform(const DrillFlow::Step &step, std::int64_t now);
+  // A key now, with the turn it makes on the virtual cube (Ctrl+Z is
+  // Undo).
+  bool key(const QKeyEvent *e, bool press, const Keymap &keymap,
+           Scramble scramble);
   // The solve is called off and nothing recorded; `why` is said.
   void cancel(const QString &why);
   // The timer's tick at `now`; true if a popup or dialog took the

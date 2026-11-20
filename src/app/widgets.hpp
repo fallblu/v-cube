@@ -192,4 +192,9 @@ std::int64_t localDayEnd();
 // clocks go forward at midnight.
 std::int64_t dayStart(const QDate &day, const QTimeZone &zone);
 
+// The scramble that sets `state` up (see generateScramble() above), for
+// `hold` alone.
+QFuture<GeneratedScramble> generateScramble(const CubieCube &state,
+                                            Hold hold = kWcaHold);
+
 } // namespace vcube
