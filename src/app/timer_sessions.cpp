@@ -79,8 +79,8 @@ void TimerPage::selectSession(std::size_t index) {
     showScramble(); // onto the session's cube
   }
   showLastResult();
-  statusLabel_->clear();
-  refreshSolves();
+  hintLabel_->clear();
+  refreshAttempts();
   save();
 }
 
@@ -130,7 +130,7 @@ void TimerPage::requestSplits() {
   }));
 }
 
-void TimerPage::refreshSolves() {
+void TimerPage::refreshAttempts() {
   const auto &solves = session().solves;
   int d = settings_.decimals;
   std::int64_t unit = statUnit(d);
@@ -266,10 +266,10 @@ void TimerPage::setLastPenalty(Penalty p) {
   s.penalty = s.penalty == p ? Penalty::None : p;
   display_->showTime(s.timeMs, s.penalty);
   save();
-  refreshSolves();
+  refreshAttempts();
 }
 
-void TimerPage::deleteSolve(int index) {
+void TimerPage::deleteAttempt(int index) {
   auto &solves = session().solves;
   if (isBusy() || index < 0 ||
       !deleted_.erase(solves, static_cast<std::size_t>(index))) {
@@ -277,7 +277,7 @@ void TimerPage::deleteSolve(int index) {
   }
   justSolved_ = false;
   save();
-  refreshSolves();
+  refreshAttempts();
   showLastResult();
   emit message(tr("Deleted solve #%1 (Ctrl+Z puts it back)").arg(index + 1));
 }
@@ -290,7 +290,7 @@ void TimerPage::undoDelete() {
   justSolved_ = false;
   emit message(tr("Put back solve #%1").arg(*at + 1));
   save();
-  refreshSolves();
+  refreshAttempts();
   showLastResult();
 }
 
@@ -304,7 +304,7 @@ void TimerPage::commentSolve(int index) {
           this, tr("Comment on solve #%1:").arg(index + 1), qs(s.comment))) {
     s.comment = ss(*text);
     save();
-    refreshSolves();
+    refreshAttempts();
   }
 }
 
@@ -367,7 +367,7 @@ void TimerPage::showDetails(int index) {
                       : [this, index] { review(index); });
 }
 
-void TimerPage::showSolveMenu(int index, const QPoint &globalPos) {
+void TimerPage::showAttemptMenu(int index, const QPoint &globalPos) {
   const auto &solves = session().solves;
   if (isBusy() || index < 0 || index >= static_cast<int>(solves.size())) {
     return; // nothing changes in the middle of a solve
@@ -385,7 +385,7 @@ void TimerPage::showSolveMenu(int index, const QPoint &globalPos) {
         showLastResult();
       }
       save();
-      refreshSolves();
+      refreshAttempts();
     };
   };
   for (auto [text, p] : {std::pair{tr("No penalty"), Penalty::None},
@@ -404,7 +404,7 @@ void TimerPage::showSolveMenu(int index, const QPoint &globalPos) {
   common.comment = [this, index] { commentSolve(index); };
   common.scramble = qs(s.scramble);
   common.solution = qs(s.moves);
-  common.remove = [this, index] { deleteSolve(index); };
+  common.remove = [this, index] { deleteAttempt(index); };
   addAttemptActions(menu, common);
   menu.run(globalPos, [this] { return !isBusy(); });
 }

@@ -1,15 +1,7 @@
 #pragma once
 
-#include "app/app_settings.hpp"
-#include "app/cube_view.hpp"
-#include "app/eo_cross_check.hpp"
-#include "app/mode_page.hpp"
-#include "app/scramble_source.hpp"
-#include "app/session_panel.hpp"
-#include "app/widgets.hpp"
-#include "io/library.hpp"
+#include "app/session_solve_page.hpp"
 #include "io/sessions.hpp"
-#include "train/move_count.hpp"
 #include "train/session_edit.hpp"
 #include "train/solve_review.hpp"
 #include "train/timed_flow.hpp"
@@ -19,18 +11,11 @@
 
 #include <cstdint>
 #include <map>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-class QComboBox;
-class QLabel;
-class QPushButton;
-
 namespace vcube {
-
-class SolveStage;
 
 // Timed mode, a cstimer-like timer: scrambles, a space-bar timer with
 // optional inspection, sessions, statistics and a trend chart. Each
@@ -43,7 +28,7 @@ class SolveStage;
 // until Space. Each virtual solve keeps its solution and when each move
 // was turned, which give its step splits (cross, pairs, last layer) and a
 // review.
-class TimerPage : public ModePage {
+class TimerPage : public SessionSolvePage {
   Q_OBJECT
 public:
   TimerPage(AppSettings &settings, SessionStore &store, AlgLibrary &library,
@@ -51,22 +36,10 @@ public:
   ~TimerPage() override;
 
   bool handleKey(QKeyEvent *e, bool press) override;
-  SettingsParts settingsUsed() const override {
-    return SettingsPart::Cube | SettingsPart::Keys | SettingsPart::Neutrality |
-           SettingsPart::Timer | SettingsPart::Counts;
-  }
-  void applySettings() override;
-  QWidget *sidePanel() const override;
   bool isBusy() const override; // a solve or inspection is in progress
-  bool hasModeMenu() const override { return true; }
-  void fillModeMenu(QMenu &menu) override;
   void activated() override;
   void deactivated() override;
   void windowDeactivated() override;
-
-  // The alg sets changed; an alg set scramble is made again only when its
-  // own set (`changedSet`) changed.
-  void refreshScrambleTypes(const QString &changedSet = {});
 
 protected:
   void focusModeChanged() override;
@@ -74,15 +47,10 @@ protected:
 private:
   using SplitResults = std::vector<std::pair<std::string, SolveSplits>>;
 
-  AppSettings &settings_;
   SessionStore &store_;
-  AlgLibrary &library_;
 
   TimedFlow flow_;
   QTimer tick_;
-  ScrambleFeed feed_;
-  ScrambleAlgs *algs_;
-  VirtualAttempt attempt_;
   DeletedAttempt<Solve> deleted_;
   // The last solve was just recorded: no key since (Backspace marks it).
   bool justSolved_ = false;
@@ -107,30 +75,26 @@ private:
     bool isOf(const Solve &s) const;
   };
   std::vector<SolveRow> solveRows_;
-  // After a virtual solve: the optimal EO Cross of its scramble.
-  EoCrossCheck eoCheck_;
-
-  SessionPanel *panel_;
-  SolveStage *stage_;
-  ScrambleTypeBox *typeBox_;
-  QComboBox *cubeBox_;
-  QLabel *scrambleLabel_;
-  NetPreview *net_;
-  CubeView *cubeView_;
-  TimeDisplay *display_;
-  QLabel *statusLabel_;
-  QLabel *focusStats_;
-  TrendChart *chart_;
-  QPushButton *nextButton_;
 
   Session &session() { return store_.current(); }
-  bool onVirtualCube() const;
+  bool onVirtualCube() const override {
+    return store_.current().cube == CubeKind::Virtual;
+  }
+  std::size_t attemptCount() const override {
+    return store_.current().solves.size();
+  }
+  // The Moves, TPS, Cross (EO Cross in a ZZ solve), F2L and LL columns
+  // come from a virtual solve's move times.
+  std::vector<AttemptColumn> columns() const override;
+  void configureFlow() override;
+  void cubeChosen(CubeKind kind) override;
+  void typeChosen(const QString &type) override;
+  void scrambleDropped() override { flow_.nextScramble(); }
+  void settingsApplied() override;
   // Does what the flow said a key or the timer called for.
   void apply(const TimedFlow::Effects &e, std::int64_t now);
   void turnDuringSolve(Move m, std::int64_t now);
-  // Shows the cube, view and preview the session's cube needs.
-  void showCubeKind();
-  void showScramble();
+  void showScramble() override;
   // The cube as it is, or blank while it is hidden.
   void showCube();
   // The last solve's result, or 0.00 with none.
@@ -146,33 +110,33 @@ private:
                    std::vector<std::int64_t> times = {});
   // The keys for the last solve and the scramble when no solve runs.
   bool handleActionKey(QKeyEvent *e);
-  void nextScramble();
-  void refreshSessionMenu();
-  // The flow follows the settings and the session's cube.
-  void configureFlow();
-  void selectSession(std::size_t index);
-  void refreshSolves();
+  void skip() override;
+  void refreshSessionMenu() override;
+  void selectSession(std::size_t index) override;
+  void refreshAttempts() override;
   void setLastPenalty(Penalty p);
-  void deleteSolve(int index);
-  void undoDelete();
+  void deleteAttempt(int index) override;
+  void undoDelete() override;
   void commentSolve(int index);
-  void review(int index);
-  void showDetails(int index);
-  void showSolveMenu(int index, const QPoint &globalPos);
-  void showColumns();
-  // The solves behind a statistic, from a link in the statistics.
-  void showStat(const QString &link);
-  void addSession();
-  void renameSession();
-  void deleteSession();
+  bool canReview(int index) const override {
+    return !store_.current()
+                .solves[static_cast<std::size_t>(index)]
+                .moves.empty();
+  }
+  void review(int index) override;
+  void showDetails(int index) override;
+  void showAttemptMenu(int index, const QPoint &globalPos) override;
+  void showStat(const QString &link) override;
+  void addSession() override;
+  void renameSession() override;
+  void deleteSession() override;
   void importCstimer();
   void exportCstimer();
-  void save();
+  void save() override;
 
   static std::string splitKey(const Solve &s);
   const SolveSplits *splitsOf(const Solve &s) const;
   void requestSplits();
-  // Works out the optimal EO Cross of the solve just done.
 };
 
 } // namespace vcube

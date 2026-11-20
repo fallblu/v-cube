@@ -34,7 +34,7 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
                              AlgLibrary &library, QWidget *parent)
     : AttemptPage(settings, store, library, "movecount", SolveLog::MoveCount,
                   parent) {
-  QWidget *row = stage()->options;
+  QWidget *row = stage_->options;
   stepBox_ = new QComboBox(row);
   stepBox_->setFocusPolicy(Qt::NoFocus);
   for (SolveStep step : solveSteps()) {
@@ -44,8 +44,8 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
       tr("The step this session is for (fixed once the session has "
          "solves). On the virtual cube a scramble counts only if the step "
          "is done (on any colour) when you press Space."));
-  stage()->options->addPicker(tr("Step:"), stepBox_);
-  stage()->options->addSpacing();
+  stage_->options->addPicker(tr("Step:"), stepBox_);
+  stage_->options->addSpacing();
   auto *types = new ScrambleTypeBox(library, row, offeredTypes());
   types->setToolTip(
       tr("What the scramble leaves solved: a full WCA scramble for EO, "
@@ -53,11 +53,10 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
          "solved for ZZ F2L, or the cross solved for CFOP F2L"));
   setTypeBox(types);
 
-  QWidget *right = cubeView_->parentWidget();
-  stepLabel_ = new QLabel(right);
+  stepLabel_ = new QLabel(stage_);
   stepLabel_->setAlignment(Qt::AlignCenter);
   setTextRole(stepLabel_, TextRole::Title, true);
-  stage()->addAboveCube(stepLabel_);
+  stage_->addAboveCube(stepLabel_);
 
   // A typed count is recorded, or the scramble recorded as DNF, with
   // Enter and Alt+3 or by clicking their chips (see physicalHint()).
@@ -88,7 +87,7 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
             refreshAttempts();
           });
 
-  start();
+  start(store_.currentIndex());
 }
 
 MoveCountPage::~MoveCountPage() {

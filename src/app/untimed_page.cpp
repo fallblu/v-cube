@@ -1,6 +1,7 @@
 #include "app/untimed_page.hpp"
 #include "app/page_parts.hpp"
 
+#include "app/cube_view.hpp"
 #include "app/review_dialog.hpp"
 #include "app/ui_text.hpp"
 #include "train/solve_review.hpp"
@@ -19,14 +20,12 @@ namespace vcube {
 UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
                          AlgLibrary &library, QWidget *parent)
     : AttemptPage(settings, store, library, "untimed", SolveLog::Untimed,
-                  parent),
-      eoCheck_(settings) {
-  QWidget *right = cubeView_->parentWidget();
-  algs_ = new ScrambleAlgs(library, "untimed/showAlgs", right);
-  setTypeBox(new ScrambleTypeBox(library, stage()->options), algs_->button());
-  stage()->addUnderButtons(algs_->label());
+                  parent) {
+  algs_ = new ScrambleAlgs(library, "untimed/showAlgs", stage_);
+  setTypeBox(new ScrambleTypeBox(library, stage_->options), algs_->button());
+  stage_->addUnderButtons(algs_->label());
 
-  algPanel_ = new QWidget(right);
+  algPanel_ = new QWidget(stage_);
   auto *algLayout = new QVBoxLayout(algPanel_);
   algLayout->setContentsMargins(0, 0, 0, 0);
   auto *algRow = new QHBoxLayout;
@@ -43,7 +42,7 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
   algError_ = new QLabel(algPanel_);
   algError_->setVisible(false);
   algLayout->addWidget(algError_);
-  addBelowCentre(algPanel_);
+  stage_->addAboveChart(algPanel_);
 
   connect(&eoCheck_, &EoCrossCheck::found, this, [this](const QString &line) {
     if (isBusy() || flow_.retry()) {
@@ -57,7 +56,7 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
   connect(algEdit_, &QLineEdit::textChanged, this,
           [this] { algError_->setVisible(false); });
 
-  start();
+  start(store_.currentIndex());
 }
 
 UntimedPage::~UntimedPage() = default;
@@ -148,9 +147,8 @@ QString UntimedPage::suggestedName() const {
 
 QString UntimedPage::newSessionLabel() const { return tr("Name:"); }
 
-void UntimedPage::setUpSession(MoveCountSession &s, const QString &name,
+void UntimedPage::setUpSession(MoveCountSession &s, const QString &,
                                const MoveCountSession &was) {
-  (void)name;
   s.scrambleType = ss(typeBox_->currentType());
   s.step = was.step;
   s.cube = was.cube;
@@ -168,20 +166,8 @@ QString UntimedPage::scrambleText(const GeneratedScramble &s) const {
 }
 
 void UntimedPage::settingsApplied() {
-  algs_->refresh();
   // An error shown across a change of theme takes the new theme's red.
   algError_->setStyleSheet("color: " + kFailColour.name());
-}
-
-void UntimedPage::typesRefreshed() { algs_->refresh(); }
-
-void UntimedPage::scrambleTypeChanged(const QString &type, bool fresh) {
-  (void)fresh;
-  algs_->setType(type);
-}
-
-void UntimedPage::scrambleShown(const GeneratedScramble *shown) {
-  algs_->setScramble(shown);
 }
 
 void UntimedPage::phaseShown(bool done) {
@@ -195,8 +181,6 @@ void UntimedPage::phaseShown(bool done) {
 void UntimedPage::pageFocusChanged(bool on) {
   algPanel_->setVisible(!on && onVirtualCube());
 }
-
-bool UntimedPage::toggleAlgs() { return algs_->toggle(); }
 
 void UntimedPage::solveRecorded(const MoveCountAttempt &a) {
   eoCheck_.start(a.scramble, a.solution);
