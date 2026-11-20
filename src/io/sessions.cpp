@@ -138,7 +138,10 @@ bool readCstimerSolution(const QString &text, std::string *moves,
     bool ok = false;
     std::int64_t ms = token.mid(sign + 1).toLongLong(&ok);
     ParseResult parsed = parseAlg(ss(token.left(sign)));
-    if (!ok || ms < 0 || !parsed || parsed.alg.size() != 1) {
+    // Longer than parseAlg reads it back: dropped like other unreadable
+    // solutions.
+    if (!ok || ms < 0 || !parsed || parsed.alg.size() != 1 ||
+        alg.size() >= kMaxAlgMoves) {
       return false;
     }
     ms = std::min(ms, kMaxFileNumber);
