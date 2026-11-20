@@ -68,7 +68,7 @@ QJsonObject triesToJson(const PracticeTries &tries) {
     for (const PracticeTry &t : list) {
       array.append(tryToJson(t));
     }
-    out[QString::fromStdString(key)] = array;
+    out[qs(key)] = array;
   }
   return out;
 }
@@ -78,15 +78,15 @@ QJsonObject triesToJson(const PracticeTries &tries) {
 QJsonObject practiceToJson(const PracticeData &data) {
   QJsonObject notes;
   for (const auto &[key, value] : data.notes) {
-    notes[QString::fromStdString(key)] = QString::fromStdString(value);
+    notes[qs(key)] = qs(value);
   }
   QJsonObject choices;
   for (const auto &[key, algs] : data.choices) {
     QJsonArray list;
     for (const std::string &alg : algs) {
-      list.append(QString::fromStdString(alg));
+      list.append(qs(alg));
     }
-    choices[QString::fromStdString(key)] = list;
+    choices[qs(key)] = list;
   }
   QJsonObject o = {
       {"format", kPracticeFile.format},      {"version", kPracticeFile.version},
@@ -107,19 +107,19 @@ PracticeData practiceFromJson(const QJsonObject &o) {
   const QJsonObject learn = o.value("learn").toObject();
   for (auto it = learn.begin(); it != learn.end(); ++it) {
     for (const QJsonValue &v : it.value().toArray()) {
-      data.addLearn(it.key().toStdString(), tryFromJson(v.toObject()));
+      data.addLearn(ss(it.key()), tryFromJson(v.toObject()));
     }
   }
   const QJsonObject timed = o.value("timed").toObject();
   for (auto it = timed.begin(); it != timed.end(); ++it) {
     for (const QJsonValue &v : it.value().toArray()) {
-      data.addTimed(it.key().toStdString(), tryFromJson(v.toObject()));
+      data.addTimed(ss(it.key()), tryFromJson(v.toObject()));
     }
   }
   const QJsonObject inspection = o.value("inspection").toObject();
   for (auto it = inspection.begin(); it != inspection.end(); ++it) {
     for (const QJsonValue &v : it.value().toArray()) {
-      data.addInspection(it.key().toStdString(), tryFromJson(v.toObject()));
+      data.addInspection(ss(it.key()), tryFromJson(v.toObject()));
     }
   }
   const QJsonObject choices = o.value("choices").toObject();
@@ -127,16 +127,16 @@ PracticeData practiceFromJson(const QJsonObject &o) {
     std::vector<std::string> algs;
     for (const QJsonValue &v : it.value().toArray()) {
       if (!v.toString().trimmed().isEmpty()) {
-        algs.push_back(v.toString().trimmed().toStdString());
+        algs.push_back(ss(v.toString().trimmed()));
       }
     }
     if (!algs.empty()) {
-      data.choices[it.key().toStdString()] = std::move(algs);
+      data.choices[ss(it.key())] = std::move(algs);
     }
   }
   const QJsonObject notes = o.value("notes").toObject();
   for (auto it = notes.begin(); it != notes.end(); ++it) {
-    data.notes[it.key().toStdString()] = it.value().toString().toStdString();
+    data.notes[ss(it.key())] = ss(it.value().toString());
   }
   return data;
 }
@@ -167,8 +167,7 @@ std::map<std::string, std::string> oldOcllNotes(const QJsonObject &oldFile) {
   const QJsonObject ocll = oldFile.value("ocll").toObject();
   for (auto it = ocll.begin(); it != ocll.end(); ++it) {
     if (!it.value().toString().isEmpty()) {
-      notes["ocll/" + it.key().toStdString()] =
-          it.value().toString().toStdString();
+      notes["ocll/" + ss(it.key())] = ss(it.value().toString());
     }
   }
   return notes;
