@@ -131,6 +131,12 @@ private:
   // only the splits worked out.
   enum class Refresh : std::uint8_t { All, Appended, Splits };
   void showAttempts(Refresh what);
+  // Shows the splits that have been worked out since their solves' rows
+  // were made, in those rows and the chart, and asks for the ones still
+  // missing. The rows are the session's as it is (see showAttempts()).
+  void showSplits();
+  // The chart's cross, F2L and LL lines, on the virtual cube.
+  void showSeries();
   // The table's row for solve `i`, with its splits put in the series;
   // `missing` is set when they aren't known yet.
   AttemptRow solveRow(std::size_t i, bool &missing);

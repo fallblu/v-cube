@@ -44,6 +44,17 @@ void AttemptTableModel::prependRow(AttemptRow row) {
   endInsertRows();
 }
 
+void AttemptTableModel::setRow(int row, AttemptRow cells) {
+  if (row < 0 || row >= static_cast<int>(rows_.size()) || columns_.empty()) {
+    return;
+  }
+  rows_[static_cast<std::size_t>(row)] = std::move(cells);
+  emit dataChanged(index(row, 0),
+                   index(row, static_cast<int>(columns_.size()) - 1),
+                   {Qt::DisplayRole, Qt::ForegroundRole, Qt::TextAlignmentRole,
+                    Qt::UserRole});
+}
+
 int AttemptTableModel::attemptAt(int row) const {
   if (row < 0 || row >= static_cast<int>(rows_.size())) {
     return -1;
@@ -232,6 +243,10 @@ void SessionPanel::setRows(std::vector<AttemptRow> rows) {
 
 void SessionPanel::prependRow(AttemptRow row) {
   model_->prependRow(std::move(row));
+}
+
+void SessionPanel::setRow(int row, AttemptRow cells) {
+  model_->setRow(row, std::move(cells));
 }
 
 void SessionPanel::setHiddenColumnsKey(const QString &key) {

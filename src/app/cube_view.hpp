@@ -43,8 +43,6 @@ public:
   void animateSequence(const Alg &moves);
   const FaceletCube &displayedState() const { return shown_; }
 
-  // Duration of one quarter turn; 0 turns animation off.
-  void setAnimationMs(int ms) { animationMs_ = ms; }
   // The colour scheme and animation speed of the settings.
   void applySettings(const AppSettings &settings);
 

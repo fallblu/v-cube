@@ -458,6 +458,7 @@ private slots:
   void helpPanelShowsTheKeys();
   void floatingHelpPanelPassesKeysOn();
   void aDayStartsAfterAMissingMidnight();
+  void daysAreFoundAsTheClockGivesThem();
   void spaceHoldEndsWhenTheWindowIsLeft();
   void aLockFromAnotherHostCanBeTakenOver();
   void keysDocMatchesTheKeyTable();
@@ -475,6 +476,9 @@ private slots:
   void caseFilterHidesWhatDoesntMatch();
   void optimalCountsUseTheChosenHolds();
   void timerTableAndStatsFollowEachSolve();
+  void splitsArriveInTheirRows();
+  void attemptTableAndStatsFollowEachAttempt();
+  void keptScramblesAddTheirRows();
   void algLabFilterKeepsTheCaseShown();
   void algLabSearchAddsRowsAsItFindsThem();
   void algLabLengthLimitAppliesDuringASearch();
@@ -3209,6 +3213,39 @@ void GuiTest::aDayStartsAfterAMissingMidnight() {
   QCOMPARE(dayStart(day.addDays(-1), zone) + 24 * 3600, start);
 }
 
+// The day of each time, with the last day's bounds kept, is the one a
+// conversion of that time gives: through a day of 23 hours, times out of
+// order and times far apart.
+void GuiTest::daysAreFoundAsTheClockGivesThem() {
+  const QTimeZone zone("America/Sao_Paulo");
+  if (!zone.isValid()) {
+    QSKIP("no America/Sao_Paulo here");
+  }
+  auto day = [&zone](std::int64_t unix) {
+    return QDateTime::fromSecsSinceEpoch(unix, zone).date().toJulianDay();
+  };
+  const std::int64_t start = dayStart(QDate(2018, 11, 2), zone);
+  DayFinder find(zone);
+  // Every 17 minutes over five days, the short one among them.
+  for (std::int64_t t = start; t < start + 5 * 24 * 3600; t += 17 * 60) {
+    QCOMPARE(find(t), day(t));
+  }
+  // The last second of a day and the first of the next, both ways.
+  const std::int64_t short4 = dayStart(QDate(2018, 11, 4), zone);
+  for (std::int64_t t :
+       {short4 - 1, short4, short4 - 1, short4 + 23 * 3600,
+        short4 + 23 * 3600 - 1, start, start + std::int64_t{400} * 86400,
+        start - std::int64_t{400} * 86400, std::int64_t{1}}) {
+    QCOMPARE(find(t), day(t));
+  }
+  // The local zone is the default.
+  DayFinder local;
+  const std::int64_t now = unixNow();
+  for (std::int64_t t = now - 3 * 86400; t <= now; t += 3601) {
+    QCOMPARE(local(t), QDateTime::fromSecsSinceEpoch(t).date().toJulianDay());
+  }
+}
+
 // A lock left by a crash under another host name is never stale by
 // itself: it is named, and Start anyway takes it over.
 void GuiTest::aLockFromAnotherHostCanBeTakenOver() {
@@ -3855,6 +3892,341 @@ void GuiTest::timerTableAndStatsFollowEachSolve() {
     m = mismatch();
     QVERIFY2(m.isEmpty(), qPrintable(m));
   }
+}
+
+// A virtual solve's splits are worked out off the GUI thread and come a
+// moment after its row: they are written into that row, and the table
+// keeps its rows and what is selected in it.
+void GuiTest::splitsArriveInTheirRows() {
+  OPEN_PAGE(timed, TimerPage, Timed);
+  auto *panel = timed->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  auto *table = lastChild<QTableView>(timed->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  const QAbstractItemModel *model = table->model();
+  // A new session, on the virtual cube; the first one is shown again at
+  // the end, for the tests that follow.
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *dialog = qobject_cast<QInputDialog *>(m)) {
+        dialog->accept();
+      }
+    });
+    emit panel->newSessionRequested();
+  }
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  auto back = qScopeGuard([&] { emit panel->sessionChosen(0); });
+  QCOMPARE(model->rowCount(), 0);
+  auto *cube = lastChild<QComboBox>(timed, [](QComboBox *b) {
+    return b->toolTip().startsWith("The cube this session");
+  });
+  QVERIFY(cube);
+  cube->setCurrentIndex(0);
+  emit cube->activated(0);
+  int cross = -1;
+  for (int c = 0; c < model->columnCount(); ++c) {
+    if (model->headerData(c, Qt::Horizontal).toString() == "Cross" &&
+        !table->isColumnHidden(c)) {
+      cross = c;
+    }
+  }
+  QVERIFY(cross >= 0);
+
+  QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+  QSignalSpy inserted(model, &QAbstractItemModel::rowsInserted);
+  QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
+  auto solve = [&] {
+    CubeView *view = waitForCase(timed);
+    QVERIFY(view);
+    std::optional<Alg> solution = solutionFor(view->displayedState());
+    QVERIFY(solution);
+    QVERIFY(holdSpaceUntilBusy(timed));
+    typeMoves(*solution);
+    view->finishAnimations();
+    QTRY_VERIFY(!timed->isBusy());
+  };
+  // Whether the splits of the solve in `row` have come.
+  auto known = [&](int row) {
+    return model->index(row, cross).data().toString() != "…";
+  };
+
+  solve();
+  QCOMPARE(model->rowCount(), 1);
+  QTRY_VERIFY(known(0));
+  QVERIFY(changed.count() >= 1);
+  // The row is the solve's still.
+  QCOMPARE(model->index(0, 0).data(Qt::UserRole).toInt(), 0);
+  QCOMPARE(model->index(0, 0).data().toString(), QString("1"));
+
+  table->selectRow(0);
+  const int before = static_cast<int>(changed.count());
+  solve();
+  QCOMPARE(model->rowCount(), 2);
+  QTRY_VERIFY(known(0));
+  QVERIFY(changed.count() > before);
+  QVERIFY(known(1));
+  // Nothing was made anew: a row for each solve, and the selected solve
+  // (now the second row) is selected still.
+  QCOMPARE(resets.count(), 0);
+  QCOMPARE(inserted.count(), 2);
+  const QModelIndexList selected = table->selectionModel()->selectedRows();
+  QCOMPARE(selected.size(), 1);
+  QCOMPARE(selected.front().row(), 1);
+
+  // The table is what a fresh look at the session gives.
+  auto shown = [&] {
+    QStringList cells;
+    for (int r = 0; r < model->rowCount(); ++r) {
+      for (int c = 0; c < model->columnCount(); ++c) {
+        cells << model->index(r, c).data().toString();
+      }
+    }
+    return cells;
+  };
+  const QStringList inPlace = shown();
+  finishBackgroundWrites();
+  SessionStore saved(QDir(dataDir_).filePath("sessions.json"));
+  QVERIFY(saved.load());
+  QCOMPARE(saved.current().solves.size(), std::size_t{2});
+  emit panel->sessionChosen(saved.currentIndex()); // the same, shown afresh
+  QVERIFY(resets.count() > 0);
+  QTRY_VERIFY(known(0) && known(1));
+  QCOMPARE(shown(), inPlace);
+}
+
+// Each attempt of Move Count adds its row above the others, and an optimal
+// length worked out later is written into its row: the table and the
+// statistics keep showing what the whole session gives, through a DNF, a
+// deletion and its undoing (which work everything out again) too.
+void GuiTest::attemptTableAndStatsFollowEachAttempt() {
+  OPEN_PAGE(counts, MoveCountPage, MoveCount);
+  auto *table = lastChild<QTableView>(counts->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  const QAbstractItemModel *model = table->model();
+  auto *statsLabel = lastChild<QLabel>(counts->sidePanel(), [](QLabel *l) {
+    return l->text().contains("Solves:");
+  });
+  QVERIFY(statsLabel);
+  // The counts are typed in, as for a physical cube.
+  QCOMPARE(model->rowCount(), 0);
+  auto *cube = lastChild<QComboBox>(counts, [](QComboBox *b) {
+    return b->toolTip().startsWith("The cube this session");
+  });
+  QVERIFY(cube);
+  cube->setCurrentIndex(1);
+  emit cube->activated(1);
+
+  QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+  QSignalSpy inserted(model, &QAbstractItemModel::rowsInserted);
+  // Types a count and records it, or records a DNF with no keys: again if
+  // the scramble wasn't there yet.
+  auto record = [&](std::initializer_list<Qt::Key> digits) {
+    const int rows = model->rowCount();
+    return QTest::qWaitFor(
+        [&] {
+          QTest::keyClick(window_.get(), Qt::Key_Escape);
+          for (Qt::Key k : digits) {
+            QTest::keyClick(window_.get(), k);
+          }
+          if (digits.size() == 0) {
+            QTest::keyClick(window_.get(), Qt::Key_3, Qt::AltModifier);
+          } else {
+            QTest::keyClick(window_.get(), Qt::Key_Return);
+          }
+          return model->rowCount() == rows + 1;
+        },
+        10000);
+  };
+  // What the table and statistics show that the saved session doesn't
+  // give; empty when they match. The optimal lengths are waited for.
+  auto mismatch = [&]() -> QString {
+    finishBackgroundWrites();
+    MoveCountStore saved(QDir(dataDir_).filePath("movecounts.json"));
+    if (!saved.load()) {
+      return "the sessions weren't saved";
+    }
+    const std::vector<MoveCountAttempt> &attempts = saved.current().attempts;
+    if (saved.current().cube != CubeKind::Physical) {
+      return "the session isn't for a physical cube";
+    }
+    if (model->rowCount() != static_cast<int>(attempts.size())) {
+      return QString("%1 rows for %2 attempts")
+          .arg(model->rowCount())
+          .arg(attempts.size());
+    }
+    const bool optimal = QTest::qWaitFor(
+        [&] {
+          for (int row = 0; row < model->rowCount(); ++row) {
+            if (model->index(row, 2).data().toString() == "…") {
+              return false;
+            }
+          }
+          return true;
+        },
+        20000);
+    if (!optimal) {
+      return "an optimal length never came";
+    }
+    std::vector<Solve> solves = attemptsAsSolves(attempts);
+    std::vector<StatValue> ao5 = rollingAverages(solves, 5);
+    std::vector<StatValue> ao12 = rollingAverages(solves, 12);
+    std::size_t counted = solves.size();
+    for (int row = 0; row < model->rowCount(); ++row) {
+      // The newest attempt first.
+      std::size_t i = attempts.size() - 1 - static_cast<std::size_t>(row);
+      auto cell = [&](int col) {
+        return model->index(row, col).data().toString();
+      };
+      QString a5 = "-", a12 = "-";
+      if (attempts[i].counted) {
+        --counted;
+        a5 = qs(formatMoves(ao5[counted], 2));
+        a12 = qs(formatMoves(ao12[counted], 2));
+      }
+      bool number = false;
+      cell(2).toInt(&number);
+      if (model->index(row, 0).data(Qt::UserRole).toInt() !=
+              static_cast<int>(i) ||
+          cell(0) != QString::number(i + 1) ||
+          cell(1) != qs(formatAttempt(attempts[i])) || !number ||
+          cell(3) != a5 || cell(4) != a12) {
+        return QString("row %1: %2 %3 %4 %5 %6")
+            .arg(row)
+            .arg(cell(0), cell(1), cell(2), cell(3), cell(4));
+      }
+    }
+    QString html = statsLabel->text();
+    for (std::size_t n : {5u, 12u}) {
+      StatValue best = bestAverage(solves, n);
+      if (best && !html.contains(qs(formatMoves(best, 2)))) {
+        return QString("the best ao%1, %2, isn't in the statistics")
+            .arg(n)
+            .arg(qs(formatMoves(best, 2)));
+      }
+    }
+    if (!html.contains(QString("Solves: %1").arg(attempts.size()))) {
+      return "the statistics count other attempts";
+    }
+    if (!html.contains("Over optimal:")) {
+      return "the statistics don't say how far over the optimal";
+    }
+    return {};
+  };
+  const std::initializer_list<Qt::Key> counts1[] = {
+      {Qt::Key_9}, {Qt::Key_7}, {Qt::Key_1, Qt::Key_2}, {Qt::Key_8},
+      {},          {Qt::Key_6}, {Qt::Key_1, Qt::Key_0}};
+  for (const auto &digits : counts1) {
+    QVERIFY(record(digits));
+  }
+  QString m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  // A row for each attempt, none made anew, though the optimal lengths
+  // came after the rows.
+  QCOMPARE(resets.count(), 0);
+  QCOMPARE(inserted.count(), 7);
+
+  // The selected attempt stays selected as others are added above it and
+  // its optimal length, if it comes late, is written in.
+  table->selectRow(1);
+  for (const auto &digits :
+       {std::initializer_list<Qt::Key>{Qt::Key_5},
+        std::initializer_list<Qt::Key>{Qt::Key_1, Qt::Key_1}}) {
+    QVERIFY(record(digits));
+    m = mismatch();
+    QVERIFY2(m.isEmpty(), qPrintable(m));
+  }
+  QCOMPARE(resets.count(), 0);
+  QModelIndexList selected = table->selectionModel()->selectedRows();
+  QCOMPARE(selected.size(), 1);
+  QCOMPARE(selected.front().row(), 3);
+
+  // Deleting the last attempt and putting it back work everything out
+  // again, and attempts added after that go on from there.
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(model->rowCount(), 8);
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  QVERIFY(record({Qt::Key_4}));
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  QCOMPARE(model->rowCount(), 9);
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  for (int i = 0; i < 4; ++i) {
+    QVERIFY(record({i % 2 ? Qt::Key_7 : Qt::Key_6}));
+    m = mismatch();
+    QVERIFY2(m.isEmpty(), qPrintable(m));
+  }
+  QVERIFY(record({})); // a DNF
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+}
+
+// Untimed on a physical cube keeps each scramble that was done, without a
+// count: each adds its row above the others too.
+void GuiTest::keptScramblesAddTheirRows() {
+  OPEN_PAGE(untimed, UntimedPage, Untimed);
+  auto *panel = untimed->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  auto *table = lastChild<QTableView>(untimed->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  const QAbstractItemModel *model = table->model();
+  // A new session, for a physical cube; the first one is shown again at
+  // the end, for the tests that follow.
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *dialog = qobject_cast<QInputDialog *>(m)) {
+        dialog->accept();
+      }
+    });
+    emit panel->newSessionRequested();
+  }
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  auto back = qScopeGuard([&] { emit panel->sessionChosen(0); });
+  QCOMPARE(model->rowCount(), 0);
+  auto *cube = lastChild<QComboBox>(untimed, [](QComboBox *b) {
+    return b->toolTip().startsWith("The cube this session");
+  });
+  QVERIFY(cube);
+  cube->setCurrentIndex(1);
+  emit cube->activated(1);
+
+  QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+  for (int n = 1; n <= 4; ++n) {
+    // Space keeps the scramble shown, once there is one.
+    QVERIFY(QTest::qWaitFor(
+        [&] {
+          QTest::keyClick(window_.get(), Qt::Key_Space);
+          return model->rowCount() == n;
+        },
+        10000));
+  }
+  QCOMPARE(resets.count(), 0);
+  finishBackgroundWrites();
+  MoveCountStore saved(QDir(dataDir_).filePath("untimed.json"),
+                       SolveLog::Untimed);
+  QVERIFY(saved.load());
+  const MoveCountSession &s = saved.current();
+  QVERIFY(s.cube == CubeKind::Physical);
+  QCOMPARE(s.attempts.size(), std::size_t{4});
+  for (int row = 0; row < 4; ++row) {
+    const std::size_t i = 3 - static_cast<std::size_t>(row);
+    QVERIFY(!s.attempts[i].counted);
+    QCOMPARE(model->index(row, 0).data().toString(), QString::number(i + 1));
+    QCOMPARE(model->index(row, 1).data().toString(),
+             qs(s.attempts[i].scramble));
+  }
+  // Deleting one makes the rows anew, with the same rows left.
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(model->rowCount(), 3);
+  QCOMPARE(model->index(0, 1).data().toString(), qs(s.attempts[2].scramble));
 }
 
 // Typing in Alg Lab's case filter shows the case again only when another
