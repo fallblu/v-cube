@@ -67,8 +67,6 @@ class PracticePage : public ModePage, private TimedHost {
   Q_OBJECT
 public:
   using Tab = PracticeTab;
-  // What a state is of: the whole step, or one unit of it.
-  enum class Extent { Whole, Unit };
   // The phases of the tabs that aren't timed (the Timed tab's are
   // DrillFlow's).
   using Phase = PracticePhase;
@@ -99,7 +97,6 @@ public:
   // The mode's tabs, in order.
   virtual std::vector<Tab> tabs() const = 0;
   // Timed's cube.
-  bool physical() const { return physical_; }
   CubeKind cubeKind() const {
     return physical_ ? CubeKind::Physical : CubeKind::Virtual;
   }
@@ -164,18 +161,16 @@ protected:
 
   // A state to solve.
   struct Setup {
-    FaceletCube cube;        // as it is shown
-    Hold colours = kWcaHold; // the hold whose colours it is drawn in
+    FaceletCube cube; // as it is shown, in `hold`'s colours
     // For a physical cube's scramble: turned to `hold`, the scrambled cube
     // shows `state` (as generateScramble() has it).
     CubieCube state;
     Hold hold = kWcaHold;
     std::string group; // what the try is kept under, when it isn't a card's
   };
-  // A new state: the whole step, or one unit, which is `card`'s case when
-  // one is given. nullopt when it can't be set up.
-  virtual std::optional<Setup> setUp(Extent extent,
-                                     const std::string &card) = 0;
+  // A new state: the whole step, or with a `card` given one unit of it,
+  // the card's case. nullopt when it can't be set up.
+  virtual std::optional<Setup> setUp(const std::string &card) = 0;
   // The state is on the cube from the start (again, after Esc): whatever
   // the mode tracks of the solve starts again.
   virtual void restarted() {}
@@ -247,23 +242,20 @@ protected:
 
   struct Item {
     int id = 0;
-    bool whole = true;
-    std::string card;
+    std::string card;    // empty for a solve of the whole step
     bool isNew = false;  // a card's first sight
     bool graded = false; // the try grades the card
     std::string group;
     FaceletCube start;
-    Hold colours = kWcaHold;
     CubieCube scrambleState;
-    Hold scrambleHold = kWcaHold;
+    Hold hold = kWcaHold; // drawn in its colours and scrambled for it
     QString scramble;
     Alg moves;                        // of the solve, rotations too
     std::vector<std::int64_t> moveMs; // since the solve began, per move
-    std::int64_t began = 0;           // monotonicMs()
+    std::int64_t began = 0;           // monotonicMs(); Inspection's start
     std::int64_t ms = 0;              // Timed: the time
     std::optional<double> meanBefore; // Timed: the group's mean before it
-    std::int64_t inspectStart = 0;    // Inspection: monotonicMs()
-    std::int64_t inspectMs = 0;       // ...the time looked
+    std::int64_t inspectMs = 0;       // Inspection: the time looked
     bool inspecting = false;          // ...the clock runs
     bool done = false;                // the cube shows the item done
     bool hint = false;
@@ -282,7 +274,6 @@ protected:
   Rng &rng() { return rng_; }
   PracticeData &editData() { return store_.data; }
   CubeView *cubeView() const { return cubeView_; }
-  bool active() const { return active_; }
   // The item is a solve whose outcome is up (either tab).
   bool finished() const;
   // An option changed: a new state, in the tab that is open.
@@ -298,8 +289,6 @@ protected:
   void save();
   void fillList();
   void refreshList();
-  // "12.34".
-  QString clockText(std::int64_t ms) const;
   // The colour of text that matters less.
   QString mutedColour() const;
   // The link that plays `alg` from the start when clicked in the detail.
@@ -320,7 +309,6 @@ private:
   Item item_;
   int items_ = 0;
   bool active_ = false;
-  bool built_ = false;
   bool detailOpen_ = false;
   bool waiting_ = false;   // Done, the verdict waiting for the analysis
   bool demoShown_ = false; // the picture is ahead of the cube
@@ -354,8 +342,6 @@ private:
   int demoPlays_ = 0; // how many demos were played, to tell them apart
 
   bool hasCards() const { return !cardPool().empty(); }
-  // The tab's solves are of the whole step.
-  bool whole() const { return tab_ != Tab::Learn; }
   int tabIndex(Tab t) const;
   void buildSide();
   void showBar();
@@ -374,7 +360,7 @@ private:
   void undoLast();
   void nextTimed();
   // Puts a set-up state on the cube as a new item.
-  void begin(const Setup &setup, Extent extent);
+  void begin(const Setup &setup);
   void sameAgain();
   void showIdle(const QString &text);
   void showReady();

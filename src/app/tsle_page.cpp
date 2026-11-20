@@ -153,8 +153,7 @@ Slot TslePage::randomSlot() {
 
 std::vector<std::string> TslePage::cardPool() const { return tsleCardPool(); }
 
-std::optional<PracticePage::Setup> TslePage::setUp(Extent,
-                                                   const std::string &card) {
+std::optional<PracticePage::Setup> TslePage::setUp(const std::string &card) {
   TsleState state;
   if (!card.empty()) {
     std::optional<TsleState> c = tsleFromKey(card);
@@ -175,7 +174,6 @@ std::optional<PracticePage::Setup> TslePage::setUp(Extent,
   Setup s;
   s.state = randomTsleCube(state, slot_, rng());
   s.hold = settings().neutrality.pick(rng());
-  s.colours = s.hold;
   s.cube = s.state.toFacelets();
   // Timed attempts are kept by the case they start from.
   s.group = tab() == Tab::Timed ? tsleKey(tsleCase(state)) : kWhole;
@@ -261,7 +259,7 @@ bool TslePage::turned() {
     emit message(tr("Not a good trigger from there: Esc starts again"));
     return false;
   }
-  return item().whole ? state->done() : true;
+  return item().card.empty() ? state->done() : true;
 }
 
 // --- what is said ------------------------------------------------------------
@@ -285,7 +283,7 @@ QString TslePage::cardName(const std::string &card) const {
 }
 
 QString TslePage::task() const {
-  return item().whole ? tr("Solve TSLE") : tr("Do the next step");
+  return item().card.empty() ? tr("Solve TSLE") : tr("Do the next step");
 }
 
 QString TslePage::taskNote() const {
@@ -347,7 +345,7 @@ QString TslePage::stepVerdict(const Step &step) const {
 PracticePage::Outcome TslePage::judge() {
   const TsleSolver &s = solver(slot_);
   Outcome o;
-  if (!item().whole) {
+  if (!item().card.empty()) {
     // One step.
     if (start_.ocll()) {
       if (auto f = s.finish(start_)) {
@@ -477,7 +475,7 @@ QString TslePage::detail() {
   const TsleSolver &s = solver(slot_);
   const QString muted = mutedColour();
   QString html;
-  if (!item().whole || steps_.empty()) {
+  if (!item().card.empty() || steps_.empty()) {
     if (!steps_.empty() && !item().gaveUp) {
       const Step &step = steps_.front();
       html += "<p>" +
