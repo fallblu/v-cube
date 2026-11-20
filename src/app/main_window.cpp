@@ -950,11 +950,14 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   // take those in now, or a save that failed just before quitting would
   // never be seen.
   QCoreApplication::sendPostedEvents(qApp, QEvent::MetaCall);
-  if (!failedWrites_.empty()) {
-    QStringList lines;
-    for (const auto &[path, error] : failedWrites_) {
+  // A failed backup loses no changes, so it doesn't hold up quitting.
+  QStringList lines;
+  for (const auto &[path, error] : failedWrites_) {
+    if (path != data_.backupsDir()) {
       lines << QString("%1: %2").arg(QFileInfo(path).fileName(), error);
     }
+  }
+  if (!lines.isEmpty()) {
     // Staying doesn't bring back what closing stopped.
     const QString stoppedNote =
         stopped.isEmpty()
