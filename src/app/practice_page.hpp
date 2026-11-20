@@ -128,8 +128,7 @@ public:
   // clock runs or with no inspection).
   std::int64_t inspectedMs() const { return item_.inspectMs; }
   bool inspecting() const { return item_.inspecting; }
-  // The clock is being redrawn.
-  bool ticking() const { return tick_.isActive(); }
+
   // The scramble of a physical attempt ("" until it is worked out).
   QString scrambleText() const { return item_.scramble; }
   // The mode's solutions for the state are worked out.
@@ -358,7 +357,6 @@ private:
   QLabel *detail_ = nullptr;
   QScrollArea *detailScroll_ = nullptr;
   QScrollArea *choiceScroll_ = nullptr;
-  QTimer tick_;
   int demoPlays_ = 0; // how many demos were played, to tell them apart
 
   bool hasCards() const { return !cardPool().empty(); }
@@ -430,9 +428,11 @@ private:
   void timedSay(const QString &text) override;
   void timedCancelled(const QString &why) override;
   void deleteLearnTry(); // Delete on a finished Untimed or Inspection try
-  // Runs the tick while the clock changes, and stops it otherwise.
-  void updateTick();
-  void onTick();
+  // The clock changes during a hold of Space or a solve on the Timed tab,
+  // and while the inspection clock runs.
+  bool clockNeeded() const override;
+  void tick() override;
+  void keyDone() override { updateTick(); }
   std::string timedGroupKey() const;
 
   // --- what is shown

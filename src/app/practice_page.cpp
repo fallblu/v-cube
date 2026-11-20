@@ -190,7 +190,6 @@ void PracticePage::build() {
   });
   connect(&scrambles_, &QFutureWatcher<GeneratedScramble>::finished, this,
           &PracticePage::scrambleReady);
-  connect(&tick_, &QTimer::timeout, this, &PracticePage::onTick);
 
   loadChoices();
   applySettings();
@@ -329,7 +328,7 @@ void PracticePage::activated() {
 
 void PracticePage::deactivated() {
   active_ = false;
-  tick_.stop();
+  updateTick();
   cubeView_->finishAnimations();
   if (tab_ == Tab::Timed) {
     if (flow_.leave()) {
@@ -760,10 +759,6 @@ void PracticePage::scrambleReady() {
 // --- keys --------------------------------------------------------------------
 
 bool PracticePage::handleKey(QKeyEvent *e, bool press) {
-  struct Update {
-    PracticePage *page;
-    ~Update() { page->updateTick(); }
-  } update{this};
   TrainKeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
   // Of the keys held with Ctrl, Alt or Meta only Ctrl+Z, on the Learn tab.
   if (k.modified && k.key != TrainKey::Undo) {
@@ -1213,22 +1208,13 @@ void PracticePage::showInspection() {
                                     palette().color(QPalette::WindowText)));
 }
 
-void PracticePage::updateTick() {
-  // The clock is only redrawn while it changes: a hold of Space or a solve
-  // on the Timed tab, the inspection clock running.
-  const bool busy = active_ && ((tab_ == Tab::Timed && flow_.busy()) ||
-                                (tab_ == Tab::Inspection && item_.inspecting &&
-                                 phase_ == Phase::Solving));
-  if (busy != tick_.isActive()) {
-    if (busy) {
-      tick_.start(16); // as Drill's and the timer's
-    } else {
-      tick_.stop();
-    }
-  }
+bool PracticePage::clockNeeded() const {
+  return active_ && ((tab_ == Tab::Timed && flow_.busy()) ||
+                     (tab_ == Tab::Inspection && item_.inspecting &&
+                      phase_ == Phase::Solving));
 }
 
-void PracticePage::onTick() {
+void PracticePage::tick() {
   if (tab_ == Tab::Inspection && item_.inspecting && phase_ == Phase::Solving) {
     showInspection();
   } else if (tab_ == Tab::Timed && driver_.tick(monotonicMs())) {

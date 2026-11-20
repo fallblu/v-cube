@@ -53,7 +53,6 @@ private:
   SessionStore &store_;
 
   TimedFlow flow_;
-  QTimer tick_;
   DeletedAttempt<Solve> deleted_;
   // The last solve was just recorded: no key since (Backspace marks it).
   bool justSolved_ = false;
@@ -104,10 +103,11 @@ private:
   void showLastResult();
   // Stops a virtual solve: the time if the cube is solved, else DNF.
   void stopVirtual(std::int64_t now);
-  void onTick();
+  void tick() override;
   // Locks the controls that would change the scramble or session while a
   // solve or inspection runs, and unlocks them after.
   void updateControls();
+  void keyDone() override { updateControls(); }
   void recordSolve(std::int64_t timeMs, Penalty penalty,
                    const std::string &solution = {},
                    std::vector<std::int64_t> times = {});

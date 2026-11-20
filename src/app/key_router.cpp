@@ -79,11 +79,11 @@ bool KeyRouter::route(QKeyEvent *e, bool press) {
   if (e->isAutoRepeat()) {
     bool used = used_.contains(key);
     if (used && page->acceptsAutoRepeat(e)) {
-      return page->handleKey(e, press);
+      return page->routeKey(e, press);
     }
     return used;
   }
-  bool used = page->handleKey(e, press);
+  bool used = page->routeKey(e, press);
   if (press && used) {
     used_.insert(key);
   } else {

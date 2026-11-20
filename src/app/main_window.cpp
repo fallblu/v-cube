@@ -1152,7 +1152,7 @@ void MainWindow::buildMenus() {
   connect(pageUndoAction_, &QAction::triggered, this, [this] {
     if (ModePage *page = currentPage()) {
       QKeyEvent press(QEvent::KeyPress, Qt::Key_Z, Qt::ControlModifier);
-      page->handleKey(&press, true);
+      page->routeKey(&press, true);
     }
   });
   edit->insertAction(first, pageUndoAction_);

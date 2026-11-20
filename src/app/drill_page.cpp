@@ -224,7 +224,6 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(mainSplitter(this, {left_, right}, {360, 840}));
 
-  connect(&tick_, &QTimer::timeout, this, &DrillPage::onTick);
   connect(&watcher_, &QFutureWatcher<GeneratedScramble>::finished, this,
           &DrillPage::scrambleReady);
   connect(cubeBox_, &QComboBox::activated, this, [this] {
@@ -343,7 +342,6 @@ void DrillPage::activated() {
 void DrillPage::deactivated() {
   CasePage::deactivated();
   cubeView_->finishAnimations();
-  tick_.stop();
   if (flow_.leave()) {
     driver_.cancel(tr("The solve was left and cancelled; nothing was "
                       "recorded."));
@@ -363,16 +361,8 @@ void DrillPage::windowDeactivated() {
 }
 
 void DrillPage::updateControls() {
+  updateTick();
   bool busy = isBusy();
-  // The time only changes during a hold, inspection or solve, so the
-  // display is only redrawn then.
-  if (busy != tick_.isActive()) {
-    if (busy) {
-      tick_.start(16);
-    } else {
-      tick_.stop();
-    }
-  }
   if (busy == controlsLocked_) {
     return;
   }
@@ -753,7 +743,7 @@ void DrillPage::scrambleReady() {
   scrambleLabel_->setText(current_->scramble);
 }
 
-void DrillPage::onTick() {
+void DrillPage::tick() {
   if (driver_.tick(monotonicMs())) {
     updateControls();
   }
