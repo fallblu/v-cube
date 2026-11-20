@@ -156,6 +156,15 @@ TEST_CASE("a deleted file is moved aside with the date") {
   CHECK(
       moveToDeleted(tmp.filePath("missing.json"), tmp.filePath("deleted"), when)
           .isEmpty());
+  // Nor is a name with a % in it taken for a place to put the number.
+  for (const char *text : {"first", "second"}) {
+    writeText(tmp.filePath("a%1b%2.json"), text);
+    moveToDeleted(tmp.filePath("a%1b%2.json"), tmp.filePath("deleted"), when);
+  }
+  CHECK(readText(tmp.filePath("deleted/a%1b%2.20261110-093005.json")) ==
+        "first");
+  CHECK(readText(tmp.filePath("deleted/a%1b%2.20261110-093005-2.json")) ==
+        "second");
 }
 
 TEST_CASE("export copies the data and the settings to a new folder") {

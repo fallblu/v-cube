@@ -213,8 +213,7 @@ QString moveToDeleted(const QString &file, const QString &folder,
   QString suffix = info.suffix().isEmpty() ? QString() : "." + info.suffix();
   QString dest = QDir(folder).filePath(base + suffix);
   for (int n = 2; QFile::exists(dest); ++n) {
-    dest =
-        QDir(folder).filePath(QString("%1-%2%3").arg(base).arg(n).arg(suffix));
+    dest = QDir(folder).filePath(base + "-" + QString::number(n) + suffix);
   }
   if (!QFile::rename(file, dest)) {
     fail(error, QString("%1 couldn't be moved to %2")
