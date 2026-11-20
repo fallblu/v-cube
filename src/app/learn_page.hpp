@@ -75,7 +75,6 @@ signals:
   void drillSetRequested(const QString &setId, bool weakest);
 
 protected:
-  void focusModeChanged() override;
   // Enter in the "Start learning" count starts learning when a number was
   // typed, and any other key leaves the field, so that the keys go back to
   // the cube either way.

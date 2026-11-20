@@ -13,7 +13,6 @@
 
 #include <QFutureWatcher>
 #include <QStringList>
-#include <QTimer>
 
 #include <cstdint>
 #include <optional>
@@ -86,7 +85,6 @@ public:
   void windowDeactivated() override;
 
 protected:
-  void focusModeChanged() override;
   QStringList columns() const override;
   std::vector<CaseStatusFilter> statusFilters() override;
   void fillRow(QTreeWidgetItem *item, const std::string &caseId) override;
@@ -137,7 +135,6 @@ private:
   // The attempt's state: the timer, the phase and how the case went.
   TimedDriver driver_{*this, settings_.drill};
   DrillFlow &flow_ = driver_.flow();
-  QTimer tick_;
   std::optional<Current> current_;
   QFutureWatcher<GeneratedScramble> watcher_;
   VirtualAttempt attempt_;
@@ -197,9 +194,10 @@ private:
   // now shows is done from.
   void followView();
   void scrambleReady();
-  void onTick();
+  void tick() override;
   // Locks the set, cube, case and order choices while a solve runs.
   void updateControls();
+  void keyDone() override { updateControls(); }
   // What the flow asks for (see TimedHost).
   void timedNext(bool fromIdle) override;
   void timedRetry() override { retryCase(); }

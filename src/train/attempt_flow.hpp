@@ -40,9 +40,9 @@ public:
     bool autoStop = false; // Untimed: the solve ends when the cube is solved
   };
 
-  // Of the shared keys the flow reads Turn (a turning key, on the virtual
-  // cube), the chords for the last attempt and the scramble, and a Delete
-  // with nothing held.
+  // Of the shared keys the flow reads the turn a key makes (on the virtual
+  // cube, any key but the chords turns it), the chords for the last attempt
+  // and the scramble, and a Delete with nothing held.
   using Key = TrainKey;
   using KeyEvent = TrainKeyEvent;
 

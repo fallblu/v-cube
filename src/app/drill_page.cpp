@@ -127,6 +127,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
          "the first face turn starts the timer and it stops when the step "
          "is done"));
   options_ = new OptionBar(right);
+  hideInFocusMode({options_});
   options_->addPicker(tr("Alg set:"), panel_->takeSetBox(), 1);
   options_->addPicker(tr("Cube:"), cubeBox_);
   options_->addPicker(tr("Cases:"), casesButton_);
@@ -212,17 +213,10 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   rightLayout->addWidget(revealBox);
   rightLayout->addStretch(1);
 
-  auto *split = new QSplitter(this);
-  split->setObjectName("main");
-  split->addWidget(left_);
-  split->addWidget(right);
-  split->setStretchFactor(1, 1);
   left_->setMinimumWidth(240);
-  split->setSizes({360, 840});
   auto *layout = new QHBoxLayout(this);
-  layout->addWidget(split);
+  layout->addWidget(mainSplitter(this, {left_, right}, {360, 840}));
 
-  connect(&tick_, &QTimer::timeout, this, &DrillPage::onTick);
   connect(&watcher_, &QFutureWatcher<GeneratedScramble>::finished, this,
           &DrillPage::scrambleReady);
   connect(cubeBox_, &QComboBox::activated, this, [this] {
@@ -306,11 +300,6 @@ void DrillPage::showCubeKind() {
   scrambleLabel_->setVisible(!virt);
 }
 
-void DrillPage::focusModeChanged() {
-  CasePage::focusModeChanged();
-  options_->setVisible(!focusMode());
-}
-
 bool DrillPage::isBusy() const {
   // Armed by a tap of Space, nothing is under way yet: the page can still
   // be left (which disarms it).
@@ -320,10 +309,7 @@ bool DrillPage::isBusy() const {
 void DrillPage::applySettings() {
   driver_.configure(onVirtualCube(), settings_.drill.practiseAfterDnf);
   display_->setDecimals(settings_.decimals);
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   poolBox_->setItemText(
       poolBox_->findData(enumData(Pool::Weakest)),
       tr("Weakest %1 (drilled)").arg(settings_.drill.weakestCount));
@@ -349,7 +335,6 @@ void DrillPage::activated() {
 void DrillPage::deactivated() {
   CasePage::deactivated();
   cubeView_->finishAnimations();
-  tick_.stop();
   if (flow_.leave()) {
     driver_.cancel(tr("The solve was left and cancelled; nothing was "
                       "recorded."));
@@ -369,16 +354,8 @@ void DrillPage::windowDeactivated() {
 }
 
 void DrillPage::updateControls() {
+  updateTick();
   bool busy = isBusy();
-  // The time only changes during a hold, inspection or solve, so the
-  // display is only redrawn then.
-  if (busy != tick_.isActive()) {
-    if (busy) {
-      tick_.start(16);
-    } else {
-      tick_.stop();
-    }
-  }
   if (busy == controlsLocked_) {
     return;
   }
@@ -759,7 +736,7 @@ void DrillPage::scrambleReady() {
   scrambleLabel_->setText(current_->scramble);
 }
 
-void DrillPage::onTick() {
+void DrillPage::tick() {
   if (driver_.tick(monotonicMs())) {
     updateControls();
   }

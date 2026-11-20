@@ -45,6 +45,7 @@ class CasePage : public ModePage {
 public:
   // The library changed. A hidden page catches up when it is shown.
   void reloadSets();
+  void librarySetsChanged(const QString &) override { reloadSets(); }
   // Picks a set (or saved::kAcrossSetsId) as the set drop-down does; one the
   // drop-down doesn't offer is left alone.
   void pickSet(const QString &setId);
@@ -68,7 +69,6 @@ signals:
   void learnSetRequested(const QString &setId);
 
 protected:
-  void focusModeChanged() override;
   // `mode` names the page in settings keys ("learn", "drill").
   CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
            QWidget *parent);

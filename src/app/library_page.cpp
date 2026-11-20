@@ -261,14 +261,8 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   caseTabs->addTab(historyTab, tr("History"));
   caseLayout->addWidget(caseTabs, 1);
 
-  auto *split = new QSplitter(this);
-  split->setObjectName("main");
-  split->addWidget(left);
-  split->addWidget(middle);
-  split->addWidget(caseBox_);
-  split->setStretchFactor(1, 1);
-  split->setStretchFactor(2, 1);
-  split->setSizes({220, 520, 460});
+  QSplitter *split =
+      mainSplitter(this, {left, middle, caseBox_}, {220, 520, 460});
   // The commands used most, which were only in the menus.
   auto *toolbar = new QHBoxLayout;
   for (QAction *a : {newSetAction_, propertiesAction_, newCaseAction_,
@@ -381,7 +375,6 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
     setList_->setCurrentRow(0);
   }
   updateActions();
-  setMenusShown(false);
 }
 
 // --- actions and menus -----------------------------------------------------
@@ -472,7 +465,7 @@ void LibraryPage::buildActions() {
   connect(caseMenu_, &QMenu::aboutToShow, this, &LibraryPage::updateActions);
 }
 
-QList<QMenu *> LibraryPage::menus() const { return {setMenu_, caseMenu_}; }
+QList<QMenu *> LibraryPage::pageMenus() const { return {setMenu_, caseMenu_}; }
 
 QList<QAction *> LibraryPage::editActions() const {
   return {undoAction_, redoAction_, editSeparator_};
@@ -515,23 +508,12 @@ void LibraryPage::updateActions() {
 void LibraryPage::activated() {
   active_ = true;
   refreshAlgList(); // Alg Lab's times may have changed
-  setMenusShown(true);
   updateActions();
 }
 
 void LibraryPage::deactivated() {
   active_ = false;
   caseFilter_->release();
-  setMenusShown(false); // hidden, their keys don't reach the other modes
-}
-
-void LibraryPage::setMenusShown(bool shown) {
-  for (QAction *a : editActions()) {
-    a->setVisible(shown);
-  }
-  for (QMenu *m : menus()) {
-    m->menuAction()->setVisible(shown);
-  }
 }
 
 // --- helpers ---------------------------------------------------------------

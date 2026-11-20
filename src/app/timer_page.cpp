@@ -27,7 +27,6 @@ TimerPage::TimerPage(AppSettings &settings, SessionStore &store,
   stage_->addUnderButtons(algs_->label());
   stage_->setChart(chart_);
 
-  connect(&tick_, &QTimer::timeout, this, &TimerPage::onTick);
   connect(&splitsWatcher_, &QFutureWatcher<SplitResults>::finished, this,
           [this] {
             for (auto &[key, s] : splitsWatcher_.result()) {
@@ -79,7 +78,6 @@ void TimerPage::showLastResult() {
 void TimerPage::deactivated() {
   justSolved_ = false;
   cubeView_->finishAnimations();
-  tick_.stop();
   if (flow_.leave()) {
     if (onVirtualCube()) {
       attempt_.restart();
@@ -100,16 +98,8 @@ void TimerPage::windowDeactivated() {
 }
 
 void TimerPage::updateControls() {
+  updateTick();
   bool busy = isBusy();
-  // The time only changes during a hold, inspection or solve, so the
-  // display is only redrawn then.
-  if (busy != tick_.isActive()) {
-    if (busy) {
-      tick_.start(16);
-    } else {
-      tick_.stop();
-    }
-  }
   bool any = !session().solves.empty();
   // The keys that do something between solves; none while one runs.
   QList<KeyHint> keys;
@@ -223,7 +213,7 @@ void TimerPage::showScramble() {
   showCube();
 }
 
-void TimerPage::onTick() {
+void TimerPage::tick() {
   std::int64_t now = monotonicMs();
   bool wasHidden = flow_.cubeHidden();
   // A popup or dialog took the Space release: the hold can't be let go of.
@@ -309,10 +299,6 @@ bool TimerPage::handleActionKey(QKeyEvent *e) {
 }
 
 bool TimerPage::handleKey(QKeyEvent *e, bool press) {
-  struct Update {
-    TimerPage *page;
-    ~Update() { page->updateControls(); }
-  } update{this};
   bool virt = onVirtualCube();
   std::optional<Move> move =
       virt ? settings_.keymap.lookup(e) : std::optional<Move>();

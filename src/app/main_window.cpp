@@ -229,8 +229,10 @@ private:
       return;
     }
     QStatusBar *bar = window_->statusBar();
-    // A message of the page's own stays until it times out.
-    if (!bar->currentMessage().isEmpty() && bar->currentMessage() != shown_) {
+    // A message of the page's own stays until it times out; the tip
+    // already shown isn't shown again.
+    if ((!bar->currentMessage().isEmpty() && bar->currentMessage() != shown_) ||
+        (w == shownFor_ && tip == shown_ && bar->currentMessage() == tip)) {
       return;
     }
     shown_ = tip;
@@ -336,34 +338,34 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   startupProblems_ = loaded.warnings;
 
   stack_ = new QStackedWidget(this);
-  learnPage_ = new LearnPage(settings_, data_.library, stack_);
-  drillPage_ = new DrillPage(settings_, data_.library, stack_);
-  libraryPage_ = new LibraryPage(settings_, data_.library, stack_);
-  timedPage_ = new TimerPage(settings_, data_.sessions, data_.library, stack_);
-  untimedPage_ =
-      new UntimedPage(settings_, data_.untimed, data_.library, stack_);
-  moveCountPage_ =
-      new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_);
-  eoCrossPage_ = new EoCrossPage(settings_, data_.eoCross, stack_);
-  algLabPage_ = new AlgLabPage(settings_, data_.library, data_.lab, stack_);
-  f2lPage_ =
-      new F2LPage(settings_, data_.library, data_.lab, data_.f2l, stack_);
-  tslePage_ = new TslePage(settings_, data_.tsle, stack_);
-  todayPage_ = new TodayPage(
-      settings_, data_, [f2l = f2lPage_] { return f2l->cardPool(); },
-      [tsle = tslePage_] { return tsle->cardPool(); }, stack_);
   // Indexed by mode, not by the order of a list.
-  const std::pair<AppMode::Id, ModePage *> pages[] = {
-      {AppMode::Learn, learnPage_},     {AppMode::Drill, drillPage_},
-      {AppMode::Library, libraryPage_}, {AppMode::Timed, timedPage_},
-      {AppMode::Untimed, untimedPage_}, {AppMode::MoveCount, moveCountPage_},
-      {AppMode::EoCross, eoCrossPage_}, {AppMode::AlgLab, algLabPage_},
-      {AppMode::F2L, f2lPage_},         {AppMode::Tsle, tslePage_},
-      {AppMode::Today, todayPage_}};
-  for (const auto &[mode, page] : pages) {
+  auto add = [this](AppMode::Id mode, auto *page) {
     Q_ASSERT(!pages_[static_cast<std::size_t>(mode)]);
     pages_[static_cast<std::size_t>(mode)] = page;
-  }
+    return page;
+  };
+  learnPage_ =
+      add(AppMode::Learn, new LearnPage(settings_, data_.library, stack_));
+  auto *drill =
+      add(AppMode::Drill, new DrillPage(settings_, data_.library, stack_));
+  libraryPage_ =
+      add(AppMode::Library, new LibraryPage(settings_, data_.library, stack_));
+  add(AppMode::Timed,
+      new TimerPage(settings_, data_.sessions, data_.library, stack_));
+  add(AppMode::Untimed,
+      new UntimedPage(settings_, data_.untimed, data_.library, stack_));
+  add(AppMode::MoveCount,
+      new MoveCountPage(settings_, data_.moveCounts, data_.library, stack_));
+  add(AppMode::EoCross, new EoCrossPage(settings_, data_.eoCross, stack_));
+  auto *algLab = add(AppMode::AlgLab, new AlgLabPage(settings_, data_.library,
+                                                     data_.lab, stack_));
+  auto *f2l = add(AppMode::F2L, new F2LPage(settings_, data_.library, data_.lab,
+                                            data_.f2l, stack_));
+  auto *tsle = add(AppMode::Tsle, new TslePage(settings_, data_.tsle, stack_));
+  todayPage_ = add(AppMode::Today,
+                   new TodayPage(
+                       settings_, data_, [f2l] { return f2l->cardPool(); },
+                       [tsle] { return tsle->cardPool(); }, stack_));
   Q_ASSERT(std::ranges::none_of(pages_, [](ModePage *p) { return !p; }));
   for (ModePage *page : pages_) {
     stack_->addWidget(page);
@@ -372,42 +374,42 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   connect(libraryPage_, &LibraryPage::setsChanged, this,
           &MainWindow::librarySetsChanged);
   libraryPage_->setLab(&data_.lab);
-  connect(
-      libraryPage_, &LibraryPage::practiceRequested, this,
-      [this](AppMode::Id mode, const QString &setId, const QString &caseId) {
-        if (!setMode(mode)) {
-          return;
-        }
-        CasePage *page = mode == AppMode::Drill
-                             ? static_cast<CasePage *>(drillPage_)
-                             : static_cast<CasePage *>(learnPage_);
-        page->showCase(setId, caseId);
-      });
+  connect(libraryPage_, &LibraryPage::practiceRequested, this,
+          [this, drill](AppMode::Id mode, const QString &setId,
+                        const QString &caseId) {
+            if (!setMode(mode)) {
+              return;
+            }
+            CasePage *page = mode == AppMode::Drill
+                                 ? static_cast<CasePage *>(drill)
+                                 : static_cast<CasePage *>(learnPage_);
+            page->showCase(setId, caseId);
+          });
   connect(libraryPage_, &LibraryPage::algLabRequested, this,
-          [this](const QString &setId, const QString &caseId) {
+          [this, algLab](const QString &setId, const QString &caseId) {
             if (setMode(AppMode::AlgLab)) {
-              algLabPage_->selectCase(setId, caseId);
+              algLab->selectCase(setId, caseId);
             }
           });
-  algLabPage_->setSetUndo([this] { return libraryPage_->undoLast(); });
-  algLabPage_->setAlgEditor([this](const QString &setId, const QString &caseId,
-                                   std::vector<std::string> algs,
-                                   const QString &text) {
+  algLab->setSetUndo([this] { return libraryPage_->undoLast(); });
+  algLab->setAlgEditor([this](const QString &setId, const QString &caseId,
+                              std::vector<std::string> algs,
+                              const QString &text) {
     return libraryPage_->setCaseAlgs(setId, caseId, std::move(algs), text);
   });
   connect(todayPage_, &TodayPage::learnSetRequested, this,
           &MainWindow::learnSet);
   connect(todayPage_, &TodayPage::practiceRequested, this,
-          [this](AppMode::Id mode) {
+          [this, f2l, tsle](AppMode::Id mode) {
             PracticePage *page = mode == AppMode::F2L
-                                     ? static_cast<PracticePage *>(f2lPage_)
-                                     : static_cast<PracticePage *>(tslePage_);
+                                     ? static_cast<PracticePage *>(f2l)
+                                     : static_cast<PracticePage *>(tsle);
             if (setMode(mode)) {
               page->showCards();
             }
           });
-  for (CasePage *page : {static_cast<CasePage *>(learnPage_),
-                         static_cast<CasePage *>(drillPage_)}) {
+  for (CasePage *page :
+       {static_cast<CasePage *>(learnPage_), static_cast<CasePage *>(drill)}) {
     connect(page, &CasePage::editCaseRequested, this,
             [this](const QString &setId, const QString &caseId) {
               if (setMode(AppMode::Library)) {
@@ -423,9 +425,9 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     connect(page, &CasePage::learnSetRequested, this, &MainWindow::learnSet);
   }
   connect(learnPage_, &LearnPage::drillSetRequested, this,
-          [this](const QString &setId, bool weakest) {
+          [this, drill](const QString &setId, bool weakest) {
             if (setMode(AppMode::Drill)) {
-              drillPage_->drillSet(setId, weakest);
+              drill->drillSet(setId, weakest);
             }
           });
 
@@ -478,16 +480,16 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     });
   }
 
-  badgeTimer_ = new QTimer(this);
-  badgeTimer_->setInterval(60 * 1000);
-  connect(badgeTimer_, &QTimer::timeout, this, &MainWindow::updateBadges);
+  auto *badgeTimer = new QTimer(this);
+  badgeTimer->setInterval(60 * 1000);
+  connect(badgeTimer, &QTimer::timeout, this, &MainWindow::updateBadges);
   // A copy left open for days still makes each day's backup.
-  connect(badgeTimer_, &QTimer::timeout, this, [this] {
+  connect(badgeTimer, &QTimer::timeout, this, [this] {
     if (std::optional<QString> error = data_.backUpIfNewDay()) {
       writeReported(data_.backupsDir(), *error);
     }
   });
-  badgeTimer_->start();
+  badgeTimer->start();
 
   help_ = new HelpPanel(this);
   addDockWidget(Qt::RightDockWidgetArea, help_);
@@ -569,12 +571,10 @@ void MainWindow::showStartupProblems() {
       dialog);
   more->setWordWrap(true);
   layout->addWidget(more);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
   QPushButton *folder =
-      buttons->addButton(tr("Open data folder"), QDialogButtonBox::ActionRole);
+      addButtonBox(dialog, layout, QDialogButtonBox::Close)
+          ->addButton(tr("Open data folder"), QDialogButtonBox::ActionRole);
   connect(folder, &QPushButton::clicked, this, &MainWindow::openDataFolder);
-  connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
-  layout->addWidget(buttons);
   dialog->resize(640, 360);
   dialog->show();
   dialog->raise();
@@ -644,16 +644,6 @@ QWidget *MainWindow::buildSidebar() {
     }
   });
   return bar;
-}
-
-void MainWindow::styleSidebar() {
-  // Set again after a theme change so that the palette() colours follow.
-  sidebar_->setStyleSheet(
-      "QToolButton { text-align: left; padding: 6px 18px 6px 14px; border: "
-      "none; border-radius: 4px; }"
-      "QToolButton:hover { background: palette(button); }"
-      "QToolButton:checked { background: palette(highlight); color: "
-      "palette(highlighted-text); }");
 }
 
 QWidget *MainWindow::buildBanner() {
@@ -789,6 +779,15 @@ bool MainWindow::setMode(AppMode::Id mode) {
     sidePanelAction_->setEnabled(currentPage()->sidePanel() != nullptr);
     sidePanelAction_->setChecked(currentPage()->sideShown());
   }
+  // Only the page shown has its own menus.
+  for (ModePage *page : pages_) {
+    for (QAction *a : page->editActions()) {
+      a->setVisible(page == currentPage());
+    }
+    for (QMenu *m : page->pageMenus()) {
+      m->menuAction()->setVisible(page == currentPage());
+    }
+  }
   if (pageUndoAction_) {
     // Library has its own Undo and Redo; these modes take Ctrl+Z.
     pageUndoAction_->setVisible(
@@ -802,12 +801,9 @@ bool MainWindow::setMode(AppMode::Id mode) {
 }
 
 void MainWindow::librarySetsChanged(const QString &setId) {
-  learnPage_->reloadSets();
-  drillPage_->reloadSets();
-  timedPage_->refreshScrambleTypes(setId);
-  untimedPage_->refreshScrambleTypes(setId);
-  algLabPage_->reloadSets();
-  f2lPage_->reloadSets();
+  for (ModePage *page : pages_) {
+    page->librarySetsChanged(setId);
+  }
   updateBadges(); // Today reads the sets as it is shown
 }
 
@@ -837,13 +833,7 @@ void MainWindow::learnSet(const QString &setId) {
   }
 }
 
-void MainWindow::setFullScreen(bool on) {
-  setWindowState(on ? windowState() | Qt::WindowFullScreen
-                    : windowState() & ~Qt::WindowFullScreen);
-}
-
 void MainWindow::setFocusMode(bool on) {
-  focusMode_ = on;
   sidebar_->setVisible(!on && sidebarAction_->isChecked());
   menuBar()->setVisible(!on);
   statusBar()->setVisible(!on);
@@ -851,7 +841,8 @@ void MainWindow::setFocusMode(bool on) {
     page->setFocusMode(on);
   }
   if (on) {
-    showFocusHint();
+    showOverlay(tr("Focus mode: F10 or right-click to show everything again"),
+                3500);
   } else {
     fadeFocusHint(false);
   }
@@ -862,13 +853,8 @@ void MainWindow::setSidebarShown(bool on) {
     sidebarAction_->setChecked(on); // comes back here
     return;
   }
-  sidebar_->setVisible(on && !focusMode_);
+  sidebar_->setVisible(on && !focusAction_->isChecked());
   saved::sidebarShown().set(on);
-}
-
-void MainWindow::showFocusHint() {
-  showOverlay(tr("Focus mode: F10 or right-click to show everything again"),
-              3500);
 }
 
 void MainWindow::showOverlay(const QString &text, int ms) {
@@ -986,7 +972,8 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   QMainWindow::closeEvent(e);
 }
 
-void MainWindow::restoreLayout() {
+void MainWindow::forEachSplitter(
+    const std::function<void(QSplitter *, const QString &, int)> &f) const {
   for (AppMode::Id m : AppMode::all()) {
     if (m == AppMode::Learn) {
       continue; // Learn keeps its own splitters
@@ -994,39 +981,35 @@ void MainWindow::restoreLayout() {
     const auto splitters =
         pages_[static_cast<std::size_t>(m)]->findChildren<QSplitter *>();
     for (qsizetype i = 0; i < splitters.size(); ++i) {
-      // By name; a splitter with no name, or sizes kept before they had
-      // names, by its place among the page's splitters.
-      QString id = AppMode::settingsId(m);
-      QString name = splitters[i]->objectName();
-      QByteArray state =
-          name.isEmpty() ? QByteArray() : saved::splitter(id, name).get();
-      if (state.isEmpty()) {
-        state = saved::splitter(id, static_cast<int>(i)).get();
-      }
-      if (!state.isEmpty()) {
-        splitters[i]->restoreState(state);
-      }
+      f(splitters[i], AppMode::settingsId(m), static_cast<int>(i));
     }
   }
 }
 
+void MainWindow::restoreLayout() {
+  forEachSplitter([](QSplitter *s, const QString &id, int i) {
+    // By name; a splitter with no name, or sizes kept before they had
+    // names, by its place among the page's splitters.
+    QString name = s->objectName();
+    QByteArray state =
+        name.isEmpty() ? QByteArray() : saved::splitter(id, name).get();
+    if (state.isEmpty()) {
+      state = saved::splitter(id, i).get();
+    }
+    if (!state.isEmpty()) {
+      s->restoreState(state);
+    }
+  });
+}
+
 void MainWindow::saveLayout() {
-  for (AppMode::Id m : AppMode::all()) {
-    if (m == AppMode::Learn) {
-      continue; // Learn keeps its own splitters
+  forEachSplitter([](QSplitter *s, const QString &id, int i) {
+    if (s->objectName().isEmpty()) {
+      saved::splitter(id, i).set(s->saveState());
+    } else {
+      saved::splitter(id, s->objectName()).set(s->saveState());
     }
-    const auto splitters =
-        pages_[static_cast<std::size_t>(m)]->findChildren<QSplitter *>();
-    for (qsizetype i = 0; i < splitters.size(); ++i) {
-      QString id = AppMode::settingsId(m);
-      QString name = splitters[i]->objectName();
-      if (name.isEmpty()) {
-        saved::splitter(id, static_cast<int>(i)).set(splitters[i]->saveState());
-      } else {
-        saved::splitter(id, name).set(splitters[i]->saveState());
-      }
-    }
-  }
+  });
 }
 
 void MainWindow::fitToScreen() {
@@ -1056,8 +1039,16 @@ void MainWindow::fitToScreen() {
 
 void MainWindow::buildMenus() {
   QMenu *file = menuBar()->addMenu(tr("&File"));
-  file->addAction(tr("&Import alg set…"), this, &MainWindow::importAlgSet);
-  file->addAction(tr("&Export alg set…"), this, &MainWindow::exportAlgSet);
+  file->addAction(tr("&Import alg set…"), this, [this] {
+    if (setMode(AppMode::Library)) {
+      libraryPage_->importSetFile();
+    }
+  });
+  file->addAction(tr("&Export alg set…"), this, [this] {
+    if (setMode(AppMode::Library)) {
+      libraryPage_->exportSetFile();
+    }
+  });
   file->addSeparator();
   file->addAction(tr("Export all data…"), this, &MainWindow::exportAllData);
   file->addAction(tr("Open data folder"), this, &MainWindow::openDataFolder);
@@ -1092,8 +1083,10 @@ void MainWindow::buildMenus() {
     }
   }
   fullScreenAction_->setShortcuts(fullScreenKeys);
-  connect(fullScreenAction_, &QAction::toggled, this,
-          &MainWindow::setFullScreen);
+  connect(fullScreenAction_, &QAction::toggled, this, [this](bool on) {
+    setWindowState(on ? windowState() | Qt::WindowFullScreen
+                      : windowState() & ~Qt::WindowFullScreen);
+  });
   focusAction_ = view->addAction(tr("F&ocus mode"));
   focusAction_->setCheckable(true);
   focusAction_->setShortcut(QKeySequence(Qt::Key_F10));
@@ -1141,23 +1134,28 @@ void MainWindow::buildMenus() {
     addActions(menu->menu()->actions());
   }
 
-  // Library's own menus and Undo, shown only in Library mode; their keys
-  // stay with the page (they would act on it from other modes).
+  // The pages' own menus and Edit items (Library's Undo), shown only in
+  // their mode; their keys stay with the page (they would act on it from
+  // other modes).
   QAction *first = edit->actions().value(0);
-  edit->insertActions(first, libraryPage_->editActions());
+  for (ModePage *page : pages_) {
+    edit->insertActions(first, page->editActions());
+  }
   // The other modes take Ctrl+Z themselves (see KeyRouter): the menu item
   // sends them the key, so that undo can be found in the menu everywhere.
   pageUndoAction_ = new QAction(tr("&Undo") + "\tCtrl+Z", this);
   connect(pageUndoAction_, &QAction::triggered, this, [this] {
     if (ModePage *page = currentPage()) {
       QKeyEvent press(QEvent::KeyPress, Qt::Key_Z, Qt::ControlModifier);
-      page->handleKey(&press, true);
+      page->routeKey(&press, true);
     }
   });
   edit->insertAction(first, pageUndoAction_);
   edit->insertSeparator(first);
-  for (QMenu *menu : libraryPage_->menus()) {
-    menuBar()->insertMenu(view->menuAction(), menu);
+  for (ModePage *page : pages_) {
+    for (QMenu *menu : page->pageMenus()) {
+      menuBar()->insertMenu(view->menuAction(), menu);
+    }
   }
   // The current mode's own menu, filled each time it opens.
   modeMenu_ = new QMenu(this);
@@ -1183,10 +1181,8 @@ void MainWindow::openCommandPalette() {
   if (modeMenu_ && currentPage()->hasModeMenu()) {
     pageMenus << QString(modeMenu_->title()).remove('&');
   }
-  if (mode_ == AppMode::Library) {
-    for (QMenu *menu : libraryPage_->menus()) {
-      pageMenus << QString(menu->title()).remove('&');
-    }
+  for (QMenu *menu : currentPage()->pageMenus()) {
+    pageMenus << QString(menu->title()).remove('&');
   }
   std::vector<CommandPalette::Command> commands;
   std::vector<CommandPalette::Command> others;
@@ -1246,9 +1242,7 @@ void MainWindow::openDataFolder() {
     ++row;
   }
   layout->addLayout(grid);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  layout->addWidget(buttons);
+  addButtonBox(&dialog, layout, QDialogButtonBox::Close);
   dialog.exec();
 }
 
@@ -1287,7 +1281,7 @@ void MainWindow::exportAllData() {
 void MainWindow::showMessage(const QString &text) {
   statusBar()->showMessage(text, 8000);
   announce(statusBar(), text);
-  if (focusMode_) {
+  if (focusAction_->isChecked()) {
     showOverlay(text, 5000); // the status bar is hidden
   }
 }
@@ -1312,7 +1306,17 @@ void MainWindow::openSettings(bool neutrality) {
     SettingsParts changed = changedParts(settings_, now);
     settings_ = now;
     settings_.save();
-    settingsChanged(changed);
+    if (changed.testFlag(SettingsPart::Theme)) {
+      applyTheme(*qApp, settings_.darkTheme);
+    }
+    applyWindowSettings();
+    for (ModePage *page : pages_) {
+      // A new theme changes the colours of every page.
+      if ((page->settingsUsed() | SettingsPart::Theme) & changed) {
+        page->applySettings();
+      }
+    }
+    updateBadges();
   };
   connect(&dialog, &SettingsDialog::applied, this, apply);
   if (dialog.exec() == QDialog::Accepted) {
@@ -1320,25 +1324,16 @@ void MainWindow::openSettings(bool neutrality) {
   }
 }
 
-void MainWindow::settingsChanged(SettingsParts parts) {
-  if (parts.testFlag(SettingsPart::Theme)) {
-    applyTheme(*qApp, settings_.darkTheme);
-  }
-  applyWindowSettings();
-  for (ModePage *page : pages_) {
-    // A new theme changes the colours of every page.
-    SettingsParts used = page->settingsUsed() | SettingsPart::Theme;
-    if (used & parts) {
-      page->applySettings();
-    }
-  }
-  updateBadges();
-}
-
 void MainWindow::applyWindowSettings() {
   // First, as the other sizes are worked out from it.
   setInterfaceTextPercent(settings_.interfaceTextPercent);
-  styleSidebar();
+  // Set again after a theme change so that the palette() colours follow.
+  sidebar_->setStyleSheet(
+      "QToolButton { text-align: left; padding: 6px 18px 6px 14px; border: "
+      "none; border-radius: 4px; }"
+      "QToolButton:hover { background: palette(button); }"
+      "QToolButton:checked { background: palette(highlight); color: "
+      "palette(highlighted-text); }");
   setDisplayFontSizes(settings_.scrambleFontPt, settings_.timerFontPt);
   // The hints under the timer and cube (muted, wrapped labels) and the
   // status bar, which are otherwise small in a large window.
@@ -1367,18 +1362,6 @@ void MainWindow::applyWindowSettings() {
     setInspectionCallHandler({});
   }
   updateHelp();
-}
-
-void MainWindow::importAlgSet() {
-  if (setMode(AppMode::Library)) {
-    libraryPage_->importSetFile();
-  }
-}
-
-void MainWindow::exportAlgSet() {
-  if (setMode(AppMode::Library)) {
-    libraryPage_->exportSetFile();
-  }
 }
 
 void MainWindow::showAbout() {

@@ -18,10 +18,6 @@ constexpr int kAdvanceMs = 700;
 } // namespace
 
 bool DrillPage::handleKey(QKeyEvent *e, bool press) {
-  struct Update {
-    DrillPage *page;
-    ~Update() { page->updateControls(); }
-  } update{this};
   bool scrambleShown =
       current_ && (onVirtualCube() || !current_->scramble.isEmpty());
   return driver_.key(e, press, settings_.keymap,

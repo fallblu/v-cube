@@ -80,6 +80,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   learnCount_->setValue(3);
   learnCount_->setFocusPolicy(Qt::ClickFocus);
   learnCount_->installEventFilter(this);
+  escapeLeaves(learnCount_);
   connect(learnCount_, &QSpinBox::editingFinished, learnCount_,
           [this] { learnCount_->clearFocus(); });
   learnButton_ = new QPushButton(tr("Add new cases"), left_);
@@ -138,6 +139,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
 
   // --- right: the options, the virtual cube, what is said about it ---
   stage_ = new CaseStage(this);
+  hideInFocusMode({stage_->options});
   cubeView_ = stage_->cube;
   statusLabel_ = stage_->status;
   reveal_ = stage_->reveal;
@@ -190,12 +192,8 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   }
   connect(stage_, &CaseStage::quizAnswered, this, &LearnPage::answerQuiz);
 
-  split_ = new QSplitter(this);
-  split_->addWidget(left_);
-  split_->addWidget(stage_);
-  split_->setStretchFactor(1, 1);
   left_->setMinimumWidth(240);
-  split_->setSizes({340, 860});
+  split_ = mainSplitter(this, {left_, stage_}, {340, 860});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split_);
   split_->restoreState(saved::learnSplitter().get());
@@ -286,10 +284,6 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
       }
       return true;
     }
-    if (key == Qt::Key_Escape) {
-      learnCount_->clearFocus();
-      return true;
-    }
     if ((key >= Qt::Key_0 && key <= Qt::Key_9 &&
          !ke->modifiers().testFlag(Qt::ControlModifier)) ||
         key == Qt::Key_Backspace || key == Qt::Key_Delete) {
@@ -311,10 +305,7 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void LearnPage::applySettings() {
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   CasePage::applySettings();
   // The limits and steps may have changed what is due.
   if (phase() == Phase::NoCase && set() && isVisible()) {
@@ -346,11 +337,6 @@ void LearnPage::saveSplitters() {
 void LearnPage::aboutToClose() {
   CasePage::aboutToClose();
   saveSplitters();
-}
-
-void LearnPage::focusModeChanged() {
-  CasePage::focusModeChanged();
-  stage_->options->setVisible(!focusMode());
 }
 
 void LearnPage::toggleList() { setSideShown(!sideShown()); }

@@ -25,13 +25,10 @@ enum class TrainKey : std::uint8_t {
   Undo,  // Ctrl+Z
   // The chords of Untimed and Move Count, for the last attempt and the
   // scramble.
-  Dnf,     // Alt+3
-  Comment, // Alt+C
-  Review,  // Alt+R
-  Skip,    // Ctrl+Right
-  // A key that turns the page's virtual cube, where the page gives its
-  // turns a key of their own (the others read TrainKeyEvent::move).
-  Turn,
+  Dnf,      // Alt+3
+  Comment,  // Alt+C
+  Review,   // Alt+R
+  Skip,     // Ctrl+Right
   Modifier, // Shift, Ctrl, Alt, the lock keys ...
   Other,
 };

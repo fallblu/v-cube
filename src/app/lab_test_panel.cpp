@@ -288,10 +288,7 @@ void LabTestPanel::saveStore() {
 void LabTestPanel::applySettings() {
   display_->setDecimals(settings_.decimals);
   chart_->setDecimals(settings_.decimals);
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   timer_.setConfig({settings_.holdMs, false, 15000});
   if (current_) {
     showCurrent();
@@ -920,14 +917,9 @@ void LabTestPanel::deleteLast() {
 
 bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
   const std::int64_t now = monotonicMs();
-  std::optional<Move> move =
-      onVirtual() ? settings_.keymap.lookup(e) : std::optional<Move>();
-  using K = LabFlow::Key;
   LabFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::None);
-  // The flow's own keys and the modifiers never turn the cube.
-  if (move && k.key != K::Space && k.key != K::Escape &&
-      k.key != K::Backspace && k.key != K::Delete && k.key != K::Modifier) {
-    k.key = K::Turn;
+  if (onVirtual()) {
+    k.move = settings_.keymap.lookup(e);
   }
   flow_.setVirtualCube(onVirtual());
   const LabFlow::Step step = flow_.key(k, now);
@@ -957,7 +949,7 @@ bool LabTestPanel::handleKey(QKeyEvent *e, bool press) {
     showStatus();
     break;
   case A::Turn:
-    virtualTurn(*move, now);
+    virtualTurn(*k.move, now);
     break;
   case A::HoldPress:
     timer_.pressStart(now);

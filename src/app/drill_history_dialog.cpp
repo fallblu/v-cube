@@ -1,5 +1,6 @@
 #include "app/drill_history_dialog.hpp"
 
+#include "app/page_parts.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
 
@@ -141,10 +142,7 @@ void showDrillHistory(QWidget *parent, const QString &caseName,
   table->setMinimumHeight(140);
   layout->addWidget(table, 1);
 
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog,
-                   &QDialog::reject);
-  layout->addWidget(buttons);
+  addButtonBox(&dialog, layout, QDialogButtonBox::Close);
   dialog.resize(620, 680);
   dialog.exec();
 }

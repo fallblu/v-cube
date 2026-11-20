@@ -259,12 +259,7 @@ SetPropertiesDialog::SetPropertiesDialog(const AlgSet &set, int group,
   impact_ = new QLabel(this);
   impact_->setWordWrap(true);
   layout->addWidget(impact_);
-  auto *buttons = new QDialogButtonBox(
-      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-  layout->addWidget(buttons);
-  connect(buttons, &QDialogButtonBox::accepted, this,
-          &SetPropertiesDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+  addButtonBox(this, layout, QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
   auto *updateTimer = new QTimer(this);
   updateTimer->setSingleShot(true);

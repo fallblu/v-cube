@@ -280,9 +280,7 @@ void LibraryPage::checkAlgs() {
   layout->addWidget(label);
   layout->addWidget(tree, 1);
   tree->setVisible(failing > 0);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  layout->addWidget(buttons);
+  addButtonBox(&dialog, layout, QDialogButtonBox::Close);
   connect(tree, &QTreeWidget::itemDoubleClicked, &dialog,
           [this, &dialog](QTreeWidgetItem *item) {
             editor_.caseId = caseIdOf(item);

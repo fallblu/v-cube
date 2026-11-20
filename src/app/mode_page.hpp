@@ -3,8 +3,13 @@
 #include "app/app_settings.hpp"
 
 #include <QResizeEvent>
+#include <QTimer>
 #include <QWidget>
 
+#include <initializer_list>
+#include <vector>
+
+class QAction;
 class QKeyEvent;
 class QMenu;
 
@@ -18,7 +23,9 @@ namespace vcube {
 class ModePage : public QWidget {
   Q_OBJECT
 public:
-  using QWidget::QWidget;
+  explicit ModePage(QWidget *parent = nullptr) : QWidget(parent) {
+    connect(&tick_, &QTimer::timeout, this, [this] { tick(); });
+  }
 
   // A key press or release meant for the page; true if it was used. A key
   // held down reaches the page once: its repeats go to the page only if
@@ -28,12 +35,24 @@ public:
     (void)press;
     return false;
   }
+  // How the window sends the page a key: handleKey(), then keyDone().
+  bool routeKey(QKeyEvent *e, bool press) {
+    const bool used = handleKey(e, press);
+    keyDone();
+    return used;
+  }
   // The page acts on every repeat of this key held down (e.g. Backspace
   // deleting typed digits one after another).
   virtual bool acceptsAutoRepeat(const QKeyEvent *e) const {
     (void)e;
     return false;
   }
+  // Esc in `field`, a text field of the page, leaves it, so that the keys
+  // are the page's again (KeyRouter does it).
+  static void escapeLeaves(QWidget *field) {
+    field->setProperty(kEscapeLeaves, true);
+  }
+  static constexpr const char *kEscapeLeaves = "vcubeEscapeLeaves";
 
   // The parts of the settings the page uses: applySettings() is called
   // only when one of them (or the theme) changed in the settings dialog.
@@ -69,10 +88,15 @@ public:
   // controls are visible.
   void setFocusMode(bool on) {
     focusMode_ = on;
+    for (QWidget *w : focusHidden_) {
+      w->setVisible(!on);
+    }
     focusModeChanged();
     showSidePanel();
   }
   bool focusMode() const { return focusMode_; }
+  // The page's clock runs: what it shows is being redrawn.
+  bool ticking() const { return tick_.isActive(); }
 
   // The side panel (the case list or the session with its attempts) can
   // be hidden to give the stage the whole page (F9, View > Side panel):
@@ -87,6 +111,13 @@ public:
   // lists otherwise offer only on a right-click, for what is selected.
   virtual bool hasModeMenu() const { return false; }
   virtual void fillModeMenu(QMenu &menu) { (void)menu; }
+  // Menus and Edit menu items of the page's own, in the menu bar only
+  // while the page is shown.
+  virtual QList<QMenu *> pageMenus() const { return {}; }
+  virtual QList<QAction *> editActions() const { return {}; }
+  // The alg sets changed (or `setId`'s did), wherever the change was made:
+  // a page that shows them reads them again.
+  virtual void librarySetsChanged(const QString &setId) { (void)setId; }
   // The choice the user made (and the window remembers), whatever the
   // page's width.
   bool sideHidden() const { return sideHidden_; }
@@ -136,8 +167,27 @@ signals:
   void sideShownChanged(bool shown);
 
 protected:
-  // Shows or hides the page's controls as focusMode() now says.
+  // After each key the page was sent, used or not.
+  virtual void keyDone() {}
+  // The clock of a page whose display changes only while something runs
+  // (a hold of Space, inspection or a solve), so that it is redrawn only
+  // then: tick() every 16 ms while clockNeeded(), as updateTick() last saw.
+  virtual bool clockNeeded() const { return isBusy(); }
+  virtual void tick() {}
+  void updateTick() {
+    if (!clockNeeded()) {
+      tick_.stop();
+    } else if (!tick_.isActive()) {
+      tick_.start(16);
+    }
+  }
+  // Shows or hides the page's controls as focusMode() now says, after
+  // those given to hideInFocusMode() and before the side panel.
   virtual void focusModeChanged() {}
+  // Widgets hidden in focus mode, such as the option bar.
+  void hideInFocusMode(std::initializer_list<QWidget *> widgets) {
+    focusHidden_.insert(focusHidden_.end(), widgets);
+  }
   // The side panel was hidden or shown (e.g. to word a button).
   virtual void sideHiddenChanged() {}
   void resizeEvent(QResizeEvent *e) override {
@@ -146,7 +196,9 @@ protected:
   }
 
 private:
+  QTimer tick_;
   bool focusMode_ = false;
+  std::vector<QWidget *> focusHidden_;
   bool sideHidden_ = false;
   bool narrow_ = false;
   bool shownWhileNarrow_ = false;

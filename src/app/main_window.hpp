@@ -7,15 +7,15 @@
 #include <QMainWindow>
 
 #include <array>
+#include <functional>
 #include <map>
 #include <optional>
 
-class QAbstractButton;
 class QAction;
 class QButtonGroup;
-class QDockWidget;
 class QLabel;
 class QPropertyAnimation;
+class QSplitter;
 class QStackedWidget;
 class QTimer;
 
@@ -23,15 +23,7 @@ namespace vcube {
 
 class ModePage;
 class LearnPage;
-class DrillPage;
 class LibraryPage;
-class TimerPage;
-class UntimedPage;
-class F2LPage;
-class TslePage;
-class MoveCountPage;
-class EoCrossPage;
-class AlgLabPage;
 class TodayPage;
 class HelpPanel;
 
@@ -78,19 +70,9 @@ private:
   HelpPanel *help_ = nullptr;
   QWidget *banner_ = nullptr;
   QLabel *bannerText_ = nullptr;
-  QTimer *badgeTimer_;
-  bool focusMode_ = false;
   std::array<ModePage *, AppMode::Count> pages_{};
   LearnPage *learnPage_;
-  DrillPage *drillPage_;
   LibraryPage *libraryPage_;
-  TimerPage *timedPage_;
-  UntimedPage *untimedPage_;
-  MoveCountPage *moveCountPage_;
-  F2LPage *f2lPage_;
-  TslePage *tslePage_;
-  EoCrossPage *eoCrossPage_;
-  AlgLabPage *algLabPage_;
   TodayPage *todayPage_;
   std::optional<AppMode::Id> mode_;
   // Data files that couldn't be written, with the reason, for the banner.
@@ -98,30 +80,23 @@ private:
   QStringList startupProblems_;
 
   QWidget *buildSidebar();
-  void styleSidebar();
   QWidget *buildBanner();
   void buildMenus();
   ModePage *currentPage() const;
   // Switches mode unless a solve or inspection is running; false if blocked.
   bool setMode(AppMode::Id mode);
-  void setFullScreen(bool on);
   // Hides the sidebar, menu bar, status bar and each page's controls,
   // leaving the central display.
   void setFocusMode(bool on);
   void setSidebarShown(bool on);
-  void showFocusHint();
   // Shows `text` over the top of the window for `ms`, e.g. in focus mode.
   void showOverlay(const QString &text, int ms);
   void openDataFolder();
   // On the colour neutrality tab with `neutrality`.
   void openSettings(bool neutrality = false);
-  void importAlgSet();
-  void exportAlgSet();
   void exportAllData();
   void openCommandPalette();
   void updateHelp();
-  // Tells the pages whose settings changed.
-  void settingsChanged(SettingsParts parts);
   void showAbout();
   void showMessage(const QString &text);
   // Says so and returns true while a solve or inspection is running.
@@ -139,6 +114,10 @@ private:
   // Splitter positions, saved per mode.
   void restoreLayout();
   void saveLayout();
+  // Calls `f` with each splitter of the pages but Learn's (which keeps its
+  // own), the mode's settings id and the splitter's place on its page.
+  void forEachSplitter(
+      const std::function<void(QSplitter *, const QString &, int)> &f) const;
   // Keeps a restored window on a screen and within its size, e.g. after the
   // screen's scaling changed.
   void fitToScreen();

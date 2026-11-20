@@ -35,6 +35,12 @@ bool KeyRouter::eventFilter(QObject *obj, QEvent *event) {
       qobject_cast<QPlainTextEdit *>(focus) ||
       qobject_cast<QAbstractSpinBox *>(focus) ||
       qobject_cast<QKeySequenceEdit *>(focus)) {
+    if (event->type() == QEvent::KeyPress &&
+        static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape &&
+        focus->property(ModePage::kEscapeLeaves).toBool()) {
+      focus->clearFocus();
+      return true;
+    }
     return false;
   }
   auto *key = static_cast<QKeyEvent *>(event);
@@ -73,11 +79,11 @@ bool KeyRouter::route(QKeyEvent *e, bool press) {
   if (e->isAutoRepeat()) {
     bool used = used_.contains(key);
     if (used && page->acceptsAutoRepeat(e)) {
-      return page->handleKey(e, press);
+      return page->routeKey(e, press);
     }
     return used;
   }
-  bool used = page->handleKey(e, press);
+  bool used = page->routeKey(e, press);
   if (press && used) {
     used_.insert(key);
   } else {

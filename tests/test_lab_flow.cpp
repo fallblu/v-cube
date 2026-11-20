@@ -22,6 +22,12 @@ LabFlow::KeyEvent release(Key k) {
   e.press = false;
   return e;
 }
+// A key that turns the virtual cube.
+LabFlow::KeyEvent turnKey() {
+  LabFlow::KeyEvent e;
+  e.move = Move{MoveType::R, 1};
+  return e;
+}
 
 LabFlow at(Phase p, bool virt) {
   LabFlow f;
@@ -45,12 +51,12 @@ TEST_CASE("lab flow: Space starts and goes on", "[lab_flow]") {
 TEST_CASE("lab flow: a virtual solve starts and ends with turns",
           "[lab_flow]") {
   LabFlow f = at(Phase::Ready, true);
-  CHECK(f.key(press(Key::Turn), kNow).action == Action::Turn);
+  CHECK(f.key(turnKey(), kNow).action == Action::Turn);
   CHECK_FALSE(
       f.key(press(Key::Space), kNow).used); // no hold on the virtual cube
   CHECK(f.key(press(Key::Escape), kNow).action == Action::ResetReady);
   f.setPhase(Phase::Running);
-  CHECK(f.key(press(Key::Turn), kNow).action == Action::Turn);
+  CHECK(f.key(turnKey(), kNow).action == Action::Turn);
   CHECK(f.key(press(Key::Space), kNow).action == Action::StopVirtual);
   CHECK(f.key(press(Key::Escape), kNow).action == Action::Cancel);
   CHECK(f.key(release(Key::Space), kNow).used);
@@ -61,10 +67,10 @@ TEST_CASE("lab flow: a physical solve is held to start, any key stops it",
   LabFlow f = at(Phase::Ready, false);
   CHECK(f.key(press(Key::Space), kNow).action == Action::HoldPress);
   CHECK(f.key(release(Key::Space), kNow).action == Action::HoldRelease);
-  CHECK_FALSE(f.key(press(Key::Turn), kNow).used);
+  CHECK_FALSE(f.key(turnKey(), kNow).used);
   f.setPhase(Phase::Running);
   CHECK(f.key(press(Key::Other), kNow).action == Action::StopPhysical);
-  CHECK(f.key(press(Key::Turn), kNow).action == Action::StopPhysical);
+  CHECK(f.key(turnKey(), kNow).action == Action::StopPhysical);
   // Shift, Ctrl or a lock key never stops the timer.
   CHECK_FALSE(f.key(press(Key::Modifier), kNow).used);
   CHECK(f.key(press(Key::Escape), kNow).action == Action::Cancel);

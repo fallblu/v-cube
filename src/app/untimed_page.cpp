@@ -6,7 +6,6 @@
 #include "app/ui_text.hpp"
 
 #include <QHBoxLayout>
-#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
@@ -30,7 +29,7 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
   algEdit_->setFocusPolicy(Qt::ClickFocus);
   algEdit_->setPlaceholderText(
       tr("After a solve: type an alg and press Enter to apply it"));
-  algEdit_->installEventFilter(this);
+  escapeLeaves(algEdit_);
   auto *applyButton = flatButton(tr("Apply"), algPanel_);
   algRow->addWidget(new QLabel(tr("Alg:"), algPanel_));
   algRow->addWidget(algEdit_, 1);
@@ -57,15 +56,6 @@ UntimedPage::UntimedPage(AppSettings &settings, MoveCountStore &store,
 }
 
 UntimedPage::~UntimedPage() = default;
-
-bool UntimedPage::eventFilter(QObject *obj, QEvent *event) {
-  if (obj == algEdit_ && event->type() == QEvent::KeyPress &&
-      static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
-    returnFocus();
-    return true;
-  }
-  return AttemptPage::eventFilter(obj, event);
-}
 
 void UntimedPage::returnFocus() {
   if (algEdit_->hasFocus()) {
