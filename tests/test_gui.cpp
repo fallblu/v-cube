@@ -2909,7 +2909,8 @@ void GuiTest::timedDriverDoesWhatTheFlowAsks() {
 // a key of its own or one its tip names.
 void GuiTest::mouseOnlyControlsHaveAKey() {
   static const QRegularExpression namedKey(
-      R"(\((?:[^()]*\b)?(?:Ctrl|Alt|Shift|F\d+|Space|Enter|Esc|Tab|Home|End|Delete|Backspace|[←→↑↓]|[A-Z0-9])\b?[^()]*\)\s*$)");
+      R"(\((?:[^()]*\b)?(?:Ctrl|Alt|Shift|F\d+|Space|Enter|Esc|Tab|Home|End|Delete|Backspace|[←→↑↓]|[A-Z0-9])(?![A-Za-z0-9])[^()]*\)\s*$)");
+  QVERIFY2(namedKey.isValid(), qPrintable(namedKey.errorString()));
   for (AppMode::Id mode : AppMode::all()) {
     // The pages are stacked in the order of the modes.
     ModePage *expected = nullptr;
