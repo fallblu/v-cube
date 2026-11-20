@@ -347,3 +347,70 @@ TEST_CASE("means round half up at every unit") {
   CHECK(formatTime(1999, 0) == "1");
   CHECK(formatTime(1590, 1) == "1.5");
 }
+
+namespace {
+
+// A session of `count` solves from `seed`, with +2s, DNFs (now and then a
+// run of them) and repeated times.
+std::vector<Solve> randomSession(std::uint32_t seed, std::size_t count) {
+  std::vector<Solve> all;
+  auto next = [&seed] {
+    seed = seed * 1664525u + 1013904223u;
+    return seed >> 8;
+  };
+  std::uint32_t dnfRun = 0;
+  for (std::size_t i = 0; i < count; ++i) {
+    Solve s;
+    // Few distinct times, so that ties are common.
+    s.timeMs = 7000 + static_cast<std::int64_t>(next() % 60) * 97;
+    std::uint32_t roll = next() % 100;
+    if (dnfRun > 0) {
+      --dnfRun;
+      s.penalty = Penalty::Dnf;
+    } else if (roll < 8) {
+      s.penalty = Penalty::Dnf;
+      if (roll == 0) {
+        dnfRun = next() % 8;
+      }
+    } else if (roll < 16) {
+      s.penalty = Penalty::Plus2;
+    }
+    all.push_back(s);
+  }
+  return all;
+}
+
+} // namespace
+
+TEST_CASE("sliding means and averages match each window worked out afresh") {
+  for (std::uint32_t seed = 1; seed <= 60; ++seed) {
+    std::vector<Solve> all = randomSession(seed, 40 + seed * 7);
+    for (std::int64_t unit : {1, 10, 100, 1000}) {
+      for (std::size_t n : {1u, 2u, 3u, 5u, 12u, 25u, 50u, 100u}) {
+        CAPTURE(seed, unit, n);
+        StatValue bestMeanValue, bestAverageValue;
+        std::optional<std::size_t> meanAt, averageAt;
+        std::vector<StatValue> rolling(all.size());
+        for (std::size_t end = n; end <= all.size(); ++end) {
+          auto window = std::span(all).subspan(end - n, n);
+          StatValue m = meanOf(window, unit);
+          if (m && (!bestMeanValue || *m < *bestMeanValue)) {
+            bestMeanValue = m;
+            meanAt = end - n;
+          }
+          StatValue a = averageOf(window, unit);
+          rolling[end - 1] = a;
+          if (a && (!bestAverageValue || *a < *bestAverageValue)) {
+            bestAverageValue = a;
+            averageAt = end - n;
+          }
+        }
+        CHECK(bestAverageStart(all, n, Rolling::Mean, unit) == meanAt);
+        CHECK(bestMean(all, n, unit) == bestMeanValue);
+        CHECK(rollingAverages(all, n, unit) == rolling);
+        CHECK(bestAverageStart(all, n, Rolling::Average, unit) == averageAt);
+        CHECK(bestAverage(all, n, unit) == bestAverageValue);
+      }
+    }
+  }
+}
