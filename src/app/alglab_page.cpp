@@ -372,11 +372,12 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   connect(&refreshTimer_, &QTimer::timeout, this, [this] {
     // While a search runs, only what it found is added; the fill at its
     // end fits the columns.
-    if (job_) {
+    if (job_ && !tableStale_) {
       appendToTable();
     } else {
-      fillTable();
+      fillTable(!job_);
     }
+    tableStale_ = false;
     if (job_ && job_->dirty) {
       job_->dirty = false;
       saveStore();
@@ -477,6 +478,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   connect(&spinSaveTimer_, &QTimer::timeout, this, &AlgLabPage::saveSpinBoxes);
   connect(maxHtm_, &QSpinBox::valueChanged, this, [this] {
     spinSaveTimer_.start();
+    tableStale_ = true;
     refreshTimer_.start();
   });
   auto keepGen = [this] {
@@ -518,6 +520,7 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     if (tabs_->currentWidget() != test_) {
       fillTable();
     } else {
+      tableStale_ = true;
       refreshTimer_.start();
     }
   });

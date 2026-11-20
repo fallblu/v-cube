@@ -99,6 +99,9 @@ private:
   std::shared_ptr<Job> job_;
   QFuture<void> jobFuture_;
   QTimer refreshTimer_;
+  // A filter or the times changed: the next refresh fills the whole table,
+  // even while a search runs.
+  bool tableStale_ = false;
   QTimer saveTimer_;     // saves what a long search found so far
   QTimer spinSaveTimer_; // saves the spin boxes once they have paused
   QTimer filterTimer_;   // fills the case list once the filter has paused
