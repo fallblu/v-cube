@@ -22,11 +22,8 @@
 #include <QStringList>
 
 class QComboBox;
-class QFormLayout;
-class QHBoxLayout;
 class QLabel;
 class QMenu;
-class QPushButton;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QVBoxLayout;
@@ -102,7 +99,6 @@ protected:
   CaseListPanel *panel_;
   QWidget *left_;
   QVBoxLayout *leftLayout_;
-  QFormLayout *form_; // set selector; derived pages add rows
   QComboBox *setBox_;
   CaseFilter *filter_;
   QTreeWidget *tree_;
@@ -154,8 +150,8 @@ protected:
   bool acrossSets() const { return acrossSets_; }
   // Switches to another set, or to the reviews across every set, as the
   // set selector does.
-  void chooseSet(const std::string &id) { selectSet(id); }
-  void chooseAcrossSets() { selectAcrossSets(); }
+  void chooseSet(const std::string &id);
+  void chooseAcrossSets();
   virtual bool offersAcrossSets() const { return false; }
   // While reviewing across sets: shows another set's cases (without
   // starting it as selecting it would).
@@ -164,8 +160,6 @@ protected:
   virtual QString setItemText(const AlgSet &set) const;
   virtual QString acrossItemText() const { return tr("All sets: due reviews"); }
   void refreshSetLabels();
-  // Gives the keyboard back to the cube from the search box or a field.
-  void releaseKeys();
 
   // The yaw to look at a case's group from in 3D: the corner its diagrams
   // are drawn from (so that e.g. a back-left F2L slot can be seen), moved
@@ -201,11 +195,8 @@ protected:
   virtual QStringList defaultHiddenColumns() const { return {}; }
   virtual void fillRow(QTreeWidgetItem *item, const std::string &caseId) = 0;
   // A group's row, from its cases (e.g. their statistics taken together).
-  virtual void fillGroupRow(QTreeWidgetItem *item,
-                            const std::vector<std::string> &caseIds) {
-    (void)item;
-    (void)caseIds;
-  }
+  virtual void fillGroupRow(QTreeWidgetItem *,
+                            const std::vector<std::string> &) {}
   // The list can be sorted by the columns after "Case": a click on a
   // column's header sorts by it (largest first, then smallest first, then
   // in list order again, as a click on "Case" does). Cases sort within
@@ -213,8 +204,6 @@ protected:
   // fillGroupRow() give each column's value in kSortRole (a number; none
   // sorts as -1).
   virtual bool sortableColumns() const { return false; }
-  // Sorts the list again, e.g. after its values changed.
-  void applySort();
   virtual void updateSummary() = 0;
   // A set was selected: start practising it.
   virtual void startSet() = 0;
@@ -225,14 +214,10 @@ protected:
   virtual QString startCaseLabel(const std::string &caseId) const = 0;
   // More actions for the cases right-clicked: the selected cases, or a
   // group's cases when its row was right-clicked.
-  virtual void extendCaseMenu(QMenu &menu,
-                              const std::vector<std::string> &caseIds) {
-    (void)menu;
-    (void)caseIds;
-  }
+  virtual void extendCaseMenu(QMenu &, const std::vector<std::string> &) {}
   // More of the mode's menu after the case list's own (e.g. Drill's
   // Reset tally).
-  virtual void extendModeMenu(QMenu &menu) { (void)menu; }
+  virtual void extendModeMenu(QMenu &) {}
   virtual void ticksChanged() {}
   // The colour neutrality changed in Settings.
   virtual void neutralityChanged() {}
@@ -253,8 +238,10 @@ private:
   std::map<std::string, InfoCache> infoCache_;
 
   void populateSets();
-  void selectSet(const std::string &id);
-  void selectAcrossSets();
+  // The cases that can be offered of the rows that pass `test`, in list
+  // order.
+  std::vector<std::string>
+  eligibleRows(const std::function<bool(const QTreeWidgetItem *)> &test) const;
   // Starts the case chosen in the list, giving the keys back first.
   void startCaseFromList(const std::string &id);
   // Works the set's cases out afresh, or reuses what was worked out for
