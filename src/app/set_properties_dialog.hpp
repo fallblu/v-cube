@@ -5,6 +5,7 @@
 
 #include <QDialog>
 
+#include <array>
 #include <map>
 #include <string>
 #include <vector>
@@ -14,7 +15,6 @@ class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
-class QTimer;
 class QWidget;
 
 namespace vcube {
@@ -58,9 +58,7 @@ private:
   QCheckBox *guidedBox_;
   QCheckBox *familiesBox_;
   QCheckBox *reductionBox_;
-  QCheckBox *mirrorLeftRightBox_;
-  QCheckBox *mirrorFrontBackBox_;
-  QCheckBox *mirrorBothBox_;
+  std::array<QCheckBox *, 3> mirrorBoxes_{}; // see kMirrors
   QComboBox *scopeBox_;
   QCheckBox *overrideBox_;
   QWidget *specWidgets_;
@@ -76,9 +74,7 @@ private:
   QLabel *preview_;
   QLabel *previewName_;
   QLabel *impact_;
-  QTimer *updateTimer_;
 
-  StepSpec *scopeSpec(); // nullptr for a group without its own settings
   void loadScope();
   // Whether what can't be read is said to the user.
   enum class Errors { Shown, Silent };
