@@ -3315,7 +3315,7 @@ void GuiTest::algLabFilterKeepsTheCaseShown() {
 // keeps its rows and the selection.
 void GuiTest::algLabSearchAddsRowsAsItFindsThem() {
   OPEN_PAGE(lab, AlgLabPage, AlgLab);
-  lab->selectCase("2look-oll", "eo-line");
+  lab->selectCase("oll", "oll1");
   lab->findChild<QTabWidget *>()->setCurrentIndex(0);
   QTableWidget *candidates = candidateTable(lab);
   QVERIFY(candidates);
@@ -3334,7 +3334,8 @@ void GuiTest::algLabSearchAddsRowsAsItFindsThem() {
   const int wasLength = maxLength->value();
   const int wasResults = maxResults->value();
   lengthMode->setCurrentIndex(lengthMode->findText("Every length"));
-  maxLength->setValue(14);
+  // Long enough that it is still finding algs when it is stopped.
+  maxLength->setValue(20);
   maxResults->setValue(5000);
   find->click();
   QVERIFY(stop->isEnabled());
@@ -3362,7 +3363,7 @@ void GuiTest::algLabSearchAddsRowsAsItFindsThem() {
   finishBackgroundWrites();
   AlgLabStore saved(QDir(dataDir_).filePath("alglab.json"));
   QVERIFY(saved.load());
-  std::size_t found = saved.candidates({"2look-oll", "eo-line"}).size();
+  std::size_t found = saved.candidates({"oll", "oll1"}).size();
   QVERIFY(found > static_cast<std::size_t>(first));
   QCOMPARE(candidates->rowCount(), static_cast<int>(found));
   QSet<QString> keys;
