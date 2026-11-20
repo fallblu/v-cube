@@ -422,6 +422,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
               }
             });
     connect(page, &CasePage::learnSetRequested, this, &MainWindow::learnSet);
+    // The sidebar's counts follow each grade, not only the minute.
+    connect(page, &CasePage::progressChanged, this, &MainWindow::updateBadges);
   }
   connect(learnPage_, &LearnPage::drillSetRequested, this,
           [this, drill](const QString &setId, bool weakest) {
