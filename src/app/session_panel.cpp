@@ -189,9 +189,10 @@ void SessionPanel::fillSessionMenu(const std::vector<MenuSession> &sessions,
     sessionGroup_ = new QActionGroup(menu_);
   }
   for (std::size_t i = 0; i < sessions.size(); ++i) {
+    // In one pass, so that a "%1" in a session's name stays as it is.
     QAction *a = menu_->addAction(
-        tr("%1 (%2)").arg(sessions[i].name).arg(sessions[i].count), this,
-        [this, i] { emit sessionChosen(i); });
+        tr("%1 (%2)").arg(sessions[i].name, QString::number(sessions[i].count)),
+        this, [this, i] { emit sessionChosen(i); });
     a->setCheckable(true);
     a->setChecked(i == current);
     sessionGroup_->addAction(a);
