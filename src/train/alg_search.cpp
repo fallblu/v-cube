@@ -20,7 +20,6 @@ constexpr std::uint8_t kUnseen = 0xff;
 constexpr std::uint64_t kEdgeBudget = 48'000'000;
 // Tables kept between searches, in bytes.
 constexpr std::size_t kCacheBudget = 900'000'000;
-constexpr std::array<int, 4> kAufs = {0, 1, 3, 2};
 
 std::string bytesOf(const CubieCube &c) {
   std::string s;
@@ -897,7 +896,7 @@ struct Searcher {
     // Starts: the case after each U turn allowed before it, when the
     // places no move turns are already as the step wants them.
     std::vector<CubieCube> starts;
-    for (int b : kAufs) {
+    for (int b : kAufOrder) {
       if (b != 0 && !goal.aufBefore) {
         continue;
       }

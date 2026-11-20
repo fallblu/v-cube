@@ -492,9 +492,9 @@ int learningCount(const std::vector<std::string> &pool,
                   const SetProgress &progress) {
   int n = 0;
   for (const auto &id : pool) {
-    auto it = progress.find(id);
-    if (it != progress.end() && it->second.card.state == CardState::Learning &&
-        !isQueued(it->second.card) && !it->second.card.suspended) {
+    const CaseProgress *p = findProgress(progress, id);
+    if (p && p->card.state == CardState::Learning && !isQueued(p->card) &&
+        !p->card.suspended) {
       ++n;
     }
   }
@@ -572,9 +572,8 @@ LearnPick pickLearnCase(const std::vector<std::string> &pool,
                         const LearnPickOptions &options) {
   LearnPick r;
   const std::string &last = options.last;
-  auto find = [&progress](const std::string &id) -> const CaseProgress * {
-    auto it = progress.find(id);
-    return it == progress.end() ? nullptr : &it->second;
+  auto find = [&progress](const std::string &id) {
+    return findProgress(progress, id);
   };
   // Earliest card of one kind due by `limit`, avoiding `last` if another
   // one is due.
@@ -686,11 +685,11 @@ LearnCounts learnCounts(const std::vector<std::string> &pool,
     dayEnd = dayStart + kSecondsPerDay;
   }
   for (const auto &id : pool) {
-    auto it = progress.find(id);
-    if (it == progress.end()) {
+    const CaseProgress *found = findProgress(progress, id);
+    if (!found) {
       continue;
     }
-    const CaseProgress &p = it->second;
+    const CaseProgress &p = *found;
     for (const Attempt &a : p.attempts) {
       if (a.mode == AttemptMode::Learn && a.timestamp >= dayStart) {
         ++n.doneToday;

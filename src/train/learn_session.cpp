@@ -26,12 +26,6 @@ std::vector<Attempt> learnAttemptsOf(const CaseProgress *cp) {
   return out;
 }
 
-const CaseProgress *findCard(const SetProgress &progress,
-                             const std::string &id) {
-  auto it = progress.find(id);
-  return it == progress.end() ? nullptr : &it->second;
-}
-
 } // namespace
 
 Step LearnSession::key(const KeyEvent &k, std::int64_t now) const {
@@ -240,7 +234,7 @@ LearnUndo listChange(const SetProgress &progress, const std::string &setId,
   u.setId = setId;
   u.fromList = true;
   for (const std::string &id : cardIds) {
-    const CaseProgress *cp = findCard(progress, id);
+    const CaseProgress *cp = findProgress(progress, id);
     u.cards.push_back({id, cp ? cp->card : SrsCard{}, 0, learnAttemptsOf(cp)});
   }
   return u;
@@ -248,7 +242,7 @@ LearnUndo listChange(const SetProgress &progress, const std::string &setId,
 
 bool keepChanged(LearnUndo &undo, const SetProgress &progress) {
   std::erase_if(undo.cards, [&progress](const LearnUndo::Card &c) {
-    const CaseProgress *cp = findCard(progress, c.cardId);
+    const CaseProgress *cp = findProgress(progress, c.cardId);
     return (cp ? cp->card : SrsCard{}) == c.before &&
            learnAttemptsOf(cp) == c.learnAttempts;
   });

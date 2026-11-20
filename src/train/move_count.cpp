@@ -269,8 +269,9 @@ bool VirtualAttempt::turn(Move m, std::int64_t nowMs) {
   return true;
 }
 
-std::vector<std::int64_t> VirtualAttempt::solutionTimes() const {
-  // Joined as solution() joins the moves.
+std::pair<Alg, std::vector<std::int64_t>> VirtualAttempt::joined() const {
+  // Only consecutive turns of the same layer are joined: simplify() would
+  // also join U D U into U2 D, which is a different solution.
   Alg out;
   std::vector<std::int64_t> times;
   for (std::size_t i = 0; i < moves_.size(); ++i) {
@@ -290,26 +291,7 @@ std::vector<std::int64_t> VirtualAttempt::solutionTimes() const {
       times.push_back(t);
     }
   }
-  return times;
-}
-
-Alg VirtualAttempt::solution() const {
-  // Only consecutive turns of the same layer are joined: simplify() would
-  // also join U D U into U2 D, which is a different solution.
-  Alg out;
-  for (Move m : moves_) {
-    if (!out.empty() && out.back().type == m.type) {
-      int q = (out.back().amount + m.amount) % 4;
-      if (q == 0) {
-        out.pop_back();
-      } else {
-        out.back() = Move{m.type, static_cast<std::uint8_t>(q), 0};
-      }
-    } else {
-      out.push_back(Move{m.type, m.amount, 0});
-    }
-  }
-  return out;
+  return {out, times};
 }
 
 } // namespace vcube

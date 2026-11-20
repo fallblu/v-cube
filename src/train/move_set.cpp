@@ -149,32 +149,12 @@ std::optional<MoveSet> MoveSet::parse(std::string_view text) {
 }
 
 const std::vector<MoveSetPreset> &builtinMoveSets() {
-  using enum MoveType;
   static const std::vector<MoveSetPreset> presets = [] {
-    std::vector<std::vector<std::pair<MoveType, LayerTurns>>> lists = {
-        {{U, kBoth}, {R, kBoth}},
-        {{U, kBoth}, {R, kBoth}, {F, kBoth}},
-        {{U, kBoth}, {R, kBoth}, {D, kBoth}},
-        {{U, kBoth}, {R, kBoth}, {L, kBoth}},
-        {{U, kBoth}, {R, kBoth}, {F, kBoth}, {D, kBoth}},
-        {{U, kBoth}, {R, kBoth}, {D, kBoth}, {F, {false, true}}},
-        {{U, kBoth}, {R, kBoth}, {Rw, kBoth}},
-        {{U, kBoth}, {R, kBoth}, {M, kBoth}},
-        {{U, kBoth}, {R, kBoth}, {F, kBoth}, {Rw, kBoth}},
-        {{U, kBoth}, {R, kBoth}, {L, kBoth}, {F, kBoth}, {B, kBoth}},
-        {{U, kBoth},
-         {R, kBoth},
-         {F, kBoth},
-         {D, kBoth},
-         {L, kBoth},
-         {B, kBoth}},
-    };
     std::vector<MoveSetPreset> out;
-    for (const auto &l : lists) {
-      MoveSet s;
-      for (const auto &[t, turns] : l) {
-        s.layers[static_cast<std::size_t>(t)] = turns;
-      }
+    for (const char *text :
+         {"U R", "U R F", "U R D", "U R L", "U R F D", "U R D F2", "U R r",
+          "U R M", "U R F r", "U R L F B", "U R F D L B"}) {
+      MoveSet s = *MoveSet::parse(text);
       out.push_back({s.display(), s});
     }
     out.back().name = "All faces";

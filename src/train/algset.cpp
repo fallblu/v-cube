@@ -10,11 +10,6 @@ namespace vcube {
 
 namespace {
 
-constexpr std::array<std::string_view, kCorners> kCornerNames = {
-    "URF", "UFL", "ULB", "UBR", "DFR", "DLF", "DBL", "DRB"};
-constexpr std::array<std::string_view, kEdges> kEdgeNames = {
-    "UR", "UF", "UL", "UB", "DR", "DF", "DL", "DB", "FR", "FL", "BL", "BR"};
-
 struct Group {
   std::string_view name;
   std::vector<std::size_t> corners;
@@ -200,38 +195,25 @@ bool shiftCases(AlgSet &set, const std::vector<std::string> &ids,
   auto isBlocked = [&blocked](const std::string &id) {
     return std::find(blocked.begin(), blocked.end(), id) != blocked.end();
   };
+  const bool up = direction < 0;
   for (const std::string &id : todo) {
     Place p = *placeOf(set, id);
     auto &cases = set.groups[p.group].cases;
-    if (direction < 0) {
-      if (p.index > 0) {
-        if (isBlocked(cases[p.index - 1].id)) {
-          blocked.push_back(id);
-        } else {
-          std::swap(cases[p.index], cases[p.index - 1]);
-        }
-      } else if (p.group > 0) {
-        AlgCase c = std::move(cases[p.index]);
-        cases.erase(cases.begin());
-        set.groups[p.group - 1].cases.push_back(std::move(c));
-      } else {
+    if (up ? p.index > 0 : p.index + 1 < cases.size()) {
+      std::size_t other = up ? p.index - 1 : p.index + 1;
+      if (isBlocked(cases[other].id)) {
         blocked.push_back(id);
+      } else {
+        std::swap(cases[p.index], cases[other]);
       }
+    } else if (up ? p.group > 0 : p.group + 1 < set.groups.size()) {
+      // To the end of the group before, or the start of the one after.
+      AlgCase c = std::move(cases[p.index]);
+      cases.erase(cases.begin() + static_cast<std::ptrdiff_t>(p.index));
+      auto &to = set.groups[up ? p.group - 1 : p.group + 1].cases;
+      to.insert(up ? to.end() : to.begin(), std::move(c));
     } else {
-      if (p.index + 1 < cases.size()) {
-        if (isBlocked(cases[p.index + 1].id)) {
-          blocked.push_back(id);
-        } else {
-          std::swap(cases[p.index], cases[p.index + 1]);
-        }
-      } else if (p.group + 1 < set.groups.size()) {
-        AlgCase c = std::move(cases[p.index]);
-        cases.pop_back();
-        auto &next = set.groups[p.group + 1].cases;
-        next.insert(next.begin(), std::move(c));
-      } else {
-        blocked.push_back(id);
-      }
+      blocked.push_back(id);
     }
   }
   return caseOrder(set) != order;

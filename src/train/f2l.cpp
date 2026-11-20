@@ -12,14 +12,8 @@ namespace vcube {
 namespace {
 
 constexpr std::array<Edge, 4> kCross = {DR, DF, DL, DB};
-constexpr std::array<const char *, kCorners> kCornerNames = {
-    "URF", "UFL", "ULB", "UBR", "DFR", "DLF", "DBL", "DRB"};
-constexpr std::array<const char *, kEdges> kEdgeNames = {
-    "UR", "UF", "UL", "UB", "DR", "DF", "DL", "DB", "FR", "FL", "BL", "BR"};
 constexpr std::array<const char *, 6> kFaceNames = {"U", "R", "F",
                                                     "D", "L", "B"};
-
-Mirror mirrorOf(Slot s) { return slotMirror(s); }
 
 std::optional<Slot> slotOfCorner(int place) {
   for (Slot s : kF2LSlots) {
@@ -194,6 +188,15 @@ Plan cheapestPlan(const CubieCube &state, const AnalysisOptions &options,
   return best;
 }
 
+int solvedSlotCount(const CubieCube &c) {
+  return kSlots - static_cast<int>(unsolvedSlots(c).size());
+}
+
+// "front", "back" (the slots: "FR / FL", "BR / BL").
+std::string_view sideName(PairSide side) {
+  return side == PairSide::Front ? "front" : "back";
+}
+
 } // namespace
 
 // --- the F2L of a method -----------------------------------------------------
@@ -256,10 +259,6 @@ std::vector<Slot> unsolvedSlots(const CubieCube &c) {
   return out;
 }
 
-int solvedSlotCount(const CubieCube &c) {
-  return kSlots - static_cast<int>(unsolvedSlots(c).size());
-}
-
 bool f2lDone(const CubieCube &c, const F2LConfig &config) {
   return f2lBase(c, config) && pairsLeft(c, config) == 0;
 }
@@ -280,14 +279,14 @@ std::optional<Slot> PairCase::cornerSlot() const {
 std::optional<Slot> PairCase::edgeSlot() const { return slotOfEdge(edge / 2); }
 
 PairCase pairCaseOf(const CubieCube &state, Slot target) {
-  CubieCube m = mirrorState(state, mirrorOf(target));
+  CubieCube m = mirrorState(state, slotMirror(target));
   return normalized(cornerValue(m, DFR), edgeValue(m, FR));
 }
 
 std::string caseKey(PairCase c) {
   return std::string(kCornerNames[c.corner / 3]) +
-         std::to_string(c.corner % 3) + "-" + kEdgeNames[c.edge / 2] +
-         std::to_string(c.edge % 2);
+         std::to_string(c.corner % 3) + "-" +
+         std::string(kEdgeNames[c.edge / 2]) + std::to_string(c.edge % 2);
 }
 
 std::optional<PairCase> caseFromKey(std::string_view key) {
@@ -321,7 +320,7 @@ std::string caseName(PairCase c) {
   }
   bool flipped = c.edge % 2 != 0;
   if (c.edgeOnTop()) {
-    out += c.cornerOnTop() ? std::string("; edge ") + kEdgeNames[c.edge / 2]
+    out += c.cornerOnTop() ? "; edge " + std::string(kEdgeNames[c.edge / 2])
                            : std::string("; edge on top");
   } else if (*c.edgeSlot() == Slot::FR) {
     out += "; edge in slot";
@@ -402,10 +401,6 @@ const std::vector<PairCase> &pairCases(Edges edges) {
 
 // --- cards -------------------------------------------------------------------
 
-std::string_view sideName(PairSide side) {
-  return side == PairSide::Front ? "front" : "back";
-}
-
 std::string cardKey(const PairCard &card) {
   return std::string(sideName(card.side)) + "/" + caseKey(card.pcase);
 }
@@ -460,7 +455,7 @@ std::optional<CubieCube> cardState(const PairCard &card, Edges edges,
   // The top layer turned so that the pair is where the case has it, not
   // a U turn away: the solutions found don't depend on where it fell.
   for (int turn = 0; turn < 4; ++turn) {
-    CubieCube m = mirrorState(*state, mirrorOf(target));
+    CubieCube m = mirrorState(*state, slotMirror(target));
     if (cornerValue(m, DFR) == card.pcase.corner &&
         edgeValue(m, FR) == card.pcase.edge) {
       break;
@@ -583,7 +578,7 @@ Mirror slotMirror(Slot s) {
 }
 
 Slot slotSeenFrom(Slot seen, Slot target) {
-  Mirror m = mirrorOf(target);
+  Mirror m = slotMirror(target);
   bool left = seen == Slot::FL || seen == Slot::BL;
   bool back = seen == Slot::BL || seen == Slot::BR;
   left = left != m.leftRight;

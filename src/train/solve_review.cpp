@@ -20,9 +20,6 @@ namespace vcube {
 
 namespace {
 
-constexpr std::array<Slot, kSlots> kAllSlots = {Slot::FR, Slot::FL, Slot::BL,
-                                                Slot::BR};
-
 // The slot whose pair these pieces are: its corner, its edge or both (a
 // case may have one of them solved already).
 std::optional<Slot> pairSlot(const CasePieces &pieces) {
@@ -30,7 +27,7 @@ std::optional<Slot> pairSlot(const CasePieces &pieces) {
       (pieces.corners.empty() && pieces.edges.empty())) {
     return std::nullopt;
   }
-  for (Slot s : kAllSlots) {
+  for (Slot s : kF2LSlots) {
     bool corner = pieces.corners.empty() || pieces.corners[0] == slotCorner(s);
     bool edge = pieces.edges.empty() || pieces.edges[0] == slotEdge(s);
     if (corner && edge) {
@@ -153,7 +150,7 @@ std::shared_ptr<const PairIndex> indexOf(const AlgSet &set) {
 
 std::array<bool, kSlots> solvedSlots(const CubieCube &c) {
   std::array<bool, kSlots> out{};
-  for (Slot s : kAllSlots) {
+  for (Slot s : kF2LSlots) {
     out[static_cast<std::size_t>(s)] = slotSolved(c, s);
   }
   return out;
@@ -183,7 +180,7 @@ PairOption bestOption(const CubieCube &state, Slot slot,
           continue;
         }
         bool kept = true;
-        for (Slot s : kAllSlots) {
+        for (Slot s : kF2LSlots) {
           kept = kept && (!solvedBefore[static_cast<std::size_t>(s)] ||
                           slotSolved(*after, s));
         }
@@ -275,7 +272,7 @@ std::vector<PairOption> pairOptions(const CubieCube &state,
   std::shared_ptr<const PairIndex> index =
       reference ? indexOf(*reference) : nullptr;
   std::vector<PairOption> out;
-  for (Slot s : kAllSlots) {
+  for (Slot s : kF2LSlots) {
     if (slotSolved(state, s)) {
       continue;
     }
@@ -368,7 +365,7 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
     seg.begin = segmentBegin;
     seg.end = k + 1;
     seg.htm = solutionHtm(slice(solution, segmentBegin, k + 1), simplified);
-    for (Slot s : kAllSlots) {
+    for (Slot s : kF2LSlots) {
       auto i = static_cast<std::size_t>(s);
       if (now[i] && !before[i]) {
         seg.solved.push_back(s);
@@ -657,7 +654,7 @@ CubieCube randomPairState(const std::vector<Slot> &open, Rng &rng) {
 }
 
 CubieCube randomPairState(int count, Rng &rng) {
-  std::array<Slot, kSlots> slots = kAllSlots;
+  std::array<Slot, kSlots> slots = kF2LSlots;
   std::shuffle(slots.begin(), slots.end(), rng);
   auto n = static_cast<std::size_t>(std::clamp(count, 1, kSlots));
   std::vector<Slot> open(slots.begin(),

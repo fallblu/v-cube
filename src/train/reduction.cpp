@@ -15,13 +15,12 @@ constexpr int kMaxSteps = 32;
 // undoes, up to `free` pieces and a U turn after it.
 std::optional<int> lineUp(const AlgSet &set, const CubieCube &cube,
                           const CubieCube &inverse, const PieceMask &free) {
-  static constexpr int kOrder[4] = {0, 1, 3, 2};
-  for (int u : kOrder) {
+  for (int u : kAufOrder) {
     if (u != 0 && !set.aufBefore) {
       continue;
     }
     CubieCube turned = cube * uTurn(u) * inverse;
-    for (int v : kOrder) {
+    for (int v : kAufOrder) {
       if (v != 0 && !set.aufAfter) {
         continue;
       }

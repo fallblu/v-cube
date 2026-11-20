@@ -135,6 +135,13 @@ bool cornersOriented(const CubieCube &c) {
                      [](std::uint8_t t) { return t == 0; });
 }
 
+// The state after a U turn of `auf` quarters and the trigger R U^turn R'.
+TsleState tsleAfter(TsleState state, int auf, int turn) {
+  return TsleState::fromIndex(graph().after[static_cast<std::size_t>(
+      state.index())][static_cast<std::size_t>((((auf % 4) + 4) % 4) * 3 +
+                                               turn - 1)]);
+}
+
 } // namespace
 
 // --- states and cases --------------------------------------------------------
@@ -200,12 +207,6 @@ CubieCube randomTsleCube(TsleState state, Slot slot, Rng &rng) {
 TsleState tsleTurned(TsleState state, int quarters) {
   return TsleState::fromIndex(graph().turned[static_cast<std::size_t>(
       state.index())][static_cast<std::size_t>(((quarters % 4) + 4) % 4)]);
-}
-
-TsleState tsleAfter(TsleState state, int auf, int turn) {
-  return TsleState::fromIndex(graph().after[static_cast<std::size_t>(
-      state.index())][static_cast<std::size_t>((((auf % 4) + 4) % 4) * 3 +
-                                               turn - 1)]);
 }
 
 TsleState tsleCase(TsleState state) {

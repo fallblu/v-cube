@@ -56,8 +56,6 @@ CubieCube randomTsleCube(TsleState state, Slot slot, Rng &rng);
 
 // The state after `quarters` U turns.
 TsleState tsleTurned(TsleState state, int quarters);
-// The state after a U turn of `auf` quarters and the trigger R U^turn R'.
-TsleState tsleAfter(TsleState state, int auf, int turn);
 
 // A case is a state up to U turns, named by the turn that has the edge at
 // UF (or, with the edge in the slot, the first of its turns).

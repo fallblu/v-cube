@@ -207,6 +207,12 @@ CaseStatus statusOf(const CaseProgress *p);
 void resetLearning(CaseProgress &progress);
 
 using SetProgress = std::map<std::string, CaseProgress>; // by case id
+// A case's progress; null when it has none.
+inline const CaseProgress *findProgress(const SetProgress &progress,
+                                        const std::string &id) {
+  auto it = progress.find(id);
+  return it == progress.end() ? nullptr : &it->second;
+}
 
 // Whether a card is in the learn queue: started with "Start learning" but
 // not introduced yet. Its `due` is when it was queued.

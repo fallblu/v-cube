@@ -192,16 +192,7 @@ std::vector<LabAttempt> afterWarmup(std::span<const LabAttempt> attempts,
   return out;
 }
 
-} // namespace
-
-std::vector<LabAttempt> labTimed(std::span<const LabAttempt> attempts,
-                                 const LabCaseKey &key, std::string_view alg,
-                                 CubeKind cube, const LabWindow &window,
-                                 const WarmupOf &warmupOf) {
-  return afterWarmup(attempts, key, alg, cube, window, warmupOf, nullptr,
-                     nullptr);
-}
-
+// Attempts as solves, oldest first (DNFs kept).
 std::vector<Solve> labSolves(std::span<const LabAttempt> timed) {
   std::vector<Solve> out;
   out.reserve(timed.size());
@@ -263,6 +254,16 @@ LabStats statsOf(std::span<const LabAttempt> timed, int trimPercent,
   return st;
 }
 
+} // namespace
+
+std::vector<LabAttempt> labTimed(std::span<const LabAttempt> attempts,
+                                 const LabCaseKey &key, std::string_view alg,
+                                 CubeKind cube, const LabWindow &window,
+                                 const WarmupOf &warmupOf) {
+  return afterWarmup(attempts, key, alg, cube, window, warmupOf, nullptr,
+                     nullptr);
+}
+
 LabStats labStats(std::span<const LabAttempt> attempts, const LabCaseKey &key,
                   std::string_view alg, CubeKind cube, const LabWindow &window,
                   int trimPercent, const WarmupOf &warmupOf) {
@@ -272,16 +273,10 @@ LabStats labStats(std::span<const LabAttempt> attempts, const LabCaseKey &key,
   return statsOf(timed, trimPercent, inWindow, deviated);
 }
 
-LabAttemptGroups::LabAttemptGroups(std::span<const LabAttempt> attempts) {
-  for (const auto &a : attempts) {
-    groups_[{a.key, a.alg}].push_back(a);
-  }
-}
-
 LabAttemptGroups::LabAttemptGroups(std::span<const LabAttempt> attempts,
-                                   const LabCaseKey &key) {
+                                   const std::optional<LabCaseKey> &key) {
   for (const auto &a : attempts) {
-    if (a.key == key) {
+    if (!key || a.key == *key) {
       groups_[{a.key, a.alg}].push_back(a);
     }
   }

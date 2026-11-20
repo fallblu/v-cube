@@ -57,15 +57,11 @@ std::string_view methodName(F2LMethod m);
 void applyMethod(F2LConfig &config, F2LMethod m);
 F2LMethod methodOf(const F2LConfig &config);
 
-inline constexpr std::array<Slot, kSlots> kF2LSlots = {Slot::FR, Slot::FL,
-                                                       Slot::BL, Slot::BR};
-
 bool crossSolved(const CubieCube &c);
 bool edgesOriented(const CubieCube &c);
 // The cross is done, and EO with it when the method has EO.
 bool f2lBase(const CubieCube &c, const F2LConfig &config);
 std::vector<Slot> unsolvedSlots(const CubieCube &c);
-int solvedSlotCount(const CubieCube &c);
 // The method's F2L is done: the base holds and every slot is solved, or
 // (F2L - 1) all but one that may be left.
 bool f2lDone(const CubieCube &c, const F2LConfig &config);
@@ -144,8 +140,6 @@ std::optional<PairCard> cardFromKey(std::string_view key);
 // FR or BR.
 Slot sideSlot(PairSide side);
 PairSide sideOf(Slot slot);
-// "front", "back" (the slots: "FR / FL", "BR / BL").
-std::string_view sideName(PairSide side);
 // The case of `target`'s pair in a state, as a card.
 PairCard pairCardOf(const CubieCube &state, Slot target);
 

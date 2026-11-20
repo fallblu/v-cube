@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 namespace vcube {
 
@@ -15,6 +16,10 @@ enum Edge : std::uint8_t { UR, UF, UL, UB, DR, DF, DL, DB, FR, FL, BL, BR };
 
 inline constexpr int kCorners = 8;
 inline constexpr int kEdges = 12;
+inline constexpr std::array<std::string_view, kCorners> kCornerNames = {
+    "URF", "UFL", "ULB", "UBR", "DFR", "DLF", "DBL", "DRB"};
+inline constexpr std::array<std::string_view, kEdges> kEdgeNames = {
+    "UR", "UF", "UL", "UB", "DR", "DF", "DL", "DB", "FR", "FL", "BL", "BR"};
 
 // Facelet indices of each corner/edge position. The first facelet of a
 // corner is its U or D sticker; edges list U/D (or F/B for slice edges)

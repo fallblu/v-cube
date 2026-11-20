@@ -30,11 +30,11 @@ double drillReference(const std::vector<std::string> &pool,
   double total = 0;
   int counted = 0;
   for (const auto &id : pool) {
-    auto it = progress.find(id);
-    if (it == progress.end()) {
+    const CaseProgress *p = findProgress(progress, id);
+    if (!p) {
       continue;
     }
-    if (auto m = it->second.recentMean(mode)) {
+    if (auto m = p->recentMean(mode)) {
       total += *m;
       ++counted;
     }
@@ -61,9 +61,7 @@ std::vector<std::string> weakestCases(const std::vector<std::string> &pool,
   double reference = drillReference(pool, progress, mode, targetMs);
   std::vector<std::pair<double, std::string>> weak;
   for (const auto &id : pool) {
-    auto it = progress.find(id);
-    if (auto w = drillWeakness(it == progress.end() ? nullptr : &it->second,
-                               mode, reference)) {
+    if (auto w = drillWeakness(findProgress(progress, id), mode, reference)) {
       weak.emplace_back(*w, id);
     }
   }
@@ -129,9 +127,8 @@ std::optional<std::string> CasePicker::next(const SetProgress &progress,
   if (pool_.empty()) {
     return std::nullopt;
   }
-  auto find = [&progress](const std::string &id) -> const CaseProgress * {
-    auto it = progress.find(id);
-    return it == progress.end() ? nullptr : &it->second;
+  auto find = [&progress](const std::string &id) {
+    return findProgress(progress, id);
   };
   const bool several = pool_.size() > 1;
   if (mode_ == PickMode::Recap && !recapStarted_) {
