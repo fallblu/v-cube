@@ -67,6 +67,9 @@ signals:
   // set in Learn.
   void pasteAlgsRequested(const QString &setId);
   void learnSetRequested(const QString &setId);
+  // What is due or new may have changed: a grade, one taken back, a case
+  // reset or suspended, or the ticks (the window counts them again).
+  void progressChanged();
 
 protected:
   // `mode` names the page in settings keys ("learn", "drill").

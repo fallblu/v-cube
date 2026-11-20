@@ -18,6 +18,17 @@ Stored<QString> exportFolder() { return {"export/folder", QDir::homePath()}; }
 
 QString settingsFile() { return QSettings().fileName(); }
 
+QString settingsWriteError() {
+  // Changes that couldn't be written stay waiting for every QSettings of
+  // the file, so this one tries them again.
+  QSettings q;
+  q.sync();
+  return q.status() == QSettings::AccessError
+             ? QString("%1 couldn't be written")
+                   .arg(QDir::toNativeSeparators(q.fileName()))
+             : QString();
+}
+
 void removeObsolete() {
   QSettings q;
   for (const char *key :

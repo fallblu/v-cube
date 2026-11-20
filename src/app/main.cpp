@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
     box.exec();
     return 1;
   }
-  vcube::initSettingsStorage(home.isEmpty());
+  const QString settingsProblem = vcube::initSettingsStorage(home.isEmpty());
 
   vcube::AppSettings settings = vcube::AppSettings::load();
   vcube::applyTheme(app, settings.darkTheme);
@@ -129,6 +129,9 @@ int main(int argc, char **argv) {
   int result = 0;
   {
     vcube::MainWindow window(settings, dataDir);
+    if (!settingsProblem.isEmpty()) {
+      window.addStartupProblem(settingsProblem);
+    }
     QObject::connect(&instance, &vcube::SingleInstance::activationRequested,
                      &window, &vcube::MainWindow::raiseWindow);
     window.show();

@@ -189,6 +189,7 @@ void ScrambleFeed::setType(const QString &type) {
 
 void ScrambleFeed::regenerate() {
   started_ = true;
+  ++generation_;
   maker_ = nullptr; // the alg sets may have changed
   current_.reset();
   prefetched_.reset();
@@ -223,8 +224,7 @@ void ScrambleFeed::request() {
     return;
   }
   wantMore_ = false;
-  pendingType_ = type_;
-  pendingNeutrality_ = neutrality_;
+  pendingGeneration_ = generation_;
   // An alg set's case pool is set up once, and again when the type or the
   // ticked cases change (compared through the unticked ones).
   std::optional<QStringList> ticked;
@@ -243,8 +243,9 @@ void ScrambleFeed::request() {
 
 void ScrambleFeed::ready() {
   GeneratedScramble result = watcher_.result();
-  // A result for a type that is no longer wanted is dropped.
-  if (pendingType_ == type_ && pendingNeutrality_ == neutrality_) {
+  // A result asked for before the type, the colour neutrality or the alg
+  // sets changed is dropped: its case may be gone or edited by now.
+  if (pendingGeneration_ == generation_) {
     if (!current_) {
       current_ = std::move(result);
       emit currentChanged();

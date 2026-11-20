@@ -324,6 +324,9 @@ void LibraryPage::warnIfFailing(std::size_t index) {
 }
 
 void LibraryPage::showAlgMenu(const QPoint &pos) {
+  // An edit the click ended is stored first: storing rebuilds the list,
+  // and may drop a row, which mustn't happen under the open menu.
+  QCoreApplication::sendPostedEvents(this, QEvent::MetaCall);
   QTreeWidgetItem *item = algList_->itemAt(pos);
   if (!item) {
     return;
@@ -333,8 +336,12 @@ void LibraryPage::showAlgMenu(const QPoint &pos) {
   QMenu menu(this);
   menu.addAction(tr("Make main alg"), this, [this, row] { makeMain(row); })
       ->setEnabled(row > 0);
-  menu.addAction(tr("Edit"), QKeySequence(Qt::Key_F2), this,
-                 [this, item] { algList_->editItem(item, 0); });
+  menu.addAction(tr("Edit"), QKeySequence(Qt::Key_F2), this, [this, row] {
+    // By its row: the item may have been replaced since.
+    if (QTreeWidgetItem *shown = algList_->topLevelItem(row)) {
+      algList_->editItem(shown, 0);
+    }
+  });
   menu.addAction(tr("Move up"), QKeySequence(Qt::ALT | Qt::Key_Up), this,
                  [this, row] { moveAlg(row, -1); })
       ->setEnabled(row > 0);

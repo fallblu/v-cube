@@ -59,7 +59,8 @@ StepMiss stepMiss(const CubieCube &cube, const PieceMask &free);
 
 // The alg with its AUFs written in, e.g. "(U') R U R' U' (U2)". U turns
 // written at the start (or end) of the alg are joined with the AUF on that
-// side, so "(U2) R U R'" with a U before it reads "(U') R U R'".
+// side, so "(U2) R U R'" with a U before it reads "(U') R U R'". A comment
+// after the moves stays after the AUF: "R U R' (U) // sexy".
 std::string withAufs(const std::string &alg, AufFit fit);
 
 // A step with the U turn before it written in, joined with the U turns

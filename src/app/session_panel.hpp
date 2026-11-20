@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+class QActionGroup;
 class QLabel;
 class QPushButton;
 class QTableView;
@@ -146,6 +147,7 @@ signals:
 private:
   QToolButton *sessionButton_ = nullptr;
   QMenu *menu_ = nullptr;
+  QActionGroup *sessionGroup_ = nullptr; // of the sessions in menu_
   QLabel *stats_ = nullptr;
   QTableView *table_ = nullptr;
   AttemptTableModel *model_ = nullptr;

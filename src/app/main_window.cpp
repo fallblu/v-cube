@@ -423,6 +423,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
               }
             });
     connect(page, &CasePage::learnSetRequested, this, &MainWindow::learnSet);
+    // The sidebar's counts follow each grade, not only the minute.
+    connect(page, &CasePage::progressChanged, this, &MainWindow::updateBadges);
   }
   connect(learnPage_, &LearnPage::drillSetRequested, this,
           [this, drill](const QString &setId, bool weakest) {
@@ -674,6 +676,11 @@ QWidget *MainWindow::buildBanner() {
 void MainWindow::dismissBanner() {
   bannerDismissed_ = true;
   updateBanner();
+}
+
+void MainWindow::checkSettingsSaved() {
+  const QString error = saved::settingsWriteError();
+  writeReported(saved::settingsFile(), error);
 }
 
 void MainWindow::writeReported(const QString &path, const QString &error) {
@@ -947,6 +954,7 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   // take those in now, or a save that failed just before quitting would
   // never be seen.
   QCoreApplication::sendPostedEvents(qApp, QEvent::MetaCall);
+  checkSettingsSaved(); // the layout just kept, and every choice before
   // A failed backup loses no changes, so it doesn't hold up quitting.
   QStringList lines;
   for (const auto &[path, error] : failedWrites_) {
@@ -1165,6 +1173,11 @@ void MainWindow::buildMenus() {
   modeMenu_->menuAction()->setVisible(false);
   connect(modeMenu_, &QMenu::aboutToShow, this, [this] {
     modeMenu_->clear();
+    // clear() deletes the menu's own actions, not the submenus the page
+    // added last time: those are the menu's children, and each one owns
+    // its action.
+    qDeleteAll(modeMenu_->findChildren<QMenu *>(QString(),
+                                                Qt::FindDirectChildrenOnly));
     if (ModePage *page = currentPage(); page && !page->isBusy()) {
       page->fillModeMenu(*modeMenu_);
     }
@@ -1308,6 +1321,7 @@ void MainWindow::openSettings(bool neutrality) {
     SettingsParts changed = changedParts(settings_, now);
     settings_ = now;
     settings_.save();
+    checkSettingsSaved();
     if (changed.testFlag(SettingsPart::Theme)) {
       applyTheme(*qApp, settings_.darkTheme);
     }

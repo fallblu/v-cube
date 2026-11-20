@@ -433,6 +433,41 @@ TEST_CASE("a set id never has a slash in it") {
   CHECK(third.find("c-d-e")->name == "Renamed");
 }
 
+TEST_CASE("a new set is never named for a Windows device") {
+  // No file can be called con.json or lpt1.json there.
+  QTemporaryDir tmp;
+  std::vector<std::string> ids;
+  {
+    AlgLibrary lib = loadedLibrary(tmp.path());
+    for (const char *name : {"AUX", "Con", "nul", "prn", "COM1", "lpt9"}) {
+      AlgSet set;
+      set.name = name;
+      AlgSet *added = lib.add(set);
+      REQUIRE(added);
+      ids.push_back(added->id);
+      CHECK(QString::fromStdString(added->id) ==
+            QString(name).toLower() + "-set");
+      CHECK(QFile::exists(tmp.filePath(QString(name).toLower() + "-set.json")));
+    }
+    // One given as the id is renamed too, and a second of the name.
+    AlgSet set;
+    set.id = "con";
+    set.name = "Console";
+    ids.push_back(lib.add(set)->id);
+    CHECK(ids.back() == "con-set-2");
+    // Names that only start like one are kept.
+    set.id = "com10";
+    CHECK(lib.add(set)->id == "com10");
+    set.id = "console";
+    CHECK(lib.add(set)->id == "console");
+  }
+  AlgLibrary again = loadedLibrary(tmp.path());
+  CHECK(again.errors() == QStringList{});
+  for (const std::string &id : ids) {
+    CHECK(again.find(id));
+  }
+}
+
 TEST_CASE("restoring built-in cases keeps the user's cases and settings") {
   QTemporaryDir tmp;
   AlgLibrary lib = loadedLibrary(tmp.path());

@@ -550,6 +550,7 @@ void CasePage::ticksEdited() {
     filter_->apply();
     updateSummary();
     ticksChanged();
+    emit progressChanged();
   });
 }
 
@@ -771,6 +772,7 @@ void CasePage::saveProgress() {
       [this, id = qs(setId_)](const QString &error) {
         emit message(tr("Could not save progress for %1: %2").arg(id, error));
       });
+  emit progressChanged();
 }
 
 } // namespace vcube

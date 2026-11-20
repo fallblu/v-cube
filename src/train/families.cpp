@@ -117,12 +117,15 @@ std::string mirrorAlgText(std::string_view text, Mirror m) {
     return std::string(text);
   }
   static constexpr std::string_view kLetters = "URFDLBurfdlbMESxyzXYZ";
-  auto isPrime = [](char c) { return c == '\''; };
   std::string out;
   std::size_t i = 0;
   while (i < text.size()) {
     if (text.substr(i).starts_with("//")) {
-      break; // a comment
+      // A comment, kept as it is: the moves go on after its line.
+      std::size_t end = std::min(text.find('\n', i), text.size());
+      out += text.substr(i, end - i);
+      i = end;
+      continue;
     }
     // An x straight after a bracket and before a count repeats the group
     // ("(R U R' U')x3"): it isn't a rotation.
@@ -139,12 +142,9 @@ std::string mirrorAlgText(std::string_view text, Mirror m) {
     if (wideW) {
       ++end;
     }
+    // The count and prime, as parseAlg reads them: with any prime mark.
     std::size_t amountAt = end;
-    while (end < text.size() &&
-           (std::isdigit(static_cast<unsigned char>(text[end])) ||
-            isPrime(text[end]))) {
-      ++end;
-    }
+    end += amountLength(text.substr(end));
     std::string_view token = text.substr(i, end - i);
     ParseResult parsed = parseAlg(token);
     if (parsed && parsed.alg.size() == 1) {
@@ -170,8 +170,13 @@ std::string mirrorAlgText(std::string_view text, Mirror m) {
       }
       std::string amount(text.substr(amountAt, end - amountAt));
       if (one.front().amount != parsed.alg.front().amount) {
-        if (auto p = amount.find('\''); p != std::string::npos) {
-          amount.erase(p, 1);
+        std::size_t p = 0;
+        while (p < amount.size() &&
+               primeLength(std::string_view(amount).substr(p)) == 0) {
+          ++p;
+        }
+        if (p < amount.size()) {
+          amount.erase(p, primeLength(std::string_view(amount).substr(p)));
         } else {
           amount += '\'';
         }
