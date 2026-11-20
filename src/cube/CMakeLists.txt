@@ -5,6 +5,8 @@ add_library(vcube_cube STATIC
   scramble.cpp
   hold.cpp
 )
+# Every layer exports src, so an upward include would compile: the
+# layering test (cmake/CheckLayering.cmake) refuses one.
 target_include_directories(vcube_cube PUBLIC ${PROJECT_SOURCE_DIR}/src)
 # Headers use C++23; dependents need it too.
 target_compile_features(vcube_cube PUBLIC cxx_std_23)

@@ -99,3 +99,13 @@ if(TARGET vcube_gui)
   set_tests_properties(gui PROPERTIES ENVIRONMENT "${gui_test_env}"
     TIMEOUT 120)
 endif()
+
+# Each layer includes nothing from the layers above it, and src/io only
+# QtCore from Qt (cmake/CheckLayering.cmake).
+get_target_property(qt_core_includes Qt6::Core INTERFACE_INCLUDE_DIRECTORIES)
+list(FILTER qt_core_includes INCLUDE REGEX "QtCore(\\.framework/Headers)?$")
+list(SUBLIST qt_core_includes 0 1 qt_core_includes)
+add_test(NAME layering COMMAND ${CMAKE_COMMAND}
+  -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/src
+  "-DQTCORE_INCLUDE_DIR=${qt_core_includes}"
+  -P ${PROJECT_SOURCE_DIR}/cmake/CheckLayering.cmake)
