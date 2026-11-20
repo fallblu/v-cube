@@ -38,7 +38,6 @@ private:
   QLabel *optionsTitle_;
   QListWidget *options_;
   QPushButton *reset_;
-  QPushButton *copy_;
   QWidget *body_;
 
   QString text_;

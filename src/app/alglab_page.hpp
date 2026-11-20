@@ -69,8 +69,8 @@ public:
   void reloadSets();
   // Shows a set's case.
   void selectCase(const QString &setId, const QString &caseId);
-  // Changes a set case's algs (as Library's undoable edit, when the window
-  // sets it up); false if it couldn't be saved.
+  // Changes a set case's algs (as Library's undoable edit, which the window
+  // sets up); false if it couldn't be saved.
   using AlgEditor =
       std::function<bool(const QString &setId, const QString &caseId,
                          std::vector<std::string> algs, const QString &text)>;
@@ -78,10 +78,6 @@ public:
   // Undoes the last change made to a set (as Library's Undo does); false
   // if there was nothing to undo.
   void setSetUndo(std::function<bool()> undo) { setUndo_ = std::move(undo); }
-
-signals:
-  // An alg was added to a set or made its main alg.
-  void setsChanged(const QString &setId);
 
 protected:
   void focusModeChanged() override;
@@ -95,7 +91,6 @@ private:
   // The set edits made here since the page was shown, which Ctrl+Z undoes.
   int setEdits_ = 0;
   std::optional<ResolvedCase> case_;
-  std::vector<CandidateRow> rows_;
   bool loading_ = false;
 
   // The generator, running in the background.
@@ -148,6 +143,9 @@ private:
   void showCase(const std::optional<LabCaseKey> &key);
   void fillProfiles();
   void fillMoveSetBoxes();
+  // Edits `set` in the move-set dialog, keeping the preset it names (and
+  // filling the drop-downs again then); false if it was cancelled.
+  bool editMoveSet(MoveSet &set);
   void filterChosen();
   void genChosen();
   // `resize` fits the columns to what they hold, which a refill during a

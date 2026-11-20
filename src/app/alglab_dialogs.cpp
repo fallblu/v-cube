@@ -287,15 +287,6 @@ enum TrickCol : int {
   TColCount
 };
 
-QDoubleSpinBox *costBox(double value, double max, QWidget *parent) {
-  auto *b = new QDoubleSpinBox(parent);
-  b->setRange(0, max);
-  b->setSingleStep(0.05);
-  b->setDecimals(2);
-  b->setValue(value);
-  return b;
-}
-
 } // namespace
 
 GripProfileDialog::GripProfileDialog(const ErgoProfile &profile,
@@ -324,20 +315,27 @@ GripProfileDialog::GripProfileDialog(const ErgoProfile &profile,
   auto *form2 = new QFormLayout;
   name_ = new QLineEdit(qs(profile.name), this);
   form1->addRow(tr("Name:"), name_);
-  regrip_ = costBox(g.regrip, 20, this);
-  form1->addRow(tr("A regrip (a pause):"), regrip_);
-  hidden_ = costBox(g.hiddenRegrip, 20, this);
-  form1->addRow(tr("A regrip while the other hand turns:"), hidden_);
-  step_ = costBox(g.regripStep, 20, this);
-  form1->addRow(tr("Each regrip step past the first:"), step_);
-  strain_ = costBox(g.strain, 20, this);
-  form2->addRow(tr("Each move with a hand far up or down:"), strain_);
-  start_ = costBox(g.start, 20, this);
-  form2->addRow(tr("Each step from home to start in:"), start_);
-  same_ = costBox(g.sameFinger, 20, this);
-  form2->addRow(tr("A finger turning two moves in a row:"), same_);
-  other_ = costBox(g.otherMove, 50, this);
-  form2->addRow(tr("A move no trick turns:"), other_);
+  auto cost = [&](QFormLayout *form, const QString &label,
+                  double GripModel::*value, double max = 20) {
+    auto *b = new QDoubleSpinBox(this);
+    b->setRange(0, max);
+    b->setSingleStep(0.05);
+    b->setDecimals(2);
+    b->setValue(g.*value);
+    form->addRow(label, b);
+    costs_.emplace_back(value, b);
+    connect(b, &QDoubleSpinBox::valueChanged, this,
+            &GripProfileDialog::updateTry);
+  };
+  cost(form1, tr("A regrip (a pause):"), &GripModel::regrip);
+  cost(form1, tr("A regrip while the other hand turns:"),
+       &GripModel::hiddenRegrip);
+  cost(form1, tr("Each regrip step past the first:"), &GripModel::regripStep);
+  cost(form2, tr("Each move with a hand far up or down:"), &GripModel::strain);
+  cost(form2, tr("Each step from home to start in:"), &GripModel::start);
+  cost(form2, tr("A finger turning two moves in a row:"),
+       &GripModel::sameFinger);
+  cost(form2, tr("A move no trick turns:"), &GripModel::otherMove, 50);
   top->addLayout(form1);
   top->addLayout(form2);
   layout->addLayout(top);
@@ -402,13 +400,9 @@ GripProfileDialog::GripProfileDialog(const ErgoProfile &profile,
     for (const GripTrick &t : s.tricks) {
       addTrickRow(t);
     }
-    regrip_->setValue(s.regrip);
-    hidden_->setValue(s.hiddenRegrip);
-    step_->setValue(s.regripStep);
-    strain_->setValue(s.strain);
-    start_->setValue(s.start);
-    same_->setValue(s.sameFinger);
-    other_->setValue(s.otherMove);
+    for (auto [value, box] : costs_) {
+      box->setValue(s.*value);
+    }
     updateTry();
   });
 
@@ -430,11 +424,6 @@ GripProfileDialog::GripProfileDialog(const ErgoProfile &profile,
           &GripProfileDialog::updateTry);
   connect(tricks_, &QTableWidget::itemChanged, this,
           &GripProfileDialog::updateTry);
-  for (QDoubleSpinBox *b :
-       {other_, regrip_, hidden_, step_, strain_, start_, same_}) {
-    connect(b, &QDoubleSpinBox::valueChanged, this,
-            &GripProfileDialog::updateTry);
-  }
   updateTry();
 }
 
@@ -478,13 +467,9 @@ ErgoProfile GripProfileDialog::profile() const {
   ErgoProfile p = base_;
   p.name = name_->text().trimmed().toStdString();
   GripModel g;
-  g.otherMove = other_->value();
-  g.regrip = regrip_->value();
-  g.hiddenRegrip = hidden_->value();
-  g.regripStep = step_->value();
-  g.strain = strain_->value();
-  g.start = start_->value();
-  g.sameFinger = same_->value();
+  for (auto [value, box] : costs_) {
+    g.*value = box->value();
+  }
   for (int r = 0; r < tricks_->rowCount(); ++r) {
     auto text = [&](int c) {
       return tricks_->item(r, c) ? tricks_->item(r, c)->text().trimmed()
@@ -536,7 +521,7 @@ void GripProfileDialog::updateTry() {
 
 LabCaseDialog::LabCaseDialog(const LabCase &c, const AlgLibrary &library,
                              const AppSettings &settings, QWidget *parent)
-    : QDialog(parent), case_(c), library_(library), settings_(settings) {
+    : QDialog(parent), case_(c), settings_(settings) {
   setWindowTitle(c.name.empty() ? tr("New lab case") : tr("Lab case"));
   auto *layout = new QHBoxLayout(this);
   auto *left = new QVBoxLayout;

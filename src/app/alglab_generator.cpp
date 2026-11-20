@@ -29,7 +29,6 @@ void AlgLabPage::runSearch(std::vector<ResolvedCase> cases) {
     return;
   }
   auto job = std::make_shared<Job>();
-  job->cases = static_cast<int>(cases.size());
   job_ = job;
   updateGenControls();
   SearchOptions options = searchOptions();

@@ -371,11 +371,7 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
     stack_->addWidget(page);
     connect(page, &ModePage::message, this, &MainWindow::showMessage);
   }
-  // Alg Lab says so itself only when it saves a set without Library (it
-  // has no alg editor): with one, Library makes the change and says so.
   connect(libraryPage_, &LibraryPage::setsChanged, this,
-          &MainWindow::librarySetsChanged);
-  connect(algLabPage_, &AlgLabPage::setsChanged, this,
           &MainWindow::librarySetsChanged);
   libraryPage_->setLab(&data_.lab);
   connect(

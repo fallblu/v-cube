@@ -347,19 +347,6 @@ void LabTestPanel::optionsChanged() {
   emit attemptsChanged();
 }
 
-LabWindow LabTestPanel::window() const {
-  LabWindow w;
-  if (windowBox_->currentIndex() == 0) {
-    w.kind = LabWindow::Kind::Session;
-    w.session = session().id;
-  }
-  return w;
-}
-
-WarmupOf LabTestPanel::warmup() const {
-  return [this](std::string_view id) { return store_.warmupOf(id); };
-}
-
 void LabTestPanel::rebaseCurrent() {
   const auto &e = session().entries;
   if (lastEntry_ && *lastEntry_ >= e.size()) {
@@ -435,9 +422,15 @@ void LabTestPanel::fillEntries(CaseNames &names) {
 
 void LabTestPanel::fillCompare(CaseNames &names) {
   const LabSession &s = session();
-  LabWindow w = window();
+  LabWindow w;
+  if (windowBox_->currentIndex() == 0) {
+    w.kind = LabWindow::Kind::Session;
+    w.session = s.id;
+  }
   const LabAttemptGroups attempts(store_.attempts());
-  const WarmupOf warm = warmup();
+  const WarmupOf warm = [this](std::string_view id) {
+    return store_.warmupOf(id);
+  };
   compare_->setSortingEnabled(false);
   compare_->setRowCount(static_cast<int>(s.entries.size()));
   std::vector<LabChart::Series> series;
@@ -457,26 +450,7 @@ void LabTestPanel::fillCompare(CaseNames &names) {
     }
     compare_->setItem(row, 0, algItem);
     compare_->setItem(row, 1, item(name ? *name : QString()));
-    auto num = [&](int col, const QString &text, std::optional<double> key) {
-      compare_->setItem(row, col, new SortItem(text, key));
-    };
-    auto ms = [](std::optional<std::int64_t> v) -> std::optional<double> {
-      if (!v) {
-        return std::nullopt;
-      }
-      return static_cast<double>(*v);
-    };
-    num(2, QString::number(st.used), st.used);
-    num(3, labTime(st.mean, d), ms(st.mean));
-    num(4, labTime(st.median, d), ms(st.median));
-    num(5, labTime(st.best, d), ms(st.best));
-    num(6, labTime(st.worst, d), ms(st.worst));
-    num(7, labTime(st.ao5, d), ms(st.ao5));
-    num(8, labTime(st.ao12, d), ms(st.ao12));
-    num(9, st.sd ? QString::number(*st.sd / 1000.0, 'f', d) : "–", st.sd);
-    num(10,
-        st.used + st.dnfs ? QString::number(st.dnfRate() * 100.0, 'f', 0) : "–",
-        st.dnfRate());
+    setLabStatCells(compare_, row, 2, st, d, {true, true});
     if (i < 8) {
       LabChart::Series ser;
       ser.name = qs(e.alg);

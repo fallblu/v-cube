@@ -44,7 +44,8 @@ void AlgLabPage::fillTable(bool resize) {
     }
     return;
   }
-  rows_ = candidateRows(*case_, store_, candidateCache_);
+  const std::vector<CandidateRow> rows =
+      candidateRows(*case_, store_, candidateCache_);
   const std::string mainAlg =
       case_->setAlgs.empty()
           ? std::string()
@@ -64,9 +65,11 @@ void AlgLabPage::fillTable(bool resize) {
   WarmupOf warm = [this](std::string_view id) { return store_.warmupOf(id); };
   const int trim = store_.current().trimPercent;
   const int d = settings_.decimals;
-  int hidden = 0;
+  int hidden = 0, shown = 0;
   bool anyTimes = false; // an alg listed has times: the time columns show
-  for (const CandidateRow &r : rows_) {
+  // All the rows at once, the ones filtered out cut off after.
+  table_->setRowCount(static_cast<int>(rows.size()));
+  for (const CandidateRow &r : rows) {
     const Alg &alg = r.moves;
     const MoveCounts &mc = r.counts;
     if ((filterOn_ && !filterSet_.contains(alg)) ||
@@ -75,15 +78,14 @@ void AlgLabPage::fillTable(bool resize) {
       ++hidden;
       continue;
     }
-    int row = table_->rowCount();
-    table_->insertRow(row);
+    int row = shown++;
     auto *algItem = new QTableWidgetItem(r.shown);
     algItem->setFlags(algItem->flags() & ~Qt::ItemIsEditable);
-    algItem->setData(Qt::UserRole, qs(r.alg));
+    algItem->setData(Qt::UserRole, qs(r.key));
     if (!r.fit) {
       algItem->setForeground(palette().color(QPalette::PlaceholderText));
     }
-    if (r.inSet && !case_->setAlgs.empty() && mainAlg == r.alg) {
+    if (r.inSet && !case_->setAlgs.empty() && mainAlg == r.key) {
       QFont f = algItem->font();
       f.setBold(true);
       algItem->setFont(f);
@@ -96,38 +98,24 @@ void AlgLabPage::fillTable(bool resize) {
     num(ColStm, QString::number(mc.stm), mc.stm);
     num(ColQtm, QString::number(mc.qtm), mc.qtm);
     num(ColEtm, QString::number(mc.etm), mc.etm);
-    auto cached = scoreCache_.find(r.alg);
+    auto cached = scoreCache_.find(r.key);
     if (cached == scoreCache_.end()) {
-      cached = scoreCache_.emplace(r.alg, ergoTotal(alg, prof)).first;
+      cached = scoreCache_.emplace(r.key, ergoTotal(alg, prof)).first;
     }
     double score = cached->second;
     num(ColScore, QString::number(score, 'f', 1), score);
     auto *src = new QTableWidgetItem(sourceText(r));
     src->setFlags(src->flags() & ~Qt::ItemIsEditable);
     table_->setItem(row, ColSource, src);
-    LabStats st = labStats(attempts.of(case_->key, r.alg), case_->key, r.alg,
+    LabStats st = labStats(attempts.of(case_->key, r.key), case_->key, r.key,
                            cube, window, trim, warm);
-    auto ms = [](std::optional<std::int64_t> v) -> std::optional<double> {
-      if (!v) {
-        return std::nullopt;
-      }
-      return static_cast<double>(*v);
-    };
     anyTimes = anyTimes || st.used + st.dnfs > 0;
-    num(ColCount, QString::number(st.used), st.used);
-    num(ColMean, labTime(st.mean, d), ms(st.mean));
-    num(ColMedian, labTime(st.median, d), ms(st.median));
-    num(ColBest, labTime(st.best, d), ms(st.best));
-    num(ColAo5, labTime(st.ao5, d), ms(st.ao5));
-    num(ColAo12, labTime(st.ao12, d), ms(st.ao12));
-    num(ColSd, st.sd ? QString::number(*st.sd / 1000.0, 'f', d) : "–", st.sd);
-    num(ColDnf,
-        st.used + st.dnfs ? QString::number(st.dnfRate() * 100.0, 'f', 0) : "–",
-        st.used + st.dnfs ? std::optional(st.dnfRate()) : std::nullopt);
-    if (qs(r.alg) == selected) {
+    setLabStatCells(table_, row, ColCount, st, d);
+    if (qs(r.key) == selected) {
       table_->selectRow(row);
     }
   }
+  table_->setRowCount(shown);
   table_->setSortingEnabled(true);
   if (resize) {
     for (int c = ColHtm; c < ColumnCount; ++c) {
@@ -272,29 +260,15 @@ void AlgLabPage::addToSet(SetAlg how) {
     return;
   }
   QString what = makeMain ? tr("Make main alg") : tr("Add algs");
-  bool saved = false;
-  if (algEditor_) {
-    saved = algEditor_(qs(set->id), qs(c->id), newAlgs, what);
-    setEdits_ += saved ? 1 : 0;
-  } else {
-    std::vector<std::string> old = c->algs;
-    c->algs = newAlgs;
-    saved = library_.save(*set);
-    if (!saved) {
-      c->algs = old;
-    }
-  }
-  if (!saved) {
+  if (!algEditor_(qs(set->id), qs(c->id), newAlgs, what)) {
     emit message(tr("Could not save the set."));
     return;
   }
+  ++setEdits_;
   emit message(makeMain ? tr("Made it the main alg of %1.").arg(case_->name)
                         : plural(added, tr("Added %n alg to %1."),
                                  tr("Added %n algs to %1."))
                               .arg(case_->name));
-  if (!algEditor_) {
-    emit setsChanged(qs(set->id));
-  }
   showCase(case_->key);
 }
 

@@ -237,7 +237,8 @@ void LibraryPage::refreshAlgList() {
 }
 
 void LibraryPage::updateGrips() {
-  const ErgoProfile *g = lab_ ? labGuideProfile(*lab_) : nullptr;
+  const ErgoProfile *g =
+      lab_ ? labGuideProfile(*lab_, scoreProfileName()) : nullptr;
   gripTitle_->setVisible(lab_ != nullptr);
   grips_->setVisible(lab_ != nullptr);
   QTreeWidgetItem *item = algList_->currentItem();
