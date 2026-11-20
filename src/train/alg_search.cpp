@@ -716,6 +716,18 @@ struct Searcher {
     return r;
   }
 
+  // How far the corners are from the goal after move `mi` from `n`: a
+  // child too far by its corners alone is skipped before step() makes it,
+  // which turns the whole cube and ranks every edge group.
+  int cornersAfter(const Node &n, std::size_t mi) const {
+    std::size_t at =
+        static_cast<std::size_t>(n.frame) * model.moves.size() + mi;
+    auto e = static_cast<std::size_t>(model.effectOf[at]);
+    auto ne = static_cast<std::size_t>(corners->effects);
+    return corners->dist[corners->index(corners->cpMove[n.cr * ne + e],
+                                        corners->coMove[n.cc * ne + e])];
+  }
+
   // Whether move `mi` may follow `n` at `depth`.
   bool allowed(const Node &n, std::size_t mi, int depth) const {
     int t = typeOf[mi];
@@ -783,7 +795,7 @@ struct Searcher {
       return; // already an alg: the rest would only undo and redo
     }
     for (std::size_t mi = 0; mi < model.moves.size(); ++mi) {
-      if (!allowed(n, mi, depth)) {
+      if (!allowed(n, mi, depth) || cornersAfter(n, mi) > remaining - 1) {
         continue;
       }
       path.push_back(mi);
