@@ -215,6 +215,26 @@ CubeView *waitForCase(QWidget *page) {
   return shown ? view : nullptr;
 }
 
+// The last child of `parent` of type W that `pred` holds for, or null.
+template <typename W, typename Pred>
+W *lastChild(const QObject *parent, Pred pred) {
+  W *found = nullptr;
+  for (W *w : parent->findChildren<W *>()) {
+    if (pred(w)) {
+      found = w;
+    }
+  }
+  return found;
+}
+
+// Alg Lab's table of candidate algs.
+QTableWidget *candidateTable(const QWidget *lab) {
+  return lastChild<QTableWidget>(lab, [](QTableWidget *t) {
+    return t->columnCount() > 10 && t->horizontalHeaderItem(1) &&
+           t->horizontalHeaderItem(1)->text() == "HTM";
+  });
+}
+
 // Closes every modal dialog or message box that comes up while it lives,
 // keeping what each said, so that none can block the test.
 class ModalWatcher : public QObject {
@@ -576,16 +596,10 @@ void GuiTest::algLabTimesEachAlg() {
   auto *lab = page<AlgLabPage>();
   QVERIFY(switchTo(AppMode::AlgLab, lab));
   lab->selectCase("pll", "T");
-  QTableWidget *candidates = nullptr;
   QTabWidget *tabs = lab->findChild<QTabWidget *>();
   QVERIFY(tabs);
   tabs->setCurrentIndex(0);
-  for (QTableWidget *t : lab->findChildren<QTableWidget *>()) {
-    if (t->columnCount() > 10 && t->horizontalHeaderItem(1) &&
-        t->horizontalHeaderItem(1)->text() == "HTM") {
-      candidates = t;
-    }
-  }
+  QTableWidget *candidates = candidateTable(lab);
   QVERIFY(candidates);
   // The set's alg is a candidate.
   QCOMPARE(candidates->rowCount(), 1);
@@ -594,12 +608,9 @@ void GuiTest::algLabTimesEachAlg() {
 
   // Another T perm, typed in.
   const std::string other = "R2 F2 U R2 U2 F' U F' R2 F U' F' U F2";
-  QLineEdit *add = nullptr;
-  for (QLineEdit *e : lab->findChildren<QLineEdit *>()) {
-    if (e->placeholderText().startsWith("Type an alg")) {
-      add = e;
-    }
-  }
+  auto *add = lastChild<QLineEdit>(lab, [](QLineEdit *e) {
+    return e->placeholderText().startsWith("Type an alg");
+  });
   QVERIFY(add);
   add->setText(qs(other));
   QMetaObject::invokeMethod(add, "returnPressed");
@@ -607,12 +618,8 @@ void GuiTest::algLabTimesEachAlg() {
 
   // Both into the session, then timed on a physical cube.
   candidates->selectAll();
-  QPushButton *toSession = nullptr;
-  for (QPushButton *b : lab->findChildren<QPushButton *>()) {
-    if (b->text() == "Add to session") {
-      toSession = b;
-    }
-  }
+  auto *toSession = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Add to session"; });
   QVERIFY(toSession);
   toSession->click();
   tabs->setCurrentIndex(1);
@@ -640,23 +647,15 @@ void GuiTest::algLabTimesEachAlg() {
   }
 
   // The virtual cube: the next alg is set up on it, done with that alg.
-  QComboBox *cube = nullptr;
-  for (QComboBox *box : lab->findChildren<QComboBox *>()) {
-    if (box->findText("Virtual cube") >= 0) {
-      cube = box;
-    }
-  }
+  auto *cube = lastChild<QComboBox>(
+      lab, [](QComboBox *box) { return box->findText("Virtual cube") >= 0; });
   QVERIFY(cube);
   QTest::qWait(400);
   QTest::keyClick(window_.get(), Qt::Key_Space); // the next alg
   cube->setCurrentIndex(cube->findText("Virtual cube"));
   QTest::keyClick(window_.get(), Qt::Key_Escape); // set up on the cube
-  CubeView *view = nullptr;
-  for (CubeView *v : lab->findChildren<CubeView *>()) {
-    if (v->isVisible()) {
-      view = v;
-    }
-  }
+  auto *view =
+      lastChild<CubeView>(lab, [](CubeView *v) { return v->isVisible(); });
   QVERIFY(view);
   view->finishAnimations();
   // The alg the session asks for, as the page shows it.
@@ -700,21 +699,11 @@ void GuiTest::fingertrickGuidance() {
   QVERIFY(switchTo(AppMode::AlgLab, lab));
   lab->selectCase("pll", "T");
   lab->findChild<QTabWidget *>()->setCurrentIndex(0);
-  QTableWidget *candidates = nullptr;
-  for (QTableWidget *t : lab->findChildren<QTableWidget *>()) {
-    if (t->columnCount() > 10 && t->horizontalHeaderItem(1) &&
-        t->horizontalHeaderItem(1)->text() == "HTM") {
-      candidates = t;
-    }
-  }
+  QTableWidget *candidates = candidateTable(lab);
   QVERIFY(candidates);
   // The default score is the grip profile's.
-  QComboBox *profiles = nullptr;
-  for (QComboBox *b : lab->findChildren<QComboBox *>()) {
-    if (b->findText(qs(kGripProfileName)) >= 0) {
-      profiles = b;
-    }
-  }
+  auto *profiles = lastChild<QComboBox>(
+      lab, [](QComboBox *b) { return b->findText(qs(kGripProfileName)) >= 0; });
   QVERIFY(profiles);
   QCOMPARE(profiles->currentText(), qs(kGripProfileName));
   GripModel model = standardGripModel();
@@ -725,10 +714,8 @@ void GuiTest::fingertrickGuidance() {
   auto *view = lab->findChild<GripView *>();
   QVERIFY(view);
   candidates->selectRow(0);
-  QTableWidget *lanes = nullptr;
-  for (QTableWidget *t : view->findChildren<QTableWidget *>()) {
-    lanes = t;
-  }
+  auto *lanes =
+      lastChild<QTableWidget>(view, [](QTableWidget *) { return true; });
   QVERIFY(lanes);
   QCOMPARE(lanes->columnCount(), 14);
   QCOMPARE(lanes->item(0, 5)->text(), QString("F"));
@@ -1641,12 +1628,9 @@ void GuiTest::timedPhysicalSolve() {
   // Running: the mode can't be left from the Mode menu (a key would stop
   // the timer first).
   QVERIFY(timed->isBusy());
-  QAction *learnMode = nullptr;
-  for (QAction *a : window_->findChildren<QAction *>()) {
-    if (a->shortcut() == AppMode::shortcut(AppMode::Learn)) {
-      learnMode = a;
-    }
-  }
+  auto *learnMode = lastChild<QAction>(window_.get(), [](QAction *a) {
+    return a->shortcut() == AppMode::shortcut(AppMode::Learn);
+  });
   QVERIFY(learnMode);
   learnMode->trigger();
   QCOMPARE(shownPage(*window_), timed);
@@ -1733,12 +1717,8 @@ void GuiTest::learnStartsACase() {
   auto *learn = page<LearnPage>();
   QVERIFY(switchTo(AppMode::Learn, learn));
   // Nothing is due until a case is put in the learn queue.
-  QPushButton *start = nullptr;
-  for (QPushButton *b : learn->findChildren<QPushButton *>()) {
-    if (b->text() == "Add new cases") {
-      start = b;
-    }
-  }
+  auto *start = lastChild<QPushButton>(
+      learn, [](QPushButton *b) { return b->text() == "Add new cases"; });
   QVERIFY(start);
   QVERIFY(start->isVisible());
   start->click();
@@ -1878,12 +1858,9 @@ void GuiTest::drillArmsAndStopsItself() {
   auto *drill = page<DrillPage>();
   QVERIFY(switchTo(AppMode::Drill, drill));
   // Drill every case, not only those learned in Learn.
-  QComboBox *pool = nullptr;
-  for (QComboBox *box : drill->findChildren<QComboBox *>()) {
-    if (box->findText("Being learned") >= 0) {
-      pool = box;
-    }
-  }
+  auto *pool = lastChild<QComboBox>(drill, [](QComboBox *box) {
+    return box->findText("Being learned") >= 0;
+  });
   QVERIFY(pool);
   int all = pool->findText("All");
   QVERIFY(all >= 0);
@@ -1929,12 +1906,9 @@ void GuiTest::libraryAddsAnAlgAndUndoes() {
   auto *library = page<LibraryPage>();
   QVERIFY(switchTo(AppMode::Library, library));
   library->selectCase("pll", "Ua");
-  QLineEdit *edit = nullptr;
-  for (QLineEdit *e : library->findChildren<QLineEdit *>()) {
-    if (e->placeholderText().startsWith("New alg")) {
-      edit = e;
-    }
-  }
+  auto *edit = lastChild<QLineEdit>(library, [](QLineEdit *e) {
+    return e->placeholderText().startsWith("New alg");
+  });
   QVERIFY(edit);
   QVERIFY(edit->isEnabled());
   const std::string ua = "R U' R U R U R U' R' U' R2";
@@ -2301,13 +2275,7 @@ void GuiTest::pagesTakeTheKeyboard() {
   QTabWidget *tabs = lab->findChild<QTabWidget *>();
   QVERIFY(tabs);
   tabs->setCurrentIndex(0);
-  QTableWidget *candidates = nullptr;
-  for (QTableWidget *t : lab->findChildren<QTableWidget *>()) {
-    if (t->columnCount() > 10 && t->horizontalHeaderItem(1) &&
-        t->horizontalHeaderItem(1)->text() == "HTM") {
-      candidates = t;
-    }
-  }
+  QTableWidget *candidates = candidateTable(lab);
   QVERIFY(candidates);
   QVERIFY(candidates->rowCount() >= 1);
   candidates->clearSelection();
@@ -2369,12 +2337,9 @@ void GuiTest::pagesTakeTheKeyboard() {
   auto *library = page<LibraryPage>();
   QVERIFY(switchTo(AppMode::Library, library));
   library->selectCase("pll", {});
-  QLabel *empty = nullptr;
-  for (QLabel *l : library->findChildren<QLabel *>()) {
-    if (l->text() == "Select a case to see and edit its algs") {
-      empty = l;
-    }
-  }
+  auto *empty = lastChild<QLabel>(library, [](QLabel *l) {
+    return l->text() == "Select a case to see and edit its algs";
+  });
   QVERIFY(empty);
   QVERIFY(empty->isVisible());
   library->selectCase("pll", "T");
@@ -2558,12 +2523,9 @@ void GuiTest::interfaceTextSizeScalesTheText() {
     QVERIFY(QTest::qWaitForWindowActive(window_.get()));
   };
   QVERIFY(switchTo(AppMode::Today, page<TodayPage>()));
-  QLabel *title = nullptr;
-  for (auto *label : page<TodayPage>()->findChildren<QLabel *>()) {
-    if (label->text() == "Today") {
-      title = label;
-    }
-  }
+  auto *title = lastChild<QLabel>(page<TodayPage>(), [](QLabel *label) {
+    return label->text() == "Today";
+  });
   QVERIFY(title);
   const double body = QApplication::font().pointSizeF();
   const double display = title->font().pointSizeF();
@@ -2846,12 +2808,9 @@ void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
   library->selectCase("pll", "T");
   const std::size_t graded = savedProgress("pll").size();
   QVERIFY(graded > 0);
-  QAction *deleteSet = nullptr;
-  for (QAction *a : library->findChildren<QAction *>()) {
-    if (a->text().remove('&').startsWith("Delete set")) {
-      deleteSet = a;
-    }
-  }
+  auto *deleteSet = lastChild<QAction>(library, [](QAction *a) {
+    return a->text().remove('&').startsWith("Delete set");
+  });
   QVERIFY(deleteSet);
   {
     ModalWatcher watcher([](QWidget *m) {
@@ -3123,12 +3082,9 @@ void GuiTest::reviewButtonsHaveKeys() {
 // A file that can't be saved puts up the banner, which File > Dismiss save
 // warning hides as its button does.
 void GuiTest::saveWarningCanBeDismissedFromTheMenu() {
-  QAction *dismiss = nullptr;
-  for (QAction *a : window_->findChildren<QAction *>()) {
-    if (a->text() == "Dismiss save warning") {
-      dismiss = a;
-    }
-  }
+  auto *dismiss = lastChild<QAction>(window_.get(), [](QAction *a) {
+    return a->text() == "Dismiss save warning";
+  });
   QVERIFY(dismiss);
   QVERIFY(!dismiss->isVisible());
   QWidget *banner = window_->findChild<QWidget *>("saveBanner");
@@ -3204,11 +3160,9 @@ void GuiTest::startupProblemsShowInOneWindow() {
   for (const QString &p : problems) {
     QVERIFY2(shown.contains(p), qPrintable(p));
   }
-  bool hasFolder = false;
-  for (QPushButton *b : list->window()->findChildren<QPushButton *>()) {
-    hasFolder = hasFolder || b->text() == "Open data folder";
-  }
-  QVERIFY(hasFolder);
+  QVERIFY(lastChild<QPushButton>(list->window(), [](QPushButton *b) {
+    return b->text() == "Open data folder";
+  }));
   list->window()->close();
   window_->activateWindow();
 }
