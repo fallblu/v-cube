@@ -765,10 +765,7 @@ void LabTestPanel::requestScramble() {
     return;
   }
   // setFuture() drops the result of a request still on its way.
-  CubieCube state = current_->setup;
-  ColourNeutrality hold;
-  watcher_.setFuture(generateScramble(
-      [state](Rng &) { return ScrambleSetup{state, {}, {}}; }, hold));
+  watcher_.setFuture(generateScramble(current_->setup));
 }
 
 void LabTestPanel::scrambleReady() {

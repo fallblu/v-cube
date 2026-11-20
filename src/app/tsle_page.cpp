@@ -11,10 +11,7 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMenu>
 #include <QPushButton>
-#include <QSignalBlocker>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -34,24 +31,10 @@ bool turnsTheSlot(const Alg &moves) {
 // The section a case is listed in: 0 the OCLLs, else its steps left.
 int sectionOf(TsleState c) { return c.ocll() ? 0 : tsleStepsLeft(c); }
 
-const char *const kWhole = "whole";
-
 } // namespace
 
 TslePage::TslePage(AppSettings &settings, PracticeStore &store, QWidget *parent)
-    : PracticePage(settings, store, parent) {
-  QStringList chosen = saved::practice("tsle", "slots", QStringList{"FR", "FL"})
-                           .get()
-                           .toStringList();
-  bool any = false;
-  for (Slot s : kF2LSlots) {
-    bool on = chosen.contains(slotText(s));
-    slots_[static_cast<std::size_t>(s)] = on;
-    any = any || on;
-  }
-  if (!any) {
-    slots_ = {true, true, false, false};
-  }
+    : PracticePage(settings, store, parent), slots_(loadSlots("slots")) {
   rebuildSolvers();
   build();
 }
@@ -61,22 +44,8 @@ TslePage::~TslePage() = default;
 // --- options -----------------------------------------------------------------
 
 void TslePage::addOptions(OptionBar *bar) {
-  slotsButton_ = new QToolButton(bar);
-  slotsButton_->setFocusPolicy(Qt::NoFocus);
-  slotsButton_->setPopupMode(QToolButton::InstantPopup);
-  auto *menu = new QMenu(slotsButton_);
-  for (Slot s : kF2LSlots) {
-    QAction *a = menu->addAction(slotText(s));
-    a->setCheckable(true);
-    a->setData(static_cast<int>(s));
-    connect(a, &QAction::toggled, this, [this, s](bool on) {
-      std::array<bool, kSlots> chosen = slots_;
-      chosen[static_cast<std::size_t>(s)] = on;
-      setLastSlots(chosen);
-    });
-  }
-  slotsButton_->setMenu(menu);
-  bar->addPicker(tr("Last slot:"), slotsButton_);
+  addSlotPicker(bar, slotsButton_, slots_,
+                [this](const Slots &chosen) { setLastSlots(chosen); });
 }
 
 void TslePage::addButtons(OptionBar *bar) {
@@ -85,32 +54,13 @@ void TslePage::addButtons(OptionBar *bar) {
   connect(ocllButton_, &QPushButton::clicked, this, &TslePage::editOcllAlgs);
 }
 
-void TslePage::showOptions() {
-  QStringList names;
-  for (QAction *a : slotsButton_->menu()->actions()) {
-    QSignalBlocker block(a);
-    bool on = slots_[static_cast<std::size_t>(a->data().toInt())];
-    a->setChecked(on);
-    if (on) {
-      names << a->text();
-    }
-  }
-  slotsButton_->setText(names.join(" / "));
-}
-
-void TslePage::setLastSlots(const std::array<bool, kSlots> &chosen) {
-  if (std::none_of(chosen.begin(), chosen.end(), [](bool b) { return b; })) {
+void TslePage::setLastSlots(const Slots &chosen) {
+  if (std::ranges::none_of(chosen, std::identity{})) {
     showOptions(); // one slot at least
     return;
   }
   slots_ = chosen;
-  QStringList names;
-  for (Slot s : kF2LSlots) {
-    if (slots_[static_cast<std::size_t>(s)]) {
-      names << slotText(s);
-    }
-  }
-  saved::practice("tsle", "slots").set(names);
+  saveSlots("slots", slots_);
   optionChanged();
 }
 
@@ -153,8 +103,7 @@ Slot TslePage::randomSlot() {
 
 std::vector<std::string> TslePage::cardPool() const { return tsleCardPool(); }
 
-std::optional<PracticePage::Setup> TslePage::setUp(Extent extent,
-                                                   const std::string &card) {
+std::optional<PracticePage::Setup> TslePage::setUp(const std::string &card) {
   TsleState state;
   if (!card.empty()) {
     std::optional<TsleState> c = tsleFromKey(card);
@@ -175,11 +124,9 @@ std::optional<PracticePage::Setup> TslePage::setUp(Extent extent,
   Setup s;
   s.state = randomTsleCube(state, slot_, rng());
   s.hold = settings().neutrality.pick(rng());
-  s.colours = s.hold;
   s.cube = s.state.toFacelets();
   // Timed attempts are kept by the case they start from.
-  s.group = tab() == Tab::Timed ? tsleKey(tsleCase(state)) : kWhole;
-  (void)extent;
+  s.group = tab() == Tab::Timed ? tsleKey(tsleCase(state)) : kWholeGroup;
   return s;
 }
 
@@ -262,7 +209,7 @@ bool TslePage::turned() {
     emit message(tr("Not a good trigger from there: Esc starts again"));
     return false;
   }
-  return item().whole ? state->done() : true;
+  return item().card.empty() ? state->done() : true;
 }
 
 // --- what is said ------------------------------------------------------------
@@ -286,7 +233,7 @@ QString TslePage::cardName(const std::string &card) const {
 }
 
 QString TslePage::task() const {
-  return item().whole ? tr("Solve TSLE") : tr("Do the next step");
+  return item().card.empty() ? tr("Solve TSLE") : tr("Do the next step");
 }
 
 QString TslePage::taskNote() const {
@@ -348,7 +295,7 @@ QString TslePage::stepVerdict(const Step &step) const {
 PracticePage::Outcome TslePage::judge() {
   const TsleSolver &s = solver(slot_);
   Outcome o;
-  if (!item().whole) {
+  if (!item().card.empty()) {
     // One step.
     if (start_.ocll()) {
       if (auto f = s.finish(start_)) {
@@ -478,7 +425,7 @@ QString TslePage::detail() {
   const TsleSolver &s = solver(slot_);
   const QString muted = mutedColour();
   QString html;
-  if (!item().whole || steps_.empty()) {
+  if (!item().card.empty() || steps_.empty()) {
     if (!steps_.empty() && !item().gaveUp) {
       const Step &step = steps_.front();
       html += "<p>" +
@@ -558,10 +505,6 @@ std::vector<PracticePage::Split> TslePage::splits() {
                    steps_[i].end});
   }
   return out;
-}
-
-std::vector<PracticePage::ListRow> TslePage::untimedGroups() {
-  return {{kWhole, tr("Whole TSLE"), {}, {}}};
 }
 
 std::vector<PracticePage::ListRow> TslePage::timedGroups() {

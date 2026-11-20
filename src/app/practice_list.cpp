@@ -209,33 +209,27 @@ void PracticeList::refresh() {
 
 void PracticeList::showSummary(const std::vector<std::string> &pool,
                                const std::string &group) {
-  QStringList lines;
-  auto sitting = [this, &group]() {
-    const PracticeTries &all = tries();
-    auto it = all.find(group);
-    return group.empty() || it == all.end()
-               ? PracticeSummary{}
-               : summarize(it->second, sittingStart_);
-  };
-  switch (view_.tab) {
-  case PracticeTab::Learn:
+  const PracticeTab tab = view_.tab;
+  QString line;
+  if (tab == PracticeTab::Learn) {
     if (!pool.empty()) {
       PracticeWaiting w =
           practiceWaiting(pool, data_.cards, unixNow(), localDayStart(),
                           localDayEnd(), settings_.srs);
-      lines << tr("<b>%1</b> due · %2 new left today · %3 of %4 learned")
-                   .arg(w.due)
-                   .arg(w.newLeft)
-                   .arg(w.learned)
-                   .arg(w.total);
+      line = tr("<b>%1</b> due · %2 new left today · %3 of %4 learned")
+                 .arg(w.due)
+                 .arg(w.newLeft)
+                 .arg(w.learned)
+                 .arg(w.total);
     }
-    break;
-  case PracticeTab::Inspection: {
-    const PracticeSummary s = sitting();
-    if (s.tries) {
-      QString line = tr("This sitting: %1, %2 done")
-                         .arg(counted(s.tries, tr("try"), tr("tries")))
-                         .arg(s.solved);
+  } else if (auto it = group.empty() ? tries().end() : tries().find(group);
+             it != tries().end()) {
+    // How this sitting's tries went.
+    const PracticeSummary s = summarize(it->second, sittingStart_);
+    if (s.tries && tab == PracticeTab::Inspection) {
+      line = tr("This sitting: %1, %2 done")
+                 .arg(counted(s.tries, tr("try"), tr("tries")))
+                 .arg(s.solved);
       if (s.meanInspectMs) {
         line +=
             ", " +
@@ -245,58 +239,31 @@ void PracticeList::showSummary(const std::vector<std::string> &pool,
       if (s.overTime > 0) {
         line += ", " + tr("%1 over the limit").arg(s.overTime);
       }
-      lines << line;
-    }
-    break;
-  }
-  case PracticeTab::Untimed: {
-    const PracticeSummary s = sitting();
-    if (s.tries) {
-      QString line = tr("This sitting: %1")
-                         .arg(counted(s.tries, tr("solve"), tr("solves")));
-      if (s.meanMoves) {
+    } else if (s.tries) {
+      line = tr("This sitting: %1")
+                 .arg(counted(s.tries, tr("solve"), tr("solves")));
+      if (tab == PracticeTab::Untimed && s.meanMoves) {
         line += ", " + tr("%1 moves on average").arg(oneDecimal(*s.meanMoves));
       }
-      if (s.meanExtra) {
+      if (tab == PracticeTab::Untimed && s.meanExtra) {
         line += " (+" + oneDecimal(*s.meanExtra) + ")";
       }
-      lines << line;
-    }
-    break;
-  }
-  case PracticeTab::Timed: {
-    const PracticeSummary s = sitting();
-    if (s.tries) {
-      QString line = tr("This sitting: %1")
-                         .arg(counted(s.tries, tr("solve"), tr("solves")));
-      if (s.meanMs) {
+      if (tab == PracticeTab::Timed && s.meanMs) {
         line += ", " +
                 tr("mean %1").arg(clock(static_cast<std::int64_t>(*s.meanMs)));
       }
-      if (s.meanTps) {
+      if (tab == PracticeTab::Timed && s.meanTps) {
         line += ", " + tr("%1 TPS").arg(QString::number(*s.meanTps, 'f', 2));
       }
-      lines << line;
     }
-    break;
   }
-  }
-  summary_->setText(lines.join("<br>"));
-  summary_->setVisible(!lines.isEmpty());
-  switch (view_.tab) {
-  case PracticeTab::Learn:
-    clearButton_->setText(tr("Clear the cards…"));
-    break;
-  case PracticeTab::Inspection:
-    clearButton_->setText(tr("Clear these tries…"));
-    break;
-  case PracticeTab::Untimed:
-    clearButton_->setText(tr("Clear these solves…"));
-    break;
-  case PracticeTab::Timed:
-    clearButton_->setText(tr("Clear these times…"));
-    break;
-  }
+  summary_->setText(line);
+  summary_->setVisible(!line.isEmpty());
+  clearButton_->setText(
+      tab == PracticeTab::Learn        ? tr("Clear the cards…")
+      : tab == PracticeTab::Inspection ? tr("Clear these tries…")
+      : tab == PracticeTab::Untimed    ? tr("Clear these solves…")
+                                       : tr("Clear these times…"));
 }
 
 void PracticeList::rowActivated(QTreeWidgetItem *row) {
@@ -311,42 +278,29 @@ void PracticeList::clear() {
   if (busy_ && busy_()) {
     return;
   }
-  QString what;
-  switch (view_.tab) {
-  case PracticeTab::Learn:
-    what = tr("Forget every %1 card? The cases start as new again (the "
-              "solutions you chose for them are kept).")
-               .arg(view_.step);
-    break;
-  case PracticeTab::Inspection:
-    what = tr("Delete every Inspection try of %1?").arg(view_.step);
-    break;
-  case PracticeTab::Untimed:
-    what = tr("Delete every Untimed solve of %1?").arg(view_.step);
-    break;
-  case PracticeTab::Timed:
-    what =
-        tr("Delete every timed %1 attempt on the %2 cube?")
-            .arg(view_.step, view_.cube == CubeKind::Physical ? tr("physical")
-                                                              : tr("virtual"));
-    break;
-  }
+  const PracticeTab tab = view_.tab;
+  const QString what =
+      tab == PracticeTab::Learn
+          ? tr("Forget every %1 card? The cases start as new again (the "
+               "solutions you chose for them are kept).")
+                .arg(view_.step)
+      : tab == PracticeTab::Inspection
+          ? tr("Delete every Inspection try of %1?").arg(view_.step)
+      : tab == PracticeTab::Untimed
+          ? tr("Delete every Untimed solve of %1?").arg(view_.step)
+          : tr("Delete every timed %1 attempt on the %2 cube?")
+                .arg(view_.step, view_.cube == CubeKind::Physical
+                                     ? tr("physical")
+                                     : tr("virtual"));
   if (QMessageBox::question(this, "v-cube", what) != QMessageBox::Yes) {
     return;
   }
-  switch (view_.tab) {
-  case PracticeTab::Learn:
+  if (tab == PracticeTab::Learn) {
     data_.cards.clear();
-    break;
-  case PracticeTab::Inspection:
-    data_.inspection.clear();
-    break;
-  case PracticeTab::Untimed:
-    data_.learn.clear();
-    break;
-  case PracticeTab::Timed:
+  } else if (tab == PracticeTab::Timed) {
     clearTimed(data_.timed, view_.cube);
-    break;
+  } else {
+    tabTries(data_, tab).clear(); // Inspection's or Untimed's
   }
   refresh();
   emit cleared();

@@ -1,30 +1,18 @@
 #include "app/drill_page.hpp"
-#include "app/drill_private.hpp"
-#include "app/key_router.hpp"
-#include "app/page_parts.hpp"
 
-#include "app/drill_history_dialog.hpp"
 #include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
-#include "train/alg_follow.hpp"
 
 #include <QActionGroup>
-#include <QApplication>
 #include <QComboBox>
-#include <QFormLayout>
 #include <QHBoxLayout>
-#include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
 #include <QToolButton>
-#include <QTreeWidget>
 #include <QVBoxLayout>
-
-#include <cmath>
 
 namespace vcube {
 
@@ -207,13 +195,14 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
 
   // After a case: its diagram and algs side by side under the time, kept
   // together rather than spread across the page.
+  const int diagramSize = scaledToText(kLargeDiagram);
   auto *revealBox = new QWidget(right);
-  revealBox->setMinimumHeight(diagramSize());
+  revealBox->setMinimumHeight(diagramSize);
   auto *revealLayout = new QHBoxLayout(revealBox);
   revealLayout->setContentsMargins(0, 0, 0, 0);
   diagram_ = new QLabel(revealBox);
   diagram_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-  diagram_->setFixedSize(diagramSize(), diagramSize());
+  diagram_->setFixedSize(diagramSize, diagramSize);
   reveal_ = new QLabel(revealBox);
   reveal_->setTextFormat(Qt::RichText);
   reveal_->setWordWrap(true);
@@ -226,7 +215,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   revealLayout->addWidget(diagram_, 0, Qt::AlignTop);
   revealLayout->addWidget(reveal_, 3);
   revealLayout->addStretch(1);
-  setDiagram({});
+  setReveal({}, {});
   rightLayout->addWidget(revealBox);
   rightLayout->addStretch(1);
 
@@ -258,29 +247,24 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
       nextCase();
     }
   });
-  connect(scopeBox_, &QComboBox::activated, this, [this] {
-    saved::drillScope(setId_).set(scopeBox_->currentData().toString());
-    picker_.restartRecap();
-    recapFrom_ = session_.size();
-    updateSummary();
-    nextCase();
-  });
-  connect(poolBox_, &QComboBox::activated, this, [this] {
-    saved::drillPool(setId_).set(poolId(poolChoice()));
-    picker_.restartRecap();
-    recapFrom_ = session_.size();
-    updateSummary();
-    nextCase();
-  });
-  connect(orderBox_, &QComboBox::activated, this, [this] {
-    PickMode order = currentEnum(orderBox_, PickMode::Random);
-    saved::drillOrder(setId_).set(qs(pickModeId(order)));
-    picker_.setMode(order);
-    picker_.restartRecap();
-    recapFrom_ = session_.size();
-    updateSummary();
-    nextCase();
-  });
+  // Other cases, or another order: kept, and the recap starts again.
+  for (QComboBox *box : {scopeBox_, poolBox_, orderBox_}) {
+    connect(box, &QComboBox::activated, this, [this, box] {
+      if (box == scopeBox_) {
+        saved::drillScope(setId_).set(scopeBox_->currentData().toString());
+      } else if (box == poolBox_) {
+        saved::drillPool(setId_).set(poolId(poolChoice()));
+      } else {
+        PickMode order = currentEnum(orderBox_, PickMode::Random);
+        saved::drillOrder(setId_).set(qs(pickModeId(order)));
+        picker_.setMode(order);
+      }
+      picker_.restartRecap();
+      recapFrom_ = session_.size();
+      updateSummary();
+      nextCase();
+    });
+  }
   // "Cases shown in the list" follows the search and filter.
   connect(filter_, &CaseFilter::changed, this, [this] { updateSummary(); });
   connect(sessionReset, &QPushButton::clicked, this, &DrillPage::resetTally);
@@ -323,16 +307,10 @@ AttemptMode DrillPage::attemptMode() const {
 
 void DrillPage::showCubeKind() {
   bool virt = onVirtualCube();
-  flow_.setConfig(flowConfig());
+  driver_.configure(virt, settings_.drill.practiseAfterDnf);
   cubeView_->setVisible(virt);
   viewRow_->setVisible(virt);
   scrambleLabel_->setVisible(!virt);
-}
-
-DrillFlow::Config DrillPage::flowConfig() const {
-  const DrillSettings &d = settings_.drill;
-  return {onVirtualCube(),     d.tapToArm,         d.autoStop,
-          d.shiftSpaceGivesUp, d.practiseAfterDnf, d.holdMs};
 }
 
 void DrillPage::focusModeChanged() {
@@ -347,7 +325,7 @@ bool DrillPage::isBusy() const {
 }
 
 void DrillPage::applySettings() {
-  flow_.setConfig(flowConfig());
+  driver_.configure(onVirtualCube(), settings_.drill.practiseAfterDnf);
   display_->setDecimals(settings_.decimals);
   CubeLook look = cubeView_->look();
   look.scheme = settings_.scheme;
@@ -428,10 +406,7 @@ void DrillPage::startSet() {
     updateAllRows(); // the rows were filled for the last set's cube
   }
   current_.reset();
-  session_.clear(); // its slowest cases are named from the set
-  sessionIndex_.reset();
-  recapFrom_ = 0;
-  refreshSession();
+  resetTally(); // its slowest cases are named from the set
   updateSummary();
   nextCase();
 }
@@ -528,16 +503,16 @@ void DrillPage::showStatus() {
       keys << KeyHint{tr("Backspace"),
                       virt ? (failed ? tr("not a DNF") : tr("DNF"))
                            : (failed ? tr("not a wrong alg") : tr("wrong alg")),
-                      [this] { setWrong(!flow_.failed()); }};
+                      [this] { timedToggleWrong(); }};
     }
     if (recorded) {
       keys << KeyHint{tr("Delete"),
                       gaveUp && flow_.gaveUpBeforeStart() ? tr("take it back")
                                                           : tr("delete it"),
-                      [this] { deleteAttempt(); }};
+                      [this] { timedDelete(); }};
     } else if (deleted_) {
       keys << KeyHint{tr("Ctrl+Z"), tr("put it back"),
-                      [this] { restoreAttempt(); }};
+                      [this] { timedRestore(); }};
     }
     keys << KeyHint{tr("Esc"), tr("try it again")};
     break;
@@ -588,7 +563,7 @@ void DrillPage::showStatus() {
   if (flow_.inPractice() && recorded && !gaveUp) {
     keys << KeyHint{tr("Backspace"),
                     virt ? tr("toggle the DNF") : tr("toggle the wrong alg"),
-                    [this] { setWrong(!flow_.failed()); }};
+                    [this] { timedToggleWrong(); }};
   }
   say(message, keys);
 }
@@ -631,8 +606,7 @@ void DrillPage::refreshSession() {
 void DrillPage::nextCase() {
   flow_.leaveCase();
   deleted_.reset();
-  reveal_->clear();
-  setDiagram({});
+  setReveal({}, {});
   resultRow_->setVisible(false);
   const AlgSet *s = set();
   std::vector<std::string> cases = s ? pool() : std::vector<std::string>{};
@@ -729,8 +703,7 @@ void DrillPage::retryCase() {
   current_->scramble.clear();
   missText_.clear();
   sessionIndex_.reset();
-  reveal_->clear();
-  setDiagram({});
+  setReveal({}, {});
   resultRow_->setVisible(false);
   display_->showTime(0);
   // The list names the case only once it is revealed.
@@ -742,7 +715,8 @@ void DrillPage::retryCase() {
     resetCube();
   } else {
     scrambleLabel_->setText(tr("Generating scramble…"));
-    requestScramble();
+    // setFuture() drops the result of a request still on its way.
+    watcher_.setFuture(generateScramble(current_->state, current_->hold));
   }
   showStatus();
 }
@@ -779,19 +753,6 @@ void DrillPage::resetCube() {
   }
   attempt_.load(current_ ? current_->state.toFacelets() : FaceletCube());
   cubeView_->setState(attempt_.cube());
-}
-
-void DrillPage::requestScramble() {
-  if (!current_) {
-    return;
-  }
-  CubieCube state = current_->state;
-  // setFuture() drops the result of a request still on its way.
-  ColourNeutrality hold;
-  hold.main = current_->hold;
-  hold.holds = {current_->hold};
-  watcher_.setFuture(generateScramble(
-      [state](Rng &) { return ScrambleSetup{state, {}, {}}; }, hold));
 }
 
 void DrillPage::scrambleReady() {

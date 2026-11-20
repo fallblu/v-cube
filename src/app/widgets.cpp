@@ -796,4 +796,12 @@ void TrendChart::contextMenuEvent(QContextMenuEvent *e) {
   menu.exec(e->globalPos());
 }
 
+QFuture<GeneratedScramble> generateScramble(const CubieCube &state, Hold hold) {
+  ColourNeutrality neutrality;
+  neutrality.main = hold;
+  neutrality.holds = {hold};
+  return generateScramble(
+      [state](Rng &) { return ScrambleSetup{state, {}, {}}; }, neutrality);
+}
+
 } // namespace vcube

@@ -1,29 +1,11 @@
 #include "app/drill_page.hpp"
-#include "app/drill_private.hpp"
-#include "app/page_parts.hpp"
-#include "app/train_keys.hpp"
+#include "app/text_style.hpp"
 #include "app/ui_text.hpp"
 
-#include "app/drill_history_dialog.hpp"
-#include "app/ui_state.hpp"
 #include "train/alg_follow.hpp"
 
-#include <QActionGroup>
-#include <QApplication>
-#include <QComboBox>
-#include <QFormLayout>
-#include <QHBoxLayout>
-#include <QKeyEvent>
 #include <QLabel>
-#include <QMenu>
-#include <QMessageBox>
-#include <QPushButton>
-#include <QSplitter>
-#include <QToolButton>
-#include <QTreeWidget>
-#include <QVBoxLayout>
 
-#include <cmath>
 #include <utility>
 
 namespace vcube {
@@ -42,16 +24,8 @@ bool DrillPage::handleKey(QKeyEvent *e, bool press) {
   } update{this};
   bool scrambleShown =
       current_ && (onVirtualCube() || !current_->scramble.isEmpty());
-  return driver_.key(flowKey(e, press), monotonicMs(),
+  return driver_.key(e, press, settings_.keymap,
                      scrambleShown ? Scramble::Shown : Scramble::Awaited);
-}
-
-DrillFlow::KeyEvent DrillPage::flowKey(const QKeyEvent *e, bool press) const {
-  DrillFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::Undo);
-  if (onVirtualCube()) {
-    k.move = settings_.keymap.lookup(e);
-  }
-  return k;
 }
 
 void DrillPage::timedNext(bool fromIdle) {
@@ -68,15 +42,13 @@ void DrillPage::timedRotate(Move m) {
   }
 }
 
-void DrillPage::timedStarted(std::int64_t now) {
-  (void)now;
+void DrillPage::timedStarted(std::int64_t) {
   if (onVirtualCube()) {
     attempt_.start();
   }
 }
 
-std::optional<DrillFlow::Turn> DrillPage::timedTurn(Move m, std::int64_t now) {
-  (void)now;
+std::optional<DrillFlow::Turn> DrillPage::timedTurn(Move m, std::int64_t) {
   const DrillFlow::Turn turn = isRotation(m.type) ? DrillFlow::Turn::Rotation
                                : udTurn(attempt_.cube(), m)
                                    ? DrillFlow::Turn::UdFace
@@ -88,8 +60,6 @@ std::optional<DrillFlow::Turn> DrillPage::timedTurn(Move m, std::int64_t now) {
   followView();
   return turn;
 }
-
-void DrillPage::timedFinishAnimations() { cubeView_->finishAnimations(); }
 
 void DrillPage::timedSay(const QString &text) {
   statusLabel_->setText(text);
@@ -122,7 +92,7 @@ bool DrillPage::stepDone() const {
   return c && withinMask(*c, mirrorMask(s->specFor(*g).free, current_->world));
 }
 
-void DrillPage::startPractice(bool aided) {
+void DrillPage::timedPractise(bool aided) {
   if (!current_) {
     return;
   }
@@ -135,14 +105,13 @@ void DrillPage::startPractice(bool aided) {
   if (aided) {
     showReveal();
   } else {
-    reveal_->clear();
-    setDiagram({});
+    setReveal({}, {});
   }
   showStatus();
   showResult();
 }
 
-void DrillPage::practiceTurn(Move m) {
+void DrillPage::timedPracticeTurn(Move m) {
   if (!attempt_.turn(m)) {
     return;
   }
@@ -161,7 +130,7 @@ void DrillPage::practiceTurn(Move m) {
             return;
           }
           if (aided && flow_.phase() == Phase::Aided) {
-            startPractice(false);
+            timedPractise(false);
           } else if (!aided && flow_.phase() == Phase::Unaided) {
             nextCase();
           }
@@ -169,7 +138,7 @@ void DrillPage::practiceTurn(Move m) {
   }
 }
 
-void DrillPage::finish(std::int64_t timeMs, DrillFlow::Result result) {
+void DrillPage::timedFinish(std::int64_t timeMs, DrillFlow::Result result) {
   const bool failed = result != DrillFlow::Result::Solved;
   if (!current_ || !set()) {
     return;
@@ -218,8 +187,8 @@ void DrillPage::finish(std::int64_t timeMs, DrillFlow::Result result) {
   refreshSession();
 }
 
-void DrillPage::setWrong(bool wrong) {
-  if (!current_ || !flow_.setWrong(wrong)) {
+void DrillPage::timedToggleWrong() {
+  if (!current_ || !flow_.setWrong(!flow_.failed())) {
     showResult();
     return;
   }
@@ -251,7 +220,7 @@ void DrillPage::setWrong(bool wrong) {
   refreshSession();
 }
 
-void DrillPage::deleteAttempt() {
+void DrillPage::timedDelete() {
   if (!current_ || !flow_.recorded()) {
     return;
   }
@@ -285,26 +254,21 @@ void DrillPage::deleteAttempt() {
   if (takenBack) {
     // Given up by mistake: the case is set up as it was, to try.
     missText_.clear();
-    reveal_->clear();
-    setDiagram({});
+    setReveal({}, {});
     resultRow_->setVisible(false);
     display_->showTime(0);
     clearCaseSelection();
     if (onVirtualCube()) {
       resetCube();
     }
-    showStatus();
-    statusLabel_->setText((tr("Give-up taken back; nothing was recorded.") +
-                           " " + statusLabel_->text())
-                              .trimmed());
-    statusLabel_->show();
+    timedCancelled(tr("Give-up taken back; nothing was recorded."));
     return;
   }
   showStatus();
   showResult();
 }
 
-void DrillPage::restoreAttempt() {
+void DrillPage::timedRestore() {
   if (!current_ || !deleted_ || deleted_->caseId != current_->caseId ||
       deleted_->attempt.mode != attemptMode() || !flow_.restored()) {
     return;
@@ -386,14 +350,15 @@ void DrillPage::showReveal() {
                 .toHtmlEscaped() +
             "</p>";
   }
-  reveal_->setText(html);
-  setDiagram(caseDiagram(current_->caseId, current_->state, diagramSize(),
-                         colourMapOf(current_->hold), current_->world));
+  setReveal(html, caseDiagram(current_->caseId, current_->state,
+                              scaledToText(kLargeDiagram),
+                              colourMapOf(current_->hold), current_->world));
 }
 
-void DrillPage::setDiagram(const QPixmap &pixmap) {
-  diagram_->setPixmap(pixmap);
-  diagram_->setVisible(!pixmap.isNull());
+void DrillPage::setReveal(const QString &html, const QPixmap &diagram) {
+  reveal_->setText(html);
+  diagram_->setPixmap(diagram);
+  diagram_->setVisible(!diagram.isNull());
 }
 
 } // namespace vcube

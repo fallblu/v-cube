@@ -178,8 +178,6 @@ private:
   AttemptMode attemptMode() const;
   // Shows the cube or the scramble, as the drill's cube needs.
   void showCubeKind();
-  DrillFlow::Config flowConfig() const;
-  DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
   // The status line and, under it, the keys that do something now.
   void say(const QString &message, const QList<KeyHint> &keys = {});
   Pool poolChoice() const;
@@ -198,7 +196,6 @@ private:
   // In a mirrored reduction set: looks at the cube from where the case it
   // now shows is done from.
   void followView();
-  void requestScramble();
   void scrambleReady();
   void onTick();
   // Locks the set, cube, case and order choices while a solve runs.
@@ -211,15 +208,19 @@ private:
   void timedStarted(std::int64_t now) override;
   std::optional<DrillFlow::Turn> timedTurn(Move m, std::int64_t now) override;
   bool timedStepDone() override { return stepDone(); }
-  void timedFinish(std::int64_t ms, DrillFlow::Result result) override {
-    finish(ms, result);
-  }
-  void timedPractise(bool aided) override { startPractice(aided); }
-  void timedPracticeTurn(Move m) override { practiceTurn(m); }
-  void timedToggleWrong() override { setWrong(!flow_.failed()); }
-  void timedDelete() override { deleteAttempt(); }
-  void timedRestore() override { restoreAttempt(); }
-  void timedFinishAnimations() override;
+  void timedFinish(std::int64_t timeMs, DrillFlow::Result result) override;
+  // Sets the same case up again to solve with no timer and nothing
+  // recorded, with the algs shown (aided) or hidden.
+  void timedPractise(bool aided) override;
+  // A turn in practice; goes on by itself once the stage is solved.
+  void timedPracticeTurn(Move m) override;
+  void timedToggleWrong() override;
+  // Deletes the attempt just recorded; one given up before the timer
+  // started is taken back, and the case set up as before. Anything else
+  // is kept until the next case, for Ctrl+Z to put back.
+  void timedDelete() override;
+  void timedRestore() override;
+  void timedFinishAnimations() override { cubeView_->finishAnimations(); }
   void timedShowKeys() override { showStatus(); }
   void timedSay(const QString &text) override;
   void timedCancelled(const QString &why) override;
@@ -227,18 +228,6 @@ private:
   std::optional<CubieCube> cubeState() const;
   // Whether the virtual cube shows the current case's step done.
   bool stepDone() const;
-  void finish(std::int64_t timeMs, DrillFlow::Result result);
-  // Sets the same case up again to solve with no timer and nothing
-  // recorded, with the algs shown (aided) or hidden.
-  void startPractice(bool aided);
-  // A turn in practice; goes on by itself once the stage is solved.
-  void practiceTurn(Move m);
-  void setWrong(bool wrong);
-  // Deletes the attempt just recorded; one given up before the timer
-  // started is taken back, and the case set up as before. Anything else
-  // is kept until the next case, for Ctrl+Z to put back.
-  void deleteAttempt();
-  void restoreAttempt();
   // Clears the drill times of the cases in this cube's drill mode.
   void clearTimes(const std::vector<std::string> &caseIds);
   QString caseName(const std::string &caseId) const;
@@ -247,8 +236,9 @@ private:
   void refreshSession();
   // The summary of the session's attempts from `from` on.
   QString sessionText(std::size_t from) const;
-  // Shows the case diagram beside the algs, or hides it (null pixmap).
-  void setDiagram(const QPixmap &pixmap);
+  // Shows the case's algs and its diagram beside them, or hides both
+  // (empty).
+  void setReveal(const QString &html, const QPixmap &diagram);
   // The keys of the phase the flow is in, under the cube.
   void showStatus();
 };

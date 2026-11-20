@@ -90,7 +90,7 @@ protected:
   }
   void addOptions(OptionBar *bar) override;
   void showOptions() override;
-  std::optional<Setup> setUp(Extent extent, const std::string &card) override;
+  std::optional<Setup> setUp(const std::string &card) override;
   void restarted() override;
   bool turned() override;
   void cubeChanged() override;
@@ -113,7 +113,6 @@ protected:
   QList<KeyHint> doneKeys() const override;
   std::vector<Split> splits() override;
   std::vector<ListRow> cardRows() override;
-  std::vector<ListRow> untimedGroups() override;
   std::vector<ListRow> timedGroups() override;
   QString listHelp() const override;
   void groupActivated(const std::string &key) override;

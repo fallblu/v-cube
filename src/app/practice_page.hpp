@@ -14,11 +14,14 @@
 #include "train/learn_session.hpp"
 #include "train/practice.hpp"
 #include "train/practice_flow.hpp"
+#include "train/solve_review.hpp"
 
 #include <QFutureWatcher>
 #include <QIcon>
 #include <QTimer>
 
+#include <array>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -29,6 +32,7 @@ class QLabel;
 class QScrollArea;
 class QStackedWidget;
 class QTabBar;
+class QToolButton;
 
 namespace vcube {
 
@@ -67,8 +71,6 @@ class PracticePage : public ModePage, private TimedHost {
   Q_OBJECT
 public:
   using Tab = PracticeTab;
-  // What a state is of: the whole step, or one unit of it.
-  enum class Extent { Whole, Unit };
   // The phases of the tabs that aren't timed (the Timed tab's are
   // DrillFlow's).
   using Phase = PracticePhase;
@@ -99,7 +101,6 @@ public:
   // The mode's tabs, in order.
   virtual std::vector<Tab> tabs() const = 0;
   // Timed's cube.
-  bool physical() const { return physical_; }
   CubeKind cubeKind() const {
     return physical_ ? CubeKind::Physical : CubeKind::Virtual;
   }
@@ -153,9 +154,9 @@ protected:
   // "F2L", as in "Whole F2L".
   virtual QString stepName() const = 0;
   // The mode's own options, added to the bar before the page's.
-  virtual void addOptions(OptionBar *bar) { (void)bar; }
+  virtual void addOptions(OptionBar *) {}
   // Buttons at the end of the bar.
-  virtual void addButtons(OptionBar *bar) { (void)bar; }
+  virtual void addButtons(OptionBar *) {}
   // Shows and hides them for the tab.
   virtual void showOptions() {}
 
@@ -164,18 +165,16 @@ protected:
 
   // A state to solve.
   struct Setup {
-    FaceletCube cube;        // as it is shown
-    Hold colours = kWcaHold; // the hold whose colours it is drawn in
+    FaceletCube cube; // as it is shown, in `hold`'s colours
     // For a physical cube's scramble: turned to `hold`, the scrambled cube
     // shows `state` (as generateScramble() has it).
     CubieCube state;
     Hold hold = kWcaHold;
     std::string group; // what the try is kept under, when it isn't a card's
   };
-  // A new state: the whole step, or one unit, which is `card`'s case when
-  // one is given. nullopt when it can't be set up.
-  virtual std::optional<Setup> setUp(Extent extent,
-                                     const std::string &card) = 0;
+  // A new state: the whole step, or with a `card` given one unit of it,
+  // the card's case. nullopt when it can't be set up.
+  virtual std::optional<Setup> setUp(const std::string &card) = 0;
   // The state is on the cube from the start (again, after Esc): whatever
   // the mode tracks of the solve starts again.
   virtual void restarted() {}
@@ -215,15 +214,12 @@ protected:
   virtual bool needsChoice() const { return false; }
   virtual QWidget *choicePanel() { return nullptr; }
   virtual void startChoosing() {}
-  virtual void choiceKey(int n) { (void)n; }
+  virtual void choiceKey(int) {}
   virtual bool confirmChoice() { return true; }
   virtual void cancelChoice() {}
   virtual QString choosingText() const { return {}; }
   // Keys of the mode's own once a try is done, and their hints.
-  virtual bool doneKey(QKeyEvent *e) {
-    (void)e;
-    return false;
-  }
+  virtual bool doneKey(QKeyEvent *) { return false; }
   virtual QList<KeyHint> doneKeys() const { return {}; }
 
   // The parts of a solve, for the Timed tab's splits: each ends after a
@@ -235,13 +231,17 @@ protected:
   using ListRow = PracticeList::Row;
   // The cards (keys are card ids).
   virtual std::vector<ListRow> cardRows() { return {}; }
-  // The groups the Untimed (and Inspection) tab's solves are kept under.
-  virtual std::vector<ListRow> untimedGroups() = 0;
-  // The groups of timed attempts.
-  virtual std::vector<ListRow> timedGroups() = 0;
+  // The groups the Untimed (and Inspection) tab's solves are kept under:
+  // by default the whole step, as kWholeGroup.
+  static constexpr const char *kWholeGroup = "whole";
+  virtual std::vector<ListRow> untimedGroups() {
+    return {{kWholeGroup, tr("Whole %1").arg(stepName()), {}, {}}};
+  }
+  // The groups of timed attempts; by default those of Untimed.
+  virtual std::vector<ListRow> timedGroups() { return untimedGroups(); }
   virtual QString listHelp() const { return {}; }
   // A group's row was double-clicked.
-  virtual void groupActivated(const std::string &key) { (void)key; }
+  virtual void groupActivated(const std::string &) {}
   virtual QString cardName(const std::string &card) const {
     return QString::fromStdString(card);
   }
@@ -250,23 +250,20 @@ protected:
 
   struct Item {
     int id = 0;
-    bool whole = true;
-    std::string card;
+    std::string card;    // empty for a solve of the whole step
     bool isNew = false;  // a card's first sight
     bool graded = false; // the try grades the card
     std::string group;
     FaceletCube start;
-    Hold colours = kWcaHold;
     CubieCube scrambleState;
-    Hold scrambleHold = kWcaHold;
+    Hold hold = kWcaHold; // drawn in its colours and scrambled for it
     QString scramble;
     Alg moves;                        // of the solve, rotations too
     std::vector<std::int64_t> moveMs; // since the solve began, per move
-    std::int64_t began = 0;           // monotonicMs()
+    std::int64_t began = 0;           // monotonicMs(); Inspection's start
     std::int64_t ms = 0;              // Timed: the time
     std::optional<double> meanBefore; // Timed: the group's mean before it
-    std::int64_t inspectStart = 0;    // Inspection: monotonicMs()
-    std::int64_t inspectMs = 0;       // ...the time looked
+    std::int64_t inspectMs = 0;       // Inspection: the time looked
     bool inspecting = false;          // ...the clock runs
     bool done = false;                // the cube shows the item done
     bool hint = false;
@@ -285,7 +282,6 @@ protected:
   Rng &rng() { return rng_; }
   PracticeData &editData() { return store_.data; }
   CubeView *cubeView() const { return cubeView_; }
-  bool active() const { return active_; }
   // The item is a solve whose outcome is up (either tab).
   bool finished() const;
   // An option changed: a new state, in the tab that is open.
@@ -301,12 +297,23 @@ protected:
   void save();
   void fillList();
   void refreshList();
-  // "12.34".
-  QString clockText(std::int64_t ms) const;
   // The colour of text that matters less.
   QString mutedColour() const;
   // The link that plays `alg` from the start when clicked in the detail.
   static QString playLink(const Alg &alg, const QString &text);
+  // The last slots a mode leaves (F2L's, TSLE's): kept as `name`, FR and FL
+  // at first (and when none is kept).
+  using Slots = std::array<bool, kSlots>;
+  Slots loadSlots(const char *name) const;
+  void saveSlots(const char *name, const Slots &picked) const;
+  // The "Last slot:" picker of the slots `current`, made as `button`: a
+  // slot ticked or unticked calls `chosen` with them as they would be, one
+  // slot at least.
+  QWidget *addSlotPicker(OptionBar *bar, QToolButton *&button,
+                         const Slots &current,
+                         const std::function<void(const Slots &)> &chosen);
+  // Ticks the slots on the picker and names them on its button.
+  static void showSlots(QToolButton *button, const Slots &picked);
 
 private:
   AppSettings &settings_;
@@ -323,7 +330,6 @@ private:
   Item item_;
   int items_ = 0;
   bool active_ = false;
-  bool built_ = false;
   bool detailOpen_ = false;
   bool waiting_ = false;   // Done, the verdict waiting for the analysis
   bool demoShown_ = false; // the picture is ahead of the cube
@@ -357,14 +363,11 @@ private:
   int demoPlays_ = 0; // how many demos were played, to tell them apart
 
   bool hasCards() const { return !cardPool().empty(); }
-  // The tab's solves are of the whole step.
-  bool whole() const { return tab_ != Tab::Learn; }
   int tabIndex(Tab t) const;
   void buildSide();
   void showBar();
   void loadChoices();
   void saveChoices() const;
-  DrillFlow::Config flowConfig() const;
 
   // --- items
   void next(LearnAhead ahead = LearnAhead::WhenDue);
@@ -377,16 +380,16 @@ private:
   void undoLast();
   void nextTimed();
   // Puts a set-up state on the cube as a new item.
-  void begin(const Setup &setup, Extent extent);
+  void begin(const Setup &setup);
   void sameAgain();
-  void showIdle(const QString &text);
-  void showReady();
+  // Nothing to solve: Idle, saying `text`, or Ready (the Inspection tab's
+  // first state waits for Space).
+  void showIdle(const QString &text, Phase phase = Phase::Idle);
   void showInspection();
   void resetCube();
   void showCubeKind();
   void applyTurn(Move m);
   void showHidden(bool hidden);
-  void requestScramble();
   void scrambleReady();
 
   // --- the tabs that aren't timed
@@ -410,26 +413,23 @@ private:
 
   // --- Timed
   bool handleTimedKey(QKeyEvent *e, bool press);
-  DrillFlow::KeyEvent flowKey(const QKeyEvent *e, bool press) const;
-  void finishTimed(std::int64_t ms, DrillFlow::Result result);
   // What the Timed tab's flow asks for (see TimedHost).
-  void timedNext(bool fromIdle) override;
-  void timedRetry() override;
-  void timedResetCube() override;
+  void timedNext(bool) override { next(); }
+  void timedRetry() override { sameAgain(); }
+  void timedResetCube() override { resetCube(); }
   void timedRotate(Move m) override;
-  void timedStarted(std::int64_t now) override;
+  void timedStarted(std::int64_t now) override { item_.began = now; }
   std::optional<DrillFlow::Turn> timedTurn(Move m, std::int64_t now) override;
   bool timedStepDone() override { return item_.done; }
   void timedFinish(std::int64_t ms, DrillFlow::Result result) override;
-  void timedPractise(bool aided) override;
+  // No practice here: Tab shows how efficient the solve was.
+  void timedPractise(bool) override { toggleDetail(); }
   void timedToggleWrong() override;
   void timedDelete() override;
-  void timedFinishAnimations() override;
-  void timedShowKeys() override;
+  void timedFinishAnimations() override { cubeView_->finishAnimations(); }
+  void timedShowKeys() override { showKeys(); }
   void timedSay(const QString &text) override;
   void timedCancelled(const QString &why) override;
-  void toggleDnf();
-  void deleteTry();
   void deleteLearnTry(); // Delete on a finished Untimed or Inspection try
   // Runs the tick while the clock changes, and stops it otherwise.
   void updateTick();

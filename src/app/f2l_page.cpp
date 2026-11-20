@@ -14,10 +14,8 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMenu>
 #include <QSignalBlocker>
 #include <QTextDocumentFragment>
-#include <QToolButton>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -28,42 +26,32 @@ namespace vcube {
 
 namespace {
 
-const char *const kWhole = "whole";
-
 QString costText(double cost) { return QString::number(cost, 'f', 1); }
 
 // The stickers of a slot's corner and edge, wherever they are on a cube
 // held any way.
 std::vector<int> pairFacelets(const FaceletCube &cube, Slot slot) {
+  // The colours on a piece's stickers, sorted.
+  auto colours = [](const FaceletCube &c, const auto &facelets) {
+    std::vector<int> out;
+    for (std::uint8_t f : facelets) {
+      out.push_back(c[f]);
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+  };
   std::vector<int> out;
-  auto colours = [](auto facelets) {
-    std::vector<int> c;
-    for (std::uint8_t f : facelets) {
-      c.push_back(f / 9);
+  // The pieces showing the colours of the slot's own.
+  auto add = [&](const auto &pieces, const auto &own) {
+    const std::vector<int> wanted = colours(FaceletCube(), own);
+    for (const auto &facelets : pieces) {
+      if (colours(cube, facelets) == wanted) {
+        out.insert(out.end(), facelets.begin(), facelets.end());
+      }
     }
-    std::sort(c.begin(), c.end());
-    return c;
   };
-  auto shown = [&cube](auto facelets) {
-    std::vector<int> c;
-    for (std::uint8_t f : facelets) {
-      c.push_back(cube[f]);
-    }
-    std::sort(c.begin(), c.end());
-    return c;
-  };
-  std::vector<int> corner = colours(kCornerFacelets[slotCorner(slot)]);
-  for (const auto &facelets : kCornerFacelets) {
-    if (shown(facelets) == corner) {
-      out.insert(out.end(), facelets.begin(), facelets.end());
-    }
-  }
-  std::vector<int> edge = colours(kEdgeFacelets[slotEdge(slot)]);
-  for (const auto &facelets : kEdgeFacelets) {
-    if (shown(facelets) == edge) {
-      out.insert(out.end(), facelets.begin(), facelets.end());
-    }
-  }
+  add(kCornerFacelets, kCornerFacelets[slotCorner(slot)]);
+  add(kEdgeFacelets, kEdgeFacelets[slotEdge(slot)]);
   return out;
 }
 
@@ -153,30 +141,11 @@ void F2LPage::addOptions(OptionBar *bar) {
     methodBox_->addItem(qs(methodName(method)), qs(methodId(method)));
   }
   bar->addPicker(tr("F2L:"), methodBox_);
-
-  leaveButton_ = new QToolButton(bar);
-  leaveButton_->setFocusPolicy(Qt::NoFocus);
-  leaveButton_->setPopupMode(QToolButton::InstantPopup);
-  auto *leaveMenu = new QMenu(leaveButton_);
-  for (Slot s : kF2LSlots) {
-    QAction *a = leaveMenu->addAction(slotText(s));
-    a->setCheckable(true);
-    a->setData(static_cast<int>(s));
-    connect(a, &QAction::toggled, this, [this, s, a](bool on) {
-      config_.lsSlots[static_cast<std::size_t>(s)] = on;
-      if (std::none_of(config_.lsSlots.begin(), config_.lsSlots.end(),
-                       [](bool b) { return b; })) {
-        // One slot at least can be left.
-        config_.lsSlots[static_cast<std::size_t>(s)] = true;
-        QSignalBlocker block(a);
-        a->setChecked(true);
-        return;
-      }
-      configChanged();
-    });
-  }
-  leaveButton_->setMenu(leaveMenu);
-  leaveItem_ = bar->addPicker(tr("Last slot:"), leaveButton_);
+  leaveItem_ = addSlotPicker(bar, leaveButton_, config_.lsSlots,
+                             [this](const Slots &chosen) {
+                               config_.lsSlots = chosen;
+                               configChanged();
+                             });
 
   connect(methodBox_, &QComboBox::activated, this, [this] {
     if (auto m =
@@ -194,18 +163,7 @@ void F2LPage::loadChoices() {
                                 .toStdString())) {
     applyMethod(config_, *m);
   }
-  QStringList leave = saved::practice("f2l", "leave", QStringList{"FR", "FL"})
-                          .get()
-                          .toStringList();
-  bool any = false;
-  for (Slot s : kF2LSlots) {
-    bool on = leave.contains(slotText(s));
-    config_.lsSlots[static_cast<std::size_t>(s)] = on;
-    any = any || on;
-  }
-  if (!any) {
-    config_.lsSlots = F2LConfig().lsSlots;
-  }
+  config_.lsSlots = loadSlots("leave");
   // Solutions are searched with every move the method allows.
   config_.dMoves = true;
   config_.halfFB = true;
@@ -214,13 +172,7 @@ void F2LPage::loadChoices() {
 
 void F2LPage::saveChoices() const {
   saved::practice("f2l", "method").set(qs(methodId(methodOf(config_))));
-  QStringList leave;
-  for (Slot s : kF2LSlots) {
-    if (config_.lsSlots[static_cast<std::size_t>(s)]) {
-      leave << slotText(s);
-    }
-  }
-  saved::practice("f2l", "leave").set(leave);
+  saveSlots("leave", config_.lsSlots);
 }
 
 void F2LPage::showOptions() {
@@ -229,16 +181,7 @@ void F2LPage::showOptions() {
     methodBox_->setCurrentIndex(
         methodBox_->findData(qs(methodId(methodOf(config_)))));
   }
-  QStringList leave;
-  for (QAction *a : leaveButton_->menu()->actions()) {
-    QSignalBlocker block(a);
-    bool on = config_.lsSlots[static_cast<std::size_t>(a->data().toInt())];
-    a->setChecked(on);
-    if (on) {
-      leave << a->text();
-    }
-  }
-  leaveButton_->setText(leave.join(" / "));
+  showSlots(leaveButton_, config_.lsSlots);
   leaveItem_->setVisible(config_.lastSlot);
 }
 
@@ -329,8 +272,7 @@ std::vector<std::string> F2LPage::cardPool() const {
   return pairCardPool(config_.edges());
 }
 
-std::optional<PracticePage::Setup> F2LPage::setUp(Extent extent,
-                                                  const std::string &card) {
+std::optional<PracticePage::Setup> F2LPage::setUp(const std::string &card) {
   if (stop_) {
     stop_->store(true);
   }
@@ -341,7 +283,7 @@ std::optional<PracticePage::Setup> F2LPage::setUp(Extent extent,
   card_.reset();
   ranks_.clear();
   asked_.clear();
-  if (extent == Extent::Whole) {
+  if (card.empty()) {
     start_ = randomFullState(config_, rng());
   } else {
     std::optional<PairCard> c = cardFromKey(card);
@@ -364,10 +306,9 @@ std::optional<PracticePage::Setup> F2LPage::setUp(Extent extent,
   Setup s;
   s.state = start_;
   s.hold = settings().neutrality.pick(rng());
-  s.colours = s.hold;
   s.cube = start_.toFacelets();
-  s.group =
-      tab() == Tab::Timed ? std::string(methodId(methodOf(config_))) : kWhole;
+  s.group = tab() == Tab::Timed ? std::string(methodId(methodOf(config_)))
+                                : kWholeGroup;
   if (target_) {
     requestPair();
   } else {
@@ -623,19 +564,14 @@ QString F2LPage::taskNote() const {
 }
 
 QString F2LPage::hint() {
-  const std::vector<Alg> chosen = usableSolutions();
-  std::optional<Alg> best =
-      chosen.empty() ? std::nullopt : chosenHere(chosen.front());
-  if (!best && pair_ && pair_->best()) {
-    best = pair_->best()->alg;
-  }
-  if (!best || best->empty()) {
+  const Alg best = demoAlg();
+  if (best.empty()) {
     return {};
   }
   // A move more each time.
-  hintMoves_ = std::min(hintMoves_ + 1, static_cast<int>(best->size()));
-  Alg shown(best->begin(), best->begin() + hintMoves_);
-  return hintMoves_ == static_cast<int>(best->size())
+  hintMoves_ = std::min(hintMoves_ + 1, static_cast<int>(best.size()));
+  Alg shown(best.begin(), best.begin() + hintMoves_);
+  return hintMoves_ == static_cast<int>(best.size())
              ? tr("Hint: %1").arg(qs(toString(shown)))
              : tr("Hint: it starts %1").arg(qs(toString(shown)));
 }
@@ -1305,10 +1241,6 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
     }
   }
   return rows;
-}
-
-std::vector<PracticePage::ListRow> F2LPage::untimedGroups() {
-  return {{kWhole, tr("Whole F2L"), {}, {}}};
 }
 
 std::vector<PracticePage::ListRow> F2LPage::timedGroups() {
