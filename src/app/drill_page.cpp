@@ -1,5 +1,4 @@
 #include "app/drill_page.hpp"
-#include "app/drill_private.hpp"
 
 #include "app/text_style.hpp"
 #include "app/ui_state.hpp"
@@ -196,13 +195,14 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
 
   // After a case: its diagram and algs side by side under the time, kept
   // together rather than spread across the page.
+  const int diagramSize = scaledToText(kLargeDiagram);
   auto *revealBox = new QWidget(right);
-  revealBox->setMinimumHeight(diagramSize());
+  revealBox->setMinimumHeight(diagramSize);
   auto *revealLayout = new QHBoxLayout(revealBox);
   revealLayout->setContentsMargins(0, 0, 0, 0);
   diagram_ = new QLabel(revealBox);
   diagram_->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-  diagram_->setFixedSize(diagramSize(), diagramSize());
+  diagram_->setFixedSize(diagramSize, diagramSize);
   reveal_ = new QLabel(revealBox);
   reveal_->setTextFormat(Qt::RichText);
   reveal_->setWordWrap(true);
@@ -215,7 +215,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   revealLayout->addWidget(diagram_, 0, Qt::AlignTop);
   revealLayout->addWidget(reveal_, 3);
   revealLayout->addStretch(1);
-  setDiagram({});
+  setReveal({}, {});
   rightLayout->addWidget(revealBox);
   rightLayout->addStretch(1);
 
@@ -247,29 +247,24 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
       nextCase();
     }
   });
-  connect(scopeBox_, &QComboBox::activated, this, [this] {
-    saved::drillScope(setId_).set(scopeBox_->currentData().toString());
-    picker_.restartRecap();
-    recapFrom_ = session_.size();
-    updateSummary();
-    nextCase();
-  });
-  connect(poolBox_, &QComboBox::activated, this, [this] {
-    saved::drillPool(setId_).set(poolId(poolChoice()));
-    picker_.restartRecap();
-    recapFrom_ = session_.size();
-    updateSummary();
-    nextCase();
-  });
-  connect(orderBox_, &QComboBox::activated, this, [this] {
-    PickMode order = currentEnum(orderBox_, PickMode::Random);
-    saved::drillOrder(setId_).set(qs(pickModeId(order)));
-    picker_.setMode(order);
-    picker_.restartRecap();
-    recapFrom_ = session_.size();
-    updateSummary();
-    nextCase();
-  });
+  // Other cases, or another order: kept, and the recap starts again.
+  for (QComboBox *box : {scopeBox_, poolBox_, orderBox_}) {
+    connect(box, &QComboBox::activated, this, [this, box] {
+      if (box == scopeBox_) {
+        saved::drillScope(setId_).set(scopeBox_->currentData().toString());
+      } else if (box == poolBox_) {
+        saved::drillPool(setId_).set(poolId(poolChoice()));
+      } else {
+        PickMode order = currentEnum(orderBox_, PickMode::Random);
+        saved::drillOrder(setId_).set(qs(pickModeId(order)));
+        picker_.setMode(order);
+      }
+      picker_.restartRecap();
+      recapFrom_ = session_.size();
+      updateSummary();
+      nextCase();
+    });
+  }
   // "Cases shown in the list" follows the search and filter.
   connect(filter_, &CaseFilter::changed, this, [this] { updateSummary(); });
   connect(sessionReset, &QPushButton::clicked, this, &DrillPage::resetTally);
@@ -417,10 +412,7 @@ void DrillPage::startSet() {
     updateAllRows(); // the rows were filled for the last set's cube
   }
   current_.reset();
-  session_.clear(); // its slowest cases are named from the set
-  sessionIndex_.reset();
-  recapFrom_ = 0;
-  refreshSession();
+  resetTally(); // its slowest cases are named from the set
   updateSummary();
   nextCase();
 }
@@ -620,8 +612,7 @@ void DrillPage::refreshSession() {
 void DrillPage::nextCase() {
   flow_.leaveCase();
   deleted_.reset();
-  reveal_->clear();
-  setDiagram({});
+  setReveal({}, {});
   resultRow_->setVisible(false);
   const AlgSet *s = set();
   std::vector<std::string> cases = s ? pool() : std::vector<std::string>{};
@@ -718,8 +709,7 @@ void DrillPage::retryCase() {
   current_->scramble.clear();
   missText_.clear();
   sessionIndex_.reset();
-  reveal_->clear();
-  setDiagram({});
+  setReveal({}, {});
   resultRow_->setVisible(false);
   display_->showTime(0);
   // The list names the case only once it is revealed.

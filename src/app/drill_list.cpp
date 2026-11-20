@@ -58,8 +58,8 @@ void DrillPage::fillRow(QTreeWidgetItem *item, const std::string &caseId) {
   double target = s ? s->targetSeconds * 1000.0 : 0.0;
   std::optional<double> mean = cp ? cp->recentMean(mode) : std::nullopt;
   std::optional<double> best;
-  if (cp && cp->best(mode)) {
-    best = static_cast<double>(*cp->best(mode));
+  if (auto b = cp ? cp->best(mode) : std::nullopt) {
+    best = static_cast<double>(*b);
   }
   std::size_t count = cp ? cp->drillCount(mode) : 0;
   std::optional<double> fail;
@@ -146,13 +146,14 @@ void DrillPage::fillGroupRow(QTreeWidgetItem *item,
   item->setData(3, kSortRole, fail ? QVariant(*fail) : QVariant());
   item->setData(4, kSortRole, weak ? QVariant(*weak) : QVariant());
   QColor muted = palette().color(QPalette::PlaceholderText);
+  const QString tip = tr("The group's %1 drilled cases of %2 taken together: "
+                         "the mean of their means, fail rates and "
+                         "weaknesses, and the best of their bests")
+                          .arg(drilled)
+                          .arg(caseIds.size());
   for (int c = 1; c <= 4; ++c) {
     item->setForeground(c, muted);
-    item->setToolTip(c, tr("The group's %1 drilled cases of %2 taken "
-                           "together: the mean of their means, fail rates "
-                           "and weaknesses, and the best of their bests")
-                            .arg(drilled)
-                            .arg(caseIds.size()));
+    item->setToolTip(c, tip);
   }
 }
 

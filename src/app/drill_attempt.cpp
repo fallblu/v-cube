@@ -1,5 +1,5 @@
 #include "app/drill_page.hpp"
-#include "app/drill_private.hpp"
+#include "app/text_style.hpp"
 #include "app/train_keys.hpp"
 #include "app/ui_text.hpp"
 
@@ -116,8 +116,7 @@ void DrillPage::startPractice(bool aided) {
   if (aided) {
     showReveal();
   } else {
-    reveal_->clear();
-    setDiagram({});
+    setReveal({}, {});
   }
   showStatus();
   showResult();
@@ -266,19 +265,14 @@ void DrillPage::deleteAttempt() {
   if (takenBack) {
     // Given up by mistake: the case is set up as it was, to try.
     missText_.clear();
-    reveal_->clear();
-    setDiagram({});
+    setReveal({}, {});
     resultRow_->setVisible(false);
     display_->showTime(0);
     clearCaseSelection();
     if (onVirtualCube()) {
       resetCube();
     }
-    showStatus();
-    statusLabel_->setText((tr("Give-up taken back; nothing was recorded.") +
-                           " " + statusLabel_->text())
-                              .trimmed());
-    statusLabel_->show();
+    timedCancelled(tr("Give-up taken back; nothing was recorded."));
     return;
   }
   showStatus();
@@ -367,14 +361,15 @@ void DrillPage::showReveal() {
                 .toHtmlEscaped() +
             "</p>";
   }
-  reveal_->setText(html);
-  setDiagram(caseDiagram(current_->caseId, current_->state, diagramSize(),
-                         colourMapOf(current_->hold), current_->world));
+  setReveal(html, caseDiagram(current_->caseId, current_->state,
+                              scaledToText(kLargeDiagram),
+                              colourMapOf(current_->hold), current_->world));
 }
 
-void DrillPage::setDiagram(const QPixmap &pixmap) {
-  diagram_->setPixmap(pixmap);
-  diagram_->setVisible(!pixmap.isNull());
+void DrillPage::setReveal(const QString &html, const QPixmap &diagram) {
+  reveal_->setText(html);
+  diagram_->setPixmap(diagram);
+  diagram_->setVisible(!diagram.isNull());
 }
 
 } // namespace vcube

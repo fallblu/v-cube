@@ -247,8 +247,9 @@ private:
   void refreshSession();
   // The summary of the session's attempts from `from` on.
   QString sessionText(std::size_t from) const;
-  // Shows the case diagram beside the algs, or hides it (null pixmap).
-  void setDiagram(const QPixmap &pixmap);
+  // Shows the case's algs and its diagram beside them, or hides both
+  // (empty).
+  void setReveal(const QString &html, const QPixmap &diagram);
   // The keys of the phase the flow is in, under the cube.
   void showStatus();
 };
