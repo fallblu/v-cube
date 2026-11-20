@@ -368,3 +368,38 @@ TEST_CASE("untimed sessions take any scramble type and uncounted solves") {
   CHECK(formatAttempt(again.current().attempts[0]) == "-");
   CHECK(attemptsAsSolves(again.current().attempts).empty());
 }
+
+TEST_CASE("move counts and scramble types from a file are checked") {
+  QJsonObject o = QJsonDocument::fromJson(R"({
+    "format": "v-cube.movecount", "version": 1, "current": 0,
+    "sessions": [
+      {"name": "Mine", "scrambleType": "set:pll", "attempts": [
+        {"moves": -4, "scramble": "R"},
+        {"moves": 100000, "scramble": "R"},
+        {"moves": "x", "scramble": "R"},
+        {"scramble": "R"}]}]})")
+                      .object();
+  REQUIRE_FALSE(o.isEmpty());
+  auto s = moveCountsFromJson(o);
+  REQUIRE(s.size() == 1);
+  // Move Count doesn't offer the type: it reads as a plain scramble.
+  CHECK(s[0].scrambleType == "333");
+  REQUIRE(s[0].attempts.size() == 4);
+  CHECK(s[0].attempts[0].moves == 0);
+  CHECK(s[0].attempts[1].moves == kMaxMoveCount);
+  CHECK(kMaxMoveCount == 999);
+  CHECK(s[0].attempts[2].moves == 0);
+  for (std::size_t i = 0; i < 3; ++i) {
+    CHECK(s[0].attempts[i].counted);
+  }
+  CHECK_FALSE(s[0].attempts[3].counted);
+
+  // Untimed takes any scramble type, and checks the counts the same way.
+  auto untimed = moveCountsFromJson(o, nullptr, SolveLog::Untimed);
+  REQUIRE(untimed.size() == 1);
+  CHECK(untimed[0].scrambleType == "set:pll");
+  REQUIRE(untimed[0].attempts.size() == 4);
+  CHECK(untimed[0].attempts[0].moves == 0);
+  CHECK(untimed[0].attempts[1].moves == kMaxMoveCount);
+  CHECK(untimed[0].attempts[2].moves == 0);
+}
