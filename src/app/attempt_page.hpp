@@ -72,8 +72,6 @@ protected:
   virtual void addCells(std::vector<AttemptCell> &cells,
                         const MoveCountAttempt &a, const QString &ao5,
                         const QString &ao12) const = 0;
-  // More statistics below the table of them.
-  virtual void addStats(QString &) {}
   // What the hint line says and the keys shown under it.
   struct Hint {
     QString message;

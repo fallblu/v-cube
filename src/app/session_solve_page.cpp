@@ -2,6 +2,7 @@
 
 #include "app/cube_view.hpp"
 #include "app/page_parts.hpp"
+#include "io/qt_text.hpp"
 
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -169,6 +170,36 @@ void SessionSolvePage::showCubeKind() {
 void SessionSolvePage::showChart() {
   chart_->setVisible(!focusMode() && !scramblesOnly());
   focusStats_->setVisible(focusMode() && !scramblesOnly());
+}
+
+void SessionSolvePage::showStats(
+    std::span<const Solve> solves, std::int64_t unit, const QString &single,
+    const std::function<QString(const std::string &, StatValue)> &format,
+    std::size_t count) {
+  static constexpr std::string_view kStats[] = {"single", "mo3", "ao5", "ao12",
+                                                "ao100"};
+  SessionStats stats = sessionStats(solves, kStats, unit);
+  const SessionSummary &sum = stats.summary;
+  QString colour = palette().color(QPalette::WindowText).name();
+  QString html = statsTableHtml(
+      stats,
+      [&single](const std::string &id) {
+        return id == "single" ? single : qs(id);
+      },
+      format, colour);
+  html += tr("<p>Solves: %1%2 &nbsp; Mean: %3</p>")
+              .arg(count)
+              .arg(sum.dnfs ? QString(" (%1 DNF)").arg(sum.dnfs) : QString())
+              .arg(statLinkHtml("mean:all", sum.mean, format("mean", sum.mean),
+                                colour));
+  addStats(html);
+  panel_->setStatsHtml(html);
+  focusStats_->setText(
+      tr("ao5 %1 · ao12 %2 · best %3 · %4 solves")
+          .arg(format("ao5", currentAverage(solves, 5, unit)),
+               format("ao12", currentAverage(solves, 12, unit)),
+               format("single", sum.best))
+          .arg(count));
 }
 
 void SessionSolvePage::enableControls(bool undo) {

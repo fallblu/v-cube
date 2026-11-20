@@ -8,6 +8,10 @@
 #include "train/move_count.hpp"
 
 #include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <span>
+#include <string>
 #include <vector>
 
 class QComboBox;
@@ -68,6 +72,13 @@ protected:
   // the page is busy, and shows the undo button if there is a delete to
   // undo (`undo`).
   void enableControls(bool undo);
+  // Shows the statistics of `solves` (`count` attempts) in the panel and
+  // the focus-mode line: rounded to `unit`, each value as `format(id, v)`
+  // (id "single", "ao5", ... or "mean") and "single" named `single`.
+  void showStats(
+      std::span<const Solve> solves, std::int64_t unit, const QString &single,
+      const std::function<QString(const std::string &, StatValue)> &format,
+      std::size_t count);
 
   // --- what the subclass has: the sessions and its own flow ---
   virtual bool onVirtualCube() const = 0;
@@ -76,6 +87,8 @@ protected:
   virtual std::vector<AttemptColumn> columns() const = 0;
   // Only the scrambles are kept, without statistics.
   virtual bool scramblesOnly() const { return false; }
+  // More statistics below the table of them.
+  virtual void addStats(QString &) {}
   // The flow follows the settings and the session's cube.
   virtual void configureFlow() = 0;
   virtual void showScramble() = 0;

@@ -211,28 +211,10 @@ void TimerPage::refreshAttempts() {
   if (missing) {
     requestSplits();
   }
-  static constexpr std::string_view kStats[] = {"single", "mo3", "ao5", "ao12",
-                                                "ao100"};
-  SessionStats stats = sessionStats(solves, kStats, unit);
-  const SessionSummary &sum = stats.summary;
-  QString colour = palette().color(QPalette::WindowText).name();
-  QString html = statsTableHtml(
-      stats,
-      [](const std::string &id) {
-        return id == "single" ? tr("time") : qs(id);
-      },
-      [d](const std::string &, StatValue v) { return statText(v, d); }, colour);
-  html += tr("<p>Solves: %1%2 &nbsp; Mean: %3</p>")
-              .arg(sum.count)
-              .arg(sum.dnfs ? QString(" (%1 DNF)").arg(sum.dnfs) : QString())
-              .arg(statLinkHtml("mean:all", sum.mean, statText(sum.mean, d),
-                                colour));
-  panel_->setStatsHtml(html);
-  focusStats_->setText(tr("ao5 %1 · ao12 %2 · best %3 · %4 solves")
-                           .arg(statText(currentAverage(solves, 5, unit), d),
-                                statText(currentAverage(solves, 12, unit), d),
-                                statText(sum.best, d))
-                           .arg(sum.count));
+  showStats(
+      solves, unit, tr("time"),
+      [d](const std::string &, StatValue v) { return statText(v, d); },
+      solves.size());
   chart_->setSolves(solves);
   if (virt) {
     chart_->setSeries({{tr("cross"), Role::Series3, crossSeries},

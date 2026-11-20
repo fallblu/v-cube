@@ -658,32 +658,12 @@ void AttemptPage::refreshAttempts() {
     updateControls();
     return;
   }
-  static constexpr std::string_view kStats[] = {"single", "mo3", "ao5", "ao12",
-                                                "ao100"};
-  SessionStats stats = sessionStats(solves, kStats);
-  const SessionSummary &sum = stats.summary;
-  QString colour = palette().color(QPalette::WindowText).name();
-  QString html = statsTableHtml(
-      stats,
-      [](const std::string &id) {
-        return id == "single" ? tr("single") : qs(id);
-      },
+  showStats(
+      solves, kWcaUnit, tr("single"),
       [](const std::string &id, StatValue v) {
         return movesText(v, id == "single" ? 0 : 2);
       },
-      colour);
-  html +=
-      tr("<p>Solves: %1%2 &nbsp; Mean: %3</p>")
-          .arg(attempts.size())
-          .arg(sum.dnfs ? QString(" (%1 DNF)").arg(sum.dnfs) : QString())
-          .arg(statLinkHtml("mean:all", sum.mean, movesText(sum.mean), colour));
-  addStats(html);
-  panel_->setStatsHtml(html);
-  focusStats_->setText(tr("ao5 %1 · ao12 %2 · best %3 · %4 solves")
-                           .arg(movesText(currentAverage(solves, 5)),
-                                movesText(currentAverage(solves, 12)),
-                                movesText(sum.best, 0))
-                           .arg(attempts.size()));
+      attempts.size());
   chart_->setSolves(solves);
   updateControls();
   if (flow_.retry()) {
