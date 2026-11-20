@@ -61,9 +61,11 @@ if(WIN32)
     COMMAND_EXPAND_LISTS)
 endif()
 if(VCUBE_SANITIZE AND NOT MSVC)
-  # Leaks inside Qt that LeakSanitizer can't tell from ours.
+  # Leaks inside Qt that LeakSanitizer can't tell from ours, and more time
+  # for the checks of how long something takes (see test_time.hpp).
   catch_discover_tests(vcube_tests PROPERTIES ENVIRONMENT
-    "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp")
+    "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp"
+    ENVIRONMENT_MODIFICATION "VCUBE_TEST_TIME_SCALE=set:10")
 else()
   catch_discover_tests(vcube_tests)
 endif()

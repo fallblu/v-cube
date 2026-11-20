@@ -1,11 +1,14 @@
 #include "cube/solver.hpp"
 
+#include "test_time.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
 #include <random>
 
 using namespace vcube;
+using vcube::testing::timeLimit;
 
 TEST_CASE("two-phase solver solves random states in at most 24 moves") {
   std::mt19937 rng(42);
@@ -49,7 +52,7 @@ TEST_CASE("near-solved states get short solutions without using the budget") {
   CHECK(sol.size() <= 14);
   // It stops once shorter solutions stop coming, long before the budget
   // is spent.
-  CHECK(took < std::chrono::milliseconds(300));
+  CHECK(took < timeLimit(std::chrono::milliseconds(300)));
 }
 
 namespace {
@@ -129,7 +132,8 @@ TEST_CASE("the solver keeps to its length limit and deadline") {
   }
   auto start = std::chrono::steady_clock::now();
   CHECK_FALSE(TwoPhaseSolver::solve(s, 12, TwoPhaseSolver::Clock::now()));
-  CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(2));
+  CHECK(std::chrono::steady_clock::now() - start <
+        timeLimit(std::chrono::seconds(2)));
   // The shortest budget still gives a solution.
   Alg quick = TwoPhaseSolver::solve(s, std::chrono::milliseconds(1));
   c = s;

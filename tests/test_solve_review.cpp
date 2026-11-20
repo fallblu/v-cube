@@ -3,6 +3,7 @@
 #include "train/solve_review.hpp"
 
 #include "test_support.hpp"
+#include "test_time.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -380,5 +381,5 @@ TEST_CASE("the cheapest pair order is quick on a full slot set", "[review]") {
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - begin)
                 .count();
-  CHECK(ms < 2000);
+  CHECK(ms < timeLimit(std::chrono::milliseconds(2000)).count());
 }
