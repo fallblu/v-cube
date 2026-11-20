@@ -184,20 +184,4 @@ protected:
   DataFile file_;
 };
 
-// One value saved as a JSON data file: `ToJson` writes the whole file from
-// it and `FromJson` reads it back. A missing or unreadable file gives an
-// empty value.
-template <typename Data, const FileFormat &Format, auto ToJson, auto FromJson>
-class JsonStore : public FileStore {
-public:
-  explicit JsonStore(QString path) : FileStore(std::move(path), Format) {}
-
-  Data data;
-
-protected:
-  void reset() override { data = {}; }
-  QJsonObject toJson() const override { return ToJson(data); }
-  void fromJson(const QJsonObject &o) override { data = FromJson(o); }
-};
-
 } // namespace vcube
