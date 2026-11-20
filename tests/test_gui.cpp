@@ -409,6 +409,7 @@ private slots:
   void layoutFitsHalfAScreen();
   void sidePanelHidesInANarrowWindow();
   void keyChipsAreClickable();
+  void scrambleFeedDropsAScrambleOfTheOldCases();
   void timedPhysicalSolve();
   void backspaceAfterDeletingTheSession();
   void untimedVirtualSolve();
@@ -1653,6 +1654,28 @@ void GuiTest::practiceModesComeBackAsLeft() {
   QTest::keyClick(window_.get(), Qt::Key_Escape);
   QVERIFY(!eo->isBusy());
   eo->selectTab(Tab::Untimed);
+}
+
+// A scramble still being made when the alg sets change is of the cases
+// as they were: the feed drops it.
+void GuiTest::scrambleFeedDropsAScrambleOfTheOldCases() {
+  AlgLibrary lib(QDir(dataDir_).filePath("algsets"), ":/algsets");
+  lib.load();
+  AlgSet *pll = lib.find("pll");
+  QVERIFY(pll);
+  ScrambleFeed feed(lib);
+  feed.setType("set:pll");
+  // Only the T perm is left, while the first scramble is on its way.
+  for (auto &g : pll->groups) {
+    std::erase_if(g.cases, [](const AlgCase &c) { return c.id != "T"; });
+  }
+  QVERIFY(pll->findCase("T"));
+  feed.regenerate();
+  QTRY_VERIFY_WITH_TIMEOUT(feed.current().has_value(), 30000);
+  QCOMPARE(feed.current()->caseId, std::string("T"));
+  feed.advance();
+  QTRY_VERIFY_WITH_TIMEOUT(feed.current().has_value(), 30000);
+  QCOMPARE(feed.current()->caseId, std::string("T"));
 }
 
 void GuiTest::timedPhysicalSolve() {
