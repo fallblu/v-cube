@@ -282,7 +282,7 @@ private:
 #define KEY_TO(page, to, ...)                                                  \
   do {                                                                         \
     QTest::keyClick(window_.get(), __VA_ARGS__);                               \
-    QCOMPARE((page)->phase(), PracticePage::Phase::to);                        \
+    QCOMPARE((page)->phase(), Phase::to);                                      \
   } while (false)
 
 // `var`, the page of type `Type`, switched to with its mode's shortcut.
@@ -301,6 +301,9 @@ class GuiTest : public QObject {
   QString dataDir_;
   std::unique_ptr<SingleInstance> instance_;
   std::unique_ptr<MainWindow> window_;
+
+  using Phase = PracticePage::Phase;
+  using Tab = PracticePage::Tab;
 
   template <typename Page> Page *page() {
     auto *p = window_->findChild<Page *>();
@@ -771,8 +774,6 @@ void GuiTest::fingertrickGuidance() {
 }
 
 void GuiTest::f2lLearnAndTimed() {
-  using Phase = PracticePage::Phase;
-  using Tab = PracticePage::Tab;
   OPEN_PAGE(f2l, F2LPage, F2L);
   // ZZ F2L - 1 leaving FR or FL, as a new install has it.
   QVERIFY(f2l->config().eo);
@@ -1203,8 +1204,6 @@ void GuiTest::f2lLearnAndTimed() {
 }
 
 void GuiTest::tsleLearnAndTimed() {
-  using Phase = PracticePage::Phase;
-  using Tab = PracticePage::Tab;
   OPEN_PAGE(tsle, TslePage, Tsle);
   QVERIFY(tsle->lastSlots()[0] && tsle->lastSlots()[1]);
   auto options = [tsle] {
@@ -1358,8 +1357,6 @@ void GuiTest::tsleLearnAndTimed() {
 }
 
 void GuiTest::eoCrossLearnAndTimed() {
-  using Phase = PracticePage::Phase;
-  using Tab = PracticePage::Tab;
   OPEN_PAGE(eo, EoCrossPage, EoCross);
   const SolveStep step = SolveStep::EOCross;
   eo->setStep(step);
@@ -1532,8 +1529,6 @@ void GuiTest::eoCrossLearnAndTimed() {
 }
 
 void GuiTest::practiceModesComeBackAsLeft() {
-  using Phase = PracticePage::Phase;
-  using Tab = PracticePage::Tab;
   auto *eo = page<EoCrossPage>();
   auto *tsle = page<TslePage>();
   // Untimed isn't timed: a solve under way is there on the way back.
