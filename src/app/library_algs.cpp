@@ -24,13 +24,18 @@ QString drillText(const CaseProgress &p, AttemptMode mode) {
 
 } // namespace
 
-QString LibraryPage::historyHtml(const AlgCase &c) const {
+const CaseProgress *LibraryPage::progressOf(const std::string &caseId) const {
   const SetProgress &p = library_.progress(editor_.setId);
-  auto it = p.find(c.id);
-  if (it == p.end()) {
+  auto it = p.find(caseId);
+  return it == p.end() ? nullptr : &it->second;
+}
+
+QString LibraryPage::historyHtml(const AlgCase &c) const {
+  const CaseProgress *found = progressOf(c.id);
+  if (!found) {
     return tr("Not learned yet, no drills.");
   }
-  const CaseProgress &cp = it->second;
+  const CaseProgress &cp = *found;
   auto row = [](const QString &name, const QString &value) {
     return QString("<tr><td>%1&nbsp;&nbsp;</td><td>%2</td></tr>")
         .arg(name.toHtmlEscaped(), value.toHtmlEscaped());
@@ -117,24 +122,16 @@ void LibraryPage::loadCase() {
                       : tr("%1, %2 passing").arg(c->algs.size()).arg(passing));
   // What Learn and Drill have recorded for it.
   QStringList progress;
-  const SetProgress &p = library_.progress(s->id);
-  if (auto it = p.find(c->id); it != p.end()) {
-    switch (statusOf(&it->second)) {
-    case CaseStatus::Unstarted:
-      progress << tr("not learned yet");
-      break;
-    case CaseStatus::Learning:
-      progress << tr("learning");
-      break;
-    case CaseStatus::Learned:
-      progress << tr("learned");
-      break;
-    }
+  if (const CaseProgress *cp = progressOf(c->id)) {
+    CaseStatus status = statusOf(cp);
+    progress << (status == CaseStatus::Learned    ? tr("learned")
+                 : status == CaseStatus::Learning ? tr("learning")
+                                                  : tr("not learned yet"));
     const std::pair<AttemptMode, QString> modes[] = {
         {AttemptMode::PhysicalDrill, tr("physical cube")},
         {AttemptMode::VirtualDrill, tr("virtual cube")}};
     for (const auto &[mode, name] : modes) {
-      QString text = drillText(it->second, mode);
+      QString text = drillText(*cp, mode);
       if (!text.isEmpty()) {
         progress << tr("%1 (%2)").arg(text, name);
       }
@@ -281,10 +278,6 @@ QStringList LibraryPage::algTexts() const {
     texts << algList_->topLevelItem(i)->text(0);
   }
   return texts;
-}
-
-void LibraryPage::storeAlgs(const QString &text, std::optional<int> edited) {
-  storeAlgTexts(text, editor_.caseId, algTexts(), edited);
 }
 
 void LibraryPage::storeAlgTexts(const QString &text, const std::string &caseId,

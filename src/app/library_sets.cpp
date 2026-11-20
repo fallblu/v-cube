@@ -191,11 +191,10 @@ void LibraryPage::editProperties() {
   int group = -1;
   if (QTreeWidgetItem *item = caseTree_->currentItem()) {
     QTreeWidgetItem *groupItem = item->parent() ? item->parent() : item;
-    int gi = groupItem->data(0, kGroupRole).toInt();
-    if (gi >= 0 && gi < static_cast<int>(s->groups.size()) &&
-        (item == groupItem ||
-         s->groups[static_cast<std::size_t>(gi)].spec.has_value())) {
-      group = gi;
+    std::size_t gi = groupIndexOf(groupItem);
+    if (gi < s->groups.size() &&
+        (item == groupItem || s->groups[gi].spec.has_value())) {
+      group = static_cast<int>(gi);
     }
   }
   SetPropertiesDialog dialog(*s, group, look(), editor_.caseId, this);
@@ -286,7 +285,7 @@ void LibraryPage::checkAlgs() {
   layout->addWidget(buttons);
   connect(tree, &QTreeWidget::itemDoubleClicked, &dialog,
           [this, &dialog](QTreeWidgetItem *item) {
-            editor_.caseId = ss(item->data(0, kCaseRole).toString());
+            editor_.caseId = caseIdOf(item);
             buildCaseTree();
             loadCase();
             dialog.accept();

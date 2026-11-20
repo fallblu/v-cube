@@ -39,10 +39,7 @@ CaseTreeWidget::CaseTreeWidget(QWidget *parent) : QTreeWidget(parent) {
 
 void CaseTreeWidget::dropEvent(QDropEvent *event) {
   QPersistentModelIndex target = indexAt(event->position().toPoint());
-  int position = dropIndicatorPosition() == OnItem      ? DropOn
-                 : dropIndicatorPosition() == AboveItem ? DropAbove
-                 : dropIndicatorPosition() == BelowItem ? DropBelow
-                                                        : DropElsewhere;
+  int position = dropIndicatorPosition();
   // The page moves the cases and rebuilds the tree; the view itself must
   // move nothing, and the drag must not remove the dragged items.
   event->setDropAction(Qt::IgnoreAction);
@@ -105,10 +102,10 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   caseFilter_ = new CaseFilter(caseTree_, middle);
   auto caseOf = [this](const QTreeWidgetItem *item) {
     const AlgSet *s = set();
-    return s ? s->findCase(ss(item->data(0, kCaseRole).toString())) : nullptr;
+    return s ? s->findCase(caseIdOf(item)) : nullptr;
   };
   auto analysis = [this](const QTreeWidgetItem *item) {
-    return editor_.analysisOf(ss(item->data(0, kCaseRole).toString()));
+    return editor_.analysisOf(caseIdOf(item));
   };
   caseFilter_->setStatuses({
       {tr("No algs"),
@@ -233,9 +230,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
     if (!c) {
       return;
     }
-    const SetProgress &p = library_.progress(editor_.setId);
-    auto it = p.find(c->id);
-    const CaseProgress *own = it == p.end() ? nullptr : &it->second;
+    const CaseProgress *own = progressOf(c->id);
     showCaseHistory(this, qs(c->name), own, caseAttempts(own, nullptr), false,
                     settings_.srs);
   });
@@ -252,10 +247,8 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
       if (!c) {
         return;
       }
-      const SetProgress &p = library_.progress(editor_.setId);
-      auto it = p.find(c->id);
-      showDrillHistory(this, qs(c->name), it == p.end() ? nullptr : &it->second,
-                       mode, settings_.decimals);
+      showDrillHistory(this, qs(c->name), progressOf(c->id), mode,
+                       settings_.decimals);
     });
   }
   drillHistory->setMenu(drillMenu);
@@ -300,7 +293,9 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
       editor_.setId = library_.sets()[static_cast<std::size_t>(row)].id;
       editor_.caseId.clear();
       newAlgEdit_->clear();
-      loadSet();
+      refreshSetList();
+      buildCaseTree();
+      loadCase();
     }
   });
   connect(setList_, &QListWidget::itemDoubleClicked, this,
@@ -310,9 +305,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
             if (QListWidgetItem *item = setList_->itemAt(pos)) {
               setList_->setCurrentItem(item);
             }
-            QMenu menu(this);
-            fillContextMenu(&menu, MenuOf::Sets);
-            menu.exec(setList_->viewport()->mapToGlobal(pos));
+            execContextMenu(*setMenu_, setList_->viewport()->mapToGlobal(pos));
           });
   connect(caseTree_, &QTreeWidget::customContextMenuRequested, this,
           [this](const QPoint &pos) {
@@ -320,14 +313,12 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
             if (item && !item->isSelected()) {
               caseTree_->setCurrentItem(item);
             }
-            QMenu menu(this);
-            fillContextMenu(&menu, MenuOf::Cases);
-            menu.exec(caseTree_->viewport()->mapToGlobal(pos));
+            execContextMenu(*caseMenu_,
+                            caseTree_->viewport()->mapToGlobal(pos));
           });
   connect(caseTree_, &QTreeWidget::currentItemChanged, this,
           [this](QTreeWidgetItem *item) {
-            std::string id =
-                item ? ss(item->data(0, kCaseRole).toString()) : std::string();
+            std::string id = item ? caseIdOf(item) : std::string();
             if (id.empty() && item) {
               return; // a group: keep showing the case
             }
@@ -370,8 +361,9 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
       });
   connect(algList_, &QTreeWidget::itemDoubleClicked, this,
           [this](QTreeWidgetItem *item) { algList_->editItem(item, 0); });
-  connect(algList_, &AlgListWidget::reordered, this,
-          [this] { storeAlgs(tr("Reorder algs")); });
+  connect(algList_, &AlgListWidget::reordered, this, [this] {
+    storeAlgTexts(tr("Reorder algs"), editor_.caseId, algTexts(), {});
+  });
   connect(algList_, &QTreeWidget::customContextMenuRequested, this,
           &LibraryPage::showAlgMenu);
   connect(algList_, &QTreeWidget::currentItemChanged, this,
@@ -389,12 +381,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
     setList_->setCurrentRow(0);
   }
   updateActions();
-  for (QAction *a : editActions()) {
-    a->setVisible(false);
-  }
-  for (QMenu *m : menus()) {
-    m->menuAction()->setVisible(false);
-  }
+  setMenusShown(false);
 }
 
 // --- actions and menus -----------------------------------------------------
@@ -491,12 +478,12 @@ QList<QAction *> LibraryPage::editActions() const {
   return {undoAction_, redoAction_, editSeparator_};
 }
 
-void LibraryPage::fillContextMenu(QMenu *menu, MenuOf list) {
+void LibraryPage::execContextMenu(const QMenu &from, const QPoint &at) {
   updateActions();
-  menu->setToolTipsVisible(true);
-  for (QAction *a : (list == MenuOf::Sets ? setMenu_ : caseMenu_)->actions()) {
-    menu->addAction(a);
-  }
+  QMenu menu(this);
+  menu.setToolTipsVisible(true);
+  menu.addActions(from.actions());
+  menu.exec(at);
 }
 
 void LibraryPage::updateActions() {
@@ -507,19 +494,17 @@ void LibraryPage::updateActions() {
   bool alg = algList_->hasFocus() && algList_->currentItem();
   bool cases = !selectedCases().empty();
   bool groups = !selectedGroups().empty();
-  duplicateSetAction_->setEnabled(s);
-  deleteSetAction_->setEnabled(s);
-  propertiesAction_->setEnabled(s);
-  checkAction_->setEnabled(s);
+  for (QAction *a :
+       {duplicateSetAction_, deleteSetAction_, propertiesAction_, checkAction_,
+        newGroupAction_, newCaseAction_, pasteAction_}) {
+    a->setEnabled(s);
+  }
   restoreCasesAction_->setEnabled(s &&
                                   library_.builtinIds().contains(qs(s->id)));
-  newGroupAction_->setEnabled(s);
-  newCaseAction_->setEnabled(s);
-  pasteAction_->setEnabled(s);
   renameAction_->setEnabled(s && (alg || caseTree_->currentItem()));
-  deleteAction_->setEnabled(s && (alg || cases || groups));
-  moveUpAction_->setEnabled(s && (alg || cases || groups));
-  moveDownAction_->setEnabled(s && (alg || cases || groups));
+  for (QAction *a : {deleteAction_, moveUpAction_, moveDownAction_}) {
+    a->setEnabled(s && (alg || cases || groups));
+  }
   moveToMenu_->setEnabled(s && cases && s->groups.size() > 1);
   deleteAction_->setText(alg      ? tr("&Remove alg")
                          : groups ? tr("&Delete group")
@@ -530,24 +515,22 @@ void LibraryPage::updateActions() {
 void LibraryPage::activated() {
   active_ = true;
   refreshAlgList(); // Alg Lab's times may have changed
-  for (QAction *a : editActions()) {
-    a->setVisible(true);
-  }
-  for (QMenu *m : menus()) {
-    m->menuAction()->setVisible(true);
-  }
+  setMenusShown(true);
   updateActions();
 }
 
 void LibraryPage::deactivated() {
   active_ = false;
   caseFilter_->release();
-  // Hidden, their keys don't reach the other modes.
+  setMenusShown(false); // hidden, their keys don't reach the other modes
+}
+
+void LibraryPage::setMenusShown(bool shown) {
   for (QAction *a : editActions()) {
-    a->setVisible(false);
+    a->setVisible(shown);
   }
   for (QMenu *m : menus()) {
-    m->menuAction()->setVisible(false);
+    m->menuAction()->setVisible(shown);
   }
 }
 
@@ -582,15 +565,14 @@ void LibraryPage::refresh(const LibraryEditor::Change &change) {
       QSignalBlocker block(caseTree_);
       for (int gi = 0; gi < caseTree_->topLevelItemCount(); ++gi) {
         QTreeWidgetItem *groupItem = caseTree_->topLevelItem(gi);
-        auto g =
-            static_cast<std::size_t>(groupItem->data(0, kGroupRole).toInt());
+        std::size_t g = groupIndexOf(groupItem);
         if (g >= s->groups.size()) {
           continue;
         }
         bool touched = false;
         for (int ci = 0; ci < groupItem->childCount(); ++ci) {
           QTreeWidgetItem *item = groupItem->child(ci);
-          std::string id = ss(item->data(0, kCaseRole).toString());
+          std::string id = caseIdOf(item);
           if (std::find(cases.begin(), cases.end(), id) == cases.end()) {
             continue;
           }
@@ -600,7 +582,7 @@ void LibraryPage::refresh(const LibraryEditor::Change &change) {
           }
         }
         if (touched) {
-          fillGroupItem(groupItem, *s, s->groups[g]);
+          fillGroupItem(groupItem, s->groups[g]);
         }
       }
     }
@@ -645,12 +627,6 @@ void LibraryPage::refreshSetList() {
   setList_->setCurrentRow(current);
 }
 
-void LibraryPage::loadSet() {
-  refreshSetList();
-  buildCaseTree();
-  loadCase();
-}
-
 void LibraryPage::fillCaseItem(QTreeWidgetItem *item, const AlgSet &s,
                                const CaseGroup &g, const AlgCase &c) {
   const StepSpec &spec = s.specFor(g);
@@ -691,9 +667,7 @@ void LibraryPage::fillCaseItem(QTreeWidgetItem *item, const AlgSet &s,
                  Qt::ItemIsDragEnabled);
 }
 
-void LibraryPage::fillGroupItem(QTreeWidgetItem *item, const AlgSet &s,
-                                const CaseGroup &g) {
-  (void)s;
+void LibraryPage::fillGroupItem(QTreeWidgetItem *item, const CaseGroup &g) {
   item->setText(0, qs(g.name));
   item->setText(1, QString::number(g.cases.size()));
   item->setToolTip(0, g.spec ? tr("This group has its own step settings")
@@ -739,7 +713,7 @@ void LibraryPage::buildCaseTree() {
       const CaseGroup &g = s->groups[gi];
       auto *groupItem = new QTreeWidgetItem(caseTree_);
       groupItem->setData(0, kGroupRole, static_cast<int>(gi));
-      fillGroupItem(groupItem, *s, g);
+      fillGroupItem(groupItem, g);
       for (const auto &c : g.cases) {
         auto *item = new QTreeWidgetItem(groupItem);
         fillCaseItem(item, *s, g, c);
