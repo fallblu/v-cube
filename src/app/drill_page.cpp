@@ -415,7 +415,7 @@ void DrillPage::setReloaded() {
     current_.reset();
     nextCase();
   } else if (current_ && flow_.phase() == Phase::Waiting && !isBusy() &&
-             infoOf(current_->caseId)->state != current_->caseState) {
+             infoOf(current_->caseId)->display != current_->caseState) {
     retryCase(); // the case was edited: set it up afresh
   } else if (current_ && (flow_.phase() == Phase::Revealed ||
                           flow_.phase() == Phase::Aided)) {
@@ -687,10 +687,10 @@ void DrillPage::retryCase() {
   const CaseInfo *info = infoOf(current_->caseId);
   // The case as it is drawn, in its world, with the step's free pieces
   // scrambled and random U turns around it.
-  current_->caseState = info->state;
+  current_->caseState = info->display;
   current_->state =
       withRandomAufs(*s,
-                     setUpCase(info->state, s->specFor(*g).free,
+                     setUpCase(info->display, s->specFor(*g).free,
                                current_->world, FreePieces::Scrambled, rng_),
                      rng_);
   current_->scramble.clear();

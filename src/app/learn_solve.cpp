@@ -63,7 +63,7 @@ CubieCube LearnPage::setUp(const std::string &caseId, Mirror world,
   // From a random side, as in Drill, when the set asks for random U turns,
   // and with the pieces the step leaves free anywhere when they are scrambled.
   return withRandomAufs(
-      *s, setUpCase(info->state, s->specFor(*g).free, world, pieces, rng_),
+      *s, setUpCase(info->display, s->specFor(*g).free, world, pieces, rng_),
       rng_);
 }
 
@@ -751,7 +751,7 @@ void LearnPage::showFamily() {
     if (!info || !c) {
       continue;
     }
-    cases.push_back({caseDiagram(id, info->state, 84,
+    cases.push_back({caseDiagram(id, info->display, 84,
                                  colourMapOf(settings_.neutrality.main)),
                      qs(c->name),
                      info->passing.empty() ? tr("no alg")

@@ -208,7 +208,8 @@ Mirror CasePage::pickWorld(const std::string &caseId) {
     // A mirror image of a case that doesn't depend on the slot would only
     // be the same case seen from another corner.
     for (Mirror m : s->worlds()) {
-      if (!m.none() && !slotIndependent(info->state, s->specFor(*g).free, m)) {
+      if (!m.none() &&
+          !slotIndependent(info->display, s->specFor(*g).free, m)) {
         worlds.push_back(m);
       }
     }
@@ -431,8 +432,7 @@ void CasePage::computeInfo(Info how) {
         if (!s->reduction && !a.passing.empty()) {
           info->steps[c.id] = 1;
         }
-        CubieCube display = a.display;
-        info->cases[c.id] = CaseInfo{std::move(a), display};
+        info->cases[c.id] = std::move(a);
       }
     }
     if (s->reduction) {
@@ -489,7 +489,7 @@ void CasePage::buildTree() {
       item->setCheckState(0, on ? Qt::Checked : Qt::Unchecked);
       const CaseInfo *info = infoOf(c.id);
       FaceletCube masked =
-          maskedFacelets(info ? info->state : c.state, spec.mask, spec.free);
+          maskedFacelets(info ? info->display : c.state, spec.mask, spec.free);
       item->setIcon(
           0, cube_painter::caseIcon(cube_painter::cachedDiagram(
                  masked, spec.view, settings_.thumbnailSize, look, dpr)));

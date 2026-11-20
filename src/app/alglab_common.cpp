@@ -160,10 +160,6 @@ void setScoreProfileName(const QString &name) {
   saved::lab("scoreProfile").set(name);
 }
 
-const ErgoProfile &activeScoreProfile(const AlgLabStore &store) {
-  return store.profile(scoreProfileName().toStdString());
-}
-
 QString labTime(std::optional<std::int64_t> ms, int decimals) {
   if (!ms) {
     return QStringLiteral("–");

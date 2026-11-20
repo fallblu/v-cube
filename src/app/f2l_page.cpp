@@ -380,7 +380,8 @@ void F2LPage::cubeChanged() {
 AnalysisOptions F2LPage::analysisOptions() const {
   AnalysisOptions o;
   o.config = config_;
-  o.profile = activeScoreProfile(lab_);
+  // The profile Alg Lab's Score column uses.
+  o.profile = lab_.profile(scoreProfileName().toStdString());
   return o;
 }
 

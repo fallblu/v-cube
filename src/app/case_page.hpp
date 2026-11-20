@@ -76,11 +76,9 @@ protected:
   // derived constructor.
   void init();
 
-  // What the page knows about a case: its algs checked, and `state`, the
+  // What the page knows about a case: its algs checked, and `display`, the
   // case as it is set up and drawn (oriented for the main alg).
-  struct CaseInfo : CaseAnalysis {
-    CubieCube state;
-  };
+  using CaseInfo = CaseAnalysis;
 
   AppSettings &settings_;
   AlgLibrary &library_;
