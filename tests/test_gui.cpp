@@ -443,6 +443,7 @@ private slots:
   void timerSaysItsResult();
   void bareAltReachesTheMenuBar();
   void keymapIsSavedAndReadBack();
+  void srsStepsAreWrittenAndRead();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3078,6 +3079,36 @@ void GuiTest::keymapIsSavedAndReadBack() {
   QVERIFY(!Keymap::reservedReason(Qt::Key_F12).isEmpty());
   QVERIFY(Keymap::reservedReason(Qt::Key_I).isEmpty());
   QVERIFY(Keymap::reservedReason(Qt::Key_Equal).isEmpty());
+}
+
+// The SRS learning and relearning steps as they are kept in the settings
+// and typed in Settings: a list of lengths, each with its unit.
+void GuiTest::srsStepsAreWrittenAndRead() {
+  using Steps = std::vector<std::int64_t>;
+  const Steps steps = {60, 600, 3600, 86400, 90};
+  QCOMPARE(stepsToText(steps), QString("1m 10m 1h 1d 90s"));
+  QVERIFY(stepsFromText(stepsToText(steps)) == steps);
+  // A bare number is minutes, and spaces around the steps don't count.
+  QVERIFY(stepsFromText("5") == Steps{300});
+  QVERIFY(stepsFromText("  1m   10m ") == (Steps{60, 600}));
+  QVERIFY(stepsFromText("").empty());
+
+  // Anything that isn't a whole number with a unit spoils the list.
+  for (const char *text : {"abc", "1.5m", "1M", "-1m", "1m abc", "m", "1 m"}) {
+    QVERIFY2(stepsFromText(text).empty(), text);
+  }
+
+  // At most ten years a step: a longer one, or one of so many digits that
+  // it can't be read, spoils the list too.
+  QVERIFY(stepsFromText("3650d") == Steps{std::int64_t{3650} * 86400});
+  QVERIFY(stepsFromText("3651d").empty());
+  QVERIFY(stepsFromText("999999999999999d").empty());
+  QVERIFY(stepsFromText("99999999999999999999").empty());
+
+  // As it is now, a step of no time is read (and written as days).
+  QVERIFY(stepsFromText("0") == Steps{0});
+  QVERIFY(stepsFromText("0m") == Steps{0});
+  QCOMPARE(stepsToText({0}), QString("0d"));
 }
 
 // Everything that couldn't be read at start-up is listed in one window
