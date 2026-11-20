@@ -10,6 +10,9 @@
 #include <QLabel>
 #include <QtConcurrent/QtConcurrentRun>
 
+#include <set>
+#include <string_view>
+
 namespace vcube {
 
 namespace {
@@ -78,9 +81,19 @@ MoveCountPage::MoveCountPage(AppSettings &settings, MoveCountStore &store,
   connect(&optimalWatcher_, &QFutureWatcher<OptimalCache::Results>::finished,
           this, [this] {
             // Results worked out for holds that have changed since are
-            // dropped.
-            optimal_.store(optimalJob_, optimalWatcher_.result());
-            refreshAttempts();
+            // dropped. Only the rows of the scrambles that got a length
+            // are shown again, and the statistics, which ask for the
+            // lengths still missing.
+            const OptimalCache::Results results = optimalWatcher_.result();
+            std::set<std::string_view> scrambles;
+            if (optimal_.store(optimalJob_, results)) {
+              for (const auto &[scramble, length] : results) {
+                scrambles.insert(scramble);
+              }
+            }
+            refreshRows([&scrambles](const MoveCountAttempt &a) {
+              return scrambles.contains(a.scramble);
+            });
           });
 
   start(store_.currentIndex());
