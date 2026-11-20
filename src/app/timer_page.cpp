@@ -234,7 +234,11 @@ void TimerPage::onTick() {
   if (wasHidden != flow_.cubeHidden()) {
     showCube();
   }
-  updateControls();
+  // The tick runs while busy, when the controls are locked and no keys
+  // shown: they change only once it is over.
+  if (!isBusy()) {
+    updateControls();
+  }
 }
 
 void TimerPage::skip() {
