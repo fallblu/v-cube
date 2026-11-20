@@ -365,7 +365,7 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   connect(algList_, &QTreeWidget::currentItemChanged, this,
           &LibraryPage::updateGrips);
   connect(qApp, &QApplication::focusChanged, this, [this] {
-    if (active_) {
+    if (isActivePage()) {
       updateActions(); // the keys act on the alg list or the case tree
     }
   });
@@ -506,15 +506,11 @@ void LibraryPage::updateActions() {
 }
 
 void LibraryPage::activated() {
-  active_ = true;
   refreshAlgList(); // Alg Lab's times may have changed
   updateActions();
 }
 
-void LibraryPage::deactivated() {
-  active_ = false;
-  caseFilter_->release();
-}
+void LibraryPage::deactivated() { caseFilter_->release(); }
 
 // --- helpers ---------------------------------------------------------------
 

@@ -455,6 +455,7 @@ private slots:
   void algLabSearchAddsRowsAsItFindsThem();
   void untimedSpaceHoldRunsOnThePageClock();
   void timedDriverLeavesAndLosesTheKeyboard();
+  void onlyTheShownPageIsActive();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -2249,7 +2250,7 @@ void GuiTest::pagesTakeTheKeyboard() {
   QWidget *firstButton = tables[0]->itemWidget(firstRow, 5);
   QTreeWidgetItem *firstMode = tables[1]->topLevelItem(0);
   QVERIFY(firstButton);
-  today->activated();
+  today->activate();
   QCOMPARE(tables[0]->topLevelItem(0), firstRow);
   QCOMPARE(tables[0]->itemWidget(firstRow, 5), firstButton);
   QCOMPARE(tables[1]->topLevelItem(0), firstMode);
@@ -3547,6 +3548,23 @@ void GuiTest::timedDriverLeavesAndLosesTheKeyboard() {
   QVERIFY(!driver.flow().holding());
   QVERIFY(!driver.windowLost());
   QCOMPARE(host.calls, QStringList{});
+}
+
+// Each page knows whether it is the one shown, as the window switches.
+void GuiTest::onlyTheShownPageIsActive() {
+  const std::array<ModePage *, AppMode::Count> pages = {
+      page<LearnPage>(),   page<DrillPage>(),   page<LibraryPage>(),
+      page<TimerPage>(),   page<UntimedPage>(), page<MoveCountPage>(),
+      page<EoCrossPage>(), page<AlgLabPage>(),  page<F2LPage>(),
+      page<TslePage>(),    page<TodayPage>()};
+  for (AppMode::Id m : AppMode::sidebarOrder()) {
+    ModePage *shown = pages[static_cast<std::size_t>(m)];
+    QVERIFY2(switchTo(m, shown), qPrintable(AppMode::label(m)));
+    for (ModePage *p : pages) {
+      QCOMPARE(p->isActivePage(), p == shown);
+    }
+  }
+  QVERIFY(switchTo(AppMode::Learn, pages[AppMode::Learn]));
 }
 
 void GuiTest::cleanupTestCase() {

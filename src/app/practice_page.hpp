@@ -326,7 +326,6 @@ private:
   DrillFlow &flow_ = driver_.flow();
   Item item_;
   int items_ = 0;
-  bool active_ = false;
   bool detailOpen_ = false;
   bool waiting_ = false;   // Done, the verdict waiting for the analysis
   bool demoShown_ = false; // the picture is ahead of the cube

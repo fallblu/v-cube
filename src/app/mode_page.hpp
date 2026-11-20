@@ -75,8 +75,20 @@ public:
   // the user is told that it was stopped.
   virtual QString workStoppedOnClose() const { return {}; }
 
+  // The window shows or hides the page: isActivePage() then says so, and
+  // activated() or deactivated() is called.
+  void activate() {
+    active_ = true;
+    activated();
+  }
+  void deactivate() {
+    active_ = false;
+    deactivated();
+  }
+  // The page is the one shown.
+  bool isActivePage() const { return active_; }
   // The page was shown or hidden, e.g. to refresh shared state, start or
-  // stop timers, and finish animations.
+  // stop timers, and finish animations (see activate()).
   virtual void activated() {}
   virtual void deactivated() {}
   // The window lost the keyboard: a key held down now won't be released.
@@ -200,6 +212,7 @@ protected:
 
 private:
   QTimer tick_;
+  bool active_ = false;
   bool focusMode_ = false;
   std::vector<QWidget *> focusHidden_;
   bool sideHidden_ = false;

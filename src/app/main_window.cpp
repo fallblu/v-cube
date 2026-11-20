@@ -743,7 +743,7 @@ bool MainWindow::setMode(AppMode::Id mode) {
         focus && old->isAncestorOf(focus)) {
       focus->clearFocus();
     }
-    old->deactivated();
+    old->deactivate();
   }
   bool switching = mode_.has_value();
   // What the last page said is about that page, not this one.
@@ -763,7 +763,7 @@ bool MainWindow::setMode(AppMode::Id mode) {
     page->setSizePolicy(policy, policy);
   }
   stack_->setCurrentWidget(currentPage());
-  currentPage()->activated();
+  currentPage()->activate();
   saved::windowMode().set(AppMode::settingsId(mode));
   if (switching && !sidebar_->isVisible()) {
     // Nothing else shows which mode this is.

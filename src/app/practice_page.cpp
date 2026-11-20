@@ -197,7 +197,7 @@ void PracticePage::buildSide() {
     undo_ = {}; // the grades to take back are gone
     save();
     showSummary();
-    if (active_ && tab_ == Tab::Learn) {
+    if (isActivePage() && tab_ == Tab::Learn) {
       next();
     }
   });
@@ -273,7 +273,7 @@ void PracticePage::optionChanged() {
   readyPending_ = true;
   showBar();
   fillList();
-  if (active_) {
+  if (isActivePage()) {
     next();
   } else {
     showAll();
@@ -285,7 +285,7 @@ void PracticePage::applySettings() {
   display_->setDecimals(settings_.decimals);
   cubeView_->applySettings(settings_);
   fillList();
-  if (active_ && item_.id != 0) {
+  if (isActivePage() && item_.id != 0) {
     showAll();
   }
 }
@@ -293,7 +293,6 @@ void PracticePage::applySettings() {
 bool PracticePage::isBusy() const { return tab_ == Tab::Timed && flow_.busy(); }
 
 void PracticePage::activated() {
-  active_ = true;
   // A solve under way in Learn is taken up where it was left; anything
   // else starts with a new state.
   // An Inspection solve whose clock ran is put away: its state waits.
@@ -312,7 +311,6 @@ void PracticePage::activated() {
 }
 
 void PracticePage::deactivated() {
-  active_ = false;
   updateTick();
   cubeView_->finishAnimations();
   if (tab_ == Tab::Timed) {
@@ -1191,9 +1189,9 @@ void PracticePage::showInspection() {
 }
 
 bool PracticePage::clockNeeded() const {
-  return active_ && ((tab_ == Tab::Timed && flow_.busy()) ||
-                     (tab_ == Tab::Inspection && item_.inspecting &&
-                      phase_ == Phase::Solving));
+  return isActivePage() && ((tab_ == Tab::Timed && flow_.busy()) ||
+                            (tab_ == Tab::Inspection && item_.inspecting &&
+                             phase_ == Phase::Solving));
 }
 
 void PracticePage::tick() {

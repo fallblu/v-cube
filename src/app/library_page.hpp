@@ -125,7 +125,6 @@ private:
   LibraryEditor editor_;
   std::string caseTreeSet_; // the set the case tree was last built for
   bool loading_ = false;
-  bool active_ = false;
   // Pasted algs that weren't filed, offered again by the next paste.
   std::map<std::string, QString> pasteLeftOver_;
 
