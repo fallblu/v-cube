@@ -65,10 +65,15 @@ QString Keymap::keyText(int key, bool shift) {
 
 std::optional<std::pair<int, bool>> Keymap::parseKeyText(const QString &text) {
   QKeySequence seq(text, QKeySequence::PortableText);
-  if (seq.isEmpty()) {
+  // One key, with Shift or nothing: a binding only ever has those, and
+  // lookup() leaves keys with Ctrl, Alt or Meta alone.
+  if (seq.count() != 1) {
     return std::nullopt;
   }
   QKeyCombination c = seq[0];
+  if ((c.keyboardModifiers() & ~Qt::ShiftModifier) != Qt::NoModifier) {
+    return std::nullopt;
+  }
   return std::pair<int, bool>{
       c.key(), c.keyboardModifiers().testFlag(Qt::ShiftModifier)};
 }
