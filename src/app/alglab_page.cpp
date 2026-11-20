@@ -641,8 +641,6 @@ void AlgLabPage::windowDeactivated() {
   }
 }
 
-void AlgLabPage::focusModeChanged() { left_->setVisible(!focusMode()); }
-
 void AlgLabPage::reloadSets() {
   fillSources();
   test_->refresh();

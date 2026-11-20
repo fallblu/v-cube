@@ -145,7 +145,6 @@ protected:
   // the end of its constructor.
   PracticePage(AppSettings &settings, PracticeStore &store, QWidget *parent);
   void build();
-  void focusModeChanged() override;
 
   // --- what a mode provides --------------------------------------------------
 

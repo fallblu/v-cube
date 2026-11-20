@@ -132,6 +132,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
 
   // --- right: the options, the virtual cube, what is said about it ---
   stage_ = new CaseStage(this);
+  hideInFocusMode({stage_->options});
   cubeView_ = stage_->cube;
   statusLabel_ = stage_->status;
   reveal_ = stage_->reveal;
@@ -333,11 +334,6 @@ void LearnPage::saveSplitters() {
 void LearnPage::aboutToClose() {
   CasePage::aboutToClose();
   saveSplitters();
-}
-
-void LearnPage::focusModeChanged() {
-  CasePage::focusModeChanged();
-  stage_->options->setVisible(!focusMode());
 }
 
 void LearnPage::toggleList() { setSideShown(!sideShown()); }

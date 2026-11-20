@@ -134,6 +134,7 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
          "the first face turn starts the timer and it stops when the step "
          "is done"));
   options_ = new OptionBar(right);
+  hideInFocusMode({options_});
   options_->addPicker(tr("Alg set:"), panel_->takeSetBox(), 1);
   options_->addPicker(tr("Cube:"), cubeBox_);
   options_->addPicker(tr("Cases:"), casesButton_);
@@ -305,11 +306,6 @@ void DrillPage::showCubeKind() {
   cubeView_->setVisible(virt);
   viewRow_->setVisible(virt);
   scrambleLabel_->setVisible(!virt);
-}
-
-void DrillPage::focusModeChanged() {
-  CasePage::focusModeChanged();
-  options_->setVisible(!focusMode());
 }
 
 bool DrillPage::isBusy() const {

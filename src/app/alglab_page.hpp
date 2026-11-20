@@ -80,9 +80,6 @@ public:
   // if there was nothing to undo.
   void setSetUndo(std::function<bool()> undo) { setUndo_ = std::move(undo); }
 
-protected:
-  void focusModeChanged() override;
-
 private:
   AppSettings &settings_;
   AlgLibrary &library_;

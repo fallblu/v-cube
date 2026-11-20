@@ -290,8 +290,6 @@ void CasePage::activated() {
 
 void CasePage::deactivated() { filter_->release(); }
 
-void CasePage::focusModeChanged() { left_->setVisible(!focusMode()); }
-
 QString CasePage::setItemText(const AlgSet &s) const {
   return QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount());
 }

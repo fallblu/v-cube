@@ -5,6 +5,9 @@
 #include <QResizeEvent>
 #include <QWidget>
 
+#include <initializer_list>
+#include <vector>
+
 class QAction;
 class QKeyEvent;
 class QMenu;
@@ -70,6 +73,9 @@ public:
   // controls are visible.
   void setFocusMode(bool on) {
     focusMode_ = on;
+    for (QWidget *w : focusHidden_) {
+      w->setVisible(!on);
+    }
     focusModeChanged();
     showSidePanel();
   }
@@ -144,8 +150,13 @@ signals:
   void sideShownChanged(bool shown);
 
 protected:
-  // Shows or hides the page's controls as focusMode() now says.
+  // Shows or hides the page's controls as focusMode() now says, after
+  // those given to hideInFocusMode() and before the side panel.
   virtual void focusModeChanged() {}
+  // Widgets hidden in focus mode, such as the option bar.
+  void hideInFocusMode(std::initializer_list<QWidget *> widgets) {
+    focusHidden_.insert(focusHidden_.end(), widgets);
+  }
   // The side panel was hidden or shown (e.g. to word a button).
   virtual void sideHiddenChanged() {}
   void resizeEvent(QResizeEvent *e) override {
@@ -155,6 +166,7 @@ protected:
 
 private:
   bool focusMode_ = false;
+  std::vector<QWidget *> focusHidden_;
   bool sideHidden_ = false;
   bool narrow_ = false;
   bool shownWhileNarrow_ = false;

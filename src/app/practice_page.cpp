@@ -163,6 +163,7 @@ void PracticePage::build() {
   split->setStretchFactor(0, 0);
 
   tabs_ = new QTabBar(this);
+  hideInFocusMode({options_, tabs_});
   tabs_->setFocusPolicy(Qt::NoFocus);
   tabs_->setExpanding(false);
   for (Tab t : tabs()) {
@@ -347,11 +348,6 @@ void PracticePage::windowDeactivated() {
     display_->showTimer(flow_.timer(), monotonicMs());
     updateTick();
   }
-}
-
-void PracticePage::focusModeChanged() {
-  options_->setVisible(!focusMode());
-  tabs_->setVisible(!focusMode());
 }
 
 bool PracticePage::finished() const {

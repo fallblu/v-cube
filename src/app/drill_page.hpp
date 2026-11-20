@@ -86,7 +86,6 @@ public:
   void windowDeactivated() override;
 
 protected:
-  void focusModeChanged() override;
   QStringList columns() const override;
   std::vector<CaseStatusFilter> statusFilters() override;
   void fillRow(QTreeWidgetItem *item, const std::string &caseId) override;

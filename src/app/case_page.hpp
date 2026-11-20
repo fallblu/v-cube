@@ -69,7 +69,6 @@ signals:
   void learnSetRequested(const QString &setId);
 
 protected:
-  void focusModeChanged() override;
   // `mode` names the page in settings keys ("learn", "drill").
   CasePage(AppSettings &settings, AlgLibrary &library, QString mode,
            QWidget *parent);

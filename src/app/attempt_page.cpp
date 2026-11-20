@@ -116,7 +116,6 @@ void AttemptPage::typeChosen(const QString &type) {
 void AttemptPage::deactivated() {
   apply(flow_.dropHold());
   cubeView_->finishAnimations();
-  returnFocus();
 }
 
 void AttemptPage::windowDeactivated() { apply(flow_.dropHold()); }

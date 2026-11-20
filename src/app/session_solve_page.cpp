@@ -24,6 +24,7 @@ SessionSolvePage::SessionSolvePage(AppSettings &settings, AlgLibrary &library,
 
   // --- right column: scramble, cube, chart ---
   stage_ = new SolveStage(mode, this);
+  hideInFocusMode({stage_->options});
   cubeBox_ = stage_->cubeBox;
   skipButton_ = stage_->skipButton;
   scrambleLabel_ = stage_->scramble;
@@ -145,10 +146,7 @@ void SessionSolvePage::refreshScrambleTypes(const QString &changedSet) {
   }
 }
 
-void SessionSolvePage::focusModeChanged() {
-  stage_->options->setVisible(!focusMode());
-  showChart();
-}
+void SessionSolvePage::focusModeChanged() { showChart(); }
 
 void SessionSolvePage::showCubeKind() {
   bool virt = onVirtualCube();
