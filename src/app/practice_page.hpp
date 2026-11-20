@@ -369,7 +369,14 @@ private:
   void nextLearn(LearnAhead ahead);
   // Puts a card's case on the cube to try (a new one is shown first);
   // false if it can't be set up.
-  bool startCard(const std::string &card, bool isNew, bool graded);
+  // How a card comes up: seen for the first time (shown, not graded), for
+  // a graded try, or to practise without a grade.
+  enum class CardTry : std::uint8_t {
+    New,
+    Graded,
+    Practice,
+  };
+  bool startCard(const std::string &card, CardTry how);
   // Ctrl+Z: takes back the last grade (or a new card shown), and the card
   // comes up again.
   void undoLast();
