@@ -13,6 +13,7 @@
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/move_count_page.hpp"
+#include "app/page_parts.hpp"
 #include "app/platform.hpp"
 #include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
@@ -968,12 +969,12 @@ void MainWindow::closeEvent(QCloseEvent *e) {
             ? QString()
             : "\n\n" + tr("Stopped: %1. If you stay, start it again.")
                            .arg(stopped.join(", "));
-    auto answer = QMessageBox::warning(
-        this, tr("Quit v-cube"),
-        tr("Some changes could not be saved:") + "\n\n" + lines.join("\n") +
-            stoppedNote + "\n\n" + tr("Quit anyway? They will be lost."),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-    if (answer != QMessageBox::Yes) {
+    // Plain: the lines name files and say what the system said of them.
+    if (!askPlain(this, tr("Quit v-cube"),
+                  tr("Some changes could not be saved:") + "\n\n" +
+                      lines.join("\n") + stoppedNote + "\n\n" +
+                      tr("Quit anyway? They will be lost."),
+                  AskAs::Warning)) {
       e->ignore();
       return;
     }
@@ -1277,11 +1278,11 @@ void MainWindow::exportAllData() {
   QString error;
   if (!vcube::exportAllData(data_.dataDir(), saved::settingsFile(), target,
                             &error)) {
-    QMessageBox::warning(this, tr("Export all data"),
-                         tr("The export failed: %1").arg(error));
+    warnPlain(this, tr("Export all data"),
+              tr("The export failed: %1").arg(error));
     return;
   }
-  QMessageBox::information(
+  informPlain(
       this, tr("Export all data"),
       tr("Your alg sets, progress, sessions and settings were copied to "
          "%1.\n\nTo move them to another computer, copy the data folder's "

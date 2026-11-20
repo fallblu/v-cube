@@ -471,18 +471,16 @@ void TimerPage::importCstimer() {
   }
   QFile f(path);
   if (!f.open(QIODevice::ReadOnly)) {
-    QMessageBox::warning(
-        this, tr("Import"),
-        tr("Couldn't open %1: %2")
-            .arg(QDir::toNativeSeparators(path), f.errorString()));
+    warnPlain(this, tr("Import"),
+              tr("Couldn't open %1: %2")
+                  .arg(QDir::toNativeSeparators(path), f.errorString()));
     return;
   }
   if (f.size() > kMaxImportBytes) {
     warnPlain(this, tr("Import"),
               tr("Couldn't import %1: it is larger than %2 MB, too large for "
                  "a cstimer export.")
-                  .arg(path)
-                  .arg(kMaxImportBytes / (1024 * 1024)));
+                  .arg(path, QString::number(kMaxImportBytes / (1024 * 1024))));
     return;
   }
   QString error;
@@ -522,7 +520,7 @@ void TimerPage::importCstimer() {
   }
   emit message(text);
   if (count == 0) {
-    QMessageBox::information(this, tr("Import"), text);
+    informPlain(this, tr("Import"), text);
   }
 }
 
@@ -536,10 +534,10 @@ void TimerPage::exportCstimer() {
   QString error;
   if (!writeFileAtomically(path, sessionsToCstimer(store_.sessions()),
                            &error)) {
-    QMessageBox::warning(this, tr("Export"), error);
+    warnPlain(this, tr("Export"), error);
     return;
   }
-  QMessageBox::information(
+  informPlain(
       this, tr("Export"),
       tr("Exported %1 to %2.\n\nIn cstimer, import it with Data "
          "Import/Export > \"Import session(s) from other timers\", which adds "

@@ -2,6 +2,7 @@
 // keys go in as QTest events and what was saved is read back from the data
 // folder. The settings and data folders are temporary ones, set before the
 // QApplication exists, so the user's own data is never read or written.
+#include "app/alglab_dialogs.hpp"
 #include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
 #include "app/case_filter.hpp"
@@ -23,6 +24,7 @@
 #include "app/mode_table.hpp"
 #include "app/move_count_page.hpp"
 #include "app/page_parts.hpp"
+#include "app/paste_dialog.hpp"
 #include "app/practice_html.hpp"
 #include "app/practice_keys.hpp"
 #include "app/quiz_practice.hpp"
@@ -42,6 +44,7 @@
 #include "app/widgets.hpp"
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
+#include "io/algset_json.hpp"
 #include "io/data_file.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
@@ -52,6 +55,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
@@ -60,17 +64,22 @@
 #include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QFile>
+#include <QInputDialog>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QProxyStyle>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSignalSpy>
@@ -421,8 +430,11 @@ private slots:
   void quizAsksAmongLookAlikes();
   void drillArmsAndStopsItself();
   void libraryAddsAnAlgAndUndoes();
+  void pastedAlgGoesToTheNamesakeChosen();
+  void aPasteOfTooManyAlgsIsTurnedDown();
   void algLabTimesEachAlg();
   void fingertrickGuidance();
+  void profileCostsAreReadInTheLocale();
   void algMenuAfterAnEditOnItsWay();
   void f2lLearnAndTimed();
   void tsleLearnAndTimed();
@@ -451,6 +463,7 @@ private slots:
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
   void undoneDeletionKeepsProgressUnderANewId();
+  void messagesShowNamesAsWritten();
   void timedDriverDoesWhatTheFlowAsks();
   void mouseOnlyControlsHaveAKey();
   void reviewButtonsHaveKeys();
@@ -469,6 +482,7 @@ private slots:
   void timedDriverLeavesAndLosesTheKeyboard();
   void onlyTheShownPageIsActive();
   // Last: a second window takes over the process's write reporter.
+  void aSetNameKeepsItsPercentSigns();
   void startupProblemsShowInOneWindow();
   void settingsFileProblemsAreReported();
   void cleanupTestCase();
@@ -911,6 +925,68 @@ void GuiTest::fingertrickGuidance() {
   QVERIFY(libView && libView->isVisible());
   QVERIFY(libView->findChild<QLabel *>()->text().contains("Start:"));
   QCOMPARE(libView->findChild<QTableWidget *>()->columnCount(), 14);
+}
+
+// A profile's cost cells are written and read with the locale's decimal
+// separator, as the spin boxes beside them are, and with a point too; a
+// cell that can't be read is said to be left out.
+void GuiTest::profileCostsAreReadInTheLocale() {
+  const QLocale was;
+  QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+  auto restore = qScopeGuard([&] { QLocale::setDefault(was); });
+  QCOMPARE(costText(1.5), QString("1,5"));
+  QCOMPARE(costText(1000.0), QString("1000"));
+  QCOMPARE(costFromText("1,5"), std::optional<double>(1.5));
+  QCOMPARE(costFromText(" 1.5 "), std::optional<double>(1.5));
+  QCOMPARE(costFromText("2"), std::optional<double>(2.0));
+  QVERIFY(!costFromText("x"));
+  QVERIFY(!costFromText(""));
+
+  ErgoProfile p;
+  p.name = "Mine";
+  p.moves["R"] = 1.5;
+  p.rules.push_back({"R*", "L*", 0.25});
+  ProfileDialog dialog(p);
+  QCOMPARE(dialog.profile(), p);
+  auto *moves = lastChild<QTableWidget>(
+      &dialog, [](QTableWidget *t) { return t->columnCount() == 2; });
+  auto *rules = lastChild<QTableWidget>(
+      &dialog, [](QTableWidget *t) { return t->columnCount() == 3; });
+  QVERIFY(moves && rules);
+  int row = -1;
+  for (int r = 0; r < moves->rowCount(); ++r) {
+    if (moves->item(r, 0)->text() == "R") {
+      row = r;
+    }
+  }
+  QVERIFY(row >= 0);
+  QCOMPARE(moves->item(row, 1)->text(), QString("1,5"));
+  auto problems = [&] {
+    QStringList said;
+    for (QLabel *l : dialog.findChildren<QLabel *>()) {
+      if (l->text().contains("can't be read and will be left out")) {
+        said << l->text();
+      }
+    }
+    return said.join("\n");
+  };
+  QCOMPARE(problems(), QString());
+
+  moves->item(row, 1)->setText("2,5");
+  rules->item(0, 2)->setText("0,75");
+  QCOMPARE(dialog.profile().moves.at("R"), 2.5);
+  QCOMPARE(dialog.profile().rules.at(0).cost, 0.75);
+  QCOMPARE(problems(), QString());
+
+  // Not costs: both rows are left out, and it says so.
+  moves->item(row, 1)->setText("cheap");
+  rules->item(0, 2)->setText("-1");
+  QVERIFY(!dialog.profile().moves.contains("R"));
+  QVERIFY(dialog.profile().rules.empty());
+  VERIFY_CONTAINS(problems(), "2 rows can't be read");
+  // A move with no cost isn't a mistake.
+  moves->item(row, 1)->setText("");
+  VERIFY_CONTAINS(problems(), "1 row can't be read");
 }
 
 // An alg edit still on its way to being stored when the alg menu opens is
@@ -2141,6 +2217,106 @@ void GuiTest::libraryAddsAnAlgAndUndoes() {
   QCOMPARE(savedAlgs("pll", "T"), std::vector<std::string>{kTPerm});
 }
 
+// Two cases may share a name: "Other case…" still files the alg under the
+// one that was picked, not the first of that name.
+void GuiTest::pastedAlgGoesToTheNamesakeChosen() {
+  AlgSet set;
+  set.id = "twins";
+  set.name = "Twins";
+  set.spec.free = *parseFree("LL:p");
+  CaseGroup g{"Group", std::nullopt, {}};
+  g.cases.push_back(
+      {"a", "Case", stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")), {}});
+  g.cases.push_back(
+      {"b", "Case", stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R F'")), {}});
+  set.groups.push_back(g);
+
+  const CaseChoices choices = caseChoices(set);
+  QCOMPARE(choices.ids, (std::vector<std::string>{"a", "b"}));
+  QCOMPARE(choices.labels.size(), 2);
+  QVERIFY(choices.labels[0] != choices.labels[1]);
+
+  PasteDialog dialog(set, -1, "F R U R' U' F'\n");
+  dialog.show();
+  auto *check = lastChild<QPushButton>(
+      &dialog, [](QPushButton *b) { return b->text() == "Check >"; });
+  QVERIFY(check);
+  // No new case for it: it stays to be given one.
+  auto *create = dialog.findChild<QCheckBox *>();
+  QVERIFY(create);
+  create->setChecked(false);
+  check->click();
+  QCOMPARE(dialog.plan().results.size(), std::size_t{1});
+  QVERIFY(!dialog.plan().results[0].filed());
+  auto *table = dialog.findChild<QTableWidget *>();
+  QVERIFY(table);
+  auto *combo = qobject_cast<QComboBox *>(table->cellWidget(0, 2));
+  QVERIFY(combo);
+  const int other = combo->findText("Other case…");
+  QVERIFY(other >= 0);
+  {
+    ModalWatcher watcher([&](QWidget *m) {
+      if (auto *input = qobject_cast<QInputDialog *>(m)) {
+        input->setTextValue(choices.labels[1]);
+        input->accept();
+      }
+    });
+    combo->setCurrentIndex(other);
+    emit combo->activated(other);
+    QCOMPARE(watcher.seen, QStringList{"QInputDialog"});
+  }
+  QCoreApplication::processEvents(); // the plan is redone after the signal
+  QCOMPARE(dialog.plan().results[0].caseId, std::string("b"));
+  QVERIFY(dialog.plan().results[0].filed());
+  // The keyboard back with the window, for the tests that follow.
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
+// Checking tries every alg on every case, so a paste of more algs than the
+// window can check without standing still is turned down, and says so.
+void GuiTest::aPasteOfTooManyAlgsIsTurnedDown() {
+  AlgSet set;
+  set.id = "few";
+  set.name = "Few";
+  set.spec.free = *parseFree("LL:p");
+  set.groups.push_back({"Group", std::nullopt, {}});
+  QString text;
+  for (std::size_t i = 0; i <= kMaxPastedAlgs; ++i) {
+    text += "R U R' U'\n";
+  }
+  PasteDialog dialog(set, -1, text);
+  dialog.show();
+  auto *check = lastChild<QPushButton>(
+      &dialog, [](QPushButton *b) { return b->text() == "Check >"; });
+  auto *pages = dialog.findChild<QStackedWidget *>();
+  auto *edit = dialog.findChild<QPlainTextEdit *>();
+  QVERIFY(check && pages && edit);
+  {
+    ModalWatcher watcher;
+    check->click();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+    VERIFY_CONTAINS(watcher.texts.join("\n"),
+                    QString("At most %1 can be checked").arg(kMaxPastedAlgs));
+  }
+  QCOMPARE(pages->currentIndex(), 0);
+  QVERIFY(dialog.plan().results.empty());
+
+  // One alg fewer is checked.
+  edit->setPlainText(text.chopped(10));
+  {
+    ModalWatcher watcher;
+    check->click();
+    QCOMPARE(watcher.seen, QStringList{});
+  }
+  QCOMPARE(pages->currentIndex(), 1);
+  QCOMPARE(dialog.plan().results.size(), kMaxPastedAlgs);
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
 namespace {
 
 // The WCAG contrast ratio of two colours.
@@ -3128,6 +3304,49 @@ void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
   QCOMPARE(savedProgress("pll-2").size(), graded);
 }
 
+// A name that was typed or read from a file is shown as it is written, in
+// a message as in a tooltip: markup in it isn't taken for the message's.
+void GuiTest::messagesShowNamesAsWritten() {
+  const QString name = "OH <b>%2</b>";
+  QList<Qt::TextFormat> formats;
+  auto answer = [&](QMessageBox::StandardButton button) {
+    return [&formats, button](QWidget *m) {
+      if (auto *box = qobject_cast<QMessageBox *>(m)) {
+        formats.append(box->textFormat());
+        if (QAbstractButton *b = box->button(button)) {
+          b->click();
+        }
+      }
+    };
+  };
+  {
+    ModalWatcher watcher(answer(QMessageBox::Yes));
+    QVERIFY(confirmDeleteSession(window_.get(), name, 3, "solves"));
+    QCOMPARE(watcher.texts,
+             QStringList{"Delete session \"OH <b>%2</b>\" and its 3 solves?"});
+  }
+  {
+    ModalWatcher watcher(answer(QMessageBox::No));
+    QVERIFY(!askPlain(window_.get(), "v-cube", name));
+    QVERIFY(!askPlain(window_.get(), "v-cube", name, AskAs::Warning));
+    informPlain(window_.get(), "v-cube", name);
+    warnPlain(window_.get(), "v-cube", name);
+    QCOMPARE(watcher.texts, QStringList({name, name, name, name}));
+  }
+  QCOMPARE(formats.size(), 5);
+  QVERIFY(std::ranges::all_of(
+      formats, [](Qt::TextFormat f) { return f == Qt::PlainText; }));
+
+  // A tooltip: left alone unless it would be read as HTML.
+  QCOMPARE(plainTip("Named Sune"), QString("Named Sune"));
+  QCOMPARE(plainTip("Tom & Jerry"), QString("Tom & Jerry"));
+  const QString tip = plainTip("Named <b>T</b>\nperm");
+  QVERIFY(Qt::mightBeRichText(tip));
+  VERIFY_CONTAINS(tip, "&lt;b&gt;T&lt;/b&gt;<br>perm");
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
 void GuiTest::timedDriverDoesWhatTheFlowAsks() {
   // The host Drill and the practice Timed tabs give the driver: what it
   // was asked to do, in order.
@@ -3803,6 +4022,37 @@ void GuiTest::algLabLengthLimitAppliesDuringASearch() {
 
 // Everything that couldn't be read at start-up is listed in one window
 // after the window is shown, not in a message box each.
+// A set's name is shown as typed where a number follows it: a "%2" in the
+// name isn't taken for the place of the number.
+void GuiTest::aSetNameKeepsItsPercentSigns() {
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  AlgSet set;
+  set.id = "odd";
+  set.name = "Top %2 of %1";
+  set.spec.free = *parseFree("LL:p");
+  CaseGroup g{"Group", std::nullopt, {}};
+  g.cases.push_back(
+      {"a", "Sune", stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")), {}});
+  set.groups.push_back(g);
+  QVERIFY(writeFile(dir.filePath("algsets/odd.json"),
+                    QJsonDocument(algSetToJson(set)).toJson()));
+  ModalWatcher watcher;
+  MainWindow second(settings_, dir.path());
+  int shown = 0;
+  for (QComboBox *box : second.findChildren<QComboBox *>()) {
+    int at = box->findData("odd");
+    // Other boxes list the set by its name alone.
+    if (at >= 0 && box->itemText(at) != qs(set.name)) {
+      VERIFY_CONTAINS(box->itemText(at), "Top %2 of %1 (1)");
+      ++shown;
+    }
+  }
+  QVERIFY(shown > 0);
+  QCOMPARE(watcher.seen, QStringList{});
+  window_->activateWindow();
+}
+
 void GuiTest::startupProblemsShowInOneWindow() {
   QTemporaryDir dir;
   QVERIFY(dir.isValid());

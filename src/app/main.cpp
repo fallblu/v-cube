@@ -1,5 +1,6 @@
 #include "app/app_settings.hpp"
 #include "app/main_window.hpp"
+#include "app/page_parts.hpp"
 #include "app/platform.hpp"
 #include "app/single_instance.hpp"
 #include "app/text_style.hpp"
@@ -61,9 +62,12 @@ int main(int argc, char **argv) {
                   .filePath("v-cube");
   }
   if (!QDir().mkpath(dataDir)) {
-    QMessageBox::critical(nullptr, "v-cube",
-                          QObject::tr("The data folder %1 can't be made.")
-                              .arg(QDir::toNativeSeparators(dataDir)));
+    // Plain text, as for every message that names a path.
+    QMessageBox box(QMessageBox::Critical, "v-cube",
+                    QObject::tr("The data folder %1 can't be made.")
+                        .arg(QDir::toNativeSeparators(dataDir)));
+    box.setTextFormat(Qt::PlainText);
+    box.exec();
     return 1;
   }
   const QString settingsProblem = vcube::initSettingsStorage(home.isEmpty());
@@ -88,6 +92,8 @@ int main(int argc, char **argv) {
                     QObject::tr("v-cube is already running. Only one copy "
                                 "can run at a time, so that they don't save "
                                 "over each other's changes."));
+    // Before the informative text, which takes the format the text has.
+    box.setTextFormat(Qt::PlainText);
     box.setInformativeText(
         QObject::tr("No running copy answered, though %1 says one is "
                     "running%2. If v-cube isn't running anywhere (it may "
@@ -106,7 +112,7 @@ int main(int argc, char **argv) {
       return 0;
     }
     if (!instance.takeOver()) {
-      QMessageBox::warning(
+      vcube::warnPlain(
           nullptr, "v-cube",
           QObject::tr("%1 couldn't be taken over. Delete it while v-cube "
                       "is closed, then start v-cube again.")

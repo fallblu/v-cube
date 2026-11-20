@@ -862,11 +862,11 @@ void AlgLabPage::deleteLabCase() {
   for (const auto &a : store_.attempts()) {
     times += a.key == k ? 1 : 0;
   }
-  if (QMessageBox::question(
-          this, tr("Delete lab case"),
-          plural(times, tr("Delete \"%1\" with its candidates and %n time?"),
-                 tr("Delete \"%1\" with its candidates and %n times?"))
-              .arg(case_->name)) != QMessageBox::Yes) {
+  if (!askPlain(this, tr("Delete lab case"),
+                plural(times,
+                       tr("Delete \"%1\" with its candidates and %n time?"),
+                       tr("Delete \"%1\" with its candidates and %n times?"))
+                    .arg(case_->name))) {
     return;
   }
   std::erase_if(store_.cases(),

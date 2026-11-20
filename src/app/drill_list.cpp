@@ -9,7 +9,6 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QMenu>
-#include <QMessageBox>
 #include <QToolButton>
 #include <QTreeWidget>
 
@@ -319,15 +318,14 @@ void DrillPage::clearTimes(const std::vector<std::string> &caseIds) {
   }
   QString what = caseIds.size() == 1 ? caseName(caseIds.front())
                                      : tr("%1 cases").arg(caseIds.size());
-  auto answer = QMessageBox::question(
-      this, tr("Clear drill times"),
-      (onVirtualCube()
-           ? tr("Forget every virtual-cube drill time of %1, best and daily "
-                "history included? Learn progress stays.")
-           : tr("Forget every physical-cube drill time of %1, best and daily "
-                "history included? Learn progress stays."))
-          .arg(what));
-  if (answer != QMessageBox::Yes) {
+  if (!askPlain(
+          this, tr("Clear drill times"),
+          (onVirtualCube()
+               ? tr("Forget every virtual-cube drill time of %1, best and "
+                    "daily history included? Learn progress stays.")
+               : tr("Forget every physical-cube drill time of %1, best and "
+                    "daily history included? Learn progress stays."))
+              .arg(what))) {
     return;
   }
   for (const auto &id : caseIds) {

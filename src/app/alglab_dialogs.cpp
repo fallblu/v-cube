@@ -18,6 +18,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -30,6 +31,22 @@ constexpr std::array<const char *, kLayerTypes> kLayerLabels = {
     "U", "R", "F", "D", "L", "B", "u", "r", "f", "d", "l", "b", "M", "E", "S"};
 
 } // namespace
+
+QString costText(double cost) {
+  QLocale locale;
+  locale.setNumberOptions(locale.numberOptions() | QLocale::OmitGroupSeparator);
+  return locale.toString(cost, 'g', 6);
+}
+
+std::optional<double> costFromText(const QString &text) {
+  const QString typed = text.trimmed();
+  bool ok = false;
+  double cost = QLocale().toDouble(typed, &ok);
+  if (!ok) {
+    cost = QLocale::c().toDouble(typed, &ok);
+  }
+  return ok ? std::optional<double>(cost) : std::nullopt;
+}
 
 // --- MoveSetDialog ----------------------------------------------------------
 
@@ -166,7 +183,7 @@ ProfileDialog::ProfileDialog(const ErgoProfile &profile, QWidget *parent)
     moves_->setItem(static_cast<int>(i), 1,
                     new QTableWidgetItem(it == profile.moves.end()
                                              ? QString()
-                                             : QString::number(it->second)));
+                                             : costText(it->second)));
   }
   tables->addWidget(moves_, 1);
 
@@ -179,7 +196,7 @@ ProfileDialog::ProfileDialog(const ErgoProfile &profile, QWidget *parent)
     int row = static_cast<int>(i);
     rules_->setItem(row, 0, new QTableWidgetItem(qs(r.first)));
     rules_->setItem(row, 1, new QTableWidgetItem(qs(r.second)));
-    rules_->setItem(row, 2, new QTableWidgetItem(QString::number(r.cost)));
+    rules_->setItem(row, 2, new QTableWidgetItem(costText(r.cost)));
   }
   ruleBox->addWidget(rules_, 1);
   auto *ruleButtons = new QHBoxLayout;
@@ -190,6 +207,10 @@ ProfileDialog::ProfileDialog(const ErgoProfile &profile, QWidget *parent)
   ruleBox->addLayout(ruleButtons);
   tables->addLayout(ruleBox, 1);
   layout->addLayout(tables, 1);
+  problems_ = new QLabel(this);
+  problems_->setForegroundRole(QPalette::PlaceholderText);
+  problems_->setWordWrap(true);
+  layout->addWidget(problems_);
   connect(add, &QPushButton::clicked, this, [this] {
     int row = rules_->rowCount();
     rules_->insertRow(row);
@@ -229,11 +250,10 @@ ErgoProfile ProfileDialog::profile() const {
   p.otherMove = other_->value();
   p.axisChange = axis_->value();
   for (int r = 0; r < moves_->rowCount(); ++r) {
-    bool ok = false;
-    double v =
-        moves_->item(r, 1) ? moves_->item(r, 1)->text().toDouble(&ok) : 0.0;
-    if (ok && validCost(v)) {
-      p.moves[moves_->item(r, 0)->text().toStdString()] = v;
+    auto v = moves_->item(r, 1) ? costFromText(moves_->item(r, 1)->text())
+                                : std::nullopt;
+    if (v && validCost(*v)) {
+      p.moves[moves_->item(r, 0)->text().toStdString()] = *v;
     }
   }
   for (int r = 0; r < rules_->rowCount(); ++r) {
@@ -241,16 +261,36 @@ ErgoProfile ProfileDialog::profile() const {
       return rules_->item(r, c) ? rules_->item(r, c)->text().trimmed()
                                 : QString();
     };
-    bool ok = false;
-    double cost = text(2).toDouble(&ok);
-    if (!text(0).isEmpty() && !text(1).isEmpty() && ok && validCost(cost)) {
-      p.rules.push_back({text(0).toStdString(), text(1).toStdString(), cost});
+    auto cost = costFromText(text(2));
+    if (!text(0).isEmpty() && !text(1).isEmpty() && cost && validCost(*cost)) {
+      p.rules.push_back({text(0).toStdString(), text(1).toStdString(), *cost});
     }
   }
   return p;
 }
 
+int ProfileDialog::unreadRows() const {
+  // A move with no cost isn't one: it costs what a move not in the table
+  // does.
+  int bad = 0;
+  for (int r = 0; r < moves_->rowCount(); ++r) {
+    const QString typed =
+        moves_->item(r, 1) ? moves_->item(r, 1)->text().trimmed() : QString();
+    auto v = costFromText(typed);
+    bad += !typed.isEmpty() && !(v && validCost(*v)) ? 1 : 0;
+  }
+  return bad + rules_->rowCount() - static_cast<int>(profile().rules.size());
+}
+
 void ProfileDialog::updateTry() {
+  int bad = unreadRows();
+  problems_->setText(
+      bad > 0 ? plural(bad, tr("%n row can't be read and will be left out"),
+                       tr("%n rows can't be read and will be left out")) +
+                    tr(" (a cost is a number from 0 to %1, and a rule has "
+                       "two sides).")
+                        .arg(costText(kMaxCost))
+              : QString());
   auto parsed = parseAlg(tryAlg_->text().toStdString());
   if (!parsed) {
     tryScore_->setText(tr("can't read it"));
@@ -448,7 +488,7 @@ void GripProfileDialog::addTrickRow(const GripTrick &t) {
   tricks_->setItem(row, THow, new QTableWidgetItem(qs(t.how)));
   tricks_->setItem(row, TFrom, new QTableWidgetItem(qs(gripMaskText(t.from))));
   tricks_->setItem(row, TTurn, new QTableWidgetItem(QString::number(t.turn)));
-  tricks_->setItem(row, TCost, new QTableWidgetItem(QString::number(t.cost)));
+  tricks_->setItem(row, TCost, new QTableWidgetItem(costText(t.cost)));
   tricks_->setItem(row, TReset, check(t.reset));
 }
 
@@ -470,13 +510,14 @@ ErgoProfile GripProfileDialog::profile() const {
     };
     auto parsed = parseAlg(text(TMove).toStdString());
     auto from = gripMaskFromText(text(TFrom).toStdString());
-    bool turnOk = false, costOk = false;
+    bool turnOk = false;
     int turn = text(TTurn).toInt(&turnOk);
-    double cost = text(TCost).toDouble(&costOk);
-    if (!parsed || parsed.alg.size() != 1 || !from || !turnOk || !costOk ||
-        turn < -4 || turn > 4 || !validCost(cost)) {
+    auto typedCost = costFromText(text(TCost));
+    if (!parsed || parsed.alg.size() != 1 || !from || !turnOk || !typedCost ||
+        turn < -4 || turn > 4 || !validCost(*typedCost)) {
       continue;
     }
+    double cost = *typedCost;
     GripTrick t;
     t.move = toString(parsed.alg.front());
     t.hand = static_cast<Hand>(combo(THand));

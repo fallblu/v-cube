@@ -237,7 +237,7 @@ int LearnPage::dueIn(const AlgSet &s) const {
 QString LearnPage::setItemText(const AlgSet &s) const {
   int due = dueIn(s);
   QString text = CasePage::setItemText(s);
-  return due > 0 ? tr("%1 · %2 due").arg(text).arg(due) : text;
+  return due > 0 ? tr("%1 · %2 due").arg(text, QString::number(due)) : text;
 }
 
 QString LearnPage::acrossItemText() const {
