@@ -235,8 +235,7 @@ int LearnPage::dueIn(const AlgSet &s) const {
 }
 
 QString LearnPage::setItemText(const AlgSet &s) const {
-  int due = dueCards(library_.progress(s.id), unixNow(), localDayEnd(),
-                     settings_.srs);
+  int due = dueIn(s);
   QString text = CasePage::setItemText(s);
   return due > 0 ? tr("%1 · %2 due").arg(text).arg(due) : text;
 }
@@ -244,8 +243,7 @@ QString LearnPage::setItemText(const AlgSet &s) const {
 QString LearnPage::acrossItemText() const {
   int due = 0;
   for (const auto &s : library_.sets()) {
-    due += dueCards(library_.progress(s.id), unixNow(), localDayEnd(),
-                    settings_.srs);
+    due += dueIn(s);
   }
   return tr("All sets: due reviews (%1)").arg(due);
 }
@@ -360,10 +358,8 @@ void LearnPage::extendCaseMenu(QMenu &menu,
   menu.addSeparator();
   bool anySuspended =
       any([](const CaseProgress *cp) { return cp && cp->card.suspended; });
-  bool allSuspended = std::all_of(cards.begin(), cards.end(), [this](auto &c) {
-    const CaseProgress *cp = progressOf(c);
-    return cp && cp->card.suspended;
-  });
+  bool allSuspended =
+      !any([](const CaseProgress *cp) { return !cp || !cp->card.suspended; });
   // Suspending keeps the case ticked, so Drill still has it.
   menu.addAction(allSuspended ? tr("Unsuspend") : tr("Suspend"), this,
                  [change, allSuspended] {

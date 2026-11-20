@@ -31,10 +31,7 @@ void LearnPage::beginRecognition(const std::string &caseId) {
   last_ = cardId(caseId);
   undo_.close();
   attempt_.begin(caseId, LearnAttempt::Kind::Known);
-  reveal_->clear();
-  gradeRow_->setVisible(false);
-  stage_->hideFamily();
-  stage_->hideQuiz();
+  stage_->clearCase();
   cubeView_->setColourMap(colourMapOf(hold));
   cube_ = start.toFacelets();
   cubeView_->setState(cube_);

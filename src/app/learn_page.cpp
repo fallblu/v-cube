@@ -640,10 +640,7 @@ void LearnPage::updateCardRows(const std::string &caseId) {
 void LearnPage::nextCase(LearnAhead ahead) {
   pending_ = nullptr; // what comes next is worked out afresh
   idleTimer_.stop();
-  reveal_->clear();
-  stage_->hideFamily();
-  gradeRow_->setVisible(false);
-  stage_->hideQuiz();
+  stage_->clearCase();
   // Nothing of the last case stays up, e.g. a walkthrough's moves.
   guide_.reset();
   attempt_.clear();
@@ -675,6 +672,10 @@ void LearnPage::nextCase(LearnAhead ahead) {
     showIdle(pick);
     return;
   }
+  beginPick(pick);
+}
+
+void LearnPage::beginPick(const LearnPick &pick) {
   std::string member = pickMember(*pick.caseId);
   const CaseProgress *cp = progressOf(*pick.caseId);
   if (practice() == Practice::Recognise && !pick.isNew && cp &&
@@ -716,14 +717,7 @@ bool LearnPage::nextAcrossSets() {
     LearnPick pick = pickLearnCase(pool(), progress(), now, localDayStart(),
                                    settings_.srs, options);
     if (pick.caseId) {
-      std::string member = pickMember(*pick.caseId);
-      const CaseProgress *cp = progressOf(*pick.caseId);
-      if (practice() == Practice::Recognise && cp &&
-          cp->card.state == CardState::Review) {
-        beginRecognition(member);
-      } else {
-        begin(member, LearnAttempt::Kind::Known);
-      }
+      beginPick(pick); // never a new case: none are picked across sets
       return true;
     }
     due[*i].due = 0;
