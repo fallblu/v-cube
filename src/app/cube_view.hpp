@@ -15,6 +15,8 @@ class QComboBox;
 
 namespace vcube {
 
+struct AppSettings;
+
 // Shows a facelet cube in 3D (with animated turns), in Alg-Trainer's flat
 // view, as an unfolded net, or not at all. The owner keeps the real cube
 // state and feeds moves through animateMove(); the view's own copy catches
@@ -43,6 +45,8 @@ public:
 
   // Duration of one quarter turn; 0 turns animation off.
   void setAnimationMs(int ms) { animationMs_ = ms; }
+  // The colour scheme and animation speed of the settings.
+  void applySettings(const AppSettings &settings);
 
   void setMode(Mode m);
   Mode mode() const { return mode_; }

@@ -1,5 +1,6 @@
 #include "app/cube_view.hpp"
 
+#include "app/app_settings.hpp"
 #include "app/ui_state.hpp"
 #include "train/enum_ids.hpp"
 
@@ -45,6 +46,12 @@ std::optional<CubeView::Mode> CubeView::modeFromName(const QString &name) {
 void CubeView::setLook(const CubeLook &look) {
   look_ = look;
   update();
+}
+
+void CubeView::applySettings(const AppSettings &settings) {
+  look_.scheme = settings.scheme;
+  update();
+  animationMs_ = settings.animationMs;
 }
 
 void CubeView::setColourMap(const ColourMap &map) {

@@ -14,6 +14,7 @@ class QComboBox;
 class QFormLayout;
 class QPushButton;
 class QHBoxLayout;
+class QSplitter;
 class QVBoxLayout;
 
 namespace vcube {
@@ -143,6 +144,13 @@ private:
 // A short explanation shown under a control. Tooltips are never shown in
 // the app (see MainWindow), so what a control needs said is said here.
 QLabel *helpLabel(const QString &text, QWidget *parent);
+
+// The splitter across a page, between its side panel and the rest:
+// `widgets` from left to right, each after the first taking the width
+// gained, at `sizes` until the window restores the sizes saved under its
+// name ("main").
+QSplitter *mainSplitter(QWidget *page, const QList<QWidget *> &widgets,
+                        const QList<int> &sizes);
 
 // A button that doesn't take the keyboard focus.
 QPushButton *flatButton(const QString &text, QWidget *parent);

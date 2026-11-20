@@ -7,6 +7,7 @@
 #include "app/drill_history_dialog.hpp"
 #include "app/grip_view.hpp"
 #include "app/mode_table.hpp"
+#include "app/page_parts.hpp"
 #include "app/paste_dialog.hpp"
 #include "app/set_properties_dialog.hpp"
 #include "app/text_style.hpp"

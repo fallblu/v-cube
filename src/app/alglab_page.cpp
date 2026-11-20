@@ -54,12 +54,9 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
     : ModePage(parent), settings_(settings), library_(library), store_(store) {
   auto *layout = new QHBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
-  auto *split = new QSplitter(Qt::Horizontal, this);
-  split->setObjectName("main");
-  layout->addWidget(split);
 
   // Cases.
-  left_ = new QWidget(split);
+  left_ = new QWidget(this);
   auto *leftLayout = new QVBoxLayout(left_);
   leftLayout->setContentsMargins(6, 6, 0, 6);
   sourceBox_ = new QComboBox(left_);
@@ -83,11 +80,11 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   leftLayout->addWidget(caseTree_, 1);
   leftLayout->addWidget(labButtons_);
 
-  tabs_ = new QTabWidget(split);
+  tabs_ = new QTabWidget(this);
   left_->setMinimumWidth(170);
+  QSplitter *split = mainSplitter(this, {left_, tabs_}, {230, 1000});
   split->setStretchFactor(0, 0);
-  split->setStretchFactor(1, 1);
-  split->setSizes({230, 1000});
+  layout->addWidget(split);
 
   // --- Search tab ---
   auto *search = new QWidget(tabs_);

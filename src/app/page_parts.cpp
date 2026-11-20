@@ -12,6 +12,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
+#include <QSplitter>
 #include <QVBoxLayout>
 
 namespace vcube {
@@ -353,6 +354,20 @@ void HintBar::render() {
   }
   setText(html);
   setVisible(!html.isEmpty());
+}
+
+QSplitter *mainSplitter(QWidget *page, const QList<QWidget *> &widgets,
+                        const QList<int> &sizes) {
+  auto *split = new QSplitter(page);
+  split->setObjectName("main");
+  for (QWidget *w : widgets) {
+    split->addWidget(w);
+  }
+  for (int i = 1; i < widgets.size(); ++i) {
+    split->setStretchFactor(i, 1);
+  }
+  split->setSizes(sizes);
+  return split;
 }
 
 QPushButton *flatButton(const QString &text, QWidget *parent) {

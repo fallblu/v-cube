@@ -219,15 +219,9 @@ DrillPage::DrillPage(AppSettings &settings, AlgLibrary &library,
   rightLayout->addWidget(revealBox);
   rightLayout->addStretch(1);
 
-  auto *split = new QSplitter(this);
-  split->setObjectName("main");
-  split->addWidget(left_);
-  split->addWidget(right);
-  split->setStretchFactor(1, 1);
   left_->setMinimumWidth(240);
-  split->setSizes({360, 840});
   auto *layout = new QHBoxLayout(this);
-  layout->addWidget(split);
+  layout->addWidget(mainSplitter(this, {left_, right}, {360, 840}));
 
   connect(&tick_, &QTimer::timeout, this, &DrillPage::onTick);
   connect(&watcher_, &QFutureWatcher<GeneratedScramble>::finished, this,
@@ -327,10 +321,7 @@ bool DrillPage::isBusy() const {
 void DrillPage::applySettings() {
   driver_.configure(onVirtualCube(), settings_.drill.practiseAfterDnf);
   display_->setDecimals(settings_.decimals);
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   poolBox_->setItemText(
       poolBox_->findData(enumData(Pool::Weakest)),
       tr("Weakest %1 (drilled)").arg(settings_.drill.weakestCount));

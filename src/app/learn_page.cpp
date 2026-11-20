@@ -184,12 +184,8 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   }
   connect(stage_, &CaseStage::quizAnswered, this, &LearnPage::answerQuiz);
 
-  split_ = new QSplitter(this);
-  split_->addWidget(left_);
-  split_->addWidget(stage_);
-  split_->setStretchFactor(1, 1);
   left_->setMinimumWidth(240);
-  split_->setSizes({340, 860});
+  split_ = mainSplitter(this, {left_, stage_}, {340, 860});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split_);
   split_->restoreState(saved::learnSplitter().get());
@@ -305,10 +301,7 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void LearnPage::applySettings() {
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   CasePage::applySettings();
   // The limits and steps may have changed what is due.
   if (phase() == Phase::NoCase && set() && isVisible()) {

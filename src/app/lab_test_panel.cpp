@@ -288,10 +288,7 @@ void LabTestPanel::saveStore() {
 void LabTestPanel::applySettings() {
   display_->setDecimals(settings_.decimals);
   chart_->setDecimals(settings_.decimals);
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   timer_.setConfig({settings_.holdMs, false, 15000});
   if (current_) {
     showCurrent();

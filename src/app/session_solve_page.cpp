@@ -35,13 +35,9 @@ SessionSolvePage::SessionSolvePage(AppSettings &settings, AlgLibrary &library,
   chart_ = panel_->chart();
   chart_->setSettingsKey(mode + "/chart");
 
-  auto *split = new QSplitter(this);
-  split->setObjectName("main");
-  split->addWidget(panel_);
-  split->addWidget(stage_);
+  QSplitter *split =
+      mainSplitter(this, {panel_, stage_}, {panelWidth, 1100 - panelWidth});
   split->setStretchFactor(0, 0);
-  split->setStretchFactor(1, 1);
-  split->setSizes({panelWidth, 1100 - panelWidth});
   auto *layout = new QHBoxLayout(this);
   layout->addWidget(split);
 
@@ -128,10 +124,7 @@ void SessionSolvePage::applySettings() {
 void SessionSolvePage::useSettings() {
   configureFlow();
   net_->setScheme(settings_.scheme);
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   feed_.setNeutrality(settings_.neutrality);
   if (algs_) {
     algs_->refresh();

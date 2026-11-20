@@ -116,10 +116,7 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
   auto *leftLayout = new QVBoxLayout(left);
   leftLayout->setContentsMargins(0, 0, 0, 0);
   cube_ = new CubeView(left);
-  CubeLook look = cube_->look();
-  look.scheme = settings_.scheme;
-  cube_->setLook(look);
-  cube_->setAnimationMs(settings_.animationMs);
+  cube_->applySettings(settings_);
   cube_->setMinimumSize(320, 280);
   auto *viewRow = new QHBoxLayout;
   viewRow->addWidget(new QLabel(tr("View:"), left));

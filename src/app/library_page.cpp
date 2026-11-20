@@ -261,14 +261,8 @@ LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
   caseTabs->addTab(historyTab, tr("History"));
   caseLayout->addWidget(caseTabs, 1);
 
-  auto *split = new QSplitter(this);
-  split->setObjectName("main");
-  split->addWidget(left);
-  split->addWidget(middle);
-  split->addWidget(caseBox_);
-  split->setStretchFactor(1, 1);
-  split->setStretchFactor(2, 1);
-  split->setSizes({220, 520, 460});
+  QSplitter *split =
+      mainSplitter(this, {left, middle, caseBox_}, {220, 520, 460});
   // The commands used most, which were only in the menus.
   auto *toolbar = new QHBoxLayout;
   for (QAction *a : {newSetAction_, propertiesAction_, newCaseAction_,

@@ -169,13 +169,8 @@ void PracticePage::build() {
   rightLayout->addWidget(choiceScroll_, 4);
   rightLayout->addStretch(1);
 
-  auto *split = new QSplitter(this);
-  split->setObjectName("main");
-  split->addWidget(list_);
-  split->addWidget(right);
+  QSplitter *split = mainSplitter(this, {list_, right}, {380, 800});
   split->setStretchFactor(0, 0);
-  split->setStretchFactor(1, 1);
-  split->setSizes({380, 800});
 
   tabs_ = new QTabBar(this);
   tabs_->setFocusPolicy(Qt::NoFocus);
@@ -313,10 +308,7 @@ void PracticePage::optionChanged() {
 void PracticePage::applySettings() {
   driver_.configure(!physical_, false);
   display_->setDecimals(settings_.decimals);
-  CubeLook look = cubeView_->look();
-  look.scheme = settings_.scheme;
-  cubeView_->setLook(look);
-  cubeView_->setAnimationMs(settings_.animationMs);
+  cubeView_->applySettings(settings_);
   fillList();
   if (active_ && item_.id != 0) {
     showAll();
