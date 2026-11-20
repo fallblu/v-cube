@@ -55,6 +55,28 @@ TEST_CASE("reads the spaces and primes of copied text") {
   CHECK(roundTrip("R'2 U2'") == "R2 U2");
 }
 
+TEST_CASE("a prime and a count are measured as parseAlg reads them") {
+  CHECK(primeLength("'2") == 1);
+  CHECK(primeLength("` U") == 1);
+  CHECK(primeLength("\xE2\x80\x99 U") == 3);
+  CHECK(primeLength("\xC2\xB4") == 2);
+  CHECK(primeLength("2'") == 0);
+  CHECK(primeLength("") == 0);
+  CHECK(amountLength("") == 0);
+  CHECK(amountLength(" U") == 0);
+  CHECK(amountLength("2 U") == 1);
+  CHECK(amountLength("' U") == 1);
+  CHECK(amountLength("2' U") == 2);
+  CHECK(amountLength("'2 U") == 2);
+  CHECK(amountLength("12` U") == 3);
+  CHECK(amountLength("\xE2\x80\xB2"
+                     "2 U") == 4);
+  CHECK(amountLength("2\xE2\x80\xB2 U") == 4);
+  // One prime only, as parseAlg reads it: the second isn't part of it.
+  CHECK(amountLength("'2'") == 2);
+  CHECK(amountLength("''") == 1);
+}
+
 TEST_CASE("cleaned alg text has plain spaces and primes and no ends") {
   // No-break space, zero-width space, byte order mark and ideographic
   // space: one plain space each.
@@ -65,6 +87,8 @@ TEST_CASE("cleaned alg text has plain spaces and primes and no ends") {
   // Curly quotes, prime and acute accent: a plain prime.
   CHECK(cleanAlgText("R\xE2\x80\x99 U\xE2\x80\x98 L\xE2\x80\xB2 D\xC2\xB4") ==
         "R' U' L' D'");
+  // A backtick is read as a prime, and written as one.
+  CHECK(cleanAlgText("R` U2` (R U)`") == "R' U2' (R U)'");
   // The ends are trimmed, Unicode spaces too.
   CHECK(cleanAlgText(" \t\r\nR U\n\r\t ") == "R U");
   CHECK(cleanAlgText("\xEF\xBB\xBFR U\xC2\xA0") == "R U");

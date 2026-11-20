@@ -76,6 +76,42 @@ TEST_CASE("alg text is mirrored move by move", "[reduction]") {
       }
     }
   }
+  // Every prime mark that parseAlg reads is a prime here too: a mark left
+  // behind would make the mirrored text unreadable.
+  CHECK(mirrorAlgText("R` U R`", {true, false}) == "L U' L");
+  CHECK(mirrorAlgText("R U` R2`", {true, false}) == "L' U L2`");
+  CHECK(mirrorAlgText("R\xE2\x80\x99 U R\xE2\x80\x99", {true, false}) ==
+        "L U' L");
+  CHECK(mirrorAlgText("R\xE2\x80\x99"
+                      "2 U",
+                      {true, false}) == "L\xE2\x80\x99"
+                                        "2 U'");
+  for (const std::string prime :
+       {"'", "`", "\xE2\x80\x99", "\xE2\x80\x98", "\xE2\x80\xB2", "\xC2\xB4",
+        "\xCA\xB9", "\xCA\xBC", "\xEF\xBC\x87"}) {
+    const std::string a = "R" + prime + " U R U2" + prime + " (R" + prime +
+                          " F)2" + prime + " r" + prime + "2 Rw3" + prime +
+                          " x" + prime;
+    INFO(a);
+    ParseResult alg = parseAlg(a);
+    REQUIRE(alg);
+    for (Mirror m : kMirrors) {
+      ParseResult mirrored = parseAlg(mirrorAlgText(a, m));
+      REQUIRE(mirrored);
+      Alg expected = alg.alg;
+      if (m.leftRight) {
+        expected = mirrorM(expected);
+      }
+      if (m.frontBack) {
+        expected = mirrorS(expected);
+      }
+      REQUIRE(mirrored.alg.size() == expected.size());
+      for (std::size_t k = 0; k < expected.size(); ++k) {
+        CHECK(mirrored.alg[k].type == expected[k].type);
+        CHECK(mirrored.alg[k].amount == expected[k].amount);
+      }
+    }
+  }
   // What it does is the mirror image of what the alg does.
   for (Mirror m : kMirrors) {
     Alg alg = parseAlgOrEmpty(kSune);
