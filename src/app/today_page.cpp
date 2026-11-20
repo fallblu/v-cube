@@ -47,10 +47,6 @@ QString duration(std::int64_t ms) {
   return QString("%1s").arg(s);
 }
 
-std::int64_t localDay(std::int64_t unix) {
-  return QDateTime::fromSecsSinceEpoch(unix).date().toJulianDay();
-}
-
 QTreeWidget *table(const QStringList &headers, QWidget *parent) {
   auto *t = new QTreeWidget(parent);
   t->setHeaderLabels(headers);
@@ -496,7 +492,7 @@ void TodayPage::refresh() {
   std::int64_t today = localDayStart();
   QDate date = QDate::currentDate();
   std::int64_t week =
-      QDateTime(date.addDays(-6), QTime(0, 0)).toSecsSinceEpoch();
+      dayStart(date.addDays(-6), QTimeZone(QTimeZone::LocalTime));
   auto activity = summarizeActivity(all, ActivityMode::Count, today, week);
   static const std::pair<int, const char *> modeRows[] = {
       {ActivityMode::Learn, QT_TR_NOOP("Learn (cases)")},
@@ -554,7 +550,8 @@ void TodayPage::refresh() {
   for (const ActivityEvent &e : all) {
     times.push_back(e.timestamp);
   }
-  Streak streak = practiceStreak(times, date.toJulianDay(), localDay);
+  // A day's many events take one conversion to local time between them.
+  Streak streak = practiceStreak(times, date.toJulianDay(), DayFinder());
   if (streak.days == 0) {
     streakLabel_->setText(tr("No practice streak yet: anything done today "
                              "starts one."));

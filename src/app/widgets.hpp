@@ -211,6 +211,21 @@ std::int64_t localDayEnd();
 // Unix seconds of the first moment of `day` in `zone`: 01:00 where the
 // clocks go forward at midnight.
 std::int64_t dayStart(const QDate &day, const QTimeZone &zone);
+// The day (its Julian day number) that Unix times fall on in `zone`, asked
+// one after another: a time on the day found last takes no conversion, so
+// that many times on few days, such as a year of practice, are quick.
+class DayFinder {
+public:
+  explicit DayFinder(const QTimeZone &zone = QTimeZone(QTimeZone::LocalTime));
+  std::int64_t operator()(std::int64_t unix);
+
+private:
+  QTimeZone zone_;
+  // The day found last, and the Unix seconds it runs from and to.
+  std::int64_t day_ = 0;
+  std::int64_t from_ = 0;
+  std::int64_t to_ = 0;
+};
 
 // The scramble that sets `state` up (see generateScramble() above), for
 // `hold` alone.

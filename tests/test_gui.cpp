@@ -437,6 +437,7 @@ private slots:
   void helpPanelShowsTheKeys();
   void floatingHelpPanelPassesKeysOn();
   void aDayStartsAfterAMissingMidnight();
+  void daysAreFoundAsTheClockGivesThem();
   void spaceHoldEndsWhenTheWindowIsLeft();
   void aLockFromAnotherHostCanBeTakenOver();
   void keysDocMatchesTheKeyTable();
@@ -2673,6 +2674,39 @@ void GuiTest::aDayStartsAfterAMissingMidnight() {
            QDateTime(day, QTime(3, 0), QTimeZone::UTC).toSecsSinceEpoch());
   QCOMPARE(dayStart(day.addDays(1), zone) - start, 23 * 3600);
   QCOMPARE(dayStart(day.addDays(-1), zone) + 24 * 3600, start);
+}
+
+// The day of each time, with the last day's bounds kept, is the one a
+// conversion of that time gives: through a day of 23 hours, times out of
+// order and times far apart.
+void GuiTest::daysAreFoundAsTheClockGivesThem() {
+  const QTimeZone zone("America/Sao_Paulo");
+  if (!zone.isValid()) {
+    QSKIP("no America/Sao_Paulo here");
+  }
+  auto day = [&zone](std::int64_t unix) {
+    return QDateTime::fromSecsSinceEpoch(unix, zone).date().toJulianDay();
+  };
+  const std::int64_t start = dayStart(QDate(2018, 11, 2), zone);
+  DayFinder find(zone);
+  // Every 17 minutes over five days, the short one among them.
+  for (std::int64_t t = start; t < start + 5 * 24 * 3600; t += 17 * 60) {
+    QCOMPARE(find(t), day(t));
+  }
+  // The last second of a day and the first of the next, both ways.
+  const std::int64_t short4 = dayStart(QDate(2018, 11, 4), zone);
+  for (std::int64_t t :
+       {short4 - 1, short4, short4 - 1, short4 + 23 * 3600,
+        short4 + 23 * 3600 - 1, start, start + std::int64_t{400} * 86400,
+        start - std::int64_t{400} * 86400, std::int64_t{1}}) {
+    QCOMPARE(find(t), day(t));
+  }
+  // The local zone is the default.
+  DayFinder local;
+  const std::int64_t now = unixNow();
+  for (std::int64_t t = now - 3 * 86400; t <= now; t += 3601) {
+    QCOMPARE(local(t), QDateTime::fromSecsSinceEpoch(t).date().toJulianDay());
+  }
 }
 
 // A lock left by a crash under another host name is never stale by
