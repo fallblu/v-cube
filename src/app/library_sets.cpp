@@ -1,5 +1,6 @@
 #include "app/library_page.hpp"
 #include "app/library_private.hpp"
+#include "app/page_parts.hpp"
 
 namespace vcube {
 
@@ -301,8 +302,8 @@ void LibraryPage::importSetFile() {
   QString error;
   auto imported = readAlgSetFile(path, &error);
   if (!imported) {
-    QMessageBox::warning(this, tr("Import alg set"),
-                         tr("Could not import: %1").arg(error));
+    warnPlain(this, tr("Import alg set"),
+              tr("Could not import: %1").arg(error));
     return;
   }
   if (library_.idTaken(imported->id)) {
@@ -315,8 +316,8 @@ void LibraryPage::importSetFile() {
       imported->builtin && library_.builtinIds().contains(qs(imported->id));
   AlgSet *added = library_.add(std::move(*imported), &error);
   if (!added) {
-    QMessageBox::warning(this, tr("Import alg set"),
-                         tr("Could not import: %1").arg(error));
+    warnPlain(this, tr("Import alg set"),
+              tr("Could not import: %1").arg(error));
     return;
   }
   editor_.added(*added, tr("Import set"));

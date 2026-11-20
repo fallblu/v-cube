@@ -1,5 +1,6 @@
 #include "app/timer_page.hpp"
 
+#include "app/page_parts.hpp"
 #include "app/review_dialog.hpp"
 #include "app/ui_text.hpp"
 
@@ -438,8 +439,8 @@ void TimerPage::importCstimer() {
   QString error;
   auto imported = sessionsFromCstimerFile(f.readAll(), &error);
   if (!imported) {
-    QMessageBox::warning(this, tr("Import"),
-                         tr("Couldn't import %1: %2").arg(path, error));
+    warnPlain(this, tr("Import"),
+              tr("Couldn't import %1: %2").arg(path, error));
     return;
   }
   std::size_t solves = 0;
