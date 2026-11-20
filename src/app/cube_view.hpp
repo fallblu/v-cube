@@ -71,8 +71,11 @@ protected:
 private:
   CubeLook look_;
   FaceletCube shown_;
-  std::deque<Move> queue_;
-  std::deque<bool> queuedTyped_; // per queued move: from animateMove()
+  struct Queued {
+    Move move;
+    bool typed; // from animateMove()
+  };
+  std::deque<Queued> queue_;
   double progress_ = 0.0;
   int animationMs_ = 110;
   Mode mode_ = Mode::Flat;
@@ -89,10 +92,10 @@ private:
   // A move typed by the solver, or one of a sequence played to them.
   enum class Source { Typed, Played };
   void enqueue(Move m, Source source);
-  QRectF drawArea() const;
   // marks_ moved back through the turns still to animate, onto the stickers
-  // of the state shown now.
-  StickerMarks shownMarks() const;
+  // of the state shown now (worked out in `moved` if need be); null with
+  // no marks.
+  const StickerMarks *shownMarks(StickerMarks &moved) const;
 };
 
 // A drop-down (3D, Flat, Net, Hidden) that switches `view` and remembers

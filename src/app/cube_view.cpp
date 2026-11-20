@@ -1,6 +1,8 @@
 #include "app/cube_view.hpp"
 
 #include "app/ui_state.hpp"
+#include "train/enum_ids.hpp"
+
 #include <QComboBox>
 #include <QEasingCurve>
 #include <QPainter>
@@ -29,27 +31,15 @@ void CubeView::describe() {
   }
 }
 
+constexpr std::array<std::string_view, 4> kModeNames = {"3d", "flat", "net",
+                                                        "hidden"};
+
 QString CubeView::modeName(Mode m) {
-  switch (m) {
-  case Mode::ThreeD:
-    return "3d";
-  case Mode::Flat:
-    return "flat";
-  case Mode::Net:
-    return "net";
-  case Mode::Hidden:
-    return "hidden";
-  }
-  return "3d";
+  return QString::fromLatin1(idOf(kModeNames, m, "3d"));
 }
 
 std::optional<CubeView::Mode> CubeView::modeFromName(const QString &name) {
-  for (Mode m : {Mode::ThreeD, Mode::Flat, Mode::Net, Mode::Hidden}) {
-    if (modeName(m) == name) {
-      return m;
-    }
-  }
-  return std::nullopt;
+  return fromId<Mode>(kModeNames, name.toStdString());
 }
 
 void CubeView::setLook(const CubeLook &look) {
@@ -64,7 +54,6 @@ void CubeView::setColourMap(const ColourMap &map) {
 
 void CubeView::setState(const FaceletCube &cube) {
   queue_.clear();
-  queuedTyped_.clear();
   progress_ = 0.0;
   frame_.stop();
   shown_ = cube;
@@ -82,18 +71,12 @@ void CubeView::animateSequence(const Alg &moves) {
 void CubeView::enqueue(Move m, Source source) {
   if (animationMs_ <= 0 || mode_ != Mode::ThreeD) {
     // Finish anything pending, then jump.
-    for (Move q : queue_) {
-      shown_.apply(q);
-    }
-    queue_.clear();
-    queuedTyped_.clear();
-    progress_ = 0.0;
+    finishAnimations();
     shown_.apply(m);
     update();
     return;
   }
-  queue_.push_back(m);
-  queuedTyped_.push_back(source == Source::Typed);
+  queue_.push_back({m, source == Source::Typed});
   if (!frame_.isActive()) {
     lastFrame_ = clock_.elapsed();
     frame_.start();
@@ -108,15 +91,15 @@ void CubeView::advance() {
     // Half turns take a bit longer; a backlog of typed moves speeds
     // everything up so the view never lags far behind fast typing, while
     // a sequence plays at the normal speed.
-    double duration = animationMs_ * (queue_.front().amount == 2 ? 1.5 : 1.0);
-    auto typed = std::count(queuedTyped_.begin(), queuedTyped_.end(), true);
+    double duration =
+        animationMs_ * (queue_.front().move.amount == 2 ? 1.5 : 1.0);
+    auto typed = std::ranges::count(queue_, true, &Queued::typed);
     duration /= static_cast<double>(std::clamp<std::ptrdiff_t>(typed, 1, 4));
     double remaining = (1.0 - progress_) * duration;
     if (dt >= remaining) {
       dt -= remaining;
-      shown_.apply(queue_.front());
+      shown_.apply(queue_.front().move);
       queue_.pop_front();
-      queuedTyped_.pop_front();
       progress_ = 0.0;
     } else {
       progress_ += dt / duration;
@@ -130,11 +113,10 @@ void CubeView::advance() {
 }
 
 void CubeView::finishAnimations() {
-  for (Move q : queue_) {
-    shown_.apply(q);
+  for (const Queued &q : queue_) {
+    shown_.apply(q.move);
   }
   queue_.clear();
-  queuedTyped_.clear();
   progress_ = 0.0;
   frame_.stop();
   update();
@@ -158,9 +140,12 @@ void CubeView::setMarks(const StickerMarks &marks) {
 
 void CubeView::clearMarks() { setMarks(StickerMarks{}); }
 
-StickerMarks CubeView::shownMarks() const {
-  if (queue_.empty() || marks_.empty()) {
-    return marks_;
+const StickerMarks *CubeView::shownMarks(StickerMarks &moved) const {
+  if (marks_.empty()) {
+    return nullptr;
+  }
+  if (queue_.empty()) {
+    return &marks_;
   }
   // Number every sticker of the shown state and do the turns still to
   // animate: the sticker that ends up at facelet i is the one shown now at
@@ -170,18 +155,17 @@ StickerMarks CubeView::shownMarks() const {
     ids[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(i);
   }
   FaceletCube where(ids);
-  for (Move m : queue_) {
-    where.apply(m);
+  for (const Queued &q : queue_) {
+    where.apply(q.move);
   }
-  StickerMarks out;
-  out.ringColour = marks_.ringColour;
+  moved.ringColour = marks_.ringColour;
   for (int f : marks_.rings) {
-    out.rings.push_back(where[f]);
+    moved.rings.push_back(where[f]);
   }
   for (int i = 0; i < kFaceletCount; ++i) {
-    out.labels[where[i]] = marks_.labels[static_cast<std::size_t>(i)];
+    moved.labels[where[i]] = marks_.labels[static_cast<std::size_t>(i)];
   }
-  return out;
+  return &moved;
 }
 
 void CubeView::setFillsArea(bool on) {
@@ -189,16 +173,12 @@ void CubeView::setFillsArea(bool on) {
   update();
 }
 
-QRectF CubeView::drawArea() const {
-  return QRectF(rect()).adjusted(6, 6, -6, -6);
-}
-
 void CubeView::paintEvent(QPaintEvent *) {
   describe();
   QPainter p(this);
-  QRectF area = drawArea();
-  StickerMarks marks = shownMarks();
-  const StickerMarks *m = marks.empty() ? nullptr : &marks;
+  QRectF area = QRectF(rect()).adjusted(6, 6, -6, -6);
+  StickerMarks moved;
+  const StickerMarks *m = shownMarks(moved);
   // The 3D and flat views draw the cube at two thirds of the space it is
   // given, centred; the net keeps the full area so its stickers stay easy
   // to click.
@@ -215,10 +195,10 @@ void CubeView::paintEvent(QPaintEvent *) {
       // Played sequences (demos, applied algs) ease out; typed moves turn
       // evenly, so that a backlog keeps up.
       double at = progress_;
-      if (!queuedTyped_.empty() && !queuedTyped_.front()) {
+      if (!queue_.front().typed) {
         at = QEasingCurve(QEasingCurve::OutCubic).valueForProgress(at);
       }
-      turn = TurnAnimation{queue_.front(), at};
+      turn = TurnAnimation{queue_.front().move, at};
     }
     cube_painter::paint3D(p, cubeArea, shown_, look_, turn, m);
     break;
