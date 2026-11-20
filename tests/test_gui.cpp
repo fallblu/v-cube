@@ -453,6 +453,7 @@ private slots:
   void timerTableAndStatsFollowEachSolve();
   void algLabFilterKeepsTheCaseShown();
   void algLabSearchAddsRowsAsItFindsThem();
+  void algLabLengthLimitAppliesDuringASearch();
   void untimedSpaceHoldRunsOnThePageClock();
   void timedDriverLeavesAndLosesTheKeyboard();
   void onlyTheShownPageIsActive();
@@ -3374,6 +3375,67 @@ void GuiTest::algLabSearchAddsRowsAsItFindsThem() {
   lengthMode->setCurrentIndex(wasMode);
   maxLength->setValue(wasLength);
   maxResults->setValue(wasResults);
+}
+
+// A shorter "longest alg shown" set while a search runs hides the rows over
+// it at once, not only the rows found after it.
+void GuiTest::algLabLengthLimitAppliesDuringASearch() {
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
+  lab->selectCase("oll", "oll1");
+  lab->findChild<QTabWidget *>()->setCurrentIndex(0);
+  QTableWidget *candidates = candidateTable(lab);
+  QVERIFY(candidates);
+  auto *lengthMode = lastChild<QComboBox>(
+      lab, [](QComboBox *b) { return b->findText("Every length") >= 0; });
+  auto *maxLength = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->prefix() == "up to "; });
+  auto *maxResults = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->prefix() == "at most "; });
+  auto *maxHtm = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->suffix() == " HTM"; });
+  auto *find = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Find algs"; });
+  auto *stop = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Stop"; });
+  QVERIFY(lengthMode && maxLength && maxResults && maxHtm && find && stop);
+  int htmColumn = -1;
+  for (int c = 0; c < candidates->columnCount(); ++c) {
+    if (candidates->horizontalHeaderItem(c)->text() == "HTM") {
+      htmColumn = c;
+    }
+  }
+  QVERIFY(htmColumn >= 0);
+  const int wasMode = lengthMode->currentIndex();
+  const int wasLength = maxLength->value();
+  const int wasResults = maxResults->value();
+  const int wasHtm = maxHtm->value();
+  lengthMode->setCurrentIndex(lengthMode->findText("Every length"));
+  maxLength->setValue(20); // still finding algs when it is stopped
+  maxResults->setValue(5000);
+  maxHtm->setValue(0); // any length
+  find->click();
+  QVERIFY(stop->isEnabled());
+  auto longest = [&] {
+    int most = 0;
+    for (int row = 0; row < candidates->rowCount(); ++row) {
+      most = std::max(most, candidates->item(row, htmColumn)->text().toInt());
+    }
+    return most;
+  };
+  // Algs longer than the limit are shown, then the limit is set.
+  const int limit = 13;
+  QTRY_VERIFY_WITH_TIMEOUT(longest() > limit || !stop->isEnabled(), 20000);
+  QVERIFY2(stop->isEnabled(), "the search ended before a longer alg");
+  maxHtm->setValue(limit);
+  QTRY_VERIFY_WITH_TIMEOUT(longest() <= limit, 5000);
+  QVERIFY2(stop->isEnabled(), "the search ended before the limit applied");
+  stop->click();
+  QTRY_VERIFY_WITH_TIMEOUT(!stop->isEnabled(), 20000);
+  QVERIFY(longest() <= limit);
+  lengthMode->setCurrentIndex(wasMode);
+  maxLength->setValue(wasLength);
+  maxResults->setValue(wasResults);
+  maxHtm->setValue(wasHtm);
 }
 
 // Everything that couldn't be read at start-up is listed in one window
