@@ -117,8 +117,6 @@ protected:
   QString listHelp() const override;
   void groupActivated(const std::string &key) override;
   QString cardName(const std::string &card) const override;
-  // Esc in the own-solution field gives the keys back to the page.
-  bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
   // What a background job worked out, for the request that asked.

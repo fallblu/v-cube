@@ -35,6 +35,12 @@ bool KeyRouter::eventFilter(QObject *obj, QEvent *event) {
       qobject_cast<QPlainTextEdit *>(focus) ||
       qobject_cast<QAbstractSpinBox *>(focus) ||
       qobject_cast<QKeySequenceEdit *>(focus)) {
+    if (event->type() == QEvent::KeyPress &&
+        static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape &&
+        focus->property(ModePage::kEscapeLeaves).toBool()) {
+      focus->clearFocus();
+      return true;
+    }
     return false;
   }
   auto *key = static_cast<QKeyEvent *>(event);

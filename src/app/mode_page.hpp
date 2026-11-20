@@ -38,6 +38,12 @@ public:
     (void)e;
     return false;
   }
+  // Esc in `field`, a text field of the page, leaves it, so that the keys
+  // are the page's again (KeyRouter does it).
+  static void escapeLeaves(QWidget *field) {
+    field->setProperty(kEscapeLeaves, true);
+  }
+  static constexpr const char *kEscapeLeaves = "vcubeEscapeLeaves";
 
   // The parts of the settings the page uses: applySettings() is called
   // only when one of them (or the theme) changed in the settings dialog.

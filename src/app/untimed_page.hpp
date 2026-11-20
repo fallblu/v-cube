@@ -30,8 +30,6 @@ public:
   }
 
 protected:
-  bool eventFilter(QObject *obj, QEvent *event) override;
-
   void showModeWidgets(bool virtualCube) override;
   std::vector<AttemptColumn> columns() const override;
   void addCells(std::vector<AttemptCell> &cells, const MoveCountAttempt &a,

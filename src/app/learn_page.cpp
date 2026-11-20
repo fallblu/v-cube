@@ -74,6 +74,7 @@ LearnPage::LearnPage(AppSettings &settings, AlgLibrary &library,
   learnCount_->setValue(3);
   learnCount_->setFocusPolicy(Qt::ClickFocus);
   learnCount_->installEventFilter(this);
+  escapeLeaves(learnCount_);
   connect(learnCount_, &QSpinBox::editingFinished, learnCount_,
           [this] { learnCount_->clearFocus(); });
   learnButton_ = new QPushButton(tr("Add new cases"), left_);
@@ -275,10 +276,6 @@ bool LearnPage::eventFilter(QObject *watched, QEvent *event) {
       } else if (!ke->isAutoRepeat()) {
         handleKey(ke, true);
       }
-      return true;
-    }
-    if (key == Qt::Key_Escape) {
-      learnCount_->clearFocus();
       return true;
     }
     if ((key >= Qt::Key_0 && key <= Qt::Key_9 &&
