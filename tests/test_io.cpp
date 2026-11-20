@@ -638,6 +638,60 @@ TEST_CASE("removing an earlier session keeps the current one current") {
   CHECK(store.currentIndex() == 0);
 }
 
+TEST_CASE("removing the current session makes a neighbour current") {
+  QTemporaryDir tmp;
+  REQUIRE(tmp.isValid());
+  SessionStore store(tmp.filePath("sessions.json"));
+  store.sessions()[0].name = "a";
+  store.addSession("b");
+  store.addSession("c");
+  store.addSession("d");
+  // A middle one: the next one takes its place.
+  store.setCurrentIndex(1);
+  store.removeSession(1);
+  CHECK(store.currentIndex() == 1);
+  CHECK(store.current().name == "c");
+  // The last one: the one before it.
+  store.setCurrentIndex(2);
+  store.removeSession(2);
+  CHECK(store.currentIndex() == 1);
+  CHECK(store.current().name == "c");
+  // An index that isn't there changes nothing.
+  store.removeSession(5);
+  CHECK(store.sessions().size() == 2);
+  CHECK(store.current().name == "c");
+}
+
+TEST_CASE("a sessions file with odd current or sessions still has one") {
+  QTemporaryDir tmp;
+  REQUIRE(tmp.isValid());
+  const QString path = tmp.filePath("sessions.json");
+  const QByteArray two =
+      R"("sessions": [{"name": "a", "solves": []}, {"name": "b", "solves": []}])";
+  struct Odd {
+    QByteArray json;
+    std::size_t sessions;
+    std::size_t current;
+  };
+  const std::vector<Odd> odd = {
+      {R"({"format": "v-cube.sessions", "current": 99, )" + two + "}", 2, 1},
+      {R"({"format": "v-cube.sessions", "current": -3, )" + two + "}", 2, 0},
+      {R"({"format": "v-cube.sessions", "current": "x", )" + two + "}", 2, 0},
+      {R"({"format": "v-cube.sessions", "current": 1, "sessions": []})", 1, 0},
+      {R"({"format": "v-cube.sessions", "current": 0})", 1, 0},
+  };
+  for (const Odd &o : odd) {
+    INFO(o.json.toStdString());
+    QFile::remove(path);
+    writeText(path, o.json);
+    SessionStore store(path);
+    store.load();
+    REQUIRE(store.sessions().size() == o.sessions);
+    CHECK(store.currentIndex() == o.current);
+    CHECK(store.currentIndex() < store.sessions().size());
+  }
+}
+
 TEST_CASE("a lost install marker doesn't bring deleted built-ins back") {
   QTemporaryDir tmp;
   {
