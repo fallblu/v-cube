@@ -70,12 +70,6 @@ Alg joined(Alg a, const Alg &b) {
   return simplify(a);
 }
 
-std::optional<CubieCube> applied(const CubieCube &c, const Alg &alg) {
-  FaceletCube f = c.toFacelets();
-  f.apply(alg);
-  return centredCubie(f);
-}
-
 struct Graph {
   std::array<std::array<std::uint16_t, 4>, kTsleStates> turned{};
   std::array<std::array<std::uint16_t, kOptions>, kTsleStates> after{};
@@ -342,9 +336,7 @@ bool ocllAlgWorks(std::string_view id, const Alg &alg) {
     }
     CubieCube start = ocllCube(i);
     for (int auf = 0; auf < 4; ++auf) {
-      Alg moves = uTurn2(auf);
-      moves.insert(moves.end(), alg.begin(), alg.end());
-      auto c = applied(start, moves);
+      auto c = applyAlg(start, alg, auf);
       if (c && f2lWhole(*c) && cornersOriented(*c)) {
         return true;
       }
@@ -392,7 +384,7 @@ TsleSolver::TsleSolver(Slot slot, const std::vector<OcllAlg> &algs)
       for (std::size_t a = 0; a < world.size(); ++a) {
         for (int auf = 0; auf < 4; ++auf) {
           Alg moves = joined(uTurn2(auf), world[a]);
-          auto c = applied(cube, moves);
+          auto c = applyAlg(cube, moves);
           if (c && f2lWhole(*c) && cornersOriented(*c)) {
             finishes_[at].push_back({a, std::move(moves)});
           }

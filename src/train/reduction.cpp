@@ -57,13 +57,6 @@ std::optional<CaseView> mirroredView(const AlgSet &set, const CaseGroup &group,
   return std::nullopt;
 }
 
-std::optional<CubieCube> after(const CubieCube &cube, const Alg &alg) {
-  FaceletCube f = cube.toFacelets();
-  f.apply(alg);
-  f.normalizeOrientation();
-  return CubieCube::fromFacelets(f);
-}
-
 } // namespace
 
 bool slotIndependent(const CubieCube &state, const PieceMask &free,
@@ -172,7 +165,7 @@ std::vector<ViewAlg> algsFor(const AlgSet &set, const CaseGroup &group,
     if (!alg.reducesTo.empty() && view.mirrored) {
       // The case a mirrored step stops at may be one that is seen as it
       // is written: its mirror image, by name.
-      std::optional<CubieCube> next = after(cube, parseAlgOrEmpty(alg.text));
+      std::optional<CubieCube> next = applyAlg(cube, parseAlgOrEmpty(alg.text));
       if (auto seen = next ? seenCase(set, *next, world) : std::nullopt) {
         alg.reducesTo = seen->caseId;
       }
@@ -245,7 +238,7 @@ Chain solveChain(const AlgSet &set, const CubieCube &cube, Mirror world) {
       break;
     }
     std::optional<CubieCube> next =
-        after(at, parseAlgOrEmpty(algs.front().text));
+        applyAlg(at, parseAlgOrEmpty(algs.front().text));
     if (!next) {
       break;
     }

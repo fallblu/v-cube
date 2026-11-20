@@ -177,19 +177,6 @@ std::shared_ptr<const PairIndex> indexOf(const AlgSet &set) {
   return index;
 }
 
-// The state after an alg, done after `quarters` U turns; nullopt if it
-// can't be worked out (a malformed alg).
-std::optional<CubieCube> applied(const CubieCube &state, int quarters,
-                                 const Alg &alg) {
-  FaceletCube f = state.toFacelets();
-  if (quarters % 4 != 0) {
-    f.apply(Move{MoveType::U, static_cast<std::uint8_t>(quarters % 4)});
-  }
-  f.apply(alg);
-  f.normalizeOrientation();
-  return CubieCube::fromFacelets(f);
-}
-
 std::array<bool, kSlots> solvedSlots(const CubieCube &c) {
   std::array<bool, kSlots> out{};
   for (Slot s : kAllSlots) {
@@ -217,7 +204,7 @@ PairOption bestOption(const CubieCube &state, Slot slot,
       const PairCase &pc = index.cases[i];
       for (const auto &p : pc.algs) {
         int total = (a + p.before) % 4;
-        auto after = applied(state, total, p.alg);
+        auto after = applyAlg(state, p.alg, total);
         if (!after || !slotSolved(*after, slot) || !eoCrossSolved(*after)) {
           continue;
         }
@@ -257,10 +244,7 @@ std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
   std::vector<std::optional<StepMark>> found(steps.size());
   FaceletCube f = start;
   for (std::size_t k = 0; k <= solution.size(); ++k) {
-    int htm =
-        solutionHtm(Alg(solution.begin(),
-                        solution.begin() + static_cast<std::ptrdiff_t>(k)),
-                    simplified);
+    int htm = solutionHtm(slice(solution, 0, k), simplified);
     bool all = true;
     for (std::size_t i = 0; i < steps.size(); ++i) {
       if (found[i]) {
@@ -409,10 +393,7 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
     PairSegment seg;
     seg.begin = segmentBegin;
     seg.end = k + 1;
-    seg.htm = solutionHtm(
-        Alg(solution.begin() + static_cast<std::ptrdiff_t>(segmentBegin),
-            solution.begin() + static_cast<std::ptrdiff_t>(k + 1)),
-        simplified);
+    seg.htm = solutionHtm(slice(solution, segmentBegin, k + 1), simplified);
     for (Slot s : kAllSlots) {
       auto i = static_cast<std::size_t>(s);
       if (now[i] && !before[i]) {
@@ -458,10 +439,7 @@ SolveSplits solveSplits(const FaceletCube &start, const Alg &solution,
     return times[moves - 1];
   };
   auto htmOf = [&](std::size_t begin, std::size_t end) {
-    return solutionHtm(
-        Alg(solution.begin() + static_cast<std::ptrdiff_t>(begin),
-            solution.begin() + static_cast<std::ptrdiff_t>(end)),
-        simplified);
+    return solutionHtm(slice(solution, begin, end), simplified);
   };
   std::vector<StepMark> marks = stepMarks(
       start, solution, {SolveStep::EOCross, SolveStep::CFOPF2L}, simplified);
@@ -547,8 +525,7 @@ std::string seconds(std::int64_t ms) {
 
 std::string phaseMoves(const Alg &solution, std::size_t begin,
                        std::size_t end) {
-  return toString(Alg(solution.begin() + static_cast<std::ptrdiff_t>(begin),
-                      solution.begin() + static_cast<std::ptrdiff_t>(end)));
+  return toString(slice(solution, begin, end));
 }
 
 // Each line of the reconstruction after the scramble: the moves and the
@@ -651,7 +628,7 @@ PairPlan cheapestPairOrder(const CubieCube &state, const AlgSet &reference) {
       if (o.caseId.empty()) {
         continue;
       }
-      auto next = applied(s, 0, parseAlgOrEmpty(o.alg));
+      auto next = applyAlg(s, parseAlgOrEmpty(o.alg));
       if (!next) {
         continue;
       }

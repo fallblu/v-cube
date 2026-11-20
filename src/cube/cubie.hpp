@@ -81,4 +81,12 @@ CubieCube cubieOf(const Alg &alg);
 // U-layer turn by `quarters` (0..3).
 CubieCube uTurn(int quarters);
 
+// A cube turned any way round (e.g. after rotations while solving), as
+// the solver sees it with the centres in their places.
+std::optional<CubieCube> centredCubie(const FaceletCube &cube);
+// The cube after `uBefore` U turns and then `alg` (rotations allowed), as
+// centredCubie() sees it.
+std::optional<CubieCube> applyAlg(const CubieCube &cube, const Alg &alg,
+                                  int uBefore = 0);
+
 } // namespace vcube

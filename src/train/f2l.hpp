@@ -73,10 +73,6 @@ bool f2lDone(const CubieCube &c, const F2LConfig &config);
 // that can be left.
 int pairsLeft(const CubieCube &c, const F2LConfig &config);
 
-// A cube turned any way round (e.g. after rotations while solving), as
-// the solver sees it with the centres in their places.
-std::optional<CubieCube> centredCubie(const FaceletCube &cube);
-
 // --- pair cases --------------------------------------------------------------
 
 // Where a slot's corner and edge are, as seen for the front-right slot

@@ -138,12 +138,6 @@ std::optional<CubieCube> stateWithCase(const std::vector<Slot> &open,
   return std::nullopt;
 }
 
-std::optional<CubieCube> afterAlg(const CubieCube &state, const Alg &alg) {
-  FaceletCube f = state.toFacelets();
-  f.apply(alg);
-  return centredCubie(f);
-}
-
 int wideTurns(const Alg &alg) {
   return static_cast<int>(std::count_if(alg.begin(), alg.end(), [](Move m) {
     auto t = static_cast<int>(m.type);
@@ -170,11 +164,11 @@ Alg ordered(Alg alg) {
   return alg;
 }
 
-// Whether the moves solve a slot's pair from a state, keeping the base and
-// the slots that were solved.
+// Whether the moves (after `uBefore` U turns) solve a slot's pair from a
+// state, keeping the base and the slots that were solved.
 bool solvesPair(const CubieCube &state, Slot slot, const Alg &alg,
-                const F2LConfig &config) {
-  auto c = afterAlg(state, alg);
+                const F2LConfig &config, int uBefore = 0) {
+  auto c = applyAlg(state, alg, uBefore);
   return c && f2lBase(*c, config) && slotSolved(*c, slot) &&
          std::all_of(kF2LSlots.begin(), kF2LSlots.end(), [&](Slot s) {
            return !slotSolved(state, s) || slotSolved(*c, s);
@@ -218,7 +212,7 @@ Plan cheapestPlan(const CubieCube &state, const AnalysisOptions &options,
     if (!a.found()) {
       continue;
     }
-    auto next = afterAlg(state, a.solutions[0].alg);
+    auto next = applyAlg(state, a.solutions[0].alg);
     if (!next) {
       continue;
     }
@@ -313,12 +307,6 @@ int pairsLeft(const CubieCube &c, const F2LConfig &config) {
   bool canLeave = std::any_of(open.begin(), open.end(),
                               [&](Slot s) { return config.leaves(s); });
   return static_cast<int>(open.size()) - (canLeave ? 1 : 0);
-}
-
-std::optional<CubieCube> centredCubie(const FaceletCube &cube) {
-  FaceletCube f = cube;
-  f.normalizeOrientation();
-  return CubieCube::fromFacelets(f);
 }
 
 // --- pair cases --------------------------------------------------------------
@@ -520,7 +508,7 @@ std::optional<CubieCube> cardState(const PairCard &card, Edges edges,
         ep * 2 + m.eo[static_cast<std::size_t>(ep)] == card.pcase.edge) {
       break;
     }
-    state = afterAlg(*state, {Move{MoveType::U, 1}});
+    state = applyAlg(*state, {Move{MoveType::U, 1}});
   }
   return state;
 }
@@ -608,12 +596,7 @@ std::optional<int> solvesPairWithAuf(const CubieCube &state, Slot slot,
     body.erase(body.begin());
   }
   for (int auf = 0; auf < 4; ++auf) {
-    Alg moves;
-    if (auf != 0) {
-      moves.push_back({MoveType::U, static_cast<std::uint8_t>(auf)});
-    }
-    moves.insert(moves.end(), body.begin(), body.end());
-    if (solvesPair(state, slot, moves, config)) {
+    if (solvesPair(state, slot, body, config, auf)) {
       return auf;
     }
   }
@@ -967,7 +950,7 @@ std::vector<PairRank> rankPairs(const CubieCube &state,
       continue;
     }
     const RankedSolution &best = r.pair.solutions[0];
-    auto next = afterAlg(state, best.alg);
+    auto next = applyAlg(state, best.alg);
     if (!next) {
       continue;
     }

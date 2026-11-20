@@ -114,18 +114,11 @@ std::optional<AufFit> fitAlg(const CubieCube &state, const Alg &alg,
   if (alg.empty()) {
     return std::nullopt;
   }
-  FaceletCube start = state.toFacelets();
   for (int u : kAufOrder) {
     if (u != 0 && !aufBefore) {
       continue;
     }
-    FaceletCube f = start;
-    if (u != 0) {
-      f.apply(Move{MoveType::U, static_cast<std::uint8_t>(u)});
-    }
-    f.apply(alg);
-    f.normalizeOrientation();
-    auto after = CubieCube::fromFacelets(f);
+    auto after = applyAlg(state, alg, u);
     if (!after) {
       continue;
     }
@@ -372,16 +365,9 @@ AlgCheck checkAlg(const CubieCube &state, std::string_view alg,
     return r;
   }
   // Describe the closest result over the AUFs the set allows.
-  FaceletCube start = state.toFacelets();
   std::optional<Unsolved> best;
   for (int u = 0; u < (aufBefore ? 4 : 1); ++u) {
-    FaceletCube f = start;
-    if (u != 0) {
-      f.apply(Move{MoveType::U, static_cast<std::uint8_t>(u)});
-    }
-    f.apply(parsed.alg);
-    f.normalizeOrientation();
-    auto after = CubieCube::fromFacelets(f);
+    auto after = applyAlg(state, parsed.alg, u);
     if (!after) {
       continue;
     }
@@ -511,8 +497,7 @@ std::optional<DisplayOrientation> displayOrientation(const CubieCube &state,
   if (prefix == 0 && fit->before == 0) {
     return canonical;
   }
-  Alg rest(parsed.alg.begin() + static_cast<std::ptrdiff_t>(prefix),
-           parsed.alg.end());
+  Alg rest = slice(parsed.alg, prefix, parsed.alg.size());
   if (rest.empty()) {
     return canonical; // nothing but a setup: keep the case as it is
   }
@@ -520,8 +505,7 @@ std::optional<DisplayOrientation> displayOrientation(const CubieCube &state,
   if (fit->before != 0) {
     f.apply(Move{MoveType::U, static_cast<std::uint8_t>(fit->before)});
   }
-  f.apply(Alg(parsed.alg.begin(),
-              parsed.alg.begin() + static_cast<std::ptrdiff_t>(prefix)));
+  f.apply(slice(parsed.alg, 0, prefix));
   auto shown = recolouredToCentres(f);
   if (!shown) {
     return canonical;
@@ -547,10 +531,7 @@ AlgCheck checkCaseAlg(const AlgSet &set, const CaseGroup &group,
   AlgCheck check = checkAlg(c.state, alg, set.specFor(group).free, aufsOf(set));
   if (set.reduction && !check.passes() && !check.parseError && !check.empty) {
     // A step: done as written, it stops at another case of the set.
-    FaceletCube f = c.state.toFacelets();
-    f.apply(parseAlgOrEmpty(alg));
-    f.normalizeOrientation();
-    auto after = CubieCube::fromFacelets(f);
+    auto after = applyAlg(c.state, parseAlgOrEmpty(alg));
     auto seen = after ? seenCase(set, *after) : std::nullopt;
     const AlgCase *next = seen ? set.findCase(seen->caseId) : nullptr;
     if (next && next->id != c.id) {
