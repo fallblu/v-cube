@@ -58,6 +58,7 @@
 #include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QFile>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -67,6 +68,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSignalSpy>
@@ -451,6 +453,7 @@ private slots:
   void caseFilterHidesWhatDoesntMatch();
   void optimalCountsUseTheChosenHolds();
   void timerTableAndStatsFollowEachSolve();
+  void splitsArriveInTheirRows();
   void algLabFilterKeepsTheCaseShown();
   void algLabSearchAddsRowsAsItFindsThem();
   void algLabLengthLimitAppliesDuringASearch();
@@ -3273,6 +3276,108 @@ void GuiTest::timerTableAndStatsFollowEachSolve() {
     m = mismatch();
     QVERIFY2(m.isEmpty(), qPrintable(m));
   }
+}
+
+// A virtual solve's splits are worked out off the GUI thread and come a
+// moment after its row: they are written into that row, and the table
+// keeps its rows and what is selected in it.
+void GuiTest::splitsArriveInTheirRows() {
+  OPEN_PAGE(timed, TimerPage, Timed);
+  auto *panel = timed->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  auto *table = lastChild<QTableView>(timed->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  const QAbstractItemModel *model = table->model();
+  // A new session, on the virtual cube; the first one is shown again at
+  // the end, for the tests that follow.
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *dialog = qobject_cast<QInputDialog *>(m)) {
+        dialog->accept();
+      }
+    });
+    emit panel->newSessionRequested();
+  }
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  auto back = qScopeGuard([&] { emit panel->sessionChosen(0); });
+  QCOMPARE(model->rowCount(), 0);
+  auto *cube = lastChild<QComboBox>(timed, [](QComboBox *b) {
+    return b->toolTip().startsWith("The cube this session");
+  });
+  QVERIFY(cube);
+  cube->setCurrentIndex(0);
+  emit cube->activated(0);
+  int cross = -1;
+  for (int c = 0; c < model->columnCount(); ++c) {
+    if (model->headerData(c, Qt::Horizontal).toString() == "Cross" &&
+        !table->isColumnHidden(c)) {
+      cross = c;
+    }
+  }
+  QVERIFY(cross >= 0);
+
+  QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+  QSignalSpy inserted(model, &QAbstractItemModel::rowsInserted);
+  QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
+  auto solve = [&] {
+    CubeView *view = waitForCase(timed);
+    QVERIFY(view);
+    std::optional<Alg> solution = solutionFor(view->displayedState());
+    QVERIFY(solution);
+    QVERIFY(holdSpaceUntilBusy(timed));
+    typeMoves(*solution);
+    view->finishAnimations();
+    QTRY_VERIFY(!timed->isBusy());
+  };
+  // Whether the splits of the solve in `row` have come.
+  auto known = [&](int row) {
+    return model->index(row, cross).data().toString() != "…";
+  };
+
+  solve();
+  QCOMPARE(model->rowCount(), 1);
+  QTRY_VERIFY(known(0));
+  QVERIFY(changed.count() >= 1);
+  // The row is the solve's still.
+  QCOMPARE(model->index(0, 0).data(Qt::UserRole).toInt(), 0);
+  QCOMPARE(model->index(0, 0).data().toString(), QString("1"));
+
+  table->selectRow(0);
+  const int before = static_cast<int>(changed.count());
+  solve();
+  QCOMPARE(model->rowCount(), 2);
+  QTRY_VERIFY(known(0));
+  QVERIFY(changed.count() > before);
+  QVERIFY(known(1));
+  // Nothing was made anew: a row for each solve, and the selected solve
+  // (now the second row) is selected still.
+  QCOMPARE(resets.count(), 0);
+  QCOMPARE(inserted.count(), 2);
+  const QModelIndexList selected = table->selectionModel()->selectedRows();
+  QCOMPARE(selected.size(), 1);
+  QCOMPARE(selected.front().row(), 1);
+
+  // The table is what a fresh look at the session gives.
+  auto shown = [&] {
+    QStringList cells;
+    for (int r = 0; r < model->rowCount(); ++r) {
+      for (int c = 0; c < model->columnCount(); ++c) {
+        cells << model->index(r, c).data().toString();
+      }
+    }
+    return cells;
+  };
+  const QStringList inPlace = shown();
+  finishBackgroundWrites();
+  SessionStore saved(QDir(dataDir_).filePath("sessions.json"));
+  QVERIFY(saved.load());
+  QCOMPARE(saved.current().solves.size(), std::size_t{2});
+  emit panel->sessionChosen(saved.currentIndex()); // the same, shown afresh
+  QVERIFY(resets.count() > 0);
+  QTRY_VERIFY(known(0) && known(1));
+  QCOMPARE(shown(), inPlace);
 }
 
 // Typing in Alg Lab's case filter shows the case again only when another

@@ -228,6 +228,13 @@ void TimerPage::showAttempts(Refresh what) {
   }
   bool missing = false;
   solveRows_.resize(solves.size());
+  if (what == Refresh::Splits && rowsShown_ == solves.size()) {
+    // Only the rows whose splits have come: nothing else has changed, so
+    // the table keeps its rows (and what is selected in it), and the
+    // statistics and the chart's solves stay as they are.
+    showSplits();
+    return;
+  }
   if (what == Refresh::Appended && rowsShown_ + 1 == solves.size()) {
     // Only the new solve's row: the others stay as they are.
     for (auto *series : {&crossSeries_, &f2lSeries_, &llSeries_}) {
@@ -255,6 +262,43 @@ void TimerPage::showAttempts(Refresh what) {
       solves.size());
   const RunningStats &chart = unit != kWcaUnit ? chartStats_ : stats_;
   chart_->setSolves(solves, chart.ao5(), chart.ao12());
+  showSeries();
+  updateControls();
+}
+
+void TimerPage::showSplits() {
+  const auto &solves = session().solves;
+  bool missing = false;
+  bool shown = false;
+  if (onVirtualCube()) {
+    for (std::size_t i = 0; i < solves.size(); ++i) {
+      const Solve &s = solves[i];
+      if (s.moves.empty()) {
+        continue;
+      }
+      // A row that has its splits, for this solve, is as it should be.
+      if (solveRows_[i].splits && solveRows_[i].isOf(s)) {
+        continue;
+      }
+      if (!splitsOf(s)) {
+        missing = true; // still to come: its row waits
+        continue;
+      }
+      // The newest solve is the top row.
+      panel_->setRow(static_cast<int>(solves.size() - 1 - i),
+                     solveRow(i, missing));
+      shown = true;
+    }
+  }
+  if (missing) {
+    requestSplits();
+  }
+  if (shown) {
+    showSeries();
+  }
+}
+
+void TimerPage::showSeries() {
   if (onVirtualCube()) {
     chart_->setSeries({{tr("cross"), Role::Series3, crossSeries_},
                        {tr("F2L"), Role::Series1, f2lSeries_},
@@ -262,7 +306,6 @@ void TimerPage::showAttempts(Refresh what) {
   } else {
     chart_->setSeries({});
   }
-  updateControls();
 }
 
 void TimerPage::showStat(const QString &link) {
