@@ -1,5 +1,7 @@
 #include "train/algset.hpp"
 
+#include "train/enum_ids.hpp"
+
 #include <algorithm>
 #include <array>
 #include <sstream>
@@ -352,29 +354,15 @@ std::optional<PieceMask> parseFree(std::string_view text, bool *widened) {
   return m;
 }
 
+constexpr std::array<std::string_view, 3> kStickerModes = {
+    "full", "orientation", "hidden"};
+
 std::string_view stickerModeName(StickerMode m) {
-  switch (m) {
-  case StickerMode::Full:
-    return "full";
-  case StickerMode::Orientation:
-    return "orientation";
-  case StickerMode::Hidden:
-    return "hidden";
-  }
-  return "full";
+  return idOf(kStickerModes, m, "full");
 }
 
 std::optional<StickerMode> parseStickerMode(std::string_view s) {
-  if (s == "full") {
-    return StickerMode::Full;
-  }
-  if (s == "orientation") {
-    return StickerMode::Orientation;
-  }
-  if (s == "hidden") {
-    return StickerMode::Hidden;
-  }
-  return std::nullopt;
+  return fromId<StickerMode>(kStickerModes, s);
 }
 
 FaceletCube maskedFacelets(const CubieCube &state, const DiagramMask &mask,

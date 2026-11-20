@@ -1,5 +1,6 @@
 #include "train/f2l.hpp"
 
+#include "train/enum_ids.hpp"
 #include "train/families.hpp"
 
 #include <algorithm>
@@ -250,42 +251,18 @@ PairMoves F2LConfig::moves() const {
   return m;
 }
 
-std::string_view methodId(F2LMethod m) {
-  switch (m) {
-  case F2LMethod::ZZMinus1:
-    return "zz-1";
-  case F2LMethod::ZZ:
-    return "zz";
-  case F2LMethod::CFOP:
-    return "cfop";
-  case F2LMethod::CFOPMinus1:
-    return "cfop-1";
-  }
-  return "zz-1";
-}
+constexpr std::array<std::string_view, kF2LMethods> kMethodIds = {
+    "zz-1", "zz", "cfop", "cfop-1"};
+constexpr std::array<std::string_view, kF2LMethods> kMethodNames = {
+    "ZZ F2L - 1 (ZZ-CT)", "ZZ F2L (ZZ-OP, ZZ-A)", "CFOP F2L", "CFOP F2L - 1"};
+
+std::string_view methodId(F2LMethod m) { return idOf(kMethodIds, m, "zz-1"); }
 
 std::optional<F2LMethod> methodFromId(std::string_view id) {
-  for (int i = 0; i < kF2LMethods; ++i) {
-    if (methodId(static_cast<F2LMethod>(i)) == id) {
-      return static_cast<F2LMethod>(i);
-    }
-  }
-  return std::nullopt;
+  return fromId<F2LMethod>(kMethodIds, id);
 }
 
-std::string_view methodName(F2LMethod m) {
-  switch (m) {
-  case F2LMethod::ZZMinus1:
-    return "ZZ F2L - 1 (ZZ-CT)";
-  case F2LMethod::ZZ:
-    return "ZZ F2L (ZZ-OP, ZZ-A)";
-  case F2LMethod::CFOP:
-    return "CFOP F2L";
-  case F2LMethod::CFOPMinus1:
-    return "CFOP F2L - 1";
-  }
-  return "";
-}
+std::string_view methodName(F2LMethod m) { return idOf(kMethodNames, m); }
 
 void applyMethod(F2LConfig &config, F2LMethod m) {
   config.eo = m == F2LMethod::ZZMinus1 || m == F2LMethod::ZZ;
@@ -437,23 +414,15 @@ PairGroup groupOf(PairCase c) {
 }
 
 std::string_view groupName(PairGroup g) {
-  switch (g) {
-  case PairGroup::BothTop:
-    return "Both on top";
-  case PairGroup::CornerTopEdgeSlot:
-    return "Corner on top, edge in slot";
-  case PairGroup::EdgeTopCornerSlot:
-    return "Edge on top, corner in slot";
-  case PairGroup::BothSlot:
-    return "Both in slot";
-  case PairGroup::CornerElsewhere:
-    return "Corner in another slot";
-  case PairGroup::EdgeElsewhere:
-    return "Edge in another slot";
-  case PairGroup::BothElsewhere:
-    return "Both in other slots";
-  }
-  return "";
+  static constexpr std::array<std::string_view, kPairGroups> kNames = {
+      "Both on top",
+      "Corner on top, edge in slot",
+      "Edge on top, corner in slot",
+      "Both in slot",
+      "Corner in another slot",
+      "Edge in another slot",
+      "Both in other slots"};
+  return idOf(kNames, g);
 }
 
 const std::vector<PairCase> &pairCases(Edges edges) {

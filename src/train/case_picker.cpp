@@ -1,31 +1,24 @@
 #include "train/case_picker.hpp"
 
+#include "train/enum_ids.hpp"
+
 #include <algorithm>
 
 namespace vcube {
 
+namespace {
+
+constexpr std::array<std::string_view, 4> kPickModeIds = {"random", "weighted",
+                                                          "inorder", "recap"};
+
+} // namespace
+
 std::string_view pickModeId(PickMode m) {
-  switch (m) {
-  case PickMode::Random:
-    return "random";
-  case PickMode::Weighted:
-    return "weighted";
-  case PickMode::InOrder:
-    return "inorder";
-  case PickMode::Recap:
-    return "recap";
-  }
-  return "random";
+  return idOf(kPickModeIds, m, "random");
 }
 
 std::optional<PickMode> pickModeFromId(std::string_view id) {
-  for (PickMode m : {PickMode::Random, PickMode::Weighted, PickMode::InOrder,
-                     PickMode::Recap}) {
-    if (id == pickModeId(m)) {
-      return m;
-    }
-  }
-  return std::nullopt;
+  return fromId<PickMode>(kPickModeIds, id);
 }
 
 double drillReference(const std::vector<std::string> &pool,

@@ -1,22 +1,21 @@
 #include "train/stats.hpp"
 
+#include "train/enum_ids.hpp"
+
 #include <algorithm>
 #include <cstdio>
 
 namespace vcube {
 
+constexpr std::array<std::string_view, 2> kCubeKindIds = {"virtual",
+                                                          "physical"};
+
 std::string_view cubeKindId(CubeKind k) {
-  return k == CubeKind::Virtual ? "virtual" : "physical";
+  return idOf(kCubeKindIds, k, "physical");
 }
 
 std::optional<CubeKind> cubeKindFromId(std::string_view id) {
-  if (id == "virtual") {
-    return CubeKind::Virtual;
-  }
-  if (id == "physical") {
-    return CubeKind::Physical;
-  }
-  return std::nullopt;
+  return fromId<CubeKind>(kCubeKindIds, id);
 }
 
 std::int64_t effectiveTime(const Solve &s) {

@@ -3,6 +3,7 @@
 #include "train/reduction.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <sstream>
 
@@ -176,16 +177,9 @@ StepMiss stepMiss(const CubieCube &cube, const PieceMask &free) {
 }
 
 std::string aufText(int quarters) {
-  switch (((quarters % 4) + 4) % 4) {
-  case 1:
-    return "U";
-  case 2:
-    return "U2";
-  case 3:
-    return "U'";
-  default:
-    return "";
-  }
+  static constexpr std::array<std::string_view, 4> kAufs = {"", "U", "U2",
+                                                            "U'"};
+  return std::string(kAufs[static_cast<std::size_t>(((quarters % 4) + 4) % 4)]);
 }
 
 std::string withAufs(const std::string &alg, AufFit fit) {

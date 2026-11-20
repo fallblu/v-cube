@@ -1,6 +1,7 @@
 #include "train/solve_review.hpp"
 
 #include "train/case_logic.hpp"
+#include "train/enum_ids.hpp"
 #include "train/families.hpp"
 #include "train/step_solver.hpp"
 
@@ -287,45 +288,20 @@ std::vector<StepMark> stepMarks(const FaceletCube &start, const Alg &solution,
 }
 
 std::string_view slotName(Slot s) {
-  switch (s) {
-  case Slot::FR:
-    return "FR";
-  case Slot::FL:
-    return "FL";
-  case Slot::BL:
-    return "BL";
-  case Slot::BR:
-    return "BR";
-  }
-  return "";
+  static constexpr std::array<std::string_view, kSlots> kNames = {"FR", "FL",
+                                                                  "BL", "BR"};
+  return idOf(kNames, s);
 }
 
 Corner slotCorner(Slot s) {
-  switch (s) {
-  case Slot::FR:
-    return DFR;
-  case Slot::FL:
-    return DLF;
-  case Slot::BL:
-    return DBL;
-  case Slot::BR:
-    return DRB;
-  }
-  return DFR;
+  static constexpr std::array<Corner, kSlots> kSlotCorners = {DFR, DLF, DBL,
+                                                              DRB};
+  return idOf(kSlotCorners, s, DFR);
 }
 
 Edge slotEdge(Slot s) {
-  switch (s) {
-  case Slot::FR:
-    return FR;
-  case Slot::FL:
-    return FL;
-  case Slot::BL:
-    return BL;
-  case Slot::BR:
-    return BR;
-  }
-  return FR;
+  static constexpr std::array<Edge, kSlots> kSlotEdges = {FR, FL, BL, BR};
+  return idOf(kSlotEdges, s, FR);
 }
 
 bool slotSolved(const CubieCube &c, Slot s) {

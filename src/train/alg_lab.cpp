@@ -1,8 +1,10 @@
 #include "train/alg_lab.hpp"
 
 #include "cube/move.hpp"
+#include "train/enum_ids.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <map>
 
@@ -50,42 +52,25 @@ std::string labAlgKey(std::string_view alg) {
   return toString(parsed.alg);
 }
 
+constexpr std::array<std::string_view, 4> kSourceIds = {"set", "generated",
+                                                        "pasted", "typed"};
+constexpr std::array<std::string_view, 2> kOrderIds = {"interleaved",
+                                                       "blocked"};
+
 std::string_view candidateSourceId(CandidateSource s) {
-  switch (s) {
-  case CandidateSource::Set:
-    return "set";
-  case CandidateSource::Generated:
-    return "generated";
-  case CandidateSource::Pasted:
-    return "pasted";
-  case CandidateSource::Typed:
-    return "typed";
-  }
-  return "typed";
+  return idOf(kSourceIds, s, "typed");
 }
 
 std::optional<CandidateSource> candidateSourceFromId(std::string_view id) {
-  for (auto s : {CandidateSource::Set, CandidateSource::Generated,
-                 CandidateSource::Pasted, CandidateSource::Typed}) {
-    if (candidateSourceId(s) == id) {
-      return s;
-    }
-  }
-  return std::nullopt;
+  return fromId<CandidateSource>(kSourceIds, id);
 }
 
 std::string_view labOrderId(LabOrder o) {
-  return o == LabOrder::Blocked ? "blocked" : "interleaved";
+  return idOf(kOrderIds, o, "interleaved");
 }
 
 std::optional<LabOrder> labOrderFromId(std::string_view id) {
-  if (id == "blocked") {
-    return LabOrder::Blocked;
-  }
-  if (id == "interleaved") {
-    return LabOrder::Interleaved;
-  }
-  return std::nullopt;
+  return fromId<LabOrder>(kOrderIds, id);
 }
 
 std::vector<int> repsDone(const LabSession &s,
