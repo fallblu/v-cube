@@ -1,4 +1,5 @@
 #include "cube/scramble.hpp"
+#include "train/solve_review.hpp"
 #include "train/step_solver.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -83,7 +84,7 @@ TEST_CASE("the cross alone ignores edge orientation", "[step]") {
 TEST_CASE("one F2L pair is solved in <R, U, L>", "[step]") {
   // The FR pair out with R U R', the rest solved.
   CubieCube c = cubieOf(parseAlgOrEmpty("R U R'"));
-  auto alg = solvePairRul(c, DFR, FR, {{DLF, FL}, {DBL, BL}, {DRB, BR}});
+  auto alg = optimalPair(c, Slot::FR);
   REQUIRE(alg);
   CHECK(alg->size() == 3);
   CubieCube done = c;
@@ -92,7 +93,7 @@ TEST_CASE("one F2L pair is solved in <R, U, L>", "[step]") {
   // A longer one: the solution keeps the other slots.
   Alg setup = parseAlgOrEmpty("R U' R' U R U R' U2 R U2 R'");
   CubieCube s = cubieOf(setup);
-  auto two = solvePairRul(s, DFR, FR, {{DLF, FL}, {DBL, BL}, {DRB, BR}});
+  auto two = optimalPair(s, Slot::FR);
   REQUIRE(two);
   CubieCube after = s;
   after.apply(*two);
@@ -105,7 +106,7 @@ TEST_CASE("one F2L pair is solved in <R, U, L>", "[step]") {
   CHECK(after.ep[DR] == DR);
   CHECK(after.ep[DL] == DL);
   // Not a ZZ F2L state.
-  CHECK_FALSE(solvePairRul(cubieOf(parseAlgOrEmpty("F")), DFR, FR, {}));
+  CHECK_FALSE(optimalPair(cubieOf(parseAlgOrEmpty("F")), Slot::FR));
 }
 
 TEST_CASE("short scrambles are undone at most as long", "[step]") {

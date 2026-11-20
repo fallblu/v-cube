@@ -39,37 +39,9 @@ std::optional<Slot> slotOfEdge(int place) {
   return std::nullopt;
 }
 
-// Where each piece value goes under a U turn.
-struct UTurns {
-  std::array<std::uint8_t, 24> corner{};
-  std::array<std::uint8_t, 24> edge{};
-};
-
-const UTurns &uTurns() {
-  static const UTurns turns = [] {
-    UTurns t;
-    const CubieCube &u = faceTurnCubie(Face::U);
-    for (std::size_t i = 0; i < kCorners; ++i) {
-      for (int twist = 0; twist < 3; ++twist) {
-        t.corner[static_cast<std::size_t>(u.cp[i] * 3 + twist)] =
-            static_cast<std::uint8_t>(static_cast<int>(i) * 3 +
-                                      (twist + u.co[i]) % 3);
-      }
-    }
-    for (std::size_t i = 0; i < kEdges; ++i) {
-      for (int flip = 0; flip < 2; ++flip) {
-        t.edge[static_cast<std::size_t>(u.ep[i] * 2 + flip)] =
-            static_cast<std::uint8_t>(static_cast<int>(i) * 2 +
-                                      (flip + u.eo[i]) % 2);
-      }
-    }
-    return t;
-  }();
-  return turns;
-}
-
 PairCase normalized(int corner, int edge) {
-  const UTurns &u = uTurns();
+  // A U turn is move 0.
+  const PieceMoves &u = pieceMoves();
   PairCase c = {static_cast<std::uint8_t>(corner),
                 static_cast<std::uint8_t>(edge)};
   for (int i = 0; i < 4; ++i) {
@@ -79,23 +51,13 @@ PairCase normalized(int corner, int edge) {
       break;
     }
     if (c.cornerOnTop()) {
-      c.corner = u.corner[c.corner];
+      c.corner = u.corner[c.corner * PieceMoves::kMoves];
     }
     if (c.edgeOnTop()) {
-      c.edge = u.edge[c.edge];
+      c.edge = u.edge[c.edge * PieceMoves::kMoves];
     }
   }
   return c;
-}
-
-int placeOfCorner(const CubieCube &c, Corner piece) {
-  return static_cast<int>(std::find(c.cp.begin(), c.cp.end(), piece) -
-                          c.cp.begin());
-}
-
-int placeOfEdge(const CubieCube &c, Edge piece) {
-  return static_cast<int>(std::find(c.ep.begin(), c.ep.end(), piece) -
-                          c.ep.begin());
 }
 
 template <typename T> const T &pickOne(const std::vector<T> &from, Rng &rng) {
@@ -126,8 +88,8 @@ std::optional<CubieCube> stateWithCase(const std::vector<Slot> &open,
   for (int i = 0; i < kSetupTries; ++i) {
     CubieCube c = randomF2LState(open, edges, rng);
     // A quick look before the mirrored one: the pieces' layers.
-    bool cornerTop = placeOfCorner(c, slotCorner(target)) < 4;
-    bool edgeTop = placeOfEdge(c, slotEdge(target)) < 4;
+    bool cornerTop = cornerValue(c, slotCorner(target)) / 3 < 4;
+    bool edgeTop = edgeValue(c, slotEdge(target)) / 2 < 4;
     if (cornerTop != wanted.cornerOnTop() || edgeTop != wanted.edgeOnTop()) {
       continue;
     }
@@ -319,10 +281,7 @@ std::optional<Slot> PairCase::edgeSlot() const { return slotOfEdge(edge / 2); }
 
 PairCase pairCaseOf(const CubieCube &state, Slot target) {
   CubieCube m = mirrorState(state, mirrorOf(target));
-  int cp = placeOfCorner(m, DFR);
-  int ep = placeOfEdge(m, FR);
-  return normalized(cp * 3 + m.co[static_cast<std::size_t>(cp)],
-                    ep * 2 + m.eo[static_cast<std::size_t>(ep)]);
+  return normalized(cornerValue(m, DFR), edgeValue(m, FR));
 }
 
 std::string caseKey(PairCase c) {
@@ -502,10 +461,8 @@ std::optional<CubieCube> cardState(const PairCard &card, Edges edges,
   // a U turn away: the solutions found don't depend on where it fell.
   for (int turn = 0; turn < 4; ++turn) {
     CubieCube m = mirrorState(*state, mirrorOf(target));
-    const int cp = placeOfCorner(m, DFR);
-    const int ep = placeOfEdge(m, FR);
-    if (cp * 3 + m.co[static_cast<std::size_t>(cp)] == card.pcase.corner &&
-        ep * 2 + m.eo[static_cast<std::size_t>(ep)] == card.pcase.edge) {
+    if (cornerValue(m, DFR) == card.pcase.corner &&
+        edgeValue(m, FR) == card.pcase.edge) {
       break;
     }
     state = applyAlg(*state, {Move{MoveType::U, 1}});
@@ -808,8 +765,8 @@ double hiddenCost(const CubieCube &state, Slot slot) {
   auto cost = [](int shown, int needed) {
     return shown >= needed ? 0.0 : shown == 0 ? kHidden : kPartlyHidden;
   };
-  return cost(flatStickers(true, placeOfCorner(state, slotCorner(slot))), 2) +
-         cost(flatStickers(false, placeOfEdge(state, slotEdge(slot))), 2);
+  return cost(flatStickers(true, cornerValue(state, slotCorner(slot)) / 3), 2) +
+         cost(flatStickers(false, edgeValue(state, slotEdge(slot)) / 2), 2);
 }
 
 // --- ranking -----------------------------------------------------------------

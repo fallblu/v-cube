@@ -7,7 +7,6 @@
 
 #include <array>
 #include <optional>
-#include <utility>
 #include <vector>
 
 namespace vcube {
@@ -97,16 +96,6 @@ std::vector<std::size_t> distinctSolutions(const std::vector<Alg> &solutions,
 // the same hold turned a quarter (y), so that the front-back axis may be
 // either of the two around the top colour. Sorted, without repeats.
 std::vector<Hold> withBothEoAxes(const std::vector<Hold> &holds);
-
-// The shortest solution of one F2L pair (the slot of `corner` and `edge`,
-// e.g. DFR and FR) from a ZZ F2L state in the solver's frame (EO Cross
-// done), in <R, U, L> so that EO stays, keeping the cross and the slots in
-// `keep` (by their corner and edge) solved. nullopt if there is none
-// within `maxDepth` moves, or the state isn't a ZZ F2L state.
-std::optional<Alg>
-solvePairRul(const CubieCube &state, Corner corner, Edge edge,
-             const std::vector<std::pair<Corner, Edge>> &keep,
-             int maxDepth = 14);
 
 // Edge orientation of a cube in the solver's frame, for one axis: 0 the
 // F/B axis (ZZ's EO as held), 1 the R/L axis, 2 the U/D axis. An edge is

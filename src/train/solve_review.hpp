@@ -115,8 +115,10 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
                           bool simplified = true);
 
 // The shortest <R, U, L> solution of a slot's pair from a ZZ F2L state (in
-// the solver's frame) that keeps EO Cross and the slots solved there; see
-// solvePairRul(). nullopt if none is found within `maxDepth` moves.
+// the solver's frame) that keeps EO Cross and the slots solved there: the
+// first in searchPair()'s order, and no moves for a slot already solved.
+// nullopt if none is found within `maxDepth` moves, or the state isn't a
+// ZZ F2L state.
 std::optional<Alg> optimalPair(const CubieCube &state, Slot slot,
                                int maxDepth = 14);
 

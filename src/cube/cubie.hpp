@@ -71,6 +71,25 @@ inline bool cornerSolved(const CubieCube &c, Corner k) {
   return c.cp[k] == k && c.co[k] == 0;
 }
 
+// Where a piece is and how it is turned there, as one value: a corner's
+// place * 3 + twist, an edge's place * 2 + flip.
+inline int cornerValue(const CubieCube &c, Corner piece) {
+  for (std::size_t i = 0; i < kCorners; ++i) {
+    if (c.cp[i] == piece) {
+      return static_cast<int>(i) * 3 + c.co[i];
+    }
+  }
+  return 0;
+}
+inline int edgeValue(const CubieCube &c, Edge piece) {
+  for (std::size_t i = 0; i < kEdges; ++i) {
+    if (c.ep[i] == piece) {
+      return static_cast<int>(i) * 2 + c.eo[i];
+    }
+  }
+  return 0;
+}
+
 // Cubie cube of one face quarter turn.
 const CubieCube &faceTurnCubie(Face f);
 

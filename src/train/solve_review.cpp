@@ -2,8 +2,8 @@
 
 #include "train/case_logic.hpp"
 #include "train/enum_ids.hpp"
+#include "train/f2l_search.hpp"
 #include "train/families.hpp"
-#include "train/step_solver.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,6 +11,7 @@
 #include <climits>
 #include <cstdio>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -21,30 +22,6 @@ namespace {
 
 constexpr std::array<Slot, kSlots> kAllSlots = {Slot::FR, Slot::FL, Slot::BL,
                                                 Slot::BR};
-
-// Where a piece is: its position and orientation there.
-struct Place {
-  int position = -1;
-  int orientation = 0;
-};
-
-Place cornerPlace(const CubieCube &c, Corner piece) {
-  for (std::size_t i = 0; i < kCorners; ++i) {
-    if (c.cp[i] == piece) {
-      return {static_cast<int>(i), c.co[i]};
-    }
-  }
-  return {};
-}
-
-Place edgePlace(const CubieCube &c, Edge piece) {
-  for (std::size_t i = 0; i < kEdges; ++i) {
-    if (c.ep[i] == piece) {
-      return {static_cast<int>(i), c.eo[i]};
-    }
-  }
-  return {};
-}
 
 // The slot whose pair these pieces are: its corner, its edge or both (a
 // case may have one of them solved already).
@@ -76,15 +53,12 @@ struct PairCase {
   std::vector<Passing> algs;
 };
 
-// Slot, then the pair's corner position and twist and edge position and
-// flip.
-using PairKey = std::array<int, 5>;
+// Slot, then the values of the pair's corner and edge.
+using PairKey = std::array<int, 3>;
 
 PairKey pairKey(Slot s, const CubieCube &c) {
-  Place corner = cornerPlace(c, slotCorner(s));
-  Place edge = edgePlace(c, slotEdge(s));
-  return {static_cast<int>(s), corner.position, corner.orientation,
-          edge.position, edge.orientation};
+  return {static_cast<int>(s), cornerValue(c, slotCorner(s)),
+          edgeValue(c, slotEdge(s))};
 }
 
 struct PairIndex {
@@ -413,13 +387,24 @@ F2LBreakdown f2lBreakdown(const FaceletCube &start, const Alg &solution,
 
 std::optional<Alg> optimalPair(const CubieCube &state, Slot slot,
                                int maxDepth) {
-  std::vector<std::pair<Corner, Edge>> keep;
-  for (Slot s : kAllSlots) {
-    if (s != slot && slotSolved(state, s)) {
-      keep.emplace_back(slotCorner(s), slotEdge(s));
-    }
+  if (!eoCrossSolved(state)) {
+    return std::nullopt;
   }
-  return solvePairRul(state, slotCorner(slot), slotEdge(slot), keep, maxDepth);
+  if (slotSolved(state, slot)) {
+    return Alg{};
+  }
+  // The first of the shortest in <R, U, L>, however long the search takes.
+  PairSearchResult found =
+      searchPair(state, slot,
+                 {.moves = {.d = false, .halfFB = false},
+                  .extra = 0,
+                  .maxLength = maxDepth,
+                  .maxResults = 1,
+                  .maxNodes = std::numeric_limits<std::uint64_t>::max()});
+  if (found.algs.empty()) {
+    return std::nullopt;
+  }
+  return found.algs.front();
 }
 
 double tps(int htm, std::int64_t ms) {

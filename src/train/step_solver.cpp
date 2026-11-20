@@ -2,11 +2,13 @@
 
 #include "cube/coord.hpp"
 #include "cube/facelet.hpp"
+#include "train/f2l_search.hpp"
 
 #include <algorithm>
 #include <climits>
 #include <map>
 #include <mutex>
+#include <numeric>
 #include <span>
 #include <string>
 #include <tuple>
@@ -51,45 +53,6 @@ std::size_t crossIndex(const std::array<int, 4> &pos,
     idx = idx * 24 + static_cast<std::size_t>(pos[e] * 2 + ori[e]);
   }
   return idx;
-}
-
-std::vector<std::uint8_t> crossDistances(const Tables &t) {
-  constexpr std::size_t kSize = 24 * 24 * 24 * 24;
-  std::vector<std::uint8_t> dist(kSize, kUnseen);
-  std::array<int, 4> home{};
-  for (std::size_t e = 0; e < 4; ++e) {
-    home[e] = kCross[e];
-  }
-  std::vector<std::size_t> frontier{crossIndex(home, {})};
-  dist[frontier[0]] = 0;
-  for (std::uint8_t depth = 0; !frontier.empty(); ++depth) {
-    std::vector<std::size_t> next;
-    for (std::size_t idx : frontier) {
-      std::array<int, 4> pos{}, ori{};
-      std::size_t rest = idx;
-      for (std::size_t e = 4; e-- > 0;) {
-        auto v = static_cast<int>(rest % 24);
-        rest /= 24;
-        pos[e] = v / 2;
-        ori[e] = v % 2;
-      }
-      for (int m = 0; m < kMoves; ++m) {
-        std::array<int, 4> np{}, no{};
-        for (std::size_t e = 0; e < 4; ++e) {
-          auto at = static_cast<std::size_t>(pos[e] * kMoves + m);
-          np[e] = t.posMove[at];
-          no[e] = ori[e] ^ t.oriMove[at];
-        }
-        std::size_t n = crossIndex(np, no);
-        if (dist[n] == kUnseen) {
-          dist[n] = static_cast<std::uint8_t>(depth + 1);
-          next.push_back(n);
-        }
-      }
-    }
-    frontier = std::move(next);
-  }
-  return dist;
 }
 
 // Distances from the solved state for EO plus the given cross edges (by
@@ -159,7 +122,11 @@ Tables buildTables() {
       t.oriMove[static_cast<std::size_t>(mc.ep[i] * kMoves + m)] = mc.eo[i];
     }
   }
-  t.cross = crossDistances(t);
+  std::vector<int> all(kMoves);
+  std::iota(all.begin(), all.end(), 0);
+  t.cross = pieceDistances(
+      {kCross[0] * 2, kCross[1] * 2, kCross[2] * 2, kCross[3] * 2},
+      {false, false, false, false}, all);
   t.eo = distances(t, {});
   for (int e = 0; e < 4; ++e) {
     std::array<int, 1> edges{e};
@@ -400,235 +367,7 @@ std::array<int, kEdges> rotatedPositions(Move rotation) {
   return out;
 }
 
-// --- single F2L pairs in <R, U, L> ----------------------------------------
-
-// The nine moves: U, R and L turns, as face * 3 + (amount - 1).
-constexpr std::array<int, 9> kRulMoves = {0, 1, 2, 3, 4, 5, 12, 13, 14};
-constexpr std::array<Corner, 4> kSlotCorners = {DFR, DLF, DBL, DRB};
-constexpr std::array<Edge, 4> kSlotEdges = {FR, FL, BL, BR};
-// A corner as position * 3 + twist, an edge as position * 2 + flip: 24
-// values each. A slot's table is by its corner, its edge, DR and DL.
-constexpr std::size_t kPairTable = 24 * 24 * 24 * 24;
-
-struct PairTables {
-  // cornerMove[value * kMoves + move], edgeMove likewise: the value after
-  // the move.
-  std::vector<std::uint8_t> cornerMove;
-  std::vector<std::uint8_t> edgeMove;
-  // Per slot: moves in <R, U, L> to the slot's pair and the DR and DL
-  // edges solved, by pairIndex().
-  std::array<std::vector<std::uint8_t>, 4> slot;
-};
-
-std::size_t pairIndex(int corner, int edge, int dr, int dl) {
-  return ((static_cast<std::size_t>(corner) * 24 +
-           static_cast<std::size_t>(edge)) *
-              24 +
-          static_cast<std::size_t>(dr)) *
-             24 +
-         static_cast<std::size_t>(dl);
-}
-
-PairTables buildPairTables() {
-  PairTables t;
-  t.cornerMove.resize(24 * kMoves);
-  t.edgeMove.resize(24 * kMoves);
-  const std::array<CubieCube, kMoves> moves = coord::moveCubies();
-  for (int m = 0; m < kMoves; ++m) {
-    const CubieCube &mc = moves[static_cast<std::size_t>(m)];
-    for (std::size_t i = 0; i < kCorners; ++i) {
-      for (int twist = 0; twist < 3; ++twist) {
-        int from = mc.cp[i] * 3 + twist;
-        t.cornerMove[static_cast<std::size_t>(from * kMoves + m)] =
-            static_cast<std::uint8_t>(static_cast<int>(i) * 3 +
-                                      (twist + mc.co[i]) % 3);
-      }
-    }
-    for (std::size_t i = 0; i < kEdges; ++i) {
-      for (int flip = 0; flip < 2; ++flip) {
-        int from = mc.ep[i] * 2 + flip;
-        t.edgeMove[static_cast<std::size_t>(from * kMoves + m)] =
-            static_cast<std::uint8_t>(static_cast<int>(i) * 2 +
-                                      (flip + mc.eo[i]) % 2);
-      }
-    }
-  }
-  for (std::size_t s = 0; s < 4; ++s) {
-    std::vector<std::uint8_t> &dist = t.slot[s];
-    dist.assign(kPairTable, kUnseen);
-    std::vector<std::size_t> frontier{
-        pairIndex(kSlotCorners[s] * 3, kSlotEdges[s] * 2, DR * 2, DL * 2)};
-    dist[frontier[0]] = 0;
-    for (std::uint8_t depth = 0; !frontier.empty(); ++depth) {
-      std::vector<std::size_t> next;
-      for (std::size_t idx : frontier) {
-        auto dl = static_cast<int>(idx % 24);
-        auto dr = static_cast<int>(idx / 24 % 24);
-        auto e = static_cast<int>(idx / 576 % 24);
-        auto c = static_cast<int>(idx / 13824);
-        for (int m : kRulMoves) {
-          auto cm = [&](int v) {
-            return t.cornerMove[static_cast<std::size_t>(v * kMoves + m)];
-          };
-          auto em = [&](int v) {
-            return t.edgeMove[static_cast<std::size_t>(v * kMoves + m)];
-          };
-          std::size_t n = pairIndex(cm(c), em(e), em(dr), em(dl));
-          if (dist[n] == kUnseen) {
-            dist[n] = static_cast<std::uint8_t>(depth + 1);
-            next.push_back(n);
-          }
-        }
-      }
-      frontier = std::move(next);
-    }
-  }
-  return t;
-}
-
-const PairTables &pairTables() {
-  static const PairTables t = buildPairTables();
-  return t;
-}
-
-int cornerValue(const CubieCube &c, Corner piece) {
-  for (std::size_t i = 0; i < kCorners; ++i) {
-    if (c.cp[i] == piece) {
-      return static_cast<int>(i) * 3 + c.co[i];
-    }
-  }
-  return 0;
-}
-
-int edgeValue(const CubieCube &c, Edge piece) {
-  for (std::size_t i = 0; i < kEdges; ++i) {
-    if (c.ep[i] == piece) {
-      return static_cast<int>(i) * 2 + c.eo[i];
-    }
-  }
-  return 0;
-}
-
-class PairSearch {
-public:
-  // The slots (by index into kSlotCorners) that must end solved.
-  explicit PairSearch(std::vector<std::size_t> slots)
-      : t_(pairTables()), slots_(std::move(slots)) {}
-
-  struct Node {
-    std::array<int, 4> corner{}; // per slot of slots_
-    std::array<int, 4> edge{};
-    int dr = 0;
-    int dl = 0;
-  };
-
-  std::optional<Alg> run(const CubieCube &c, int maxDepth) {
-    Node start = nodeOf(c);
-    for (int depth = heuristic(start); depth <= maxDepth; ++depth) {
-      path_.clear();
-      if (dfs(start, depth, -1)) {
-        Alg alg;
-        for (int m : path_) {
-          alg.push_back(coord::moveOf(m));
-        }
-        return alg;
-      }
-    }
-    return std::nullopt;
-  }
-
-private:
-  const PairTables &t_;
-  std::vector<std::size_t> slots_;
-  std::vector<int> path_;
-
-  Node nodeOf(const CubieCube &c) const {
-    Node n;
-    for (std::size_t i = 0; i < slots_.size(); ++i) {
-      n.corner[i] = cornerValue(c, kSlotCorners[slots_[i]]);
-      n.edge[i] = edgeValue(c, kSlotEdges[slots_[i]]);
-    }
-    n.dr = edgeValue(c, DR);
-    n.dl = edgeValue(c, DL);
-    return n;
-  }
-
-  int heuristic(const Node &n) const {
-    int h = 0;
-    for (std::size_t i = 0; i < slots_.size(); ++i) {
-      int d = t_.slot[slots_[i]][pairIndex(n.corner[i], n.edge[i], n.dr, n.dl)];
-      if (d == kUnseen) {
-        return INT_MAX / 2; // out of <R, U, L>'s reach
-      }
-      h = std::max(h, d);
-    }
-    return h;
-  }
-
-  bool dfs(const Node &n, int remaining, int lastFace) {
-    if (remaining == 0) {
-      return heuristic(n) == 0;
-    }
-    for (int m : kRulMoves) {
-      int face = m / 3;
-      // Never the same face twice, and R before L only (they commute).
-      if (coord::skipFace(face, lastFace)) {
-        continue;
-      }
-      Node next;
-      auto em = [&](int v) {
-        return t_.edgeMove[static_cast<std::size_t>(v * kMoves + m)];
-      };
-      for (std::size_t i = 0; i < slots_.size(); ++i) {
-        next.corner[i] =
-            t_.cornerMove[static_cast<std::size_t>(n.corner[i] * kMoves + m)];
-        next.edge[i] = em(n.edge[i]);
-      }
-      next.dr = em(n.dr);
-      next.dl = em(n.dl);
-      if (heuristic(next) > remaining - 1) {
-        continue;
-      }
-      path_.push_back(m);
-      if (dfs(next, remaining - 1, face)) {
-        return true;
-      }
-      path_.pop_back();
-    }
-    return false;
-  }
-};
-
 } // namespace
-
-std::optional<Alg>
-solvePairRul(const CubieCube &state, Corner corner, Edge edge,
-             const std::vector<std::pair<Corner, Edge>> &keep, int maxDepth) {
-  // A ZZ F2L state: EO Cross done.
-  if (!stepDoneAsHeld(state, SolveStep::EOCross)) {
-    return std::nullopt;
-  }
-  auto slotOf = [](Corner c, Edge e) -> std::optional<std::size_t> {
-    for (std::size_t s = 0; s < 4; ++s) {
-      if (kSlotCorners[s] == c && kSlotEdges[s] == e) {
-        return s;
-      }
-    }
-    return std::nullopt;
-  };
-  std::optional<std::size_t> target = slotOf(corner, edge);
-  if (!target) {
-    return std::nullopt;
-  }
-  std::vector<std::size_t> slots{*target};
-  for (const auto &[c, e] : keep) {
-    if (auto s = slotOf(c, e);
-        s && std::find(slots.begin(), slots.end(), *s) == slots.end()) {
-      slots.push_back(*s);
-    }
-  }
-  return PairSearch(slots).run(state, maxDepth);
-}
 
 bool hasOptimalSolver(SolveStep step) {
   return step != SolveStep::ZZF2L && step != SolveStep::XEOCross &&
