@@ -4,6 +4,7 @@
 // QApplication exists, so the user's own data is never read or written.
 #include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
+#include "app/case_filter.hpp"
 #include "app/colours.hpp"
 #include "app/command_palette.hpp"
 #include "app/cube_painter.hpp"
@@ -444,6 +445,7 @@ private slots:
   void bareAltReachesTheMenuBar();
   void keymapIsSavedAndReadBack();
   void srsStepsAreWrittenAndRead();
+  void caseFilterHidesWhatDoesntMatch();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3109,6 +3111,83 @@ void GuiTest::srsStepsAreWrittenAndRead() {
   QVERIFY(stepsFromText("0") == Steps{0});
   QVERIFY(stepsFromText("0m") == Steps{0});
   QCOMPARE(stepsToText({0}), QString("0d"));
+}
+
+// The case search and status choice of Learn, Drill and Library, on a
+// list of its own.
+void GuiTest::caseFilterHidesWhatDoesntMatch() {
+  QWidget host;
+  auto *tree = new QTreeWidget(&host);
+  auto addGroup = [&](const QString &name, const QStringList &cases,
+                      const QStringList &algs) {
+    auto *group = new QTreeWidgetItem(tree, {name});
+    for (qsizetype i = 0; i < cases.size(); ++i) {
+      auto *item = new QTreeWidgetItem(group, {cases[i]});
+      item->setData(0, CaseFilter::kSearchRole, algs[i]);
+    }
+    return group;
+  };
+  QTreeWidgetItem *bl =
+      addGroup("BL", {"Case 1", "Case 2"}, {"R U R'", "L' U' L"});
+  QTreeWidgetItem *fr =
+      addGroup("FR", {"Case 3", "Started 4"}, {"F R U R' U' F'", "R U2 R'"});
+  auto *filter = new CaseFilter(tree, &host);
+  // The status: the cases whose name says they are started.
+  filter->setStatuses({{"Started", [](const QTreeWidgetItem *item) {
+                          return item->text(0).startsWith("Started");
+                        }}});
+  auto *search = filter->findChild<QLineEdit *>();
+  auto *status = filter->findChild<QComboBox *>();
+  QVERIFY(search && status);
+  QSignalSpy changed(filter, &CaseFilter::changed);
+  auto hidden = [&] {
+    QStringList out;
+    for (QTreeWidgetItem *group : {bl, fr}) {
+      if (group->isHidden()) {
+        out << group->text(0);
+      }
+      for (int i = 0; i < group->childCount(); ++i) {
+        if (group->child(i)->isHidden()) {
+          out << group->child(i)->text(0);
+        }
+      }
+    }
+    return out;
+  };
+  filter->apply();
+  QVERIFY(!filter->isActive());
+  QCOMPARE(hidden(), QStringList{});
+
+  // A group's name finds all its cases, whatever the case.
+  search->setText("bl");
+  QVERIFY(filter->isActive());
+  QCOMPARE(changed.count(), 1);
+  QCOMPARE(hidden(), (QStringList{"FR", "Case 3", "Started 4"}));
+  // So does an alg kept with a case, for that case alone.
+  search->setText("u2");
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "Case 3"}));
+  search->setText("case 2");
+  QCOMPARE(hidden(), (QStringList{"Case 1", "FR", "Case 3", "Started 4"}));
+  search->setText("nothing");
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "FR", "Case 3",
+                                  "Started 4"}));
+
+  // The status alone, and with a search.
+  search->clear();
+  status->setCurrentIndex(1);
+  QVERIFY(filter->isActive());
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "Case 3"}));
+  search->setText("bl");
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "FR", "Case 3",
+                                  "Started 4"}));
+  // Clearing the search keeps the status.
+  filter->clearSearch();
+  QCOMPARE(search->text(), QString());
+  QCOMPARE(status->currentIndex(), 1);
+  QCOMPARE(hidden(), (QStringList{"BL", "Case 1", "Case 2", "Case 3"}));
+  status->setCurrentIndex(0);
+  QVERIFY(!filter->isActive());
+  QCOMPARE(hidden(), QStringList{});
 }
 
 // Everything that couldn't be read at start-up is listed in one window
