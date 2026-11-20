@@ -5,7 +5,6 @@
 class QCheckBox;
 class QComboBox;
 class QFormLayout;
-class QLabel;
 class QSpinBox;
 
 namespace vcube {
@@ -43,12 +42,12 @@ struct DrillSettings {
 class DrillSettingsTab : public QWidget {
   Q_OBJECT
 public:
-  DrillSettingsTab(const DrillSettings &settings, QWidget *parent = nullptr);
+  // The rows about starting and stopping the timer go in `timing` from
+  // `row` on, where the same choices of the other modes are.
+  DrillSettingsTab(const DrillSettings &settings, QFormLayout *timing, int row,
+                   QWidget *parent = nullptr);
   DrillSettings result() const;
   QFormLayout *form() const { return form_; }
-  // Moves the rows about starting and stopping the timer into `to` at
-  // `row`, where the same choices of the other modes are.
-  void moveTimingRows(QFormLayout *to, int row);
 
 private:
   DrillSettings settings_;

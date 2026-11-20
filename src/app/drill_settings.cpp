@@ -9,6 +9,7 @@
 namespace vcube {
 
 DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
+                                   QFormLayout *timing, int row,
                                    QWidget *parent)
     : QWidget(parent), settings_(settings) {
   auto *form = new QFormLayout(this);
@@ -21,14 +22,12 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
   startBox_->setToolTip(
       tr("On the virtual cube. A physical cube always starts on letting go "
          "of Space."));
-  form->addRow(tr("Virtual cube timer start:"), startBox_);
   autoStopBox_ = new QCheckBox(
       tr("Stop as soon as the step is done (virtual cube)"), this);
   autoStopBox_->setToolTip(
       tr("Off: Space stops the timer, and the attempt is a DNF unless the "
          "cube then shows the step done"));
   autoStopBox_->setChecked(settings_.autoStop);
-  form->addRow(tr("Timer stop:"), autoStopBox_);
   holdSpin_ = new QSpinBox(this);
   holdSpin_->setRange(0, DrillSettings::kMaxHoldMs);
   holdSpin_->setSingleStep(50);
@@ -38,7 +37,12 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
   holdSpin_->setToolTip(tr("Drill's own hold time (also EO Cross, F2L and "
                            "TSLE Timed), for a physical cube and for holding "
                            "Space on the virtual cube"));
-  form->addRow(tr("Hold Space before starting:"), holdSpin_);
+  timing->insertRow(row, tr("Drill and practice Timed, hold to start:"),
+                    holdSpin_);
+  timing->insertRow(row + 1, tr("Drill and practice Timed, timer start:"),
+                    startBox_);
+  timing->insertRow(row + 2, tr("Drill and practice Timed, timer stop:"),
+                    autoStopBox_);
   giveUpBox_ = new QComboBox(this);
   giveUpBox_->addItem(tr("Shift+Space (Backspace then only toggles the DNF)"),
                       true);
@@ -81,29 +85,6 @@ DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
       this);
   note->setWordWrap(true);
   form->addRow(note);
-}
-
-void DrillSettingsTab::moveTimingRows(QFormLayout *to, int row) {
-  struct Moved {
-    QWidget *field;
-    QString label;
-  };
-  // In the order they end up under the other modes' hold time.
-  const Moved rows[] = {
-      {holdSpin_, tr("Drill and practice Timed, hold to start:")},
-      {startBox_, tr("Drill and practice Timed, timer start:")},
-      {autoStopBox_, tr("Drill and practice Timed, timer stop:")},
-  };
-  int at = row + 1;
-  for (const Moved &m : rows) {
-    QFormLayout::TakeRowResult taken = form_->takeRow(m.field);
-    if (taken.labelItem) {
-      delete taken.labelItem->widget();
-    }
-    delete taken.labelItem;
-    delete taken.fieldItem;
-    to->insertRow(at++, m.label, m.field);
-  }
 }
 
 DrillSettings DrillSettingsTab::result() const {
