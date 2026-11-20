@@ -27,6 +27,7 @@
 #include "app/practice_keys.hpp"
 #include "app/quiz_practice.hpp"
 #include "app/review_dialog.hpp"
+#include "app/session_panel.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
 #include "app/text_style.hpp"
@@ -49,6 +50,7 @@
 #include "train/step_solver.hpp"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
@@ -66,6 +68,8 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPointer>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSettings>
@@ -427,6 +431,8 @@ private slots:
   void pagesTakeTheKeyboard();
   void keysAreReadTheSameForEveryPage();
   void commandListGroupsAndRemembers();
+  void commandListRunsTheRowClickedOnce();
+  void menusFilledAgainLeaveNothingBehind();
   void settingsDialogOpensAndCloses();
   void interfaceTextSizeScalesTheText();
   void tipsShowInTheStatusBar();
@@ -1703,12 +1709,30 @@ void GuiTest::untimedVirtualSolve() {
 
 void GuiTest::learnStartsACase() {
   OPEN_PAGE(learn, LearnPage, Learn);
+  // Learn's button in the sidebar: its tip says what is due and new.
+  auto sidebarTip = [&] {
+    for (auto *b : window_->findChildren<QToolButton *>()) {
+      if (b->toolTip().startsWith("Learn (")) {
+        return b->toolTip();
+      }
+    }
+    return QString();
+  };
+  const QString tipBefore = sidebarTip();
+  QVERIFY(!tipBefore.isEmpty());
   // Nothing is due until a case is put in the learn queue.
   auto *start = lastChild<QPushButton>(
       learn, [](QPushButton *b) { return b->text() == "Add new cases"; });
   QVERIFY(start);
   QVERIFY(start->isVisible());
   start->click();
+  // The sidebar counts the case put in the queue at once, not at the next
+  // minute.
+  QVERIFY(page<TodayPage>()->totals().newLeft > 0);
+  QVERIFY2(sidebarTip() != tipBefore, qPrintable(sidebarTip()));
+  VERIFY_CONTAINS(
+      sidebarTip(),
+      QString(", %1 new case").arg(page<TodayPage>()->totals().newLeft));
   // The case waits for Space: nothing of it is shown, and no clock runs.
   QVERIFY(learn->waitingForSpace());
   QVERIFY(mainCube(learn)->displayedState().isSolved());
@@ -1737,6 +1761,17 @@ void GuiTest::learnStartsACase() {
   QVERIFY(!p["T"].attempts.empty());
   QVERIFY(!p["T"].attempts.back().failed);
   QVERIFY(p["T"].attempts.back().mode == AttemptMode::Learn);
+  // The sidebar counts follow the grade at once, not at the next minute.
+  {
+    const TodayPage::Totals t = page<TodayPage>()->totals();
+    const QString tip = sidebarTip();
+    VERIFY_CONTAINS(tip, QString(": %1 review").arg(t.due));
+    if (t.newLeft > 0) {
+      VERIFY_CONTAINS(tip, QString(", %1 new case").arg(t.newLeft));
+    } else {
+      QVERIFY2(!tip.contains("new case"), qPrintable(tip));
+    }
+  }
 
   // Resetting it from the case list goes on the undo stack: Ctrl+Z
   // brings its schedule and Learn attempts back.
@@ -2408,6 +2443,115 @@ void GuiTest::commandListGroupsAndRemembers() {
   QCOMPARE(list->item(0)->text(), QString("Recent"));
   QCOMPARE(list->item(1)->text(), QString("Tick all"));
   window_->activateWindow();
+}
+
+namespace {
+
+// A style in which one click activates an item, as KDE can be set to.
+class SingleClickStyle : public QProxyStyle {
+public:
+  int styleHint(StyleHint hint, const QStyleOption *option = nullptr,
+                const QWidget *widget = nullptr,
+                QStyleHintReturn *data = nullptr) const override {
+    return hint == SH_ItemView_ActivateItemOnSingleClick
+               ? 1
+               : QProxyStyle::styleHint(hint, option, widget, data);
+  }
+};
+
+} // namespace
+
+void GuiTest::commandListRunsTheRowClickedOnce() {
+  const QStringList recent = saved::recentCommands().get();
+  int first = 0, second = 0;
+  SingleClickStyle style;
+  {
+    CommandPalette palette(
+        std::vector<CommandPalette::Command>{
+            {"Alpha", {}, [&first] { ++first; }, "One"},
+            {"Beta", {}, [&second] { ++second; }, "Two"}},
+        window_.get());
+    auto *list = palette.findChild<QListWidget *>();
+    QVERIFY(list);
+    list->setStyle(&style);
+    palette.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&palette));
+    const int rows = list->count();
+    QVERIFY(rows >= 4);
+    QListWidgetItem *heading = list->item(rows - 2);
+    QListWidgetItem *beta = list->item(rows - 1);
+    QCOMPARE(heading->text(), QString("Two"));
+    QCOMPARE(beta->text(), QString("Beta"));
+    QCOMPARE(list->currentItem()->text(), QString("Alpha"));
+    // A click on a heading runs nothing: not the command highlighted.
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, {},
+                      list->visualItemRect(heading).center());
+    QTest::qWait(50);
+    QCOMPARE(first, 0);
+    QCOMPARE(second, 0);
+    QVERIFY(palette.isVisible());
+    // A click on a command runs that one, once, though the style sends
+    // both the click and the activation.
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, {},
+                      list->visualItemRect(beta).center());
+    QTRY_COMPARE(second, 1);
+    QTest::qWait(50);
+  }
+  QCOMPARE(first, 0);
+  QCOMPARE(second, 1);
+  saved::recentCommands().set(recent);
+  window_->activateWindow();
+}
+
+// A menu filled each time it opens is cleared first, which deletes its
+// actions only: a submenu or an action group made for each filling would
+// be left behind every time.
+void GuiTest::menusFilledAgainLeaveNothingBehind() {
+  auto fillAll = [&] {
+    QList<QPointer<QMenu>> menus;
+    for (QMenu *m : window_->findChildren<QMenu *>()) {
+      menus << m;
+    }
+    for (const QPointer<QMenu> &m : menus) {
+      if (m) {
+        emit m->aboutToShow();
+      }
+    }
+  };
+  auto check = [&](AppMode::Id mode, ModePage *expected) {
+    QVERIFY(switchTo(mode, expected));
+    fillAll();
+    fillAll(); // the submenus of the first filling are filled too
+    const qsizetype menus = window_->findChildren<QMenu *>().size();
+    const qsizetype groups = window_->findChildren<QActionGroup *>().size();
+    for (int i = 0; i < 5; ++i) {
+      fillAll();
+    }
+    QCOMPARE(window_->findChildren<QMenu *>().size(), menus);
+    QCOMPARE(window_->findChildren<QActionGroup *>().size(), groups);
+  };
+  check(AppMode::Learn, page<LearnPage>());
+  check(AppMode::Drill, page<DrillPage>());
+  check(AppMode::Timed, page<TimerPage>());
+  check(AppMode::Untimed, page<UntimedPage>());
+  // The palette lists the commands by filling the menus, too.
+  {
+    const qsizetype menus = window_->findChildren<QMenu *>().size();
+    for (int i = 0; i < 3; ++i) {
+      CommandPalette::fromMenus(window_->menuBar());
+    }
+    QCOMPARE(window_->findChildren<QMenu *>().size(), menus);
+  }
+  // A session's name is put in the menu as it is, placeholders and all.
+  auto *timer = page<TimerPage>();
+  QVERIFY(switchTo(AppMode::Timed, timer));
+  auto *panel = timer->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  panel->fillSessionMenu({{"OH %1", 12}, {"Feet %2 %1", 3}}, 0);
+  QCOMPARE(panel->menu()->actions().at(0)->text(), QString("OH %1 (12)"));
+  QCOMPARE(panel->menu()->actions().at(1)->text(), QString("Feet %2 %1 (3)"));
+  QVERIFY(panel->menu()->actions().at(0)->isChecked());
+  emit panel->menu()->aboutToShow(); // the page's own sessions again
 }
 
 void GuiTest::settingsDialogOpensAndCloses() {
