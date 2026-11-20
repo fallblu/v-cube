@@ -76,6 +76,16 @@ private:
     bool isOf(const Solve &s) const;
   };
   std::vector<SolveRow> solveRows_;
+  // The session's statistics, kept from one solve to the next, and in WCA
+  // units for the chart when they are shown in others.
+  RunningStats stats_;
+  RunningStats chartStats_;
+  // The solves the table has rows for.
+  std::size_t rowsShown_ = 0;
+  // The cross, F2L and LL times of each solve, as the chart shows them.
+  std::vector<StatValue> crossSeries_;
+  std::vector<StatValue> f2lSeries_;
+  std::vector<StatValue> llSeries_;
 
   Session &session() { return store_.current(); }
   bool onVirtualCube() const override {
@@ -115,7 +125,19 @@ private:
   void skip() override;
   void refreshSessionMenu() override;
   void selectSession(std::size_t index) override;
-  void refreshAttempts() override;
+  void refreshAttempts() override { showAttempts(Refresh::All); }
+  // What changed since the attempts were last shown: anything, one solve
+  // added at the end (with the statistics already brought up to date), or
+  // only the splits worked out.
+  enum class Refresh : std::uint8_t { All, Appended, Splits };
+  void showAttempts(Refresh what);
+  // The table's row for solve `i`, with its splits put in the series;
+  // `missing` is set when they aren't known yet.
+  AttemptRow solveRow(std::size_t i, bool &missing);
+  // Brings the statistics up to date with the session: `appended` when
+  // the only change since is a solve added at the end, which then gives
+  // the new bests it set. Anything else works them out afresh.
+  std::vector<NewBest> updateStats(bool appended);
   void setLastPenalty(Penalty p);
   void deleteAttempt(int index) override;
   void undoDelete() override;

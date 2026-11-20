@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -142,6 +143,43 @@ struct SessionStats {
 SessionStats sessionStats(std::span<const Solve> all,
                           std::span<const std::string_view> ids,
                           std::int64_t unit = kWcaUnit);
+
+// A session's statistics kept from one solve to the next, so that a solve
+// added at the end only has its own windows looked at: sessionStats() of
+// kIds, the rolling ao5 and ao12 of every solve and newBests(). Any other
+// change to the solves (one deleted, a penalty changed, another session or
+// unit) needs reset().
+class RunningStats {
+public:
+  static constexpr std::array<std::string_view, 5> kIds = {
+      "single", "mo3", "ao5", "ao12", "ao100"};
+
+  // Works everything out afresh.
+  void reset(std::span<const Solve> all, std::int64_t unit = kWcaUnit);
+  // `all` is the solves last seen with one more at the end. Gives
+  // newBests(all, unit()).
+  std::vector<NewBest> add(std::span<const Solve> all);
+
+  // The number of solves seen.
+  std::size_t size() const { return size_; }
+  std::int64_t unit() const { return unit_; }
+  // sessionStats(all, kIds, unit()).
+  const SessionStats &stats() const { return stats_; }
+  // rollingAverages(all, 5, unit()) and rollingAverages(all, 12, unit()).
+  const std::vector<StatValue> &ao5() const { return ao5_; }
+  const std::vector<StatValue> &ao12() const { return ao12_; }
+
+private:
+  std::int64_t unit_ = kWcaUnit;
+  std::size_t size_ = 0;
+  SessionStats stats_;
+  std::vector<StatValue> ao5_;
+  std::vector<StatValue> ao12_;
+  // What the summary's mean is of: the sum of the non-DNF times, truncated
+  // to the unit, and how many there are.
+  std::int64_t validSum_ = 0;
+  std::int64_t valid_ = 0;
+};
 
 // "12.34", "1:02.34", "1:01:02.34", or "DNF"; nullopt prints "-".
 std::string formatTime(StatValue ms, int decimals = 2);

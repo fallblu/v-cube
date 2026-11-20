@@ -414,3 +414,60 @@ TEST_CASE("sliding means and averages match each window worked out afresh") {
     }
   }
 }
+
+namespace {
+
+void checkSameStats(const SessionStats &a, const SessionStats &b) {
+  CHECK(a.summary.count == b.summary.count);
+  CHECK(a.summary.dnfs == b.summary.dnfs);
+  CHECK(a.summary.best == b.summary.best);
+  CHECK(a.summary.worst == b.summary.worst);
+  CHECK(a.summary.mean == b.summary.mean);
+  REQUIRE(a.lines.size() == b.lines.size());
+  for (std::size_t i = 0; i < a.lines.size(); ++i) {
+    CAPTURE(a.lines[i].id);
+    CHECK(a.lines[i].id == b.lines[i].id);
+    CHECK(a.lines[i].current == b.lines[i].current);
+    CHECK(a.lines[i].best == b.lines[i].best);
+  }
+}
+
+} // namespace
+
+TEST_CASE("running statistics match the statistics worked out afresh") {
+  for (std::uint32_t seed = 1; seed <= 20; ++seed) {
+    std::vector<Solve> all = randomSession(seed * 7919, 110 + seed * 4);
+    for (std::int64_t unit : {1, 10, 100, 1000}) {
+      CAPTURE(seed, unit);
+      RunningStats running;
+      running.reset({}, unit);
+      for (std::size_t n = 1; n <= all.size(); ++n) {
+        auto now = std::span(all).first(n);
+        CAPTURE(n);
+        std::vector<NewBest> bests = running.add(now);
+        std::vector<NewBest> expected = newBests(now, unit);
+        REQUIRE(bests.size() == expected.size());
+        for (std::size_t i = 0; i < bests.size(); ++i) {
+          CHECK(bests[i].name == expected[i].name);
+          CHECK(bests[i].value == expected[i].value);
+        }
+        CHECK(running.size() == n);
+        checkSameStats(running.stats(),
+                       sessionStats(now, RunningStats::kIds, unit));
+        CHECK(running.ao5() == rollingAverages(now, 5, unit));
+        CHECK(running.ao12() == rollingAverages(now, 12, unit));
+      }
+      // A reset part way, as after a delete, carries on as well.
+      std::size_t half = all.size() / 2;
+      running.reset(std::span(all).first(half), unit);
+      checkSameStats(running.stats(), sessionStats(std::span(all).first(half),
+                                                   RunningStats::kIds, unit));
+      for (std::size_t n = half + 1; n <= all.size(); ++n) {
+        running.add(std::span(all).first(n));
+      }
+      checkSameStats(running.stats(),
+                     sessionStats(all, RunningStats::kIds, unit));
+      CHECK(running.ao12() == rollingAverages(all, 12, unit));
+    }
+  }
+}

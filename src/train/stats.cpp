@@ -362,6 +362,82 @@ SessionSummary summarize(std::span<const Solve> all, std::int64_t unit) {
   return s;
 }
 
+void RunningStats::reset(std::span<const Solve> all, std::int64_t unit) {
+  unit_ = unit;
+  size_ = all.size();
+  stats_ = sessionStats(all, kIds, unit);
+  ao5_ = rollingAverages(all, 5, unit);
+  ao12_ = rollingAverages(all, 12, unit);
+  unit = std::max<std::int64_t>(unit, 1);
+  validSum_ = 0;
+  valid_ = 0;
+  for (const Solve &s : all) {
+    std::int64_t t = effectiveTime(s);
+    if (t != kDnfTime) {
+      validSum_ += truncated(t, unit);
+      ++valid_;
+    }
+  }
+}
+
+std::vector<NewBest> RunningStats::add(std::span<const Solve> all) {
+  std::vector<NewBest> out;
+  if (all.empty()) {
+    return out;
+  }
+  size_ = all.size();
+  const std::int64_t unit = std::max<std::int64_t>(unit_, 1);
+  const std::int64_t last = effectiveTime(all.back());
+  // As newBests(): better than every earlier value, and not DNF.
+  auto check = [&](const std::string &name, StatValue now, StatValue was) {
+    if (all.size() >= 2 && now && *now != kDnfTime && was && *now < *was) {
+      out.push_back({name, *now});
+    }
+  };
+  SessionSummary &sum = stats_.summary;
+  ++sum.count;
+  if (last == kDnfTime) {
+    ++sum.dnfs;
+  } else {
+    check("single", last, sum.best);
+    validSum_ += truncated(last, unit);
+    ++valid_;
+    if (!sum.best || last < *sum.best) {
+      sum.best = last;
+    }
+    if (!sum.worst || last > *sum.worst) {
+      sum.worst = last;
+    }
+    sum.mean = roundedMean(validSum_, valid_, unit);
+  }
+  for (StatLine &line : stats_.lines) {
+    std::optional<StatId> id = parseStatId(line.id);
+    if (!id) {
+      continue;
+    }
+    switch (id->kind) {
+    case StatId::Kind::Single:
+      line.current = last;
+      line.best = sum.best;
+      continue;
+    case StatId::Kind::Mean:
+      line.current = currentMean(all, id->n, unit_);
+      break;
+    case StatId::Kind::Average:
+      line.current = currentAverage(all, id->n, unit_);
+      break;
+    }
+    check(line.id, line.current, line.best);
+    // The first best stays: a later one must be better.
+    if (line.current && (!line.best || *line.current < *line.best)) {
+      line.best = line.current;
+    }
+  }
+  ao5_.push_back(currentAverage(all, 5, unit_));
+  ao12_.push_back(currentAverage(all, 12, unit_));
+  return out;
+}
+
 std::string formatTime(StatValue ms, int decimals) {
   if (!ms) {
     return "-";

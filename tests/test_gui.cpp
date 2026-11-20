@@ -77,6 +77,7 @@
 #include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QTableView>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
@@ -449,6 +450,7 @@ private slots:
   void srsStepsAreWrittenAndRead();
   void caseFilterHidesWhatDoesntMatch();
   void optimalCountsUseTheChosenHolds();
+  void timerTableAndStatsFollowEachSolve();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3180,6 +3182,90 @@ void GuiTest::optimalCountsUseTheChosenHolds() {
   // The hold and the hold turned a quarter (y): white on top in both.
   for (const Hold &h : holds) {
     QCOMPARE(h.top, kWcaHold.top);
+  }
+}
+
+// Each solve adds its row above the others, and the table and the
+// statistics keep showing what the whole session gives, through penalties
+// (which work everything out again) too.
+void GuiTest::timerTableAndStatsFollowEachSolve() {
+  OPEN_PAGE(timed, TimerPage, Timed);
+  auto *table = lastChild<QTableView>(timed->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  auto *statsLabel = lastChild<QLabel>(timed->sidePanel(), [](QLabel *l) {
+    return l->text().contains("Solves:");
+  });
+  QVERIFY(statsLabel);
+  auto solve = [&] {
+    QVERIFY(holdSpaceUntilBusy(timed));
+    QTest::keyClick(window_.get(), Qt::Key_A); // any key stops it
+    QVERIFY(!timed->isBusy());
+  };
+  // What the table and statistics show that the saved session doesn't
+  // give; empty when they match.
+  auto mismatch = [&]() -> QString {
+    finishBackgroundWrites();
+    SessionStore saved(QDir(dataDir_).filePath("sessions.json"));
+    if (!saved.load()) {
+      return "the sessions weren't saved";
+    }
+    const std::vector<Solve> &solves = saved.current().solves;
+    const int d = settings_.decimals;
+    const std::int64_t unit = statUnit(d);
+    const QAbstractItemModel *model = table->model();
+    if (model->rowCount() != static_cast<int>(solves.size())) {
+      return QString("%1 rows for %2 solves")
+          .arg(model->rowCount())
+          .arg(solves.size());
+    }
+    std::vector<StatValue> ao5 = rollingAverages(solves, 5, unit);
+    std::vector<StatValue> ao12 = rollingAverages(solves, 12, unit);
+    for (int row = 0; row < model->rowCount(); ++row) {
+      // The newest solve first.
+      std::size_t i = solves.size() - 1 - static_cast<std::size_t>(row);
+      auto cell = [&](int col) {
+        return model->index(row, col).data().toString();
+      };
+      if (cell(1) != qs(formatSolve(solves[i], d)) ||
+          cell(2) != timeText(ao5[i], d) || cell(3) != timeText(ao12[i], d)) {
+        return QString("row %1: %2 %3 %4")
+            .arg(row)
+            .arg(cell(1), cell(2), cell(3));
+      }
+    }
+    QString html = statsLabel->text();
+    for (std::size_t n : {5u, 12u}) {
+      StatValue best = bestAverage(solves, n, unit);
+      if (best && !html.contains(timeText(best, d))) {
+        return QString("the best ao%1, %2, isn't in the statistics")
+            .arg(n)
+            .arg(timeText(best, d));
+      }
+    }
+    if (!html.contains(QString("Solves: %1").arg(solves.size()))) {
+      return "the statistics count other solves";
+    }
+    return {};
+  };
+  for (int i = 0; i < 6; ++i) {
+    solve();
+  }
+  QString m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  QTest::keyClick(window_.get(), Qt::Key_2, Qt::AltModifier); // +2
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  for (int i = 0; i < 3; ++i) {
+    solve();
+  }
+  QTest::keyClick(window_.get(), Qt::Key_3, Qt::AltModifier); // DNF
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  for (int i = 0; i < 4; ++i) {
+    solve();
+    m = mismatch();
+    QVERIFY2(m.isEmpty(), qPrintable(m));
   }
 }
 

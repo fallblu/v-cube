@@ -60,6 +60,8 @@ public:
 
   void setColumns(std::vector<AttemptColumn> columns);
   void setRows(std::vector<AttemptRow> rows);
+  // Adds a row above the others, which stay as they are.
+  void prependRow(AttemptRow row);
   const std::vector<AttemptColumn> &columns() const { return columns_; }
   // The attempt in a row, or -1.
   int attemptAt(int row) const;
@@ -107,6 +109,9 @@ public:
   // --- the attempt table ---
   void setColumns(std::vector<AttemptColumn> columns);
   void setRows(std::vector<AttemptRow> rows);
+  // Adds a row above the others (the newest attempt), which stay as they
+  // are.
+  void prependRow(AttemptRow row);
   // Lets the header's context menu hide the hideable columns, kept under
   // this QSettings key.
   void setHiddenColumnsKey(const QString &key);

@@ -39,6 +39,12 @@ void AttemptTableModel::setRows(std::vector<AttemptRow> rows) {
   endResetModel();
 }
 
+void AttemptTableModel::prependRow(AttemptRow row) {
+  beginInsertRows({}, 0, 0);
+  rows_.insert(rows_.begin(), std::move(row));
+  endInsertRows();
+}
+
 int AttemptTableModel::attemptAt(int row) const {
   if (row < 0 || row >= static_cast<int>(rows_.size())) {
     return -1;
@@ -218,6 +224,10 @@ void SessionPanel::setColumns(std::vector<AttemptColumn> columns) {
 
 void SessionPanel::setRows(std::vector<AttemptRow> rows) {
   model_->setRows(std::move(rows));
+}
+
+void SessionPanel::prependRow(AttemptRow row) {
+  model_->prependRow(std::move(row));
 }
 
 void SessionPanel::setHiddenColumnsKey(const QString &key) {

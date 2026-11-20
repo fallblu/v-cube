@@ -167,9 +167,15 @@ void SessionSolvePage::showStats(
     std::span<const Solve> solves, std::int64_t unit, const QString &single,
     const std::function<QString(const std::string &, StatValue)> &format,
     std::size_t count) {
-  static constexpr std::string_view kStats[] = {"single", "mo3", "ao5", "ao12",
-                                                "ao100"};
-  SessionStats stats = sessionStats(solves, kStats, unit);
+  showStats(sessionStats(solves, RunningStats::kIds, unit), solves, unit,
+            single, format, count);
+}
+
+void SessionSolvePage::showStats(
+    const SessionStats &stats, std::span<const Solve> solves, std::int64_t unit,
+    const QString &single,
+    const std::function<QString(const std::string &, StatValue)> &format,
+    std::size_t count) {
   const SessionSummary &sum = stats.summary;
   QString colour = palette().color(QPalette::WindowText).name();
   QString html = statsTableHtml(
