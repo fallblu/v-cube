@@ -6,12 +6,12 @@ class QCheckBox;
 class QComboBox;
 class QFormLayout;
 class QLabel;
-class QSettings;
 class QSpinBox;
 
 namespace vcube {
 
-// Drill mode's own preferences, kept in QSettings under "drill/".
+// Drill mode's own preferences, kept in QSettings under "drill/" (see
+// AppSettings).
 struct DrillSettings {
   // Virtual cube: the attempt ends as soon as the cube shows the step
   // done, without Space.
@@ -34,9 +34,6 @@ struct DrillSettings {
   int requeueAfter = 3;
   // The cases the "Weakest" choice drills.
   int weakestCount = 5;
-
-  void load(const QSettings &q);
-  void save(QSettings &q) const;
 
   friend bool operator==(const DrillSettings &,
                          const DrillSettings &) = default;

@@ -4,39 +4,9 @@
 #include <QComboBox>
 #include <QFormLayout>
 #include <QLabel>
-#include <QSettings>
 #include <QSpinBox>
 
-#include <algorithm>
-
 namespace vcube {
-
-void DrillSettings::load(const QSettings &q) {
-  DrillSettings d;
-  autoStop = q.value("drill/autoStop", d.autoStop).toBool();
-  tapToArm = q.value("drill/tapToArm", d.tapToArm).toBool();
-  holdMs = std::clamp(q.value("drill/holdMs", d.holdMs).toInt(), 0, kMaxHoldMs);
-  shiftSpaceGivesUp =
-      q.value("drill/shiftSpaceGivesUp", d.shiftSpaceGivesUp).toBool();
-  practiseAfterDnf =
-      q.value("drill/practiseAfterDnf", d.practiseAfterDnf).toBool();
-  autoAdvance = q.value("drill/autoAdvance", d.autoAdvance).toBool();
-  requeueAfter =
-      std::clamp(q.value("drill/requeueAfter", d.requeueAfter).toInt(), 0, 50);
-  weakestCount =
-      std::clamp(q.value("drill/weakestCount", d.weakestCount).toInt(), 1, 500);
-}
-
-void DrillSettings::save(QSettings &q) const {
-  q.setValue("drill/autoStop", autoStop);
-  q.setValue("drill/tapToArm", tapToArm);
-  q.setValue("drill/holdMs", holdMs);
-  q.setValue("drill/shiftSpaceGivesUp", shiftSpaceGivesUp);
-  q.setValue("drill/practiseAfterDnf", practiseAfterDnf);
-  q.setValue("drill/autoAdvance", autoAdvance);
-  q.setValue("drill/requeueAfter", requeueAfter);
-  q.setValue("drill/weakestCount", weakestCount);
-}
 
 DrillSettingsTab::DrillSettingsTab(const DrillSettings &settings,
                                    QWidget *parent)
