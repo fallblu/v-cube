@@ -446,6 +446,7 @@ private slots:
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
   void undoneDeletionKeepsProgressUnderANewId();
+  void messagesShowNamesAsWritten();
   void timedDriverDoesWhatTheFlowAsks();
   void mouseOnlyControlsHaveAKey();
   void reviewButtonsHaveKeys();
@@ -2827,6 +2828,49 @@ void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
   QTest::keySequence(window_.get(), QKeySequence::Undo);
   QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
   QCOMPARE(savedProgress("pll-2").size(), graded);
+}
+
+// A name that was typed or read from a file is shown as it is written, in
+// a message as in a tooltip: markup in it isn't taken for the message's.
+void GuiTest::messagesShowNamesAsWritten() {
+  const QString name = "OH <b>%2</b>";
+  QList<Qt::TextFormat> formats;
+  auto answer = [&](QMessageBox::StandardButton button) {
+    return [&formats, button](QWidget *m) {
+      if (auto *box = qobject_cast<QMessageBox *>(m)) {
+        formats.append(box->textFormat());
+        if (QAbstractButton *b = box->button(button)) {
+          b->click();
+        }
+      }
+    };
+  };
+  {
+    ModalWatcher watcher(answer(QMessageBox::Yes));
+    QVERIFY(confirmDeleteSession(window_.get(), name, 3, "solves"));
+    QCOMPARE(watcher.texts,
+             QStringList{"Delete session \"OH <b>%2</b>\" and its 3 solves?"});
+  }
+  {
+    ModalWatcher watcher(answer(QMessageBox::No));
+    QVERIFY(!askPlain(window_.get(), "v-cube", name));
+    QVERIFY(!askPlain(window_.get(), "v-cube", name, AskAs::Warning));
+    informPlain(window_.get(), "v-cube", name);
+    warnPlain(window_.get(), "v-cube", name);
+    QCOMPARE(watcher.texts, QStringList({name, name, name, name}));
+  }
+  QCOMPARE(formats.size(), 5);
+  QVERIFY(std::ranges::all_of(
+      formats, [](Qt::TextFormat f) { return f == Qt::PlainText; }));
+
+  // A tooltip: left alone unless it would be read as HTML.
+  QCOMPARE(plainTip("Named Sune"), QString("Named Sune"));
+  QCOMPARE(plainTip("Tom & Jerry"), QString("Tom & Jerry"));
+  const QString tip = plainTip("Named <b>T</b>\nperm");
+  QVERIFY(Qt::mightBeRichText(tip));
+  VERIFY_CONTAINS(tip, "&lt;b&gt;T&lt;/b&gt;<br>perm");
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
 }
 
 void GuiTest::timedDriverDoesWhatTheFlowAsks() {

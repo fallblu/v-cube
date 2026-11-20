@@ -238,7 +238,7 @@ void PasteDialog::fillTable() {
     line->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
     line->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     if (!item.name.empty()) {
-      line->setToolTip(tr("Named %1").arg(qs(item.name)));
+      line->setToolTip(plainTip(tr("Named %1").arg(qs(item.name))));
     }
     table_->setItem(row, LineColumn, line);
     auto *alg = new QTableWidgetItem(qs(item.alg));
@@ -282,7 +282,7 @@ void PasteDialog::fillTable() {
     auto *resultItem = new QTableWidgetItem(result);
     resultItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
     resultItem->setForeground(colour);
-    resultItem->setToolTip(result);
+    resultItem->setToolTip(plainTip(result));
     table_->setItem(row, ResultColumn, resultItem);
 
     bool choosable =

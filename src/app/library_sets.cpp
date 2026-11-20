@@ -63,8 +63,8 @@ void LibraryPage::newSet() {
   QString error;
   AlgSet *added = library_.add(std::move(s), &error);
   if (!added) {
-    QMessageBox::warning(this, tr("New alg set"),
-                         tr("Could not create the set: %1").arg(error));
+    warnPlain(this, tr("New alg set"),
+              tr("Could not create the set: %1").arg(error));
     return;
   }
   editor_.added(*added, tr("New set"));
@@ -85,8 +85,8 @@ void LibraryPage::duplicateSet() {
   QString error;
   AlgSet *added = library_.add(std::move(copy), &error);
   if (!added) {
-    QMessageBox::warning(this, tr("Duplicate alg set"),
-                         tr("Could not save the copy: %1").arg(error));
+    warnPlain(this, tr("Duplicate alg set"),
+              tr("Could not save the copy: %1").arg(error));
     return;
   }
   editor_.added(*added, tr("Duplicate set"), true);
@@ -117,8 +117,7 @@ void LibraryPage::deleteSet() {
     text += " " + tr("After that, Set > Restore a built-in set brings back "
                      "its cases, but not your algs.");
   }
-  if (QMessageBox::question(this, tr("Delete alg set"), text) !=
-      QMessageBox::Yes) {
+  if (!askPlain(this, tr("Delete alg set"), text)) {
     return;
   }
   Edit edit{s->id,
@@ -131,8 +130,8 @@ void LibraryPage::deleteSet() {
             {}};
   QString error;
   if (!library_.remove(edit.setId, &error)) {
-    QMessageBox::warning(this, tr("Delete alg set"),
-                         tr("Could not delete the set: %1").arg(error));
+    warnPlain(this, tr("Delete alg set"),
+              tr("Could not delete the set: %1").arg(error));
     return;
   }
   if (!error.isEmpty()) {
@@ -146,19 +145,18 @@ void LibraryPage::restoreSet() {
   if (!s || !library_.builtinIds().contains(qs(s->id))) {
     return;
   }
-  auto answer = QMessageBox::question(
-      this, tr("Restore built-in cases"),
-      tr("Restore the built-in cases of %1? Cases you deleted come back, and "
-         "the shipped names and states replace yours. Your algs, the cases "
-         "and groups you added and the set's settings are kept.")
-          .arg(qs(s->name)));
-  if (answer != QMessageBox::Yes) {
+  if (!askPlain(
+          this, tr("Restore built-in cases"),
+          tr("Restore the built-in cases of %1? Cases you deleted come back, "
+             "and the shipped names and states replace yours. Your algs, the "
+             "cases and groups you added and the set's settings are kept.")
+              .arg(qs(s->name)))) {
     return;
   }
   auto pending = editor_.begin();
   QString error;
   if (!library_.restoreBuiltin(editor_.setId, &error)) {
-    QMessageBox::warning(this, tr("Restore"), error);
+    warnPlain(this, tr("Restore"), error);
     return;
   }
   if (editor_.commit(tr("Restore built-in cases"), *pending)) {
@@ -171,7 +169,7 @@ void LibraryPage::restoreSet() {
 void LibraryPage::restoreBuiltinSet(const std::string &id) {
   QString error;
   if (!library_.restoreBuiltin(id, &error)) {
-    QMessageBox::warning(this, tr("Restore a built-in set"), error);
+    warnPlain(this, tr("Restore a built-in set"), error);
     return;
   }
   AlgSet *s = library_.find(id);
@@ -336,7 +334,7 @@ void LibraryPage::exportSetFile() {
   }
   QString error;
   if (!writeAlgSetFile(*s, path, &error)) {
-    QMessageBox::warning(this, tr("Export alg set"), error);
+    warnPlain(this, tr("Export alg set"), error);
     return;
   }
   emit message(tr("Exported %1 to %2").arg(qs(s->name), path));

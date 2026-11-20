@@ -20,7 +20,6 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSplitter>
@@ -557,14 +556,14 @@ void LabTestPanel::deleteSession() {
   for (const auto &a : store_.attempts()) {
     times += a.session == session().id ? 1 : 0;
   }
-  if (QMessageBox::question(
+  if (!askPlain(
           this, tr("Delete session"),
           plural(times,
                  tr("Delete the session \"%1\"? Its %n time stays with its "
                     "alg (in the all-time statistics)."),
                  tr("Delete the session \"%1\"? Its %n times stay with their "
                     "algs (in the all-time statistics)."))
-              .arg(qs(session().name))) != QMessageBox::Yes) {
+              .arg(qs(session().name)))) {
     return;
   }
   cancelAttempt();

@@ -16,7 +16,6 @@
 #include <QLabel>
 #include <QLocale>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QTableView>
@@ -408,12 +407,10 @@ std::optional<QString> askSessionName(QWidget *parent, const QString &title,
 
 bool confirmDeleteSession(QWidget *parent, const QString &name,
                           std::size_t count, const QString &noun) {
-  return QMessageBox::question(
-             parent, QObject::tr("Delete session"),
-             QObject::tr("Delete session \"%1\" and its %2 %3?")
-                 .arg(name)
-                 .arg(count)
-                 .arg(noun)) == QMessageBox::Yes;
+  // The three at once, so that a "%2" in the name stays the name's.
+  return askPlain(parent, QObject::tr("Delete session"),
+                  QObject::tr("Delete session \"%1\" and its %2 %3?")
+                      .arg(name, QString::number(count), noun));
 }
 
 std::optional<QString> askComment(QWidget *parent, const QString &label,
