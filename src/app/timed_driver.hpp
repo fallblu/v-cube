@@ -41,7 +41,7 @@ public:
   // or, on a page without practice, show the details.
   virtual void timedPractise(bool aided) = 0;
   // A turn in practice.
-  virtual void timedPracticeTurn(Move m) { (void)m; }
+  virtual void timedPracticeTurn(Move) {}
   virtual void timedToggleWrong() = 0;
   virtual void timedDelete() = 0;
   // Ctrl+Z after the result: the attempt deleted put back.

@@ -153,7 +153,7 @@ Slot TslePage::randomSlot() {
 
 std::vector<std::string> TslePage::cardPool() const { return tsleCardPool(); }
 
-std::optional<PracticePage::Setup> TslePage::setUp(Extent extent,
+std::optional<PracticePage::Setup> TslePage::setUp(Extent,
                                                    const std::string &card) {
   TsleState state;
   if (!card.empty()) {
@@ -179,7 +179,6 @@ std::optional<PracticePage::Setup> TslePage::setUp(Extent extent,
   s.cube = s.state.toFacelets();
   // Timed attempts are kept by the case they start from.
   s.group = tab() == Tab::Timed ? tsleKey(tsleCase(state)) : kWhole;
-  (void)extent;
   return s;
 }
 

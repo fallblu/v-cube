@@ -1137,10 +1137,7 @@ bool PracticePage::handleTimedKey(QKeyEvent *e, bool press) {
                      scrambleShown ? Scramble::Shown : Scramble::Awaited);
 }
 
-void PracticePage::timedNext(bool fromIdle) {
-  (void)fromIdle;
-  next();
-}
+void PracticePage::timedNext(bool) { next(); }
 
 void PracticePage::timedRetry() { sameAgain(); }
 
@@ -1172,9 +1169,8 @@ void PracticePage::timedFinish(std::int64_t ms, DrillFlow::Result result) {
   finishTimed(ms, result);
 }
 
-void PracticePage::timedPractise(bool aided) {
+void PracticePage::timedPractise(bool) {
   // No practice here: Tab shows how efficient the solve was.
-  (void)aided;
   toggleDetail();
 }
 

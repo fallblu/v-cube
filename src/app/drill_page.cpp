@@ -1,30 +1,19 @@
 #include "app/drill_page.hpp"
 #include "app/drill_private.hpp"
-#include "app/key_router.hpp"
-#include "app/page_parts.hpp"
 
-#include "app/drill_history_dialog.hpp"
 #include "app/text_style.hpp"
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
-#include "train/alg_follow.hpp"
 
 #include <QActionGroup>
-#include <QApplication>
 #include <QComboBox>
-#include <QFormLayout>
 #include <QHBoxLayout>
-#include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
 #include <QToolButton>
-#include <QTreeWidget>
 #include <QVBoxLayout>
-
-#include <cmath>
 
 namespace vcube {
 

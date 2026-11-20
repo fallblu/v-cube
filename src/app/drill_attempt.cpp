@@ -1,29 +1,12 @@
 #include "app/drill_page.hpp"
 #include "app/drill_private.hpp"
-#include "app/page_parts.hpp"
 #include "app/train_keys.hpp"
 #include "app/ui_text.hpp"
 
-#include "app/drill_history_dialog.hpp"
-#include "app/ui_state.hpp"
 #include "train/alg_follow.hpp"
 
-#include <QActionGroup>
-#include <QApplication>
-#include <QComboBox>
-#include <QFormLayout>
-#include <QHBoxLayout>
-#include <QKeyEvent>
 #include <QLabel>
-#include <QMenu>
-#include <QMessageBox>
-#include <QPushButton>
-#include <QSplitter>
-#include <QToolButton>
-#include <QTreeWidget>
-#include <QVBoxLayout>
 
-#include <cmath>
 #include <utility>
 
 namespace vcube {
@@ -68,15 +51,13 @@ void DrillPage::timedRotate(Move m) {
   }
 }
 
-void DrillPage::timedStarted(std::int64_t now) {
-  (void)now;
+void DrillPage::timedStarted(std::int64_t) {
   if (onVirtualCube()) {
     attempt_.start();
   }
 }
 
-std::optional<DrillFlow::Turn> DrillPage::timedTurn(Move m, std::int64_t now) {
-  (void)now;
+std::optional<DrillFlow::Turn> DrillPage::timedTurn(Move m, std::int64_t) {
   const DrillFlow::Turn turn = isRotation(m.type) ? DrillFlow::Turn::Rotation
                                : udTurn(attempt_.cube(), m)
                                    ? DrillFlow::Turn::UdFace

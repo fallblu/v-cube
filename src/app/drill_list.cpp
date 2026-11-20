@@ -274,8 +274,7 @@ void DrillPage::loadChoices() {
   picker_.restartRecap();
 }
 
-QString DrillPage::startCaseLabel(const std::string &caseId) const {
-  (void)caseId;
+QString DrillPage::startCaseLabel(const std::string &) const {
   return tr("Drill this case now");
 }
 

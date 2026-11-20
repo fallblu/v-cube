@@ -153,9 +153,9 @@ protected:
   // "F2L", as in "Whole F2L".
   virtual QString stepName() const = 0;
   // The mode's own options, added to the bar before the page's.
-  virtual void addOptions(OptionBar *bar) { (void)bar; }
+  virtual void addOptions(OptionBar *) {}
   // Buttons at the end of the bar.
-  virtual void addButtons(OptionBar *bar) { (void)bar; }
+  virtual void addButtons(OptionBar *) {}
   // Shows and hides them for the tab.
   virtual void showOptions() {}
 
@@ -215,15 +215,12 @@ protected:
   virtual bool needsChoice() const { return false; }
   virtual QWidget *choicePanel() { return nullptr; }
   virtual void startChoosing() {}
-  virtual void choiceKey(int n) { (void)n; }
+  virtual void choiceKey(int) {}
   virtual bool confirmChoice() { return true; }
   virtual void cancelChoice() {}
   virtual QString choosingText() const { return {}; }
   // Keys of the mode's own once a try is done, and their hints.
-  virtual bool doneKey(QKeyEvent *e) {
-    (void)e;
-    return false;
-  }
+  virtual bool doneKey(QKeyEvent *) { return false; }
   virtual QList<KeyHint> doneKeys() const { return {}; }
 
   // The parts of a solve, for the Timed tab's splits: each ends after a
@@ -241,7 +238,7 @@ protected:
   virtual std::vector<ListRow> timedGroups() = 0;
   virtual QString listHelp() const { return {}; }
   // A group's row was double-clicked.
-  virtual void groupActivated(const std::string &key) { (void)key; }
+  virtual void groupActivated(const std::string &) {}
   virtual QString cardName(const std::string &card) const {
     return QString::fromStdString(card);
   }
