@@ -75,8 +75,10 @@ public:
   SetProgress &progress(const std::string &setId);
   const SetProgress &progress(const std::string &setId) const;
   bool saveProgress(const std::string &setId, QString *error = nullptr);
-  // A function that writes the set's progress as it is now (a copy), from
-  // any thread, e.g. for writeInBackground() to progressPath().
+  // A function that writes the set's progress as it is now, from any
+  // thread, e.g. for writeInBackground() to progressPath(). The JSON is
+  // made here, from a cache of each case's (see KeyedJsonCache), and the
+  // write and the rest of the work in the function.
   std::function<bool(QString *)> progressWriter(const std::string &setId);
   QString progressPath(const std::string &setId) const;
   // Drops the progress of cases that were deleted or are new, so that a
@@ -91,6 +93,7 @@ private:
   // Filled by the first read of a set's progress, with what went wrong.
   mutable std::map<std::string, SetProgress> progress_;
   mutable std::set<std::string> progressKeptOff_; // unreadable, not moved aside
+  std::map<std::string, KeyedJsonCache<CaseProgress>> progressJson_;
   mutable QStringList errors_;
   std::map<std::string, QString> paths_; // file each set was loaded from
   mutable std::optional<std::vector<AlgSet>> shipped_;

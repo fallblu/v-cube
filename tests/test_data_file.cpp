@@ -748,3 +748,30 @@ TEST_CASE("a background save writes practice as it was when asked") {
   REQUIRE(read.data.cards.size() == 1);
   CHECK(read.data.cards["a"].attempts.size() == 1);
 }
+
+TEST_CASE("progress is written right however it changes between saves") {
+  QTemporaryDir tmp;
+  AlgLibrary lib = loadedLibrary(tmp.path());
+  auto check = [&] {
+    REQUIRE(lib.saveProgress("pll"));
+    CHECK(readText(lib.progressPath("pll")) ==
+          QJsonDocument(progressToJson(lib.progress("pll")))
+              .toJson(QJsonDocument::Compact));
+  };
+  lib.progress("pll")["T"].record({100, 1500, false});
+  lib.progress("pll")["Y"].record({101, 1600, false});
+  check();
+  // Asked for before the next changes, written after them.
+  std::function<bool(QString *)> job = lib.progressWriter("pll");
+  lib.progress("pll")["T"].record({102, 1400, true});
+  check();
+  lib.progress("pll")["Aa"].record({103, 1700, false});
+  check();
+  lib.forgetProgress("pll", {"Y"});
+  check();
+  REQUIRE(job(nullptr));
+  SetProgress was = progressFromJson(
+      QJsonDocument::fromJson(readText(lib.progressPath("pll"))).object());
+  CHECK(was.size() == 2);
+  CHECK(was["T"].attempts.size() == 1);
+}
