@@ -3018,6 +3018,13 @@ void GuiTest::saveWarningCanBeDismissedFromTheMenu() {
   dismiss->trigger();
   QVERIFY(!banner->isVisible());
   QVERIFY(!dismiss->isVisible());
+  // Another failure brings it back.
+  reportWrite(QDir(dataDir_).filePath("other.json"), false, "disk full");
+  QTRY_VERIFY(banner->isVisible());
+  // Saved after all: nothing is left for the check when quitting.
+  reportWrite(QDir(dataDir_).filePath("nowhere.json"), true, QString());
+  reportWrite(QDir(dataDir_).filePath("other.json"), true, QString());
+  QTRY_VERIFY(!banner->isVisible());
 }
 
 // The timer is named "Timer"; what it shows is said in its description,

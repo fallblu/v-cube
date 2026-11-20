@@ -77,6 +77,9 @@ private:
   std::optional<AppMode::Id> mode_;
   // Data files that couldn't be written, with the reason, for the banner.
   std::map<QString, QString> failedWrites_;
+  // The banner is hidden until the next failed write; failedWrites_ still
+  // holds what wasn't saved, for the check when quitting.
+  bool bannerDismissed_ = false;
   QStringList startupProblems_;
 
   QWidget *buildSidebar();

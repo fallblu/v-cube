@@ -675,7 +675,7 @@ QWidget *MainWindow::buildBanner() {
 }
 
 void MainWindow::dismissBanner() {
-  failedWrites_.clear();
+  bannerDismissed_ = true;
   updateBanner();
 }
 
@@ -687,6 +687,7 @@ void MainWindow::writeReported(const QString &path, const QString &error) {
     return;
   }
   failedWrites_[path] = error;
+  bannerDismissed_ = false;
   updateBanner();
 }
 
@@ -695,9 +696,10 @@ void MainWindow::updateBanner() {
     return;
   }
   if (dismissBannerAction_) {
-    dismissBannerAction_->setVisible(!failedWrites_.empty());
+    dismissBannerAction_->setVisible(!failedWrites_.empty() &&
+                                     !bannerDismissed_);
   }
-  if (failedWrites_.empty()) {
+  if (failedWrites_.empty() || bannerDismissed_) {
     banner_->hide();
     return;
   }
@@ -1057,7 +1059,7 @@ void MainWindow::buildMenus() {
   dismissBannerAction_->setToolTip(
       tr("Hide the warning that changes aren't being saved, until a file "
          "can't be saved again"));
-  dismissBannerAction_->setVisible(!failedWrites_.empty());
+  dismissBannerAction_->setVisible(!failedWrites_.empty() && !bannerDismissed_);
   file->addSeparator();
   file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
 
