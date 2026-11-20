@@ -495,7 +495,12 @@ TEST_CASE("learn: a recognition review is graded by hand") {
 TEST_CASE("learn: the undo stack keeps the last grades") {
   LearnUndoStack undo;
   for (int i = 0; i < 12; ++i) {
-    undo.push({"set", std::to_string(i), false, false, {}, false});
+    undo.push({.setId = "set",
+               .caseId = std::to_string(i),
+               .isNew = false,
+               .recognition = false,
+               .cards = {},
+               .fromList = false});
   }
   CHECK(undo.size() == LearnUndoStack::kDepth);
   REQUIRE(undo.open());

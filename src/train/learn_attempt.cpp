@@ -265,8 +265,12 @@ void LearnAttempt::recalled(bool knew, std::int64_t nowMs, std::int64_t now,
 void LearnAttempt::gradeRecognition(Grade grade, std::int64_t now,
                                     const LearnGrading &g) {
   CaseProgress &cp = (*g.progress)[gradedCard_];
-  LearnUndo u{g.setId, caseId_, false, true, {{gradedCard_, cp.card, now, {}}},
-              false};
+  LearnUndo u{.setId = g.setId,
+              .caseId = caseId_,
+              .isNew = false,
+              .recognition = true,
+              .cards = {{gradedCard_, cp.card, now, {}}},
+              .fromList = false};
   Attempt a{now, 0, grade == Grade::Again, AttemptMode::Learn};
   a.recognitionMs = recognitionMs_;
   a.recognitionOnly = true;
