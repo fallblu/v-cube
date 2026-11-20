@@ -1209,6 +1209,15 @@ void GuiTest::tsleLearnAndTimed() {
   auto options = [tsle] {
     return tsle->solver(tsle->slot()).options(tsle->startState());
   };
+  // Types the first trigger that isn't good.
+  auto typeNotGood = [&] {
+    for (const TsleOption &o : options()) {
+      if (!o.good) {
+        typeMoves(o.alg);
+        break;
+      }
+    }
+  };
 
   // Learn: the cases come in fewest steps first; a new one is shown, and
   // done with a good trigger.
@@ -1219,12 +1228,7 @@ void GuiTest::tsleLearnAndTimed() {
   QCOMPARE(tsleKey(tsleCase(tsle->startState())), pool.front());
   QVERIFY(tsle->shownDemo() == options().front().alg);
   // A trigger that isn't good doesn't do.
-  for (const TsleOption &o : options()) {
-    if (!o.good) {
-      typeMoves(o.alg);
-      break;
-    }
-  }
+  typeNotGood();
   QCOMPARE(tsle->phase(), Phase::Demo);
   QTest::keyClick(window_.get(), Qt::Key_Escape);
   QVERIFY(tsle->cube() == tsle->startCube());
@@ -1257,12 +1261,7 @@ void GuiTest::tsleLearnAndTimed() {
   QCOMPARE(tsle->phase(), Phase::Solving);
   key = tsle->currentCard();
   const CaseProgress before = tsle->data().cards.at(key);
-  for (const TsleOption &o : options()) {
-    if (!o.good) {
-      typeMoves(o.alg);
-      break;
-    }
-  }
+  typeNotGood();
   QCOMPARE(tsle->phase(), Phase::Done);
   QVERIFY(tsle->grade() == Grade::Again);
   QVERIFY(tsle->verdictHtml().contains("Not a good trigger"));
@@ -1274,12 +1273,7 @@ void GuiTest::tsleLearnAndTimed() {
   QCOMPARE(tsle->currentCard(), key);
   QCOMPARE(tsle->phase(), Phase::Solving);
   QVERIFY(tsle->graded());
-  for (const TsleOption &o : options()) {
-    if (!o.good) {
-      typeMoves(o.alg);
-      break;
-    }
-  }
+  typeNotGood();
   QVERIFY(tsle->grade() == Grade::Again);
 
   // Untimed: the whole step, a line on each trigger; the best way to the
