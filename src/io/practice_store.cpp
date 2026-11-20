@@ -126,7 +126,7 @@ QJsonObject removeOldPracticeFile(const QString &path) {
   // Kept beside the data rather than removed, so that what the mode held
   // can still be brought back by hand. If it can't be moved it stays, and
   // loading sets it aside as a file of the wrong format.
-  moveToDeleted(path, QFileInfo(path).dir().filePath("deleted"),
+  moveToDeleted(path, QFileInfo(path).dir().filePath(kDeletedFolder),
                 QDateTime::currentDateTime());
   return o;
 }
