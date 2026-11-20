@@ -484,11 +484,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   badgeTimer->setInterval(60 * 1000);
   connect(badgeTimer, &QTimer::timeout, this, &MainWindow::updateBadges);
   // A copy left open for days still makes each day's backup.
-  connect(badgeTimer, &QTimer::timeout, this, [this] {
-    if (std::optional<QString> error = data_.backUpIfNewDay()) {
-      writeReported(data_.backupsDir(), *error);
-    }
-  });
+  connect(badgeTimer, &QTimer::timeout, this,
+          [this] { data_.backUpIfNewDay(); });
   badgeTimer->start();
 
   help_ = new HelpPanel(this);

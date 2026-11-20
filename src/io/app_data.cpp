@@ -1,6 +1,7 @@
 #include "io/app_data.hpp"
 
 #include "io/backup.hpp"
+#include "io/data_file.hpp"
 
 #include <QCoreApplication>
 #include <QDate>
@@ -16,6 +17,17 @@ constexpr int kBackupDays = 14;
 
 QString tr(const char *text) {
   return QCoreApplication::translate("vcube::AppData", text);
+}
+
+// Makes today's backup. false, with why in `error`, when it fails.
+bool backUp(const QString &dataDir, const QString &settingsFile,
+            const QDate &today, QString *error) {
+  QString why;
+  if (makeDailyBackup(dataDir, settingsFile, today, kBackupDays, &why)) {
+    return true;
+  }
+  *error = tr("Today's backup failed: %1").arg(why);
+  return false;
 }
 
 // An unreadable file is kept, under another name if it could be moved.
@@ -73,25 +85,28 @@ QString AppData::backupsDir() const {
   return QDir(dataDir_).filePath(kBackupsFolder);
 }
 
-std::optional<QString> AppData::backUpIfNewDay() {
+bool AppData::backUpIfNewDay() {
   QDate today = QDate::currentDate();
   if (today == lastBackup_) {
-    return std::nullopt;
+    return false;
   }
   lastBackup_ = today;
-  QString error;
-  if (!makeDailyBackup(dataDir_, QSettings().fileName(), today, kBackupDays,
-                       &error)) {
-    return tr("Today's backup failed: %1").arg(error);
-  }
-  return QString();
+  // Queued behind the writes waiting, so that the copy has them, and
+  // reported as they are: under the backups folder.
+  writeInBackground(backupsDir(),
+                    [dataDir = dataDir_, settingsFile = QSettings().fileName(),
+                     today](QString *error) {
+                      return backUp(dataDir, settingsFile, today, error);
+                    });
+  return true;
 }
 
 AppData::LoadReport AppData::load() {
   LoadReport report;
   // Left by saves cut short (a crash): out of the way before the backup.
   moveSaveTemporaries(dataDir_, QDateTime::currentDateTime());
-  report.backupError = backUpIfNewDay().value_or(QString());
+  lastBackup_ = QDate::currentDate();
+  backUp(dataDir_, QSettings().fileName(), lastBackup_, &report.backupError);
   library.load();
   loadStore(sessions,
             tr("Could not read your timer sessions (%1), so the timer starts "

@@ -12,7 +12,6 @@
 #include <QStringList>
 
 #include <cstdint>
-#include <optional>
 #include <vector>
 
 namespace vcube {
@@ -39,9 +38,10 @@ public:
   QString backupsDir() const;
   // Makes today's backup (of the data folder and the settings file) if this
   // copy hasn't made it yet, e.g. when the app is left open past midnight.
-  // Returns nullopt when it had been made, else why it failed (empty when
-  // it didn't).
-  std::optional<QString> backUpIfNewDay();
+  // It is made on the background writer, after the writes waiting, and its
+  // result is reported as theirs are (see setWriteReporter()), for the
+  // backups folder. Returns whether one was started.
+  bool backUpIfNewDay();
 
   AlgLibrary library;
   SessionStore sessions;
