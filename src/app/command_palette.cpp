@@ -154,6 +154,15 @@ bool usable(QWidget *w, QWidget *page) {
          w->window() == page->window();
 }
 
+// Triggers `a`, if it still exists.
+std::function<void()> trigger(QAction *a) {
+  return [action = QPointer<QAction>(a)] {
+    if (action) {
+      action->trigger();
+    }
+  };
+}
+
 } // namespace
 
 CommandPalette::CommandPalette(std::vector<Command> commands, QWidget *parent)
@@ -329,14 +338,8 @@ std::vector<CommandPalette::Command> CommandPalette::fromMenus(QMenuBar *bar) {
           if (a->isCheckable()) {
             text += a->isChecked() ? tr(" (on)") : tr(" (off)");
           }
-          QPointer<QAction> action = a;
           out.push_back({text, a->shortcut().toString(QKeySequence::NativeText),
-                         [action] {
-                           if (action) {
-                             action->trigger();
-                           }
-                         },
-                         group});
+                         trigger(a), group});
         }
       };
   for (QAction *a : bar->actions()) {
@@ -396,12 +399,7 @@ CommandPalette::fromControls(QWidget *page) {
         if (a->isSeparator() || !a->isEnabled() || a->menu()) {
           continue;
         }
-        QPointer<QAction> action = a;
-        out.push_back({text + " › " + plain(a->text()), {}, [action] {
-                         if (action) {
-                           action->trigger();
-                         }
-                       }});
+        out.push_back({text + " › " + plain(a->text()), {}, trigger(a)});
       }
       continue;
     }

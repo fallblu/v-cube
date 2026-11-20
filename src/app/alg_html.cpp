@@ -18,9 +18,6 @@ QString tr(const char *text) {
 
 } // namespace
 
-// The moves as done, as rich text, with two quarter turns of a layer the
-// same way written as a half turn. The move at `mark` (an index into
-// `moves`) is highlighted and kept on its own.
 QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
   struct Done {
     Move move;
@@ -49,16 +46,14 @@ QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
 
 namespace {
 
-QString caseHeaderHtml(const AlgCase &c, const CaseGroup &group) {
-  return QString("<p style='font-size:large'><b>%1</b> <span "
-                 "style='color:" +
-                 roleColour(Role::Muted).name() + "'>· %2</span></p>")
-      .arg(qs(c.name).toHtmlEscaped(), qs(group.name).toHtmlEscaped());
-}
-
 QString greyHtml(const QString &text) {
   return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + text +
          "</span>";
+}
+
+QString caseHeaderHtml(const std::string &name, const std::string &group) {
+  return "<p style='font-size:large'><b>" + qs(name).toHtmlEscaped() + "</b> " +
+         greyHtml("· " + qs(group).toHtmlEscaped()) + "</p>";
 }
 
 // " → Sune" after a step that stops at that case.
@@ -77,7 +72,7 @@ QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
   if (!c || !g) {
     return {};
   }
-  QString html = caseHeaderHtml(*c, *g);
+  QString html = caseHeaderHtml(c->name, g->name);
   std::vector<ViewAlg> algs =
       algsFor(set, *g, *c, analyzeCase(set, *g, *c), view, state, world);
   if (algs.empty()) {
@@ -118,7 +113,8 @@ QString chainHtml(const AlgSet &set, const CubieCube &state, Mirror world) {
     }
     lines << line;
   }
-  QString html = caseHeaderHtml(*c, *g) + "<p>" + lines.join("<br>") + "</p>";
+  QString html =
+      caseHeaderHtml(c->name, g->name) + "<p>" + lines.join("<br>") + "</p>";
   if (!chain.complete) {
     html += "<p style='color:" + roleColour(Role::Muted).name() + "'>" +
             QObject::tr("The set's algs don't reach the end from there.")
@@ -193,36 +189,30 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
     const AlgCase *c = s->findCase(id);
     return c ? qs(c->name).toHtmlEscaped() : QString();
   };
-  auto grey = [](const QString &t) {
-    return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + t +
-           "</span>";
-  };
   const QString good =
       "<span style='color:" + statusColour(Status::Good).name() + "'>✓</span>";
   const QString bad =
       "<span style='color:" + statusColour(Status::Bad).name() + "'>✗</span>";
   const std::string &firstId = links.front().view.caseId;
+  const AlgCase *first = s->findCase(firstId);
   const CaseGroup *group = s->groupOf(firstId);
   QString html =
-      QString("<p style='font-size:large'><b>%1</b> <span "
-              "style='color:" +
-              roleColour(Role::Muted).name() + "'>· %2</span></p>")
-          .arg(nameOf(firstId), group ? qs(group->name).toHtmlEscaped() : "");
+      caseHeaderHtml(first ? first->name : "", group ? group->name : "");
   for (const LearnLink &link : links) {
     if (!link.over) {
       continue;
     }
     QString line = (link.grade == Grade::Again ? bad : good) + " ";
     if (&link != &links.front()) {
-      line += grey(nameOf(link.view.caseId) + ":") + " ";
+      line += greyHtml(nameOf(link.view.caseId) + ":") + " ";
     }
     if (link.algs.empty()) {
-      line += grey(tr("no alg"));
+      line += greyHtml(tr("no alg"));
     } else {
       const ViewAlg &alg = link.algs.front();
       line += "<b>" + qs(alg.text).toHtmlEscaped() + "</b>";
       if (!alg.reducesTo.empty()) {
-        line += " " + grey("→ " + nameOf(alg.reducesTo));
+        line += " " + greyHtml("→ " + nameOf(alg.reducesTo));
       }
     }
     QStringList notes;
@@ -238,7 +228,7 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
       notes << n;
     }
     if (!notes.isEmpty()) {
-      line += "<br>" + grey(notes.join(" · "));
+      line += "<br>" + greyHtml(notes.join(" · "));
     }
     html += "<p>" + line + "</p>";
   }

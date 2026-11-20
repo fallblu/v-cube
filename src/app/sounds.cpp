@@ -24,6 +24,12 @@ namespace {
 // A short sine beep as a 16-bit mono WAV file.
 QByteArray beepWav(double hz, int ms) {
   constexpr int kRate = 44100;
+  // `v` as `bytes` little-endian bytes.
+  auto le = [](QByteArray &b, quint32 v, int bytes) {
+    for (int i = 0; i < bytes; ++i) {
+      b.append(static_cast<char>((v >> (8 * i)) & 0xff));
+    }
+  };
   int samples = kRate * ms / 1000;
   QByteArray pcm;
   pcm.reserve(samples * 2);
@@ -34,30 +40,20 @@ QByteArray beepWav(double hz, int ms) {
         {1.0, t / 0.005, static_cast<double>(samples - i) / kRate / 0.005});
     auto v = static_cast<qint16>(
         std::lround(9000.0 * edge * std::sin(2 * std::numbers::pi * hz * t)));
-    pcm.append(static_cast<char>(v & 0xff));
-    pcm.append(static_cast<char>((v >> 8) & 0xff));
+    le(pcm, static_cast<quint16>(v), 2);
   }
-  auto u32 = [](QByteArray &b, quint32 v) {
-    for (int i = 0; i < 4; ++i) {
-      b.append(static_cast<char>((v >> (8 * i)) & 0xff));
-    }
-  };
-  auto u16 = [](QByteArray &b, quint16 v) {
-    b.append(static_cast<char>(v & 0xff));
-    b.append(static_cast<char>((v >> 8) & 0xff));
-  };
   QByteArray wav("RIFF");
-  u32(wav, static_cast<quint32>(36 + pcm.size()));
+  le(wav, static_cast<quint32>(36 + pcm.size()), 4);
   wav.append("WAVEfmt ");
-  u32(wav, 16);
-  u16(wav, 1); // PCM
-  u16(wav, 1); // mono
-  u32(wav, kRate);
-  u32(wav, kRate * 2);
-  u16(wav, 2);
-  u16(wav, 16);
+  le(wav, 16, 4);
+  le(wav, 1, 2); // PCM
+  le(wav, 1, 2); // mono
+  le(wav, kRate, 4);
+  le(wav, kRate * 2, 4);
+  le(wav, 2, 2);
+  le(wav, 16, 2);
   wav.append("data");
-  u32(wav, static_cast<quint32>(pcm.size()));
+  le(wav, static_cast<quint32>(pcm.size()), 4);
   wav.append(pcm);
   return wav;
 }
