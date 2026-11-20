@@ -24,22 +24,6 @@ QString movesText(StatValue v, int decimals = 2) {
   return QString::fromStdString(formatMoves(v, decimals));
 }
 
-// The page's keys as the flow reads them: a key that turns the virtual
-// cube is a Turn whatever else it is, unless it is one of the keys for the
-// last attempt and the scramble. `turn` is the turn the key makes there.
-AttemptFlow::KeyEvent flowKey(const QKeyEvent *e, bool press,
-                              const std::optional<Move> &turn) {
-  using K = AttemptFlow::Key;
-  AttemptFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::Attempt);
-  const bool action = k.key == K::Dnf || k.key == K::Comment ||
-                      k.key == K::Review || k.key == K::Undo ||
-                      k.key == K::Skip || k.key == K::Delete;
-  if (turn && !action) {
-    k.key = K::Turn;
-  }
-  return k;
-}
-
 } // namespace
 
 AttemptPage::AttemptPage(AppSettings &settings, MoveCountStore &store,
@@ -252,18 +236,17 @@ bool AttemptPage::acceptsAutoRepeat(const QKeyEvent *e) const {
 }
 
 bool AttemptPage::handleKey(QKeyEvent *e, bool press) {
-  std::optional<Move> move;
+  AttemptFlow::KeyEvent k = trainKeyEvent(e, press, KeyChords::Attempt);
   if (onVirtualCube()) {
-    move = settings_.keymap.lookup(e);
+    k.move = settings_.keymap.lookup(e);
   }
-  AttemptFlow::Effects fx =
-      flow_.key(flowKey(e, press, move), monotonicMs(),
-                feed_.current() ? Scramble::Shown : Scramble::Awaited);
+  AttemptFlow::Effects fx = flow_.key(
+      k, monotonicMs(), feed_.current() ? Scramble::Shown : Scramble::Awaited);
   if (fx.toggleAlgs) {
     return algs_ && algs_->toggle();
   }
   if (fx.turn) {
-    turn(*move);
+    turn(*k.move);
   }
   apply(fx);
   return fx.used;

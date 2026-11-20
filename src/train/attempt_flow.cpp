@@ -87,11 +87,12 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
     return e;
   }
 
+  // A key that turns the virtual cube does that, whatever else it is.
+  const Key key = k.move ? Key::Other : k.key;
   if (config_.virtualCube) {
-    bool known = k.key == Key::Turn || k.key == Key::Space ||
-                 k.key == Key::Escape ||
-                 (k.key == Key::Tab && !config_.moveCount) ||
-                 (k.key == Key::Enter && phase_ == Phase::Done);
+    bool known = k.move || key == Key::Space || key == Key::Escape ||
+                 (key == Key::Tab && !config_.moveCount) ||
+                 (key == Key::Enter && phase_ == Phase::Done);
     if (!known) {
       return e;
     }
@@ -100,20 +101,20 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
       return e;
     }
     if (!k.press) {
-      if (k.key == Key::Space) {
+      if (key == Key::Space) {
         releaseStart(scramble, e);
       }
       return e;
     }
     if (isHolding()) {
       // Holding Space to start: Esc lets go, other keys wait.
-      if (k.key == Key::Escape) {
+      if (key == Key::Escape) {
         cancelHold(e);
       }
       return e;
     }
-    switch (k.key) {
-    case Key::Turn:
+    switch (key) {
+    case Key::Other: // a turning key
       e.turn = true;
       break;
     case Key::Tab:
@@ -144,13 +145,13 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
 
   if (!config_.moveCount) {
     // Untimed on a physical cube: scrambles only.
-    if (k.key == Key::Tab && k.press) {
+    if (key == Key::Tab && k.press) {
       e.used = true;
       e.toggleAlgs = true;
       return e;
     }
-    bool forward = k.key == Key::Space || k.key == Key::Right;
-    bool back = k.key == Key::Backspace || k.key == Key::Left;
+    bool forward = key == Key::Space || key == Key::Right;
+    bool back = key == Key::Backspace || key == Key::Left;
     if (!forward && !back) {
       return e;
     }
@@ -166,8 +167,8 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
   }
 
   // Move Count on a physical cube: the count is typed in.
-  bool known = k.key == Key::Digit || k.key == Key::Backspace ||
-               k.key == Key::Enter || k.key == Key::Escape;
+  bool known = key == Key::Digit || key == Key::Backspace ||
+               key == Key::Enter || key == Key::Escape;
   if (!known || k.modified) {
     return e;
   }
@@ -175,7 +176,7 @@ AttemptFlow::Effects AttemptFlow::key(const KeyEvent &k, std::int64_t now,
   if (!k.press) {
     return e;
   }
-  switch (k.key) {
+  switch (key) {
   case Key::Digit:
     if (!k.autoRepeat && entry_.add(k.digit)) {
       e.entryChanged = true;

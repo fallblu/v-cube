@@ -23,9 +23,8 @@ enum class KeyChords : std::uint8_t {
 };
 
 // The one translation of a Qt key event into the flows' vocabulary. The
-// turn a key makes is the page's to add (TrainKeyEvent::move, or
-// TrainKey::Turn), since only the page knows whether its cube is the
-// virtual one.
+// turn a key makes is the page's to add (TrainKeyEvent::move), since only
+// the page knows whether its cube is the virtual one.
 TrainKeyEvent trainKeyEvent(const QKeyEvent *e, bool press, KeyChords chords);
 
 } // namespace vcube

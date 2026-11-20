@@ -36,6 +36,14 @@ AttemptFlow::KeyEvent up(K k) {
   return e;
 }
 
+// A key that turns the virtual cube.
+AttemptFlow::KeyEvent turnKey(bool press = true) {
+  AttemptFlow::KeyEvent e;
+  e.press = press;
+  e.move = Move{MoveType::R, 1};
+  return e;
+}
+
 // Holds Space long enough and lets go: the solve starts.
 void start(AttemptFlow &f, std::int64_t at = 0) {
   f.key(down(K::Space), at, Scramble::Shown);
@@ -205,7 +213,7 @@ TEST_CASE("AttemptFlow starts a solve when Space is held and released",
   CHECK(e.showHold);
   CHECK(f.hold() == HoldState::Ready);
   // Other keys wait while Space is held.
-  e = f.key(down(K::Turn), 305, Scramble::Shown);
+  e = f.key(turnKey(), 305, Scramble::Shown);
   CHECK(e.used);
   CHECK_FALSE(e.turn);
   e = f.key(up(K::Space), 310, Scramble::Shown);
@@ -350,13 +358,13 @@ TEST_CASE("AttemptFlow: auto stop ends an Untimed solve once solved",
 
 TEST_CASE("AttemptFlow: turning keys and Tab", "[attempt]") {
   AttemptFlow f = flow({.moveCount = false});
-  auto e = f.key(down(K::Turn), 0, Scramble::Shown);
+  auto e = f.key(turnKey(), 0, Scramble::Shown);
   CHECK(e.used);
   CHECK(e.turn);
-  e = f.key(up(K::Turn), 0, Scramble::Shown);
+  e = f.key(turnKey(false), 0, Scramble::Shown);
   CHECK(e.used);
   CHECK_FALSE(e.turn);
-  AttemptFlow::KeyEvent repeat = down(K::Turn);
+  AttemptFlow::KeyEvent repeat = turnKey();
   repeat.autoRepeat = true;
   CHECK_FALSE(f.key(repeat, 0, Scramble::Shown).turn);
   CHECK(f.key(down(K::Tab), 0, Scramble::Shown).toggleAlgs);
