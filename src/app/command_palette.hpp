@@ -7,6 +7,7 @@
 
 class QLineEdit;
 class QListWidget;
+class QListWidgetItem;
 class QMenuBar;
 
 namespace vcube {
@@ -47,6 +48,10 @@ private:
 
   void filter();
   void runSelected();
+  // Runs the command of `item` and closes; nothing for a heading, or once
+  // a command has been run.
+  void run(QListWidgetItem *item);
+  bool ran_ = false;
   // The next selectable row from `row` going `step` (a heading is
   // skipped), or `row` if there is none.
   int nextRow(int row, int step) const;
