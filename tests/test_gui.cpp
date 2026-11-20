@@ -353,11 +353,23 @@ class GuiTest : public QObject {
     }
   }
 
-  // Space held past the hold time and let go.
-  void holdSpace() {
-    QTest::keyPress(window_.get(), Qt::Key_Space);
+  // Space held past the hold time and let go, on the window or `target`.
+  void holdSpace(QWidget *target = nullptr) {
+    target = target ? target : window_.get();
+    QTest::keyPress(target, Qt::Key_Space);
     QTest::qWait(settings_.holdMs + 150);
-    QTest::keyRelease(window_.get(), Qt::Key_Space);
+    QTest::keyRelease(target, Qt::Key_Space);
+  }
+
+  // Space held and let go until the page is busy (again, if the first
+  // scramble wasn't ready yet).
+  bool holdSpaceUntilBusy(const ModePage *page, QWidget *target = nullptr) {
+    return QTest::qWaitFor(
+        [&] {
+          holdSpace(target);
+          return page->isBusy();
+        },
+        10000);
   }
 
   SetProgress savedProgress(const std::string &setId) {
@@ -1582,12 +1594,7 @@ void GuiTest::timedPhysicalSolve() {
   QVERIFY(!timed->isBusy());
 
   // Held and let go (again, if the first scramble wasn't ready yet).
-  QVERIFY(QTest::qWaitFor(
-      [&] {
-        holdSpace();
-        return timed->isBusy();
-      },
-      10000));
+  QVERIFY(holdSpaceUntilBusy(timed));
   // Running: the mode can't be left from the Mode menu (a key would stop
   // the timer first).
   QVERIFY(timed->isBusy());
@@ -2630,14 +2637,7 @@ void GuiTest::floatingHelpPanelPassesKeysOn() {
   QVERIFY(help->isWindow());
   help->activateWindow();
   QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget *>(help));
-  QVERIFY(QTest::qWaitFor(
-      [&] {
-        QTest::keyPress(help, Qt::Key_Space);
-        QTest::qWait(settings_.holdMs + 150);
-        QTest::keyRelease(help, Qt::Key_Space);
-        return timed->isBusy();
-      },
-      10000));
+  QVERIFY(holdSpaceUntilBusy(timed, help));
   QTest::qWait(50);
   QTest::keyClick(help, Qt::Key_A); // any key stops it
   QVERIFY(!timed->isBusy());
@@ -2664,12 +2664,7 @@ void GuiTest::spaceHoldEndsWhenTheWindowIsLeft() {
   window_->activateWindow();
   QTRY_VERIFY(window_->isActiveWindow());
   QVERIFY(!timed->isBusy());
-  QVERIFY(QTest::qWaitFor(
-      [&] {
-        holdSpace();
-        return timed->isBusy();
-      },
-      10000));
+  QVERIFY(holdSpaceUntilBusy(timed));
   QTest::qWait(50);
   QTest::keyClick(window_.get(), Qt::Key_A); // any key stops it
   QVERIFY(!timed->isBusy());
