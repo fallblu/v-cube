@@ -1,6 +1,7 @@
 #include "app/alg_html.hpp"
 
 #include "app/colours.hpp"
+#include "app/ui_text.hpp"
 #include "io/algset_json.hpp"
 #include "train/case_logic.hpp"
 
@@ -46,20 +47,15 @@ QString movesHtml(const Alg &moves, std::optional<std::size_t> mark) {
 
 namespace {
 
-QString greyHtml(const QString &text) {
-  return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + text +
-         "</span>";
-}
-
 QString caseHeaderHtml(const std::string &name, const std::string &group) {
   return "<p style='font-size:large'><b>" + qs(name).toHtmlEscaped() + "</b> " +
-         greyHtml("· " + qs(group).toHtmlEscaped()) + "</p>";
+         mutedHtml("· " + qs(group).toHtmlEscaped()) + "</p>";
 }
 
 // " → Sune" after a step that stops at that case.
 QString reachedHtml(const AlgSet &set, const std::string &caseId) {
   const AlgCase *next = set.findCase(caseId);
-  return next ? " " + greyHtml("→ " + qs(next->name).toHtmlEscaped())
+  return next ? " " + mutedHtml("→ " + qs(next->name).toHtmlEscaped())
               : QString();
 }
 
@@ -84,7 +80,7 @@ QString viewAlgsHtml(const AlgSet &set, const CaseView &view,
   bool first = true;
   for (const ViewAlg &alg : algs) {
     QString line = qs(alg.text).toHtmlEscaped();
-    line = first ? "<b>" + line + "</b>" : greyHtml(line);
+    line = first ? "<b>" + line + "</b>" : mutedHtml(line);
     html += "<p>" + line + reachedHtml(set, alg.reducesTo) + "</p>";
     first = false;
   }
@@ -189,10 +185,8 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
     const AlgCase *c = s->findCase(id);
     return c ? qs(c->name).toHtmlEscaped() : QString();
   };
-  const QString good =
-      "<span style='color:" + statusColour(Status::Good).name() + "'>✓</span>";
-  const QString bad =
-      "<span style='color:" + statusColour(Status::Bad).name() + "'>✗</span>";
+  const QString good = coloured(kPassColour, "✓");
+  const QString bad = coloured(statusColour(Status::Bad), "✗");
   const std::string &firstId = links.front().view.caseId;
   const AlgCase *first = s->findCase(firstId);
   const CaseGroup *group = s->groupOf(firstId);
@@ -204,15 +198,15 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
     }
     QString line = (link.grade == Grade::Again ? bad : good) + " ";
     if (&link != &links.front()) {
-      line += greyHtml(nameOf(link.view.caseId) + ":") + " ";
+      line += mutedHtml(nameOf(link.view.caseId) + ":") + " ";
     }
     if (link.algs.empty()) {
-      line += greyHtml(tr("no alg"));
+      line += mutedHtml(tr("no alg"));
     } else {
       const ViewAlg &alg = link.algs.front();
       line += "<b>" + qs(alg.text).toHtmlEscaped() + "</b>";
       if (!alg.reducesTo.empty()) {
-        line += " " + greyHtml("→ " + nameOf(alg.reducesTo));
+        line += " " + mutedHtml("→ " + nameOf(alg.reducesTo));
       }
     }
     QStringList notes;
@@ -228,7 +222,7 @@ QString linksHtml(const AlgSet &set, const std::vector<LearnLink> &links,
       notes << n;
     }
     if (!notes.isEmpty()) {
-      line += "<br>" + greyHtml(notes.join(" · "));
+      line += "<br>" + mutedHtml(notes.join(" · "));
     }
     html += "<p>" + line + "</p>";
   }

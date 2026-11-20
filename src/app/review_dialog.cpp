@@ -52,10 +52,6 @@ QLabel *richLabel(QWidget *parent) {
   return l;
 }
 
-QString secondsText(std::int64_t ms) {
-  return QString::fromStdString(formatTime(ms));
-}
-
 // The whole-cube rotation that turns `cube` (in any orientation) to be held
 // as `h`.
 Alg rotationTo(const FaceletCube &cube, Hold h) {
@@ -70,11 +66,6 @@ Alg rotationTo(const FaceletCube &cube, Hold h) {
 }
 
 QString escaped(const std::string &text) { return qs(text).toHtmlEscaped(); }
-
-QString muted(const QString &html) {
-  return "<span style='color:" + roleColour(Role::Muted).name() + "'>" + html +
-         "</span>";
-}
 
 } // namespace
 
@@ -193,12 +184,12 @@ ReviewDialog::ReviewDialog(ReviewedSolve solve, const AppSettings &settings,
     recorded = " · " + tr("recorded: %1").arg(movesText(*solve_.recorded));
   }
   if (solve_.totalMs > 0) {
-    recorded += " · " + secondsText(solve_.totalMs);
+    recorded += " · " + timeText(solve_.totalMs);
   }
   scramble->setText(
       "<b>" + solve_.title.toHtmlEscaped() + "</b>" +
       (solve_.dnf ? " · DNF" : QString()) + recorded + "<br>" +
-      muted(tr("Scramble: %1").arg(escaped(toString(solve_.scramble)))));
+      mutedHtml(tr("Scramble: %1").arg(escaped(toString(solve_.scramble)))));
   rightLayout->addWidget(scramble);
 
   // A group box of rich labels, under the others.
@@ -482,7 +473,7 @@ void ReviewDialog::showSplits() {
     return;
   }
   if (splits_.phases.empty()) {
-    splitsLabel_->setText(muted(tr("The solve never had a cross done.")));
+    splitsLabel_->setText(mutedHtml(tr("The solve never had a cross done.")));
     return;
   }
   bool timed =
@@ -500,12 +491,12 @@ void ReviewDialog::showSplits() {
     html += "<tr><td>" + b + name.toHtmlEscaped() + e +
             "</td><td align='right'>" + QString::number(htm) + "</td>";
     if (timed) {
-      html += "<td align='right'>" + (ms ? secondsText(*ms) : QString("-")) +
+      html += "<td align='right'>" + (ms ? timeText(*ms) : QString("-")) +
               "</td><td align='right'>" +
               (ms && *ms > 0 ? QString::number(tps(htm, *ms), 'f', 2)
                              : QString("-")) +
               "</td><td align='right'>" +
-              (at ? muted(secondsText(*at)) : QString()) + "</td>";
+              (at ? mutedHtml(timeText(*at)) : QString()) + "</td>";
     }
     html += "</tr>";
   };
@@ -524,11 +515,11 @@ void ReviewDialog::showSplits() {
   if (timed && solve_.totalMs > 0) {
     html += tr("Whole solve: %1 in %2, %3 TPS")
                 .arg(movesText(total))
-                .arg(secondsText(solve_.totalMs))
+                .arg(timeText(solve_.totalMs))
                 .arg(tps(total, solve_.totalMs), 0, 'f', 2);
   } else if (!timed) {
-    html += muted(tr("No step times: the solve wasn't timed, or was saved "
-                     "before move times were kept."));
+    html += mutedHtml(tr("No step times: the solve wasn't timed, or was saved "
+                         "before move times were kept."));
   }
   splitsLabel_->setText(html);
 }
@@ -583,8 +574,7 @@ void ReviewDialog::showMoves() {
       }
     }
     if (!steps.isEmpty()) {
-      parts << "<span style='color:" + statusColour(Status::Good).name() +
-                   "'>| " + steps.join(", ") + "</span>";
+      parts << coloured(kPassColour, "| " + steps.join(", "));
     }
   };
   for (std::size_t i = 0; i < replay_.size(); ++i) {
@@ -594,12 +584,12 @@ void ReviewDialog::showMoves() {
       t = "<span style='color:" + statusColour(Status::Warning).name() +
           "; font-weight:bold'>" + t + "</span>";
     } else if (i >= at_) {
-      t = muted(t);
+      t = mutedHtml(t);
     }
     parts << t;
   }
   markAt(replay_.size());
-  QString html = parts.isEmpty() ? muted(tr("No moves")) : parts.join(' ');
+  QString html = parts.isEmpty() ? mutedHtml(tr("No moves")) : parts.join(' ');
   if (!mine) {
     html = "<b>" + replayName_.toHtmlEscaped() + "</b>: " + html + "<br>" +
            "<a href='mine'>" + tr("Back to your solution") + "</a>";
@@ -609,7 +599,7 @@ void ReviewDialog::showMoves() {
 
 void ReviewDialog::showMarks() {
   if (marks_.empty()) {
-    marksLabel_->setText(muted(tr("No step was done.")));
+    marksLabel_->setText(mutedHtml(tr("No step was done.")));
     return;
   }
   QString html = "<table cellspacing='3'>";
@@ -624,7 +614,7 @@ void ReviewDialog::showMarks() {
                     "<td>%3</td><td>%4</td></tr>")
                 .arg(qs(stepName(m.step)))
                 .arg(movesText(m.htm))
-                .arg(m.htm > before ? muted(tr("(+%1)").arg(m.htm - before))
+                .arg(m.htm > before ? mutedHtml(tr("(+%1)").arg(m.htm - before))
                                     : QString())
                 .arg(stepHoldHtml(m.hold, m.step == SolveStep::EO,
                                   settings_.scheme));
@@ -632,7 +622,8 @@ void ReviewDialog::showMarks() {
   }
   html += "</table>";
   if (!byScramble.isEmpty()) {
-    html += muted(tr("Done by the scramble: %1").arg(byScramble.join(", ")));
+    html +=
+        mutedHtml(tr("Done by the scramble: %1").arg(byScramble.join(", ")));
   }
   marksLabel_->setText(html);
 }
@@ -643,7 +634,7 @@ void ReviewDialog::startOptima() {
     optimalLabel_->parentWidget()->setVisible(false);
     return;
   }
-  optimalLabel_->setText(muted(tr("Working out the optimal solutions…")));
+  optimalLabel_->setText(mutedHtml(tr("Working out the optimal solutions…")));
   std::vector<Hold> neutral = withBothEoAxes(settings_.neutrality.holds);
   Alg scramble = solve_.scramble;
   optimaWatcher_.setFuture(QtConcurrent::run([scramble, step, neutral] {
@@ -669,15 +660,16 @@ void ReviewDialog::showOptima() {
   }
   QString html;
   if (!solve_.step) {
-    html += muted(tr("For reference: EO Cross for this scramble.")) + "<br>";
+    html +=
+        mutedHtml(tr("For reference: EO Cross for this scramble.")) + "<br>";
   }
   html +=
       yours
           ? tr("You did %1 in <b>%2</b>.").arg(stepText).arg(movesText(*yours))
           : tr("%1 wasn't done.").arg(stepText);
   if (yours && solve_.step && solve_.recorded && *solve_.recorded != *yours) {
-    html += " " + muted(tr("(%1 recorded: the moves after it count too)")
-                            .arg(*solve_.recorded));
+    html += " " + mutedHtml(tr("(%1 recorded: the moves after it count too)")
+                                .arg(*solve_.recorded));
   }
   auto list = [&](const std::vector<HeldOptimum> &optima, const QString &id,
                   const QString &heading) {
@@ -689,7 +681,7 @@ void ReviewDialog::showOptima() {
     if (yours) {
       int over = *yours - best;
       html += " " + (over == 0 ? tr("(you were optimal)")
-                               : muted(tr("(+%1)").arg(over)));
+                               : mutedHtml(tr("(+%1)").arg(over)));
     }
     std::size_t shown = 0;
     for (std::size_t h = 0; h < optima.size() && shown < kListed; ++h) {
@@ -704,7 +696,7 @@ void ReviewDialog::showOptima() {
         html += "<br>" +
                 stepHoldHtml(o.hold, step == SolveStep::EO, settings_.scheme) +
                 ": " +
-                (rotation.isEmpty() ? QString() : muted(rotation) + " ") +
+                (rotation.isEmpty() ? QString() : mutedHtml(rotation) + " ") +
                 moves +
                 QString(" <a href='opt:%1:%2:%3'>%4</a>")
                     .arg(id)
@@ -724,7 +716,7 @@ void ReviewDialog::showOptima() {
       }
     }
     if (!others.isEmpty() && others.size() <= 8) {
-      html += "<br>" + muted(tr("Other holds: ")) + others.join(", ");
+      html += "<br>" + mutedHtml(tr("Other holds: ")) + others.join(", ");
     }
     html += "</p>";
   };
@@ -744,14 +736,15 @@ void ReviewDialog::showPairs() {
   F2LBreakdown b = f2lBreakdown(start_, solve_.solution, reference,
                                 Edges::Oriented, settings_.simplifiedCounts);
   if (!b.found) {
-    pairsLabel_->setText(muted(tr("The solve never had EO Cross done.")));
+    pairsLabel_->setText(mutedHtml(tr("The solve never had EO Cross done.")));
     return;
   }
   QString html;
   if (!reference) {
-    html += muted(tr("No alg set of F2L pair cases to compare with (such as "
+    html +=
+        mutedHtml(tr("No alg set of F2L pair cases to compare with (such as "
                      "a ZZ F2L set).")) +
-            "<br>";
+        "<br>";
   }
   html += tr("EO Cross after %1, %2.")
               .arg(movesText(htmCount(slice(solve_.solution, 0, b.eoCross))))
@@ -767,7 +760,7 @@ void ReviewDialog::showPairs() {
     yourTotal += seg.htm;
     html += "<p><b>" + tr("Pair %1: %2").arg(n + 1).arg(solved.join(" + ")) +
             "</b> — " + tr("you took %1").arg(movesText(seg.htm)) + " " +
-            muted(tr("(moves %1–%2)").arg(seg.begin + 1).arg(seg.end));
+            mutedHtml(tr("(moves %1–%2)").arg(seg.begin + 1).arg(seg.end));
     // The set's alg for the pair that was done, and the cheapest then.
     const PairOption *done = nullptr;
     const PairOption *cheapest = nullptr;
@@ -787,7 +780,7 @@ void ReviewDialog::showPairs() {
       return tr("%1 (%2): %3 %4 <a href='pair:%5:%6'>%7</a>")
           .arg(qs(slotName(o.slot)), escaped(o.caseName))
           .arg(movesText(o.moves))
-          .arg(muted(escaped(o.alg)))
+          .arg(mutedHtml(escaped(o.alg)))
           .arg(n)
           .arg(index)
           .arg(tr("show"));
@@ -796,32 +789,33 @@ void ReviewDialog::showPairs() {
       setTotal += done->moves;
       int over = seg.htm - done->moves;
       html += "<br>" + tr("Your set: %1").arg(optionHtml(*done)) +
-              (over > 0   ? " " + muted(tr("(you +%1)").arg(over))
-               : over < 0 ? " " + muted(tr("(you %1 fewer)").arg(-over))
+              (over > 0   ? " " + mutedHtml(tr("(you +%1)").arg(over))
+               : over < 0 ? " " + mutedHtml(tr("(you %1 fewer)").arg(-over))
                           : QString());
     } else if (seg.solved.size() == 1) {
       allMatched = false;
       if (reference) {
-        html += "<br>" + muted(tr("No case of the set matched this pair."));
+        html += "<br>" + mutedHtml(tr("No case of the set matched this pair."));
       }
     } else {
       allMatched = false;
-      html += "<br>" + muted(tr("Several slots were solved at once."));
+      html += "<br>" + mutedHtml(tr("Several slots were solved at once."));
     }
     if (seg.solved.size() == 1) {
       if (!pairOptima_) {
-        html += "<br>" + muted(tr("Working out the optimal pair…"));
+        html += "<br>" + mutedHtml(tr("Working out the optimal pair…"));
       } else if (n < pairOptima_->size() && (*pairOptima_)[n]) {
         const Alg &best = *(*pairOptima_)[n];
         int moves = htmCount(best);
         int over = seg.htm - moves;
-        html += "<br>" +
-                tr("Optimal &lt;R, U, L&gt;: %1 %2 <a href='pairopt:%3'>%4</a>")
-                    .arg(movesText(moves))
-                    .arg(muted(escaped(toString(best))))
-                    .arg(n)
-                    .arg(tr("show")) +
-                (over > 0 ? " " + muted(tr("(you +%1)").arg(over)) : QString());
+        html +=
+            "<br>" +
+            tr("Optimal &lt;R, U, L&gt;: %1 %2 <a href='pairopt:%3'>%4</a>")
+                .arg(movesText(moves))
+                .arg(mutedHtml(escaped(toString(best))))
+                .arg(n)
+                .arg(tr("show")) +
+            (over > 0 ? " " + mutedHtml(tr("(you +%1)").arg(over)) : QString());
       }
     }
     if (cheapest && cheapest != done &&
@@ -853,7 +847,7 @@ void ReviewDialog::showPairs() {
     html += ".</p>";
   }
   if (!b.complete) {
-    html += muted(tr("Not every slot was solved."));
+    html += mutedHtml(tr("Not every slot was solved."));
   }
   pairsLabel_->setText(html);
 }

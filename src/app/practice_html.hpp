@@ -36,8 +36,6 @@ struct PracticeSplit {
 
 // `text` on a line of its own in small print, or nothing for no text.
 QString smallLine(const QString &text);
-// "12.34", as the timer shows a time with `decimals`.
-QString clockText(std::int64_t ms, int decimals);
 // "9.3 s".
 QString tenthsText(std::int64_t ms);
 
