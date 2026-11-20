@@ -292,7 +292,8 @@ void CasePage::activated() {
 void CasePage::deactivated() { filter_->release(); }
 
 QString CasePage::setItemText(const AlgSet &s) const {
-  return QString("%1 (%2)").arg(qs(s.name)).arg(s.caseCount());
+  // Both at once: a "%1" in the name is the name's own.
+  return QString("%1 (%2)").arg(qs(s.name), QString::number(s.caseCount()));
 }
 
 void CasePage::populateSets() {
@@ -549,6 +550,7 @@ void CasePage::ticksEdited() {
     filter_->apply();
     updateSummary();
     ticksChanged();
+    emit progressChanged();
   });
 }
 
@@ -770,6 +772,7 @@ void CasePage::saveProgress() {
       [this, id = qs(setId_)](const QString &error) {
         emit message(tr("Could not save progress for %1: %2").arg(id, error));
       });
+  emit progressChanged();
 }
 
 } // namespace vcube

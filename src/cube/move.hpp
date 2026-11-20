@@ -93,9 +93,16 @@ ParseResult parseAlg(std::string_view text);
 // Parses or returns an empty alg on error.
 Alg parseAlgOrEmpty(std::string_view text);
 
-// Alg text as typed or pasted, with the Unicode spaces and primes that
-// parseAlg accepts written as plain spaces and ', and the ends trimmed, so
-// that it can be stored and shown as plain text.
+// The length in bytes of the prime mark `text` starts with, 0 if it starts
+// with none: ' and ` and the Unicode primes that parseAlg accepts.
+std::size_t primeLength(std::string_view text);
+// The length in bytes of the count and prime `text` starts with, as parseAlg
+// reads them after a move: "2", "'", "2'" or "'2", with any prime mark.
+std::size_t amountLength(std::string_view text);
+
+// Alg text as typed or pasted, with the Unicode spaces and the primes (`
+// too) that parseAlg accepts written as plain spaces and ', and the ends
+// trimmed, so that it can be stored and shown as plain text.
 std::string cleanAlgText(std::string_view text);
 
 // The inverse, its moves written with as many quarter turns (R3 -> R3').

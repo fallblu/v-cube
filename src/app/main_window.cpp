@@ -13,6 +13,7 @@
 #include "app/learn_page.hpp"
 #include "app/library_page.hpp"
 #include "app/move_count_page.hpp"
+#include "app/page_parts.hpp"
 #include "app/platform.hpp"
 #include "app/review_dialog.hpp"
 #include "app/settings_dialog.hpp"
@@ -422,6 +423,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
               }
             });
     connect(page, &CasePage::learnSetRequested, this, &MainWindow::learnSet);
+    // The sidebar's counts follow each grade, not only the minute.
+    connect(page, &CasePage::progressChanged, this, &MainWindow::updateBadges);
   }
   connect(learnPage_, &LearnPage::drillSetRequested, this,
           [this, drill](const QString &setId, bool weakest) {
@@ -673,6 +676,11 @@ QWidget *MainWindow::buildBanner() {
 void MainWindow::dismissBanner() {
   bannerDismissed_ = true;
   updateBanner();
+}
+
+void MainWindow::checkSettingsSaved() {
+  const QString error = saved::settingsWriteError();
+  writeReported(saved::settingsFile(), error);
 }
 
 void MainWindow::writeReported(const QString &path, const QString &error) {
@@ -946,6 +954,7 @@ void MainWindow::closeEvent(QCloseEvent *e) {
   // take those in now, or a save that failed just before quitting would
   // never be seen.
   QCoreApplication::sendPostedEvents(qApp, QEvent::MetaCall);
+  checkSettingsSaved(); // the layout just kept, and every choice before
   // A failed backup loses no changes, so it doesn't hold up quitting.
   QStringList lines;
   for (const auto &[path, error] : failedWrites_) {
@@ -960,12 +969,12 @@ void MainWindow::closeEvent(QCloseEvent *e) {
             ? QString()
             : "\n\n" + tr("Stopped: %1. If you stay, start it again.")
                            .arg(stopped.join(", "));
-    auto answer = QMessageBox::warning(
-        this, tr("Quit v-cube"),
-        tr("Some changes could not be saved:") + "\n\n" + lines.join("\n") +
-            stoppedNote + "\n\n" + tr("Quit anyway? They will be lost."),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-    if (answer != QMessageBox::Yes) {
+    // Plain: the lines name files and say what the system said of them.
+    if (!askPlain(this, tr("Quit v-cube"),
+                  tr("Some changes could not be saved:") + "\n\n" +
+                      lines.join("\n") + stoppedNote + "\n\n" +
+                      tr("Quit anyway? They will be lost."),
+                  AskAs::Warning)) {
       e->ignore();
       return;
     }
@@ -1164,6 +1173,11 @@ void MainWindow::buildMenus() {
   modeMenu_->menuAction()->setVisible(false);
   connect(modeMenu_, &QMenu::aboutToShow, this, [this] {
     modeMenu_->clear();
+    // clear() deletes the menu's own actions, not the submenus the page
+    // added last time: those are the menu's children, and each one owns
+    // its action.
+    qDeleteAll(modeMenu_->findChildren<QMenu *>(QString(),
+                                                Qt::FindDirectChildrenOnly));
     if (ModePage *page = currentPage(); page && !page->isBusy()) {
       page->fillModeMenu(*modeMenu_);
     }
@@ -1264,11 +1278,11 @@ void MainWindow::exportAllData() {
   QString error;
   if (!vcube::exportAllData(data_.dataDir(), saved::settingsFile(), target,
                             &error)) {
-    QMessageBox::warning(this, tr("Export all data"),
-                         tr("The export failed: %1").arg(error));
+    warnPlain(this, tr("Export all data"),
+              tr("The export failed: %1").arg(error));
     return;
   }
-  QMessageBox::information(
+  informPlain(
       this, tr("Export all data"),
       tr("Your alg sets, progress, sessions and settings were copied to "
          "%1.\n\nTo move them to another computer, copy the data folder's "
@@ -1307,6 +1321,7 @@ void MainWindow::openSettings(bool neutrality) {
     SettingsParts changed = changedParts(settings_, now);
     settings_ = now;
     settings_.save();
+    checkSettingsSaved();
     if (changed.testFlag(SettingsPart::Theme)) {
       applyTheme(*qApp, settings_.darkTheme);
     }

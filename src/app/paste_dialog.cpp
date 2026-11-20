@@ -164,8 +164,36 @@ PasteDialog::PasteDialog(const AlgSet &set, int group, const QString &text,
   resize(820, 520);
 }
 
+CaseChoices caseChoices(const AlgSet &set) {
+  CaseChoices out;
+  for (const auto &g : set.groups) {
+    for (const auto &c : g.cases) {
+      const QString base =
+          PasteDialog::tr("%1 (%2)").arg(qs(c.name), qs(g.name));
+      QString label = base;
+      for (int n = 2; out.labels.contains(label); ++n) {
+        label = PasteDialog::tr("%1 #%2").arg(base, QString::number(n));
+      }
+      out.labels << label;
+      out.ids.push_back(c.id);
+    }
+  }
+  return out;
+}
+
 void PasteDialog::check() {
-  items_ = readPaste(edit_->toPlainText().toStdString());
+  std::vector<PasteItem> items = readPaste(edit_->toPlainText().toStdString());
+  if (items.size() > kMaxPastedAlgs) {
+    // Each alg is tried on every case, and again after each correction, in
+    // this window: more than this and it would stand still for too long.
+    warnPlain(this, windowTitle(),
+              tr("That is %1 algs. At most %2 can be checked at a time: "
+                 "paste them a part at a time.")
+                  .arg(items.size())
+                  .arg(kMaxPastedAlgs));
+    return;
+  }
+  items_ = std::move(items);
   pages_->setCurrentIndex(1);
   backButton_->setVisible(true);
   checkButton_->setVisible(false);
@@ -221,7 +249,7 @@ void PasteDialog::fillTable() {
     line->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
     line->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     if (!item.name.empty()) {
-      line->setToolTip(tr("Named %1").arg(qs(item.name)));
+      line->setToolTip(plainTip(tr("Named %1").arg(qs(item.name))));
     }
     table_->setItem(row, LineColumn, line);
     auto *alg = new QTableWidgetItem(qs(item.alg));
@@ -265,7 +293,7 @@ void PasteDialog::fillTable() {
     auto *resultItem = new QTableWidgetItem(result);
     resultItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
     resultItem->setForeground(colour);
-    resultItem->setToolTip(result);
+    resultItem->setToolTip(plainTip(result));
     table_->setItem(row, ResultColumn, resultItem);
 
     bool choosable =
@@ -312,28 +340,24 @@ void PasteDialog::chooseCase(int row, int index) {
   if (choice.typeId() == QMetaType::QString) {
     chosen = choice.toString().toStdString();
   } else if (choice.toInt() == kOtherCase) {
-    QStringList names;
-    std::vector<std::string> ids;
-    for (const auto &g : set_.groups) {
-      for (const auto &c : g.cases) {
-        names << tr("%1 (%2)").arg(qs(c.name), qs(g.name));
-        ids.push_back(c.id);
-      }
-    }
-    if (names.isEmpty()) {
+    const CaseChoices choices = caseChoices(set_);
+    if (choices.labels.isEmpty()) {
       QMetaObject::invokeMethod(this, &PasteDialog::replan,
                                 Qt::QueuedConnection);
       return;
     }
     bool ok = false;
-    QString name = QInputDialog::getItem(
-        this, tr("Choose a case"), tr("Add the alg to:"), names, 0, false, &ok);
-    if (!ok) { // back to what it was
+    QString name =
+        QInputDialog::getItem(this, tr("Choose a case"), tr("Add the alg to:"),
+                              choices.labels, 0, false, &ok);
+    // No two labels are alike, so the one chosen names its case.
+    auto at = choices.labels.indexOf(name);
+    if (!ok || at < 0) { // back to what it was
       QMetaObject::invokeMethod(this, &PasteDialog::replan,
                                 Qt::QueuedConnection);
       return;
     }
-    chosen = ids[static_cast<std::size_t>(names.indexOf(name))];
+    chosen = choices.ids[static_cast<std::size_t>(at)];
   }
   items_[r].caseId = chosen;
   // Rebuilding the table deletes the combo that sent this signal.

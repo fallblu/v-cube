@@ -40,6 +40,18 @@ std::int64_t dayStart(const QDate &day, const QTimeZone &zone) {
   return day.startOfDay(zone).toSecsSinceEpoch();
 }
 
+DayFinder::DayFinder(const QTimeZone &zone) : zone_(zone) {}
+
+std::int64_t DayFinder::operator()(std::int64_t unix) {
+  if (unix < from_ || unix >= to_) {
+    const QDate day = QDateTime::fromSecsSinceEpoch(unix, zone_).date();
+    day_ = day.toJulianDay();
+    from_ = dayStart(day, zone_);
+    to_ = dayStart(day.addDays(1), zone_);
+  }
+  return day_;
+}
+
 std::int64_t localDayStart() {
   return dayStart(QDate::currentDate(), QTimeZone(QTimeZone::LocalTime));
 }

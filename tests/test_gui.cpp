@@ -2,6 +2,7 @@
 // keys go in as QTest events and what was saved is read back from the data
 // folder. The settings and data folders are temporary ones, set before the
 // QApplication exists, so the user's own data is never read or written.
+#include "app/alglab_dialogs.hpp"
 #include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
 #include "app/case_filter.hpp"
@@ -23,10 +24,12 @@
 #include "app/mode_table.hpp"
 #include "app/move_count_page.hpp"
 #include "app/page_parts.hpp"
+#include "app/paste_dialog.hpp"
 #include "app/practice_html.hpp"
 #include "app/practice_keys.hpp"
 #include "app/quiz_practice.hpp"
 #include "app/review_dialog.hpp"
+#include "app/session_panel.hpp"
 #include "app/settings_dialog.hpp"
 #include "app/single_instance.hpp"
 #include "app/text_style.hpp"
@@ -41,6 +44,7 @@
 #include "app/widgets.hpp"
 #include "cube/solver.hpp"
 #include "io/alglab_store.hpp"
+#include "io/algset_json.hpp"
 #include "io/data_file.hpp"
 #include "io/library.hpp"
 #include "io/move_counts.hpp"
@@ -49,7 +53,9 @@
 #include "train/step_solver.hpp"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
@@ -58,15 +64,22 @@
 #include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QFile>
+#include <QInputDialog>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
+#include <QPointer>
+#include <QProxyStyle>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSignalSpy>
@@ -409,14 +422,20 @@ private slots:
   void layoutFitsHalfAScreen();
   void sidePanelHidesInANarrowWindow();
   void keyChipsAreClickable();
+  void scrambleFeedDropsAScrambleOfTheOldCases();
   void timedPhysicalSolve();
+  void backspaceAfterDeletingTheSession();
   void untimedVirtualSolve();
   void learnStartsACase();
   void quizAsksAmongLookAlikes();
   void drillArmsAndStopsItself();
   void libraryAddsAnAlgAndUndoes();
+  void pastedAlgGoesToTheNamesakeChosen();
+  void aPasteOfTooManyAlgsIsTurnedDown();
   void algLabTimesEachAlg();
   void fingertrickGuidance();
+  void profileCostsAreReadInTheLocale();
+  void algMenuAfterAnEditOnItsWay();
   void f2lLearnAndTimed();
   void tsleLearnAndTimed();
   void eoCrossLearnAndTimed();
@@ -425,8 +444,12 @@ private slots:
   void practiceKeysFollowThePhase();
   void themeColoursAreReadable();
   void pagesTakeTheKeyboard();
+  // After those that look at Alg Lab's times: it clears some.
+  void algLabDeleteAfterTimesWereCleared();
   void keysAreReadTheSameForEveryPage();
   void commandListGroupsAndRemembers();
+  void commandListRunsTheRowClickedOnce();
+  void menusFilledAgainLeaveNothingBehind();
   void settingsDialogOpensAndCloses();
   void interfaceTextSizeScalesTheText();
   void tipsShowInTheStatusBar();
@@ -435,11 +458,13 @@ private slots:
   void helpPanelShowsTheKeys();
   void floatingHelpPanelPassesKeysOn();
   void aDayStartsAfterAMissingMidnight();
+  void daysAreFoundAsTheClockGivesThem();
   void spaceHoldEndsWhenTheWindowIsLeft();
   void aLockFromAnotherHostCanBeTakenOver();
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
   void undoneDeletionKeepsProgressUnderANewId();
+  void messagesShowNamesAsWritten();
   void timedDriverDoesWhatTheFlowAsks();
   void mouseOnlyControlsHaveAKey();
   void reviewButtonsHaveKeys();
@@ -451,6 +476,9 @@ private slots:
   void caseFilterHidesWhatDoesntMatch();
   void optimalCountsUseTheChosenHolds();
   void timerTableAndStatsFollowEachSolve();
+  void splitsArriveInTheirRows();
+  void attemptTableAndStatsFollowEachAttempt();
+  void keptScramblesAddTheirRows();
   void algLabFilterKeepsTheCaseShown();
   void algLabSearchAddsRowsAsItFindsThem();
   void algLabLengthLimitAppliesDuringASearch();
@@ -458,7 +486,9 @@ private slots:
   void timedDriverLeavesAndLosesTheKeyboard();
   void onlyTheShownPageIsActive();
   // Last: a second window takes over the process's write reporter.
+  void aSetNameKeepsItsPercentSigns();
   void startupProblemsShowInOneWindow();
+  void settingsFileProblemsAreReported();
   void cleanupTestCase();
 };
 
@@ -766,6 +796,90 @@ void GuiTest::algLabTimesEachAlg() {
   QVERIFY(algs->topLevelItem(0)->text(2).contains("mean of 1"));
 }
 
+// Times erased on the Search tab move the others: Delete on the Test tab
+// still deletes the time just made.
+void GuiTest::algLabDeleteAfterTimesWereCleared() {
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
+  lab->selectCase("pll", "T");
+  QTabWidget *tabs = lab->findChild<QTabWidget *>();
+  QVERIFY(tabs);
+  tabs->setCurrentIndex(0);
+  QTableWidget *candidates = candidateTable(lab);
+  QVERIFY(candidates);
+  auto *add = lastChild<QLineEdit>(lab, [](QLineEdit *e) {
+    return e->placeholderText().startsWith("Type an alg");
+  });
+  QVERIFY(add);
+  // Two algs in the session, unless the tests before left them there.
+  if (candidates->rowCount() < 2) {
+    add->setText("R2 F2 U R2 U2 F' U F' R2 F U' F' U F2");
+    QMetaObject::invokeMethod(add, "returnPressed");
+    candidates->selectAll();
+    auto *toSession = lastChild<QPushButton>(
+        lab, [](QPushButton *b) { return b->text() == "Add to session"; });
+    QVERIFY(toSession);
+    toSession->click();
+  }
+  QVERIFY(candidates->rowCount() >= 2);
+  tabs->setCurrentIndex(1);
+  for (QSpinBox *box : lab->findChildren<QSpinBox *>()) {
+    if (box->prefix().startsWith("warm-up")) {
+      box->setValue(0);
+    }
+  }
+  auto *cube = lastChild<QComboBox>(
+      lab, [](QComboBox *box) { return box->findText("Virtual cube") >= 0; });
+  QVERIFY(cube);
+  cube->setCurrentIndex(cube->findText("Physical cube"));
+  // Each alg timed once, on a physical cube.
+  for (int i = 0; i < 2; ++i) {
+    QTest::keyClick(window_.get(), Qt::Key_Space); // the session, the next alg
+    QVERIFY(holdSpaceUntilBusy(lab));
+    QTest::qWait(50);
+    QTest::keyClick(window_.get(), Qt::Key_A);
+    QVERIFY(!lab->isBusy());
+    QTest::qWait(400);
+  }
+  auto savedAttempts = [this] {
+    finishBackgroundWrites();
+    AlgLabStore saved(QDir(dataDir_).filePath("alglab.json"));
+    return saved.load() ? saved.attempts() : std::vector<LabAttempt>{};
+  };
+  const std::vector<LabAttempt> all = savedAttempts();
+  QVERIFY(all.size() >= 2);
+  const std::string last = all.back().alg;
+  const auto ofLast = static_cast<std::size_t>(std::ranges::count_if(
+      all, [&](const LabAttempt &a) { return a.alg == last; }));
+  QVERIFY(ofLast < all.size());
+
+  // The other alg's times are cleared: the last time made moves down.
+  tabs->setCurrentIndex(0);
+  candidates->clearSelection();
+  for (int r = 0; r < candidates->rowCount(); ++r) {
+    if (candidates->item(r, 0)->data(Qt::UserRole).toString() != qs(last)) {
+      candidates->selectRow(r);
+    }
+  }
+  auto *clear = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text().startsWith("Clear times"); });
+  QVERIFY(clear);
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *box = qobject_cast<QMessageBox *>(m)) {
+        box->button(QMessageBox::Yes)->click();
+      }
+    });
+    clear->click();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  QCOMPARE(savedAttempts().size(), ofLast);
+  window_->activateWindow(); // the message box took it
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  tabs->setCurrentIndex(1);
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(savedAttempts().size(), ofLast - 1);
+}
+
 void GuiTest::fingertrickGuidance() {
   OPEN_PAGE(lab, AlgLabPage, AlgLab);
   lab->selectCase("pll", "T");
@@ -815,6 +929,116 @@ void GuiTest::fingertrickGuidance() {
   QVERIFY(libView && libView->isVisible());
   QVERIFY(libView->findChild<QLabel *>()->text().contains("Start:"));
   QCOMPARE(libView->findChild<QTableWidget *>()->columnCount(), 14);
+}
+
+// A profile's cost cells are written and read with the locale's decimal
+// separator, as the spin boxes beside them are, and with a point too; a
+// cell that can't be read is said to be left out.
+void GuiTest::profileCostsAreReadInTheLocale() {
+  const QLocale was;
+  QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+  auto restore = qScopeGuard([&] { QLocale::setDefault(was); });
+  QCOMPARE(costText(1.5), QString("1,5"));
+  QCOMPARE(costText(1000.0), QString("1000"));
+  QCOMPARE(costFromText("1,5"), std::optional<double>(1.5));
+  QCOMPARE(costFromText(" 1.5 "), std::optional<double>(1.5));
+  QCOMPARE(costFromText("2"), std::optional<double>(2.0));
+  QVERIFY(!costFromText("x"));
+  QVERIFY(!costFromText(""));
+
+  ErgoProfile p;
+  p.name = "Mine";
+  p.moves["R"] = 1.5;
+  p.rules.push_back({"R*", "L*", 0.25});
+  ProfileDialog dialog(p);
+  QCOMPARE(dialog.profile(), p);
+  auto *moves = lastChild<QTableWidget>(
+      &dialog, [](QTableWidget *t) { return t->columnCount() == 2; });
+  auto *rules = lastChild<QTableWidget>(
+      &dialog, [](QTableWidget *t) { return t->columnCount() == 3; });
+  QVERIFY(moves && rules);
+  int row = -1;
+  for (int r = 0; r < moves->rowCount(); ++r) {
+    if (moves->item(r, 0)->text() == "R") {
+      row = r;
+    }
+  }
+  QVERIFY(row >= 0);
+  QCOMPARE(moves->item(row, 1)->text(), QString("1,5"));
+  auto problems = [&] {
+    QStringList said;
+    for (QLabel *l : dialog.findChildren<QLabel *>()) {
+      if (l->text().contains("can't be read and will be left out")) {
+        said << l->text();
+      }
+    }
+    return said.join("\n");
+  };
+  QCOMPARE(problems(), QString());
+
+  moves->item(row, 1)->setText("2,5");
+  rules->item(0, 2)->setText("0,75");
+  QCOMPARE(dialog.profile().moves.at("R"), 2.5);
+  QCOMPARE(dialog.profile().rules.at(0).cost, 0.75);
+  QCOMPARE(problems(), QString());
+
+  // Not costs: both rows are left out, and it says so.
+  moves->item(row, 1)->setText("cheap");
+  rules->item(0, 2)->setText("-1");
+  QVERIFY(!dialog.profile().moves.contains("R"));
+  QVERIFY(dialog.profile().rules.empty());
+  VERIFY_CONTAINS(problems(), "2 rows can't be read");
+  // A move with no cost isn't a mistake.
+  moves->item(row, 1)->setText("");
+  VERIFY_CONTAINS(problems(), "1 row can't be read");
+}
+
+// An alg edit still on its way to being stored when the alg menu opens is
+// stored first: the menu's Edit works on the list as it was rebuilt.
+void GuiTest::algMenuAfterAnEditOnItsWay() {
+  OPEN_PAGE(library, LibraryPage, Library);
+  library->selectCase("pll", "T");
+  auto *algs = library->findChild<AlgListWidget *>();
+  QVERIFY(algs);
+  QVERIFY(algs->topLevelItemCount() >= 1);
+  const QString original = algs->topLevelItem(0)->text(0);
+  const QString edited = original + " U2 U2";
+  algs->topLevelItem(0)->setText(0, edited); // stored by a queued call
+  bool chose = false;
+  QTimer pick;
+  connect(&pick, &QTimer::timeout, &pick, [&] {
+    auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+    if (!menu) {
+      return;
+    }
+    pick.stop();
+    for (QAction *a : menu->actions()) {
+      if (a->text().remove('&') == "Edit") {
+        chose = true;
+        a->trigger();
+      }
+    }
+    menu->close();
+  });
+  pick.start(20);
+  emit algs->customContextMenuRequested(
+      algs->visualItemRect(algs->topLevelItem(0)).center());
+  QVERIFY(chose);
+  const std::vector<std::string> saved = savedAlgs("pll", "T");
+  QVERIFY(!saved.empty());
+  QCOMPARE(saved.front(), edited.toStdString());
+  // The editor is open, on the first alg of the rebuilt list.
+  QCOMPARE(algs->topLevelItem(0)->text(0), edited);
+  auto *editor = algs->viewport()->findChild<QLineEdit *>();
+  QVERIFY(editor);
+
+  // The alg as it was, for the tests that follow.
+  QTest::keyClick(editor, Qt::Key_Escape);
+  algs = library->findChild<AlgListWidget *>();
+  algs->topLevelItem(0)->setText(0, original);
+  QTRY_COMPARE(savedAlgs("pll", "T").front(), original.toStdString());
+  window_->activateWindow(); // the menu took it
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
 }
 
 void GuiTest::f2lLearnAndTimed() {
@@ -1605,6 +1829,28 @@ void GuiTest::practiceModesComeBackAsLeft() {
   eo->selectTab(Tab::Untimed);
 }
 
+// A scramble still being made when the alg sets change is of the cases
+// as they were: the feed drops it.
+void GuiTest::scrambleFeedDropsAScrambleOfTheOldCases() {
+  AlgLibrary lib(QDir(dataDir_).filePath("algsets"), ":/algsets");
+  lib.load();
+  AlgSet *pll = lib.find("pll");
+  QVERIFY(pll);
+  ScrambleFeed feed(lib);
+  feed.setType("set:pll");
+  // Only the T perm is left, while the first scramble is on its way.
+  for (auto &g : pll->groups) {
+    std::erase_if(g.cases, [](const AlgCase &c) { return c.id != "T"; });
+  }
+  QVERIFY(pll->findCase("T"));
+  feed.regenerate();
+  QTRY_VERIFY_WITH_TIMEOUT(feed.current().has_value(), 30000);
+  QCOMPARE(feed.current()->caseId, std::string("T"));
+  feed.advance();
+  QTRY_VERIFY_WITH_TIMEOUT(feed.current().has_value(), 30000);
+  QCOMPARE(feed.current()->caseId, std::string("T"));
+}
+
 void GuiTest::timedPhysicalSolve() {
   OPEN_PAGE(timed, TimerPage, Timed);
   // Let go too early: nothing starts.
@@ -1667,6 +1913,65 @@ void GuiTest::timedPhysicalSolve() {
   QVERIFY(penalty() == Penalty::None);
 }
 
+// Deleting the current session puts another in its place in the list:
+// Backspace then doesn't mark that one's last solve.
+void GuiTest::backspaceAfterDeletingTheSession() {
+  OPEN_PAGE(timed, TimerPage, Timed);
+  auto *panel = timed->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  auto solve = [&] {
+    QVERIFY(holdSpaceUntilBusy(timed));
+    QTest::qWait(50);
+    QTest::keyClick(window_.get(), Qt::Key_A);
+    QVERIFY(!timed->isBusy());
+  };
+  auto answer = [](QWidget *m) {
+    if (auto *box = qobject_cast<QMessageBox *>(m)) {
+      box->button(QMessageBox::Yes)->click();
+    } else if (auto *dialog = qobject_cast<QDialog *>(m)) {
+      dialog->accept();
+    }
+  };
+  auto savedSessions = [this] {
+    finishBackgroundWrites();
+    SessionStore store(QDir(dataDir_).filePath("sessions.json"));
+    return store.load() ? store.sessions() : std::vector<Session>{};
+  };
+  const std::size_t before = savedSessions().size();
+  QVERIFY(before >= 1);
+  // Two new sessions after those there: a solve in the last, then one in
+  // the one before it, which is deleted.
+  for (int i = 0; i < 2; ++i) {
+    ModalWatcher watcher(answer);
+    emit panel->newSessionRequested();
+    QCOMPARE(watcher.seen.size(), 1);
+  }
+  solve();
+  emit panel->sessionChosen(before);
+  solve();
+  {
+    ModalWatcher watcher(answer);
+    emit panel->deleteSessionRequested();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  QTest::keyClick(window_.get(), Qt::Key_Backspace);
+  std::vector<Session> saved = savedSessions();
+  QCOMPARE(saved.size(), before + 1);
+  QCOMPARE(saved.back().solves.size(), std::size_t{1});
+  QVERIFY(saved.back().solves.back().penalty == Penalty::None);
+
+  // The sessions as they were, for the tests that follow.
+  {
+    ModalWatcher watcher(answer);
+    emit panel->deleteSessionRequested();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+  }
+  emit panel->sessionChosen(0);
+  QCOMPARE(savedSessions().size(), before);
+  window_->activateWindow(); // the dialogs took it
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
 void GuiTest::untimedVirtualSolve() {
   OPEN_PAGE(untimed, UntimedPage, Untimed);
   CubeView *view = waitForCase(untimed);
@@ -1703,12 +2008,30 @@ void GuiTest::untimedVirtualSolve() {
 
 void GuiTest::learnStartsACase() {
   OPEN_PAGE(learn, LearnPage, Learn);
+  // Learn's button in the sidebar: its tip says what is due and new.
+  auto sidebarTip = [&] {
+    for (auto *b : window_->findChildren<QToolButton *>()) {
+      if (b->toolTip().startsWith("Learn (")) {
+        return b->toolTip();
+      }
+    }
+    return QString();
+  };
+  const QString tipBefore = sidebarTip();
+  QVERIFY(!tipBefore.isEmpty());
   // Nothing is due until a case is put in the learn queue.
   auto *start = lastChild<QPushButton>(
       learn, [](QPushButton *b) { return b->text() == "Add new cases"; });
   QVERIFY(start);
   QVERIFY(start->isVisible());
   start->click();
+  // The sidebar counts the case put in the queue at once, not at the next
+  // minute.
+  QVERIFY(page<TodayPage>()->totals().newLeft > 0);
+  QVERIFY2(sidebarTip() != tipBefore, qPrintable(sidebarTip()));
+  VERIFY_CONTAINS(
+      sidebarTip(),
+      QString(", %1 new case").arg(page<TodayPage>()->totals().newLeft));
   // The case waits for Space: nothing of it is shown, and no clock runs.
   QVERIFY(learn->waitingForSpace());
   QVERIFY(mainCube(learn)->displayedState().isSolved());
@@ -1737,6 +2060,17 @@ void GuiTest::learnStartsACase() {
   QVERIFY(!p["T"].attempts.empty());
   QVERIFY(!p["T"].attempts.back().failed);
   QVERIFY(p["T"].attempts.back().mode == AttemptMode::Learn);
+  // The sidebar counts follow the grade at once, not at the next minute.
+  {
+    const TodayPage::Totals t = page<TodayPage>()->totals();
+    const QString tip = sidebarTip();
+    VERIFY_CONTAINS(tip, QString(": %1 review").arg(t.due));
+    if (t.newLeft > 0) {
+      VERIFY_CONTAINS(tip, QString(", %1 new case").arg(t.newLeft));
+    } else {
+      QVERIFY2(!tip.contains("new case"), qPrintable(tip));
+    }
+  }
 
   // Resetting it from the case list goes on the undo stack: Ctrl+Z
   // brings its schedule and Learn attempts back.
@@ -1885,6 +2219,106 @@ void GuiTest::libraryAddsAnAlgAndUndoes() {
   QCOMPARE(savedAlgs("pll", "Ua"), std::vector<std::string>{});
   // The T perm alg was never touched.
   QCOMPARE(savedAlgs("pll", "T"), std::vector<std::string>{kTPerm});
+}
+
+// Two cases may share a name: "Other case…" still files the alg under the
+// one that was picked, not the first of that name.
+void GuiTest::pastedAlgGoesToTheNamesakeChosen() {
+  AlgSet set;
+  set.id = "twins";
+  set.name = "Twins";
+  set.spec.free = *parseFree("LL:p");
+  CaseGroup g{"Group", std::nullopt, {}};
+  g.cases.push_back(
+      {"a", "Case", stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")), {}});
+  g.cases.push_back(
+      {"b", "Case", stateSolvedBy(parseAlgOrEmpty("R U R' U' R' F R F'")), {}});
+  set.groups.push_back(g);
+
+  const CaseChoices choices = caseChoices(set);
+  QCOMPARE(choices.ids, (std::vector<std::string>{"a", "b"}));
+  QCOMPARE(choices.labels.size(), 2);
+  QVERIFY(choices.labels[0] != choices.labels[1]);
+
+  PasteDialog dialog(set, -1, "F R U R' U' F'\n");
+  dialog.show();
+  auto *check = lastChild<QPushButton>(
+      &dialog, [](QPushButton *b) { return b->text() == "Check >"; });
+  QVERIFY(check);
+  // No new case for it: it stays to be given one.
+  auto *create = dialog.findChild<QCheckBox *>();
+  QVERIFY(create);
+  create->setChecked(false);
+  check->click();
+  QCOMPARE(dialog.plan().results.size(), std::size_t{1});
+  QVERIFY(!dialog.plan().results[0].filed());
+  auto *table = dialog.findChild<QTableWidget *>();
+  QVERIFY(table);
+  auto *combo = qobject_cast<QComboBox *>(table->cellWidget(0, 2));
+  QVERIFY(combo);
+  const int other = combo->findText("Other case…");
+  QVERIFY(other >= 0);
+  {
+    ModalWatcher watcher([&](QWidget *m) {
+      if (auto *input = qobject_cast<QInputDialog *>(m)) {
+        input->setTextValue(choices.labels[1]);
+        input->accept();
+      }
+    });
+    combo->setCurrentIndex(other);
+    emit combo->activated(other);
+    QCOMPARE(watcher.seen, QStringList{"QInputDialog"});
+  }
+  QCoreApplication::processEvents(); // the plan is redone after the signal
+  QCOMPARE(dialog.plan().results[0].caseId, std::string("b"));
+  QVERIFY(dialog.plan().results[0].filed());
+  // The keyboard back with the window, for the tests that follow.
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+}
+
+// Checking tries every alg on every case, so a paste of more algs than the
+// window can check without standing still is turned down, and says so.
+void GuiTest::aPasteOfTooManyAlgsIsTurnedDown() {
+  AlgSet set;
+  set.id = "few";
+  set.name = "Few";
+  set.spec.free = *parseFree("LL:p");
+  set.groups.push_back({"Group", std::nullopt, {}});
+  QString text;
+  for (std::size_t i = 0; i <= kMaxPastedAlgs; ++i) {
+    text += "R U R' U'\n";
+  }
+  PasteDialog dialog(set, -1, text);
+  dialog.show();
+  auto *check = lastChild<QPushButton>(
+      &dialog, [](QPushButton *b) { return b->text() == "Check >"; });
+  auto *pages = dialog.findChild<QStackedWidget *>();
+  auto *edit = dialog.findChild<QPlainTextEdit *>();
+  QVERIFY(check && pages && edit);
+  {
+    ModalWatcher watcher;
+    check->click();
+    QCOMPARE(watcher.seen, QStringList{"QMessageBox"});
+    VERIFY_CONTAINS(watcher.texts.join("\n"),
+                    QString("At most %1 can be checked").arg(kMaxPastedAlgs));
+  }
+  QCOMPARE(pages->currentIndex(), 0);
+  QVERIFY(dialog.plan().results.empty());
+
+  // One alg fewer is checked.
+  edit->setPlainText(text.chopped(10));
+  {
+    ModalWatcher watcher;
+    check->click();
+    QCOMPARE(watcher.seen, QStringList{});
+  }
+  QCOMPARE(pages->currentIndex(), 1);
+  QCOMPARE(dialog.plan().results.size(), kMaxPastedAlgs);
+  dialog.close();
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
 }
 
 namespace {
@@ -2410,6 +2844,115 @@ void GuiTest::commandListGroupsAndRemembers() {
   window_->activateWindow();
 }
 
+namespace {
+
+// A style in which one click activates an item, as KDE can be set to.
+class SingleClickStyle : public QProxyStyle {
+public:
+  int styleHint(StyleHint hint, const QStyleOption *option = nullptr,
+                const QWidget *widget = nullptr,
+                QStyleHintReturn *data = nullptr) const override {
+    return hint == SH_ItemView_ActivateItemOnSingleClick
+               ? 1
+               : QProxyStyle::styleHint(hint, option, widget, data);
+  }
+};
+
+} // namespace
+
+void GuiTest::commandListRunsTheRowClickedOnce() {
+  const QStringList recent = saved::recentCommands().get();
+  int first = 0, second = 0;
+  SingleClickStyle style;
+  {
+    CommandPalette palette(
+        std::vector<CommandPalette::Command>{
+            {"Alpha", {}, [&first] { ++first; }, "One"},
+            {"Beta", {}, [&second] { ++second; }, "Two"}},
+        window_.get());
+    auto *list = palette.findChild<QListWidget *>();
+    QVERIFY(list);
+    list->setStyle(&style);
+    palette.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&palette));
+    const int rows = list->count();
+    QVERIFY(rows >= 4);
+    QListWidgetItem *heading = list->item(rows - 2);
+    QListWidgetItem *beta = list->item(rows - 1);
+    QCOMPARE(heading->text(), QString("Two"));
+    QCOMPARE(beta->text(), QString("Beta"));
+    QCOMPARE(list->currentItem()->text(), QString("Alpha"));
+    // A click on a heading runs nothing: not the command highlighted.
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, {},
+                      list->visualItemRect(heading).center());
+    QTest::qWait(50);
+    QCOMPARE(first, 0);
+    QCOMPARE(second, 0);
+    QVERIFY(palette.isVisible());
+    // A click on a command runs that one, once, though the style sends
+    // both the click and the activation.
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, {},
+                      list->visualItemRect(beta).center());
+    QTRY_COMPARE(second, 1);
+    QTest::qWait(50);
+  }
+  QCOMPARE(first, 0);
+  QCOMPARE(second, 1);
+  saved::recentCommands().set(recent);
+  window_->activateWindow();
+}
+
+// A menu filled each time it opens is cleared first, which deletes its
+// actions only: a submenu or an action group made for each filling would
+// be left behind every time.
+void GuiTest::menusFilledAgainLeaveNothingBehind() {
+  auto fillAll = [&] {
+    QList<QPointer<QMenu>> menus;
+    for (QMenu *m : window_->findChildren<QMenu *>()) {
+      menus << m;
+    }
+    for (const QPointer<QMenu> &m : menus) {
+      if (m) {
+        emit m->aboutToShow();
+      }
+    }
+  };
+  auto check = [&](AppMode::Id mode, ModePage *expected) {
+    QVERIFY(switchTo(mode, expected));
+    fillAll();
+    fillAll(); // the submenus of the first filling are filled too
+    const qsizetype menus = window_->findChildren<QMenu *>().size();
+    const qsizetype groups = window_->findChildren<QActionGroup *>().size();
+    for (int i = 0; i < 5; ++i) {
+      fillAll();
+    }
+    QCOMPARE(window_->findChildren<QMenu *>().size(), menus);
+    QCOMPARE(window_->findChildren<QActionGroup *>().size(), groups);
+  };
+  check(AppMode::Learn, page<LearnPage>());
+  check(AppMode::Drill, page<DrillPage>());
+  check(AppMode::Timed, page<TimerPage>());
+  check(AppMode::Untimed, page<UntimedPage>());
+  // The palette lists the commands by filling the menus, too.
+  {
+    const qsizetype menus = window_->findChildren<QMenu *>().size();
+    for (int i = 0; i < 3; ++i) {
+      CommandPalette::fromMenus(window_->menuBar());
+    }
+    QCOMPARE(window_->findChildren<QMenu *>().size(), menus);
+  }
+  // A session's name is put in the menu as it is, placeholders and all.
+  auto *timer = page<TimerPage>();
+  QVERIFY(switchTo(AppMode::Timed, timer));
+  auto *panel = timer->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  panel->fillSessionMenu({{"OH %1", 12}, {"Feet %2 %1", 3}}, 0);
+  QCOMPARE(panel->menu()->actions().at(0)->text(), QString("OH %1 (12)"));
+  QCOMPARE(panel->menu()->actions().at(1)->text(), QString("Feet %2 %1 (3)"));
+  QVERIFY(panel->menu()->actions().at(0)->isChecked());
+  emit panel->menu()->aboutToShow(); // the page's own sessions again
+}
+
 void GuiTest::settingsDialogOpensAndCloses() {
   QVERIFY(switchTo(AppMode::Timed, page<TimerPage>()));
   bool settingsShown = false;
@@ -2670,6 +3213,39 @@ void GuiTest::aDayStartsAfterAMissingMidnight() {
   QCOMPARE(dayStart(day.addDays(-1), zone) + 24 * 3600, start);
 }
 
+// The day of each time, with the last day's bounds kept, is the one a
+// conversion of that time gives: through a day of 23 hours, times out of
+// order and times far apart.
+void GuiTest::daysAreFoundAsTheClockGivesThem() {
+  const QTimeZone zone("America/Sao_Paulo");
+  if (!zone.isValid()) {
+    QSKIP("no America/Sao_Paulo here");
+  }
+  auto day = [&zone](std::int64_t unix) {
+    return QDateTime::fromSecsSinceEpoch(unix, zone).date().toJulianDay();
+  };
+  const std::int64_t start = dayStart(QDate(2018, 11, 2), zone);
+  DayFinder find(zone);
+  // Every 17 minutes over five days, the short one among them.
+  for (std::int64_t t = start; t < start + 5 * 24 * 3600; t += 17 * 60) {
+    QCOMPARE(find(t), day(t));
+  }
+  // The last second of a day and the first of the next, both ways.
+  const std::int64_t short4 = dayStart(QDate(2018, 11, 4), zone);
+  for (std::int64_t t :
+       {short4 - 1, short4, short4 - 1, short4 + 23 * 3600,
+        short4 + 23 * 3600 - 1, start, start + std::int64_t{400} * 86400,
+        start - std::int64_t{400} * 86400, std::int64_t{1}}) {
+    QCOMPARE(find(t), day(t));
+  }
+  // The local zone is the default.
+  DayFinder local;
+  const std::int64_t now = unixNow();
+  for (std::int64_t t = now - 3 * 86400; t <= now; t += 3601) {
+    QCOMPARE(local(t), QDateTime::fromSecsSinceEpoch(t).date().toJulianDay());
+  }
+}
+
 // A lock left by a crash under another host name is never stale by
 // itself: it is named, and Start anyway takes it over.
 void GuiTest::aLockFromAnotherHostCanBeTakenOver() {
@@ -2763,6 +3339,49 @@ void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
   QTest::keySequence(window_.get(), QKeySequence::Undo);
   QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
   QCOMPARE(savedProgress("pll-2").size(), graded);
+}
+
+// A name that was typed or read from a file is shown as it is written, in
+// a message as in a tooltip: markup in it isn't taken for the message's.
+void GuiTest::messagesShowNamesAsWritten() {
+  const QString name = "OH <b>%2</b>";
+  QList<Qt::TextFormat> formats;
+  auto answer = [&](QMessageBox::StandardButton button) {
+    return [&formats, button](QWidget *m) {
+      if (auto *box = qobject_cast<QMessageBox *>(m)) {
+        formats.append(box->textFormat());
+        if (QAbstractButton *b = box->button(button)) {
+          b->click();
+        }
+      }
+    };
+  };
+  {
+    ModalWatcher watcher(answer(QMessageBox::Yes));
+    QVERIFY(confirmDeleteSession(window_.get(), name, 3, "solves"));
+    QCOMPARE(watcher.texts,
+             QStringList{"Delete session \"OH <b>%2</b>\" and its 3 solves?"});
+  }
+  {
+    ModalWatcher watcher(answer(QMessageBox::No));
+    QVERIFY(!askPlain(window_.get(), "v-cube", name));
+    QVERIFY(!askPlain(window_.get(), "v-cube", name, AskAs::Warning));
+    informPlain(window_.get(), "v-cube", name);
+    warnPlain(window_.get(), "v-cube", name);
+    QCOMPARE(watcher.texts, QStringList({name, name, name, name}));
+  }
+  QCOMPARE(formats.size(), 5);
+  QVERIFY(std::ranges::all_of(
+      formats, [](Qt::TextFormat f) { return f == Qt::PlainText; }));
+
+  // A tooltip: left alone unless it would be read as HTML.
+  QCOMPARE(plainTip("Named Sune"), QString("Named Sune"));
+  QCOMPARE(plainTip("Tom & Jerry"), QString("Tom & Jerry"));
+  const QString tip = plainTip("Named <b>T</b>\nperm");
+  QVERIFY(Qt::mightBeRichText(tip));
+  VERIFY_CONTAINS(tip, "&lt;b&gt;T&lt;/b&gt;<br>perm");
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
 }
 
 void GuiTest::timedDriverDoesWhatTheFlowAsks() {
@@ -3275,6 +3894,341 @@ void GuiTest::timerTableAndStatsFollowEachSolve() {
   }
 }
 
+// A virtual solve's splits are worked out off the GUI thread and come a
+// moment after its row: they are written into that row, and the table
+// keeps its rows and what is selected in it.
+void GuiTest::splitsArriveInTheirRows() {
+  OPEN_PAGE(timed, TimerPage, Timed);
+  auto *panel = timed->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  auto *table = lastChild<QTableView>(timed->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  const QAbstractItemModel *model = table->model();
+  // A new session, on the virtual cube; the first one is shown again at
+  // the end, for the tests that follow.
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *dialog = qobject_cast<QInputDialog *>(m)) {
+        dialog->accept();
+      }
+    });
+    emit panel->newSessionRequested();
+  }
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  auto back = qScopeGuard([&] { emit panel->sessionChosen(0); });
+  QCOMPARE(model->rowCount(), 0);
+  auto *cube = lastChild<QComboBox>(timed, [](QComboBox *b) {
+    return b->toolTip().startsWith("The cube this session");
+  });
+  QVERIFY(cube);
+  cube->setCurrentIndex(0);
+  emit cube->activated(0);
+  int cross = -1;
+  for (int c = 0; c < model->columnCount(); ++c) {
+    if (model->headerData(c, Qt::Horizontal).toString() == "Cross" &&
+        !table->isColumnHidden(c)) {
+      cross = c;
+    }
+  }
+  QVERIFY(cross >= 0);
+
+  QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+  QSignalSpy inserted(model, &QAbstractItemModel::rowsInserted);
+  QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
+  auto solve = [&] {
+    CubeView *view = waitForCase(timed);
+    QVERIFY(view);
+    std::optional<Alg> solution = solutionFor(view->displayedState());
+    QVERIFY(solution);
+    QVERIFY(holdSpaceUntilBusy(timed));
+    typeMoves(*solution);
+    view->finishAnimations();
+    QTRY_VERIFY(!timed->isBusy());
+  };
+  // Whether the splits of the solve in `row` have come.
+  auto known = [&](int row) {
+    return model->index(row, cross).data().toString() != "…";
+  };
+
+  solve();
+  QCOMPARE(model->rowCount(), 1);
+  QTRY_VERIFY(known(0));
+  QVERIFY(changed.count() >= 1);
+  // The row is the solve's still.
+  QCOMPARE(model->index(0, 0).data(Qt::UserRole).toInt(), 0);
+  QCOMPARE(model->index(0, 0).data().toString(), QString("1"));
+
+  table->selectRow(0);
+  const int before = static_cast<int>(changed.count());
+  solve();
+  QCOMPARE(model->rowCount(), 2);
+  QTRY_VERIFY(known(0));
+  QVERIFY(changed.count() > before);
+  QVERIFY(known(1));
+  // Nothing was made anew: a row for each solve, and the selected solve
+  // (now the second row) is selected still.
+  QCOMPARE(resets.count(), 0);
+  QCOMPARE(inserted.count(), 2);
+  const QModelIndexList selected = table->selectionModel()->selectedRows();
+  QCOMPARE(selected.size(), 1);
+  QCOMPARE(selected.front().row(), 1);
+
+  // The table is what a fresh look at the session gives.
+  auto shown = [&] {
+    QStringList cells;
+    for (int r = 0; r < model->rowCount(); ++r) {
+      for (int c = 0; c < model->columnCount(); ++c) {
+        cells << model->index(r, c).data().toString();
+      }
+    }
+    return cells;
+  };
+  const QStringList inPlace = shown();
+  finishBackgroundWrites();
+  SessionStore saved(QDir(dataDir_).filePath("sessions.json"));
+  QVERIFY(saved.load());
+  QCOMPARE(saved.current().solves.size(), std::size_t{2});
+  emit panel->sessionChosen(saved.currentIndex()); // the same, shown afresh
+  QVERIFY(resets.count() > 0);
+  QTRY_VERIFY(known(0) && known(1));
+  QCOMPARE(shown(), inPlace);
+}
+
+// Each attempt of Move Count adds its row above the others, and an optimal
+// length worked out later is written into its row: the table and the
+// statistics keep showing what the whole session gives, through a DNF, a
+// deletion and its undoing (which work everything out again) too.
+void GuiTest::attemptTableAndStatsFollowEachAttempt() {
+  OPEN_PAGE(counts, MoveCountPage, MoveCount);
+  auto *table = lastChild<QTableView>(counts->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  const QAbstractItemModel *model = table->model();
+  auto *statsLabel = lastChild<QLabel>(counts->sidePanel(), [](QLabel *l) {
+    return l->text().contains("Solves:");
+  });
+  QVERIFY(statsLabel);
+  // The counts are typed in, as for a physical cube.
+  QCOMPARE(model->rowCount(), 0);
+  auto *cube = lastChild<QComboBox>(counts, [](QComboBox *b) {
+    return b->toolTip().startsWith("The cube this session");
+  });
+  QVERIFY(cube);
+  cube->setCurrentIndex(1);
+  emit cube->activated(1);
+
+  QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+  QSignalSpy inserted(model, &QAbstractItemModel::rowsInserted);
+  // Types a count and records it, or records a DNF with no keys: again if
+  // the scramble wasn't there yet.
+  auto record = [&](std::initializer_list<Qt::Key> digits) {
+    const int rows = model->rowCount();
+    return QTest::qWaitFor(
+        [&] {
+          QTest::keyClick(window_.get(), Qt::Key_Escape);
+          for (Qt::Key k : digits) {
+            QTest::keyClick(window_.get(), k);
+          }
+          if (digits.size() == 0) {
+            QTest::keyClick(window_.get(), Qt::Key_3, Qt::AltModifier);
+          } else {
+            QTest::keyClick(window_.get(), Qt::Key_Return);
+          }
+          return model->rowCount() == rows + 1;
+        },
+        10000);
+  };
+  // What the table and statistics show that the saved session doesn't
+  // give; empty when they match. The optimal lengths are waited for.
+  auto mismatch = [&]() -> QString {
+    finishBackgroundWrites();
+    MoveCountStore saved(QDir(dataDir_).filePath("movecounts.json"));
+    if (!saved.load()) {
+      return "the sessions weren't saved";
+    }
+    const std::vector<MoveCountAttempt> &attempts = saved.current().attempts;
+    if (saved.current().cube != CubeKind::Physical) {
+      return "the session isn't for a physical cube";
+    }
+    if (model->rowCount() != static_cast<int>(attempts.size())) {
+      return QString("%1 rows for %2 attempts")
+          .arg(model->rowCount())
+          .arg(attempts.size());
+    }
+    const bool optimal = QTest::qWaitFor(
+        [&] {
+          for (int row = 0; row < model->rowCount(); ++row) {
+            if (model->index(row, 2).data().toString() == "…") {
+              return false;
+            }
+          }
+          return true;
+        },
+        20000);
+    if (!optimal) {
+      return "an optimal length never came";
+    }
+    std::vector<Solve> solves = attemptsAsSolves(attempts);
+    std::vector<StatValue> ao5 = rollingAverages(solves, 5);
+    std::vector<StatValue> ao12 = rollingAverages(solves, 12);
+    std::size_t counted = solves.size();
+    for (int row = 0; row < model->rowCount(); ++row) {
+      // The newest attempt first.
+      std::size_t i = attempts.size() - 1 - static_cast<std::size_t>(row);
+      auto cell = [&](int col) {
+        return model->index(row, col).data().toString();
+      };
+      QString a5 = "-", a12 = "-";
+      if (attempts[i].counted) {
+        --counted;
+        a5 = qs(formatMoves(ao5[counted], 2));
+        a12 = qs(formatMoves(ao12[counted], 2));
+      }
+      bool number = false;
+      cell(2).toInt(&number);
+      if (model->index(row, 0).data(Qt::UserRole).toInt() !=
+              static_cast<int>(i) ||
+          cell(0) != QString::number(i + 1) ||
+          cell(1) != qs(formatAttempt(attempts[i])) || !number ||
+          cell(3) != a5 || cell(4) != a12) {
+        return QString("row %1: %2 %3 %4 %5 %6")
+            .arg(row)
+            .arg(cell(0), cell(1), cell(2), cell(3), cell(4));
+      }
+    }
+    QString html = statsLabel->text();
+    for (std::size_t n : {5u, 12u}) {
+      StatValue best = bestAverage(solves, n);
+      if (best && !html.contains(qs(formatMoves(best, 2)))) {
+        return QString("the best ao%1, %2, isn't in the statistics")
+            .arg(n)
+            .arg(qs(formatMoves(best, 2)));
+      }
+    }
+    if (!html.contains(QString("Solves: %1").arg(attempts.size()))) {
+      return "the statistics count other attempts";
+    }
+    if (!html.contains("Over optimal:")) {
+      return "the statistics don't say how far over the optimal";
+    }
+    return {};
+  };
+  const std::initializer_list<Qt::Key> counts1[] = {
+      {Qt::Key_9}, {Qt::Key_7}, {Qt::Key_1, Qt::Key_2}, {Qt::Key_8},
+      {},          {Qt::Key_6}, {Qt::Key_1, Qt::Key_0}};
+  for (const auto &digits : counts1) {
+    QVERIFY(record(digits));
+  }
+  QString m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  // A row for each attempt, none made anew, though the optimal lengths
+  // came after the rows.
+  QCOMPARE(resets.count(), 0);
+  QCOMPARE(inserted.count(), 7);
+
+  // The selected attempt stays selected as others are added above it and
+  // its optimal length, if it comes late, is written in.
+  table->selectRow(1);
+  for (const auto &digits :
+       {std::initializer_list<Qt::Key>{Qt::Key_5},
+        std::initializer_list<Qt::Key>{Qt::Key_1, Qt::Key_1}}) {
+    QVERIFY(record(digits));
+    m = mismatch();
+    QVERIFY2(m.isEmpty(), qPrintable(m));
+  }
+  QCOMPARE(resets.count(), 0);
+  QModelIndexList selected = table->selectionModel()->selectedRows();
+  QCOMPARE(selected.size(), 1);
+  QCOMPARE(selected.front().row(), 3);
+
+  // Deleting the last attempt and putting it back work everything out
+  // again, and attempts added after that go on from there.
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(model->rowCount(), 8);
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  QVERIFY(record({Qt::Key_4}));
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QTest::keyClick(window_.get(), Qt::Key_Z, Qt::ControlModifier);
+  QCOMPARE(model->rowCount(), 9);
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+  for (int i = 0; i < 4; ++i) {
+    QVERIFY(record({i % 2 ? Qt::Key_7 : Qt::Key_6}));
+    m = mismatch();
+    QVERIFY2(m.isEmpty(), qPrintable(m));
+  }
+  QVERIFY(record({})); // a DNF
+  m = mismatch();
+  QVERIFY2(m.isEmpty(), qPrintable(m));
+}
+
+// Untimed on a physical cube keeps each scramble that was done, without a
+// count: each adds its row above the others too.
+void GuiTest::keptScramblesAddTheirRows() {
+  OPEN_PAGE(untimed, UntimedPage, Untimed);
+  auto *panel = untimed->findChild<SessionPanel *>();
+  QVERIFY(panel);
+  auto *table = lastChild<QTableView>(untimed->sidePanel(),
+                                      [](QTableView *) { return true; });
+  QVERIFY(table);
+  const QAbstractItemModel *model = table->model();
+  // A new session, for a physical cube; the first one is shown again at
+  // the end, for the tests that follow.
+  {
+    ModalWatcher watcher([](QWidget *m) {
+      if (auto *dialog = qobject_cast<QInputDialog *>(m)) {
+        dialog->accept();
+      }
+    });
+    emit panel->newSessionRequested();
+  }
+  window_->activateWindow();
+  QVERIFY(QTest::qWaitForWindowActive(window_.get()));
+  auto back = qScopeGuard([&] { emit panel->sessionChosen(0); });
+  QCOMPARE(model->rowCount(), 0);
+  auto *cube = lastChild<QComboBox>(untimed, [](QComboBox *b) {
+    return b->toolTip().startsWith("The cube this session");
+  });
+  QVERIFY(cube);
+  cube->setCurrentIndex(1);
+  emit cube->activated(1);
+
+  QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+  for (int n = 1; n <= 4; ++n) {
+    // Space keeps the scramble shown, once there is one.
+    QVERIFY(QTest::qWaitFor(
+        [&] {
+          QTest::keyClick(window_.get(), Qt::Key_Space);
+          return model->rowCount() == n;
+        },
+        10000));
+  }
+  QCOMPARE(resets.count(), 0);
+  finishBackgroundWrites();
+  MoveCountStore saved(QDir(dataDir_).filePath("untimed.json"),
+                       SolveLog::Untimed);
+  QVERIFY(saved.load());
+  const MoveCountSession &s = saved.current();
+  QVERIFY(s.cube == CubeKind::Physical);
+  QCOMPARE(s.attempts.size(), std::size_t{4});
+  for (int row = 0; row < 4; ++row) {
+    const std::size_t i = 3 - static_cast<std::size_t>(row);
+    QVERIFY(!s.attempts[i].counted);
+    QCOMPARE(model->index(row, 0).data().toString(), QString::number(i + 1));
+    QCOMPARE(model->index(row, 1).data().toString(),
+             qs(s.attempts[i].scramble));
+  }
+  // Deleting one makes the rows anew, with the same rows left.
+  QTest::keyClick(window_.get(), Qt::Key_Delete);
+  QCOMPARE(model->rowCount(), 3);
+  QCOMPARE(model->index(0, 1).data().toString(), qs(s.attempts[2].scramble));
+}
+
 // Typing in Alg Lab's case filter shows the case again only when another
 // one is left selected.
 void GuiTest::algLabFilterKeepsTheCaseShown() {
@@ -3440,6 +4394,37 @@ void GuiTest::algLabLengthLimitAppliesDuringASearch() {
 
 // Everything that couldn't be read at start-up is listed in one window
 // after the window is shown, not in a message box each.
+// A set's name is shown as typed where a number follows it: a "%2" in the
+// name isn't taken for the place of the number.
+void GuiTest::aSetNameKeepsItsPercentSigns() {
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  AlgSet set;
+  set.id = "odd";
+  set.name = "Top %2 of %1";
+  set.spec.free = *parseFree("LL:p");
+  CaseGroup g{"Group", std::nullopt, {}};
+  g.cases.push_back(
+      {"a", "Sune", stateSolvedBy(parseAlgOrEmpty("R U R' U R U2 R'")), {}});
+  set.groups.push_back(g);
+  QVERIFY(writeFile(dir.filePath("algsets/odd.json"),
+                    QJsonDocument(algSetToJson(set)).toJson()));
+  ModalWatcher watcher;
+  MainWindow second(settings_, dir.path());
+  int shown = 0;
+  for (QComboBox *box : second.findChildren<QComboBox *>()) {
+    int at = box->findData("odd");
+    // Other boxes list the set by its name alone.
+    if (at >= 0 && box->itemText(at) != qs(set.name)) {
+      VERIFY_CONTAINS(box->itemText(at), "Top %2 of %1 (1)");
+      ++shown;
+    }
+  }
+  QVERIFY(shown > 0);
+  QCOMPARE(watcher.seen, QStringList{});
+  window_->activateWindow();
+}
+
 void GuiTest::startupProblemsShowInOneWindow() {
   QTemporaryDir dir;
   QVERIFY(dir.isValid());
@@ -3471,6 +4456,76 @@ void GuiTest::startupProblemsShowInOneWindow() {
   }));
   list->window()->close();
   window_->activateWindow();
+}
+
+// The settings file is looked after as the data files are: lines that
+// can't be read are named at start-up with the file kept, and a file that
+// can't be written puts up the banner.
+void GuiTest::settingsFileProblemsAreReported() {
+  const QString ini = QSettings().fileName();
+  const QString folder = QFileInfo(ini).absolutePath();
+  QSettings().sync();
+  QFile file(ini);
+  QVERIFY(file.open(QIODevice::ReadOnly));
+  const QByteArray was = file.readAll();
+  file.close();
+  QCOMPARE(initSettingsStorage(false), QString());
+  const QString learnSet = QSettings().value("learn/set").toString();
+  QVERIFY(!learnSet.isEmpty());
+
+  const QByteArray broken = was + "\n[broken\nno equals sign here\n";
+  QVERIFY(writeFile(ini, broken));
+  const QString problem = initSettingsStorage(false);
+  QVERIFY2(problem.contains(QFileInfo(ini).fileName()), qPrintable(problem));
+  const QStringList kept = QDir(folder).entryList(
+      {QFileInfo(ini).fileName() + ".unreadable-*"}, QDir::Files);
+  QCOMPARE(kept.size(), 1);
+  QVERIFY2(problem.contains(kept.front()), qPrintable(problem));
+  QFile copy(QDir(folder).filePath(kept.front()));
+  QVERIFY(copy.open(QIODevice::ReadOnly));
+  QCOMPARE(copy.readAll(), broken);
+  copy.close();
+  QVERIFY(copy.remove());
+  // What could be read still is.
+  QCOMPARE(QSettings().value("learn/set").toString(), learnSet);
+  QVERIFY(writeFile(ini, was));
+
+#ifdef Q_OS_UNIX
+  // A folder and a file that can't be written to (not so for root).
+  const auto folderWas = QFile::permissions(folder);
+  const auto fileWas = QFile::permissions(ini);
+  QFile::setPermissions(ini, QFileDevice::ReadOwner);
+  QFile::setPermissions(folder, QFileDevice::ReadOwner | QFileDevice::ExeOwner);
+  QFile probe(QDir(folder).filePath("probe"));
+  if (probe.open(QIODevice::WriteOnly)) {
+    probe.close();
+    probe.remove();
+    QFile::setPermissions(folder, folderWas);
+    QFile::setPermissions(ini, fileWas);
+    QSKIP("the folder stays writable (running as root?)");
+  }
+  QWidget *banner = window_->findChild<QWidget *>("saveBanner");
+  QVERIFY(banner);
+  QVERIFY(!banner->isVisible());
+  const QString exportTo = saved::exportFolder().get();
+  saved::exportFolder().set(exportTo + "/elsewhere");
+  const QString error = saved::settingsWriteError();
+  window_->checkSettingsSaved();
+  const bool shown = banner->isVisible();
+  QFile::setPermissions(folder, folderWas);
+  QFile::setPermissions(ini, fileWas);
+  QVERIFY2(error.contains(QFileInfo(ini).fileName()), qPrintable(error));
+  QVERIFY(shown);
+  // Once it can be written, the change that was waiting is, and the
+  // banner goes.
+  window_->checkSettingsSaved();
+  QVERIFY(!banner->isVisible());
+  QVERIFY(file.open(QIODevice::ReadOnly));
+  QVERIFY(file.readAll().contains("elsewhere"));
+  file.close();
+  saved::exportFolder().set(exportTo);
+  QCOMPARE(saved::settingsWriteError(), QString());
+#endif
 }
 
 // Untimed's hold of Space runs on the page's clock: it ticks only while

@@ -80,6 +80,11 @@ inline Stored<QByteArray> splitter(const QString &modeId, const QString &name) {
 Stored<QString> exportFolder();
 // The settings file, e.g. for Export all data.
 QString settingsFile();
+// Writes the settings changed since they were last written, and says why
+// when they can't be (a folder that can't be written to, a full disk);
+// empty when they are in the file. They are written without this as well,
+// but with nothing said when that fails.
+QString settingsWriteError();
 // Drops the keys earlier versions used that nothing reads any more.
 void removeObsolete();
 

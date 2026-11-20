@@ -5,10 +5,12 @@
 #include "io/move_counts.hpp"
 #include "train/attempt_flow.hpp"
 #include "train/session_edit.hpp"
+#include "train/stats.hpp"
 
 #include <QTimer>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -144,7 +146,13 @@ protected:
   void showScramble() override;
   void showEntry();
   void updateControls();
-  void refreshAttempts() override;
+  void refreshAttempts() override { showAttempts(Refresh::All); }
+  // Shows again the rows of the attempts `changed` picks, where they are
+  // (the others, and what is selected, stay), and the statistics: for
+  // what a subclass's cells show that comes later, such as Move Count's
+  // optimal lengths. The attempts themselves are as they were last shown.
+  void
+  refreshRows(const std::function<bool(const MoveCountAttempt &)> &changed);
   void selectSession(std::size_t index) override;
   void save() override;
 
@@ -159,6 +167,13 @@ private:
   // The scramble of the attempt being retried.
   GeneratedScramble retryScramble_;
   DeletedAttempt<MoveCountAttempt> deleted_;
+  // The session's counted attempts as solves, and their statistics, kept
+  // from one attempt to the next so that an attempt added at the end has
+  // only its own row and windows worked out.
+  std::vector<Solve> solves_;
+  RunningStats stats_;
+  // The attempts the table has rows for.
+  std::size_t rowsShown_ = 0;
 
   QPushButton *reviewButton_;
 
@@ -199,6 +214,18 @@ private:
   void renameSession() override;
   void deleteSession() override;
   QString scrambleStatsHtml() const;
+  // What changed since the attempts were last shown: anything, or one
+  // attempt added at the end.
+  enum class Refresh : std::uint8_t { All, Appended };
+  // Shows the session's attempts; for one added at the end, gives the new
+  // bests it set (newBests() of the counted attempts).
+  std::vector<NewBest> showAttempts(Refresh what);
+  // The table's row for attempt `i`, the `counted`th counted one (nullopt
+  // when it isn't counted).
+  AttemptRow attemptRow(std::size_t i,
+                        std::optional<std::size_t> counted) const;
+  // The statistics above the table (not when only scrambles are kept).
+  void showSessionStats();
 };
 
 } // namespace vcube

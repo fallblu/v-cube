@@ -1,12 +1,18 @@
+#include "io/algset_json.hpp"
 #include "io/backup.hpp"
+#include "io/data_file.hpp"
 #include "test_files.hpp"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
 
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <system_error>
+#include <thread>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -156,6 +162,46 @@ TEST_CASE("a deleted file is moved aside with the date") {
   CHECK(
       moveToDeleted(tmp.filePath("missing.json"), tmp.filePath("deleted"), when)
           .isEmpty());
+  // Nor is a name with a % in it taken for a place to put the number.
+  for (const char *text : {"first", "second"}) {
+    writeText(tmp.filePath("a%1b%2.json"), text);
+    moveToDeleted(tmp.filePath("a%1b%2.json"), tmp.filePath("deleted"), when);
+  }
+  CHECK(readText(tmp.filePath("deleted/a%1b%2.20261110-093005.json")) ==
+        "first");
+  CHECK(readText(tmp.filePath("deleted/a%1b%2.20261110-093005-2.json")) ==
+        "second");
+}
+
+TEST_CASE("a file isn't moved away while the data folder is being copied") {
+  // The daily backup holds the folder for its copy: a file gone since the
+  // copy listed it would fail the whole backup.
+  QTemporaryDir tmp;
+  writeText(tmp.filePath("zz.json"), "zz");
+  writeText(tmp.filePath("bad.json"), "bad");
+  std::atomic<bool> moved = false, aside = false;
+  std::thread mover, sider;
+  {
+    auto copying = lockDataFolder();
+    mover = std::thread([&] {
+      moveToDeleted(tmp.filePath("zz.json"), tmp.filePath("deleted"),
+                    QDateTime(QDate(2026, 11, 10), QTime(9, 30, 5)));
+      moved = true;
+    });
+    sider = std::thread([&] {
+      setAside(tmp.filePath("bad.json"));
+      aside = true;
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    CHECK_FALSE(moved);
+    CHECK_FALSE(aside);
+    CHECK(QFile::exists(tmp.filePath("zz.json")));
+    CHECK(QFile::exists(tmp.filePath("bad.json")));
+  }
+  mover.join();
+  sider.join();
+  CHECK(readText(tmp.filePath("deleted/zz.20261110-093005.json")) == "zz");
+  CHECK(filesStarting(tmp.path(), "bad.json.unreadable-").size() == 1);
 }
 
 TEST_CASE("export copies the data and the settings to a new folder") {

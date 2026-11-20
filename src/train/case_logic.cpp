@@ -48,14 +48,57 @@ struct Tokens {
                         // such as a commutator, after the listed tokens
 };
 
+// Whether a comment starts at `pos`: "//", which runs to the end of its
+// line.
+bool commentAt(std::string_view text, std::size_t pos) {
+  return text.substr(pos).starts_with("//");
+}
+
+// The end of the comment that starts at `pos`: its line's end.
+std::size_t commentEnd(std::string_view text, std::size_t pos) {
+  return std::min(text.find('\n', pos), text.size());
+}
+
+// Where the alg's moves end: what follows is only space and comments.
+std::size_t movesEnd(std::string_view text) {
+  std::size_t end = 0;
+  for (std::size_t pos = 0; pos < text.size();) {
+    if (commentAt(text, pos)) {
+      pos = commentEnd(text, pos);
+    } else if (std::isspace(static_cast<unsigned char>(text[pos]))) {
+      ++pos;
+    } else {
+      end = ++pos;
+    }
+  }
+  return end;
+}
+
+// `text` with `comment` (space and comments, as movesEnd() leaves after
+// the moves) after it.
+std::string withComment(std::string text, std::string_view comment) {
+  std::string kept = trim(comment);
+  if (!kept.empty()) {
+    text += (text.empty() ? "" : " ") + kept;
+  }
+  return text;
+}
+
+// Comments are passed over as parseAlg passes over them: they are no
+// tokens.
 Tokens topLevelTokens(std::string_view text) {
   Tokens out;
   std::size_t pos = 0;
   for (;;) {
-    while (pos < text.size() &&
-           (std::isspace(static_cast<unsigned char>(text[pos])) ||
-            text[pos] == '.' || text[pos] == '*')) {
-      ++pos;
+    while (pos < text.size()) {
+      if (commentAt(text, pos)) {
+        pos = commentEnd(text, pos);
+      } else if (std::isspace(static_cast<unsigned char>(text[pos])) ||
+                 text[pos] == '.' || text[pos] == '*') {
+        ++pos;
+      } else {
+        break;
+      }
     }
     if (pos >= text.size()) {
       return out;
@@ -63,19 +106,23 @@ Tokens topLevelTokens(std::string_view text) {
     std::size_t end = pos;
     if (text[pos] == '(') {
       int depth = 0;
-      for (; end < text.size(); ++end) {
+      while (end < text.size()) {
+        if (commentAt(text, end)) {
+          end = commentEnd(text, end);
+          continue;
+        }
         depth += text[end] == '(' ? 1 : text[end] == ')' ? -1 : 0;
+        ++end;
         if (depth == 0) {
-          ++end;
           break;
         }
       }
     }
-    // The token (or group's repetition suffix) runs to the next space or
-    // bracket.
+    // The token (or group's repetition suffix) runs to the next space,
+    // bracket or comment.
     while (end < text.size() &&
            !std::isspace(static_cast<unsigned char>(text[end])) &&
-           text[end] != '(' && text[end] != '[') {
+           text[end] != '(' && text[end] != '[' && !commentAt(text, end)) {
       ++end;
     }
     if (end == pos) {
@@ -174,7 +221,10 @@ std::string aufText(int quarters) {
 }
 
 std::string withAufs(const std::string &alg, AufFit fit) {
-  std::string_view text = alg;
+  // A comment after the moves stays after the AUF, which would be part of
+  // it otherwise.
+  std::string_view text = std::string_view(alg).substr(0, movesEnd(alg));
+  std::string_view comment = std::string_view(alg).substr(text.size());
   Tokens tokens = topLevelTokens(text);
   const std::size_t count = tokens.list.size();
   // U turns written at either end of the alg join the AUF on that side,
@@ -224,11 +274,12 @@ std::string withAufs(const std::string &alg, AufFit fit) {
   if (!aufText(after).empty()) {
     out += " (" + aufText(after) + ")";
   }
-  return out;
+  return withComment(std::move(out), comment);
 }
 
 std::string withAufBefore(const std::string &alg, int before) {
-  std::string_view text = alg;
+  std::string_view text = std::string_view(alg).substr(0, movesEnd(alg));
+  std::string_view comment = std::string_view(alg).substr(text.size());
   Tokens tokens = topLevelTokens(text);
   int total = before;
   std::size_t first = 0;
@@ -247,9 +298,10 @@ std::string withAufBefore(const std::string &alg, int before) {
   }
   std::string auf = aufText(total);
   if (auf.empty()) {
-    return body;
+    return withComment(std::move(body), comment);
   }
-  return (body.front() == '(' ? auf : "(" + auf + ")") + " " + body;
+  return withComment((body.front() == '(' ? auf : "(" + auf + ")") + " " + body,
+                     comment);
 }
 
 int Unsolved::corners() const {

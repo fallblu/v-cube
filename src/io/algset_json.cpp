@@ -14,6 +14,7 @@
 #include <array>
 #include <cmath>
 #include <set>
+#include <span>
 #include <utility>
 
 namespace vcube {
@@ -91,8 +92,76 @@ DiagramView viewFromName(const QString &s) {
   return DiagramView::TopLayer;
 }
 
+// What a key of an alg set file holds.
+enum class JsonKind { Text, Flag, List, Object };
+
+struct KeyKind {
+  const char *key;
+  JsonKind kind;
+};
+
+// False, with the reason, when one of `keys` is in `o` with a value of
+// another kind. Such a value would read as empty or as the default, and the
+// next save of the set would write that over what the file had.
+bool checkKinds(const QJsonObject &o, std::span<const KeyKind> keys,
+                const QString &where, QString *error) {
+  for (const KeyKind &k : keys) {
+    auto it = o.constFind(QLatin1StringView(k.key));
+    if (it == o.constEnd()) {
+      continue;
+    }
+    const QJsonValue v = it.value();
+    bool ok = false;
+    const char *what = "";
+    switch (k.kind) {
+    case JsonKind::Text:
+      ok = v.isString();
+      what = "text";
+      break;
+    case JsonKind::Flag:
+      ok = v.isBool();
+      what = "true or false";
+      break;
+    case JsonKind::List:
+      ok = v.isArray();
+      what = "a list";
+      break;
+    case JsonKind::Object:
+      ok = v.isObject();
+      what = "an object";
+      break;
+    }
+    if (!ok) {
+      return fail(error, QString("%1\"%2\" isn't %3").arg(where, k.key, what));
+    }
+  }
+  return true;
+}
+
+constexpr KeyKind kSpecKinds[] = {{"free", JsonKind::Text},
+                                  {"mask", JsonKind::Object},
+                                  {"view", JsonKind::Text}};
+constexpr KeyKind kSetKinds[] = {
+    {"id", JsonKind::Text},          {"name", JsonKind::Text},
+    {"description", JsonKind::Text}, {"builtin", JsonKind::Flag},
+    {"aufBefore", JsonKind::Flag},   {"aufAfter", JsonKind::Flag},
+    {"guided", JsonKind::Flag},      {"families", JsonKind::Flag},
+    {"reduction", JsonKind::Flag},   {"mirrors", JsonKind::List},
+    {"groups", JsonKind::List}};
+constexpr KeyKind kGroupKinds[] = {{"name", JsonKind::Text},
+                                   {"cases", JsonKind::List}};
+constexpr KeyKind kCaseKinds[] = {{"id", JsonKind::Text},
+                                  {"name", JsonKind::Text},
+                                  {"state", JsonKind::Text},
+                                  {"algs", JsonKind::List}};
+
 // Reads the free/mask/view keys present in `o` over those of `spec`.
-bool readSpec(const QJsonObject &o, StepSpec &spec, QString *error) {
+// `where` says whose keys they are, for the error.
+bool readSpec(const QJsonObject &o, StepSpec &spec, const QString &where,
+              QString *error) {
+  if (!checkKinds(o, kSpecKinds, where, error)) {
+    return false;
+  }
   if (o.contains("free")) {
     auto m = parseFree(ss(o.value("free").toString()));
     if (!m) {
@@ -123,6 +192,9 @@ void writeSpec(QJsonObject &o, const StepSpec &spec) {
 
 std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
   if (checkFileFormat(o, kAlgSetFile, error) != FileStatus::Read) {
+    return std::nullopt;
+  }
+  if (!checkKinds(o, kSetKinds, QString(), error)) {
     return std::nullopt;
   }
   AlgSet set;
@@ -157,26 +229,42 @@ std::optional<AlgSet> algSetFromJson(const QJsonObject &o, QString *error) {
     }
     return std::nullopt;
   }
-  if (!readSpec(o, set.spec, error)) {
+  if (!readSpec(o, set.spec, QString(), error)) {
     return std::nullopt;
   }
   std::set<std::string> caseIds;
   for (const auto &gv : o.value("groups").toArray()) {
+    if (!gv.isObject()) {
+      fail(error, "a group isn't an object");
+      return std::nullopt;
+    }
     QJsonObject go = gv.toObject();
     CaseGroup g;
     g.name = ss(go.value("name").toString());
+    QString inGroup = QString("in group \"%1\", ").arg(qs(g.name));
+    if (!checkKinds(go, kGroupKinds, inGroup, error)) {
+      return std::nullopt;
+    }
     if (go.contains("free") || go.contains("mask") || go.contains("view")) {
       StepSpec spec = set.spec;
-      if (!readSpec(go, spec, error)) {
+      if (!readSpec(go, spec, inGroup, error)) {
         return std::nullopt;
       }
       g.spec = spec;
     }
     for (const auto &cv : go.value("cases").toArray()) {
+      if (!cv.isObject()) {
+        fail(error, inGroup + "a case isn't an object");
+        return std::nullopt;
+      }
       QJsonObject co = cv.toObject();
       AlgCase c;
       c.id = ss(co.value("id").toString());
       c.name = ss(co.value("name").toString());
+      if (!checkKinds(co, kCaseKinds, QString("in case \"%1\", ").arg(qs(c.id)),
+                      error)) {
+        return std::nullopt;
+      }
       if (c.id.empty()) {
         fail(error,
              QString("a case in group \"%1\" has no id").arg(qs(g.name)));
@@ -336,6 +424,7 @@ bool writeFileAtomically(const QString &path, const QByteArray &data,
 QString setAside(const QString &path) {
   QString base = path + ".unreadable-" +
                  QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
+  auto copying = lockDataFolder(); // as moveToDeleted()
   QString target = base;
   for (int i = 2; QFile::exists(target); ++i) {
     target = base + "-" + QString::number(i);

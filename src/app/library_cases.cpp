@@ -328,27 +328,24 @@ void LibraryPage::newCaseFromAlg() {
   std::string alg = cleanAlgText(ss(text));
   ParseResult parsed = parseAlg(alg);
   if (!parsed || parsed.alg.empty()) {
-    QMessageBox::warning(
-        this, tr("New case"),
-        tr("Can't read that alg: %1")
-            .arg(parsed.error ? qs(parsed.error->message) : tr("empty")));
+    warnPlain(this, tr("New case"),
+              tr("Can't read that alg: %1")
+                  .arg(parsed.error ? qs(parsed.error->message) : tr("empty")));
     return;
   }
   if (auto ref = matchCase(*s, parsed.alg)) {
     AlgCase &existing = s->groups[ref->group].cases[ref->index];
     if (std::find(existing.algs.begin(), existing.algs.end(), alg) !=
         existing.algs.end()) {
-      QMessageBox::information(
+      informPlain(
           this, tr("New case"),
           tr("The case \"%1\" already has that alg.").arg(qs(existing.name)));
       return;
     }
-    auto answer =
-        QMessageBox::question(this, tr("New case"),
-                              tr("That alg solves the existing case \"%1\". "
-                                 "Add it to that case instead?")
-                                  .arg(qs(existing.name)));
-    if (answer == QMessageBox::Yes) {
+    if (askPlain(this, tr("New case"),
+                 tr("That alg solves the existing case \"%1\". Add it to "
+                    "that case instead?")
+                     .arg(qs(existing.name)))) {
       auto pending = editor_.begin();
       existing.algs.push_back(alg);
       editor_.caseId = existing.id;

@@ -113,9 +113,11 @@ void writeInBackground(const QString &path,
 void finishBackgroundWrites(const QString &path = {});
 
 // Held while the data folder is copied (the daily backup, which runs on the
-// background writer) and by every direct write of a data file, so that a
-// copy never meets a file half replaced, or a save fails because the copy
-// has the file open.
+// background writer), by every direct write of a data file and by every
+// move of one out of the way (setAside(), moveToDeleted()), so that a copy
+// never meets a file half replaced or gone since it was listed, or a save
+// or move fails because the copy has the file open. Not recursive: nothing
+// that holds it may write or move a data file.
 std::unique_lock<std::mutex> lockDataFolder();
 
 // --- write reports ----------------------------------------------------------
@@ -182,22 +184,6 @@ protected:
   virtual void fromJson(const QJsonObject &o) = 0;
 
   DataFile file_;
-};
-
-// One value saved as a JSON data file: `ToJson` writes the whole file from
-// it and `FromJson` reads it back. A missing or unreadable file gives an
-// empty value.
-template <typename Data, const FileFormat &Format, auto ToJson, auto FromJson>
-class JsonStore : public FileStore {
-public:
-  explicit JsonStore(QString path) : FileStore(std::move(path), Format) {}
-
-  Data data;
-
-protected:
-  void reset() override { data = {}; }
-  QJsonObject toJson() const override { return ToJson(data); }
-  void fromJson(const QJsonObject &o) override { data = FromJson(o); }
 };
 
 } // namespace vcube

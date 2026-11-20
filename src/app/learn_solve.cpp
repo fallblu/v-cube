@@ -159,6 +159,7 @@ void LearnPage::undoLast() {
   if (!library_.saveProgress(u.setId)) {
     emit message(tr("Could not save progress for %1").arg(qs(u.setId)));
   }
+  emit progressChanged();
   if (u.setId != setId_) {
     if (!acrossSets()) {
       emit message(tr("Took back a grade in another set"));

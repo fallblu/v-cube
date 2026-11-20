@@ -20,7 +20,6 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSplitter>
@@ -374,6 +373,7 @@ void LabTestPanel::refresh() {
   // The session's entries may have been removed or moved, or another
   // session chosen, since the current alg was set up.
   rebaseCurrent();
+  rebaseLastAttempt();
   // Entries whose case is gone stay listed, marked, until removed.
   CaseNames names;
   fillEntries(names);
@@ -386,6 +386,29 @@ void LabTestPanel::refresh() {
   }
   if (flow_.phase() == Phase::Idle || flow_.phase() == Phase::Finished) {
     showStatus();
+  }
+}
+
+void LabTestPanel::rebaseLastAttempt() {
+  if (!lastAttempt_) {
+    return;
+  }
+  // By what never changes of a time: the DNF and the count can be toggled.
+  auto isLast = [this](const LabAttempt &a) {
+    return a.timestamp == lastMade_.timestamp && a.timeMs == lastMade_.timeMs &&
+           a.key == lastMade_.key && a.alg == lastMade_.alg &&
+           a.session == lastMade_.session;
+  };
+  const auto &all = store_.attempts();
+  if (*lastAttempt_ < all.size() && isLast(all[*lastAttempt_])) {
+    return;
+  }
+  lastAttempt_.reset();
+  for (std::size_t i = all.size(); i-- > 0;) {
+    if (isLast(all[i])) {
+      lastAttempt_ = i;
+      break;
+    }
   }
 }
 
@@ -557,14 +580,14 @@ void LabTestPanel::deleteSession() {
   for (const auto &a : store_.attempts()) {
     times += a.session == session().id ? 1 : 0;
   }
-  if (QMessageBox::question(
+  if (!askPlain(
           this, tr("Delete session"),
           plural(times,
                  tr("Delete the session \"%1\"? Its %n time stays with its "
                     "alg (in the all-time statistics)."),
                  tr("Delete the session \"%1\"? Its %n times stay with their "
                     "algs (in the all-time statistics)."))
-              .arg(qs(session().name))) != QMessageBox::Yes) {
+              .arg(qs(session().name)))) {
     return;
   }
   cancelAttempt();
@@ -885,6 +908,7 @@ void LabTestPanel::finish(std::int64_t ms, Result result) {
   }
   store_.addAttempt(a);
   lastAttempt_ = store_.attempts().size() - 1;
+  lastMade_ = a;
   lastEntry_ = current_->entry;
   flow_.setPhase(Phase::Done);
   display_->showTime(ms, dnf ? Penalty::Dnf : Penalty::None);
@@ -911,12 +935,15 @@ void LabTestPanel::deleteLast() {
   if (!lastAttempt_) {
     return;
   }
+  const bool removed = store_.attempt(*lastAttempt_) != nullptr;
   store_.removeAttempt(*lastAttempt_);
   lastAttempt_.reset();
-  saveStore();
-  refresh();
-  emit attemptsChanged();
-  emit message(tr("Time deleted."));
+  if (removed) {
+    saveStore();
+    refresh();
+    emit attemptsChanged();
+    emit message(tr("Time deleted."));
+  }
   if (current_) {
     setUp(current_->entry);
   }

@@ -14,6 +14,7 @@
 #include <QPushButton>
 
 #include <algorithm>
+#include <span>
 
 namespace vcube {
 
@@ -439,12 +440,12 @@ void AttemptPage::record(std::optional<int> count, bool dnf,
   a.timestamp = unixNow();
   session().attempts.push_back(a);
   deleted_.forget();
-  saveAndRefresh();
+  save();
+  const std::vector<NewBest> newBest = showAttempts(Refresh::Appended);
   // A new best, as Timed marks it.
   if (a.counted) {
     QStringList bests;
-    for (const NewBest &b :
-         newBests(attemptsAsSolves(session().attempts), kWcaUnit)) {
+    for (const NewBest &b : newBest) {
       bests << QString("%1 %2").arg(
           qs(b.name), movesText(b.value, b.name == "single" ? 0 : 2));
     }
@@ -593,52 +594,78 @@ QString AttemptPage::scrambleStatsHtml() const {
   return html;
 }
 
-void AttemptPage::refreshAttempts() {
+AttemptRow AttemptPage::attemptRow(std::size_t i,
+                                   std::optional<std::size_t> counted) const {
+  const MoveCountAttempt &a = session().attempts[i];
+  AttemptRow row;
+  row.index = static_cast<int>(i);
+  // A solve with a comment is marked.
+  AttemptCell number;
+  number.text =
+      a.comment.empty() ? QString::number(i + 1) : QString("%1 *").arg(i + 1);
+  number.alignRight = false;
+  row.cells.push_back(number);
+  addCells(row.cells, a, counted ? movesText(stats_.ao5()[*counted]) : "-",
+           counted ? movesText(stats_.ao12()[*counted]) : "-");
+  return row;
+}
+
+void AttemptPage::showSessionStats() {
+  showStats(
+      stats_.stats(), solves_, kWcaUnit, tr("single"),
+      [](const std::string &id, StatValue v) {
+        return movesText(v, id == "single" ? 0 : 2);
+      },
+      session().attempts.size());
+}
+
+std::vector<NewBest> AttemptPage::showAttempts(Refresh what) {
   const auto &attempts = session().attempts;
-  std::vector<Solve> solves = attemptsAsSolves(attempts);
-  auto ao5 = rollingAverages(solves, 5);
-  auto ao12 = rollingAverages(solves, 12);
-  // Each counted attempt's index in `solves`.
-  std::vector<std::optional<std::size_t>> counted(attempts.size());
-  for (std::size_t i = 0, c = 0; i < attempts.size(); ++i) {
-    if (attempts[i].counted) {
-      counted[i] = c++;
+  std::vector<NewBest> newBest;
+  if (what == Refresh::Appended && rowsShown_ + 1 == attempts.size() &&
+      stats_.size() == solves_.size()) {
+    // Only the new attempt's row and windows: the others stay as they are.
+    const MoveCountAttempt &last = attempts.back();
+    std::optional<std::size_t> counted;
+    if (last.counted) {
+      counted = solves_.size();
+      solves_.push_back(
+          attemptsAsSolves(std::span<const MoveCountAttempt>(&last, 1))
+              .front());
+      newBest = stats_.add(solves_);
     }
+    panel_->prependRow(attemptRow(attempts.size() - 1, counted));
+  } else {
+    solves_ = attemptsAsSolves(attempts);
+    stats_.reset(solves_);
+    if (what == Refresh::Appended && !attempts.empty() &&
+        attempts.back().counted) {
+      newBest = newBests(solves_, kWcaUnit);
+    }
+    std::vector<AttemptRow> rows;
+    rows.reserve(attempts.size());
+    // Each counted attempt's index in `solves_`.
+    std::size_t counted = solves_.size();
+    for (std::size_t i = attempts.size(); i-- > 0;) {
+      rows.push_back(attemptRow(i, attempts[i].counted
+                                       ? std::optional<std::size_t>(--counted)
+                                       : std::nullopt));
+    }
+    panel_->setRows(std::move(rows));
   }
-  std::vector<AttemptRow> rows;
-  rows.reserve(attempts.size());
-  for (std::size_t i = attempts.size(); i-- > 0;) {
-    const MoveCountAttempt &a = attempts[i];
-    AttemptRow row;
-    row.index = static_cast<int>(i);
-    // A solve with a comment is marked.
-    AttemptCell number;
-    number.text =
-        a.comment.empty() ? QString::number(i + 1) : QString("%1 *").arg(i + 1);
-    number.alignRight = false;
-    row.cells.push_back(number);
-    addCells(row.cells, a, counted[i] ? movesText(ao5[*counted[i]]) : "-",
-             counted[i] ? movesText(ao12[*counted[i]]) : "-");
-    rows.push_back(std::move(row));
-  }
-  panel_->setRows(std::move(rows));
+  rowsShown_ = attempts.size();
   if (scramblesOnly()) {
     panel_->setStatsHtml(scrambleStatsHtml());
     chart_->setSolves({});
     lastLabel_->clear();
     updateControls();
-    return;
+    return newBest;
   }
-  showStats(
-      solves, kWcaUnit, tr("single"),
-      [](const std::string &id, StatValue v) {
-        return movesText(v, id == "single" ? 0 : 2);
-      },
-      attempts.size());
-  chart_->setSolves(solves, std::move(ao5), std::move(ao12));
+  showSessionStats();
+  chart_->setSolves(solves_, stats_.ao5(), stats_.ao12());
   updateControls();
   if (flow_.retry()) {
-    return; // the label is the retry's
+    return newBest; // the label is the retry's
   }
   if (attempts.empty() || !attempts.back().counted) {
     lastLabel_->clear();
@@ -648,6 +675,31 @@ void AttemptPage::refreshAttempts() {
                         : last.moves == 1
                             ? tr("Last: 1 move")
                             : tr("Last: %1 moves").arg(last.moves));
+  }
+  return newBest;
+}
+
+void AttemptPage::refreshRows(
+    const std::function<bool(const MoveCountAttempt &)> &changed) {
+  const auto &attempts = session().attempts;
+  if (rowsShown_ != attempts.size() || stats_.size() != solves_.size()) {
+    refreshAttempts(); // not the attempts the table shows
+    return;
+  }
+  std::size_t counted = 0;
+  for (std::size_t i = 0; i < attempts.size(); ++i) {
+    std::optional<std::size_t> at;
+    if (attempts[i].counted) {
+      at = counted++;
+    }
+    if (changed(attempts[i])) {
+      // The newest attempt is the top row.
+      panel_->setRow(static_cast<int>(attempts.size() - 1 - i),
+                     attemptRow(i, at));
+    }
+  }
+  if (!scramblesOnly()) {
+    showSessionStats();
   }
 }
 

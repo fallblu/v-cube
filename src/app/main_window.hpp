@@ -40,6 +40,14 @@ public:
   // What couldn't be read at start-up (data files, alg sets, key
   // bindings), each with what became of it.
   const QStringList &startupProblems() const { return startupProblems_; }
+  // One more, found before the window was made (the settings file).
+  void addStartupProblem(const QString &problem) {
+    startupProblems_ << problem;
+  }
+  // Writes the settings changed so far and reports the write as a data
+  // file's is (see setWriteReporter()): the banner is up while the
+  // settings file can't be written.
+  void checkSettingsSaved();
   // Lists them in one window, if there are any; called once the window is
   // shown.
   void showStartupProblems();

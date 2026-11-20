@@ -45,10 +45,9 @@ void LabChart::setSeries(std::vector<Series> series) {
     std::vector<std::int64_t> sorted = s.times;
     std::sort(sorted.begin(), sorted.end());
     parts << tr("%1: %2 times, median %3")
-                 .arg(s.name)
-                 .arg(s.times.size())
-                 .arg(QString::fromStdString(
-                     formatTime(sorted[sorted.size() / 2], decimals_)));
+                 .arg(s.name, QString::number(s.times.size()),
+                      QString::fromStdString(
+                          formatTime(sorted[sorted.size() / 2], decimals_)));
   }
   setAccessibleDescription(parts.join("; "));
   update();

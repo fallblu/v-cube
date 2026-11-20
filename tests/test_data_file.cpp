@@ -355,6 +355,53 @@ TEST_CASE("alg sets with bad cases or settings are refused") {
   CHECK(parse(c("a").c_str(), R"(, "targetSeconds": 2.5)").isEmpty());
 }
 
+TEST_CASE("an alg set with a key of the wrong kind is refused") {
+  // Read as empty, the next save of the set would write over the file.
+  const char *solved = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB";
+  auto parse = [](const QString &body) {
+    QByteArray text =
+        R"({"format": "v-cube.algset", "id": "x", )" + body.toUtf8() + "}";
+    QString error;
+    auto doc = QJsonDocument::fromJson(text);
+    REQUIRE(doc.isObject());
+    auto set = algSetFromJson(doc.object(), &error);
+    return set ? QString() : error;
+  };
+  auto groups = [&](const QString &caseKeys, const QString &groupKeys = {}) {
+    return QString(R"("groups": [{"name": "G"%1, "cases": [{"id": "a", )"
+                   R"("state": "%2"%3}]}])")
+        .arg(groupKeys, solved, caseKeys);
+  };
+  CHECK(parse(groups(R"(, "algs": ["R U R'"])")).isEmpty());
+  CHECK(parse(groups(R"(, "algs": "R U R' U'")")).contains("\"algs\""));
+  CHECK(parse(groups(R"(, "name": 3)")).contains("\"name\""));
+  CHECK(parse(groups("", R"(, "free": 5)")).contains("\"free\""));
+  CHECK(parse(groups("", R"(, "mask": "full")")).contains("\"mask\""));
+  CHECK(parse(R"("groups": {"name": "G"})").contains("\"groups\""));
+  CHECK(
+      parse(R"("groups": [{"name": "G", "cases": {}}])").contains("\"cases\""));
+  CHECK(parse(R"("groups": ["G"])").contains("group"));
+  CHECK(parse(R"("groups": [{"name": "G", "cases": ["a"]}])").contains("case"));
+  CHECK(parse(R"("aufBefore": "false", "groups": [])").contains("aufBefore"));
+  CHECK(parse(R"("free": 5, "groups": [])").contains("\"free\""));
+  CHECK(parse(R"("mirrors": "both", "groups": [])").contains("mirrors"));
+  CHECK(parse(R"("name": ["x"], "groups": [])").contains("\"name\""));
+}
+
+TEST_CASE("an alg set file with a key of the wrong kind is left as it is") {
+  QTemporaryDir tmp;
+  QString path = tmp.filePath("mine.json");
+  QByteArray text = R"({"format": "v-cube.algset", "version": 1, "id": "mine",
+    "groups": [{"name": "G", "cases": [{"id": "a", "state":
+    "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB",
+    "algs": "R U R' U'"}]}]})";
+  writeText(path, text);
+  AlgLibrary lib = loadedLibrary(tmp.path());
+  CHECK(lib.find("mine") == nullptr);
+  CHECK(errorsContaining(lib, "\"algs\"") == 1);
+  CHECK(readText(path) == text);
+}
+
 TEST_CASE("a set with a very long name gets a short id and saves") {
   QTemporaryDir tmp;
   AlgLibrary lib = loadedLibrary(tmp.path());
@@ -468,6 +515,27 @@ TEST_CASE("a direct save reports itself, as a background one does") {
   saveInBackground(other, nullptr, {});
   log.takeQueued();
   CHECK(log.reports.size() == 1);
+}
+
+TEST_CASE("progress left behind by a deleted set isn't a failed write") {
+  // No later write to the file would take such a report back, so every
+  // quit would ask about changes that could not be saved.
+  ReportLog log;
+  QTemporaryDir tmp;
+  AlgLibrary lib = loadedLibrary(tmp.path());
+  QString progress = tmp.filePath("progress/pll.json");
+  writeText(progress, "kept");
+  // A file where the folder for deleted progress goes: nothing moves there.
+  writeText(tmp.filePath("deleted/progress"), "in the way");
+  log.reports.clear();
+  QString error;
+  REQUIRE(lib.remove("pll", &error));
+  log.takeQueued();
+  CHECK_FALSE(error.isEmpty());
+  CHECK(lib.find("pll") == nullptr);
+  CHECK(readText(progress) == "kept");
+  CHECK(std::none_of(log.reports.begin(), log.reports.end(),
+                     [](const auto &r) { return !r.second.isEmpty(); }));
 }
 
 TEST_CASE("a background write that throws is a failed write") {
