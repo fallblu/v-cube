@@ -6,6 +6,7 @@ add_library(vcube_train STATIC
   attempt_flow.cpp
   case_logic.cpp
   case_picker.cpp
+  context_practice.cpp
   drill_flow.cpp
   drill_session.cpp
   eo_cross.cpp
@@ -15,6 +16,7 @@ add_library(vcube_train STATIC
   grips.cpp
   lab_flow.cpp
   learn_attempt.cpp
+  learn_quiz.cpp
   learn_session.cpp
   move_count.cpp
   move_set.cpp

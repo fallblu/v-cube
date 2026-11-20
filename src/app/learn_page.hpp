@@ -133,7 +133,7 @@ private:
   std::string last_;
 
   // "Which case?": the question that is up.
-  std::optional<QuizPractice> quiz_;
+  std::optional<LearnQuiz> quiz_;
 
   QSpinBox *learnCount_;
   bool countTyped_ = false; // a number was typed into the count

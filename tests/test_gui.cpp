@@ -1760,6 +1760,8 @@ void GuiTest::learnStartsACase() {
   QVERIFY(p["T"].attempts == attempts);
 }
 
+// The quiz's choices and answers as they are worded (the picking is
+// tested in test_learn.cpp).
 void GuiTest::quizAsksAmongLookAlikes() {
   AlgSet set;
   std::vector<std::string> ticked;
@@ -1779,55 +1781,23 @@ void GuiTest::quizAsksAmongLookAlikes() {
   addGroup("b", 2);
   Rng rng = makeRng();
   auto none = [](const std::string &) { return false; };
-  auto nameOf = [](const std::string &id) { return qs("Case " + id); };
-
-  // One case is nothing to choose from.
-  QVERIFY(!QuizPractice::pick(set, {"a1"}, none, {}, rng));
-  QVERIFY(!QuizPractice::pick(set, {}, none, {}, rng));
-
-  for (int i = 0; i < 60; ++i) {
-    auto quiz = QuizPractice::pick(set, ticked, none, "a1", rng);
-    QVERIFY(quiz);
-    const std::string id = quiz->caseId();
-    QVERIFY(id != "a1"); // not the last one again
-    QStringList names = quiz->names(set);
-    QCOMPARE(static_cast<std::size_t>(names.size()), quiz->choices());
-    QVERIFY(quiz->answer() < quiz->choices());
-    QCOMPARE(names[static_cast<qsizetype>(quiz->answer())], nameOf(id));
-    QCOMPARE(names.removeDuplicates(), qsizetype{0});
-    // The choices are the case's look-alikes: its own group, six at most.
-    QCOMPARE(quiz->choices(), id.front() == 'a' ? std::size_t{6} : 2u);
-    for (const QString &name : names) {
-      QVERIFY(name.startsWith(qs("Case ") + QChar(id.front())));
-    }
+  auto quiz = LearnQuiz::pick(set, ticked, none, {}, rng);
+  QVERIFY(quiz);
+  const QStringList names = quizChoiceNames(*quiz, set);
+  QCOMPARE(static_cast<std::size_t>(names.size()), quiz->choices());
+  for (std::size_t i = 0; i < quiz->choices(); ++i) {
+    QCOMPARE(names[static_cast<qsizetype>(i)],
+             qs("Case " + quiz->choiceIds()[i]));
   }
 
-  // Cases already started are asked first, once there are two.
   auto started = [](const std::string &id) { return id.front() == 'b'; };
-  for (int i = 0; i < 20; ++i) {
-    auto quiz = QuizPractice::pick(set, ticked, started, "b1", rng);
-    QVERIFY(quiz);
-    QCOMPARE(quiz->caseId(), std::string("b2"));
-    QCOMPARE(quiz->choices(), std::size_t{2});
-  }
-  auto one = [](const std::string &id) { return id == "b1"; };
-  bool other = false;
-  for (int i = 0; i < 60 && !other; ++i) {
-    other = QuizPractice::pick(set, ticked, one, {}, rng)->caseId() != "b1";
-  }
-  QVERIFY(other);
-
-  // The answer is timed from the case being shown.
-  auto quiz = QuizPractice::pick(set, ticked, started, "b1", rng);
+  quiz = LearnQuiz::pick(set, ticked, started, "b1", rng);
   QVERIFY(quiz);
   quiz->shown(100);
-  const QuizPractice::Result right = quiz->answered(quiz->answer(), 350);
-  QVERIFY(right.right);
-  QCOMPARE(right.ms, std::int64_t{250});
-  QVERIFY(!quiz->resultText(&set, right).contains("Case b2"));
-  const QuizPractice::Result wrong = quiz->answered(1 - quiz->answer(), 350);
-  QVERIFY(!wrong.right);
-  QCOMPARE(quiz->resultText(&set, wrong), QString("It was Case b2."));
+  const LearnQuiz::Result right = quiz->answered(quiz->answer(), 350);
+  QCOMPARE(quizResultText(*quiz, &set, right), QString("Right, in 0.25 s."));
+  const LearnQuiz::Result wrong = quiz->answered(1 - quiz->answer(), 350);
+  QCOMPARE(quizResultText(*quiz, &set, wrong), QString("It was Case b2."));
 }
 
 void GuiTest::drillArmsAndStopsItself() {
