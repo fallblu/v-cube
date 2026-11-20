@@ -531,7 +531,7 @@ std::optional<std::size_t> matchChosen(const Alg &moves, PairSide side,
                                        Slot slot,
                                        const std::vector<Alg> &chosen) {
   const Alg mine =
-      comparableSolution(slotToSide(fixedFrame(moves), side, slot));
+      comparableSolution(sideToSlot(fixedFrame(moves), side, slot));
   for (std::size_t i = 0; i < chosen.size(); ++i) {
     if (comparableSolution(chosen[i]) == mine) {
       return i;
@@ -721,7 +721,7 @@ PairJudgement judgePair(const Alg &moves, PairSide side, Slot target,
   for (const Alg &c : chosen) {
     j.cheapest = std::min(j.cheapest, chosenCost(c, options));
   }
-  j.asChosen = comparableSolution(slotToSide(fixedFrame(moves), side, target));
+  j.asChosen = comparableSolution(sideToSlot(fixedFrame(moves), side, target));
   j.match = matchChosen(moves, side, target, chosen);
   j.cost = solutionCost(j.asChosen, options);
   j.extra = std::max(0.0, j.cost - j.cheapest);

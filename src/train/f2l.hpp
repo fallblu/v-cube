@@ -160,9 +160,6 @@ std::optional<PairSetup> cardSetup(const PairCard &card,
 // Moves written for the side's own slot as they are done for `slot`, and
 // back: mirrored left to right for the side's other slot.
 Alg sideToSlot(const Alg &alg, PairSide side, Slot slot);
-inline Alg slotToSide(const Alg &alg, PairSide side, Slot slot) {
-  return sideToSlot(alg, side, slot);
-}
 // A pair solution as solutions compare: the turns without rotations (see
 // fixedFrame()), simplified, without the U turns at the start and the end,
 // opposite faces in one order.

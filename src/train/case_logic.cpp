@@ -856,12 +856,4 @@ PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
   return plan;
 }
 
-ImportReport importAlgs(AlgSet &set, const std::string &text,
-                        NewCases newCases) {
-  PastePlan plan = planPaste(set, readPaste(text), newCases,
-                             set.groups.empty() ? 0 : set.groups.size() - 1);
-  set = std::move(plan.set);
-  return plan.report;
-}
-
 } // namespace vcube

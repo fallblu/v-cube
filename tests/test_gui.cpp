@@ -998,7 +998,7 @@ void GuiTest::f2lLearnAndTimed() {
         analysePair(f2l->startState(), *f2l->target(), own).solutions;
     QVERIFY(!found.empty());
     QCOMPARE(f2l->addOwnSolution(qs(toString(found.back().alg))), QString());
-    const Alg typed = comparableSolution(slotToSide(
+    const Alg typed = comparableSolution(sideToSlot(
         fixedFrame(found.back().alg), PairSide::Back, *f2l->target()));
     // The search's own come too (it finds more than one).
     QTRY_VERIFY_WITH_TIMEOUT(f2l->candidates().size() > 1, 30000);
@@ -1934,7 +1934,7 @@ void GuiTest::practiceResultsAreWorded() {
     return QString("<tr><td>%1</td><td align='right'>%2</td><td "
                    "align='right'>%3</td><td align='right'>%4</td><td "
                    "align='right'>%5</td></tr>")
-        .arg(name, clockText(time, 2), clockText(pause, 2), htm, tps);
+        .arg(name, timeText(time, 2), timeText(pause, 2), htm, tps);
   };
   const QString splits = splitsHtml(parts, moves, at, 2, "#888888");
   VERIFY_CONTAINS(splits, row("pair", 2000, 1000, "3", "3.0"));
@@ -1954,11 +1954,11 @@ void GuiTest::practiceResultsAreWorded() {
   const QString under = timedLine(
       {.moves = 0, .ms = 10000, .dnf = false, .meanBefore = 12000.0}, 2);
   VERIFY_CONTAINS(under, QString("%1 under your mean (%2)")
-                             .arg(clockText(2000, 2), clockText(12000, 2)));
+                             .arg(timeText(2000, 2), timeText(12000, 2)));
   const QString over = timedLine(
       {.moves = 0, .ms = 10000, .dnf = false, .meanBefore = 9000.0}, 2);
   QCOMPARE(over, QString("%1 over your mean (%2)")
-                     .arg(clockText(1000, 2), clockText(9000, 2)));
+                     .arg(timeText(1000, 2), timeText(9000, 2)));
   const QString dnf = timedLine(
       {.moves = 20, .ms = 10000, .dnf = true, .meanBefore = 9000.0}, 2);
   QVERIFY2(dnf.contains("DNF") && dnf.endsWith("20 moves") &&

@@ -76,7 +76,7 @@ const PracticeTries &PracticeList::tries() const {
 }
 
 QString PracticeList::clock(std::int64_t ms) const {
-  return clockText(ms, settings_.decimals);
+  return timeText(ms, settings_.decimals);
 }
 
 void PracticeList::fill(const View &view, const std::vector<Row> &rows) {

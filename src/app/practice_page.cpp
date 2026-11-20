@@ -6,6 +6,7 @@
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "io/session_store.hpp"
+#include "train/enum_ids.hpp"
 #include "train/f2l.hpp"
 #include "train/move_count.hpp"
 #include "train/stats.hpp"
@@ -27,35 +28,19 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 
 namespace vcube {
 
 QString PracticePage::tabId(Tab t) {
-  switch (t) {
-  case Tab::Learn:
-    return "learn";
-  case Tab::Inspection:
-    return "inspection";
-  case Tab::Untimed:
-    return "untimed";
-  case Tab::Timed:
-    return "timed";
-  }
-  return "learn";
+  return idOf(std::array{"learn", "inspection", "untimed", "timed"}, t,
+              "learn");
 }
 
 QString PracticePage::tabName(Tab t) {
-  switch (t) {
-  case Tab::Learn:
-    return tr("Learn");
-  case Tab::Inspection:
-    return tr("Inspection");
-  case Tab::Untimed:
-    return tr("Untimed");
-  case Tab::Timed:
-    return tr("Timed");
-  }
-  return {};
+  return tr(idOf(std::array{QT_TR_NOOP("Learn"), QT_TR_NOOP("Inspection"),
+                            QT_TR_NOOP("Untimed"), QT_TR_NOOP("Timed")},
+                 t));
 }
 
 int PracticePage::tabIndex(Tab t) const {

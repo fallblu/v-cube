@@ -148,40 +148,40 @@ TEST_CASE("learn cases come from any side when the set allows AUFs") {
 }
 
 TEST_CASE("pasted algs are matched to their cases") {
-  AlgSet set = ollLikeSet();
-  auto report = importAlgs(set,
-                           "Sune: R U R' U R U2 R' / y2 L U L' U L U2 L'\n"
-                           "1. F R U R' U' F'\n"
-                           "(U2) R U R' U' R' F R F'\n"
-                           "R U R' U R U2 R'\n"
-                           "R U Q\n",
-                           NewCases::Skip);
-  CHECK(report.added == 3);
-  CHECK(report.duplicates == 1);
-  CHECK(report.unmatched.size() == 1);
-  CHECK(report.invalid.size() == 1);
-  CHECK(set.findCase("sune")->algs.size() == 2);
-  CHECK(set.findCase("t")->algs.size() == 1);
+  auto plan =
+      planPaste(ollLikeSet(),
+                readPaste("Sune: R U R' U R U2 R' / y2 L U L' U L U2 L'\n"
+                          "1. F R U R' U' F'\n"
+                          "(U2) R U R' U' R' F R F'\n"
+                          "R U R' U R U2 R'\n"
+                          "R U Q\n"),
+                NewCases::Skip, 0);
+  CHECK(plan.report.added == 3);
+  CHECK(plan.report.duplicates == 1);
+  CHECK(plan.report.unmatched.size() == 1);
+  CHECK(plan.report.invalid.size() == 1);
+  CHECK(plan.set.findCase("sune")->algs.size() == 2);
+  CHECK(plan.set.findCase("t")->algs.size() == 1);
 
-  report = importAlgs(set, "Line: F R U R' U' F'\n", NewCases::Create);
-  CHECK(report.created == 1);
-  CHECK(set.caseCount() == 3);
-  CHECK(set.findCase("Line"));
+  plan = planPaste(plan.set, readPaste("Line: F R U R' U' F'\n"),
+                   NewCases::Create, 0);
+  CHECK(plan.report.created == 1);
+  CHECK(plan.set.caseCount() == 3);
+  CHECK(plan.set.findCase("Line"));
 }
 
 TEST_CASE("pasted lines may carry comments and copied characters") {
-  AlgSet set = ollLikeSet();
-  auto report =
-      importAlgs(set,
-                 "Sune: R U R\xE2\x80\x99 U R U2 R' // the usual one\n"
-                 "R\xC2\xA0U R' U' R' F R F'  // T / chameleon\n",
-                 NewCases::Skip);
-  CHECK(report.added == 2);
-  CHECK(report.invalid.empty());
-  CHECK(report.unmatched.empty());
-  CHECK(set.findCase("sune")->algs ==
+  auto plan =
+      planPaste(ollLikeSet(),
+                readPaste("Sune: R U R\xE2\x80\x99 U R U2 R' // the usual one\n"
+                          "R\xC2\xA0U R' U' R' F R F'  // T / chameleon\n"),
+                NewCases::Skip, 0);
+  CHECK(plan.report.added == 2);
+  CHECK(plan.report.invalid.empty());
+  CHECK(plan.report.unmatched.empty());
+  CHECK(plan.set.findCase("sune")->algs ==
         std::vector<std::string>{"R U R' U R U2 R'"});
-  CHECK(set.findCase("t")->algs ==
+  CHECK(plan.set.findCase("t")->algs ==
         std::vector<std::string>{"R U R' U' R' F R F'"});
 }
 
@@ -200,10 +200,11 @@ TEST_CASE("pasted algs are matched with the set's AUF settings") {
   auto ref = matchCase(set, parseAlgOrEmpty("R U R' U R U2 R'"));
   REQUIRE(ref);
   CHECK(set.groups[ref->group].cases[ref->index].id == "b");
-  auto report = importAlgs(set, "R U R' U R U2 R'\n", NewCases::Skip);
-  CHECK(report.added == 1);
-  CHECK(set.findCase("b")->algs.size() == 1);
-  CHECK(set.findCase("a")->algs.empty());
+  auto plan =
+      planPaste(set, readPaste("R U R' U R U2 R'\n"), NewCases::Skip, 0);
+  CHECK(plan.report.added == 1);
+  CHECK(plan.set.findCase("b")->algs.size() == 1);
+  CHECK(plan.set.findCase("a")->algs.empty());
 }
 
 TEST_CASE("a pasted alg goes to the case its line names") {
@@ -267,9 +268,9 @@ TEST_CASE("pasted spreadsheet rows are name, then algs") {
   // A single column is an ordinary line.
   CHECK(items[3].name.empty());
   CHECK(items[3].line == 3);
-  AlgSet set = ollLikeSet();
-  auto report = importAlgs(set, "Sune\tR U R' U R U2 R'\n", NewCases::Skip);
-  CHECK(report.added == 1);
+  CHECK(planPaste(ollLikeSet(), readPaste("Sune\tR U R' U R U2 R'\n"),
+                  NewCases::Skip, 0)
+            .report.added == 1);
 }
 
 TEST_CASE("pasted new cases go to the chosen group") {

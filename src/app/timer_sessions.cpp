@@ -14,10 +14,6 @@ namespace vcube {
 
 namespace {
 
-QString statText(StatValue v, int decimals) {
-  return QString::fromStdString(formatTime(v, decimals));
-}
-
 // The table's columns. Those after ao12 are for virtual sessions.
 enum Column : int {
   kNumber,
@@ -160,8 +156,8 @@ void TimerPage::refreshAttempts() {
     set(kNumber, s.comment.empty() ? QString::number(i + 1)
                                    : QString("%1 *").arg(i + 1));
     set(kTime, qs(formatSolve(s, d)));
-    set(kAo5, statText(ao5[i], d));
-    set(kAo12, statText(ao12[i], d));
+    set(kAo5, timeText(ao5[i], d));
+    set(kAo12, timeText(ao12[i], d));
     QString moves, rate, cross, f2l, ll;
     if (virt && !s.moves.empty()) {
       SolveRow &kept = solveRows_[i];
@@ -184,7 +180,7 @@ void TimerPage::refreshAttempts() {
       }
       if (const SolveSplits *sp = kept.splits) {
         auto text = [&](const std::optional<std::int64_t> &ms) {
-          return ms ? statText(*ms, d) : QString();
+          return ms ? timeText(*ms, d) : QString();
         };
         cross = text(sp->crossMs);
         f2l = text(sp->f2lMs);
@@ -216,7 +212,7 @@ void TimerPage::refreshAttempts() {
   }
   showStats(
       solves, unit, tr("time"),
-      [d](const std::string &, StatValue v) { return statText(v, d); },
+      [d](const std::string &, StatValue v) { return timeText(v, d); },
       solves.size());
   if (unit != kWcaUnit) { // the chart's averages are in WCA units
     ao5 = rollingAverages(solves, 5);
@@ -238,7 +234,7 @@ void TimerPage::showStat(const QString &link) {
   int d = settings_.decimals;
   StatLinkView view;
   view.unit = statUnit(d);
-  view.format = [d](StatValue v) { return statText(v, d); };
+  view.format = [d](StatValue v) { return timeText(v, d); };
   view.result = [&solves, d](std::size_t i) {
     return qs(formatSolve(solves[i], d));
   };
@@ -337,7 +333,7 @@ void TimerPage::showDetails(int index) {
       QString line = p.htm == 1 ? tr("%1: 1 move").arg(qs(p.name))
                                 : tr("%1: %2 moves").arg(qs(p.name)).arg(p.htm);
       if (p.ms > 0) {
-        line += tr(" in %1").arg(statText(p.ms, d));
+        line += tr(" in %1").arg(timeText(p.ms, d));
       }
       phases << line;
     }

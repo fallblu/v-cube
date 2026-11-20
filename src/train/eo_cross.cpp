@@ -11,10 +11,6 @@ const std::vector<SolveStep> &eoCrossSteps() {
   return steps;
 }
 
-std::vector<Hold> eoHolds(const ColourNeutrality &neutrality) {
-  return withBothEoAxes(neutrality.holds);
-}
-
 std::optional<Hold> doneHold(const FaceletCube &cube, SolveStep step,
                              const std::vector<Hold> &allowed) {
   std::vector<Hold> holds;

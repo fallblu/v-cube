@@ -4,6 +4,7 @@
 #include "app/ui_state.hpp"
 #include "app/ui_text.hpp"
 #include "app/widgets.hpp"
+#include "train/enum_ids.hpp"
 
 #include <QActionGroup>
 #include <QComboBox>
@@ -22,7 +23,9 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <string_view>
 
 namespace vcube {
 
@@ -48,6 +51,9 @@ const OrderName kOrders[] = {
     {NewOrder::FewestSteps, "steps",
      QT_TRANSLATE_NOOP("vcube::LearnPage", "Fewest steps left first")},
 };
+
+constexpr std::array<std::string_view, 3> kPracticeIds = {"solve", "recognise",
+                                                          "quiz"};
 
 } // namespace
 
@@ -393,13 +399,9 @@ void LearnPage::windowDeactivated() {
 // --- the learn queue -------------------------------------------------------
 
 NewOrder LearnPage::newOrder() const {
-  QString id = orderBox_->currentData().toString();
-  for (const OrderName &o : kOrders) {
-    if (id == o.id) {
-      return o.order;
-    }
-  }
-  return NewOrder::ListOrder;
+  // The box lists kOrders in order.
+  const int i = orderBox_->currentIndex();
+  return i < 0 ? NewOrder::ListOrder : kOrders[i].order;
 }
 
 int LearnPage::algMoves(const std::string &caseId) const {
@@ -443,26 +445,12 @@ void LearnPage::adoptSet() {
 }
 
 QString LearnPage::practiceId(Practice practice) {
-  switch (practice) {
-  case Practice::Solve:
-    return "solve";
-  case Practice::Recognise:
-    return "recognise";
-  case Practice::Quiz:
-    return "quiz";
-  }
-  return "solve";
+  return qs(idOf(kPracticeIds, practice, "solve"));
 }
 
 std::optional<LearnPage::Practice>
 LearnPage::practiceFromId(const QString &id) {
-  for (Practice practice :
-       {Practice::Solve, Practice::Recognise, Practice::Quiz}) {
-    if (id == practiceId(practice)) {
-      return practice;
-    }
-  }
-  return std::nullopt;
+  return fromId<Practice>(kPracticeIds, ss(id));
 }
 
 LearnPage::Practice LearnPage::practice() const {

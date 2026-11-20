@@ -11,7 +11,7 @@ using namespace vcube;
 
 TEST_CASE("a step is done in a hold that is allowed", "[eocross]") {
   ColourNeutrality fixed; // white top, green front
-  std::vector<Hold> holds = eoHolds(fixed);
+  std::vector<Hold> holds = withBothEoAxes(fixed.holds);
   CHECK(holds == std::vector<Hold>{{0, 1}, {0, 2}});
   FaceletCube solved;
   // Held as it is: yellow cross on the bottom.
@@ -38,7 +38,7 @@ TEST_CASE("holds are ranked by their optimum", "[eocross]") {
   Rng rng(11);
   CubieCube scrambled = randomState(PieceMask::all(), rng);
   ColourNeutrality n = ColourNeutrality::preset(kWcaHold, Neutrality::X2Y);
-  std::vector<Hold> holds = eoHolds(n);
+  std::vector<Hold> holds = withBothEoAxes(n.holds);
   std::vector<HeldOptimum> ranked =
       solveStepHeld(scrambled, SolveStep::EOCross, holds, 4);
   REQUIRE(ranked.size() == 4); // two crosses, two axes each

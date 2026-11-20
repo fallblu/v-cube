@@ -29,10 +29,6 @@ QString smallLine(const QString &text) {
              : "<br><span style='font-size:small'>" + text + "</span>";
 }
 
-QString clockText(std::int64_t ms, int decimals) {
-  return qs(formatTime(StatValue(ms), decimals));
-}
-
 QString tenthsText(std::int64_t ms) {
   return QObject::tr("%1 s").arg(QString::number(ms / 1000.0, 'f', 1));
 }
@@ -70,9 +66,9 @@ QString timedLine(const TimedResult &r, int decimals) {
   } else if (r.meanBefore && r.ms > 0) {
     const double d = static_cast<double>(r.ms) - *r.meanBefore;
     const QString mean =
-        clockText(static_cast<std::int64_t>(*r.meanBefore), decimals);
+        timeText(static_cast<std::int64_t>(*r.meanBefore), decimals);
     const QString by =
-        clockText(static_cast<std::int64_t>(std::abs(d)), decimals);
+        timeText(static_cast<std::int64_t>(std::abs(d)), decimals);
     parts << (d <= 0 ? coloured(kPassColour,
                                 tr("%1 under your mean (%2)").arg(by, mean))
                      : tr("%1 over your mean (%2)").arg(by, mean));
@@ -173,15 +169,13 @@ QString splitsHtml(const std::vector<PracticeSplit> &parts, const Alg &moves,
     const std::int64_t began = first < end ? moveMs[first] : ended;
     const std::int64_t pause = std::max<std::int64_t>(0, began - at);
     const std::int64_t time = std::max<std::int64_t>(0, ended - at);
-    Alg part(moves.begin() + static_cast<std::ptrdiff_t>(from),
-             moves.begin() + static_cast<std::ptrdiff_t>(end));
-    const int htm = htmCount(simplify(part));
+    const int htm = htmCount(simplify(slice(moves, from, end)));
     const std::int64_t turning = ended - began;
     html +=
         QString("<tr><td>%1</td><td align='right'>%2</td><td "
                 "align='right'>%3</td><td align='right'>%4</td><td "
                 "align='right'>%5</td></tr>")
-            .arg(name, clockText(time, decimals), clockText(pause, decimals))
+            .arg(name, timeText(time, decimals), timeText(pause, decimals))
             .arg(htm)
             .arg(turning > 0 && htm > 1
                      ? QString::number(

@@ -45,15 +45,6 @@ inline ColourMap colourMapOf(Hold h) { return holdColours(h); }
 enum class Status { Good, Warning, Bad };
 QColor statusColour(Status s);
 
-// A status colour that follows the theme wherever it is used as a colour,
-// a brush or a name for rich text: `const StatusColour kGood{Status::Good}`.
-struct StatusColour {
-  Status status;
-  operator QColor() const { return statusColour(status); }
-  operator QBrush() const { return statusColour(status); }
-  QString name() const { return statusColour(status).name(); }
-};
-
 // Colours for the roles the palette has no entry for, each with a shade for
 // each theme, chosen to reach 4.5:1 as text (3:1 for lines and marks) on
 // the window and list backgrounds of their theme.
@@ -76,14 +67,17 @@ enum class Role {
 };
 QColor roleColour(Role r);
 
-// A role colour that follows the theme, as StatusColour does:
-// `const RoleColour kFailColour{Role::Fail}`.
-struct RoleColour {
-  Role role;
-  operator QColor() const { return roleColour(role); }
-  operator QBrush() const { return roleColour(role); }
-  QString name() const { return roleColour(role).name(); }
+// A status or role colour that follows the theme wherever it is used as a
+// colour, a brush or a name for rich text: `const StatusColour
+// kGood{Status::Good}`, `const RoleColour kFailColour{Role::Fail}`.
+template <typename E, QColor (*colourOf)(E)> struct ThemeColour {
+  E value;
+  operator QColor() const { return colourOf(value); }
+  operator QBrush() const { return colourOf(value); }
+  QString name() const { return colourOf(value).name(); }
 };
+using StatusColour = ThemeColour<Status, statusColour>;
+using RoleColour = ThemeColour<Role, roleColour>;
 
 // The colours for the algs compared in Alg Lab's chart, in a fixed order
 // (eight, then again), 3:1 or more on the current theme's backgrounds.

@@ -102,9 +102,6 @@ const ErgoProfile *labGuideProfile(const AlgLabStore &store,
 // profile, grip or not), and saving a new choice.
 QString scoreProfileName();
 void setScoreProfileName(const QString &name);
-// That profile, or the first one when it is gone: what F2L and Alg Lab
-// score algs with.
-const ErgoProfile &activeScoreProfile(const AlgLabStore &store);
 
 // Seconds with the app's decimals, "DNF" or "–".
 QString labTime(std::optional<std::int64_t> ms, int decimals);
