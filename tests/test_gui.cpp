@@ -2,6 +2,7 @@
 // keys go in as QTest events and what was saved is read back from the data
 // folder. The settings and data folders are temporary ones, set before the
 // QApplication exists, so the user's own data is never read or written.
+#include "app/alglab_dialogs.hpp"
 #include "app/alglab_page.hpp"
 #include "app/app_settings.hpp"
 #include "app/case_filter.hpp"
@@ -66,12 +67,14 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSignalSpy>
@@ -423,6 +426,7 @@ private slots:
   void pastedAlgGoesToTheNamesakeChosen();
   void algLabTimesEachAlg();
   void fingertrickGuidance();
+  void profileCostsAreReadInTheLocale();
   void f2lLearnAndTimed();
   void tsleLearnAndTimed();
   void eoCrossLearnAndTimed();
@@ -823,6 +827,68 @@ void GuiTest::fingertrickGuidance() {
   QVERIFY(libView && libView->isVisible());
   QVERIFY(libView->findChild<QLabel *>()->text().contains("Start:"));
   QCOMPARE(libView->findChild<QTableWidget *>()->columnCount(), 14);
+}
+
+// A profile's cost cells are written and read with the locale's decimal
+// separator, as the spin boxes beside them are, and with a point too; a
+// cell that can't be read is said to be left out.
+void GuiTest::profileCostsAreReadInTheLocale() {
+  const QLocale was;
+  QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+  auto restore = qScopeGuard([&] { QLocale::setDefault(was); });
+  QCOMPARE(costText(1.5), QString("1,5"));
+  QCOMPARE(costText(1000.0), QString("1000"));
+  QCOMPARE(costFromText("1,5"), std::optional<double>(1.5));
+  QCOMPARE(costFromText(" 1.5 "), std::optional<double>(1.5));
+  QCOMPARE(costFromText("2"), std::optional<double>(2.0));
+  QVERIFY(!costFromText("x"));
+  QVERIFY(!costFromText(""));
+
+  ErgoProfile p;
+  p.name = "Mine";
+  p.moves["R"] = 1.5;
+  p.rules.push_back({"R*", "L*", 0.25});
+  ProfileDialog dialog(p);
+  QCOMPARE(dialog.profile(), p);
+  auto *moves = lastChild<QTableWidget>(
+      &dialog, [](QTableWidget *t) { return t->columnCount() == 2; });
+  auto *rules = lastChild<QTableWidget>(
+      &dialog, [](QTableWidget *t) { return t->columnCount() == 3; });
+  QVERIFY(moves && rules);
+  int row = -1;
+  for (int r = 0; r < moves->rowCount(); ++r) {
+    if (moves->item(r, 0)->text() == "R") {
+      row = r;
+    }
+  }
+  QVERIFY(row >= 0);
+  QCOMPARE(moves->item(row, 1)->text(), QString("1,5"));
+  auto problems = [&] {
+    QStringList said;
+    for (QLabel *l : dialog.findChildren<QLabel *>()) {
+      if (l->text().contains("can't be read and will be left out")) {
+        said << l->text();
+      }
+    }
+    return said.join("\n");
+  };
+  QCOMPARE(problems(), QString());
+
+  moves->item(row, 1)->setText("2,5");
+  rules->item(0, 2)->setText("0,75");
+  QCOMPARE(dialog.profile().moves.at("R"), 2.5);
+  QCOMPARE(dialog.profile().rules.at(0).cost, 0.75);
+  QCOMPARE(problems(), QString());
+
+  // Not costs: both rows are left out, and it says so.
+  moves->item(row, 1)->setText("cheap");
+  rules->item(0, 2)->setText("-1");
+  QVERIFY(!dialog.profile().moves.contains("R"));
+  QVERIFY(dialog.profile().rules.empty());
+  VERIFY_CONTAINS(problems(), "2 rows can't be read");
+  // A move with no cost isn't a mistake.
+  moves->item(row, 1)->setText("");
+  VERIFY_CONTAINS(problems(), "1 row can't be read");
 }
 
 void GuiTest::f2lLearnAndTimed() {
