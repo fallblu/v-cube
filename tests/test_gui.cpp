@@ -266,6 +266,18 @@ private:
 
 } // namespace
 
+// A key (and what is held with it) pressed on the window, then the phase
+// the practice page is in.
+#define KEY_TO(page, to, ...)                                                  \
+  do {                                                                         \
+    QTest::keyClick(window_.get(), __VA_ARGS__);                               \
+    QCOMPARE((page)->phase(), PracticePage::Phase::to);                        \
+  } while (false)
+
+// That `text` contains `part`, saying what the text is if not.
+#define VERIFY_CONTAINS(text, part)                                            \
+  QVERIFY2((text).contains(part), qPrintable(text))
+
 class GuiTest : public QObject {
   Q_OBJECT
 
@@ -792,14 +804,12 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY(!f2l->candidates().empty());
   QVERIFY(f2l->candidates().size() <= F2LPage::kCandidates);
   // Nothing ticked: Enter doesn't do; turning keys don't turn.
-  QTest::keyClick(window_.get(), Qt::Key_Return);
-  QCOMPARE(f2l->phase(), Phase::Choose);
+  KEY_TO(f2l, Choose, Qt::Key_Return);
   typeMoves({Move{MoveType::R, 1}});
   QVERIFY(f2l->cube() == f2l->startCube());
   QTest::keyClick(window_.get(), Qt::Key_1);
   QVERIFY(f2l->candidates().front().ticked);
-  QTest::keyClick(window_.get(), Qt::Key_Return);
-  QCOMPARE(f2l->phase(), Phase::Demo);
+  KEY_TO(f2l, Demo, Qt::Key_Return);
   QCOMPARE(f2l->chosenSolutions(pool.front()).size(), std::size_t{1});
   // The demo is the solution chosen, as done from here.
   QVERIFY(!chosenHere().empty());
@@ -814,37 +824,28 @@ void GuiTest::f2lLearnAndTimed() {
   // Two more come in (each chosen, then Space skips the showing); then no
   // more until fewer are in their first steps.
   for (int i = 1; i <= 2; ++i) {
-    QTest::keyClick(window_.get(), Qt::Key_Space);
-    QCOMPARE(f2l->phase(), Phase::Choose);
+    KEY_TO(f2l, Choose, Qt::Key_Space);
     QCOMPARE(f2l->currentCard(), pool[static_cast<std::size_t>(i)]);
     QTRY_VERIFY_WITH_TIMEOUT(f2l->candidatesReady(), 30000);
     QTest::keyClick(window_.get(), Qt::Key_1);
-    QTest::keyClick(window_.get(), Qt::Key_Return);
-    QCOMPARE(f2l->phase(), Phase::Demo);
-    QTest::keyClick(window_.get(), Qt::Key_Space);
-    QCOMPARE(f2l->phase(), Phase::Done);
+    KEY_TO(f2l, Demo, Qt::Key_Return);
+    KEY_TO(f2l, Done, Qt::Key_Space);
   }
   QVERIFY(sideOf(*f2l->target()) == PairSide::Front ||
           cardFromKey(pool[1])->side == PairSide::Back);
   // Only shown, it has no try to judge when its solutions change.
   QVERIFY(f2l->verdictHtml().contains("Shown"));
-  QTest::keyClick(window_.get(), Qt::Key_0);
-  QCOMPARE(f2l->phase(), Phase::Choose);
+  KEY_TO(f2l, Choose, Qt::Key_0);
   QTRY_VERIFY_WITH_TIMEOUT(f2l->candidatesReady(), 30000);
-  QTest::keyClick(window_.get(), Qt::Key_Return);
-  QCOMPARE(f2l->phase(), Phase::Done);
-  QVERIFY2(f2l->verdictHtml().contains("Shown"),
-           qPrintable(f2l->verdictHtml()));
+  KEY_TO(f2l, Done, Qt::Key_Return);
+  VERIFY_CONTAINS(f2l->verdictHtml(), "Shown");
   QVERIFY(!f2l->offersToAdd());
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(f2l->phase(), Phase::Idle);
-  QVERIFY2(f2l->promptHtml().contains("Nothing is due"),
-           qPrintable(f2l->promptHtml()));
+  KEY_TO(f2l, Idle, Qt::Key_Space);
+  VERIFY_CONTAINS(f2l->promptHtml(), "Nothing is due");
 
   // Space takes a learning card early. Solved with a chosen solution it is
   // Good; 1-4 change the grade.
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(f2l->phase(), Phase::Solving);
+  KEY_TO(f2l, Solving, Qt::Key_Space);
   QVERIFY(f2l->graded());
   const std::string key = f2l->currentCard();
   QCOMPARE(cardKey(pairCardOf(f2l->startState(), *f2l->target())), key);
@@ -859,8 +860,7 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY(crossSolved(*done));
   QVERIFY(f2l->grade() == Grade::Good);
   QCOMPARE(card(key).reps, 1);
-  QVERIFY2(f2l->verdictHtml().contains("Your solution"),
-           qPrintable(f2l->verdictHtml()));
+  VERIFY_CONTAINS(f2l->verdictHtml(), "Your solution");
   QVERIFY(f2l->verdictHtml().contains("Good"));
   QVERIFY(!f2l->offersToAdd());
   const std::size_t attempts = f2l->data().cards.at(key).attempts.size();
@@ -884,8 +884,7 @@ void GuiTest::f2lLearnAndTimed() {
 
   // 0 changes the solutions: Esc leaves them as they were; one of your own
   // can be typed in (as done for the slot shown).
-  QTest::keyClick(window_.get(), Qt::Key_0);
-  QCOMPARE(f2l->phase(), Phase::Choose);
+  KEY_TO(f2l, Choose, Qt::Key_0);
   QTRY_VERIFY_WITH_TIMEOUT(f2l->candidatesReady(), 30000);
   QVERIFY(std::any_of(f2l->candidates().begin(), f2l->candidates().end(),
                       [](const F2LPage::Candidate &c) { return c.ticked; }));
@@ -906,8 +905,7 @@ void GuiTest::f2lLearnAndTimed() {
     QCOMPARE(f2l->phase(), Phase::Choose);
     window_->setFocus();
   }
-  QTest::keyClick(window_.get(), Qt::Key_Escape);
-  QCOMPARE(f2l->phase(), Phase::Done);
+  KEY_TO(f2l, Done, Qt::Key_Escape);
   QCOMPARE(f2l->chosenSolutions(key).size(), std::size_t{1});
   QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 30000);
   std::optional<Alg> other;
@@ -918,18 +916,15 @@ void GuiTest::f2lLearnAndTimed() {
     }
   }
   if (other) {
-    QTest::keyClick(window_.get(), Qt::Key_0);
-    QCOMPARE(f2l->phase(), Phase::Choose);
+    KEY_TO(f2l, Choose, Qt::Key_0);
     QCOMPARE(f2l->addOwnSolution(qs(toString(*other))), QString());
-    QTest::keyClick(window_.get(), Qt::Key_Return);
-    QCOMPARE(f2l->phase(), Phase::Done);
+    KEY_TO(f2l, Done, Qt::Key_Return);
     QCOMPARE(f2l->chosenSolutions(key).size(), std::size_t{2});
     QVERIFY(f2l->grade() == Grade::Good); // kept as it was
   }
 
   // The same state again isn't recorded or graded; a hint is in words.
-  QTest::keyClick(window_.get(), Qt::Key_Escape);
-  QCOMPARE(f2l->phase(), Phase::Solving);
+  KEY_TO(f2l, Solving, Qt::Key_Escape);
   QVERIFY(!f2l->graded());
   QVERIFY(f2l->cube() == f2l->startCube());
   QTest::keyClick(window_.get(), Qt::Key_Tab);
@@ -939,8 +934,7 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY2(hint->text().startsWith("Hint:"), qPrintable(hint->text()));
   QVERIFY(hint->font().pointSizeF() > QApplication::font().pointSizeF());
   QVERIFY(f2l->cube() == f2l->startCube());
-  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
-  QCOMPARE(f2l->phase(), Phase::Done);
+  KEY_TO(f2l, Done, Qt::Key_Space, Qt::ShiftModifier);
   QCOMPARE(f2l->data().cards.at(key).attempts.size(), attempts);
   QCOMPARE(card(key).reps, 1);
 
@@ -952,8 +946,7 @@ void GuiTest::f2lLearnAndTimed() {
   QCOMPARE(f2l->phase(), Phase::Choose);
   QVERIFY(sideOf(*f2l->target()) == PairSide::Back);
   QVERIFY(cardKey(pairCardOf(f2l->startState(), *f2l->target())) == wanted);
-  QTest::keyClick(window_.get(), Qt::Key_Escape); // nothing to go back to
-  QCOMPARE(f2l->phase(), Phase::Choose);
+  KEY_TO(f2l, Choose, Qt::Key_Escape); // nothing to go back to
   // One typed in while the candidates are still being searched for stays,
   // ticked, once they come.
   {
@@ -983,8 +976,7 @@ void GuiTest::f2lLearnAndTimed() {
   }
   QTRY_VERIFY_WITH_TIMEOUT(f2l->candidatesReady(), 30000);
   QTest::keyClick(window_.get(), Qt::Key_2);
-  QTest::keyClick(window_.get(), Qt::Key_Return);
-  QCOMPARE(f2l->phase(), Phase::Solving);
+  KEY_TO(f2l, Solving, Qt::Key_Return);
   QVERIFY(!f2l->graded());
   typeMoves(chosenHere());
   QCOMPARE(f2l->phase(), Phase::Done);
@@ -1048,8 +1040,7 @@ void GuiTest::f2lLearnAndTimed() {
   QCOMPARE(f2l->phase(), Phase::Done);
   QCOMPARE(f2l->data().learn.at("whole").size(), std::size_t{1});
   QVERIFY(f2l->data().learn.at("whole").back().moves > 0);
-  QVERIFY2(f2l->verdictHtml().contains("F2L in"),
-           qPrintable(f2l->verdictHtml()));
+  VERIFY_CONTAINS(f2l->verdictHtml(), "F2L in");
   QTRY_VERIFY_WITH_TIMEOUT(f2l->analysisReady(), 60000);
   QVERIFY(f2l->data().learn.at("whole").back().extra >= 0.0);
   QVERIFY(f2l->data().learn.at("whole").back().best > 0);
@@ -1069,12 +1060,11 @@ void GuiTest::f2lLearnAndTimed() {
   QVERIFY(solveWhole());
   QCOMPARE(f2l->timedPhase(), DrillFlow::Phase::Revealed);
   QVERIFY(!f2l->isBusy());
-  QVERIFY2(f2l->verdictHtml().contains("TPS"), qPrintable(f2l->verdictHtml()));
+  VERIFY_CONTAINS(f2l->verdictHtml(), "TPS");
   QVERIFY(!f2l->verdictHtml().contains("cheapest"));
   QTest::qWait(DrillFlow::kGuardMs + 50); // keys right after are held back
   QTest::keyClick(window_.get(), Qt::Key_Tab);
-  QVERIFY2(f2l->detailHtml().contains("Where the time went"),
-           qPrintable(f2l->detailHtml()));
+  VERIFY_CONTAINS(f2l->detailHtml(), "Where the time went");
   QTest::keyClick(window_.get(), Qt::Key_Tab);
   const std::string timedGroup = timedKey(CubeKind::Virtual, "zz-1");
   QCOMPARE(f2l->data().timed.at(timedGroup).size(), std::size_t{1});
@@ -1166,8 +1156,7 @@ void GuiTest::f2lLearnAndTimed() {
       }
     }
     QCOMPARE(f2l->addOwnSolution(qs(toString(breaking))), QString());
-    QTest::keyClick(window_.get(), Qt::Key_Return);
-    QCOMPARE(f2l->phase(), Phase::Solving);
+    KEY_TO(f2l, Solving, Qt::Key_Return);
     QCOMPARE(f2l->chosenSolutions(cfopKey).size(), std::size_t{1});
     QCOMPARE(f2l->usableSolutions().size(), std::size_t{1});
 
@@ -1184,8 +1173,7 @@ void GuiTest::f2lLearnAndTimed() {
       QVERIFY(!c.ticked);
     }
     QTest::keyClick(window_.get(), Qt::Key_1);
-    QTest::keyClick(window_.get(), Qt::Key_Return);
-    QCOMPARE(f2l->phase(), Phase::Solving);
+    KEY_TO(f2l, Solving, Qt::Key_Return);
     QCOMPARE(f2l->chosenSolutions(cfopKey).size(), std::size_t{2});
     QCOMPARE(f2l->usableSolutions().size(), std::size_t{1});
 
@@ -1236,24 +1224,20 @@ void GuiTest::tsleLearnAndTimed() {
   QCOMPARE(tsle->phase(), Phase::Done);
   QVERIFY(tsle->data().cards.at(pool.front()).card.introduced != 0);
   for (int i = 0; i < 2; ++i) {
-    QTest::keyClick(window_.get(), Qt::Key_Space);
-    QCOMPARE(tsle->phase(), Phase::Demo);
+    KEY_TO(tsle, Demo, Qt::Key_Space);
     QTest::keyClick(window_.get(), Qt::Key_Space);
   }
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(tsle->phase(), Phase::Idle);
+  KEY_TO(tsle, Idle, Qt::Key_Space);
 
   // The best trigger from the AUF at hand is Good...
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(tsle->phase(), Phase::Solving);
+  KEY_TO(tsle, Solving, Qt::Key_Space);
   QVERIFY(tsle->graded());
   std::string key = tsle->currentCard();
   QCOMPARE(tsleKey(tsleCase(tsle->startState())), key);
   typeMoves(options().front().alg);
   QCOMPARE(tsle->phase(), Phase::Done);
   QVERIFY(tsle->grade() == Grade::Good);
-  QVERIFY2(tsle->verdictHtml().contains("best trigger"),
-           qPrintable(tsle->verdictHtml()));
+  VERIFY_CONTAINS(tsle->verdictHtml(), "best trigger");
   QVERIFY(tsle->bestSolution() == options().front().alg);
   QTest::keyClick(window_.get(), Qt::Key_Tab);
   QVERIFY(tsle->detailHtml().contains("Every good trigger"));
@@ -1325,8 +1309,7 @@ void GuiTest::tsleLearnAndTimed() {
   QVERIFY(tsle->currentState() && tsle->currentState()->done());
   QCOMPARE(tsle->data().learn.at("whole").size(), std::size_t{1});
   QCOMPARE(tsle->data().learn.at("whole").back().extra, 0.0);
-  QVERIFY2(tsle->verdictHtml().contains("as short as the best way"),
-           qPrintable(tsle->verdictHtml()));
+  VERIFY_CONTAINS(tsle->verdictHtml(), "as short as the best way");
 
   // Timed: the whole step, kept by the case it started from; its splits
   // behind Tab.
@@ -1342,8 +1325,7 @@ void GuiTest::tsleLearnAndTimed() {
   QCOMPARE(tsle->data().timed.at(group).back().extra, 0.0);
   QTest::qWait(DrillFlow::kGuardMs + 50);
   QTest::keyClick(window_.get(), Qt::Key_Tab);
-  QVERIFY2(tsle->detailHtml().contains("Where the time went"),
-           qPrintable(tsle->detailHtml()));
+  VERIFY_CONTAINS(tsle->detailHtml(), "Where the time went");
 
   // The lists: 97 cards in Learn, the 104 starting cases in Timed.
   auto *tree = tsle->findChild<QTreeWidget *>("practiceList");
@@ -1401,8 +1383,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(eo->phase(), Phase::Ready);
   QVERIFY(eo->promptHtml().contains("Ready"));
   QVERIFY(!eo->ticking());
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Solving);
+  KEY_TO(eo, Solving, Qt::Key_Space);
   QVERIFY(eo->inspecting());
   QVERIFY(eo->ticking());
   QCOMPARE(eo->shownHold(), settings_.neutrality.main);
@@ -1418,8 +1399,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(eo->inspectedMs() > 0);
   QVERIFY(eo->cubeHidden());
   QCOMPARE(eo->phase(), Phase::Solving);
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Done);
+  KEY_TO(eo, Done, Qt::Key_Space);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QVERIFY(!eo->cubeHidden());
   QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{1});
@@ -1432,23 +1412,19 @@ void GuiTest::eoCrossLearnAndTimed() {
            qPrintable(eo->verdictHtml()));
   // The next state comes at once; a plan that didn't do the step counts
   // as not done.
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Solving);
+  KEY_TO(eo, Solving, Qt::Key_Space);
   QVERIFY(eo->inspecting());
   typeMoves(parseAlgOrEmpty("R"));
   QVERIFY(eo->cubeHidden());
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Done);
+  KEY_TO(eo, Done, Qt::Key_Space);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QVERIFY(eo->data().inspection.at("eocross").back().dnf);
-  QVERIFY2(eo->verdictHtml().contains("Not done"),
-           qPrintable(eo->verdictHtml()));
+  VERIFY_CONTAINS(eo->verdictHtml(), "Not done");
   // Esc while planning gives the same state again, not recorded.
   QTest::keyClick(window_.get(), Qt::Key_Space);
   CubieCube planned = eo->scrambled();
   typeMoves(parseAlgOrEmpty("R"));
-  QTest::keyClick(window_.get(), Qt::Key_Escape);
-  QCOMPARE(eo->phase(), Phase::Solving);
+  KEY_TO(eo, Solving, Qt::Key_Escape);
   QVERIFY(eo->inspecting());
   QVERIFY(!eo->cubeHidden());
   QVERIFY(eo->scrambled() == planned);
@@ -1457,11 +1433,9 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(bar);
   QVERIFY(std::ranges::any_of(
       bar->keys(), [](const KeyHint &k) { return k.key == "Shift+Space"; }));
-  QTest::keyClick(window_.get(), Qt::Key_Backspace);
-  QCOMPARE(eo->phase(), Phase::Solving);
-  QVERIFY2(bar->message().contains("Shift+Space"), qPrintable(bar->message()));
-  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
-  QCOMPARE(eo->phase(), Phase::Done);
+  KEY_TO(eo, Solving, Qt::Key_Backspace);
+  VERIFY_CONTAINS(bar->message(), "Shift+Space");
+  KEY_TO(eo, Done, Qt::Key_Space, Qt::ShiftModifier);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
   // ...and Delete takes a try just recorded back (a retry has none).
@@ -1470,10 +1444,8 @@ void GuiTest::eoCrossLearnAndTimed() {
         bar->keys(), [](const KeyHint &k) { return k.key == "Delete"; });
   };
   QVERIFY(!hasDelete());
-  QTest::keyClick(window_.get(), Qt::Key_Space);
-  QCOMPARE(eo->phase(), Phase::Solving);
-  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
-  QCOMPARE(eo->phase(), Phase::Done);
+  KEY_TO(eo, Solving, Qt::Key_Space);
+  KEY_TO(eo, Done, Qt::Key_Space, Qt::ShiftModifier);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{3});
   QVERIFY(eo->data().inspection.at("eocross").back().dnf);
@@ -1497,8 +1469,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(tries(eo->data().learn, "eocross"), std::size_t{1});
   QCOMPARE(eo->data().learn.at("eocross").back().extra, 0.0);
   QCOMPARE(eo->data().learn.at("eocross").back().moves, optimum);
-  QVERIFY2(eo->verdictHtml().contains("optimal"),
-           qPrintable(eo->verdictHtml()));
+  VERIFY_CONTAINS(eo->verdictHtml(), "optimal");
   QVERIFY(!eo->verdictHtml().contains("looked"));
   // The details list the holds; a solution listed does the step from the
   // start, and so does the best one on Enter.
@@ -1511,12 +1482,10 @@ void GuiTest::eoCrossLearnAndTimed() {
   QVERIFY(doneHold(eo->cube(), step, holds).has_value());
   // A retry isn't recorded.
   CubieCube state = eo->scrambled();
-  QTest::keyClick(window_.get(), Qt::Key_Escape);
-  QCOMPARE(eo->phase(), Phase::Solving);
+  KEY_TO(eo, Solving, Qt::Key_Escape);
   QVERIFY(eo->scrambled() == state);
   QVERIFY(eo->cube() == eo->startCube());
-  QTest::keyClick(window_.get(), Qt::Key_Space, Qt::ShiftModifier);
-  QCOMPARE(eo->phase(), Phase::Done);
+  KEY_TO(eo, Done, Qt::Key_Space, Qt::ShiftModifier);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().learn, "eocross"), std::size_t{1});
 
@@ -1542,7 +1511,7 @@ void GuiTest::eoCrossLearnAndTimed() {
   QCOMPARE(eo->data().timed.at(group).back().moves, optimum);
   QCOMPARE(eo->data().timed.at(group).back().extra, 0.0);
   QVERIFY(eo->data().timed.at(group).back().ms > 0);
-  QVERIFY2(eo->verdictHtml().contains("TPS"), qPrintable(eo->verdictHtml()));
+  VERIFY_CONTAINS(eo->verdictHtml(), "TPS");
   QTest::qWait(DrillFlow::kGuardMs + 50);
   QTest::keyClick(window_.get(), Qt::Key_Tab);
   QVERIFY(eo->detailHtml().contains("optimal"));
@@ -1966,17 +1935,14 @@ void GuiTest::practiceResultsAreWorded() {
         .arg(name, clockText(time, 2), clockText(pause, 2), htm, tps);
   };
   const QString splits = splitsHtml(parts, moves, at, 2, "#888888");
-  QVERIFY2(splits.contains(row("pair", 2000, 1000, "3", "3.0")),
-           qPrintable(splits));
+  VERIFY_CONTAINS(splits, row("pair", 2000, 1000, "3", "3.0"));
   // What is left after the parts: the rotation before its turn is looking,
   // and one move has no speed.
-  QVERIFY2(splits.contains(row("the rest", 2000, 2000, "1", "-")),
-           qPrintable(splits));
+  VERIFY_CONTAINS(splits, row("the rest", 2000, 2000, "1", "-"));
   // A part that ends past the solve takes what there is, and nothing is
   // left for the rest.
   const QString whole = splitsHtml({{"all", 9}}, moves, at, 2, "#888888");
-  QVERIFY2(whole.contains(row("all", 4000, 1000, "4", "1.3")),
-           qPrintable(whole));
+  VERIFY_CONTAINS(whole, row("all", 4000, 1000, "4", "1.3"));
   QVERIFY(!whole.contains("the rest"));
 
   // A timed solve: its moves and speed, and how it compares.
@@ -1985,9 +1951,8 @@ void GuiTest::practiceResultsAreWorded() {
       QString("20 moves · 2.00 TPS"));
   const QString under = timedLine(
       {.moves = 0, .ms = 10000, .dnf = false, .meanBefore = 12000.0}, 2);
-  QVERIFY2(under.contains(QString("%1 under your mean (%2)")
-                              .arg(clockText(2000, 2), clockText(12000, 2))),
-           qPrintable(under));
+  VERIFY_CONTAINS(under, QString("%1 under your mean (%2)")
+                             .arg(clockText(2000, 2), clockText(12000, 2)));
   const QString over = timedLine(
       {.moves = 0, .ms = 10000, .dnf = false, .meanBefore = 9000.0}, 2);
   QCOMPARE(over, QString("%1 over your mean (%2)")
@@ -2601,8 +2566,8 @@ void GuiTest::trendChartNamesWhatItCharts() {
   means[2].timeMs = 1400;
   chart.setSolves(means);
   const QString said = chart.accessibleDescription();
-  QVERIFY2(said.contains("Wed 3: 1.40"), qPrintable(said));
-  QVERIFY2(said.contains("daily best: 0.90"), qPrintable(said));
+  VERIFY_CONTAINS(said, "Wed 3: 1.40");
+  VERIFY_CONTAINS(said, "daily best: 0.90");
   QVERIFY2(!said.contains("ao5") && !said.contains("#3"), qPrintable(said));
   // Paints at a large text size without trouble.
   QFont big = chart.font();
@@ -2757,8 +2722,7 @@ void GuiTest::aLockFromAnotherHostCanBeTakenOver() {
   SingleInstance instance(dir.path());
   QVERIFY(instance.claim() == SingleInstance::Claim::Running);
   QCOMPARE(instance.lockPath(), lock);
-  QVERIFY2(instance.lockHolder().contains("some-other-host"),
-           qPrintable(instance.lockHolder()));
+  VERIFY_CONTAINS(instance.lockHolder(), "some-other-host");
   QVERIFY(instance.takeOver());
   // Now this copy holds it, and another is turned away or signalled.
   SingleInstance second(dir.path());
@@ -3070,8 +3034,7 @@ void GuiTest::reviewButtonsHaveKeys() {
            qPrintable(shown.join(", ")));
   QApplication::clipboard()->clear();
   QTest::keyClick(&dialog, Qt::Key_C);
-  QVERIFY2(QApplication::clipboard()->text().contains("R U R' U'"),
-           qPrintable(QApplication::clipboard()->text()));
+  VERIFY_CONTAINS(QApplication::clipboard()->text(), "R U R' U'");
   QTest::keyClick(&dialog, Qt::Key_R);
   QCOMPARE(retried.count(), 1);
   QVERIFY(!dialog.isVisible());
