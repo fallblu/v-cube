@@ -38,6 +38,8 @@ void AlgLabPage::fillTable(bool resize) {
   } updateAfter{this};
   table_->setSortingEnabled(false);
   table_->setRowCount(0);
+  tableCase_.reset();
+  tableRows_ = 0;
   if (!case_) {
     for (int c = ColCount; c < ColumnCount; ++c) {
       table_->setColumnHidden(c, true);
@@ -46,6 +48,58 @@ void AlgLabPage::fillTable(bool resize) {
   }
   const std::vector<CandidateRow> rows =
       candidateRows(*case_, store_, candidateCache_);
+  TableFill fill;
+  addTableRows(rows, 0, fill, &selected);
+  tableCase_ = case_->key;
+  tableRows_ = rows.size();
+  table_->setSortingEnabled(true);
+  if (resize) {
+    for (int c = ColHtm; c < ColumnCount; ++c) {
+      table_->resizeColumnToContents(c);
+    }
+  }
+  // The eight time columns only once there are times to show.
+  for (int c = ColCount; c < ColumnCount; ++c) {
+    table_->setColumnHidden(c, !fill.anyTimes);
+  }
+  if (fill.hidden > 0 && !job_) {
+    genStatus_->setText(plural(fill.hidden, tr("%n alg hidden by the filters."),
+                               tr("%n algs hidden by the filters.")));
+  }
+}
+
+void AlgLabPage::appendToTable() {
+  if (!case_ || tableCase_ != case_->key) {
+    fillTable(false);
+    return;
+  }
+  const std::vector<CandidateRow> rows =
+      candidateRows(*case_, store_, candidateCache_);
+  if (rows.size() < tableRows_) {
+    fillTable(false); // something went: not only added
+    return;
+  }
+  if (rows.size() == tableRows_) {
+    return;
+  }
+  // The rows there stay, with the selection.
+  QSignalBlocker blockSelection(table_);
+  table_->setSortingEnabled(false);
+  TableFill fill;
+  fill.shown = table_->rowCount();
+  addTableRows(rows, tableRows_, fill, nullptr);
+  tableRows_ = rows.size();
+  table_->setSortingEnabled(true);
+  if (fill.anyTimes) {
+    for (int c = ColCount; c < ColumnCount; ++c) {
+      table_->setColumnHidden(c, false);
+    }
+  }
+}
+
+void AlgLabPage::addTableRows(const std::vector<CandidateRow> &rows,
+                              std::size_t from, TableFill &fill,
+                              const QString *selected) {
   const std::string mainAlg =
       case_->setAlgs.empty()
           ? std::string()
@@ -65,20 +119,19 @@ void AlgLabPage::fillTable(bool resize) {
   WarmupOf warm = [this](std::string_view id) { return store_.warmupOf(id); };
   const int trim = store_.current().trimPercent;
   const int d = settings_.decimals;
-  int hidden = 0, shown = 0;
-  bool anyTimes = false; // an alg listed has times: the time columns show
   // All the rows at once, the ones filtered out cut off after.
-  table_->setRowCount(static_cast<int>(rows.size()));
-  for (const CandidateRow &r : rows) {
+  table_->setRowCount(fill.shown + static_cast<int>(rows.size() - from));
+  for (std::size_t i = from; i < rows.size(); ++i) {
+    const CandidateRow &r = rows[i];
     const Alg &alg = r.moves;
     const MoveCounts &mc = r.counts;
     if ((filterOn_ && !filterSet_.contains(alg)) ||
         (noRotations_->isChecked() && r.rotations) ||
         (maxHtm_->value() > 0 && mc.htm > maxHtm_->value())) {
-      ++hidden;
+      ++fill.hidden;
       continue;
     }
-    int row = shown++;
+    int row = fill.shown++;
     auto *algItem = new QTableWidgetItem(r.shown);
     algItem->setFlags(algItem->flags() & ~Qt::ItemIsEditable);
     algItem->setData(Qt::UserRole, qs(r.key));
@@ -109,27 +162,13 @@ void AlgLabPage::fillTable(bool resize) {
     table_->setItem(row, ColSource, src);
     LabStats st = labStats(attempts.of(case_->key, r.key), case_->key, r.key,
                            cube, window, trim, warm);
-    anyTimes = anyTimes || st.used + st.dnfs > 0;
+    fill.anyTimes = fill.anyTimes || st.used + st.dnfs > 0;
     setLabStatCells(table_, row, ColCount, st, d);
-    if (qs(r.key) == selected) {
+    if (selected && qs(r.key) == *selected) {
       table_->selectRow(row);
     }
   }
-  table_->setRowCount(shown);
-  table_->setSortingEnabled(true);
-  if (resize) {
-    for (int c = ColHtm; c < ColumnCount; ++c) {
-      table_->resizeColumnToContents(c);
-    }
-  }
-  // The eight time columns only once there are times to show.
-  for (int c = ColCount; c < ColumnCount; ++c) {
-    table_->setColumnHidden(c, !anyTimes);
-  }
-  if (hidden > 0 && !job_) {
-    genStatus_->setText(plural(hidden, tr("%n alg hidden by the filters."),
-                               tr("%n algs hidden by the filters.")));
-  }
+  table_->setRowCount(fill.shown);
 }
 
 void AlgLabPage::updateGrips() {

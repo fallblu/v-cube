@@ -452,6 +452,7 @@ private slots:
   void optimalCountsUseTheChosenHolds();
   void timerTableAndStatsFollowEachSolve();
   void algLabFilterKeepsTheCaseShown();
+  void algLabSearchAddsRowsAsItFindsThem();
   // Last: a second window takes over the process's write reporter.
   void startupProblemsShowInOneWindow();
   void cleanupTestCase();
@@ -3305,6 +3306,70 @@ void GuiTest::algLabFilterKeepsTheCaseShown() {
   QCOMPARE(candidates->item(0, 0)->data(Qt::UserRole).toString(),
            qs(labAlgKey(h)));
   QVERIFY(!candidates->item(0, 0)->data(Qt::UserRole + 7).isValid());
+}
+
+// While the generator runs, what it finds is added to the table, which
+// keeps its rows and the selection.
+void GuiTest::algLabSearchAddsRowsAsItFindsThem() {
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
+  lab->selectCase("2look-oll", "eo-line");
+  lab->findChild<QTabWidget *>()->setCurrentIndex(0);
+  QTableWidget *candidates = candidateTable(lab);
+  QVERIFY(candidates);
+  auto *lengthMode = lastChild<QComboBox>(
+      lab, [](QComboBox *b) { return b->findText("Every length") >= 0; });
+  auto *maxLength = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->prefix() == "up to "; });
+  auto *maxResults = lastChild<QSpinBox>(
+      lab, [](QSpinBox *b) { return b->prefix() == "at most "; });
+  auto *find = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Find algs"; });
+  auto *stop = lastChild<QPushButton>(
+      lab, [](QPushButton *b) { return b->text() == "Stop"; });
+  QVERIFY(lengthMode && maxLength && maxResults && find && stop);
+  const int wasMode = lengthMode->currentIndex();
+  const int wasLength = maxLength->value();
+  const int wasResults = maxResults->value();
+  lengthMode->setCurrentIndex(lengthMode->findText("Every length"));
+  maxLength->setValue(14);
+  maxResults->setValue(5000);
+  find->click();
+  QVERIFY(stop->isEnabled());
+  // Rows while it runs: one selected stays selected as more come.
+  QTRY_VERIFY_WITH_TIMEOUT(candidates->rowCount() > 0 || !stop->isEnabled(),
+                           20000);
+  QVERIFY2(stop->isEnabled(), "the search ended before a refresh");
+  candidates->selectRow(0);
+  const QString picked = candidates->item(0, 0)->data(Qt::UserRole).toString();
+  const int first = candidates->rowCount();
+  QTRY_VERIFY_WITH_TIMEOUT(candidates->rowCount() > first || !stop->isEnabled(),
+                           20000);
+  auto selected = [&] {
+    QStringList keys;
+    for (const QModelIndex &i : candidates->selectionModel()->selectedRows(0)) {
+      keys << i.data(Qt::UserRole).toString();
+    }
+    return keys;
+  };
+  QCOMPARE(selected(), QStringList{picked});
+  stop->click();
+  QTRY_VERIFY_WITH_TIMEOUT(!stop->isEnabled(), 20000);
+  QCOMPARE(selected(), QStringList{picked});
+  // Each alg found once, and every one of them.
+  finishBackgroundWrites();
+  AlgLabStore saved(QDir(dataDir_).filePath("alglab.json"));
+  QVERIFY(saved.load());
+  std::size_t found = saved.candidates({"2look-oll", "eo-line"}).size();
+  QVERIFY(found > static_cast<std::size_t>(first));
+  QCOMPARE(candidates->rowCount(), static_cast<int>(found));
+  QSet<QString> keys;
+  for (int row = 0; row < candidates->rowCount(); ++row) {
+    keys.insert(candidates->item(row, 0)->data(Qt::UserRole).toString());
+  }
+  QCOMPARE(keys.size(), candidates->rowCount());
+  lengthMode->setCurrentIndex(wasMode);
+  maxLength->setValue(wasLength);
+  maxResults->setValue(wasResults);
 }
 
 // Everything that couldn't be read at start-up is listed in one window

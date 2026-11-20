@@ -370,8 +370,13 @@ AlgLabPage::AlgLabPage(AppSettings &settings, AlgLibrary &library,
   refreshTimer_.setSingleShot(true);
   refreshTimer_.setInterval(250);
   connect(&refreshTimer_, &QTimer::timeout, this, [this] {
-    // While a search runs, the fill at its end fits the columns.
-    fillTable(!job_);
+    // While a search runs, only what it found is added; the fill at its
+    // end fits the columns.
+    if (job_) {
+      appendToTable();
+    } else {
+      fillTable();
+    }
     if (job_ && job_->dirty) {
       job_->dirty = false;
       saveStore();

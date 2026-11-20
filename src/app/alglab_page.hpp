@@ -135,6 +135,10 @@ private:
   std::unordered_map<std::string, double> scoreCache_;
   // What each alg of the case shown does to it (see CandidateCache).
   CandidateCache candidateCache_;
+  // The case the table is of, and how many of its candidateRows() it has
+  // (shown or hidden).
+  std::optional<LabCaseKey> tableCase_;
+  std::size_t tableRows_ = 0;
 
   void saveStore();
   void fillSources();
@@ -155,6 +159,21 @@ private:
   // `resize` fits the columns to what they hold, which a refill during a
   // search leaves for the fill at its end.
   void fillTable(bool resize = true);
+  // Adds the rows of the candidates found since the table was filled
+  // (during a search, which only ever adds them), or fills it afresh if it
+  // is of another case.
+  void appendToTable();
+  // What a fill of the table counts: the rows shown and hidden by the
+  // filters, and whether an alg shown has times.
+  struct TableFill {
+    int shown = 0;
+    int hidden = 0;
+    bool anyTimes = false;
+  };
+  // Puts rows[from...] in the table after the rows it shows (sorting off),
+  // selecting the one for the alg `selected` if it is given.
+  void addTableRows(const std::vector<CandidateRow> &rows, std::size_t from,
+                    TableFill &fill, const QString *selected);
   void updateGrips();
   std::vector<std::string> selectedAlgs() const;
   const ErgoProfile &profile() const;
