@@ -115,4 +115,61 @@ AppData::LoadReport AppData::load() {
   return report;
 }
 
+std::vector<ActivityEvent> activityEvents(const AppData &data,
+                                          std::int64_t since) {
+  std::vector<ActivityEvent> out;
+  auto add = [&](int mode, std::int64_t t, std::int64_t ms) {
+    if (t >= since) {
+      out.push_back({mode, t, ms});
+    }
+  };
+  for (const AlgSet &set : data.library.sets()) {
+    for (const auto &[id, p] : data.library.progress(set.id)) {
+      for (const Attempt &a : p.attempts) {
+        bool learn = a.mode == AttemptMode::Learn;
+        add(learn ? ActivityMode::Learn : ActivityMode::Drill, a.timestamp,
+            learn ? 0 : a.timeMs);
+      }
+    }
+  }
+  for (const Session &s : data.sessions.sessions()) {
+    for (const Solve &solve : s.solves) {
+      add(ActivityMode::Timed, solve.timestamp, solve.timeMs);
+    }
+  }
+  for (const auto &[store, mode] :
+       {std::pair{&data.untimed, int(ActivityMode::Untimed)},
+        std::pair{&data.moveCounts, int(ActivityMode::MoveCount)}}) {
+    for (const MoveCountSession &s : store->sessions()) {
+      for (const MoveCountAttempt &a : s.attempts) {
+        add(mode, a.timestamp, 0);
+      }
+    }
+  }
+  for (const LabAttempt &a : data.lab.attempts()) {
+    add(ActivityMode::AlgLab, a.timestamp, a.timeMs);
+  }
+  // The practice modes: every card's try and every solve kept.
+  for (const auto &[practised, mode] :
+       {std::pair{&data.eoCross.data, int(ActivityMode::EoCross)},
+        std::pair{&data.f2l.data, int(ActivityMode::F2L)},
+        std::pair{&data.tsle.data, int(ActivityMode::Tsle)}}) {
+    const PracticeData &kept = *practised;
+    for (const auto &[id, p] : kept.cards) {
+      for (const Attempt &a : p.attempts) {
+        add(mode, a.timestamp, 0);
+      }
+    }
+    for (const PracticeTries *tries :
+         {&kept.learn, &kept.inspection, &kept.timed}) {
+      for (const auto &[key, list] : *tries) {
+        for (const PracticeTry &t : list) {
+          add(mode, t.timestamp, t.ms + t.inspectMs);
+        }
+      }
+    }
+  }
+  return out;
+}
+
 } // namespace vcube

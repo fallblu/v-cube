@@ -79,7 +79,6 @@ private:
   int dueTotal_ = 0;
 
   std::map<std::string, SetWaiting> dueBySet() const;
-  std::vector<ActivityEvent> events();
   void refresh();
   // Opens a row of the sets table: its set in Learn, or its practice
   // mode's cards.

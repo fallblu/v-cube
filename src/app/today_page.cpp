@@ -311,63 +311,6 @@ TodayPage::Totals TodayPage::totals() const {
   return t;
 }
 
-std::vector<ActivityEvent> TodayPage::events() {
-  std::vector<ActivityEvent> out;
-  std::int64_t since = localDayStart() - 400 * kSecondsPerDay; // for streaks
-  auto add = [&](int mode, std::int64_t t, std::int64_t ms) {
-    if (t >= since) {
-      out.push_back({mode, t, ms});
-    }
-  };
-  for (const AlgSet &set : data_.library.sets()) {
-    for (const auto &[id, p] : data_.library.progress(set.id)) {
-      for (const Attempt &a : p.attempts) {
-        bool learn = a.mode == AttemptMode::Learn;
-        add(learn ? AppMode::Learn : AppMode::Drill, a.timestamp,
-            learn ? 0 : a.timeMs);
-      }
-    }
-  }
-  for (const Session &s : data_.sessions.sessions()) {
-    for (const Solve &solve : s.solves) {
-      add(AppMode::Timed, solve.timestamp, solve.timeMs);
-    }
-  }
-  for (const auto &[store, mode] :
-       {std::pair{&data_.untimed, int(AppMode::Untimed)},
-        std::pair{&data_.moveCounts, int(AppMode::MoveCount)}}) {
-    for (const MoveCountSession &s : store->sessions()) {
-      for (const MoveCountAttempt &a : s.attempts) {
-        add(mode, a.timestamp, 0);
-      }
-    }
-  }
-  for (const LabAttempt &a : data_.lab.attempts()) {
-    add(AppMode::AlgLab, a.timestamp, a.timeMs);
-  }
-  // The practice modes: every card's try and every solve kept.
-  for (const auto &[practised, mode] :
-       {std::pair{&data_.eoCross.data, int(AppMode::EoCross)},
-        std::pair{&data_.f2l.data, int(AppMode::F2L)},
-        std::pair{&data_.tsle.data, int(AppMode::Tsle)}}) {
-    const PracticeData &kept = *practised;
-    for (const auto &[id, p] : kept.cards) {
-      for (const Attempt &a : p.attempts) {
-        add(mode, a.timestamp, 0);
-      }
-    }
-    for (const PracticeTries *tries :
-         {&kept.learn, &kept.inspection, &kept.timed}) {
-      for (const auto &[key, list] : *tries) {
-        for (const PracticeTry &t : list) {
-          add(mode, t.timestamp, t.ms + t.inspectMs);
-        }
-      }
-    }
-  }
-  return out;
-}
-
 void TodayPage::refresh() {
   // Learn.
   auto due = dueBySet();
@@ -547,22 +490,24 @@ void TodayPage::refresh() {
                        {tr("Space"), next_->text()}});
 
   // Activity.
-  std::vector<ActivityEvent> all = events();
+  // A year and more back, for the streak.
+  std::vector<ActivityEvent> all =
+      activityEvents(data_, localDayStart() - 400 * kSecondsPerDay);
   std::int64_t today = localDayStart();
   QDate date = QDate::currentDate();
   std::int64_t week =
       QDateTime(date.addDays(-6), QTime(0, 0)).toSecsSinceEpoch();
-  auto activity = summarizeActivity(all, AppMode::Count, today, week);
+  auto activity = summarizeActivity(all, ActivityMode::Count, today, week);
   static const std::pair<int, const char *> modeRows[] = {
-      {AppMode::Learn, QT_TR_NOOP("Learn (cases)")},
-      {AppMode::Drill, QT_TR_NOOP("Drill (cases)")},
-      {AppMode::AlgLab, QT_TR_NOOP("Alg Lab (algs timed)")},
-      {AppMode::Timed, QT_TR_NOOP("Timed (solves)")},
-      {AppMode::Untimed, QT_TR_NOOP("Untimed (solves)")},
-      {AppMode::MoveCount, QT_TR_NOOP("Move Count (solves)")},
-      {AppMode::EoCross, QT_TR_NOOP("EO Cross (solves)")},
-      {AppMode::F2L, QT_TR_NOOP("F2L (cards and solves)")},
-      {AppMode::Tsle, QT_TR_NOOP("TSLE (cards and solves)")},
+      {ActivityMode::Learn, QT_TR_NOOP("Learn (cases)")},
+      {ActivityMode::Drill, QT_TR_NOOP("Drill (cases)")},
+      {ActivityMode::AlgLab, QT_TR_NOOP("Alg Lab (algs timed)")},
+      {ActivityMode::Timed, QT_TR_NOOP("Timed (solves)")},
+      {ActivityMode::Untimed, QT_TR_NOOP("Untimed (solves)")},
+      {ActivityMode::MoveCount, QT_TR_NOOP("Move Count (solves)")},
+      {ActivityMode::EoCross, QT_TR_NOOP("EO Cross (solves)")},
+      {ActivityMode::F2L, QT_TR_NOOP("F2L (cards and solves)")},
+      {ActivityMode::Tsle, QT_TR_NOOP("TSLE (cards and solves)")},
   };
   constexpr int kModeRows = static_cast<int>(std::size(modeRows));
   // The rows never change: they are made once, then written in place.

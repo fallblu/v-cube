@@ -1,6 +1,11 @@
+#include "io/app_data.hpp"
 #include "train/today.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <QTemporaryDir>
+
+#include <algorithm>
 
 using namespace vcube;
 
@@ -68,4 +73,67 @@ TEST_CASE("an alg set's due, queued and new cases") {
   CHECK(d.queued == 2);
   CHECK(d.newLeft == 1); // 2 a day, 1 introduced already
   CHECK(d.unstarted == 1);
+}
+
+TEST_CASE("activity events come from every store, from a time on") {
+  QTemporaryDir dir;
+  REQUIRE(dir.isValid());
+  AppData data(dir.path());
+  data.load();
+  constexpr std::int64_t since = 1000;
+  AlgSet set;
+  set.id = "oll";
+  data.library.sets().push_back(set);
+  SetProgress &p = data.library.progress("oll");
+  p["1"].attempts = {{since + 1, 0, false, AttemptMode::Learn},
+                     {since + 2, 1500, false, AttemptMode::VirtualDrill},
+                     {since - 1, 900, false, AttemptMode::PhysicalDrill}};
+  Solve solve;
+  solve.timeMs = 12000;
+  solve.timestamp = since + 3;
+  data.sessions.current().solves.push_back(solve);
+  MoveCountAttempt counted;
+  counted.timestamp = since + 4;
+  data.untimed.current().attempts.push_back(counted);
+  counted.timestamp = since + 5;
+  data.moveCounts.current().attempts.push_back(counted);
+  LabAttempt lab;
+  lab.timeMs = 800;
+  lab.timestamp = since + 6;
+  data.lab.addAttempt(lab);
+  data.eoCross.data.cards["a"].attempts = {
+      {since + 7, 0, false, AttemptMode::Learn}};
+  PracticeTry tried;
+  tried.timestamp = since + 8;
+  tried.ms = 3000;
+  tried.inspectMs = 500;
+  data.f2l.data.timed["fr"] = {tried};
+  tried.timestamp = since - 5;
+  data.tsle.data.inspection["x"] = {tried};
+
+  std::vector<ActivityEvent> events = activityEvents(data, since);
+  std::sort(events.begin(), events.end(),
+            [](const ActivityEvent &a, const ActivityEvent &b) {
+              return a.timestamp < b.timestamp;
+            });
+  struct Seen {
+    int mode;
+    std::int64_t timestamp, ms;
+  };
+  const std::vector<Seen> expected = {
+      {ActivityMode::Learn, since + 1, 0},
+      {ActivityMode::Drill, since + 2, 1500},
+      {ActivityMode::Timed, since + 3, 12000},
+      {ActivityMode::Untimed, since + 4, 0},
+      {ActivityMode::MoveCount, since + 5, 0},
+      {ActivityMode::AlgLab, since + 6, 800},
+      {ActivityMode::EoCross, since + 7, 0},
+      {ActivityMode::F2L, since + 8, 3500},
+  };
+  REQUIRE(events.size() == expected.size());
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    CHECK(events[i].mode == expected[i].mode);
+    CHECK(events[i].timestamp == expected[i].timestamp);
+    CHECK(events[i].ms == expected[i].ms);
+  }
 }
