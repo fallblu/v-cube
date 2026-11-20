@@ -26,42 +26,32 @@ namespace vcube {
 
 namespace {
 
-const char *const kWhole = "whole";
-
 QString costText(double cost) { return QString::number(cost, 'f', 1); }
 
 // The stickers of a slot's corner and edge, wherever they are on a cube
 // held any way.
 std::vector<int> pairFacelets(const FaceletCube &cube, Slot slot) {
+  // The colours on a piece's stickers, sorted.
+  auto colours = [](const FaceletCube &c, const auto &facelets) {
+    std::vector<int> out;
+    for (std::uint8_t f : facelets) {
+      out.push_back(c[f]);
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+  };
   std::vector<int> out;
-  auto colours = [](auto facelets) {
-    std::vector<int> c;
-    for (std::uint8_t f : facelets) {
-      c.push_back(f / 9);
+  // The pieces showing the colours of the slot's own.
+  auto add = [&](const auto &pieces, const auto &own) {
+    const std::vector<int> wanted = colours(FaceletCube(), own);
+    for (const auto &facelets : pieces) {
+      if (colours(cube, facelets) == wanted) {
+        out.insert(out.end(), facelets.begin(), facelets.end());
+      }
     }
-    std::sort(c.begin(), c.end());
-    return c;
   };
-  auto shown = [&cube](auto facelets) {
-    std::vector<int> c;
-    for (std::uint8_t f : facelets) {
-      c.push_back(cube[f]);
-    }
-    std::sort(c.begin(), c.end());
-    return c;
-  };
-  std::vector<int> corner = colours(kCornerFacelets[slotCorner(slot)]);
-  for (const auto &facelets : kCornerFacelets) {
-    if (shown(facelets) == corner) {
-      out.insert(out.end(), facelets.begin(), facelets.end());
-    }
-  }
-  std::vector<int> edge = colours(kEdgeFacelets[slotEdge(slot)]);
-  for (const auto &facelets : kEdgeFacelets) {
-    if (shown(facelets) == edge) {
-      out.insert(out.end(), facelets.begin(), facelets.end());
-    }
-  }
+  add(kCornerFacelets, kCornerFacelets[slotCorner(slot)]);
+  add(kEdgeFacelets, kEdgeFacelets[slotEdge(slot)]);
   return out;
 }
 
@@ -317,8 +307,8 @@ std::optional<PracticePage::Setup> F2LPage::setUp(const std::string &card) {
   s.state = start_;
   s.hold = settings().neutrality.pick(rng());
   s.cube = start_.toFacelets();
-  s.group =
-      tab() == Tab::Timed ? std::string(methodId(methodOf(config_))) : kWhole;
+  s.group = tab() == Tab::Timed ? std::string(methodId(methodOf(config_)))
+                                : kWholeGroup;
   if (target_) {
     requestPair();
   } else {
@@ -574,19 +564,14 @@ QString F2LPage::taskNote() const {
 }
 
 QString F2LPage::hint() {
-  const std::vector<Alg> chosen = usableSolutions();
-  std::optional<Alg> best =
-      chosen.empty() ? std::nullopt : chosenHere(chosen.front());
-  if (!best && pair_ && pair_->best()) {
-    best = pair_->best()->alg;
-  }
-  if (!best || best->empty()) {
+  const Alg best = demoAlg();
+  if (best.empty()) {
     return {};
   }
   // A move more each time.
-  hintMoves_ = std::min(hintMoves_ + 1, static_cast<int>(best->size()));
-  Alg shown(best->begin(), best->begin() + hintMoves_);
-  return hintMoves_ == static_cast<int>(best->size())
+  hintMoves_ = std::min(hintMoves_ + 1, static_cast<int>(best.size()));
+  Alg shown(best.begin(), best.begin() + hintMoves_);
+  return hintMoves_ == static_cast<int>(best.size())
              ? tr("Hint: %1").arg(qs(toString(shown)))
              : tr("Hint: it starts %1").arg(qs(toString(shown)));
 }
@@ -1256,10 +1241,6 @@ std::vector<PracticePage::ListRow> F2LPage::cardRows() {
     }
   }
   return rows;
-}
-
-std::vector<PracticePage::ListRow> F2LPage::untimedGroups() {
-  return {{kWhole, tr("Whole F2L"), {}, {}}};
 }
 
 std::vector<PracticePage::ListRow> F2LPage::timedGroups() {

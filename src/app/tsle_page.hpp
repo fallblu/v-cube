@@ -69,7 +69,6 @@ protected:
   QString taskNote() const override;
   std::vector<ListRow> cardRows() override;
   std::vector<Split> splits() override;
-  std::vector<ListRow> untimedGroups() override;
   std::vector<ListRow> timedGroups() override;
   QString listHelp() const override;
   QString cardName(const std::string &card) const override;

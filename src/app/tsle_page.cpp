@@ -31,8 +31,6 @@ bool turnsTheSlot(const Alg &moves) {
 // The section a case is listed in: 0 the OCLLs, else its steps left.
 int sectionOf(TsleState c) { return c.ocll() ? 0 : tsleStepsLeft(c); }
 
-const char *const kWhole = "whole";
-
 } // namespace
 
 TslePage::TslePage(AppSettings &settings, PracticeStore &store, QWidget *parent)
@@ -128,7 +126,7 @@ std::optional<PracticePage::Setup> TslePage::setUp(const std::string &card) {
   s.hold = settings().neutrality.pick(rng());
   s.cube = s.state.toFacelets();
   // Timed attempts are kept by the case they start from.
-  s.group = tab() == Tab::Timed ? tsleKey(tsleCase(state)) : kWhole;
+  s.group = tab() == Tab::Timed ? tsleKey(tsleCase(state)) : kWholeGroup;
   return s;
 }
 
@@ -507,10 +505,6 @@ std::vector<PracticePage::Split> TslePage::splits() {
                    steps_[i].end});
   }
   return out;
-}
-
-std::vector<PracticePage::ListRow> TslePage::untimedGroups() {
-  return {{kWhole, tr("Whole TSLE"), {}, {}}};
 }
 
 std::vector<PracticePage::ListRow> TslePage::timedGroups() {

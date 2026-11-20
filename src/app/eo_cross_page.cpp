@@ -417,10 +417,6 @@ std::vector<PracticePage::ListRow> EoCrossPage::untimedGroups() {
   return rows;
 }
 
-std::vector<PracticePage::ListRow> EoCrossPage::timedGroups() {
-  return untimedGroups();
-}
-
 void EoCrossPage::groupActivated(const std::string &key) {
   if (auto s = stepFromId(key)) {
     setStep(*s);

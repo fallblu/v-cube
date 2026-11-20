@@ -113,7 +113,6 @@ protected:
   QList<KeyHint> doneKeys() const override;
   std::vector<Split> splits() override;
   std::vector<ListRow> cardRows() override;
-  std::vector<ListRow> untimedGroups() override;
   std::vector<ListRow> timedGroups() override;
   QString listHelp() const override;
   void groupActivated(const std::string &key) override;

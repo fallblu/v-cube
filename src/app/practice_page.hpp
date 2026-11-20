@@ -231,10 +231,14 @@ protected:
   using ListRow = PracticeList::Row;
   // The cards (keys are card ids).
   virtual std::vector<ListRow> cardRows() { return {}; }
-  // The groups the Untimed (and Inspection) tab's solves are kept under.
-  virtual std::vector<ListRow> untimedGroups() = 0;
-  // The groups of timed attempts.
-  virtual std::vector<ListRow> timedGroups() = 0;
+  // The groups the Untimed (and Inspection) tab's solves are kept under:
+  // by default the whole step, as kWholeGroup.
+  static constexpr const char *kWholeGroup = "whole";
+  virtual std::vector<ListRow> untimedGroups() {
+    return {{kWholeGroup, tr("Whole %1").arg(stepName()), {}, {}}};
+  }
+  // The groups of timed attempts; by default those of Untimed.
+  virtual std::vector<ListRow> timedGroups() { return untimedGroups(); }
   virtual QString listHelp() const { return {}; }
   // A group's row was double-clicked.
   virtual void groupActivated(const std::string &) {}
@@ -378,8 +382,9 @@ private:
   // Puts a set-up state on the cube as a new item.
   void begin(const Setup &setup);
   void sameAgain();
-  void showIdle(const QString &text);
-  void showReady();
+  // Nothing to solve: Idle, saying `text`, or Ready (the Inspection tab's
+  // first state waits for Space).
+  void showIdle(const QString &text, Phase phase = Phase::Idle);
   void showInspection();
   void resetCube();
   void showCubeKind();

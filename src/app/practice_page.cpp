@@ -497,29 +497,20 @@ void PracticePage::next(LearnAhead ahead) {
   }
 }
 
-void PracticePage::showIdle(const QString &text) {
+void PracticePage::showIdle(const QString &text, Phase phase) {
   item_ = {};
   item_.id = ++items_;
-  phase_ = Phase::Idle;
+  phase_ = phase;
   idleText_ = text;
   cube_ = FaceletCube();
   cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
   cubeView_->clearMarks();
   cubeView_->setState(cube_);
-  showAll();
-}
-
-void PracticePage::showReady() {
-  item_ = {};
-  item_.id = ++items_;
-  phase_ = Phase::Ready;
-  progress_.clear();
-  cube_ = FaceletCube();
-  cubeView_->setColourMap(colourMapOf(settings_.neutrality.main));
-  cubeView_->clearMarks();
-  cubeView_->setState(cube_);
-  showHidden(false);
-  display_->setText({});
+  if (phase == Phase::Ready) {
+    progress_.clear();
+    showHidden(false);
+    display_->setText({});
+  }
   showAll();
 }
 
@@ -552,7 +543,7 @@ void PracticePage::begin(const Setup &setup) {
 
 void PracticePage::nextLearn(LearnAhead ahead) {
   if (tab_ == Tab::Inspection && readyPending_) {
-    showReady();
+    showIdle({}, Phase::Ready);
     return;
   }
   if (tab_ != Tab::Learn) {
@@ -701,21 +692,13 @@ void PracticePage::practiseCard(const std::string &card) {
     showBar();
     fillList();
   }
-  std::optional<Setup> s = setUp(card);
-  if (!s) {
+  // Practice isn't the card last picked.
+  const std::string last = lastCard_;
+  if (!startCard(card, false, false)) {
     emit message(
         tr("%1 can't be set up with these options").arg(cardName(card)));
-    return;
   }
-  begin(*s);
-  item_.card = card;
-  phase_ = Phase::Solving;
-  cubeChanged();
-  if (needsChoice()) {
-    enterChoice(Phase::Solving);
-    return;
-  }
-  showAll();
+  lastCard_ = last;
 }
 
 void PracticePage::nextTimed() {
@@ -741,26 +724,12 @@ void PracticePage::sameAgain() {
   if (item_.id == 0) {
     return;
   }
-  Item again;
-  again.id = item_.id; // the mode's analysis of the state still holds
-  again.card = item_.card;
-  again.group = item_.group;
-  again.start = item_.start;
-  again.scrambleState = item_.scrambleState;
-  again.hold = item_.hold;
-  again.scramble = item_.scramble;
-  again.retry = true;
-  again.began = monotonicMs();
-  again.inspecting = tab_ == Tab::Inspection;
-  item_ = std::move(again);
-  waiting_ = false;
-  detailOpen_ = false;
-  progress_.clear();
-  note_.clear();
-  cubeView_->finishAnimations();
-  cube_ = item_.start;
-  cubeView_->setState(cube_);
-  showHidden(false);
+  const Item was = std::move(item_);
+  begin({was.start, was.scrambleState, was.hold, was.group});
+  item_.id = was.id; // the mode's analysis of the state still holds
+  item_.card = was.card;
+  item_.scramble = was.scramble;
+  item_.retry = true;
   restarted();
   cubeChanged();
   if (tab_ == Tab::Timed) {
@@ -1289,16 +1258,9 @@ void PracticePage::updateTick() {
 }
 
 void PracticePage::onTick() {
-  if (tab_ == Tab::Inspection) {
-    if (item_.inspecting && phase_ == Phase::Solving) {
-      showInspection();
-    }
-    return;
-  }
-  if (tab_ != Tab::Timed) {
-    return;
-  }
-  if (driver_.tick(monotonicMs())) {
+  if (tab_ == Tab::Inspection && item_.inspecting && phase_ == Phase::Solving) {
+    showInspection();
+  } else if (tab_ == Tab::Timed && driver_.tick(monotonicMs())) {
     updateTick();
   }
 }

@@ -13,10 +13,7 @@ namespace vcube {
 
 // What a practice mode's hint bar says: a message and the keys that do
 // something now.
-struct PracticeKeys {
-  QString message;
-  QList<KeyHint> keys;
-};
+using PracticeKeys = TimedSolveKeys;
 
 // The keys of a tab that isn't timed, from the state its keys are read in
 // (PracticeFlow), and the mode's own keys once a try is done.
