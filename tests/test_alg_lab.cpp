@@ -2,7 +2,9 @@
 #include "io/json_values.hpp"
 #include "train/alg_lab.hpp"
 #include "train/case_logic.hpp"
+#include "train/case_picker.hpp"
 #include "train/ergonomics.hpp"
+#include "train/f2l.hpp"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -15,9 +17,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <limits>
 #include <map>
+#include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace vcube;
@@ -537,4 +542,45 @@ TEST_CASE("profiles are told apart by name", "[alglab][io]") {
   CHECK(std::adjacent_find(names.begin(), names.end()) == names.end());
   CHECK(std::find(names.begin(), names.end(), first + " 2") != names.end());
   CHECK(std::find(names.begin(), names.end(), first + " 3") != names.end());
+}
+
+namespace {
+
+// Each value's id reads back as that value, and no two share an id.
+template <typename E, typename Id, typename FromId>
+void checkIds(std::initializer_list<E> values, Id id, FromId fromId) {
+  std::set<std::string_view> seen;
+  for (E v : values) {
+    INFO(id(v));
+    CHECK(fromId(id(v)) == v);
+    CHECK(seen.insert(id(v)).second);
+  }
+  CHECK_FALSE(fromId("nonsense"));
+}
+
+} // namespace
+
+TEST_CASE("the ids kept in files read back as their values", "[io]") {
+  using S = CandidateSource;
+  checkIds({S::Set, S::Generated, S::Pasted, S::Typed}, candidateSourceId,
+           candidateSourceFromId);
+  checkIds({LabOrder::Interleaved, LabOrder::Blocked}, labOrderId,
+           labOrderFromId);
+  checkIds({CubeKind::Virtual, CubeKind::Physical}, cubeKindId, cubeKindFromId);
+  checkIds({PickMode::Random, PickMode::Weighted, PickMode::InOrder,
+            PickMode::Recap},
+           pickModeId, pickModeFromId);
+  using M = F2LMethod;
+  checkIds({M::ZZMinus1, M::ZZ, M::CFOP, M::CFOPMinus1}, methodId,
+           methodFromId);
+
+  // Every source is written and read back in a file.
+  AlgLabData d;
+  CaseCandidates cc{{"pll", "T"}, {}};
+  for (S s : {S::Set, S::Generated, S::Pasted, S::Typed}) {
+    cc.candidates.push_back({std::string(candidateSourceId(s)), s, 1});
+  }
+  d.candidates = {cc};
+  d.profiles = builtinErgoProfiles();
+  CHECK(algLabFromJson(algLabToJson(d)) == d);
 }
