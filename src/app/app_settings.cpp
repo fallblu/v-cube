@@ -3,6 +3,7 @@
 
 #include "app/colours.hpp"
 #include "app/platform.hpp"
+#include "app/ui_state.hpp"
 #include "train/algset.hpp"
 
 #include <QCoreApplication>
@@ -426,10 +427,6 @@ void applyTheme(QApplication &app, bool dark) {
   p.setColor(QPalette::Disabled, QPalette::Button, QColor(0x2c, 0x2d, 0x31));
   p.setColor(QPalette::Disabled, QPalette::Highlight, QColor(0x55, 0x56, 0x5c));
   app.setPalette(p);
-}
-
-QString setSettingsKey(const std::string &setId, const QString &name) {
-  return QString("trainer/sets/%1/%2").arg(QString::fromStdString(setId), name);
 }
 
 QStringList untickedCases(const AlgSet &set) {

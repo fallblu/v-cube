@@ -115,9 +115,6 @@ SettingsParts changedParts(const AppSettings &a, const AppSettings &b);
 // one either way, so that "Light" stays light on a dark desktop).
 void applyTheme(QApplication &app, bool dark);
 
-// Settings key for a per-alg-set choice shared by Learn, Drill and the
-// Library, e.g. "trainer/sets/pll/unticked".
-QString setSettingsKey(const std::string &setId, const QString &name);
 // The cases unticked for an alg set in Learn and Drill; every other case is
 // ticked, so that cases added to the set later come ticked. Ticks saved by
 // earlier versions (the ticked cases) are turned into this the first time.
