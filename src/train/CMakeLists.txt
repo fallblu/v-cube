@@ -33,16 +33,4 @@ add_library(vcube_train
 target_include_directories(vcube_train PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(vcube_train PUBLIC vcube_cube PRIVATE vcube_strict)
 
-# The step solver's searches and tables need optimisation in debug builds
-# too (see src/cube for the MSVC object library).
-if(MSVC)
-  add_library(vcube_step_solver OBJECT step_solver.cpp alg_search.cpp f2l_search.cpp)
-  target_include_directories(vcube_step_solver PRIVATE ${PROJECT_SOURCE_DIR}/src)
-  target_link_libraries(vcube_step_solver PRIVATE vcube_strict)
-  set_target_properties(vcube_step_solver PROPERTIES VCUBE_OPTIMIZE ON)
-  target_sources(vcube_train PRIVATE $<TARGET_OBJECTS:vcube_step_solver>)
-else()
-  target_sources(vcube_train PRIVATE step_solver.cpp alg_search.cpp f2l_search.cpp)
-  set_source_files_properties(step_solver.cpp alg_search.cpp f2l_search.cpp PROPERTIES
-    COMPILE_OPTIONS "$<$<CONFIG:Debug>:-O2>")
-endif()
+vcube_optimize_in_debug(vcube_train step_solver.cpp alg_search.cpp f2l_search.cpp)
