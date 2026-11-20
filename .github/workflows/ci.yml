@@ -36,6 +36,8 @@ jobs:
       changed: ${{ steps.check.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - id: check
         run: |
           age=$(( $(date +%s) - $(git log -1 --format=%ct) ))
@@ -47,6 +49,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install clang-format
         # Pinned: other versions format some constructs differently.
         run: pipx install clang-format==21.1.8
@@ -70,6 +74,7 @@ jobs:
     steps: &linux-steps
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Install build tools
         run: |
@@ -136,6 +141,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Set up the MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
