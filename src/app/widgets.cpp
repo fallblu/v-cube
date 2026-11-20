@@ -156,6 +156,9 @@ void TimeDisplay::paintEvent(QPaintEvent *e) {
 }
 
 void TimeDisplay::setColour(const QColor &c) {
+  if (c == colour_) {
+    return;
+  }
   colour_ = c;
   // Only a colour of its own is set, so that the text otherwise follows
   // the theme, also when it changes.
@@ -241,17 +244,14 @@ void TimeDisplay::showTimer(const SolveTimer &timer, std::int64_t now) {
     break;
   }
   case S::Holding:
+  case S::Ready: {
+    const bool ready = timer.state() == S::Ready;
     show(inspection ? inspectText
                     : QString::fromStdString(formatTime(0, decimals_)),
-         statusColour(Status::Bad));
-    setCue(HoldCue::Holding);
+         statusColour(ready ? Status::Good : Status::Bad));
+    setCue(ready ? HoldCue::Ready : HoldCue::Holding);
     break;
-  case S::Ready:
-    show(inspection ? inspectText
-                    : QString::fromStdString(formatTime(0, decimals_)),
-         statusColour(Status::Good));
-    setCue(HoldCue::Ready);
-    break;
+  }
   case S::Running: {
     // One decimal while running keeps the display calm, like cstimer.
     beforeHold_.reset();
