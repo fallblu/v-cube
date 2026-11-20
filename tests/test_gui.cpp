@@ -274,6 +274,11 @@ private:
     QCOMPARE((page)->phase(), PracticePage::Phase::to);                        \
   } while (false)
 
+// `var`, the page of type `Type`, switched to with its mode's shortcut.
+#define OPEN_PAGE(var, Type, mode)                                             \
+  auto *var = page<Type>();                                                    \
+  QVERIFY(switchTo(AppMode::mode, var))
+
 // That `text` contains `part`, saying what the text is if not.
 #define VERIFY_CONTAINS(text, part)                                            \
   QVERIFY2((text).contains(part), qPrintable(text))
@@ -556,8 +561,7 @@ void GuiTest::layoutFitsHalfAScreen() {
 }
 
 void GuiTest::sidePanelHidesInANarrowWindow() {
-  auto *timer = page<TimerPage>();
-  QVERIFY(switchTo(AppMode::Timed, timer));
+  OPEN_PAGE(timer, TimerPage, Timed);
   const QSize before = window_->size();
   QWidget *panel = timer->sidePanel();
   QVERIFY(panel);
@@ -605,8 +609,7 @@ void GuiTest::keyChipsAreClickable() {
 }
 
 void GuiTest::algLabTimesEachAlg() {
-  auto *lab = page<AlgLabPage>();
-  QVERIFY(switchTo(AppMode::AlgLab, lab));
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
   lab->selectCase("pll", "T");
   QTabWidget *tabs = lab->findChild<QTabWidget *>();
   QVERIFY(tabs);
@@ -696,8 +699,7 @@ void GuiTest::algLabTimesEachAlg() {
   QVERIFY(!v.moves.empty());
 
   // Library shows the times beside the set's alg.
-  auto *library = page<LibraryPage>();
-  QVERIFY(switchTo(AppMode::Library, library));
+  OPEN_PAGE(library, LibraryPage, Library);
   library->selectCase("pll", "T");
   auto *algs = library->findChild<AlgListWidget *>();
   QVERIFY(algs);
@@ -707,8 +709,7 @@ void GuiTest::algLabTimesEachAlg() {
 }
 
 void GuiTest::fingertrickGuidance() {
-  auto *lab = page<AlgLabPage>();
-  QVERIFY(switchTo(AppMode::AlgLab, lab));
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
   lab->selectCase("pll", "T");
   lab->findChild<QTabWidget *>()->setCurrentIndex(0);
   QTableWidget *candidates = candidateTable(lab);
@@ -748,8 +749,7 @@ void GuiTest::fingertrickGuidance() {
           lanes->item(2, 5)->text() != "");
 
   // Library shows the same guidance for the selected alg.
-  auto *library = page<LibraryPage>();
-  QVERIFY(switchTo(AppMode::Library, library));
+  OPEN_PAGE(library, LibraryPage, Library);
   library->selectCase("pll", "T");
   auto *algs = library->findChild<AlgListWidget *>();
   algs->setCurrentItem(algs->topLevelItem(0));
@@ -762,8 +762,7 @@ void GuiTest::fingertrickGuidance() {
 void GuiTest::f2lLearnAndTimed() {
   using Phase = PracticePage::Phase;
   using Tab = PracticePage::Tab;
-  auto *f2l = page<F2LPage>();
-  QVERIFY(switchTo(AppMode::F2L, f2l));
+  OPEN_PAGE(f2l, F2LPage, F2L);
   // ZZ F2L - 1 leaving FR or FL, as a new install has it.
   QVERIFY(f2l->config().eo);
   QVERIFY(f2l->config().lastSlot);
@@ -1195,8 +1194,7 @@ void GuiTest::f2lLearnAndTimed() {
 void GuiTest::tsleLearnAndTimed() {
   using Phase = PracticePage::Phase;
   using Tab = PracticePage::Tab;
-  auto *tsle = page<TslePage>();
-  QVERIFY(switchTo(AppMode::Tsle, tsle));
+  OPEN_PAGE(tsle, TslePage, Tsle);
   QVERIFY(tsle->lastSlots()[0] && tsle->lastSlots()[1]);
   auto options = [tsle] {
     return tsle->solver(tsle->slot()).options(tsle->startState());
@@ -1351,8 +1349,7 @@ void GuiTest::tsleLearnAndTimed() {
 void GuiTest::eoCrossLearnAndTimed() {
   using Phase = PracticePage::Phase;
   using Tab = PracticePage::Tab;
-  auto *eo = page<EoCrossPage>();
-  QVERIFY(switchTo(AppMode::EoCross, eo));
+  OPEN_PAGE(eo, EoCrossPage, EoCross);
   const SolveStep step = SolveStep::EOCross;
   eo->setStep(step);
   const std::vector<Hold> holds = eo->allowedHolds();
@@ -1580,8 +1577,7 @@ void GuiTest::practiceModesComeBackAsLeft() {
 }
 
 void GuiTest::timedPhysicalSolve() {
-  auto *timed = page<TimerPage>();
-  QVERIFY(switchTo(AppMode::Timed, timed));
+  OPEN_PAGE(timed, TimerPage, Timed);
   // Let go too early: nothing starts.
   QTest::keyPress(window_.get(), Qt::Key_Space);
   QTest::keyRelease(window_.get(), Qt::Key_Space);
@@ -1648,8 +1644,7 @@ void GuiTest::timedPhysicalSolve() {
 }
 
 void GuiTest::untimedVirtualSolve() {
-  auto *untimed = page<UntimedPage>();
-  QVERIFY(switchTo(AppMode::Untimed, untimed));
+  OPEN_PAGE(untimed, UntimedPage, Untimed);
   CubeView *view = waitForCase(untimed);
   QVERIFY(view);
   std::optional<Alg> solution = solutionFor(view->displayedState());
@@ -1683,8 +1678,7 @@ void GuiTest::untimedVirtualSolve() {
 }
 
 void GuiTest::learnStartsACase() {
-  auto *learn = page<LearnPage>();
-  QVERIFY(switchTo(AppMode::Learn, learn));
+  OPEN_PAGE(learn, LearnPage, Learn);
   // Nothing is due until a case is put in the learn queue.
   auto *start = lastChild<QPushButton>(
       learn, [](QPushButton *b) { return b->text() == "Add new cases"; });
@@ -1824,8 +1818,7 @@ void GuiTest::quizAsksAmongLookAlikes() {
 }
 
 void GuiTest::drillArmsAndStopsItself() {
-  auto *drill = page<DrillPage>();
-  QVERIFY(switchTo(AppMode::Drill, drill));
+  OPEN_PAGE(drill, DrillPage, Drill);
   // Drill every case, not only those learned in Learn.
   auto *pool = lastChild<QComboBox>(drill, [](QComboBox *box) {
     return box->findText("Being learned") >= 0;
@@ -1872,8 +1865,7 @@ void GuiTest::drillArmsAndStopsItself() {
 }
 
 void GuiTest::libraryAddsAnAlgAndUndoes() {
-  auto *library = page<LibraryPage>();
-  QVERIFY(switchTo(AppMode::Library, library));
+  OPEN_PAGE(library, LibraryPage, Library);
   library->selectCase("pll", "Ua");
   auto *edit = lastChild<QLineEdit>(library, [](QLineEdit *e) {
     return e->placeholderText().startsWith("New alg");
@@ -2234,8 +2226,7 @@ void GuiTest::themeColoursAreReadable() {
 // (and the command list), and a page's message goes with it.
 void GuiTest::pagesTakeTheKeyboard() {
   // Alg Lab's candidates: the arrows select, Enter adds to the session.
-  auto *lab = page<AlgLabPage>();
-  QVERIFY(switchTo(AppMode::AlgLab, lab));
+  OPEN_PAGE(lab, AlgLabPage, AlgLab);
   lab->selectCase("pll", "T");
   QTabWidget *tabs = lab->findChild<QTabWidget *>();
   QVERIFY(tabs);
@@ -2254,8 +2245,7 @@ void GuiTest::pagesTakeTheKeyboard() {
   QVERIFY(!candidates->isColumnHidden(candidates->columnCount() - 1));
 
   // The message doesn't follow to another mode.
-  auto *today = page<TodayPage>();
-  QVERIFY(switchTo(AppMode::Today, today));
+  OPEN_PAGE(today, TodayPage, Today);
   QCOMPARE(window_->statusBar()->currentMessage(), QString());
 
   // Today: one button for what is next, rows as tall in both tables, and
@@ -2286,8 +2276,7 @@ void GuiTest::pagesTakeTheKeyboard() {
   QTRY_COMPARE(shownPage(*window_), page<LearnPage>());
 
   // Drill's mode menu has what its buttons and the list's header offer.
-  auto *drill = page<DrillPage>();
-  QVERIFY(switchTo(AppMode::Drill, drill));
+  OPEN_PAGE(drill, DrillPage, Drill);
   QMenu menu;
   drill->fillModeMenu(menu);
   QStringList texts;
@@ -2299,8 +2288,7 @@ void GuiTest::pagesTakeTheKeyboard() {
   QVERIFY(texts.contains("Columns"));
 
   // Library shows only a line until a case is selected.
-  auto *library = page<LibraryPage>();
-  QVERIFY(switchTo(AppMode::Library, library));
+  OPEN_PAGE(library, LibraryPage, Library);
   library->selectCase("pll", {});
   auto *empty = lastChild<QLabel>(library, [](QLabel *l) {
     return l->text() == "Select a case to see and edit its algs";
@@ -2636,8 +2624,7 @@ void GuiTest::helpPanelShowsTheKeys() {
 // The help panel floated is a window of its own: keys pressed while it is
 // the active window still reach the page (Space starts Timed's clock).
 void GuiTest::floatingHelpPanelPassesKeysOn() {
-  auto *timed = page<TimerPage>();
-  QVERIFY(switchTo(AppMode::Timed, timed));
+  OPEN_PAGE(timed, TimerPage, Timed);
   auto *help = page<HelpPanel>();
   QTest::keyClick(window_.get(), Qt::Key_F1);
   QTRY_VERIFY(help->isVisible());
@@ -2666,8 +2653,7 @@ void GuiTest::floatingHelpPanelPassesKeysOn() {
 // and the release goes there: the hold is dropped rather than left
 // waiting, nothing starts, and the next hold works as before.
 void GuiTest::spaceHoldEndsWhenTheWindowIsLeft() {
-  auto *timed = page<TimerPage>();
-  QVERIFY(switchTo(AppMode::Timed, timed));
+  OPEN_PAGE(timed, TimerPage, Timed);
   QTest::keyPress(window_.get(), Qt::Key_Space);
   QTest::qWait(settings_.holdMs + 150);
   QVERIFY(timed->isBusy()); // the hold is shown
@@ -2749,8 +2735,7 @@ void GuiTest::keysDocMatchesTheKeyTable() {
 // Two key events that look alike (the same object sent twice has the same
 // address, key and time) are two key presses.
 void GuiTest::theSameKeyTwiceArrivesTwice() {
-  auto *today = page<TodayPage>();
-  QVERIFY(switchTo(AppMode::Today, today));
+  OPEN_PAGE(today, TodayPage, Today);
   auto tables = today->findChildren<QTreeWidget *>();
   QCOMPARE(tables.size(), 2);
   QVERIFY(tables[0]->topLevelItemCount() >= 3);
@@ -2767,8 +2752,7 @@ void GuiTest::theSameKeyTwiceArrivesTwice() {
 // A deleted set whose file name was taken before the undo comes back
 // under another id, with its progress.
 void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
-  auto *library = page<LibraryPage>();
-  QVERIFY(switchTo(AppMode::Library, library));
+  OPEN_PAGE(library, LibraryPage, Library);
   library->selectCase("pll", "T");
   const std::size_t graded = savedProgress("pll").size();
   QVERIFY(graded > 0);
