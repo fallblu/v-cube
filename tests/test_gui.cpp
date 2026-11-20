@@ -227,6 +227,15 @@ W *lastChild(const QObject *parent, Pred pred) {
   return found;
 }
 
+// The keys a list of hints names.
+QStringList keyNames(const QList<KeyHint> &hints) {
+  QStringList names;
+  for (const KeyHint &h : hints) {
+    names << h.key;
+  }
+  return names;
+}
+
 // The rows under the headings of a practice page's list.
 int caseRows(const QTreeWidget *tree) {
   int n = 0;
@@ -1440,18 +1449,14 @@ void GuiTest::eoCrossLearnAndTimed() {
   // Backspace only says which key gives up (Drill's: Shift+Space)...
   auto *bar = eo->findChild<HintBar *>();
   QVERIFY(bar);
-  QVERIFY(std::ranges::any_of(
-      bar->keys(), [](const KeyHint &k) { return k.key == "Shift+Space"; }));
+  QVERIFY(keyNames(bar->keys()).contains("Shift+Space"));
   KEY_TO(eo, Solving, Qt::Key_Backspace);
   VERIFY_CONTAINS(bar->message(), "Shift+Space");
   KEY_TO(eo, Done, Qt::Key_Space, Qt::ShiftModifier);
   QTRY_VERIFY_WITH_TIMEOUT(eo->analysisReady(), 30000); // the verdict waits
   QCOMPARE(tries(eo->data().inspection, "eocross"), std::size_t{2});
   // ...and Delete takes a try just recorded back (a retry has none).
-  auto hasDelete = [bar] {
-    return std::ranges::any_of(
-        bar->keys(), [](const KeyHint &k) { return k.key == "Delete"; });
-  };
+  auto hasDelete = [bar] { return keyNames(bar->keys()).contains("Delete"); };
   QVERIFY(!hasDelete());
   KEY_TO(eo, Solving, Qt::Key_Space);
   KEY_TO(eo, Done, Qt::Key_Space, Qt::ShiftModifier);
@@ -2024,13 +2029,7 @@ void GuiTest::practiceResultsAreWorded() {
 }
 
 void GuiTest::practiceKeysFollowThePhase() {
-  auto names = [](const PracticeKeys &k) {
-    QStringList all;
-    for (const KeyHint &h : k.keys) {
-      all << h.key;
-    }
-    return all.join(' ');
-  };
+  auto names = [](const PracticeKeys &k) { return keyNames(k.keys).join(' '); };
   using P = PracticePhase;
   auto untimed = [](P phase, auto set, const QList<KeyHint> &modeKeys = {}) {
     PracticeFlow::State s;
@@ -2990,10 +2989,7 @@ void GuiTest::reviewButtonsHaveKeys() {
   QVERIFY(QTest::qWaitForWindowActive(&dialog));
   HintBar *keys = dialog.findChild<HintBar *>();
   QVERIFY(keys);
-  QStringList shown;
-  for (const KeyHint &k : keys->keys()) {
-    shown << k.key;
-  }
+  const QStringList shown = keyNames(keys->keys());
   QVERIFY2(shown.contains("C") && shown.contains("W") && shown.contains("R"),
            qPrintable(shown.join(", ")));
   QApplication::clipboard()->clear();
