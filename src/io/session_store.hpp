@@ -48,32 +48,29 @@ public:
     if (i < current_) {
       --current_; // the same session stays current
     }
-    if (sessions_.empty()) {
-      sessions_.push_back(Session{});
-    }
-    clampCurrent();
+    keepOne();
   }
 
 protected:
   explicit SessionList(std::vector<Session> sessions = {Session{}})
       : sessions_(std::move(sessions)) {
-    if (sessions_.empty()) {
-      sessions_.push_back(Session{});
-    }
+    keepOne();
   }
 
-  // Sets the sessions read from a file, keeping one at least and the
-  // current index within them.
+  // Sets the sessions read from a file.
   void assign(std::vector<Session> sessions, std::size_t current) {
     sessions_ = std::move(sessions);
+    current_ = current;
+    keepOne();
+  }
+
+  // Keeps one session at least and the current index within them.
+  void keepOne() {
     if (sessions_.empty()) {
       sessions_.push_back(Session{});
     }
-    current_ = current;
-    clampCurrent();
+    current_ = std::min(current_, sessions_.size() - 1);
   }
-
-  void clampCurrent() { current_ = std::min(current_, sessions_.size() - 1); }
 
   std::vector<Session> sessions_;
   std::size_t current_ = 0;
@@ -129,37 +126,12 @@ private:
   std::vector<List> lists_;
 };
 
-// A mode's sessions saved as one JSON data file (see DataFile). The store
-// for a mode says what a new file starts with and how the file is written
-// and read:
-//
-//   defaults()  the sessions of a missing or unreadable file
-//   toJson()    the whole file
-//   fromJson()  reads a file of this format (assign() the sessions); the
-//               rest of the store has been reset() before
-//   reset()     back to a new file; the default sets defaults()
+// A mode's sessions saved as one JSON data file (see FileStore), whose
+// fromJson() assign()s the sessions. A missing or unreadable file gives
+// defaults(), the store's own sessions for a new file.
 template <typename Session>
-class SessionFileStore : public SessionList<Session> {
+class SessionFileStore : public SessionList<Session>, public FileStore {
 public:
-  // A missing file gives the default sessions. A file that can't be read
-  // is set aside (see DataFile) and also gives the default sessions; if
-  // it can't be moved, nothing is saved over it.
-  bool load(QString *error = nullptr) {
-    reset();
-    QJsonObject o;
-    FileStatus status = file_.load(o, error);
-    if (status != FileStatus::Read) {
-      return status == FileStatus::Missing;
-    }
-    fromJson(o);
-    return true;
-  }
-  bool save(QString *error = nullptr) const {
-    return file_.save(toJson(), error);
-  }
-  // Where load() moved an unreadable file, if it did.
-  const QString &setAsidePath() const { return file_.setAsidePath(); }
-  QString path() const { return file_.path(); }
   // A save of the file as it is now that can run on another thread: the
   // JSON is made here, and the write and the rest of the work there. Worth
   // it over copying the store when toJson() keeps what it built (see
@@ -170,23 +142,14 @@ public:
     };
   }
 
-  virtual ~SessionFileStore() = default;
-
 protected:
   SessionFileStore(QString path, FileFormat format,
                    std::vector<Session> defaults = {Session{}})
       : SessionList<Session>(std::move(defaults)),
-        file_(std::move(path), format) {}
-  SessionFileStore(const SessionFileStore &) = default;
-  SessionFileStore &operator=(const SessionFileStore &) = default;
+        FileStore(std::move(path), format) {}
 
   virtual std::vector<Session> defaults() const { return {Session{}}; }
-  virtual QJsonObject toJson() const = 0;
-  virtual void fromJson(const QJsonObject &o) = 0;
-  virtual void reset() { this->assign(defaults(), 0); }
-
-private:
-  DataFile file_;
+  void reset() override { this->assign(defaults(), 0); }
 };
 
 // Writes `store` on the background writer from a copy of it, so that
