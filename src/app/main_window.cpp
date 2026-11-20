@@ -1164,6 +1164,11 @@ void MainWindow::buildMenus() {
   modeMenu_->menuAction()->setVisible(false);
   connect(modeMenu_, &QMenu::aboutToShow, this, [this] {
     modeMenu_->clear();
+    // clear() deletes the menu's own actions, not the submenus the page
+    // added last time: those are the menu's children, and each one owns
+    // its action.
+    qDeleteAll(modeMenu_->findChildren<QMenu *>(QString(),
+                                                Qt::FindDirectChildrenOnly));
     if (ModePage *page = currentPage(); page && !page->isBusy()) {
       page->fillModeMenu(*modeMenu_);
     }
