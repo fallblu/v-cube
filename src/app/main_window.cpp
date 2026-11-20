@@ -348,8 +348,8 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
       add(AppMode::Learn, new LearnPage(settings_, data_.library, stack_));
   auto *drill =
       add(AppMode::Drill, new DrillPage(settings_, data_.library, stack_));
-  libraryPage_ =
-      add(AppMode::Library, new LibraryPage(settings_, data_.library, stack_));
+  libraryPage_ = add(AppMode::Library, new LibraryPage(settings_, data_.library,
+                                                       data_.lab, stack_));
   add(AppMode::Timed,
       new TimerPage(settings_, data_.sessions, data_.library, stack_));
   add(AppMode::Untimed,
@@ -373,7 +373,6 @@ MainWindow::MainWindow(AppSettings &settings, QString dataDir, QWidget *parent)
   }
   connect(libraryPage_, &LibraryPage::setsChanged, this,
           &MainWindow::librarySetsChanged);
-  libraryPage_->setLab(&data_.lab);
   connect(libraryPage_, &LibraryPage::practiceRequested, this,
           [this, drill](AppMode::Id mode, const QString &setId,
                         const QString &caseId) {

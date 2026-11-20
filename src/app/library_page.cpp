@@ -60,8 +60,8 @@ void CaseTreeWidget::dropEvent(QDropEvent *event) {
 // -----------------------------------------------------------------
 
 LibraryPage::LibraryPage(AppSettings &settings, AlgLibrary &library,
-                         QWidget *parent)
-    : ModePage(parent), settings_(settings), library_(library),
+                         const AlgLabStore &lab, QWidget *parent)
+    : ModePage(parent), settings_(settings), library_(library), lab_(lab),
       undo_(new QUndoStack(this)),
       editor_(
           library, undo_,
