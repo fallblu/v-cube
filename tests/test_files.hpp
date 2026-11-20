@@ -7,6 +7,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonParseError>
 #include <QString>
 #include <QStringList>
 
@@ -32,6 +34,16 @@ inline void writeText(const QString &path, const QByteArray &text) {
 inline QByteArray readText(const QString &path) {
   QFile f(path);
   return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+// The JSON document `text` holds: the test fails if it isn't JSON, where
+// QJsonDocument::fromJson() alone would hand back an empty document.
+inline QJsonDocument parsedJson(const QByteArray &text) {
+  QJsonParseError problem;
+  QJsonDocument doc = QJsonDocument::fromJson(text, &problem);
+  INFO(problem.errorString().toStdString());
+  REQUIRE_FALSE(doc.isNull());
+  return doc;
 }
 
 // Files in `dir` whose names start with `prefix`.
