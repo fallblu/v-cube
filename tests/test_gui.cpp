@@ -3,7 +3,6 @@
 // folder. The settings and data folders are temporary ones, set before the
 // QApplication exists, so the user's own data is never read or written.
 #include "app/alglab_page.hpp"
-#include "app/app_data.hpp"
 #include "app/app_settings.hpp"
 #include "app/colours.hpp"
 #include "app/command_palette.hpp"
@@ -436,7 +435,6 @@ private slots:
   void keysDocMatchesTheKeyTable();
   void theSameKeyTwiceArrivesTwice();
   void undoneDeletionKeepsProgressUnderANewId();
-  void appDataLoadsThePracticeFiles();
   void timedDriverDoesWhatTheFlowAsks();
   void mouseOnlyControlsHaveAKey();
   void reviewButtonsHaveKeys();
@@ -2779,29 +2777,6 @@ void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
   QTest::keySequence(window_.get(), QKeySequence::Undo);
   QCOMPARE(savedAlgs("pll-2", "T"), std::vector<std::string>{kTPerm});
   QCOMPARE(savedProgress("pll-2").size(), graded);
-}
-
-void GuiTest::appDataLoadsThePracticeFiles() {
-  // The practice modes' files are read with the others, without a page:
-  // an old TSLE file's OCLL algs are carried over and saved, and a file
-  // that can't be read is reported with the rest.
-  QTemporaryDir dir;
-  QVERIFY(dir.isValid());
-  QVERIFY(writeFile(dir.filePath("tsle.json"),
-                    R"({"format": "v-cube.tsle", "version": 1,
-    "ocll": {"antisune": "L' U' L U' L' U2 L"}})"));
-  QVERIFY(writeFile(dir.filePath("f2l.json"), "not json"));
-  AppData data(dir.path());
-  const AppData::LoadReport report = data.load();
-  QCOMPARE(data.tsle.data.notes.at("ocll/antisune"),
-           std::string("L' U' L U' L' U2 L"));
-  QVERIFY(data.eoCross.data.cards.empty());
-  QCOMPARE(report.warnings.size(), 1);
-  QVERIFY(report.warnings.front().contains("f2l.json"));
-  finishBackgroundWrites(data.tsle.path());
-  PracticeStore again(QDir(dir.path()).filePath("tsle.json"));
-  QVERIFY(again.load());
-  QCOMPARE(again.data.notes, data.tsle.data.notes);
 }
 
 void GuiTest::timedDriverDoesWhatTheFlowAsks() {

@@ -47,6 +47,7 @@ add_executable(vcube_tests
   test_f2l.cpp
   test_practice.cpp
   test_tsle.cpp
+  test_app_data.cpp
 )
 target_link_libraries(vcube_tests PRIVATE vcube_io vcube_warnings
   Catch2::Catch2WithMain)

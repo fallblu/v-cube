@@ -6,7 +6,6 @@ add_library(vcube_gui STATIC
   alglab_dialogs.cpp
   alglab_generator.cpp
   alglab_page.cpp
-  app_data.cpp
   app_settings.cpp
   app_style.cpp
   attempt_page.cpp

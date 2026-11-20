@@ -1,6 +1,7 @@
 #pragma once
 
-#include "app/app_data.hpp"
+#include "io/app_data.hpp"
+
 #include "app/app_settings.hpp"
 #include "app/mode_table.hpp"
 

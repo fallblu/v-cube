@@ -1,4 +1,4 @@
-#include "app/app_data.hpp"
+#include "io/app_data.hpp"
 
 #include "io/backup.hpp"
 
@@ -15,7 +15,7 @@ namespace {
 constexpr int kBackupDays = 14;
 
 QString tr(const char *text) {
-  return QCoreApplication::translate("vcube::MainWindow", text);
+  return QCoreApplication::translate("vcube::AppData", text);
 }
 
 // An unreadable file is kept, under another name if it could be moved.
