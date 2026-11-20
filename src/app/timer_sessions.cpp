@@ -29,6 +29,9 @@ enum Column : int {
   kColumns
 };
 
+// No cstimer export comes near this; a bigger file isn't read into memory.
+constexpr qint64 kMaxImportBytes = qint64{256} * 1024 * 1024;
+
 SolveSplits computeSplits(const Solve &s, bool simplified) {
   ParseResult scramble = parseAlg(s.scramble);
   ParseResult moves = parseAlg(s.moves);
@@ -434,6 +437,14 @@ void TimerPage::importCstimer() {
         this, tr("Import"),
         tr("Couldn't open %1: %2")
             .arg(QDir::toNativeSeparators(path), f.errorString()));
+    return;
+  }
+  if (f.size() > kMaxImportBytes) {
+    warnPlain(this, tr("Import"),
+              tr("Couldn't import %1: it is larger than %2 MB, too large for "
+                 "a cstimer export.")
+                  .arg(path)
+                  .arg(kMaxImportBytes / (1024 * 1024)));
     return;
   }
   QString error;
