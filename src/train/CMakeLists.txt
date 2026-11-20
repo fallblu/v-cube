@@ -1,4 +1,4 @@
-add_library(vcube_train
+add_library(vcube_train STATIC
   alg_follow.cpp
   alg_guide.cpp
   alg_lab.cpp

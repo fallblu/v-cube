@@ -1,4 +1,4 @@
-add_library(vcube_cube
+add_library(vcube_cube STATIC
   move.cpp
   facelet.cpp
   cubie.cpp
