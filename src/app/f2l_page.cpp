@@ -1155,7 +1155,7 @@ QString F2LPage::addOwnSolution(const QString &text) {
               "that are solved).");
   }
   const Alg asChosen =
-      comparableSolution(slotToSide(done, card_->side, *target_));
+      comparableSolution(sideToSlot(done, card_->side, *target_));
   auto it = std::find_if(
       candidates_.begin(), candidates_.end(), [&asChosen](const Candidate &c) {
         return comparableSolution(c.solution.alg) == asChosen;

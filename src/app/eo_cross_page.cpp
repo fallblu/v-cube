@@ -122,7 +122,7 @@ void EoCrossPage::setInspectionLimit(int seconds) {
 }
 
 std::vector<Hold> EoCrossPage::allowedHolds() const {
-  return eoHolds(settings().neutrality);
+  return withBothEoAxes(settings().neutrality.holds);
 }
 
 // --- states ------------------------------------------------------------------

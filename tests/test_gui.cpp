@@ -977,7 +977,7 @@ void GuiTest::f2lLearnAndTimed() {
         analysePair(f2l->startState(), *f2l->target(), own).solutions;
     QVERIFY(!found.empty());
     QCOMPARE(f2l->addOwnSolution(qs(toString(found.back().alg))), QString());
-    const Alg typed = comparableSolution(slotToSide(
+    const Alg typed = comparableSolution(sideToSlot(
         fixedFrame(found.back().alg), PairSide::Back, *f2l->target()));
     // The search's own come too (it finds more than one).
     QTRY_VERIFY_WITH_TIMEOUT(f2l->candidates().size() > 1, 30000);
