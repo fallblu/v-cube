@@ -207,6 +207,9 @@ QString moveToDeleted(const QString &file, const QString &folder,
   if (!info.exists()) {
     return {};
   }
+  // Not while the data folder is being copied: the copy would fail on a
+  // file it had listed, or (on Windows) the move on a file the copy has open.
+  auto copying = lockDataFolder();
   QDir().mkpath(folder);
   QString base =
       info.completeBaseName() + "." + when.toString("yyyyMMdd-hhmmss");

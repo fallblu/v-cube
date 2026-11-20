@@ -424,6 +424,7 @@ bool writeFileAtomically(const QString &path, const QByteArray &data,
 QString setAside(const QString &path) {
   QString base = path + ".unreadable-" +
                  QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
+  auto copying = lockDataFolder(); // as moveToDeleted()
   QString target = base;
   for (int i = 2; QFile::exists(target); ++i) {
     target = base + "-" + QString::number(i);

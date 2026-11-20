@@ -113,9 +113,11 @@ void writeInBackground(const QString &path,
 void finishBackgroundWrites(const QString &path = {});
 
 // Held while the data folder is copied (the daily backup, which runs on the
-// background writer) and by every direct write of a data file, so that a
-// copy never meets a file half replaced, or a save fails because the copy
-// has the file open.
+// background writer), by every direct write of a data file and by every
+// move of one out of the way (setAside(), moveToDeleted()), so that a copy
+// never meets a file half replaced or gone since it was listed, or a save
+// or move fails because the copy has the file open. Not recursive: nothing
+// that holds it may write or move a data file.
 std::unique_lock<std::mutex> lockDataFolder();
 
 // --- write reports ----------------------------------------------------------
