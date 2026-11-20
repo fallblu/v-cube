@@ -234,9 +234,4 @@ enum class NewCases : std::uint8_t { Create, Skip };
 PastePlan planPaste(const AlgSet &set, const std::vector<PasteItem> &items,
                     NewCases newCases, std::size_t newCaseGroup);
 
-// planPaste() of readPaste(text) applied to `set`, with new cases going to
-// the last group.
-ImportReport importAlgs(AlgSet &set, const std::string &text,
-                        NewCases newCases);
-
 } // namespace vcube
