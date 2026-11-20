@@ -859,6 +859,21 @@ TEST_CASE("progress keeps the attempt mode and reads old files as drill") {
   CHECK_FALSE(again["learned"].card.marked);
 }
 
+TEST_CASE("old progress in review is marked learned only when never reviewed") {
+  // Both in review with no Learn attempt: one reviewed (its Learn attempts
+  // read as drill, from before attempts had a mode), one never reviewed.
+  auto old = QJsonDocument::fromJson(R"({"version": 1, "cases": {
+    "reviewed": {"card": {"state": 2, "reps": 3, "due": 5000},
+                 "attempts": [[700, 0, 0]]},
+    "marked": {"card": {"state": 2, "reps": 0, "due": 5000},
+               "attempts": [[800, 1200, 0, "drill"]]}}})");
+  SetProgress p = progressFromJson(old.object());
+  CHECK(p["reviewed"].card.introduced == 1);
+  CHECK_FALSE(p["reviewed"].card.marked);
+  CHECK(p["marked"].card.introduced == 1);
+  CHECK(p["marked"].card.marked);
+}
+
 TEST_CASE("progress keeps recognition times, suspension and burial") {
   SetProgress p;
   Attempt learn{100, 0, false, AttemptMode::Learn};

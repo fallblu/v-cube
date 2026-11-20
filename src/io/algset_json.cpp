@@ -475,7 +475,9 @@ SetProgress progressFromJson(const QJsonObject &o) {
     } else if (cp.card.reps > 0) {
       // Older files: a reviewed case was introduced at its first Learn
       // attempt, and a case in review that never was had been marked
-      // learned.
+      // learned. Only Learn reviewed a case, so one with reviews but no
+      // Learn attempt was learned too, at a time not known (its attempts
+      // were read as drill, from before they had a mode): it wasn't marked.
       auto first = std::find_if(
           cp.attempts.begin(), cp.attempts.end(),
           [](const Attempt &a) { return a.mode == AttemptMode::Learn; });
