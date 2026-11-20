@@ -227,6 +227,17 @@ W *lastChild(const QObject *parent, Pred pred) {
   return found;
 }
 
+// Writes a file, making its folder if needed; false if it can't be opened.
+bool writeFile(const QString &path, const QByteArray &text) {
+  QFile f(path);
+  if (QDir().mkpath(QFileInfo(path).absolutePath()) &&
+      f.open(QIODevice::WriteOnly)) {
+    f.write(text);
+    return true;
+  }
+  return false;
+}
+
 // Alg Lab's table of candidate algs.
 QTableWidget *candidateTable(const QWidget *lab) {
   return lastChild<QTableWidget>(lab, [](QTableWidget *t) {
@@ -2700,11 +2711,7 @@ void GuiTest::aLockFromAnotherHostCanBeTakenOver() {
   QTemporaryDir dir;
   QVERIFY(dir.isValid());
   QString lock = dir.filePath("v-cube.lock");
-  {
-    QFile f(lock);
-    QVERIFY(f.open(QIODevice::WriteOnly));
-    f.write("999999\nv-cube\nsome-other-host\n");
-  }
+  QVERIFY(writeFile(lock, "999999\nv-cube\nsome-other-host\n"));
   SingleInstance instance(dir.path());
   QVERIFY(instance.claim() == SingleInstance::Claim::Running);
   QCOMPARE(instance.lockPath(), lock);
@@ -2721,8 +2728,7 @@ void GuiTest::keysDocMatchesTheKeyTable() {
   QFile file(QStringLiteral(VCUBE_SOURCE_DIR "/docs/keys.md"));
   QString expected = controlsMarkdown();
   if (qEnvironmentVariableIsSet("VCUBE_WRITE_DOCS")) {
-    QVERIFY(file.open(QIODevice::WriteOnly));
-    file.write(expected.toUtf8());
+    QVERIFY(writeFile(file.fileName(), expected.toUtf8()));
     return;
   }
   QVERIFY(file.open(QIODevice::ReadOnly));
@@ -2775,11 +2781,7 @@ void GuiTest::undoneDeletionKeepsProgressUnderANewId() {
   finishBackgroundWrites();
   QVERIFY(!QFile::exists(taken));
   QVERIFY(!QFile::exists(oldProgress));
-  {
-    QFile other(taken);
-    QVERIFY(other.open(QIODevice::WriteOnly));
-    other.write("{}");
-  }
+  QVERIFY(writeFile(taken, "{}"));
 
   window_->activateWindow();
   QVERIFY(QTest::qWaitForWindowActive(window_.get()));
@@ -2804,14 +2806,10 @@ void GuiTest::appDataLoadsThePracticeFiles() {
   // that can't be read is reported with the rest.
   QTemporaryDir dir;
   QVERIFY(dir.isValid());
-  auto write = [&dir](const QString &name, const QByteArray &text) {
-    QFile f(QDir(dir.path()).filePath(name));
-    QVERIFY(f.open(QIODevice::WriteOnly));
-    f.write(text);
-  };
-  write("tsle.json", R"({"format": "v-cube.tsle", "version": 1,
-    "ocll": {"antisune": "L' U' L U' L' U2 L"}})");
-  write("f2l.json", "not json");
+  QVERIFY(writeFile(dir.filePath("tsle.json"),
+                    R"({"format": "v-cube.tsle", "version": 1,
+    "ocll": {"antisune": "L' U' L U' L' U2 L"}})"));
+  QVERIFY(writeFile(dir.filePath("f2l.json"), "not json"));
   AppData data(dir.path());
   const AppData::LoadReport report = data.load();
   QCOMPARE(data.tsle.data.notes.at("ocll/antisune"),
@@ -3078,16 +3076,10 @@ void GuiTest::bareAltReachesTheMenuBar() {
 void GuiTest::startupProblemsShowInOneWindow() {
   QTemporaryDir dir;
   QVERIFY(dir.isValid());
-  auto write = [&dir](const QString &name, const QByteArray &text) {
-    QVERIFY(QDir(dir.path()).mkpath(QFileInfo(name).path()));
-    QFile f(QDir(dir.path()).filePath(name));
-    QVERIFY(f.open(QIODevice::WriteOnly));
-    f.write(text);
-  };
-  write("sessions.json", "not json");
-  write("f2l.json", "not json");
-  write("tsle.json", "not json either");
-  write("algsets/broken.json", "{");
+  QVERIFY(writeFile(dir.filePath("sessions.json"), "not json"));
+  QVERIFY(writeFile(dir.filePath("f2l.json"), "not json"));
+  QVERIFY(writeFile(dir.filePath("tsle.json"), "not json either"));
+  QVERIFY(writeFile(dir.filePath("algsets/broken.json"), "{"));
   ModalWatcher watcher;
   MainWindow second(settings_, dir.path());
   QCOMPARE(watcher.seen, QStringList{});
