@@ -247,8 +247,7 @@ void TimerPage::setLastPenalty(Penalty p) {
   Solve &s = session().solves.back();
   s.penalty = s.penalty == p ? Penalty::None : p;
   display_->showTime(s.timeMs, s.penalty);
-  save();
-  refreshAttempts();
+  saveAndRefresh();
 }
 
 void TimerPage::deleteAttempt(int index) {
@@ -258,8 +257,7 @@ void TimerPage::deleteAttempt(int index) {
     return;
   }
   justSolved_ = false;
-  save();
-  refreshAttempts();
+  saveAndRefresh();
   showLastResult();
   emit message(tr("Deleted solve #%1 (Ctrl+Z puts it back)").arg(index + 1));
 }
@@ -271,8 +269,7 @@ void TimerPage::undoDelete() {
   std::optional<std::size_t> at = deleted_.restore(session().solves);
   justSolved_ = false;
   emit message(tr("Put back solve #%1").arg(*at + 1));
-  save();
-  refreshAttempts();
+  saveAndRefresh();
   showLastResult();
 }
 
@@ -285,8 +282,7 @@ void TimerPage::commentSolve(int index) {
   if (std::optional<QString> text = askComment(
           this, tr("Comment on solve #%1:").arg(index + 1), qs(s.comment))) {
     s.comment = ss(*text);
-    save();
-    refreshAttempts();
+    saveAndRefresh();
   }
 }
 
@@ -366,8 +362,7 @@ void TimerPage::showAttemptMenu(int index, const QPoint &globalPos) {
       if (index + 1 == static_cast<int>(list.size())) {
         showLastResult();
       }
-      save();
-      refreshAttempts();
+      saveAndRefresh();
     };
   };
   for (auto [text, p] : {std::pair{tr("No penalty"), Penalty::None},

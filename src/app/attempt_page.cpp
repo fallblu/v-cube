@@ -466,8 +466,7 @@ void AttemptPage::record(std::optional<int> count, bool dnf,
   a.timestamp = unixNow();
   session().attempts.push_back(a);
   deleted_.forget();
-  save();
-  refreshAttempts();
+  saveAndRefresh();
   // A new best, as Timed marks it.
   if (a.counted) {
     QStringList bests;
@@ -543,8 +542,7 @@ void AttemptPage::commentAttempt(int index) {
   if (std::optional<QString> text = askComment(
           this, tr("Comment on solve #%1:").arg(index + 1), qs(a.comment))) {
     a.comment = ss(*text);
-    save();
-    refreshAttempts();
+    saveAndRefresh();
   }
 }
 
@@ -713,8 +711,7 @@ void AttemptPage::deleteAttempt(int index) {
     return;
   }
   flow_.attemptDeleted();
-  save();
-  refreshAttempts();
+  saveAndRefresh();
   showEntry();
   emit message(tr("Deleted solve #%1 (Ctrl+Z puts it back)").arg(index + 1));
 }
@@ -725,8 +722,7 @@ void AttemptPage::undoDelete() {
   }
   std::optional<std::size_t> at = deleted_.restore(session().attempts);
   emit message(tr("Put back solve #%1").arg(*at + 1));
-  save();
-  refreshAttempts();
+  saveAndRefresh();
   showEntry();
 }
 
@@ -744,8 +740,7 @@ void AttemptPage::showAttemptMenu(int index, const QPoint &globalPos) {
       return;
     }
     f(list[static_cast<std::size_t>(index)]);
-    save();
-    refreshAttempts();
+    saveAndRefresh();
     showEntry();
   };
   ActionMenu menu(this);

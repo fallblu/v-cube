@@ -72,6 +72,10 @@ protected:
   // the page is busy, and shows the undo button if there is a delete to
   // undo (`undo`).
   void enableControls(bool undo);
+  void saveAndRefresh() {
+    save();
+    refreshAttempts();
+  }
   // Shows the statistics of `solves` (`count` attempts) in the panel and
   // the focus-mode line: rounded to `unit`, each value as `format(id, v)`
   // (id "single", "ao5", ... or "mean") and "single" named `single`.

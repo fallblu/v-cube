@@ -284,8 +284,7 @@ bool TimerPage::handleActionKey(QKeyEvent *e) {
       if (last >= 0) {
         session().solves.back().penalty = Penalty::None;
         showLastResult();
-        save();
-        refreshAttempts();
+        saveAndRefresh();
       }
       return true;
     case Qt::Key_2:
@@ -510,8 +509,7 @@ void TimerPage::recordSolve(std::int64_t timeMs, Penalty penalty,
     hintLabel_->setText(text);
     emit message(text);
   }
-  save();
-  refreshAttempts();
+  saveAndRefresh();
   bool keep = onVirtualCube() && penalty == Penalty::Dnf && !solution.empty();
   if (!keep) {
     feed_.advance(); // on to the next scramble
