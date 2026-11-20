@@ -7,7 +7,6 @@
 
 #include <QActionGroup>
 #include <QComboBox>
-#include <QDateTime>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>

@@ -1,40 +1,6 @@
 #include "app/alglab_page.hpp"
 #include "app/alglab_private.hpp"
-#include "app/ui_state.hpp"
-
-#include "app/alglab_dialogs.hpp"
-#include "app/app_settings.hpp"
-#include "app/grip_view.hpp"
-#include "app/lab_test_panel.hpp"
 #include "app/ui_text.hpp"
-#include "app/widgets.hpp"
-#include "io/algset_json.hpp"
-#include "train/ergonomics.hpp"
-
-#include <QApplication>
-#include <QCheckBox>
-#include <QClipboard>
-#include <QComboBox>
-#include <QGroupBox>
-#include <QHBoxLayout>
-#include <QHeaderView>
-#include <QInputDialog>
-#include <QKeyEvent>
-#include <QLabel>
-#include <QLineEdit>
-#include <QMenu>
-#include <QMessageBox>
-#include <QPointer>
-#include <QPushButton>
-#include <QSettings>
-#include <QSpinBox>
-#include <QSplitter>
-#include <QTabWidget>
-#include <QTableWidget>
-#include <QToolButton>
-#include <QTreeWidget>
-#include <QVBoxLayout>
-#include <QtConcurrent>
 
 namespace vcube {
 

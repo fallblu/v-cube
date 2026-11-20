@@ -5,25 +5,8 @@
 #include "app/ui_state.hpp"
 #include "app/widgets.hpp"
 
-#include <QActionGroup>
-#include <QComboBox>
-#include <QDateTime>
-#include <QFormLayout>
-#include <QHBoxLayout>
-#include <QKeyEvent>
-#include <QLabel>
-#include <QMenu>
 #include <QPushButton>
-#include <QRandomGenerator>
-#include <QScrollArea>
 #include <QSpinBox>
-#include <QSplitter>
-#include <QToolButton>
-#include <QTreeWidget>
-#include <QVBoxLayout>
-
-#include <algorithm>
-#include <cmath>
 
 namespace vcube {
 
