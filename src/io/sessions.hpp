@@ -43,9 +43,11 @@ private:
 // ...]}]}. Files from before "format" was written have none. A session
 // without "cube" was saved before sessions had one, when the timer was for
 // physical cubes only; a solve without move times was saved before they
-// were kept.
+// were kept. The solves' JSON comes from `cache` when given (see
+// ItemJsonCache).
 QJsonObject sessionsToJson(const std::vector<Session> &sessions,
-                           std::size_t current);
+                           std::size_t current,
+                           ItemJsonCache<Solve> *cache = nullptr);
 std::vector<Session> sessionsFromJson(const QJsonObject &o,
                                       std::size_t *current = nullptr);
 

@@ -1,6 +1,10 @@
 #pragma once
 
+#include "train/stats.hpp"
+
 #include "io/data_file.hpp"
+#include "io/json_values.hpp"
+#include "io/qt_text.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -151,6 +155,52 @@ protected:
   virtual std::vector<Session> defaults() const { return {Session{}}; }
   void reset() override { this->assign(defaults(), 0); }
 };
+
+// The file of the timer's, Move Count's or Untimed's sessions: {"format":
+// ..., "version": 1, "current": 0, "sessions": [{"name": ...,
+// "scrambleType": ..., "cube": "virtual", ...}]}, with the rest of each
+// session's object from `write(session, object)`.
+template <typename Session, typename Write>
+QJsonObject sessionListJson(const char *format,
+                            const std::vector<Session> &sessions,
+                            std::size_t current, Write write) {
+  QJsonArray list = jsonArray(sessions, [&](const Session &s) {
+    QJsonObject so{{"name", qs(s.name)},
+                   {"scrambleType", qs(s.scrambleType)},
+                   {"cube", qs(cubeKindId(s.cube))}};
+    write(s, so);
+    return so;
+  });
+  return QJsonObject{{"format", format},
+                     {"version", 1},
+                     {"current", static_cast<int>(current)},
+                     {"sessions", list}};
+}
+
+// Reads such a file, with the rest of each session from `read(object,
+// session)`, and the current index into `current` if given. A session
+// without "cube" was saved before sessions had one, when they were all for
+// physical cubes.
+template <typename Session, typename Read>
+std::vector<Session> sessionListFromJson(const QJsonObject &o,
+                                         std::size_t *current, Read read) {
+  std::vector<Session> out;
+  for (const QJsonValue &v : o.value("sessions").toArray()) {
+    QJsonObject so = v.toObject();
+    Session s;
+    s.name = ss(so.value("name").toString("Session"));
+    s.scrambleType = ss(so.value("scrambleType").toString("333"));
+    s.cube = cubeKindFromId(ss(so.value("cube").toString()))
+                 .value_or(CubeKind::Physical);
+    read(so, s);
+    out.push_back(std::move(s));
+  }
+  if (current) {
+    *current =
+        static_cast<std::size_t>(std::max(0, o.value("current").toInt()));
+  }
+  return out;
+}
 
 // Writes `store` on the background writer from a copy of it, so that
 // saving never holds up the next attempt; `onError` gets the reason a
